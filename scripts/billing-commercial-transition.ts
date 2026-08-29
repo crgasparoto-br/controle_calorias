@@ -1,8 +1,11 @@
 import {
   reconcileBillingCommercialTransition,
   runBillingCommercialTransitionBatch,
+  runBillingCommercialTransitionFinalizeBatch,
+  runBillingCommercialTransitionNotificationBatch,
 } from "../server/modules/billing/billingCommercialTransition";
 import {
+  billingCommercialTransitionMaintenanceSchema,
   billingCommercialTransitionReconcileSchema,
   billingCommercialTransitionRunSchema,
 } from "../server/modules/billing/billingCommercialTransitionSchemas";
@@ -32,12 +35,46 @@ function positiveInt(name: string, fallback: number) {
   return value;
 }
 
+function maintenanceInput() {
+  const execute = has("execute");
+  const actorUserId = positiveInt("actor-user-id", 0);
+  if (execute && actorUserId <= 0) {
+    throw new Error("--actor-user-id is required for --execute");
+  }
+  const parsed = billingCommercialTransitionMaintenanceSchema.parse({
+    cutoverKey: required("cutover-key"),
+    dryRun: !execute,
+    batchSize: positiveInt("batch-size", 100),
+    retryFailed: has("retry-failed"),
+    confirmation: flag("confirm"),
+  });
+  return { ...parsed, actorUserId };
+}
+
 async function main() {
   if (has("reconcile")) {
     const input = billingCommercialTransitionReconcileSchema.parse({
       cutoverKey: required("cutover-key"),
     });
     console.log(JSON.stringify(await reconcileBillingCommercialTransition(input), null, 2));
+    return;
+  }
+
+  if (has("notify")) {
+    console.log(JSON.stringify(
+      await runBillingCommercialTransitionNotificationBatch(maintenanceInput()),
+      null,
+      2
+    ));
+    return;
+  }
+
+  if (has("finalize")) {
+    console.log(JSON.stringify(
+      await runBillingCommercialTransitionFinalizeBatch(maintenanceInput()),
+      null,
+      2
+    ));
     return;
   }
 

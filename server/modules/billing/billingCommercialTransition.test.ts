@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCommercialTransitionDeliverySchedule,
+  getCommercialTransitionMilestones,
   getCommercialTransitionWindow,
   runBillingCommercialTransitionBatch,
+  runBillingCommercialTransitionFinalizeBatch,
+  runBillingCommercialTransitionNotificationBatch,
 } from "./billingCommercialTransition";
 
 const baseInput = {
-  cutoverKey: "launch-2026",
+  cutoverKey: "launch_2026",
   timezone: "America/Sao_Paulo",
   reason: "commercial rollout issue 898",
   batchSize: 100,
@@ -23,6 +27,35 @@ describe("billing commercial transition", () => {
     expect(window.validFrom).not.toBe(cutoverAt);
   });
 
+  it("plans the five binding communication milestones from the immutable window", () => {
+    const validFrom = new Date("2026-08-29T18:00:00.000Z");
+    const validUntil = new Date("2026-09-28T18:00:00.000Z");
+    expect(getCommercialTransitionMilestones(validFrom, validUntil).map(item => [
+      item.milestone,
+      item.scheduledAt.toISOString(),
+    ])).toEqual([
+      ["start", "2026-08-29T18:00:00.000Z"],
+      ["D15", "2026-09-13T18:00:00.000Z"],
+      ["D7", "2026-09-21T18:00:00.000Z"],
+      ["D1", "2026-09-27T18:00:00.000Z"],
+      ["end", "2026-09-28T18:00:00.000Z"],
+    ]);
+  });
+
+  it("uses the required email and WhatsApp retry cadences", () => {
+    const scheduledAt = new Date("2026-08-29T18:00:00.000Z");
+    expect(getCommercialTransitionDeliverySchedule(scheduledAt, "email").map(item => item.dueAt.toISOString())).toEqual([
+      "2026-08-29T18:00:00.000Z",
+      "2026-08-29T19:00:00.000Z",
+      "2026-08-30T18:00:00.000Z",
+    ]);
+    expect(getCommercialTransitionDeliverySchedule(scheduledAt, "whatsapp").map(item => item.dueAt.toISOString())).toEqual([
+      "2026-08-29T18:00:00.000Z",
+      "2026-08-29T20:00:00.000Z",
+      "2026-08-30T18:00:00.000Z",
+    ]);
+  });
+
   it("requires an exact cutover confirmation before mutating", async () => {
     await expect(
       runBillingCommercialTransitionBatch({
@@ -32,6 +65,23 @@ describe("billing commercial transition", () => {
         confirmation: "another-cutover",
       })
     ).rejects.toThrow("billing_transition_confirmation_required");
+  });
+
+  it("requires confirmation for notification and finalization writes before touching storage", async () => {
+    const maintenance = {
+      cutoverKey: baseInput.cutoverKey,
+      dryRun: false,
+      batchSize: 100,
+      retryFailed: false,
+      confirmation: "wrong-key",
+      actorUserId: 1,
+    };
+    await expect(runBillingCommercialTransitionNotificationBatch(maintenance)).rejects.toThrow(
+      "billing_transition_confirmation_required"
+    );
+    await expect(runBillingCommercialTransitionFinalizeBatch(maintenance)).rejects.toThrow(
+      "billing_transition_confirmation_required"
+    );
   });
 
   it("does not execute a cutover before its absolute instant", async () => {

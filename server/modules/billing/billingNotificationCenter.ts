@@ -72,6 +72,50 @@ function capacityMilestone(payload: Record<string, unknown>) {
   return "Atualização da capacidade temporária";
 }
 
+function commercialTransitionPresentation(
+  payload: Record<string, unknown>,
+  support: string,
+  manage: "/billing"
+): BillingNotificationPresentation {
+  const milestone = String(payload.milestone ?? "");
+  const validUntil = dateText(payload.validUntil);
+  const endText = validUntil ? ` em ${validUntil}` : "";
+  if (milestone === "start") {
+    return {
+      campaign: "Transição comercial",
+      title: "Seu período de transição começou",
+      whatOccurred: `Seu acesso de transição foi registrado por 30 dias corridos e termina${endText}.`,
+      expectedAction: "Conheça as opções disponíveis em Plano e acesso antes do encerramento do período.",
+      consequence: "A transição não cria assinatura nem cobrança automática; depois do prazo, o acesso seguirá somente as origens válidas confirmadas pelo backend.",
+      support,
+      actionHref: manage,
+    };
+  }
+  if (milestone === "end") {
+    return {
+      campaign: "Transição comercial",
+      title: "Seu período de transição terminou",
+      whatOccurred: `O período comercial de 30 dias chegou ao fim${endText}.`,
+      expectedAction: "Consulte Plano e acesso para contratar uma opção quando quiser continuar com recursos pagos.",
+      consequence: "O encerramento preserva seus dados e não cria cobrança, assinatura ou checkout automaticamente.",
+      support,
+      actionHref: manage,
+    };
+  }
+  const remaining = milestone === "D15" ? 15 : milestone === "D7" ? 7 : milestone === "D1" ? 1 : null;
+  return {
+    campaign: "Transição comercial",
+    title: remaining == null
+      ? "Atualização do período de transição"
+      : `Seu período de transição termina em ${remaining} ${remaining === 1 ? "dia" : "dias"}`,
+    whatOccurred: `O período gratuito de transição continua ativo e termina${endText}.`,
+    expectedAction: "Revise as opções em Plano e acesso antes do encerramento se quiser continuar com recursos pagos.",
+    consequence: "Nenhuma cobrança ou assinatura será criada apenas por este aviso.",
+    support,
+    actionHref: manage,
+  };
+}
+
 export function presentBillingFactAsNotification(input: {
   factType: string;
   payloadJson?: unknown;
@@ -81,6 +125,8 @@ export function presentBillingFactAsNotification(input: {
   const manage = "/billing" as const;
 
   switch (input.factType) {
+    case "commercial_transition_notification":
+      return commercialTransitionPresentation(payload, support, manage);
     case "trial_started":
       return {
         campaign: "Período de avaliação",
@@ -359,6 +405,12 @@ function completionState(row: Row) {
   if (row.invalidatedAt) return "completed" as const;
   const type = String(row.factType);
   const lifecycleState = String(row.lifecycleState ?? "");
+  if (type === "commercial_transition_notification") {
+    const payload = jsonObject(row.payloadJson);
+    if (String(payload.milestone ?? "") === "end") return "completed" as const;
+    const validUntil = dateOrNull(payload.validUntil);
+    return validUntil && validUntil.getTime() > Date.now() ? "open" as const : "completed" as const;
+  }
   if (type.startsWith("past_due_")) {
     return lifecycleState === "past_due" ? "open" as const : "completed" as const;
   }
@@ -402,7 +454,7 @@ function receiptProviderEventId(userId: number, sourceFactId: string) {
 
 async function requireOwnedPresentableFact(userId: number, sourceFactId: string) {
   const db = await requireDb(getDb);
-  const [row] = resultRows<Row>(
+  let [row] = resultRows<Row>(
     await db.execute(sql`
       SELECT id, subscriptionId, factType, payloadJson
       FROM billingSubscriptionFacts
@@ -411,14 +463,62 @@ async function requireOwnedPresentableFact(userId: number, sourceFactId: string)
       LIMIT 1
     `)
   );
+  if (!row) {
+    [row] = resultRows<Row>(await db.execute(sql`
+      SELECT id, subscriptionId, 'commercial_transition_notification' AS factType, payloadJson
+      FROM billingProviderEvents
+      WHERE id=${sourceFactId}
+        AND provider='billing-commercial-transition'
+        AND eventType='commercial_transition_notification'
+        AND status='processed'
+        AND CAST(JSON_UNQUOTE(JSON_EXTRACT(payloadJson, '$.userId')) AS UNSIGNED)=${userId}
+      LIMIT 1
+    `));
+  }
   if (!row || !presentBillingFactAsNotification({ factType: String(row.factType), payloadJson: row.payloadJson })) {
     throw new Error("billing_notification_not_found");
   }
   return { db, row };
 }
 
+function notificationFromRow(row: Row) {
+  const presentation = presentBillingFactAsNotification({
+    factType: String(row.factType),
+    payloadJson: row.payloadJson,
+  });
+  if (!presentation) return null;
+  const effectiveAt = dateOrNull(row.effectiveAt) ?? new Date(0);
+  const completed = completionState(row);
+  const deliveryState = String(
+    row.lastDeliveryState ?? "not_attempted"
+  ) as BillingNotificationDeliveryState;
+  const deliveryChannel = row.lastDeliveryChannel
+    ? (String(row.lastDeliveryChannel) as BillingNotificationDeliveryChannel)
+    : null;
+  return {
+    notificationId: String(row.id),
+    campaign: presentation.campaign,
+    campaignVersion: `v${Number(row.factVersion ?? 1) || 1}`,
+    title: presentation.title,
+    whatOccurred: presentation.whatOccurred,
+    effectiveAt,
+    expectedAction: presentation.expectedAction,
+    consequence: presentation.consequence,
+    support: presentation.support,
+    actionHref: presentation.actionHref,
+    readState: row.readAt ? "read" as const : "unread" as const,
+    readAt: dateOrNull(row.readAt),
+    deliveryState,
+    deliveryChannel,
+    deliveryUpdatedAt: dateOrNull(row.lastDeliveryAt),
+    completionState: completed,
+    situation: completed === "open" ? "Ação ou acompanhamento pendente" : "Resolvida ou informativa",
+  };
+}
+
 export async function listBillingUserNotifications(userId: number, limit = 100) {
   const db = await requireDb(getDb);
+  const boundedLimit = Math.max(1, Math.min(limit, 250));
   const rows = resultRows<Row>(
     await db.execute(sql`
       SELECT f.id, f.factType, f.factVersion, f.effectiveAt, f.payloadJson,
@@ -475,44 +575,34 @@ export async function listBillingUserNotifications(userId: number, limit = 100) 
           'professional_coverage_individual_renewal_kept_by_user'
         )
       ORDER BY f.effectiveAt DESC, f.createdAt DESC
-      LIMIT ${Math.max(1, Math.min(limit, 250))}
+      LIMIT ${boundedLimit}
     `)
   );
+  const transitionRows = resultRows<Row>(await db.execute(sql`
+    SELECT n.id, 'commercial_transition_notification' AS factType, 1 AS factVersion,
+      n.occurredAt AS effectiveAt, n.payloadJson, NULL AS invalidatedAt,
+      JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.readAt')) AS readAt,
+      JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryChannel')) AS lastDeliveryChannel,
+      JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryState')) AS lastDeliveryState,
+      JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryAt')) AS lastDeliveryAt
+    FROM billingProviderEvents n
+    LEFT JOIN billingProviderEvents receipt
+      ON receipt.provider='billing-web'
+      AND receipt.eventType='notification_receipt'
+      AND receipt.providerEventId=CONCAT('notification-receipt:', ${userId}, ':', n.id)
+    WHERE n.provider='billing-commercial-transition'
+      AND n.eventType='commercial_transition_notification'
+      AND n.status='processed'
+      AND CAST(JSON_UNQUOTE(JSON_EXTRACT(n.payloadJson, '$.userId')) AS UNSIGNED)=${userId}
+    ORDER BY n.occurredAt DESC, n.createdAt DESC
+    LIMIT ${boundedLimit}
+  `));
 
-  return rows.flatMap(row => {
-    const presentation = presentBillingFactAsNotification({
-      factType: String(row.factType),
-      payloadJson: row.payloadJson,
-    });
-    if (!presentation) return [];
-    const effectiveAt = dateOrNull(row.effectiveAt) ?? new Date(0);
-    const completed = completionState(row);
-    const deliveryState = String(
-      row.lastDeliveryState ?? "not_attempted"
-    ) as BillingNotificationDeliveryState;
-    const deliveryChannel = row.lastDeliveryChannel
-      ? (String(row.lastDeliveryChannel) as BillingNotificationDeliveryChannel)
-      : null;
-    return [{
-      notificationId: String(row.id),
-      campaign: presentation.campaign,
-      campaignVersion: `v${Number(row.factVersion ?? 1) || 1}`,
-      title: presentation.title,
-      whatOccurred: presentation.whatOccurred,
-      effectiveAt,
-      expectedAction: presentation.expectedAction,
-      consequence: presentation.consequence,
-      support: presentation.support,
-      actionHref: presentation.actionHref,
-      readState: row.readAt ? "read" as const : "unread" as const,
-      readAt: dateOrNull(row.readAt),
-      deliveryState,
-      deliveryChannel,
-      deliveryUpdatedAt: dateOrNull(row.lastDeliveryAt),
-      completionState: completed,
-      situation: completed === "open" ? "Ação ou acompanhamento pendente" : "Resolvida ou informativa",
-    }];
-  });
+  return [...rows, ...transitionRows]
+    .map(notificationFromRow)
+    .filter((item): item is NonNullable<typeof item> => item != null)
+    .sort((a, b) => b.effectiveAt.getTime() - a.effectiveAt.getTime())
+    .slice(0, boundedLimit);
 }
 
 export async function markBillingNotificationRead(input: {
@@ -531,13 +621,14 @@ export async function markBillingNotificationRead(input: {
     readAt: readAt.toISOString(),
     lastDeliveryState: "not_attempted",
   });
+  const subscriptionId = row.subscriptionId == null ? null : String(row.subscriptionId);
   await db.execute(sql`
     INSERT INTO billingProviderEvents (
       id, provider, providerEventId, eventType, status, subscriptionId,
       payloadJson, occurredAt, processedAt, createdAt, updatedAt
     ) VALUES (
       ${crypto.randomUUID()}, 'billing-web', ${providerEventId}, 'notification_receipt',
-      'processed', ${String(row.subscriptionId)}, ${payload}, ${readAt}, ${readAt}, NOW(), NOW()
+      'processed', ${subscriptionId}, ${payload}, ${readAt}, ${readAt}, NOW(), NOW()
     )
     ON DUPLICATE KEY UPDATE
       status = 'processed',
@@ -571,13 +662,14 @@ async function setDeliveryState(input: {
     lastDeliveryState: input.state,
     lastDeliveryAt: at.toISOString(),
   });
+  const subscriptionId = row.subscriptionId == null ? null : String(row.subscriptionId);
   await db.execute(sql`
     INSERT INTO billingProviderEvents (
       id, provider, providerEventId, eventType, status, subscriptionId,
       payloadJson, occurredAt, processedAt, createdAt, updatedAt
     ) VALUES (
       ${crypto.randomUUID()}, 'billing-web', ${providerEventId}, 'notification_receipt',
-      'processed', ${String(row.subscriptionId)}, ${payload}, ${at}, ${at}, NOW(), NOW()
+      'processed', ${subscriptionId}, ${payload}, ${at}, ${at}, NOW(), NOW()
     )
     ON DUPLICATE KEY UPDATE
       status = 'processed',
@@ -598,7 +690,7 @@ export async function deliverBillingNotificationExternally(input: {
   channel: BillingNotificationDeliveryChannel;
   deliver: () => Promise<boolean>;
 }) {
-  // The authoritative billing fact exists before this receipt is touched.
+  // The authoritative notification source exists before this receipt is touched.
   // Persist pending delivery before the external side effect; a failed channel
   // never deletes or invalidates the internal notification source.
   await setDeliveryState({ ...input, state: "pending" });
