@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const completeWhatsappOnboardingMock = vi.hoisted(() => vi.fn());
+const getBillingWebOverviewMock = vi.hoisted(() => vi.fn());
 const getWhatsappOnboardingLeadByTokenMock = vi.hoisted(() => vi.fn());
 const linkWhatsappOnboardingToAuthenticatedUserMock = vi.hoisted(() => vi.fn());
 
@@ -11,6 +12,14 @@ vi.mock("./modules/onboarding/whatsappLeadService", () => ({
   linkWhatsappOnboardingToAuthenticatedUser:
     linkWhatsappOnboardingToAuthenticatedUserMock,
 }));
+
+vi.mock("./modules/billing/webPublic", async importOriginal => {
+  const actual = await importOriginal<typeof import("./modules/billing/webPublic")>();
+  return {
+    ...actual,
+    getBillingWebOverview: getBillingWebOverviewMock,
+  };
+});
 
 const { appRouter } = await import("./routers");
 
@@ -66,6 +75,13 @@ function completionInput() {
 describe("auth.whatsappOnboarding public boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getBillingWebOverviewMock.mockResolvedValue({
+      access: { allowed: true, reason: "active_trial" },
+      lifecycle: { state: "active", reconciliationRequired: false },
+      catalog: [],
+      trialEligibility: {},
+      actions: { canStartCheckout: false },
+    });
   });
 
   it("returns the same public error for existing-account and credential conflicts", async () => {
@@ -109,7 +125,7 @@ describe("auth.whatsappOnboarding public boundary", () => {
     expect(linkWhatsappOnboardingToAuthenticatedUserMock).not.toHaveBeenCalled();
   });
 
-  it("uses only the authenticated user as the account-link actor", async () => {
+  it("uses only the authenticated user as the account-link actor and returns backend commercial state", async () => {
     const user = {
       id: 77,
       openId: "local:77",
@@ -132,10 +148,48 @@ describe("auth.whatsappOnboarding public boundary", () => {
       caller.auth.whatsappOnboarding.linkExistingAccount({
         token: "valid-token-with-enough-characters-1234567890",
       })
-    ).resolves.toMatchObject({ status: "linked" });
+    ).resolves.toMatchObject({
+      status: "linked",
+      commercial: {
+        access: { allowed: true, reason: "active_trial" },
+        lifecycle: { state: "active", reconciliationRequired: false },
+      },
+    });
     expect(linkWhatsappOnboardingToAuthenticatedUserMock).toHaveBeenCalledWith(
       77,
       "valid-token-with-enough-characters-1234567890"
     );
+    expect(getBillingWebOverviewMock).toHaveBeenCalledWith(77);
+  });
+
+  it("does not roll back a successful account link when the commercial read model is temporarily unavailable", async () => {
+    const user = {
+      id: 78,
+      openId: "local:78",
+      email: "bia@example.com",
+      name: "Bia",
+      loginMethod: "password",
+      role: "user" as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    };
+    linkWhatsappOnboardingToAuthenticatedUserMock.mockResolvedValue({
+      status: "pending_activation",
+      nextAction: "await_activation",
+      resumed: true,
+    });
+    getBillingWebOverviewMock.mockRejectedValueOnce(new Error("temporary read failure"));
+    const caller = appRouter.createCaller(createContext(user));
+
+    await expect(
+      caller.auth.whatsappOnboarding.linkExistingAccount({
+        token: "valid-token-with-enough-characters-1234567890",
+      })
+    ).resolves.toMatchObject({
+      status: "pending_activation",
+      nextAction: "await_activation",
+      commercial: null,
+    });
   });
 });
