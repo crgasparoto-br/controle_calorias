@@ -8,6 +8,7 @@ import {
   runBillingCommercialTransitionFinalizeBatch,
   runBillingCommercialTransitionNotificationBatch,
 } from "./billingCommercialTransition";
+import { billingCommercialTransitionRunSchema } from "./billingCommercialTransitionSchemas";
 
 const baseInput = {
   cutoverKey: "launch_2026",
@@ -26,6 +27,17 @@ describe("billing commercial transition", () => {
     expect(window.validFrom.toISOString()).toBe("2026-08-29T18:00:00.000Z");
     expect(window.validUntil.toISOString()).toBe("2026-09-28T18:00:00.000Z");
     expect(window.validFrom).not.toBe(cutoverAt);
+  });
+
+  it("normalizes the cutover instant to the persisted second precision", () => {
+    const parsed = billingCommercialTransitionRunSchema.parse({
+      ...baseInput,
+      cutoverAt: "2026-08-29T18:00:00.987Z",
+      dryRun: false,
+      confirmation: baseInput.cutoverKey,
+    });
+
+    expect(parsed.cutoverAt).toBe("2026-08-29T18:00:00.000Z");
   });
 
   it("fingerprints the frozen cohort deterministically and changes on membership drift", () => {

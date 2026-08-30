@@ -6,6 +6,7 @@ import {
   reconcileBillingCommercialTransition,
   runBillingCommercialTransitionBatch,
 } from "../server/modules/billing/billingCommercialTransition";
+import { billingCommercialTransitionRunSchema } from "../server/modules/billing/billingCommercialTransitionSchemas";
 import { configureBillingDbProvider } from "../server/repositories/billingRepositorySupport";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -84,17 +85,23 @@ async function main() {
       ]
     );
 
-    const baseInput = {
+    const parsedInput = billingCommercialTransitionRunSchema.parse({
       cutoverKey,
       cutoverAt: cutoverAt.toISOString(),
       timezone: "America/Sao_Paulo",
       reason: "integration frozen snapshot verification",
-      dryRun: false as const,
+      dryRun: false,
       batchSize: 1,
       retryFailed: false,
       confirmation: cutoverKey,
-      actorUserId: ids.actor,
-    };
+    });
+    const baseInput = { ...parsedInput, actorUserId: ids.actor };
+
+    assert.equal(
+      new Date(baseInput.cutoverAt).getMilliseconds(),
+      0,
+      "validated cutover instant must match TIMESTAMP storage precision"
+    );
 
     const first = await runBillingCommercialTransitionBatch(baseInput);
     assert.equal(first.candidateCount, 1);
