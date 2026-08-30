@@ -1,10 +1,12 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import {
   reconcileBillingCommercialTransition,
   runBillingCommercialTransitionBatch,
 } from "../server/modules/billing/billingCommercialTransition";
+import { configureBillingDbProvider } from "../server/repositories/billingRepositorySupport";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -30,6 +32,12 @@ async function main() {
       ? { ssl: { minVersion: "TLSv1.2" as const } }
       : {}),
   });
+  const db = drizzle(pool);
+
+  // The transition module resolves persistence through server/db.ts, which in
+  // turn honors this provider. Reuse the pool owned by this integration test
+  // so the process has a single TiDB pool and the finally block can close it.
+  configureBillingDbProvider(async () => db);
 
   async function cleanup() {
     await pool.query(
