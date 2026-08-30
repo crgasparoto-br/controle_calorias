@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "subject_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 898,
+  "pull_request_number": 1023,
+  "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false,
+  "shard_integrity": {
+    "artifact": "requirement-closure.parts/part-000.b64",
+    "old_size": 17201,
+    "old_sha256": "3926ff7580b87e22f47608d2a647217983d771f9611369277ed5da2465080b93",
+    "recovery": {
+      "removed_index_zero_based": 15081,
+      "removed_byte": "a"
+    },
+    "corrected_size": 17200,
+    "corrected_sha256": "6a693a699c38d74f2136ba19e1b8d670b01a01049800f07e002f47e88ae6fbc8",
+    "expected_size": 17200,
+    "expected_sha256": "6a693a699c38d74f2136ba19e1b8d670b01a01049800f07e002f47e88ae6fbc8"
+  },
+  "issue_scope": {
+    "work_item_start_sha": "5887f31c3b9c16a59abff404aa4f42d9fe81a7c4",
+    "material_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
+    "expected_path_count": 21,
+    "issue_changed_paths": [
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".github/workflows/billing-persistence-tidb.yml",
+      "docs/README.md",
+      "docs/history/billing-commercial-rollout-evidence-template.md",
+      "docs/runbooks/billing-commercial-rollout.md",
+      "scripts/billing-commercial-transition.ts",
+      "scripts/test-billing-commercial-transition-tidb.ts",
+      "server/modules/billing/billingCommercialTransition.test.ts",
+      "server/modules/billing/billingCommercialTransition.ts",
+      "server/modules/billing/billingCommercialTransitionSchemas.ts",
+      "server/modules/billing/billingCommercialTransitionSupersession.ts",
+      "server/modules/billing/billingNotificationCenter.test.ts",
+      "server/modules/billing/billingNotificationCenter.ts",
+      "server/repositories/billingRepositorySupport.ts"
+    ]
+  },
+  "controls": [
+    {
+      "id": "HANDOFF-SHARD-001",
+      "status": "passed",
+      "expected": "Physical part size/hash exactly match manifest and logical JSON loads through audit_artifact_io.",
+      "observed": "Recovered the unique one-character transport corruption; corrected bytes match the previously certified 17200-byte SHA-256 exactly."
+    },
+    {
+      "id": "HANDOFF-SCOPE-001",
+      "status": "passed",
+      "expected": "Certificate scope equals immutable work-item Git delta.",
+      "observed": "Computed 21 paths from 5887f31c..067d8d72 and will feed all paths to the certificate builder."
+    }
+  ],
+  "pr_metadata": {
+    "updated_at": "2026-08-30T12:04:08Z",
+    "status": "passed",
+    "observed": "PR #1023 body now names material SHA 067d8d726c58b95f35c6741e726e29d139cc720d, reports Agent-first success, reports Billing persistence TiDB run #560 as cancelled, and no longer claims SHA 32e4fb5 as final/current."
+  }
+}

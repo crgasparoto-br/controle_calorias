@@ -1,0 +1,10 @@
+## Separação de escopo — implementação técnica x rollout operacional
+
+A especificação foi reorganizada para eliminar o bloqueio artificial entre conclusão de código e execução de semanas de rollout real.
+
+- **#898** passa a ser a fonte de verdade da **implementação técnica**: corte parametrizado, transição de 30 dias, comunicações, retries, idempotência, jobs, reconciliação, preservação de dados/vínculos e controles técnicos necessários ao rollout.
+- **#1024** passa a ser a fonte de verdade da **execução operacional**: data real de corte, responsáveis nominais, homologações, provider fake/sandbox, coortes reais, durações mínimas, métricas observadas, incidentes, aprovações, rollback e ativação progressiva de `enforced`.
+
+As políticas comerciais e técnicas já definidas em #145 e nas #869–#897 permanecem vinculantes. A separação não reduz requisitos: apenas move critérios que só podem ser comprovados durante operação real para uma issue própria.
+
+Consequência para a entrega corrente: a PR #1023 deve ser avaliada contra os critérios técnicos atuais da #898. O rollout real continua obrigatório e rastreado pela #1024, mas não bloqueia o encerramento técnico da #898 após implementação e auditoria independentes.

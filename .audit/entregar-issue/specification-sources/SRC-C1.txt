@@ -1,0 +1,15 @@
+## Complemento obrigatório de rollout — alerta de capacidade excedida
+
+Durante migração e operação comercial, os jobs devem gerar alerta administrativo persistente quando um profissional entrar em capacidade excedida.
+
+Requisitos:
+
+- criar o alerta na primeira transição para estado excedido, com chave idempotente;
+- registrar capacidade contratada, ocupação, excedente, maior plano público, causa e prazo da capacidade temporária;
+- classificar como prioridade alta e `catalog_range_review_required` quando nenhum plano público ativo comportar a carteira;
+- manter o alerta no painel mesmo se e-mail ou outro canal externo falhar;
+- reabrir ou gerar novo alerta somente quando houver mudança material de faixa, vencimento ou alteração relevante do catálogo;
+- incluir nas métricas do rollout alertas abertos, reconhecidos, resolvidos, faixas de demanda e decisões sobre novos ranges;
+- não criar ou publicar plano automaticamente.
+
+O piloto não deve ser considerado observável enquanto esse alerta, sua fila administrativa e sua deduplicação não estiverem validados.

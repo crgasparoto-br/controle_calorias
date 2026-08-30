@@ -1,0 +1,221 @@
+Parent: #145
+
+Execução operacional separada em #1024.
+
+## Objetivo
+
+Implementar a infraestrutura técnica necessária para migrar usuários atuais para o modelo comercial, aplicar a transição gratuita de 30 dias, persistir e orquestrar comunicações, reconciliar resultados e oferecer controles seguros para o rollout, **sem exigir nesta issue a execução temporal das etapas reais de homologação/piloto/enforced**.
+
+A execução real das fases, coortes, durações, autorizações, métricas observadas e homologações humanas pertence à #1024.
+
+## Fronteira desta issue
+
+Esta issue é de **implementação técnica**.
+
+Inclui:
+
+- corte/snapshot e migração de usuários existentes;
+- transição gratuita de 30 dias;
+- integração com os contratos de trial, cobertura, capacidade e elegibilidade já definidos em #893/#894/#896;
+- comunicações da transição e seus retries;
+- jobs idempotentes, checkpoint, retry, falha parcial e reconciliação;
+- persistência de coorte/fase/autorização/decisão/métricas necessária para suportar a operação;
+- mecanismos para pausa/rollback e retorno seguro para `open_access` quando aplicável;
+- runbooks, evidências técnicas e testes.
+
+Não inclui como critério de encerramento:
+
+- escolher o instante real de corte;
+- nomear responsáveis reais;
+- homologar textos/remetentes/canais reais;
+- executar 5/7/14 dias de observação;
+- operar usuários internos ou pilotos reais;
+- observar métricas reais por semanas;
+- autorizar ou ativar `enforced` em produção.
+
+Esses itens foram movidos para #1024.
+
+## Dependências e fontes canônicas
+
+- #145 — decisões comerciais vinculantes e precedência global;
+- #869 — fundação provider-neutral, entitlements e acesso;
+- #891 — catálogo e versões;
+- #892 — adapter Asaas, checkout e reconciliação financeira;
+- #893 — trial, assinatura, inadimplência, suspensão e recuperação;
+- #894 — cobertura profissional, capacidade e transições;
+- #895 — experiência do usuário;
+- #896 — administração, capacidade temporária, alertas e exceções;
+- #897 — medição de consumo, economia gerencial e governança de abuso;
+- #1024 — homologação e rollout operacional real.
+
+Esta issue não deve reimplementar contratos técnicos pertencentes às dependências acima.
+
+## Corte e migração
+
+- aceitar instante de corte absoluto e timezone como parâmetros de execução;
+- persistir snapshot/manifesto idempotente e determinístico;
+- usuário existente no corte recebe exatamente 30 dias corridos de transição gratuita;
+- usuário posterior ao corte segue trial/contratação normal;
+- transição substitui trial inicial para usuário existente;
+- não criar cliente, assinatura, checkout, cobrança ou evento financeiro automaticamente;
+- não cobrar retroativamente;
+- retry/reexecução não altera a data original nem concede nova transição;
+- parâmetros reais de corte são fornecidos pela operação em #1024, não hardcoded.
+
+## Preservação de usuários, profissionais e pacientes
+
+Durante a transição:
+
+- preservar dados, vínculos, prontuários, autorizações, acompanhamentos e histórico;
+- não remover paciente nem escolher automaticamente quem permanece;
+- paciente não recebe detalhes financeiros/capacidade do patrocinador;
+- regras de capacidade excedida, 90 dias, extensões e alertas permanecem sob autoridade técnica de #894/#896;
+- esta issue deve acionar/reconciliar esses contratos corretamente durante migração e rollout.
+
+## Suspensão e recuperação
+
+Consumir a máquina de estados da #893 e os efeitos de cobertura/capacidade da #894, sem duplicar lógica:
+
+- `past_due` preserva cobertura/capacidade conforme contrato canônico;
+- `suspended` preserva vínculos/reservas e interrompe cobertura conforme contrato canônico;
+- recuperação confirmada restaura sobre as mesmas reservas;
+- nenhuma transição comercial pode apagar ou recriar silenciosamente vínculos/reservas já persistidos.
+
+## Comunicações
+
+Aplicar a política vinculante da #145:
+
+- persistir primeiro notificação interna autenticada;
+- e-mail como canal externo padrão;
+- WhatsApp como complemento somente quando houver número/conexão validada e envio permitido;
+- detalhes na área autenticada; canal externo envia resumo + link seguro;
+- não expor ao paciente finanças ou capacidade do patrocinador;
+- versionar campanha, template, público, gatilho, marco temporal e canais;
+- e-mail: inicial, +1 hora e +24 horas;
+- WhatsApp: inicial, +2 horas e +24 horas;
+- retry reutiliza a comunicação lógica original;
+- ação concluída ou evento superveniente torna tentativas pendentes obsoletas;
+- falha definitiva gera pendência visível e reprocessável;
+- opt-out promocional não desativa avisos essenciais.
+
+### Marcos da transição de 30 dias
+
+- início;
+- 15 dias antes;
+- 7 dias antes;
+- 1 dia antes;
+- encerramento.
+
+Cada comunicação deve usar a data individual correta e chave idempotente por usuário/tipo/marco/campanha.
+
+Textos finais, remetentes reais e classificação jurídica/privacidade são artefatos operacionais da #1024; o código deve suportá-los de forma versionada/configurável, sem inventá-los.
+
+## Persistência e jobs
+
+Implementar/usar jobs para:
+
+- iniciar transições idempotentemente;
+- emitir os marcos de comunicação;
+- encerrar transições idempotentemente;
+- recalcular/reconciliar elegibilidade necessária;
+- integrar com capacidade temporária e alertas canônicos de #894/#896 quando aplicável;
+- suportar `dry-run`;
+- suportar confirmação explícita antes de escrita real;
+- checkpoint por lote/fase;
+- retry somente de falhas elegíveis;
+- resultado por item;
+- falha parcial visível;
+- reconciliação posterior;
+- registrar correlação, execução, ator e resultado.
+
+## Controles técnicos para rollout
+
+O sistema deve possuir contratos que permitam à #1024 operar o rollout sem improvisação:
+
+- registrar fase/coorte/decisão/autorização;
+- selecionar coorte de forma determinística e reproduzível quando `enforced` for utilizado;
+- impedir avanço automático de fase apenas por passagem de tempo;
+- preservar `open_access` como retorno seguro;
+- pausar novas ativações sem apagar fatos financeiros legítimos;
+- reconciliar usuários afetados após pausa/rollback;
+- registrar métricas e resultado de cada execução.
+
+Esta issue prova a **capacidade técnica** desses controles; a execução real e suas durações pertencem à #1024.
+
+## Invariantes
+
+- nenhuma cobrança ou ativação paga nasce do processo de migração;
+- nenhuma reexecução concede nova transição;
+- nenhum retry duplica comunicação lógica ou efeito de entitlement;
+- notificação interna existe independentemente do sucesso do canal externo;
+- WhatsApp não é tratado como canal elegível sem validação/permissão;
+- evento/marco posterior pode tornar retry anterior obsoleto;
+- nenhum dado/vínculo é apagado por encerramento de transição;
+- paciente não recebe dados financeiros/capacidade do profissional;
+- rollout não avança automaticamente por tempo;
+- retorno/rollback não apaga fatos financeiros legítimos;
+- configuração operacional não pode criar plano, preço ou política comercial implicitamente.
+
+## Testes esperados
+
+Cobrir pelo menos:
+
+- corte antes/depois da fronteira absoluta;
+- janela exata de 30 dias;
+- retry/reexecução sem renovação da janela;
+- substituição de trial pela transição;
+- encerramento idempotente;
+- cinco marcos de comunicação;
+- cadência de retry de e-mail e WhatsApp;
+- WhatsApp inelegível sem conexão validada/ativa;
+- evento posterior tornando tentativas anteriores obsoletas;
+- persistência interna antes do outbound;
+- falha externa preservando notificação interna;
+- dry-run e confirmação obrigatória;
+- checkpoint/retry/falha parcial/reconciliação;
+- preservação de dados/vínculos;
+- ausência de criação automática de cliente/checkout/assinatura/cobrança;
+- contratos de coorte/fase/autorização/rollback necessários à #1024.
+
+## Critérios de aceite
+
+- [ ] Corte absoluto/timezone são parâmetros e não valores hardcoded.
+- [ ] Snapshot/manifesto é idempotente e determinístico.
+- [ ] Usuário existente recebe exatamente 30 dias de transição.
+- [ ] Usuário posterior segue trial/contratação normal.
+- [ ] Transição substitui trial e retry não renova prazo.
+- [ ] Migração não cria cliente, checkout, assinatura ou cobrança.
+- [ ] Dados, vínculos, prontuários e autorizações são preservados.
+- [ ] Integração com capacidade/cobertura reutiliza #894/#896 sem regra paralela.
+- [ ] Notificação interna é persistida antes de canais externos.
+- [ ] Cinco marcos da transição são idempotentes.
+- [ ] E-mail usa inicial/+1h/+24h e WhatsApp inicial/+2h/+24h.
+- [ ] WhatsApp só permanece elegível quando validado/permitido.
+- [ ] Evento superveniente torna retry pendente anterior obsoleto.
+- [ ] Falha externa permanece visível/reprocessável sem remover a interna.
+- [ ] Jobs suportam dry-run, confirmação, checkpoint, retry, resultado por item e reconciliação.
+- [ ] Encerramento da transição é idempotente e não apaga dados.
+- [ ] Existem contratos técnicos para registrar fase, coorte, autorização, decisão, métricas e rollback.
+- [ ] Nenhuma fase é ativada automaticamente apenas pela passagem de tempo.
+- [ ] Testes e CI aplicáveis passam no SHA final.
+- [ ] Runbook documenta como a operação de #1024 deve consumir esses controles.
+
+## Fora de escopo — movido para #1024
+
+- data/hora real do corte;
+- responsáveis nominais;
+- conteúdo final e IDs reais de remetentes;
+- homologação jurídico/privacidade;
+- homologação contábil/fiscal;
+- execução dos três ciclos com provider fake como evidência operacional de rollout;
+- 5 dias úteis/30 jornadas de sandbox;
+- coorte interna de 6 + 4 por 7 dias;
+- piloto A 25 + 5 por 14 dias;
+- piloto B 100 + 20 por 14 dias;
+- disponibilização geral não bloqueante por 14 dias;
+- ativação `enforced` 10%/25%/50%/100% com suas durações e aprovações;
+- métricas reais, incidentes, decisões, pausas e rollback da operação.
+
+## Prontidão
+
+**Pronta para implementação/auditoria técnica.** O encerramento desta issue depende da qualidade e evidência do código, não da passagem de semanas de rollout. A operação comercial real e seus gates continuam obrigatórios em #1024.

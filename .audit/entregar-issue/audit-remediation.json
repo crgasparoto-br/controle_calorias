@@ -3,33 +3,62 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
-    "audit_report_sha256": "33e89f3cd8078d4f8fe4a88673dc585a2244db3a5e6161519845b215b731774f",
-    "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315"
+    "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
+    "audit_report_sha256": "b78bb39f86d567c2f020cd451c33881e388f7094d7bd0f8ef4e0cb9b0a46b53c",
+    "audited_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d"
   },
-  "candidate_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+  "candidate_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "AUD-898-HANDOFF-F001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
+      "closure_kind": "handoff-rebuild",
       "changed_files": [
-        "server/modules/onboarding/whatsappActivationReconciler.ts",
-        "server/modules/onboarding/whatsappActivationReconciler.test.ts"
+        ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
       "evidence": [
-        "The scan now orders pending users by oldest persisted updated_at and rotates each selected pending user before eligibility evaluation, so bounded repeated runs progress beyond unchanged blockers.",
-        "Focused exact-head regressions cover a blocked prefix larger than the bound and a transiently failing prefix; both reach a later eligible user on the next reconciliation.",
-        "Agent-first, Onboarding activation TiDB, and Billing persistence TiDB workflows all completed successfully on the candidate SHA."
+        "Unique injected base64 byte was identified by matching the certified SHA-256 after single-byte deletion.",
+        "Corrected shard is 17200 bytes and matches SHA-256 6a693a699c38d74f2136ba19e1b8d670b01a01049800f07e002f47e88ae6fbc8."
       ],
       "validations": [
-        "Agent-first run 33257441318: success",
-        "Onboarding activation TiDB run 33257441412: success",
-        "Billing persistence TiDB run 33257441319: success",
-        "Critical artifact validators and terminal handoff simulation are required before publication."
+        "audit_artifact_io loads the corrected requirement closure fail-closed.",
+        "Prepublication terminal handoff validation is required before moving the PR ref."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-898-HANDOFF-F002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "handoff-rebuild",
+      "changed_files": [
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "Immutable work-item delta contains 21 paths and is the sole source for certificate scope.",
+        "All material .audit paths in the work-item delta are retained in issue_changed_paths rather than filtered out."
+      ],
+      "validations": [
+        "Certificate builder receives every git diff path from work_item_start_sha..material_head_sha.",
+        "Terminal handoff validator checks the rebuilt certificate against the target and result-only topology."
+      ]
+    },
+    {
+      "source_kind": "recommendation",
+      "source_id": "REC-898-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "metadata-correction",
+      "changed_files": [],
+      "evidence": [
+        "PR #1023 description was updated through GitHub metadata without changing the material tree or result-only commit topology."
+      ],
+      "validations": [
+        "GitHub returned the updated PR body with material SHA 067d8d7, Agent-first success, TiDB run #560 cancelled, and no stale 32e4fb5 final-SHA claim."
       ]
     }
   ],

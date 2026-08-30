@@ -1,27 +1,42 @@
 {
   "schema_version": 1,
-  "result": "rejected",
-  "independence": "independent",
-  "release_allowed": false,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "mode": "independent",
+  "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
+  "head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
+  "published_handoff_head_sha": "463884413de3c7f832274bc7af5aa313acdff594",
   "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 215,
-  "pull_request_number": 1021,
-  "audited_head_sha": "c48ec232d117d5bedc06246311ecc711c0282315",
-  "certified_material_head_sha": "225035ea98140baf6087b126704a8f1f2a6aeb79",
-  "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
+  "issue_number": 898,
+  "pull_request_number": 1023,
   "findings": [
     {
-      "id": "A-001",
-      "severity": "blocker/high",
-      "category": "execution-state-gap",
-      "title": "Starvation permanente no backlog de pending_activation",
-      "cause": "A bounded scan ordered by converted_user_id ASC repeatedly selected the same blocked prefix; blocked leads remain pending, so later eligible users could remain unvisited indefinitely.",
-      "required_remediation": [
-        "Use a bounded traversal strategy that guarantees progress beyond blocked users.",
-        "Add a regression with more pending leads than the limit, a fully blocked prefix, and a later eligible lead.",
-        "Prove repeated reconciliation eventually reaches eligible pending leads beyond the prefix.",
-        "Refreeze the material candidate and produce a fresh independent-audit handoff."
-      ]
+      "id": "AUD-898-HANDOFF-F001",
+      "severity": "high",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "Delivery handoff artifact transport must be byte-integral and verifiable.",
+      "summary": "requirement-closure shard contained one extra base64 character, so physical size/hash diverged from the certified manifest and the logical artifact could not be consumed fail-closed."
+    },
+    {
+      "id": "AUD-898-HANDOFF-F002",
+      "severity": "high",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "scope.issue_changed_paths must exactly equal work_item_start_sha..material_head_sha.",
+      "summary": "The certificate listed 13 issue paths while the immutable Git delta contains 21 paths, omitting eight .audit/entregar-issue paths already present in the material head."
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "REC-898-001",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "summary": "Update PR #1023 description to remove stale SHA 32e4fb5 and stale TiDB success claim, replacing them with the current material identity and observed gate state."
     }
   ]
 }

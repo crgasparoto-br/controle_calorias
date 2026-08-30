@@ -1,0 +1,63 @@
+## Política de comunicações aprovada para o rollout
+
+A política operacional de comunicações deixa de ser parâmetro pendente e passa a seguir a decisão vinculante registrada na #145.
+
+### Execução obrigatória
+
+- Persistir primeiro a notificação interna na área autenticada.
+- Usar e-mail como canal externo padrão.
+- Usar WhatsApp como complemento quando houver número validado e envio permitido.
+- Manter detalhes na área autenticada; canais externos enviam resumo e link seguro.
+- Nunca expor ao paciente dados financeiros ou de capacidade do profissional patrocinador.
+
+### Campanhas
+
+O rollout deve possuir campanhas versionadas e separadas para migração de 30 dias, trial, contratação, pagamento, inadimplência, suspensão, recuperação, cancelamento, perda de cobertura, capacidade excedida e ativação de `enforced`.
+
+Cada campanha deve registrar:
+
+- identificador e versão;
+- público e evento de disparo;
+- marco temporal;
+- canais aplicáveis;
+- chave idempotente;
+- conteúdo utilizado;
+- status por canal;
+- ação esperada e data de obsolescência.
+
+### Retentativas
+
+- E-mail: inicial, +1 hora e +24 horas.
+- WhatsApp: inicial, +2 horas e +24 horas.
+- Retry reutiliza a chave original e não cria uma nova comunicação lógica.
+- Ação concluída ou evento superveniente torna retries pendentes obsoletos.
+- Falha definitiva gera pendência operacional visível e reprocessável.
+
+### Opt-out
+
+Separar promocional, operacional, financeiro e segurança. Opt-out promocional não desativa avisos essenciais de conta, segurança ou obrigações financeiras. A classificação deve ser homologada por privacidade/jurídico antes do rollout.
+
+### Métricas e gates
+
+Medir por campanha, versão e canal: criada, enviada, entregue, falha, retry, deduplicação, abertura quando disponível, ação concluída, opt-out, ticket e tempo de resolução.
+
+Nenhum piloto pago ou `enforced` deve avançar sem:
+
+- persistência e deduplicação comprovadas;
+- fila de falhas e reprocessamento;
+- templates versionados;
+- links autenticados seguros;
+- isolamento entre dados do pagador e do beneficiário;
+- evidência de que falha externa não elimina a notificação interna.
+
+### Parâmetros que permanecem abertos
+
+Após esta decisão, permanecem apenas:
+
+1. data real de corte;
+2. tamanho das coortes;
+3. duração mínima de cada etapa;
+4. responsáveis nominais;
+5. conteúdo textual final e identificadores reais de remetentes a serem homologados antes da campanha.
+
+Os itens 5 são artefatos de execução e homologação, não reabertura da política de comunicação.
