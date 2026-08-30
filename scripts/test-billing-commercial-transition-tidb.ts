@@ -176,7 +176,9 @@ async function main() {
       "SELECT payloadJson FROM billingProviderEvents WHERE provider = ? AND providerEventId = ? LIMIT 1",
       [provider, `cutover:${cutoverKey}`]
     );
-    const manifest = JSON.parse(String(manifestRows[0]?.payloadJson ?? "{}"));
+    const rawManifest = manifestRows[0]?.payloadJson;
+    const manifest =
+      typeof rawManifest === "string" ? JSON.parse(rawManifest) : (rawManifest ?? {});
     assert.equal(manifest.snapshotState, "ready");
     assert.equal(manifest.snapshotRuleVersion, "users-created-at-lte-cutover-v1");
     assert.equal(manifest.eligibleCount, 2);
