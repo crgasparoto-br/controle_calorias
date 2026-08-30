@@ -7,7 +7,7 @@
     "audit_report_sha256": "b78bb39f86d567c2f020cd451c33881e388f7094d7bd0f8ef4e0cb9b0a46b53c",
     "audited_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d"
   },
-  "candidate_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
+  "candidate_head_sha": "ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -17,16 +17,17 @@
       "status": "fixed",
       "closure_kind": "handoff-rebuild",
       "changed_files": [
-        ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
-        ".audit/entregar-issue/handoff-ready.json"
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/handoff-remediation-evidence.json",
+        ".audit/entregar-issue/post-ci-refreeze-evidence.json"
       ],
       "evidence": [
-        "Unique injected base64 byte was identified by matching the certified SHA-256 after single-byte deletion.",
-        "Corrected shard is 17200 bytes and matches SHA-256 6a693a699c38d74f2136ba19e1b8d670b01a01049800f07e002f47e88ae6fbc8."
+        "Current refreeze regenerates all transported audit artifacts deterministically and validates logical JSON fail-closed before publication.",
+        "No historical corrupted shard is reused as current evidence."
       ],
       "validations": [
-        "audit_artifact_io loads the corrected requirement closure fail-closed.",
-        "Prepublication terminal handoff validation is required before moving the PR ref."
+        "audit_artifact_io validates every current transport manifest and part.",
+        "Terminal handoff validation is required on the published direct child."
       ]
     },
     {
@@ -36,15 +37,16 @@
       "status": "fixed",
       "closure_kind": "handoff-rebuild",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json"
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/handoff-remediation-evidence.json"
       ],
       "evidence": [
-        "Immutable work-item delta contains 21 paths and is the sole source for certificate scope.",
-        "All material .audit paths in the work-item delta are retained in issue_changed_paths rather than filtered out."
+        "Immutable work-item delta contains 41 paths from 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4..ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9.",
+        "Every path is supplied to the certificate builder without filtering audit paths."
       ],
       "validations": [
-        "Certificate builder receives every git diff path from work_item_start_sha..material_head_sha.",
-        "Terminal handoff validator checks the rebuilt certificate against the target and result-only topology."
+        "Certificate scope is rebuilt from the immutable Git delta.",
+        "Terminal validator enforces direct-parent and result-only allowlist topology."
       ]
     },
     {
@@ -55,10 +57,10 @@
       "closure_kind": "metadata-correction",
       "changed_files": [],
       "evidence": [
-        "PR #1023 description was updated through GitHub metadata without changing the material tree or result-only commit topology."
+        "PR #1023 description now names material SHA ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9, base 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4, merge preview 87e1cc27871bbe8693d74e507cc93746947693bb, and the successful exact-tree CI runs."
       ],
       "validations": [
-        "GitHub returned the updated PR body with material SHA 067d8d7, Agent-first success, TiDB run #560 cancelled, and no stale 32e4fb5 final-SHA claim."
+        "Fresh PR metadata read confirms the current material identity before publication."
       ]
     }
   ],
