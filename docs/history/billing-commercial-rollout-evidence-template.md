@@ -1,10 +1,11 @@
 # Evidência de rollout comercial — template
 
-> Copie este arquivo para um registro datado por janela/etapa. Não preencher com valores fictícios. Não registrar segredos, payloads financeiros brutos, PII ou dados clínicos.
+> Template operacional da #1024. Copie este arquivo para um registro datado por janela/etapa. Não preencher com valores fictícios. Não registrar segredos, payloads financeiros brutos, PII ou dados clínicos.
 
 ## Identidade da execução
 
-- issue: `#898`
+- issue operacional: `#1024`
+- contrato técnico: `#898`
 - fase: `PENDENTE`
 - ambiente: `PENDENTE`
 - SHA implantado: `PENDENTE`
@@ -120,4 +121,4 @@ Não usar apenas o estado aberto/fechado de números da faixa `#869–#897`. Reg
 - confirmação reforçada quando aplicável: `PENDENTE`
 - próxima revisão: `PENDENTE`
 
-A decisão só pode mudar para `advance` quando todos os gates aplicáveis estiverem comprovados. Qualquer incidente absoluto descrito na #898 mantém a etapa reprovada independentemente das taxas agregadas.
+A decisão só pode mudar para `advance` quando todos os gates aplicáveis estiverem comprovados. Qualquer incidente absoluto definido pelos controles técnicos da #898 mantém a etapa operacional da #1024 reprovada independentemente das taxas agregadas.
