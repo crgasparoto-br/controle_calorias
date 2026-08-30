@@ -29,6 +29,8 @@ const PROVIDER = "billing-commercial-transition";
 const TRANSITION_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CAMPAIGN_VERSION = "v1";
+const SNAPSHOT_RULE_VERSION = "users-created-at-lte-cutover-v1";
+const SNAPSHOT_EVENT_TYPE = "commercial_transition_snapshot_member";
 const SYSTEM_ACCESS_ENTITLEMENTS = ["system_access"] as const;
 
 function jsonObject(value: unknown): Record<string, unknown> {
@@ -55,6 +57,11 @@ function dateValue(value: unknown) {
 function numberValue(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function integerValue(value: unknown) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export function getCommercialTransitionWindow(cutoverAt: Date) {
@@ -87,8 +94,23 @@ export function getCommercialTransitionDeliverySchedule(
   }));
 }
 
+export function getCommercialTransitionSnapshotFingerprint(userIds: number[]) {
+  const normalized = [...new Set(userIds.filter(Number.isSafeInteger))].sort((a, b) => a - b);
+  const hash = crypto.createHash("sha256");
+  for (const userId of normalized) hash.update(`${userId}\n`, "utf8");
+  return hash.digest("hex");
+}
+
 function manifestEventId(cutoverKey: string) {
   return `cutover:${cutoverKey}`;
+}
+
+function snapshotMemberEventPrefix(cutoverKey: string) {
+  return `snapshot:${cutoverKey}:`;
+}
+
+function snapshotMemberEventId(cutoverKey: string, userId: number) {
+  return `${snapshotMemberEventPrefix(cutoverKey)}${userId}`;
 }
 
 function migrationCheckpointEventId(cutoverKey: string) {
@@ -163,51 +185,160 @@ async function readManifest(cutoverKey: string) {
   return row ? jsonObject(row.payloadJson) : null;
 }
 
-function assertManifestMatches(
-  existing: Record<string, unknown>,
-  expected: { cutoverAt: string; validUntil: string; timezone: string }
-) {
-  if (
-    existing.cutoverAt !== expected.cutoverAt ||
-    existing.validUntil !== expected.validUntil ||
-    existing.timezone !== expected.timezone
-  ) {
-    throw new Error("billing_transition_cutover_immutable");
-  }
-}
-
-async function ensureManifest(input: RunInput, cutoverAt: Date, validUntil: Date) {
-  const expected = {
+function expectedManifestIdentity(input: RunInput, cutoverAt: Date, validUntil: Date) {
+  return {
     cutoverKey: input.cutoverKey,
     cutoverAt: cutoverAt.toISOString(),
     validUntil: validUntil.toISOString(),
     timezone: input.timezone,
+    snapshotRuleVersion: SNAPSHOT_RULE_VERSION,
+    snapshotMemberPrefix: snapshotMemberEventPrefix(input.cutoverKey),
   };
+}
+
+function assertManifestMatches(
+  existing: Record<string, unknown>,
+  expected: ReturnType<typeof expectedManifestIdentity>
+) {
+  if (
+    existing.cutoverKey !== expected.cutoverKey ||
+    existing.cutoverAt !== expected.cutoverAt ||
+    existing.validUntil !== expected.validUntil ||
+    existing.timezone !== expected.timezone ||
+    existing.snapshotRuleVersion !== expected.snapshotRuleVersion ||
+    existing.snapshotMemberPrefix !== expected.snapshotMemberPrefix
+  ) {
+    throw new Error("billing_transition_cutover_immutable");
+  }
+  if (
+    existing.snapshotState !== "ready" ||
+    integerValue(existing.eligibleCount) === null ||
+    typeof existing.populationSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(existing.populationSha256)
+  ) {
+    throw new Error("billing_transition_snapshot_manifest_invalid");
+  }
+}
+
+async function countSnapshotMembers(cutoverKey: string) {
+  const db = await requireDb(getDb);
+  const prefix = snapshotMemberEventPrefix(cutoverKey);
+  const [row] = resultRows<Row>(await db.execute(sql`
+    SELECT COUNT(*) AS total
+    FROM billingProviderEvents
+    WHERE provider = ${PROVIDER}
+      AND eventType = ${SNAPSHOT_EVENT_TYPE}
+      AND LEFT(providerEventId, CHAR_LENGTH(${prefix})) = ${prefix}
+  `));
+  return numberValue(row?.total);
+}
+
+async function assertSnapshotMemberCount(
+  cutoverKey: string,
+  manifest: Record<string, unknown>
+) {
+  const expectedCount = integerValue(manifest.eligibleCount);
+  if (expectedCount === null) throw new Error("billing_transition_snapshot_manifest_invalid");
+  const snapshotCount = await countSnapshotMembers(cutoverKey);
+  if (snapshotCount !== expectedCount) {
+    throw new Error("billing_transition_snapshot_integrity_mismatch");
+  }
+}
+
+async function ensureManifest(input: RunInput, cutoverAt: Date, validUntil: Date) {
+  const expected = expectedManifestIdentity(input, cutoverAt, validUntil);
   const existing = await readManifest(input.cutoverKey);
   if (existing) {
     assertManifestMatches(existing, expected);
-    return;
+    await assertSnapshotMemberCount(input.cutoverKey, existing);
+    return existing;
   }
 
   const db = await requireDb(getDb);
   const now = new Date();
-  await db.execute(sql`
-    INSERT IGNORE INTO billingProviderEvents (
-      id, provider, providerEventId, eventType, status, subscriptionId,
-      payloadJson, occurredAt, processedAt, createdAt, updatedAt
-    ) VALUES (
-      ${crypto.randomUUID()}, ${PROVIDER}, ${manifestEventId(input.cutoverKey)},
-      'commercial_transition_cutover', 'processed', NULL,
-      ${JSON.stringify({
-        ...expected,
-        actorUserId: input.actorUserId,
-        reason: input.reason,
-      })}, ${cutoverAt}, ${now}, ${now}, ${now}
-    )
-  `);
-  const persisted = await readManifest(input.cutoverKey);
-  if (!persisted) throw new Error("billing_transition_cutover_manifest_missing");
-  assertManifestMatches(persisted, expected);
+  const manifestRowId = crypto.randomUUID();
+  return db.transaction(async tx => {
+    const buildingPayload = JSON.stringify({
+      ...expected,
+      actorUserId: input.actorUserId,
+      reason: input.reason,
+      snapshotState: "building",
+    });
+    await tx.execute(sql`
+      INSERT IGNORE INTO billingProviderEvents (
+        id, provider, providerEventId, eventType, status, subscriptionId,
+        payloadJson, occurredAt, processedAt, createdAt, updatedAt
+      ) VALUES (
+        ${manifestRowId}, ${PROVIDER}, ${manifestEventId(input.cutoverKey)},
+        'commercial_transition_cutover', 'received', NULL,
+        ${buildingPayload}, ${cutoverAt}, NULL, ${now}, ${now}
+      )
+    `);
+
+    const [manifestRow] = resultRows<Row>(await tx.execute(sql`
+      SELECT id, status, payloadJson
+      FROM billingProviderEvents
+      WHERE provider = ${PROVIDER}
+        AND providerEventId = ${manifestEventId(input.cutoverKey)}
+      LIMIT 1
+      FOR UPDATE
+    `));
+    if (!manifestRow) throw new Error("billing_transition_cutover_manifest_missing");
+
+    if (String(manifestRow.id) !== manifestRowId) {
+      const persisted = jsonObject(manifestRow.payloadJson);
+      assertManifestMatches(persisted, expected);
+      return persisted;
+    }
+
+    const snapshotPrefix = snapshotMemberEventPrefix(input.cutoverKey);
+    await tx.execute(sql`
+      INSERT IGNORE INTO billingProviderEvents (
+        id, provider, providerEventId, eventType, status, subscriptionId,
+        payloadJson, occurredAt, processedAt, createdAt, updatedAt
+      )
+      SELECT
+        UUID(), ${PROVIDER}, CONCAT(${snapshotPrefix}, CAST(u.id AS CHAR)),
+        ${SNAPSHOT_EVENT_TYPE}, 'processed', NULL,
+        JSON_OBJECT(
+          'cutoverKey', ${input.cutoverKey},
+          'userId', u.id,
+          'userCreatedAt', u.createdAt,
+          'selectionRuleVersion', ${SNAPSHOT_RULE_VERSION}
+        ),
+        ${cutoverAt}, ${now}, ${now}, ${now}
+      FROM users u
+      WHERE u.createdAt <= ${cutoverAt}
+    `);
+
+    const snapshotRows = resultRows<Row>(await tx.execute(sql`
+      SELECT CAST(SUBSTRING_INDEX(providerEventId, ':', -1) AS UNSIGNED) AS id
+      FROM billingProviderEvents
+      WHERE provider = ${PROVIDER}
+        AND eventType = ${SNAPSHOT_EVENT_TYPE}
+        AND LEFT(providerEventId, CHAR_LENGTH(${snapshotPrefix})) = ${snapshotPrefix}
+      ORDER BY CAST(SUBSTRING_INDEX(providerEventId, ':', -1) AS UNSIGNED) ASC
+    `));
+    const snapshotUserIds = snapshotRows
+      .map(row => Number(row.id))
+      .filter(Number.isSafeInteger);
+    const finalManifest = {
+      ...expected,
+      actorUserId: input.actorUserId,
+      reason: input.reason,
+      snapshotState: "ready",
+      eligibleCount: snapshotUserIds.length,
+      populationSha256: getCommercialTransitionSnapshotFingerprint(snapshotUserIds),
+    };
+    const finalPayload = JSON.stringify(finalManifest);
+    await tx.execute(sql`
+      UPDATE billingProviderEvents
+      SET status = 'processed', payloadJson = ${finalPayload},
+        processedAt = ${now}, updatedAt = ${now}
+      WHERE id = ${manifestRowId}
+    `);
+    return finalManifest;
+  });
 }
 
 async function readCheckpoint(cutoverKey: string, phase?: string) {
@@ -262,37 +393,52 @@ async function writeCheckpoint(input: {
   `);
 }
 
-async function listMigrationCandidates(input: RunInput, cutoverAt: Date, afterUserId: number) {
+async function listSnapshotMigrationCandidates(input: RunInput, afterUserId: number) {
   const db = await requireDb(getDb);
+  const snapshotPrefix = snapshotMemberEventPrefix(input.cutoverKey);
   if (input.retryFailed) {
-    const prefix = itemEventPrefix(input.cutoverKey);
-    return resultRows<Row>(
-      await db.execute(sql`
-        SELECT u.id, u.createdAt
-        FROM billingProviderEvents e
-        INNER JOIN users u
-          ON u.id = CAST(SUBSTRING_INDEX(e.providerEventId, ':', -1) AS UNSIGNED)
-        WHERE e.provider = ${PROVIDER}
-          AND e.eventType = 'commercial_transition_item'
-          AND e.status = 'failed'
-          AND LEFT(e.providerEventId, CHAR_LENGTH(${prefix})) = ${prefix}
-          AND u.createdAt <= ${cutoverAt}
-        ORDER BY u.id ASC
-        LIMIT ${input.batchSize}
-      `)
-    );
+    const failedPrefix = itemEventPrefix(input.cutoverKey);
+    return resultRows<Row>(await db.execute(sql`
+      SELECT CAST(SUBSTRING_INDEX(snapshot.providerEventId, ':', -1) AS UNSIGNED) AS id
+      FROM billingProviderEvents snapshot
+      INNER JOIN billingProviderEvents item
+        ON item.provider = ${PROVIDER}
+        AND item.eventType = 'commercial_transition_item'
+        AND item.providerEventId = CONCAT(
+          ${failedPrefix}, SUBSTRING_INDEX(snapshot.providerEventId, ':', -1)
+        )
+      WHERE snapshot.provider = ${PROVIDER}
+        AND snapshot.eventType = ${SNAPSHOT_EVENT_TYPE}
+        AND LEFT(snapshot.providerEventId, CHAR_LENGTH(${snapshotPrefix})) = ${snapshotPrefix}
+        AND item.status = 'failed'
+      ORDER BY CAST(SUBSTRING_INDEX(snapshot.providerEventId, ':', -1) AS UNSIGNED) ASC
+      LIMIT ${input.batchSize}
+    `));
   }
 
-  return resultRows<Row>(
-    await db.execute(sql`
-      SELECT id, createdAt
-      FROM users
-      WHERE createdAt <= ${cutoverAt}
-        AND id > ${afterUserId}
-      ORDER BY id ASC
-      LIMIT ${input.batchSize}
-    `)
-  );
+  return resultRows<Row>(await db.execute(sql`
+    SELECT CAST(SUBSTRING_INDEX(providerEventId, ':', -1) AS UNSIGNED) AS id
+    FROM billingProviderEvents
+    WHERE provider = ${PROVIDER}
+      AND eventType = ${SNAPSHOT_EVENT_TYPE}
+      AND LEFT(providerEventId, CHAR_LENGTH(${snapshotPrefix})) = ${snapshotPrefix}
+      AND CAST(SUBSTRING_INDEX(providerEventId, ':', -1) AS UNSIGNED) > ${afterUserId}
+    ORDER BY CAST(SUBSTRING_INDEX(providerEventId, ':', -1) AS UNSIGNED) ASC
+    LIMIT ${input.batchSize}
+  `));
+}
+
+async function listPreviewMigrationCandidates(input: RunInput, cutoverAt: Date, afterUserId: number) {
+  if (input.retryFailed) return [];
+  const db = await requireDb(getDb);
+  return resultRows<Row>(await db.execute(sql`
+    SELECT id, createdAt
+    FROM users
+    WHERE createdAt <= ${cutoverAt}
+      AND id > ${afterUserId}
+    ORDER BY id ASC
+    LIMIT ${input.batchSize}
+  `));
 }
 
 async function listTransitionUsers(input: {
@@ -508,14 +654,22 @@ async function applyTransition(
   return db.transaction(async tx => {
     const [user] = resultRows<Row>(
       await tx.execute(sql`
-        SELECT id, createdAt
+        SELECT id
         FROM users
         WHERE id = ${userId}
         LIMIT 1
         FOR UPDATE
       `)
     );
-    if (!user || dateValue(user.createdAt).getTime() > cutoverAt.getTime()) {
+    const [snapshotMember] = resultRows<Row>(await tx.execute(sql`
+      SELECT providerEventId
+      FROM billingProviderEvents
+      WHERE provider = ${PROVIDER}
+        AND eventType = ${SNAPSHOT_EVENT_TYPE}
+        AND providerEventId = ${snapshotMemberEventId(input.cutoverKey, userId)}
+      LIMIT 1
+    `));
+    if (!user || !snapshotMember) {
       throw new Error("billing_transition_user_not_eligible");
     }
 
@@ -672,6 +826,7 @@ export async function runBillingCommercialTransitionBatch(input: RunInput) {
   const now = new Date();
   assertExecutionConfirmed(input);
 
+  let manifest: Record<string, unknown> | null = null;
   if (!input.dryRun) {
     if (cutoverAt.getTime() > now.getTime()) {
       throw new Error("billing_transition_cutover_not_reached");
@@ -679,20 +834,21 @@ export async function runBillingCommercialTransitionBatch(input: RunInput) {
     if (validUntil.getTime() <= now.getTime()) {
       throw new Error("billing_transition_window_elapsed");
     }
-    await ensureManifest(input, cutoverAt, validUntil);
+    manifest = await ensureManifest(input, cutoverAt, validUntil);
   } else {
-    const existing = await readManifest(input.cutoverKey);
-    if (existing) {
-      assertManifestMatches(existing, {
-        cutoverAt: cutoverAt.toISOString(),
-        validUntil: validUntil.toISOString(),
-        timezone: input.timezone,
-      });
+    manifest = await readManifest(input.cutoverKey);
+    if (manifest) {
+      assertManifestMatches(manifest, expectedManifestIdentity(input, cutoverAt, validUntil));
+      await assertSnapshotMemberCount(input.cutoverKey, manifest);
+    } else if (input.retryFailed) {
+      throw new Error("billing_transition_cutover_not_found");
     }
   }
 
   const afterUserId = input.retryFailed ? 0 : await readCheckpoint(input.cutoverKey);
-  const candidates = await listMigrationCandidates(input, cutoverAt, afterUserId);
+  const candidates = manifest
+    ? await listSnapshotMigrationCandidates(input, afterUserId)
+    : await listPreviewMigrationCandidates(input, cutoverAt, afterUserId);
   const ids = candidates.map(row => Number(row.id)).filter(Number.isSafeInteger);
 
   if (input.dryRun) {
@@ -702,6 +858,8 @@ export async function runBillingCommercialTransitionBatch(input: RunInput) {
       cutoverAt,
       validUntil,
       retryFailed: input.retryFailed,
+      snapshotFrozen: Boolean(manifest),
+      snapshotEligibleCount: manifest ? integerValue(manifest.eligibleCount) : null,
       checkpointBefore: afterUserId,
       candidateCount: ids.length,
       firstCandidateUserId: ids[0] ?? null,
@@ -774,6 +932,9 @@ export async function runBillingCommercialTransitionBatch(input: RunInput) {
     cutoverAt,
     validUntil,
     retryFailed: input.retryFailed,
+    snapshotFrozen: true,
+    snapshotEligibleCount: integerValue(manifest?.eligibleCount),
+    snapshotPopulationSha256: String(manifest?.populationSha256 ?? ""),
     checkpointBefore: afterUserId,
     candidateCount: ids.length,
     processed,
@@ -1002,10 +1163,15 @@ export async function reconcileBillingCommercialTransition(input: ReconcileInput
   const migrationPrefix = itemEventPrefix(input.cutoverKey);
   const notificationPrefix = notificationEventPrefix(input.cutoverKey);
   const deliveryPrefix = `delivery:${input.cutoverKey}:`;
+  const snapshotPrefix = snapshotMemberEventPrefix(input.cutoverKey);
 
-  const [eligible] = resultRows<Row>(
-    await db.execute(sql`SELECT COUNT(*) AS total FROM users WHERE createdAt <= ${cutoverAt}`)
-  );
+  const [snapshotMembers] = resultRows<Row>(await db.execute(sql`
+    SELECT COUNT(*) AS total
+    FROM billingProviderEvents
+    WHERE provider=${PROVIDER}
+      AND eventType=${SNAPSHOT_EVENT_TYPE}
+      AND LEFT(providerEventId, CHAR_LENGTH(${snapshotPrefix}))=${snapshotPrefix}
+  `));
   const [granted] = resultRows<Row>(await db.execute(sql`
     SELECT COUNT(*) AS total
     FROM billingEntitlements
@@ -1061,7 +1227,10 @@ export async function reconcileBillingCommercialTransition(input: ReconcileInput
       AND JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.lastDeliveryState'))='failed'
   `));
 
-  const eligibleCount = numberValue(eligible?.total);
+  const eligibleCount = integerValue(manifest.eligibleCount);
+  if (eligibleCount === null) throw new Error("billing_transition_snapshot_manifest_invalid");
+  const snapshotMemberCount = numberValue(snapshotMembers?.total);
+  const snapshotIntegrityOk = snapshotMemberCount === eligibleCount;
   const grantedCount = numberValue(granted?.total);
   const endedCount = numberValue(ended?.total);
   const failedCount = numberValue(failed?.total);
@@ -1080,6 +1249,11 @@ export async function reconcileBillingCommercialTransition(input: ReconcileInput
     cutoverAt,
     validUntil,
     timezone: String(manifest.timezone ?? ""),
+    snapshotRuleVersion: String(manifest.snapshotRuleVersion ?? ""),
+    snapshotMemberPrefix: String(manifest.snapshotMemberPrefix ?? ""),
+    populationSha256: String(manifest.populationSha256 ?? ""),
+    snapshotMemberCount,
+    snapshotIntegrityOk,
     eligibleCount,
     grantedCount,
     endedCount,
@@ -1096,6 +1270,7 @@ export async function reconcileBillingCommercialTransition(input: ReconcileInput
     externalFailureCount,
     windowElapsed,
     reconciled:
+      snapshotIntegrityOk &&
       eligibleCount === grantedCount &&
       failedCount === 0 &&
       notificationCount >= expectedDueNotificationCount &&

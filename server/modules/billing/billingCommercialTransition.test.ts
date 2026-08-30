@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getCommercialTransitionDeliverySchedule,
   getCommercialTransitionMilestones,
+  getCommercialTransitionSnapshotFingerprint,
   getCommercialTransitionWindow,
   runBillingCommercialTransitionBatch,
   runBillingCommercialTransitionFinalizeBatch,
@@ -25,6 +26,13 @@ describe("billing commercial transition", () => {
     expect(window.validFrom.toISOString()).toBe("2026-08-29T18:00:00.000Z");
     expect(window.validUntil.toISOString()).toBe("2026-09-28T18:00:00.000Z");
     expect(window.validFrom).not.toBe(cutoverAt);
+  });
+
+  it("fingerprints the frozen cohort deterministically and changes on membership drift", () => {
+    const frozen = getCommercialTransitionSnapshotFingerprint([42, 7, 42, 19]);
+    expect(frozen).toBe(getCommercialTransitionSnapshotFingerprint([19, 42, 7]));
+    expect(frozen).not.toBe(getCommercialTransitionSnapshotFingerprint([7, 19, 42, 99]));
+    expect(frozen).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("plans the five binding communication milestones from the immutable window", () => {
