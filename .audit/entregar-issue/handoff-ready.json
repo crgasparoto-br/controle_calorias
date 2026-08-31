@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-08-31T18:31:55.217876+00:00",
+  "created_at": "2026-08-31T21:11:51.944125+00:00",
   "identity": {
-    "head_sha": "f596dbd94ce74e06055f0f0549e6fcdb41848a68",
-    "material_head_sha": "f596dbd94ce74e06055f0f0549e6fcdb41848a68",
+    "head_sha": "a8fb91506cdf237c679da899721e59ba86808d1c",
+    "material_head_sha": "a8fb91506cdf237c679da899721e59ba86808d1c",
     "base_sha": "95b65a2c4b8082a0d1ee92df5bbde6d653e98e7f",
     "merge_preview_sha": null,
     "material_merge_preview_sha": null
@@ -22,19 +22,27 @@
   "scope": {
     "schema_version": 1,
     "work_item_start_sha": "95b65a2c4b8082a0d1ee92df5bbde6d653e98e7f",
-    "material_head_sha": "f596dbd94ce74e06055f0f0549e6fcdb41848a68",
+    "material_head_sha": "a8fb91506cdf237c679da899721e59ba86808d1c",
     "issue_changed_paths": [
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1025.txt",
+      ".audit/entregar-issue/standard-evidence.json",
       "client/src/components/admin/BillingAdminPanel.tsx",
       "client/src/components/admin/BillingAdminStatusOverview.tsx",
       "client/src/components/admin/BillingCatalogAdminForms.tsx",
       "client/src/components/admin/BillingCatalogAdminPanel.tsx",
+      "client/src/components/admin/billingAdminMutationErrors.test.ts",
+      "client/src/components/admin/billingAdminMutationErrors.ts",
       "client/src/pages/AdminBillingPage.tsx",
       "scripts/billing-admin-browser-driver.mjs",
       "scripts/check-billing-admin-browser-evidence.mjs",
       "scripts/render-billing-admin-visual.sh",
       "visual-tests/billing-admin/trpcMock.ts"
     ],
-    "issue_delta_sha256": "f5fe119444441c5e457887afd5a8b642bd0c1d68fde65138f63bf63f293b3de6"
+    "issue_delta_sha256": "5fe3bb1feceaa754bb560d47fd7a2ecb16b4e6c4549eddb846ab23adb256c5e6"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -108,9 +116,9 @@
     },
     "standard_evidence": {
       "name": "standard-evidence.json",
-      "sha256": "7d972628f567be071ea3e2fe3dc143070ee523df5b530664fa2add5e690016cf",
-      "logical_sha256": "7d972628f567be071ea3e2fe3dc143070ee523df5b530664fa2add5e690016cf",
-      "logical_size": 12524,
+      "sha256": "5ac509b26529cc8fd25e29e1c517ebbe6190f45b2540a76d3e536011ecaf1026",
+      "logical_sha256": "5ac509b26529cc8fd25e29e1c517ebbe6190f45b2540a76d3e536011ecaf1026",
+      "logical_size": 16547,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
