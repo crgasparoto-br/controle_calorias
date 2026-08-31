@@ -3,64 +3,29 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
-    "audit_report_sha256": "b78bb39f86d567c2f020cd451c33881e388f7094d7bd0f8ef4e0cb9b0a46b53c",
-    "audited_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d"
+    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
+    "audited_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad"
   },
-  "candidate_head_sha": "ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9",
+  "candidate_head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-898-HANDOFF-F001",
+      "source_id": "A-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "handoff-rebuild",
+      "closure_kind": "regression-guard-hardening",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/handoff-remediation-evidence.json",
-        ".audit/entregar-issue/post-ci-refreeze-evidence.json"
+        "scripts/test-issue-217-regression.ts"
       ],
       "evidence": [
-        "Current refreeze regenerates all transported audit artifacts deterministically and validates logical JSON fail-closed before publication.",
-        "No historical corrupted shard is reused as current evidence."
+        "Executable-title detection now skips comments and quoted/template strings before accepting direct it/test calls.",
+        "Repository-level adversarial copies with comment and string decoys both fail the contract."
       ],
       "validations": [
-        "audit_artifact_io validates every current transport manifest and part.",
-        "Terminal handoff validation is required on the published direct child."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "AUD-898-HANDOFF-F002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "handoff-rebuild",
-      "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/handoff-remediation-evidence.json"
-      ],
-      "evidence": [
-        "Immutable work-item delta contains 41 paths from 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4..ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9.",
-        "Every path is supplied to the certificate builder without filtering audit paths."
-      ],
-      "validations": [
-        "Certificate scope is rebuilt from the immutable Git delta.",
-        "Terminal validator enforces direct-parent and result-only allowlist topology."
-      ]
-    },
-    {
-      "source_kind": "recommendation",
-      "source_id": "REC-898-001",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "metadata-correction",
-      "changed_files": [],
-      "evidence": [
-        "PR #1023 description now names material SHA ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9, base 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4, merge preview 87e1cc27871bbe8693d74e507cc93746947693bb, and the successful exact-tree CI runs."
-      ],
-      "validations": [
-        "Fresh PR metadata read confirms the current material identity before publication."
+        "Exact published blob SHA is a39a096a00e5bc82cc604461e5b660bdcfd77910.",
+        "Contract-only positive path passes with 58 tracked scenarios."
       ]
     }
   ],

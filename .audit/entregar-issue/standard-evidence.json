@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "requirements": [
+    {
+      "requirement_id": "REQ-GATE-CI",
+      "positive_evidence": [
+        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-217-EXACT-HEAD-CI-002",
+        "status": "passed",
+        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
+        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
+        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+      },
+      "regression_evidence": [
+        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
+      ]
+    },
+    {
+      "requirement_id": "REQ-GATE-NO-SKIP",
+      "positive_evidence": [
+        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-217-SCENARIO-DECOY-002",
+        "status": "passed",
+        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
+        "expected": "Both decoys must be rejected as missing executable scenarios.",
+        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
+      },
+      "regression_evidence": [
+        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
+      ]
+    },
+    {
+      "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
+      "positive_evidence": [
+        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-217-COMMENT-STRING-001",
+        "status": "passed",
+        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
+        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
+        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
+      },
+      "regression_evidence": [
+        "The positive 58-scenario contract still passes with the hardened recognizer."
+      ]
+    }
+  ]
+}

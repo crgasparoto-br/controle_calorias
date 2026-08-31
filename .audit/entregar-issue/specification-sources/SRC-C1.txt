@@ -1,15 +1,20 @@
-## Complemento obrigatório de rollout — alerta de capacidade excedida
+## Ampliação vinculante da matriz de testes — decisões finais da #145
 
-Durante migração e operação comercial, os jobs devem gerar alerta administrativo persistente quando um profissional entrar em capacidade excedida.
+Adicionar cobertura executável, sem `skip`/`todo`, para:
 
-Requisitos:
+- trial profissional de 14 dias com cartão prévio;
+- prevenção de repetição por usuário interno, documento protegido e telefone normalizado;
+- efetivação antecipada liberando capacidade somente após confirmação;
+- reservas profissionais permanecendo ocupadas durante `suspended` e sendo reutilizadas na recuperação;
+- precedência de acesso: isenção > cobertura > assinatura paga > trial > transição > leitura;
+- cupom válido, inválido, expirado, inelegível, esgotado e concorrente;
+- um cupom por contratação e não acumulação;
+- limite público de 30%; mensal por até 3 cobranças; anual somente na primeira;
+- trial + cupom iniciando desconto na primeira cobrança;
+- rejeição de cupom de 100% e uso de isenção administrativa;
+- callback, retry e reconciliação sem consumir cupom duas vezes;
+- alertas de consumo em 70%, 85% e 100%;
+- liberação administrativa de franquia sem cobrança;
+- impossibilidade de ativar cobrança futura por consumo sem autorização administrativa explícita, vigência, comunicação, ausência de retroatividade e rollback.
 
-- criar o alerta na primeira transição para estado excedido, com chave idempotente;
-- registrar capacidade contratada, ocupação, excedente, maior plano público, causa e prazo da capacidade temporária;
-- classificar como prioridade alta e `catalog_range_review_required` quando nenhum plano público ativo comportar a carteira;
-- manter o alerta no painel mesmo se e-mail ou outro canal externo falhar;
-- reabrir ou gerar novo alerta somente quando houver mudança material de faixa, vencimento ou alteração relevante do catálogo;
-- incluir nas métricas do rollout alertas abertos, reconhecidos, resolvidos, faixas de demanda e decisões sobre novos ranges;
-- não criar ou publicar plano automaticamente.
-
-O piloto não deve ser considerado observável enquanto esse alerta, sua fila administrativa e sua deduplicação não estiverem validados.
+Esses cenários complementam e substituem qualquer fixture baseada nas decisões anteriormente marcadas como pendentes.

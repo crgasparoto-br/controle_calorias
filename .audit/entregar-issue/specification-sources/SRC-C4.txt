@@ -1,34 +1,54 @@
-## Fechamento técnico da implementação — PR #1023
+## Matriz adicional obrigatória — comunicações multicanal
 
-O candidato técnico da #898 foi concluído sobre `develop` e está congelado no SHA `32e4fb5c4f09455e8d12fbd9d618c69fb9eac0da`.
+Adicionar cobertura automatizada para a política de comunicações da #145.
 
-### Evidência material
-- PR #1023 aberta e mergeável;
-- base `develop`: `5887f31c3b9c16a59abff404aa4f42d9fe81a7c4`;
-- comparação: `ahead 11 / behind 0`;
-- Agent-first gate: **success**;
-- Billing persistence TiDB gate: **success**;
-- TypeScript, testes, arquitetura, documentação e build: **success**.
+### Persistência e idempotência
 
-### Escopo técnico fechado
-- corte idempotente e transição absoluta de 30 dias para usuários existentes;
-- substituição do trial sem renovação silenciosa em retry/reexecução;
-- dry-run, confirmação explícita, checkpoint, retry, falha parcial e reconciliação;
-- cinco marcos da comunicação de transição (`start`, `D15`, `D7`, `D1`, `end`);
-- persistência interna antes do outbound;
-- cadência e-mail `0/+1h/+24h` e WhatsApp `0/+2h/+24h`;
-- WhatsApp só permanece elegível com conexão ativa/validada;
-- retries pendentes de marco anterior tornam-se `ignored/obsolete` quando há marco superveniente;
-- finalização idempotente após `validUntil`, preservando dados e demais origens de acesso;
-- runbook e template de evidência operacional versionados.
+- notificação interna é persistida antes de e-mail ou WhatsApp;
+- a mesma campanha/marco/usuário gera uma única comunicação lógica;
+- retries reutilizam a chave original;
+- evento duplicado, webhook repetido e job reexecutado não duplicam notificação;
+- falha parcial retoma do canal pendente sem repetir os canais concluídos;
+- ação concluída ou evento superveniente torna retries obsoletos;
+- alteração de template cria nova versão sem mudar histórico enviado.
 
-### Gates que permanecem humanos/operacionais
-A issue deve permanecer aberta até existir evidência real do rollout. Não foram inventados nem executados nesta entrega:
-- instante real de corte;
-- responsáveis nominais por produto, técnico, billing, suporte e autorização;
-- homologação jurídica/privacidade dos conteúdos e classificação das comunicações;
-- templates finais e identificadores reais de remetentes;
-- homologação contábil/fiscal aplicável;
-- execução/evidência das etapas reais, métricas, decisões de avanço, incidentes e rollback.
+### Canais e retries
 
-A PR prepara o mecanismo; **não ativa cobrança em produção**, não executa o rollout real e não faz merge automaticamente.
+- e-mail: inicial, +1 hora e +24 horas;
+- WhatsApp: inicial, +2 horas e +24 horas;
+- falha definitiva gera pendência operacional;
+- falha externa não apaga nem conclui a notificação interna;
+- sucesso de um canal não mascara falha de outro;
+- relógio controlado valida todos os marcos.
+
+### Segurança e isolamento
+
+- canais externos trazem resumo e link autenticado, sem token reutilizável;
+- mensagens não contêm documento, cartão, dados clínicos, IDs ou enums internos;
+- paciente coberto não recebe finanças ou capacidade do profissional;
+- fluxo de conta existente permanece genérico antes da autenticação;
+- contexto de usuário/campanha obsoleto não é aplicado a outra sessão.
+
+### Opt-out e categorias
+
+- opt-out promocional bloqueia somente campanha promocional;
+- avisos operacionais, financeiros e de segurança seguem a classificação configurada;
+- preferência é aplicada por usuário, categoria, canal e vigência;
+- alteração de opt-out não reclassifica retrospectivamente histórico.
+
+### Administração e frontend
+
+- `/billing` exibe histórico e diferencia leitura, entrega e ação concluída;
+- `/admin/billing` filtra campanhas, versões, canais, falhas e retries;
+- reprocessamento manual exige motivo e mantém correlação;
+- pausa de campanha preserva histórico;
+- conteúdo histórico permanece associado à versão enviada;
+- acessibilidade e responsividade cobrem lista, detalhe, falha e ação.
+
+### Critérios adicionais
+
+- [ ] Não há `skip`/`todo` nos cenários de comunicação aplicáveis.
+- [ ] Concorrência não duplica comunicação, tentativa ou conclusão.
+- [ ] Métricas distinguem notificação interna, e-mail e WhatsApp.
+- [ ] Testes não imprimem destinatário completo, segredo, conteúdo clínico ou payload bruto.
+- [ ] Gates TiDB validam unicidade, transição de status, obsolescência e reprocessamento.
