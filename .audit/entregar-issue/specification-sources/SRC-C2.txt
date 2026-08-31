@@ -1,0 +1,15 @@
+## Testes adicionais obrigatórios — alerta administrativo de capacidade
+
+Adicionar cobertura executável para:
+
+- transição de `within_capacity` para capacidade excedida cria exatamente um alerta administrativo;
+- retries, reprocessamento e jobs concorrentes não duplicam o alerta;
+- alerta contém plano/versão, capacidade contratada, ocupação, excedente, maior plano público, causa e prazo;
+- carteira acima do maior plano público gera prioridade alta e `catalog_range_review_required`;
+- falha de e-mail ou canal externo mantém o alerta persistido no painel;
+- mudança material para faixa superior reabre ou cria novo alerta conforme contrato, sem duplicação indevida;
+- resolução natural ou upgrade atualiza o alerta e preserva o histórico;
+- administrador pode reconhecer, atribuir, registrar análise, decidir e encerrar com auditoria;
+- analytics agregam demanda por faixa;
+- alerta nunca cria, ativa, publica ou precifica plano automaticamente;
+- criação posterior de novo range exige operação administrativa autorizada e versão de catálogo própria.

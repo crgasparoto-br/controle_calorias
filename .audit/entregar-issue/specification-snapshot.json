@@ -1,53 +1,75 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 215,
-  "created_at": "2026-08-29T12:40:14.533635+00:00",
-  "primary_source_id": "SRC-ISSUE-215",
+  "issue": 217,
+  "created_at": "2026-08-31T02:38:20.854999+00:00",
+  "primary_source_id": "SRC-ISSUE",
   "sources": [
     {
-      "id": "SRC-ISSUE-215",
+      "id": "SRC-ISSUE",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-215.txt",
-      "locator": "/tmp/cc215handoff/issue-215.md",
-      "sha256": "f1f0b9d952fc181bdd4bfe8e9b2a180f554f9376b44de0a9925595b15e48aca2",
+      "path": "specification-sources/SRC-ISSUE.txt",
+      "locator": "/tmp/handoff1022/sources/issue-217.md",
+      "sha256": "e5004aa59ed7666671ba68fc27673af0c206491167d0c79707003f2a26980f52",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 196
+      "line_count": 223
     },
     {
-      "id": "SRC-COMMENT-ADMIN",
+      "id": "SRC-C1",
       "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-ADMIN.txt",
-      "locator": "/tmp/cc215handoff/comment-admin.md",
-      "sha256": "a86005394c26d853b8d0f7d9470ead4d34c752032bc1cb218bd2595d457305e8",
+      "path": "specification-sources/SRC-C1.txt",
+      "locator": "/tmp/handoff1022/sources/comment-1.md",
+      "sha256": "79e9b8f439f9b8ee1260479b7d3ed8784c1d44616b9fe1677e5f6bcf184cbdc1",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 19
+      "line_count": 20
     },
     {
-      "id": "SRC-COMMENT-COMMERCIAL",
+      "id": "SRC-C2",
       "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-COMMERCIAL.txt",
-      "locator": "/tmp/cc215handoff/comment-commercial.md",
-      "sha256": "5a94de9df1f85cde90f166a75e68c7eff3acd1a55be016792f6e23f455c46d60",
+      "path": "specification-sources/SRC-C2.txt",
+      "locator": "/tmp/handoff1022/sources/comment-2.md",
+      "sha256": "426d4aae6dbd0a3aa918ec5fa3b3d75303ba4278f2c8e8f347c0debe455cfda1",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 14
+      "line_count": 15
     },
     {
-      "id": "SRC-COMMENT-COMMS",
+      "id": "SRC-C3",
       "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-COMMS.txt",
-      "locator": "/tmp/cc215handoff/comment-communications.md",
-      "sha256": "2d11512556a9c0f1210df30c30d3dbbf3945efdbd2b579ec29a9f0563d79ba9d",
+      "path": "specification-sources/SRC-C3.txt",
+      "locator": "/tmp/handoff1022/sources/comment-3.md",
+      "sha256": "04565198876edc77ad74fe80118eb6fceb9ec662e4bff8b52f4e8404b11c7719",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 27
+      "line_count": 53
+    },
+    {
+      "id": "SRC-C4",
+      "kind": "issue-comment",
+      "path": "specification-sources/SRC-C4.txt",
+      "locator": "/tmp/handoff1022/sources/comment-4.md",
+      "sha256": "71c1ac7f51b9f9b307aafdaed99ff8d0176bcde520c0c58eb081ecf924527bc4",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 54
+    },
+    {
+      "id": "SRC-C5",
+      "kind": "issue-comment",
+      "path": "specification-sources/SRC-C5.txt",
+      "locator": "/tmp/handoff1022/sources/comment-5.md",
+      "sha256": "53a5da184893846010b4a16c4498ebf57748ef5692aadf7b1b98be246c9500dc",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 49
     }
   ]
 }

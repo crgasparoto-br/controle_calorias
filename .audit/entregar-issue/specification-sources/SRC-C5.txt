@@ -1,0 +1,49 @@
+## Complemento obrigatório de testes — rollout progressivo
+
+A suíte deve validar o plano vinculante da #898.
+
+### Etapas e população
+
+- provider fake: três ciclos completos consecutivos sem divergência não explicada;
+- sandbox: no mínimo 30 jornadas controladas ao longo da janela configurada de 5 dias úteis;
+- internos: seleção determinística de 6 individuais e 4 profissionais;
+- piloto A: 25 individuais e 5 profissionais;
+- piloto B: 100 individuais e 20 profissionais;
+- geral não bloqueante: `open_access` preservado;
+- `enforced`: progressão por 10%, 25%, 50% e 100%, sem avanço automático por tempo.
+
+Os testes não precisam aguardar tempo real: usar relógio controlado e fixtures para validar durações mínimas, mas devem provar que a regra de avanço respeita a janela.
+
+### Gates
+
+Cobrir:
+
+- cobrança duplicada reprova a etapa;
+- ativação sem confirmação financeira reprova a etapa;
+- bloqueio de usuário elegível reprova a etapa;
+- perda de dados, vínculos, prontuários ou capacidade reprova a etapa;
+- exposição sensível reprova a etapa;
+- eventos financeiros são persistidos antes do processamento;
+- métricas calculam percentuais de processamento em 5 minutos e reconciliação em 30 minutos;
+- divergência financeira inferior a 0,5% não aprova enquanto existir item sem análise ou sem resolução em 24 horas;
+- notificações internas essenciais atingem 100% e falhas externas permanecem reprocessáveis;
+- incidente crítico ou alto aberto bloqueia avanço.
+
+### Coorte, concorrência e auditoria
+
+- seleção de coorte é determinística e reproduzível;
+- reexecução não move usuário entre fases;
+- duas aprovações concorrentes não avançam duas etapas;
+- usuário fora da coorte continua no modo anterior;
+- cada decisão registra métricas, evidências, responsáveis e resultado;
+- progressão por data sem autorização é rejeitada.
+
+### Pausa e rollback
+
+- pausa impede novas ativações, mas não apaga fatos legítimos;
+- rollback retorna elegibilidade aplicável para `open_access`;
+- cobranças, estornos, cancelamentos, assinaturas, capacidade e auditoria permanecem preservados;
+- todos os usuários afetados entram em reconciliação rastreável;
+- retomada exige nova autorização registrada.
+
+Nenhum cenário obrigatório pode permanecer com `skip` ou `todo`.

@@ -1,0 +1,53 @@
+## Matriz adicional obrigatória — política econômica, retenção e abuso
+
+Adicionar testes executáveis para:
+
+### Receita e KPI
+
+- plano mensal reconhecido proporcionalmente à vigência;
+- plano anual apropriado ao longo de 12 meses;
+- pagamento antecipado não concentra receita no primeiro mês;
+- trial, transição, acesso aberto e isenção com receita econômica zero;
+- descontos, cupons, créditos, reembolsos, chargebacks, impostos e taxas efetivas reduzindo a receita líquida econômica;
+- antecipação de recebíveis permanecendo separada;
+- valor estimado sendo substituído pelo conciliado com auditoria;
+- moedas não sendo somadas sem conversão versionada;
+- custo variável incluindo somente itens diretamente atribuíveis;
+- leitura mensal e média móvel de três meses;
+- faixas até 20%, 20%–25%, acima de 25% e acima de 30% por dois meses;
+- alerta econômico sem bloqueio automático.
+
+### Atribuição profissional
+
+- receita atribuída ao profissional pagador;
+- paciente preservado como beneficiário;
+- uso pessoal do profissional na mesma assinatura;
+- ausência de dupla contagem entre profissional e paciente;
+- custo agregado por carteira e por faixa de capacidade.
+
+### Retenção
+
+- eventos detalhados eliminados após 13 meses;
+- agregados diários preservados por 24 meses;
+- mensais e auditoria preservados por 5 anos;
+- `legal hold` impedindo eliminação apenas quando documentado;
+- retry de eliminação idempotente;
+- falha parcial visível e retomável;
+- conteúdo bruto não persistido apenas para medição.
+
+### Governança de abuso
+
+- custo elevado isolado não abre limitação automática;
+- sinais combinados abrem somente caso para revisão;
+- falhas e retries internos são excluídos da evidência;
+- limitação exige aprovação humana, comunicação e recurso;
+- prazo inicial máximo de 7 dias;
+- extensão de até 7 dias exige segundo administrador;
+- proteção emergencial de 24 horas exige risco de segurança comprovado;
+- login, consulta, exportação e registros manuais permanecem disponíveis;
+- apenas operações pesadas relacionadas são limitadas;
+- expiração e reversão ocorrem automaticamente e sem duplicidade;
+- recurso aceito reverte a limitação;
+- KPI, alerta ou feature flag nunca cria cobrança, reajuste ou migração de plano.
+
+Nenhum cenário obrigatório pode permanecer com `skip` ou `todo`.
