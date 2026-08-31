@@ -82,9 +82,14 @@ export async function openBrowserHarness() {
   const click = async text => {
     const target = await findControlPoint(text);
     if (!target?.ok) throw new Error(`clickable control not found: ${text}; reason=${target?.reason ?? 'unknown'}`);
-    await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x, y: target.y }, sessionId);
-    await call("Input.dispatchMouseEvent", { type: "mousePressed", x: target.x, y: target.y, button: "left", buttons: 1, clickCount: 1 }, sessionId);
-    await call("Input.dispatchMouseEvent", { type: "mouseReleased", x: target.x, y: target.y, button: "left", buttons: 0, clickCount: 1 }, sessionId);
+    if (target.role === "tab") {
+      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x, y: target.y }, sessionId);
+      await call("Input.dispatchMouseEvent", { type: "mousePressed", x: target.x, y: target.y, button: "left", buttons: 1, clickCount: 1 }, sessionId);
+      await call("Input.dispatchMouseEvent", { type: "mouseReleased", x: target.x, y: target.y, button: "left", buttons: 0, clickCount: 1 }, sessionId);
+    } else {
+      const result = await findControl(text, "click");
+      if (!result?.ok) throw new Error(`clickable control not found: ${text}`);
+    }
     await delay(100);
     return target;
   };
