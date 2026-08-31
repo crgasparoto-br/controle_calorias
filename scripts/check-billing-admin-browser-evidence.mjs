@@ -89,19 +89,19 @@ try {
       expression: `(() => { const text = document.body?.innerText ?? ''; const root = document.getElementById('root'); return {title: text.includes('Billing, catálogo e governança'), campaigns: text.includes('Campanhas e entregas'), economics: text.includes('Economia por identidade comercial'), rollout: text.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || (document.body?.scrollWidth ?? 0) > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length, readyState: document.readyState, href: location.href, rootChildCount: root?.childElementCount ?? 0, bodyText: text.trim().slice(0, 1200), rootHtml: (root?.innerHTML ?? '').slice(0, 1200)}; })()`,
       returnByValue: true,
     }, sessionId);
-    return result.value;
+    return result?.value;
   };
   const waitForBillingState = async sessionId => {
     let value;
     for (let attempt = 0; attempt < 120; attempt += 1) {
       value = await readBillingState(sessionId);
-      if (value.title && value.campaigns && value.economics && value.rollout) return value;
+      if (value?.title && value.campaigns && value.economics && value.rollout) return value;
       await delay(100);
     }
     return value;
   };
   const assertBillingReady = (label, value) => {
-    if (value.title && value.campaigns && value.economics && value.rollout) return;
+    if (value?.title && value.campaigns && value.economics && value.rollout) return;
     const diagnostics = {
       state: value,
       runtimeEvents: runtimeEvents.slice(-12),
