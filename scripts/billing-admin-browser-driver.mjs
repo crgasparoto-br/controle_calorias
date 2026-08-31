@@ -78,20 +78,12 @@ export async function openBrowserHarness() {
     await delay(100);
   };
   const findControl = (text, action) => evaluate(`(() => { const target=Array.from(document.querySelectorAll('button,[role="tab"]')).find(el=>(el.textContent||'').trim()===${JSON.stringify(text)}); if(!target)return {ok:false}; target.${action}(); return {ok:true,role:target.getAttribute('role'),text:(target.textContent||'').trim()}; })()`);
-  const findControlPoint = text => evaluate(`(() => { const target=Array.from(document.querySelectorAll('button,[role="tab"]')).find(el=>(el.textContent||'').trim()===${JSON.stringify(text)}); if(!target)return {ok:false,reason:'not-found'}; target.scrollIntoView({block:'nearest',inline:'nearest'}); const rect=target.getBoundingClientRect(); const disabled=target.matches(':disabled')||target.getAttribute('aria-disabled')==='true'; if(disabled)return {ok:false,reason:'disabled',role:target.getAttribute('role'),text:(target.textContent||'').trim()}; if(rect.width<=0||rect.height<=0)return {ok:false,reason:'not-visible',role:target.getAttribute('role'),text:(target.textContent||'').trim()}; return {ok:true,x:rect.left+rect.width/2,y:rect.top+rect.height/2,role:target.getAttribute('role'),text:(target.textContent||'').trim()}; })()`);
+  const activateControl = text => evaluate(`(() => { const target=Array.from(document.querySelectorAll('button,[role="tab"]')).find(el=>(el.textContent||'').trim()===${JSON.stringify(text)}); if(!target)return {ok:false,reason:'not-found'}; target.scrollIntoView({block:'nearest',inline:'nearest'}); const disabled=target.matches(':disabled')||target.getAttribute('aria-disabled')==='true'; if(disabled)return {ok:false,reason:'disabled',role:target.getAttribute('role'),text:(target.textContent||'').trim()}; const rect=target.getBoundingClientRect(); if(rect.width<=0||rect.height<=0)return {ok:false,reason:'not-visible',role:target.getAttribute('role'),text:(target.textContent||'').trim()}; const role=target.getAttribute('role'); if(role==='tab'){ target.focus(); target.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true,view:window,button:0,buttons:1})); target.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,cancelable:true,view:window,button:0,buttons:0})); target.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,button:0,buttons:0})); } else { target.click(); } return {ok:true,role,text:(target.textContent||'').trim()}; })()`);
   const click = async text => {
-    const target = await findControlPoint(text);
-    if (!target?.ok) throw new Error(`clickable control not found: ${text}; reason=${target?.reason ?? 'unknown'}`);
-    if (target.role === "tab") {
-      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x, y: target.y }, sessionId);
-      await call("Input.dispatchMouseEvent", { type: "mousePressed", x: target.x, y: target.y, button: "left", buttons: 1, clickCount: 1 }, sessionId);
-      await call("Input.dispatchMouseEvent", { type: "mouseReleased", x: target.x, y: target.y, button: "left", buttons: 0, clickCount: 1 }, sessionId);
-    } else {
-      const result = await findControl(text, "click");
-      if (!result?.ok) throw new Error(`clickable control not found: ${text}`);
-    }
+    const result = await activateControl(text);
+    if (!result?.ok) throw new Error(`clickable control not found: ${text}; reason=${result?.reason ?? 'unknown'}`);
     await delay(100);
-    return target;
+    return result;
   };
   const focus = async text => { const result = await findControl(text, "focus"); if (!result?.ok) throw new Error(`focusable control not found: ${text}`); return result; };
   const setValue = async (id, value) => {
