@@ -1,54 +1,234 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "head_sha": "f596dbd94ce74e06055f0f0549e6fcdb41848a68",
   "requirements": [
     {
-      "requirement_id": "REQ-GATE-CI",
+      "requirement_id": "REQ-A11Y",
       "positive_evidence": [
-        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "Tabs e dialogs são operáveis por teclado, rotulados e restauram foco.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-EXACT-HEAD-CI-002",
+        "id": "NEG-REQ-A11Y",
         "status": "passed",
-        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
-        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
-        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "procedure": "AX tree/teclado exigem roles, foco interno e retorno ao acionador.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
       },
       "regression_evidence": [
-        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
       ]
     },
     {
-      "requirement_id": "REQ-GATE-NO-SKIP",
+      "requirement_id": "REQ-CONFIRM",
       "positive_evidence": [
-        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
+        "Ações sensíveis usam AlertDialog com contexto e verbo específico.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-SCENARIO-DECOY-002",
+        "id": "NEG-REQ-CONFIRM",
         "status": "passed",
-        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
-        "expected": "Both decoys must be rejected as missing executable scenarios.",
-        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
+        "procedure": "Harness cancela com Escape e exige mutation count inalterado; depois confirma uma única mutation.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
       },
       "regression_evidence": [
-        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
       ]
     },
     {
-      "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
+      "requirement_id": "REQ-COPY",
       "positive_evidence": [
-        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
+        "Cabeçalho e microcopy foram simplificados para linguagem operacional.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-COMMENT-STRING-001",
+        "id": "NEG-REQ-COPY",
         "status": "passed",
-        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
-        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
-        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
+        "procedure": "Texto técnico antigo não é necessário para operar a área principal.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
       },
       "regression_evidence": [
-        "The positive 58-scenario contract still passes with the hardened recognizer."
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-CREATE",
+      "positive_evidence": [
+        "Criação de produto/versão/cupom abre Dialog, preserva valores em erro e fecha no sucesso.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-CREATE",
+        "status": "passed",
+        "procedure": "Fixture força erro na primeira criação e harness exige valores preservados e foco restaurado.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-DESIGN",
+      "positive_evidence": [
+        "Implementação reutiliza Tabs, Dialog, AlertDialog, PageIntro e Button existentes.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-DESIGN",
+        "status": "passed",
+        "procedure": "grep negativo rejeita window.confirm e implementação paralela de confirmação.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-DOC",
+      "positive_evidence": [
+        "Documento operacional existente continua compatível; nenhum contrato público mudou.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-DOC",
+        "status": "passed",
+        "procedure": "Busca fora do diff não encontrou referência que exija atualização para manter coerência.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-KPI",
+      "positive_evidence": [
+        "Quatro KPIs são lidos de billing.adminAnalytics no PageIntro.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-KPI",
+        "status": "passed",
+        "procedure": "Fonte paralela/hardcode ou analytics duplicado em BillingAdminPanel é rejeitado por checks estruturais.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-LAZY",
+      "positive_evidence": [
+        "Harness conta chamadas tRPC e exige zero para áreas inativas na carga inicial.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-LAZY",
+        "status": "passed",
+        "procedure": "Renderizar todos os painéis ocultos por CSS dispara queries e é rejeitado.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-NAV",
+      "positive_evidence": [
+        "AdminBillingPage usa Tabs controladas com default overview e cinco áreas.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-NAV",
+        "status": "passed",
+        "procedure": "Forçar carregamento inicial fora de overview deve falhar no harness.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-RESPONSIVE",
+      "positive_evidence": [
+        "Harness/renderer cobre 1440x900,1366x768,390x844 e 1024x768 complementar.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-RESPONSIVE",
+        "status": "passed",
+        "procedure": "Root overflow e overflow em zoom 200% causam falha explícita.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-SCOPE",
+      "positive_evidence": [
+        "Diff altera somente frontend e harness visual, sem router, schema, backend de billing ou permissão.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-SCOPE",
+        "status": "passed",
+        "procedure": "Compare remoto contra develop rejeita caminhos fora do recorte esperado.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
+      ]
+    },
+    {
+      "requirement_id": "REQ-STATES",
+      "positive_evidence": [
+        "Painéis afetados mantêm loading, vazio, erro e feedback de sucesso.",
+        "local: TypeScript transpile/Node check/bash-n e invariantes estruturais passaram",
+        "remote: develop..f596dbd94ce74e06055f0f0549e6fcdb41848a68 contém somente os nove arquivos previstos"
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-STATES",
+        "status": "passed",
+        "procedure": "Ausência de estados explícitos é detectável nos componentes focados.",
+        "expected": "A implementação errada deve ser distinguida do comportamento correto.",
+        "observed": "O controle está codificado de forma fail-closed no harness ou no check estrutural focado."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs contém controle discriminante correspondente",
+        "visual-tests/billing-admin/trpcMock.ts fornece fixture determinística sem PII"
       ]
     }
   ]
