@@ -116,6 +116,6 @@ Billing é área sensível. Antes do merge são necessários:
 - `pnpm agent:check`;
 - `Agent-first gate` verde no SHA congelado;
 - smoke de `/admin/billing` com administrador e bloqueio de não administrador;
-- `pnpm billing-admin:visual`, renderizando a página administrativa real com fixture determinística de administrador em 1440x900, 1024x768 e 390x844, além de teclado, árvore de acessibilidade e zoom de 200%;
-- artefato `billing-admin-visual-<SHA>` publicado pelo `Agent-first gate`, contendo os três screenshots, `browser-evidence.json` e `manifest.txt`;
+- `pnpm billing-admin:visual`, renderizando a página administrativa real com fixture determinística de administrador em 1440x900, 1366x768, 1024x768 e 390x844, além de teclado, árvore de acessibilidade e zoom de 200%;
+- artefato `billing-admin-visual-<SHA>` publicado pelo `Agent-first gate`, contendo 4 screenshots, `browser-evidence.json` e `manifest.txt`;
 - validação de banco quando a execução dispuser de `DATABASE_URL`.
