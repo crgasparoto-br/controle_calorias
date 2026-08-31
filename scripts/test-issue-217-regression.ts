@@ -89,13 +89,96 @@ const forbiddenMarkers = [
   /\b(?:xdescribe|xit|xtest)\s*\(/,
 ] as const;
 
+function readQuotedLiteral(source: string, start: number) {
+  const quote = source[start];
+  if (quote !== '"' && quote !== "'") return null;
+
+  let value = "";
+  for (let index = start + 1; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "\\") {
+      const escaped = source[index + 1];
+      if (escaped === undefined) return null;
+      const escapeMap: Record<string, string> = {
+        n: "\n",
+        r: "\r",
+        t: "\t",
+        b: "\b",
+        f: "\f",
+        v: "\v",
+        "0": "\0",
+        "\\": "\\",
+        '"': '"',
+        "'": "'",
+      };
+      value += escapeMap[escaped] ?? escaped;
+      index += 1;
+      continue;
+    }
+    if (char === quote) return { value, end: index + 1 };
+    if (char === "\n" || char === "\r") return null;
+    value += char;
+  }
+
+  return null;
+}
+
 function hasExecutableTestTitle(source: string, title: string) {
-  return [
-    `it("${title}"`,
-    `test("${title}"`,
-    `it('${title}'`,
-    `test('${title}'`,
-  ].some(marker => source.includes(marker));
+  let index = 0;
+
+  while (index < source.length) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (char === "/" && next === "/") {
+      const newline = source.indexOf("\n", index + 2);
+      index = newline === -1 ? source.length : newline + 1;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", index + 2);
+      index = end === -1 ? source.length : end + 2;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      const quote = char;
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") {
+          index += 2;
+          continue;
+        }
+        if (source[index] === quote) {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (!/[A-Za-z_$]/.test(char ?? "")) {
+      index += 1;
+      continue;
+    }
+
+    const identifierStart = index;
+    index += 1;
+    while (/[A-Za-z0-9_$]/.test(source[index] ?? "")) index += 1;
+    const identifier = source.slice(identifierStart, index);
+    if (identifier !== "it" && identifier !== "test") continue;
+    if (source[identifierStart - 1] === ".") continue;
+
+    let cursor = index;
+    while (/\s/.test(source[cursor] ?? "")) cursor += 1;
+    if (source[cursor] !== "(") continue;
+    cursor += 1;
+    while (/\s/.test(source[cursor] ?? "")) cursor += 1;
+
+    const literal = readQuotedLiteral(source, cursor);
+    if (literal?.value === title) return true;
+  }
+
+  return false;
 }
 
 function scenarioContractFailures(
@@ -142,6 +225,24 @@ function validateScenarioGuardItself() {
   const negativeFailures = scenarioContractFailures(syntheticProofs, () => missingSecond);
   if (negativeFailures.length !== 1 || !negativeFailures[0]?.startsWith("SYN-B:")) {
     throw new Error("[issue-217] self-test do contrato nao detectou a remocao de um cenario individual");
+  }
+
+  const commentDecoy = [
+    'it("keeps first required scenario", () => {});',
+    '// it("keeps second required scenario", () => {});',
+  ].join("\n");
+  const commentFailures = scenarioContractFailures(syntheticProofs, () => commentDecoy);
+  if (commentFailures.length !== 1 || !commentFailures[0]?.startsWith("SYN-B:")) {
+    throw new Error("[issue-217] self-test aceitou comentario como cenario executavel");
+  }
+
+  const stringDecoy = [
+    'it("keeps first required scenario", () => {});',
+    'const decoy = "test(\\\"keeps second required scenario\\\", () => {})";',
+  ].join("\n");
+  const stringFailures = scenarioContractFailures(syntheticProofs, () => stringDecoy);
+  if (stringFailures.length !== 1 || !stringFailures[0]?.startsWith("SYN-B:")) {
+    throw new Error("[issue-217] self-test aceitou string como cenario executavel");
   }
 }
 
