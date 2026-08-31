@@ -1,0 +1,37 @@
+## Atualização de prontidão — política econômica resolvida
+
+A política econômica, retenção e governança de abuso deixam de ser parâmetros pendentes do rollout e passam a seguir integralmente a #897.
+
+Antes do piloto pago, validar:
+
+- receita mensal/anual reconhecida proporcionalmente à vigência;
+- deduções e taxas conciliadas na receita líquida econômica;
+- KPI mensal e média móvel de três meses;
+- custos indiretos e financeiros separados;
+- retenção de 13 meses para detalhados, 24 meses para diários e 5 anos para mensais/auditoria;
+- jobs de eliminação e `legal hold` testados;
+- casos de abuso com revisão humana, comunicação, recurso, prazo e reversão;
+- nenhuma cobrança, migração ou reajuste acionado automaticamente por KPI ou alerta.
+
+### Métricas adicionais do rollout
+
+Acompanhar:
+
+- receita líquida econômica e custo variável por produto/versão;
+- índice mensal e média móvel de três meses;
+- distribuição nas faixas até 20%, 20%–25%, acima de 25% e acima de 30%;
+- proporção estimada versus conciliada;
+- cobertura e qualidade dos eventos;
+- casos de consumo atípico e abuso, separados;
+- limitações aplicadas, recursos, reversões e falsos positivos;
+- execução e falhas dos jobs de retenção.
+
+### Parâmetros que permanecem abertos
+
+Após esta decisão, permanecem somente:
+
+1. data real de corte, tamanho das coortes, duração das etapas e responsáveis nominais;
+2. textos finais, canais, remetentes, opt-out aplicável, atendimento e retries das comunicações;
+3. homologação contábil/fiscal pelo contador antes de apresentar a visão como informação oficial.
+
+A homologação contábil não impede instrumentação e piloto gerencial, desde que a interface identifique claramente a natureza econômica gerencial dos valores.

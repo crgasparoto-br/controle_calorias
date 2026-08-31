@@ -51,6 +51,25 @@ describe("billing notification center", () => {
     expect(visible).not.toContain("past_due_notice_day_5");
   });
 
+  it("presents transition milestones without implying automatic billing", () => {
+    const notification = presentBillingFactAsNotification({
+      factType: "commercial_transition_notification",
+      payloadJson: {
+        milestone: "D7",
+        validUntil: "2026-09-28T18:00:00.000Z",
+        cutoverKey: "internal-key",
+      },
+    });
+
+    expect(notification).toMatchObject({
+      campaign: "Transição comercial",
+      title: "Seu período de transição termina em 7 dias",
+      actionHref: "/billing",
+    });
+    expect(notification?.consequence).toContain("Nenhuma cobrança ou assinatura");
+    expect(JSON.stringify(notification)).not.toContain("internal-key");
+  });
+
   it("presents mandatory professional capacity warnings with deadline and alternatives", () => {
     const notification = presentBillingFactAsNotification({
       factType: "professional_capacity_warning",

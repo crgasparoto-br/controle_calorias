@@ -10,6 +10,7 @@ on:
       - "server/routers.ts"
       - "scripts/test-billing-catalog-upgrade-tidb.ts"
       - "scripts/test-billing-persistence-tidb.ts"
+      - "scripts/test-billing-commercial-transition-tidb.ts"
       - "scripts/test-usage-governance-migrations-tidb.ts"
       - "scripts/test-usage-governance-retention-tidb.ts"
       - "scripts/check-referential-integrity.mjs"
@@ -95,6 +96,10 @@ jobs:
           path: billing-test.log
           if-no-files-found: error
           retention-days: 3
+
+      - name: Validate commercial transition frozen snapshot
+        if: steps.billing-test.outcome == 'success'
+        run: pnpm exec tsx scripts/test-billing-commercial-transition-tidb.ts
 
       - name: Validate referential integrity
         if: steps.billing-test.outcome == 'success'

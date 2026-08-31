@@ -72,12 +72,14 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 
 ## Documentação operacional e sensível
 
-| Documento         | Uso                                                                                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
-| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
-| `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
-| `runbooks/`       | Runbooks operacionais. Billing Asaas está em `runbooks/billing-asaas.md`; o rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
+| Documento         | Uso                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                                                                                                                                                                                                                                   |
+| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                                                                                                                                                                                                                                |
+| `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                                                                                                                                                                                                                                       |
+| `runbooks/`       | Runbooks operacionais e técnicos. O controle técnico do rollout comercial de billing está em `runbooks/billing-commercial-rollout.md`; a execução operacional real é rastreada pela #1024. Billing Asaas está em `runbooks/billing-asaas.md`; o rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
+
+O template de evidência sanitizada da execução operacional da #1024 está em `history/billing-commercial-rollout-evidence-template.md`. Ele referencia a #898 como contrato técnico; copie-o para um registro datado por janela. O template não é evidência de execução nem autorização de produção.
 
 ### IA multi-provider e benchmark
 
