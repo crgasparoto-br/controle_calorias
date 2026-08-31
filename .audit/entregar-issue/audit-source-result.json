@@ -3,40 +3,44 @@
   "contract_version": "2026-08-20.3",
   "status": "rejected",
   "mode": "independent",
-  "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
-  "head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d",
-  "published_handoff_head_sha": "463884413de3c7f832274bc7af5aa313acdff594",
+  "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+  "head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52",
+  "material_head_sha": "7cc14dea69246dd2871e11b2d266001d9f08420b",
+  "published_handoff_head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52",
   "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 898,
-  "pull_request_number": 1023,
+  "issue_number": 217,
+  "pull_request_number": 1022,
   "findings": [
     {
-      "id": "AUD-898-HANDOFF-F001",
-      "severity": "high",
+      "id": "A-001",
+      "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "Delivery handoff artifact transport must be byte-integral and verifiable.",
-      "summary": "requirement-closure shard contained one extra base64 character, so physical size/hash diverged from the certified manifest and the logical artifact could not be consumed fail-closed."
+      "requirement": "Candidate base, merge preview and exact-head CI/handoff must be fresh against develop.",
+      "summary": "The prior certificate and green CI were tied to base 5887f31 after develop advanced, leaving PR #1022 dirty/non-mergeable and the release evidence stale."
     },
     {
-      "id": "AUD-898-HANDOFF-F002",
+      "id": "A-002",
+      "severity": "blocker",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "The regression contract must detect loss of an individual required scenario, not only loss of the file or all tests.",
+      "summary": "The prior guard checked file existence plus at least one test, so deleting one required case from a multi-test file could remain green."
+    },
+    {
+      "id": "A-003",
       "severity": "high",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "scope.issue_changed_paths must exactly equal work_item_start_sha..material_head_sha.",
-      "summary": "The certificate listed 13 issue paths while the immutable Git delta contains 21 paths, omitting eight .audit/entregar-issue paths already present in the material head."
+      "requirement": "Testing documentation must reflect the current boundary between technical rollout implementation and operational rollout execution.",
+      "summary": "The prior PR/docs still described #898 as lacking rollout/cohort implementation after its technical implementation had merged; real operational execution is tracked separately by #1024."
     }
   ],
-  "recommendations": [
-    {
-      "id": "REC-898-001",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "summary": "Update PR #1023 description to remove stale SHA 32e4fb5 and stale TiDB success claim, replacing them with the current material identity and observed gate state."
-    }
-  ]
+  "recommendations": []
 }

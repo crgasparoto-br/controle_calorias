@@ -1,63 +1,53 @@
-## Política de comunicações aprovada para o rollout
+## Matriz adicional obrigatória — política econômica, retenção e abuso
 
-A política operacional de comunicações deixa de ser parâmetro pendente e passa a seguir a decisão vinculante registrada na #145.
+Adicionar testes executáveis para:
 
-### Execução obrigatória
+### Receita e KPI
 
-- Persistir primeiro a notificação interna na área autenticada.
-- Usar e-mail como canal externo padrão.
-- Usar WhatsApp como complemento quando houver número validado e envio permitido.
-- Manter detalhes na área autenticada; canais externos enviam resumo e link seguro.
-- Nunca expor ao paciente dados financeiros ou de capacidade do profissional patrocinador.
+- plano mensal reconhecido proporcionalmente à vigência;
+- plano anual apropriado ao longo de 12 meses;
+- pagamento antecipado não concentra receita no primeiro mês;
+- trial, transição, acesso aberto e isenção com receita econômica zero;
+- descontos, cupons, créditos, reembolsos, chargebacks, impostos e taxas efetivas reduzindo a receita líquida econômica;
+- antecipação de recebíveis permanecendo separada;
+- valor estimado sendo substituído pelo conciliado com auditoria;
+- moedas não sendo somadas sem conversão versionada;
+- custo variável incluindo somente itens diretamente atribuíveis;
+- leitura mensal e média móvel de três meses;
+- faixas até 20%, 20%–25%, acima de 25% e acima de 30% por dois meses;
+- alerta econômico sem bloqueio automático.
 
-### Campanhas
+### Atribuição profissional
 
-O rollout deve possuir campanhas versionadas e separadas para migração de 30 dias, trial, contratação, pagamento, inadimplência, suspensão, recuperação, cancelamento, perda de cobertura, capacidade excedida e ativação de `enforced`.
+- receita atribuída ao profissional pagador;
+- paciente preservado como beneficiário;
+- uso pessoal do profissional na mesma assinatura;
+- ausência de dupla contagem entre profissional e paciente;
+- custo agregado por carteira e por faixa de capacidade.
 
-Cada campanha deve registrar:
+### Retenção
 
-- identificador e versão;
-- público e evento de disparo;
-- marco temporal;
-- canais aplicáveis;
-- chave idempotente;
-- conteúdo utilizado;
-- status por canal;
-- ação esperada e data de obsolescência.
+- eventos detalhados eliminados após 13 meses;
+- agregados diários preservados por 24 meses;
+- mensais e auditoria preservados por 5 anos;
+- `legal hold` impedindo eliminação apenas quando documentado;
+- retry de eliminação idempotente;
+- falha parcial visível e retomável;
+- conteúdo bruto não persistido apenas para medição.
 
-### Retentativas
+### Governança de abuso
 
-- E-mail: inicial, +1 hora e +24 horas.
-- WhatsApp: inicial, +2 horas e +24 horas.
-- Retry reutiliza a chave original e não cria uma nova comunicação lógica.
-- Ação concluída ou evento superveniente torna retries pendentes obsoletos.
-- Falha definitiva gera pendência operacional visível e reprocessável.
+- custo elevado isolado não abre limitação automática;
+- sinais combinados abrem somente caso para revisão;
+- falhas e retries internos são excluídos da evidência;
+- limitação exige aprovação humana, comunicação e recurso;
+- prazo inicial máximo de 7 dias;
+- extensão de até 7 dias exige segundo administrador;
+- proteção emergencial de 24 horas exige risco de segurança comprovado;
+- login, consulta, exportação e registros manuais permanecem disponíveis;
+- apenas operações pesadas relacionadas são limitadas;
+- expiração e reversão ocorrem automaticamente e sem duplicidade;
+- recurso aceito reverte a limitação;
+- KPI, alerta ou feature flag nunca cria cobrança, reajuste ou migração de plano.
 
-### Opt-out
-
-Separar promocional, operacional, financeiro e segurança. Opt-out promocional não desativa avisos essenciais de conta, segurança ou obrigações financeiras. A classificação deve ser homologada por privacidade/jurídico antes do rollout.
-
-### Métricas e gates
-
-Medir por campanha, versão e canal: criada, enviada, entregue, falha, retry, deduplicação, abertura quando disponível, ação concluída, opt-out, ticket e tempo de resolução.
-
-Nenhum piloto pago ou `enforced` deve avançar sem:
-
-- persistência e deduplicação comprovadas;
-- fila de falhas e reprocessamento;
-- templates versionados;
-- links autenticados seguros;
-- isolamento entre dados do pagador e do beneficiário;
-- evidência de que falha externa não elimina a notificação interna.
-
-### Parâmetros que permanecem abertos
-
-Após esta decisão, permanecem apenas:
-
-1. data real de corte;
-2. tamanho das coortes;
-3. duração mínima de cada etapa;
-4. responsáveis nominais;
-5. conteúdo textual final e identificadores reais de remetentes a serem homologados antes da campanha.
-
-Os itens 5 são artefatos de execução e homologação, não reabertura da política de comunicação.
+Nenhum cenário obrigatório pode permanecer com `skip` ou `todo`.

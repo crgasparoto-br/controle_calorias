@@ -3,64 +3,68 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
-    "audit_report_sha256": "b78bb39f86d567c2f020cd451c33881e388f7094d7bd0f8ef4e0cb9b0a46b53c",
-    "audited_head_sha": "067d8d726c58b95f35c6741e726e29d139cc720d"
+    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+    "audit_report_sha256": "b28ddec2ae5e4249d94be14ff646d3d483d7c187510db91542aed8278ffcc86d",
+    "audited_head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52"
   },
-  "candidate_head_sha": "ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9",
+  "candidate_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-898-HANDOFF-F001",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "handoff-rebuild",
+      "closure_kind": "base-reconciliation",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/handoff-remediation-evidence.json",
-        ".audit/entregar-issue/post-ci-refreeze-evidence.json"
+        ".github/workflows/issue-217-onboarding-commercial-regression.yml",
+        "docs/testing/issue-217-onboarding-commercial-regression.md",
+        "scripts/test-issue-217-regression.ts"
       ],
       "evidence": [
-        "Current refreeze regenerates all transported audit artifacts deterministically and validates logical JSON fail-closed before publication.",
-        "No historical corrupted shard is reused as current evidence."
+        "PR #1022 now targets base ee5cf76ebda601b80c39296e2b6920ec1fb1ebca and is mergeable.",
+        "Dedicated and Agent-first workflows completed successfully on exact material head 2c240170dd683f6e74833eec4ed5d2a8f23f1c20."
       ],
       "validations": [
-        "audit_artifact_io validates every current transport manifest and part.",
-        "Terminal handoff validation is required on the published direct child."
+        "Current develop is an ancestor of the material head.",
+        "Merge preview is ad07f5ea52ec1a624870b3c5f058b929ae8915e9 and exact-head CI is green."
       ]
     },
     {
       "source_kind": "finding",
-      "source_id": "AUD-898-HANDOFF-F002",
+      "source_id": "A-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "handoff-rebuild",
+      "closure_kind": "regression-guard-hardening",
       "changed_files": [
-        ".audit/entregar-issue/handoff-ready.json",
-        ".audit/entregar-issue/handoff-remediation-evidence.json"
+        "scripts/test-issue-217-regression.ts",
+        "docs/testing/issue-217-onboarding-commercial-regression.md"
       ],
       "evidence": [
-        "Immutable work-item delta contains 41 paths from 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4..ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9.",
-        "Every path is supplied to the certificate builder without filtering audit paths."
+        "The guard tracks 58 scenarios by stable ID, file and exact test title.",
+        "validateScenarioGuardItself removes only SYN-B from a two-scenario synthetic file and requires exactly one SYN-B failure."
       ],
       "validations": [
-        "Certificate scope is rebuilt from the immutable Git delta.",
-        "Terminal validator enforces direct-parent and result-only allowlist topology."
+        "Focused regression workflow printed contract valid for 58 scenarios/32 suites/9 TiDB gates.",
+        "32 Vitest files and 178 tests passed on the exact head."
       ]
     },
     {
-      "source_kind": "recommendation",
-      "source_id": "REC-898-001",
+      "source_kind": "finding",
+      "source_id": "A-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "metadata-correction",
-      "changed_files": [],
+      "closure_kind": "documentation-reconciliation",
+      "changed_files": [
+        "docs/testing/issue-217-onboarding-commercial-regression.md"
+      ],
       "evidence": [
-        "PR #1023 description now names material SHA ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9, base 5887f31c3b9c16a59abff404aa4f42d9fe81a7c4, merge preview 87e1cc27871bbe8693d74e507cc93746947693bb, and the successful exact-tree CI runs."
+        "PR body and testing documentation state that #898 technical rollout is integrated and covered.",
+        "#1024 is named as the canonical operational rollout evidence boundary."
       ],
       "validations": [
-        "Fresh PR metadata read confirms the current material identity before publication."
+        "Agent-first Documentation check passed on the exact head.",
+        "Repository-wide changed-surface review found no old #898-unimplemented claim in the two modified documentation surfaces."
       ]
     }
   ],

@@ -1,82 +1,114 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 215,
-  "pull_request": 1021,
-  "material_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-  "base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
-  "work_item_start_sha": "c48ec232d117d5bedc06246311ecc711c0282315",
+  "issue": 217,
+  "pull_request": 1022,
+  "material_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "base_sha": "ee5cf76ebda601b80c39296e2b6920ec1fb1ebca",
+  "merge_preview_sha": "ad07f5ea52ec1a624870b3c5f058b929ae8915e9",
+  "work_item_start_sha": "ee5cf76ebda601b80c39296e2b6920ec1fb1ebca",
   "changed_paths": [
-    "server/modules/onboarding/whatsappActivationReconciler.test.ts",
-    "server/modules/onboarding/whatsappActivationReconciler.ts"
+    ".github/workflows/issue-217-onboarding-commercial-regression.yml",
+    "docs/testing/issue-217-onboarding-commercial-regression.md",
+    "scripts/test-issue-217-regression.ts"
   ],
+  "pr_state": {
+    "open": true,
+    "mergeable": true,
+    "base_ref": "develop",
+    "head_ref": "test/217-onboarding-commercial-regression"
+  },
+  "exact_head_files": {
+    "scripts/test-issue-217-regression.ts": {
+      "sha256": "8c8e3460d97b0a9643fb5655b9e4edf6e7b76440cee06f0f9badddc713f50bde",
+      "scenario_count": 58,
+      "suite_count": 32,
+      "self_guard": "validateScenarioGuardItself removes SYN-B from a two-scenario synthetic suite and requires exactly one SYN-B failure"
+    },
+    "docs/testing/issue-217-onboarding-commercial-regression.md": {
+      "sha256": "97fea84b4fca62230284d32eb62c503325c25de5dfaa67c5a22f44346776cd18",
+      "claim": "#898 technical rollout is covered; #1024 owns real operational rollout evidence"
+    },
+    ".github/workflows/issue-217-onboarding-commercial-regression.yml": {
+      "sha256": "0f059dd60ab7638c889c32560fdf5e3a9c2078bcc5494424ca49d8c3ffa72fbb"
+    }
+  },
   "remote_ci": [
     {
+      "workflow": "Issue 217 onboarding commercial regression",
+      "run_id": 33355549368,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+      "jobs": [
+        {
+          "job_id": 99376880106,
+          "name": "Issue 217 focused regression",
+          "conclusion": "success",
+          "observations": [
+            "contract log: 58 tracked scenarios in 32 Vitest suites and 9 TiDB gates",
+            "Vitest: 32 files passed, 178 tests passed"
+          ]
+        },
+        {
+          "job_id": 99376880271,
+          "name": "Issue 217 TiDB regression",
+          "conclusion": "success",
+          "observations": [
+            "required isolated TiDB regression completed successfully"
+          ]
+        }
+      ]
+    },
+    {
       "workflow": "Agent-first gate",
-      "run_id": 33257441318,
-      "job_id": 99113514196,
+      "run_id": 33355549361,
       "status": "completed",
       "conclusion": "success",
-      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-      "observations": [
-        "TypeScript check: success",
-        "Tests: success",
-        "Architecture check: success",
-        "Documentation check: success",
-        "Build: success",
-        "Agent check: success",
-        "CI gate docs check: success",
-        "Exact-head verification manifest: success",
-        "Exact-head repository bundle: success"
-      ]
-    },
-    {
-      "workflow": "Onboarding activation TiDB gate",
-      "run_id": 33257441412,
-      "job_id": 99113514792,
-      "status": "completed",
-      "conclusion": "success",
-      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-      "observations": [
-        "Validate migration and concurrent transitions: success",
-        "Preserve onboarding activation diagnostics: success"
-      ]
-    },
-    {
-      "workflow": "Billing persistence TiDB gate",
-      "run_id": 33257441319,
-      "job_id": 99113514225,
-      "status": "completed",
-      "conclusion": "success",
-      "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-      "observations": [
-        "Apply current repository schema: success",
-        "Validate billing persistence, concurrency, and idempotency: success",
-        "Validate referential integrity: success"
+      "head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+      "jobs": [
+        {
+          "job_id": 99376880384,
+          "name": "Agent-first gate",
+          "conclusion": "success",
+          "observations": [
+            "TypeScript check: success",
+            "Tests: success",
+            "Architecture check: success",
+            "Documentation check: success",
+            "Build: success",
+            "Agent check: success",
+            "CI gate docs check: success",
+            "Exact-head verification manifest: success",
+            "Exact-head repository bundle: success"
+          ]
+        }
       ]
     }
   ],
-  "exact_head_repository_artifact": {
-    "artifact_id": 9716346283,
-    "name": "agent-first-repository-c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-    "digest": "sha256:d12a7e3eb3a4f4e6f5d337f89af8331abaf4d5e0c5b8b5c620a2173ddd1c4267",
-    "manifest_head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
-    "manifest_base_sha": "5f2b878c6c2b88523c4d9b821e7a8fcf772d7f95",
-    "workflow_run_id": 33257441318
+  "negative_controls": {
+    "scenario_individual_loss": {
+      "procedure": "The exact-head aggregator executes validateScenarioGuardItself before validating repository files. The synthetic source contains two required scenarios; the negative fixture removes only SYN-B and requires exactly one failure whose prefix is SYN-B.",
+      "expected": "A gate that only checks file existence or any test in the file would fail this self-control; the current guard must identify the missing individual scenario.",
+      "observed": "The exact-head workflow reached the contract-valid log after the self-control, and the source hash above contains the SYN-B single-removal assertion."
+    },
+    "skip_todo": {
+      "procedure": "The exact-head aggregator scans every tracked suite for describe/it/test.skip or .todo and xdescribe/xit/xtest before running Vitest.",
+      "expected": "Any mandatory suite containing a disabled test marker makes the contract exit non-zero before the regression run.",
+      "observed": "Contract validation completed with 58 scenarios across 32 suites, then all 32 suites executed and 178 tests passed."
+    },
+    "exact_head_ci": {
+      "procedure": "Bind both workflow runs and the uploaded repository artifact to the material head SHA, rejecting ancestor-only green evidence.",
+      "expected": "All release evidence names the same material head SHA.",
+      "observed": "Both workflow runs and artifact agent-first-repository-2c240170... are bound to 2c240170dd683f6e74833eec4ed5d2a8f23f1c20."
+    },
+    "documentation_boundary": {
+      "procedure": "Inspect both PR description and versioned testing documentation for the old claim that #898 lacks rollout/cohort implementation and for the new #898/#1024 boundary.",
+      "expected": "No current claim says #898 is unimplemented; technical #898 coverage and operational #1024 evidence are separated.",
+      "observed": "PR body and docs both state #898 technical implementation is integrated and #1024 owns real operational rollout evidence."
+    }
   },
-  "exact_head_static_observations": [
-    "The pending scan groups by converted_user_id and orders by MIN(updated_at), then converted_user_id, before applying the bounded LIMIT.",
-    "Each selected pending user is rotated by updating updated_at before the authoritative eligibility/activation check, so blocked and transiently failing users move behind untouched pending users.",
-    "The focused regression with limit=2 processes a blocked prefix (users 1 and 2), then a second reconciliation reaches later eligible user 3 and activates it.",
-    "A sibling regression with a transiently failing prefix (users 11 and 12) still reaches later eligible user 13 on the next reconciliation.",
-    "The existing same-batch failure-isolation regression remains present, proving one per-user failure does not stop the following user.",
-    "Agent-first Tests completed successfully on the exact material head, so the new starvation regressions executed in the repository test suite."
-  ],
-  "audit_remediation": {
-    "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
-    "finding_id": "A-001",
-    "reason": "bounded fixed-prefix starvation",
-    "remediation_mode": "targeted-remediation",
-    "observation": "The reconciler now implements durable queue rotation using persisted updated_at ordering, preserving bounded work while guaranteeing repeated scans progress beyond blocked or failing prefixes."
+  "historical_lineage": {
+    "policy": "Foreign-target audit escapes inherited from develop are preserved as historical lineage only; their source_audit heads remain historical and are not reused as current issue evidence."
   }
 }
