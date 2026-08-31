@@ -1,223 +1,221 @@
+Parent: #145
+
+Execução operacional separada em #1024.
+
 ## Objetivo
 
-Consolidar a suíte automatizada de regressão do onboarding via WhatsApp e da integração comercial final, cobrindo lead, token, cadastro recuperável, conta existente, catálogo, cupom, checkout, elegibilidade, ativação, saudação, capacidade, migração e continuidade nutricional.
+Implementar a infraestrutura técnica necessária para migrar usuários atuais para o modelo comercial, aplicar a transição gratuita de 30 dias, persistir e orquestrar comunicações, reconciliar resultados e oferecer controles seguros para o rollout, **sem exigir nesta issue a execução temporal das etapas reais de homologação/piloto/enforced**.
 
-Parent: #209
+A execução real das fases, coortes, durações, autorizações, métricas observadas e homologações humanas pertence à #1024.
 
-## Princípios
+## Fronteira desta issue
 
-- Testar comportamento observável e contratos entre módulos.
-- Usar relógio controlado para token, trial, carência, transição, capacidade temporária e recuperação.
-- Usar provider fake e fixtures Asaas sanitizadas.
-- Não chamar Meta ou Asaas real.
-- Cenário obrigatório não pode permanecer com `skip` ou `todo`.
-- Concorrência, unicidade e migrations devem ser validadas em TiDB quando aplicável.
-- Usar somente `open_access` e `enforced`.
-- Não imprimir token, telefone completo, credencial, dados de saúde ou conteúdo sensível.
+Esta issue é de **implementação técnica**.
 
-## Matriz obrigatória
+Inclui:
 
-### Lead, token e retomada
+- corte/snapshot e migração de usuários existentes;
+- transição gratuita de 30 dias;
+- integração com os contratos de trial, cobertura, capacidade e elegibilidade já definidos em #893/#894/#896;
+- comunicações da transição e seus retries;
+- jobs idempotentes, checkpoint, retry, falha parcial e reconciliação;
+- persistência de coorte/fase/autorização/decisão/métricas necessária para suportar a operação;
+- mecanismos para pausa/rollback e retorno seguro para `open_access` quando aplicável;
+- runbooks, evidências técnicas e testes.
 
-- telefone normalizado e lead deduplicado;
-- token opaco, hash, validade, rotação e uso único;
-- duas conclusões concorrentes geram uma conta;
-- falha parcial retoma conta, perfil, consentimentos e vínculo;
-- conflito de e-mail/telefone não revela outra conta;
-- token expirado pode ser rotacionado para o mesmo lead sem duplicar identidade;
-- múltiplas abas e retries convergem para o mesmo estado recuperável.
+Não inclui como critério de encerramento:
 
-### Persistência e procedures
+- escolher o instante real de corte;
+- nomear responsáveis reais;
+- homologar textos/remetentes/canais reais;
+- executar 5/7/14 dias de observação;
+- operar usuários internos ou pilotos reais;
+- observar métricas reais por semanas;
+- autorizar ou ativar `enforced` em produção.
 
-- estados `converting`, `pending_activation` e `active`;
-- claim atômico;
-- resposta estruturada com cadastro, elegibilidade, origem e próxima ação;
-- `open_access` sem assinatura fictícia;
-- `enforced` bloqueando até origem válida;
-- cliente não força estado ativo.
+Esses itens foram movidos para #1024.
 
-### Catálogo, cupom e checkout
+## Dependências e fontes canônicas
 
-- catálogo e ações vêm do backend;
-- versão inativa não é oferecida;
-- intenção e checkout são idempotentes;
-- callback antes do webhook permanece pendente;
-- recusa, cancelamento, expiração e abandono permitem retomada;
-- cartão e Pix Automático aparecem somente quando elegíveis;
-- trial inicia apenas com cartão;
-- Pix Automático exige renúncia explícita ao trial e permanece pendente até confirmação;
-- boleto e Pix manual não aparecem no lançamento;
-- um cupom por contratação;
-- cupom válido, inválido, expirado, esgotado, inelegível, já utilizado e concorrente;
-- cupons não acumuláveis;
-- desconto público máximo de 30%;
-- mensal por até 3 cobranças;
-- anual somente na primeira cobrança;
-- desconto de 100% rejeitado e tratado como isenção;
-- trial + cupom inicia desconto na primeira cobrança;
-- retry, troca de método e reconciliação não consomem cupom duas vezes;
-- método de pagamento não aprovado não aparece.
+- #145 — decisões comerciais vinculantes e precedência global;
+- #869 — fundação provider-neutral, entitlements e acesso;
+- #891 — catálogo e versões;
+- #892 — adapter Asaas, checkout e reconciliação financeira;
+- #893 — trial, assinatura, inadimplência, suspensão e recuperação;
+- #894 — cobertura profissional, capacidade e transições;
+- #895 — experiência do usuário;
+- #896 — administração, capacidade temporária, alertas e exceções;
+- #897 — medição de consumo, economia gerencial e governança de abuso;
+- #1024 — homologação e rollout operacional real.
 
-### Webhook e ativação
+Esta issue não deve reimplementar contratos técnicos pertencentes às dependências acima.
 
-- autenticação válida/inválida;
-- evento persistido antes do processamento;
-- evento duplicado, atrasado, desconhecido e fora de ordem;
-- retorno do navegador não ativa;
-- fontes válidas convergem para uma única ativação e saudação;
-- aplicar precedência: isenção > cobertura > assinatura paga > trial > transição > leitura.
+## Corte e migração
 
-### Trials e ciclo comercial
+- aceitar instante de corte absoluto e timezone como parâmetros de execução;
+- persistir snapshot/manifesto idempotente e determinístico;
+- usuário existente no corte recebe exatamente 30 dias corridos de transição gratuita;
+- usuário posterior ao corte segue trial/contratação normal;
+- transição substitui trial inicial para usuário existente;
+- não criar cliente, assinatura, checkout, cobrança ou evento financeiro automaticamente;
+- não cobrar retroativamente;
+- retry/reexecução não altera a data original nem concede nova transição;
+- parâmetros reais de corte são fornecidos pela operação em #1024, não hardcoded.
 
-- individual: 7 dias, cartão prévio, cancelamento sem cobrança e uso único;
-- profissional: 14 dias, cartão prévio, matriz pessoal e profissional completa e limite de 5;
-- uso pessoal do profissional não consome vaga;
-- prevenção de repetição por usuário interno, documento protegido e telefone normalizado;
-- efetivação antecipada só amplia para 30/100 após confirmação;
-- falha/abandono mantém trial e limite original;
-- `past_due` mantém acesso por 7 dias;
-- avisos nos dias 0, 2, 5 e 7;
-- `suspended` aplica restrições individuais/profissionais;
-- reservas profissionais permanecem ocupadas durante 30 dias;
-- recuperação reutiliza as mesmas reservas;
-- pagamento tardio não reativa automaticamente.
+## Preservação de usuários, profissionais e pacientes
 
-### Capacidade excedida e migração profissional
+Durante a transição:
 
-- profissional existente com carteira superior ao plano contratado recebe capacidade temporária inicial de 90 dias;
-- a data inicial deriva da confirmação da contratação e não da simples abertura do checkout;
-- a concessão registra plano/versão, limite contratado, ocupação inicial, limite temporário, início, término, motivo e origem de migração;
-- pacientes, vínculos, prontuários, autorizações e históricos permanecem preservados;
-- enquanto excedido, somente novas aprovações, inclusões e reativações ficam bloqueadas;
-- encerramentos naturais reduzem a ocupação sem ampliar novamente o limite temporário;
-- redução natural para dentro do limite encerra o estado excedido de forma idempotente;
-- upgrade suficiente resolve o estado excedido e aplica a nova capacidade;
-- avisos são enviados no início, a 60, 30, 15 e 7 dias do fim e no vencimento;
-- cada aviso possui chave idempotente e mostra capacidade contratada, ocupação, excedente, prazo e alternativas;
-- nenhum aviso ou job escolhe, remove ou bloqueia pacientes existentes;
-- carteira acima de 100 pacientes, sem plano público suficiente, gera pendência administrativa/comercial;
-- extensão somente pode ser concedida por 30 dias, com motivo, responsável, início, término e limite temporário;
-- extensão automática, retroativa, sem data final ou concorrente sem reavaliação é rejeitada;
-- duas extensões concorrentes não duplicam prazo nem auditoria;
-- vencimento sem regularização produz `grandfathered_expired`;
-- `grandfathered_expired` preserva pacientes e dados e mantém bloqueio de novas inclusões/reativações;
-- assinatura financeiramente válida continua com seus demais efeitos após o vencimento da capacidade temporária;
-- profissional sem plano ao fim da transição comercial perde cobertura sem perder vínculos ou dados;
-- migração, extensão, expiração e resolução são recuperáveis após falha parcial e reexecução;
-- estados `within_capacity`, `grandfathered_active`, `grandfathered_expiring`, `grandfathered_expired` e `grandfathered_resolved` são persistidos e expostos corretamente;
-- rollback para `open_access` não apaga concessões, prazos, avisos ou auditoria.
+- preservar dados, vínculos, prontuários, autorizações, acompanhamentos e histórico;
+- não remover paciente nem escolher automaticamente quem permanece;
+- paciente não recebe detalhes financeiros/capacidade do patrocinador;
+- regras de capacidade excedida, 90 dias, extensões e alertas permanecem sob autoridade técnica de #894/#896;
+- esta issue deve acionar/reconciliar esses contratos corretamente durante migração e rollout.
 
-### Conta existente — autenticação, posse e vínculo
+## Suspensão e recuperação
 
-- conflito por e-mail ou telefone não cria segunda conta, perfil ou vínculo;
-- resposta pública é genérica e não revela existência, nome, e-mail, plano ou status;
-- login correto na conta existente, combinado com token válido enviado ao WhatsApp, permite confirmar o vínculo;
-- autenticação sem prova de posse do WhatsApp não vincula;
-- token do WhatsApp sem sessão autenticada da conta não vincula;
-- login em conta diferente da conta conflitante bloqueia o vínculo sem revelar dados;
-- recuperação de credencial retorna ao mesmo onboarding e preserva lead, token e estado;
-- número já vinculado à mesma conta retorna sucesso idempotente e retoma o fluxo;
-- conta encontrada por e-mail e número livre vincula somente após as duas provas e confirmação explícita;
-- número vinculado a outra conta não é transferido, substituído ou desvinculado automaticamente;
-- fluxo de suporte/atendimento administrativo exige autorização e auditoria quando aplicável;
-- token expirado ou usado antes da conclusão pode ser rotacionado de forma controlada sem duplicar vínculo;
-- múltiplas abas, retries e requisições concorrentes geram exatamente um vínculo;
-- um telefone não termina vinculado a duas contas;
-- consentimentos válidos são preservados e apenas versões obrigatórias ausentes são coletadas;
-- vínculo com conta existente não concede novo trial, não reinicia transição e não cria assinatura, cobertura ou isenção;
-- histórico, metas, registros, vínculos profissionais e origem comercial permanecem na conta existente;
-- retomada continua exatamente do estado preservado e não envia nova saudação indevida.
+Consumir a máquina de estados da #893 e os efeitos de cobertura/capacidade da #894, sem duplicar lógica:
 
-### WhatsApp e saudação
+- `past_due` preserva cobertura/capacidade conforme contrato canônico;
+- `suspended` preserva vínculos/reservas e interrompe cobertura conforme contrato canônico;
+- recuperação confirmada restaura sobre as mesmas reservas;
+- nenhuma transição comercial pode apagar ou recriar silenciosamente vínculos/reservas já persistidos.
 
-- telefone desconhecido cria/reutiliza lead e não chega ao pipeline;
-- usuário pendente não é tratado como desconhecido;
-- mensagem duplicada não repete efeito;
-- usuário bloqueado não registra texto, imagem, áudio, água, exercício ou confirmação;
-- conteúdo bruto bloqueado não é persistido desnecessariamente;
-- saudação apenas após elegibilidade, no máximo uma vez;
-- falha de saudação não reverte ativação;
-- conta existente vinculada volta ao fluxo normal sem novo onboarding.
+## Comunicações
 
-### Administração, isenção e consumo
+Aplicar a política vinculante da #145:
 
-- não administrador não acessa endpoints;
-- isenção com plano de referência, vigência e motivo;
-- isenção não cria assinatura financeira;
-- isenção profissional aplica matriz pessoal e profissional sem consumir vaga pelo pagador;
-- administração filtra capacidade excedida ativa, próxima, vencida e resolvida;
-- concessão inicial de 90 dias é visível e auditável;
-- extensão de 30 dias exige confirmação e prévia de impacto;
-- caso sem plano suficiente aparece na fila administrativa/comercial;
-- reenvio manual de aviso mantém correlação e registra motivo;
-- alertas de consumo em 70%, 85% e 100%;
-- atingir 100% não bloqueia uso normal automaticamente;
-- liberação de franquia e isenção temporária de limites não criam cobrança;
-- limitação por abuso preserva funções básicas e é reversível;
-- cobrança futura por consumo não pode ser ativada sem autorização administrativa explícita;
-- autorização registra responsável, política, preços, planos, vigência, comunicação, ausência de retroatividade e rollback.
+- persistir primeiro notificação interna autenticada;
+- e-mail como canal externo padrão;
+- WhatsApp como complemento somente quando houver número/conexão validada e envio permitido;
+- detalhes na área autenticada; canal externo envia resumo + link seguro;
+- não expor ao paciente finanças ou capacidade do patrocinador;
+- versionar campanha, template, público, gatilho, marco temporal e canais;
+- e-mail: inicial, +1 hora e +24 horas;
+- WhatsApp: inicial, +2 horas e +24 horas;
+- retry reutiliza a comunicação lógica original;
+- ação concluída ou evento superveniente torna tentativas pendentes obsoletas;
+- falha definitiva gera pendência visível e reprocessável;
+- opt-out promocional não desativa avisos essenciais.
 
-### Frontend
+### Marcos da transição de 30 dias
 
-- estados de cadastro, conta existente, autenticação, recuperação, confirmação de vínculo, catálogo, cupom, checkout, pendência, recusa, reconciliação e acesso;
-- retorno após login/recuperação preserva o onboarding correto;
-- mensagens públicas genéricas e informações mascaradas somente após autenticação;
-- trials com cartão prévio;
-- Pix Automático com contratação paga sem trial;
-- efetivação profissional;
-- callback pendente;
-- tela profissional mostra capacidade contratada, ocupação, excedente, prazo e bloqueios;
-- estados de capacidade são apresentados com linguagem amigável sem expor enums;
-- vencimento não comunica remoção automática de pacientes;
-- paciente coberto não vê informações financeiras ou de capacidade do profissional;
-- mensagens sem IDs ou enums internos;
-- acessibilidade e responsividade.
+- início;
+- 15 dias antes;
+- 7 dias antes;
+- 1 dia antes;
+- encerramento.
 
-### Regressões
+Cada comunicação deve usar a data individual correta e chave idempotente por usuário/tipo/marco/campanha.
 
-- cadastro/login web;
-- recuperação de conta existente fora do onboarding continua funcional;
-- fluxo inverso #292;
-- usuário elegível registra texto, imagem, áudio, água e exercício;
-- perfil profissional isolado não concede elegibilidade;
-- retorno a `open_access` não apaga assinatura ou histórico;
-- vínculo do WhatsApp não altera silenciosamente e-mail, senha, perfil ou origem comercial;
-- capacidade temporária não altera permanentemente a versão contratada.
+Textos finais, remetentes reais e classificação jurídica/privacidade são artefatos operacionais da #1024; o código deve suportá-los de forma versionada/configurável, sem inventá-los.
+
+## Persistência e jobs
+
+Implementar/usar jobs para:
+
+- iniciar transições idempotentemente;
+- emitir os marcos de comunicação;
+- encerrar transições idempotentemente;
+- recalcular/reconciliar elegibilidade necessária;
+- integrar com capacidade temporária e alertas canônicos de #894/#896 quando aplicável;
+- suportar `dry-run`;
+- suportar confirmação explícita antes de escrita real;
+- checkpoint por lote/fase;
+- retry somente de falhas elegíveis;
+- resultado por item;
+- falha parcial visível;
+- reconciliação posterior;
+- registrar correlação, execução, ator e resultado.
+
+## Controles técnicos para rollout
+
+O sistema deve possuir contratos que permitam à #1024 operar o rollout sem improvisação:
+
+- registrar fase/coorte/decisão/autorização;
+- selecionar coorte de forma determinística e reproduzível quando `enforced` for utilizado;
+- impedir avanço automático de fase apenas por passagem de tempo;
+- preservar `open_access` como retorno seguro;
+- pausar novas ativações sem apagar fatos financeiros legítimos;
+- reconciliar usuários afetados após pausa/rollback;
+- registrar métricas e resultado de cada execução.
+
+Esta issue prova a **capacidade técnica** desses controles; a execução real e suas durações pertencem à #1024.
+
+## Invariantes
+
+- nenhuma cobrança ou ativação paga nasce do processo de migração;
+- nenhuma reexecução concede nova transição;
+- nenhum retry duplica comunicação lógica ou efeito de entitlement;
+- notificação interna existe independentemente do sucesso do canal externo;
+- WhatsApp não é tratado como canal elegível sem validação/permissão;
+- evento/marco posterior pode tornar retry anterior obsoleto;
+- nenhum dado/vínculo é apagado por encerramento de transição;
+- paciente não recebe dados financeiros/capacidade do profissional;
+- rollout não avança automaticamente por tempo;
+- retorno/rollback não apaga fatos financeiros legítimos;
+- configuração operacional não pode criar plano, preço ou política comercial implicitamente.
+
+## Testes esperados
+
+Cobrir pelo menos:
+
+- corte antes/depois da fronteira absoluta;
+- janela exata de 30 dias;
+- retry/reexecução sem renovação da janela;
+- substituição de trial pela transição;
+- encerramento idempotente;
+- cinco marcos de comunicação;
+- cadência de retry de e-mail e WhatsApp;
+- WhatsApp inelegível sem conexão validada/ativa;
+- evento posterior tornando tentativas anteriores obsoletas;
+- persistência interna antes do outbound;
+- falha externa preservando notificação interna;
+- dry-run e confirmação obrigatória;
+- checkpoint/retry/falha parcial/reconciliação;
+- preservação de dados/vínculos;
+- ausência de criação automática de cliente/checkout/assinatura/cobrança;
+- contratos de coorte/fase/autorização/rollback necessários à #1024.
 
 ## Critérios de aceite
 
-- [ ] Todos os grupos aplicáveis têm testes executáveis sem `skip`/`todo`.
-- [ ] Catálogo, cupom, checkout, callback e webhook são cobertos com fakes.
-- [ ] Trial individual e profissional exigem cartão prévio.
-- [ ] Pix Automático contrata sem trial e não ativa antes da confirmação.
-- [ ] Antifraude de trial considera conta, documento e telefone.
-- [ ] Cupons respeitam não acumulação, limites, duração e idempotência.
-- [ ] Precedência de acesso é determinística.
-- [ ] Suspensão preserva reservas profissionais e recuperação reutiliza as mesmas vagas.
-- [ ] Usuário pendente não produz efeitos nutricionais.
-- [ ] Capacidade temporária inicial dura 90 dias e não permite crescimento da carteira.
-- [ ] Avisos de capacidade ocorrem nos seis marcos sem duplicidade.
-- [ ] Extensões são de 30 dias e exigem autorização auditada.
-- [ ] Vencimento e resolução preservam dados e aplicam estados corretos.
-- [ ] Concorrência não duplica concessão, extensão, aviso ou resolução.
-- [ ] Conta existente exige autenticação da conta e prova de posse do WhatsApp.
-- [ ] Fluxo público não revela a conta existente.
-- [ ] Recuperação e retries retomam sem duplicar conta ou vínculo.
-- [ ] Número pertencente a outra conta não é transferido automaticamente.
-- [ ] Vínculo com conta existente não concede novo trial nem altera origem comercial.
-- [ ] Concorrência garante unicidade do telefone e idempotência do vínculo.
-- [ ] Administração, matriz profissional, capacidade temporária, alertas de consumo e trava de cobrança futura estão cobertos.
-- [ ] Frontend cobre estados comerciais, conta existente, capacidade excedida, acessibilidade e responsividade.
-- [ ] Nenhum teste imprime segredo ou conteúdo sensível.
-- [ ] Passam `pnpm test`, `pnpm check`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e gates TiDB aplicáveis.
+- [ ] Corte absoluto/timezone são parâmetros e não valores hardcoded.
+- [ ] Snapshot/manifesto é idempotente e determinístico.
+- [ ] Usuário existente recebe exatamente 30 dias de transição.
+- [ ] Usuário posterior segue trial/contratação normal.
+- [ ] Transição substitui trial e retry não renova prazo.
+- [ ] Migração não cria cliente, checkout, assinatura ou cobrança.
+- [ ] Dados, vínculos, prontuários e autorizações são preservados.
+- [ ] Integração com capacidade/cobertura reutiliza #894/#896 sem regra paralela.
+- [ ] Notificação interna é persistida antes de canais externos.
+- [ ] Cinco marcos da transição são idempotentes.
+- [ ] E-mail usa inicial/+1h/+24h e WhatsApp inicial/+2h/+24h.
+- [ ] WhatsApp só permanece elegível quando validado/permitido.
+- [ ] Evento superveniente torna retry pendente anterior obsoleto.
+- [ ] Falha externa permanece visível/reprocessável sem remover a interna.
+- [ ] Jobs suportam dry-run, confirmação, checkpoint, retry, resultado por item e reconciliação.
+- [ ] Encerramento da transição é idempotente e não apaga dados.
+- [ ] Existem contratos técnicos para registrar fase, coorte, autorização, decisão, métricas e rollback.
+- [ ] Nenhuma fase é ativada automaticamente apenas pela passagem de tempo.
+- [ ] Testes e CI aplicáveis passam no SHA final.
+- [ ] Runbook documenta como a operação de #1024 deve consumir esses controles.
 
-## Dependências
+## Fora de escopo — movido para #1024
 
-- #145
-- #869 / PR #870
-- #891–#897
-- #215
+- data/hora real do corte;
+- responsáveis nominais;
+- conteúdo final e IDs reais de remetentes;
+- homologação jurídico/privacidade;
+- homologação contábil/fiscal;
+- execução dos três ciclos com provider fake como evidência operacional de rollout;
+- 5 dias úteis/30 jornadas de sandbox;
+- coorte interna de 6 + 4 por 7 dias;
+- piloto A 25 + 5 por 14 dias;
+- piloto B 100 + 20 por 14 dias;
+- disponibilização geral não bloqueante por 14 dias;
+- ativação `enforced` 10%/25%/50%/100% com suas durações e aprovações;
+- métricas reais, incidentes, decisões, pausas e rollback da operação.
 
 ## Prontidão
 
-**Pronta para implementação incremental.** A estratégia de conta existente, os meios de pagamento, a matriz profissional e a política de capacidade temporária estão definidos; cada cenário permanece condicionado somente à funcionalidade correspondente.
+**Pronta para implementação/auditoria técnica.** O encerramento desta issue depende da qualidade e evidência do código, não da passagem de semanas de rollout. A operação comercial real e seus gates continuam obrigatórios em #1024.

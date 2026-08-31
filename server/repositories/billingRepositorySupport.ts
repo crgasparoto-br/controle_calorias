@@ -178,6 +178,8 @@ export async function insertAuditEvent(
     subjectUserId: number;
     actorUserId?: number | null;
     action:
+      | "entitlement_granted"
+      | "entitlement_ended"
       | "capacity_reserved"
       | "capacity_released"
       | "override_granted"

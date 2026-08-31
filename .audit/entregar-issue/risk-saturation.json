@@ -1,322 +1,293 @@
 {
   "schema_version": 1,
-  "head_sha": "c1c7637b2743802dc5ff08e8bd0528fc8fc7d7c4",
+  "head_sha": "ab0706fcf1cb4e79b09c43f0bfbc68d5d10f50b9",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises authorization.",
       "control_ids": [
-        "NC-REQ-005-01",
-        "NC-REQ-012-01",
-        "NC-REQ-023-01",
-        "NC-REQ-027-01",
-        "NC-REQ-033-01",
-        "NC-REQ-035-01",
-        "NC-REQ-054-01",
-        "NC-REQ-055-01",
-        "NC-REQ-082-01",
-        "NC-REQ-085-01"
+        "NEG-REQ-010-01",
+        "NEG-REQ-034-01",
+        "NEG-REQ-050-01",
+        "NEG-REQ-060-01",
+        "NEG-REQ-078-01"
       ],
       "dimensions": [
         {
-          "surface": "access-decision",
-          "reason": "Internal delivery control surface for authorization derived from the canonical requirement.",
+          "surface": "authorization-boundary",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover authorization:authorization-boundary.",
           "control_ids": [
-            "NC-REQ-005-01",
-            "NC-REQ-012-01",
-            "NC-REQ-023-01",
-            "NC-REQ-027-01",
-            "NC-REQ-033-01",
-            "NC-REQ-035-01",
-            "NC-REQ-054-01",
-            "NC-REQ-055-01",
-            "NC-REQ-082-01",
-            "NC-REQ-085-01"
-          ],
-          "status": "passed"
+            "NEG-REQ-010-01",
+            "NEG-REQ-034-01",
+            "NEG-REQ-050-01",
+            "NEG-REQ-060-01",
+            "NEG-REQ-078-01"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "status": "not-applicable",
+      "reason": "No current requirement or inherited control requires tenant-isolation.",
       "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "dimensions": []
     },
     {
       "family": "public-boundary",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-REQ-027-02",
-        "NC-REQ-084-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "public-response",
-          "reason": "Internal delivery control surface for public-boundary derived from the canonical requirement.",
-          "control_ids": [
-            "NC-REQ-027-02",
-            "NC-REQ-084-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No current requirement or inherited control requires public-boundary.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "reference-liveness",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises reference-liveness.",
       "control_ids": [
-        "NC-REQ-022-01",
-        "NC-REQ-029-01",
-        "NC-REQ-042-02",
-        "NC-REQ-052-03"
+        "NEG-INHERITED-REFERENCE-PROGRESS"
       ],
       "dimensions": [
         {
           "surface": "reference-revalidation",
-          "reason": "Internal delivery control surface for reference-liveness derived from the canonical requirement.",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover reference-liveness:reference-revalidation.",
           "control_ids": [
-            "NC-REQ-022-01",
-            "NC-REQ-029-01",
-            "NC-REQ-042-02",
-            "NC-REQ-052-03"
-          ],
-          "status": "passed"
+            "NEG-INHERITED-REFERENCE-PROGRESS"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     },
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises temporal-consistency.",
       "control_ids": [
-        "NC-REQ-005-02",
-        "NC-REQ-015-01",
-        "NC-REQ-023-02",
-        "NC-REQ-026-01",
-        "NC-REQ-028-01",
-        "NC-REQ-034-02",
-        "NC-REQ-035-02",
-        "NC-REQ-038-01",
-        "NC-REQ-050-01",
-        "NC-REQ-053-01",
-        "NC-REQ-061-01",
-        "NC-REQ-063-01",
-        "NC-REQ-071-01",
-        "NC-REQ-076-01",
-        "NC-REQ-080-01",
-        "NC-REQ-080-03",
-        "NC-REQ-084-02",
-        "NC-REQ-085-02"
+        "NEG-REQ-012-01",
+        "NEG-REQ-014-01",
+        "NEG-REQ-015-01",
+        "NEG-REQ-051-02",
+        "NEG-REQ-052-01",
+        "NEG-REQ-065-01",
+        "NEG-REQ-080-01",
+        "NEG-REQ-085-01",
+        "NEG-REQ-092-01",
+        "NEG-REQ-103-01",
+        "NEG-REQ-104-01"
       ],
       "dimensions": [
         {
-          "surface": "reporting-availability-window",
-          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "surface": "time-boundary",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover temporal-consistency:time-boundary.",
           "control_ids": [
-            "NC-REQ-080-01"
-          ],
-          "status": "passed"
+            "NEG-REQ-012-01",
+            "NEG-REQ-052-01",
+            "NEG-REQ-065-01",
+            "NEG-REQ-085-01",
+            "NEG-REQ-092-01",
+            "NEG-REQ-103-01",
+            "NEG-REQ-104-01"
+          ]
         },
         {
-          "surface": "time-semantics",
-          "reason": "Internal delivery control surface for temporal-consistency derived from the canonical requirement.",
+          "surface": "reporting-availability-window",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover temporal-consistency:reporting-availability-window.",
           "control_ids": [
-            "NC-REQ-005-02",
-            "NC-REQ-015-01",
-            "NC-REQ-023-02",
-            "NC-REQ-026-01",
-            "NC-REQ-028-01",
-            "NC-REQ-034-02",
-            "NC-REQ-035-02",
-            "NC-REQ-038-01",
-            "NC-REQ-050-01",
-            "NC-REQ-053-01",
-            "NC-REQ-061-01",
-            "NC-REQ-063-01",
-            "NC-REQ-071-01",
-            "NC-REQ-076-01",
-            "NC-REQ-080-03",
-            "NC-REQ-084-02",
-            "NC-REQ-085-02"
-          ],
-          "status": "passed"
+            "NEG-REQ-014-01",
+            "NEG-REQ-015-01",
+            "NEG-REQ-051-02",
+            "NEG-REQ-080-01"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "status": "not-applicable",
+      "reason": "No current requirement or inherited control requires temporal-destination.",
       "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "dimensions": []
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NC-REQ-060-02"
-      ],
-      "dimensions": [
-        {
-          "surface": "concurrent-transition",
-          "reason": "Internal delivery control surface for concurrency-atomicity derived from the canonical requirement.",
-          "control_ids": [
-            "NC-REQ-060-02"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No current requirement or inherited control requires concurrency-atomicity.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "idempotency",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises idempotency.",
       "control_ids": [
-        "NC-REQ-011-01",
-        "NC-REQ-048-01",
-        "NC-REQ-051-01",
-        "NC-REQ-052-01",
-        "NC-REQ-060-01",
-        "NC-REQ-086-01"
+        "NEG-REQ-013-01",
+        "NEG-REQ-019-01",
+        "NEG-REQ-020-01",
+        "NEG-REQ-021-01",
+        "NEG-REQ-025-01",
+        "NEG-REQ-032-02",
+        "NEG-REQ-035-01",
+        "NEG-REQ-045-01",
+        "NEG-REQ-048-01",
+        "NEG-REQ-053-01",
+        "NEG-REQ-056-01",
+        "NEG-REQ-057-01",
+        "NEG-REQ-058-01",
+        "NEG-REQ-059-01",
+        "NEG-REQ-083-01",
+        "NEG-REQ-084-01",
+        "NEG-REQ-088-01",
+        "NEG-REQ-089-01",
+        "NEG-REQ-090-01",
+        "NEG-REQ-095-01",
+        "NEG-REQ-096-01",
+        "NEG-REQ-101-01"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover idempotency:duplicate-processing.",
           "control_ids": [
-            "NC-REQ-011-01",
-            "NC-REQ-048-01",
-            "NC-REQ-051-01",
-            "NC-REQ-052-01",
-            "NC-REQ-060-01",
-            "NC-REQ-086-01"
-          ],
-          "status": "passed"
+            "NEG-REQ-013-01",
+            "NEG-REQ-019-01",
+            "NEG-REQ-020-01",
+            "NEG-REQ-021-01",
+            "NEG-REQ-025-01",
+            "NEG-REQ-032-02",
+            "NEG-REQ-035-01",
+            "NEG-REQ-045-01",
+            "NEG-REQ-048-01",
+            "NEG-REQ-053-01",
+            "NEG-REQ-056-01",
+            "NEG-REQ-057-01",
+            "NEG-REQ-058-01",
+            "NEG-REQ-059-01",
+            "NEG-REQ-083-01",
+            "NEG-REQ-084-01",
+            "NEG-REQ-088-01",
+            "NEG-REQ-089-01",
+            "NEG-REQ-090-01",
+            "NEG-REQ-095-01",
+            "NEG-REQ-096-01",
+            "NEG-REQ-101-01"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     },
     {
       "family": "rollback",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises rollback.",
+      "control_ids": [
+        "NEG-REQ-004-01",
+        "NEG-REQ-029-01",
+        "NEG-REQ-039-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "rollback-state",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover rollback:rollback-state.",
+          "control_ids": [
+            "NEG-REQ-004-01",
+            "NEG-REQ-029-01",
+            "NEG-REQ-039-01"
+          ]
+        }
+      ]
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises historical-immutability.",
+      "control_ids": [
+        "NEG-AUD-898-F001-SNAPSHOT-COHORT"
+      ],
+      "dimensions": [
+        {
+          "surface": "snapshot-cohort",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover historical-immutability:snapshot-cohort.",
+          "control_ids": [
+            "NEG-AUD-898-F001-SNAPSHOT-COHORT"
+          ]
+        }
+      ]
     },
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises structural-contract.",
       "control_ids": [
-        "NC-REQ-001-03",
-        "NC-REQ-001-04",
-        "NC-REQ-002-01",
-        "NC-REQ-011-02",
-        "NC-REQ-012-02",
-        "NC-REQ-017-01",
-        "NC-REQ-034-01",
-        "NC-REQ-042-01",
-        "NC-REQ-042-03",
-        "NC-REQ-052-02",
-        "NC-REQ-075-01",
-        "NC-REQ-075-02",
-        "NC-REQ-075-03",
-        "NC-REQ-075-04",
-        "NC-REQ-080-02",
-        "NC-REQ-086-02",
-        "NC-REQ-087-01"
+        "NEG-REQ-079-01",
+        "NEG-REQ-019-02",
+        "NEG-INHERITED-CANONICAL-PACKAGE"
       ],
       "dimensions": [
         {
-          "surface": "canonical-contract",
-          "reason": "Internal delivery control surface for structural-contract derived from the canonical requirement.",
+          "surface": "semantic-identity-propagation",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover structural-contract:semantic-identity-propagation.",
           "control_ids": [
-            "NC-REQ-001-03",
-            "NC-REQ-002-01",
-            "NC-REQ-011-02",
-            "NC-REQ-012-02",
-            "NC-REQ-017-01",
-            "NC-REQ-034-01",
-            "NC-REQ-042-03",
-            "NC-REQ-052-02",
-            "NC-REQ-075-04",
-            "NC-REQ-080-02",
-            "NC-REQ-086-02",
-            "NC-REQ-087-01"
-          ],
-          "status": "passed"
+            "NEG-REQ-079-01"
+          ]
+        },
+        {
+          "surface": "canonical-path",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover structural-contract:canonical-path.",
+          "control_ids": [
+            "NEG-REQ-019-02"
+          ]
         },
         {
           "surface": "canonical-source-consistency",
-          "reason": "Delivery artifacts must bind to the current target rather than inherit another target package.",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover structural-contract:canonical-source-consistency.",
           "control_ids": [
-            "NC-REQ-001-04"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "semantic-identity-propagation",
-          "reason": "Adjacent identity fields can be swapped, omitted or conflated while the happy path still produces a valid-looking record; fields=billing-cycle,product,version",
-          "control_ids": [
-            "NC-REQ-042-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "specified-test-matrix",
-          "reason": "A subset of green tests can satisfy the happy path while explicitly required sibling scenarios remain unexecuted.",
-          "control_ids": [
-            "NC-REQ-075-01",
-            "NC-REQ-075-02",
-            "NC-REQ-075-03"
-          ],
-          "status": "passed"
+            "NEG-INHERITED-CANONICAL-PACKAGE"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     },
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "status": "passed",
+      "reason": "Material requirement/attack coverage exercises documentation.",
       "control_ids": [
-        "NC-REQ-001-01",
-        "NC-REQ-062-01"
+        "NEG-REQ-063-01",
+        "NEG-REQ-097-01",
+        "NEG-INHERITED-DOC-SUBJECT-SNAPSHOT"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Internal delivery control surface for documentation derived from the canonical requirement.",
+          "status": "passed",
+          "reason": "Exact-head attack controls cover documentation:canonical-claims.",
           "control_ids": [
-            "NC-REQ-001-01",
-            "NC-REQ-062-01"
-          ],
-          "status": "passed"
+            "NEG-REQ-063-01",
+            "NEG-REQ-097-01",
+            "NEG-INHERITED-DOC-SUBJECT-SNAPSHOT"
+          ]
         }
-      ],
-      "status": "passed"
+      ]
     }
   ],
   "material_families_missing_controls": []
