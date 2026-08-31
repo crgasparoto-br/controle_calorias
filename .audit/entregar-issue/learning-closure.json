@@ -2,17 +2,15 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-rejection",
+    "kind": "independent-audit-rejection",
     "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-    "audit_report_sha256": "b28ddec2ae5e4249d94be14ff646d3d483d7c187510db91542aed8278ffcc86d",
+    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
     "finding_ids": [
-      "A-001",
-      "A-002",
-      "A-003"
+      "A-002"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The controller already has generic controls for target/base freshness, exact-head evidence, specified-test matrices, and documentation semantic drift. This rejection exposed local non-application in the candidate, so the remediation strengthens the repository gate and current documentation without adding repository-specific global policy."
+    "reason": "The governing delivery and audit contracts already require discriminant negative controls. This escape was a local recognizer implementation gap, closed by making executable-test detection ignore non-code textual decoys and by adding permanent comment/string controls."
   }
 }

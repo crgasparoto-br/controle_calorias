@@ -4,23 +4,13 @@
   "status": "rejected",
   "mode": "independent",
   "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-  "head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52",
-  "material_head_sha": "7cc14dea69246dd2871e11b2d266001d9f08420b",
-  "published_handoff_head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52",
+  "head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
+  "material_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "published_handoff_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
   "repository": "crgasparoto-br/controle_calorias",
   "issue_number": 217,
   "pull_request_number": 1022,
   "findings": [
-    {
-      "id": "A-001",
-      "severity": "blocker",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "requirement": "Candidate base, merge preview and exact-head CI/handoff must be fresh against develop.",
-      "summary": "The prior certificate and green CI were tied to base 5887f31 after develop advanced, leaving PR #1022 dirty/non-mergeable and the release evidence stale."
-    },
     {
       "id": "A-002",
       "severity": "blocker",
@@ -28,18 +18,8 @@
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "The regression contract must detect loss of an individual required scenario, not only loss of the file or all tests.",
-      "summary": "The prior guard checked file existence plus at least one test, so deleting one required case from a multi-test file could remain green."
-    },
-    {
-      "id": "A-003",
-      "severity": "high",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "requirement": "Testing documentation must reflect the current boundary between technical rollout implementation and operational rollout execution.",
-      "summary": "The prior PR/docs still described #898 as lacking rollout/cohort implementation after its technical implementation had merged; real operational execution is tracked separately by #1024."
+      "requirement": "The regression contract must detect loss of an individual required scenario rather than textual remnants.",
+      "summary": "The prior guard used source.includes and accepted an exact required title left only in a comment or string after the executable test was removed."
     }
   ],
   "recommendations": []

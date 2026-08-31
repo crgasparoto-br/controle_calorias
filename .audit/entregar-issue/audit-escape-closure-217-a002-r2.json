@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUDESC-217-A002-SCENARIO-GRANULARITY",
+      "escape_class": "scenario-presence-textual-decoy-gap",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+        "finding_id": "A-002",
+        "head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
+        "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4"
+      },
+      "plausible_wrong_implementation": "Treat any raw occurrence of a required test title as executable, allowing a removed scenario to survive only as a comment or string.",
+      "literal_case": {
+        "procedure": "Remove the executable ONB-PUBLIC-CONFLICT declaration while leaving its exact title in a comment or quoted string.",
+        "expected": "The contract reports ONB-PUBLIC-CONFLICT as absent.",
+        "observed": "Both comment-only and string-only decoys are rejected on material head 9eeaa64358bc0d38d9f85cad3ec01f4980874d54.",
+        "status": "passed",
+        "evidence": "local-adversarial-guard-evidence"
+      },
+      "sibling_cases": [
+        {
+          "id": "comment-decoy",
+          "surface": "scenario-contract",
+          "dimension": "line-comment",
+          "status": "passed",
+          "evidence": "local-adversarial-guard-evidence"
+        },
+        {
+          "id": "string-decoy",
+          "surface": "scenario-contract",
+          "dimension": "quoted-string",
+          "status": "passed",
+          "evidence": "local-adversarial-guard-evidence"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "scenario-presence",
+          "dimension": "textual-decoy"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "scripts/test-issue-217-regression.ts lexical executable-test recognizer",
+        "evidence": "a39a096a00e5bc82cc604461e5b660bdcfd77910"
+      },
+      "detection_change": {
+        "skill_or_gate": "validateScenarioGuardItself comment/string controls",
+        "control_id": "CTRL-217-COMMENT-STRING-001",
+        "evidence": "local-adversarial-guard-evidence"
+      },
+      "trigger_terms": [
+        "required scenario",
+        "comment decoy",
+        "string decoy"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54"
+    }
+  ]
+}

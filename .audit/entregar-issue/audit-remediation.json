@@ -4,32 +4,12 @@
   "resolution_policy": "all-actionable-items",
   "source": {
     "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-    "audit_report_sha256": "b28ddec2ae5e4249d94be14ff646d3d483d7c187510db91542aed8278ffcc86d",
-    "audited_head_sha": "bd95743b7d3fe086befc45cd5372d27c00a77a52"
+    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
+    "audited_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad"
   },
-  "candidate_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "candidate_head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
   "remediation_mode": "targeted-remediation",
   "items": [
-    {
-      "source_kind": "finding",
-      "source_id": "A-001",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "base-reconciliation",
-      "changed_files": [
-        ".github/workflows/issue-217-onboarding-commercial-regression.yml",
-        "docs/testing/issue-217-onboarding-commercial-regression.md",
-        "scripts/test-issue-217-regression.ts"
-      ],
-      "evidence": [
-        "PR #1022 now targets base ee5cf76ebda601b80c39296e2b6920ec1fb1ebca and is mergeable.",
-        "Dedicated and Agent-first workflows completed successfully on exact material head 2c240170dd683f6e74833eec4ed5d2a8f23f1c20."
-      ],
-      "validations": [
-        "Current develop is an ancestor of the material head.",
-        "Merge preview is ad07f5ea52ec1a624870b3c5f058b929ae8915e9 and exact-head CI is green."
-      ]
-    },
     {
       "source_kind": "finding",
       "source_id": "A-002",
@@ -37,34 +17,15 @@
       "status": "fixed",
       "closure_kind": "regression-guard-hardening",
       "changed_files": [
-        "scripts/test-issue-217-regression.ts",
-        "docs/testing/issue-217-onboarding-commercial-regression.md"
+        "scripts/test-issue-217-regression.ts"
       ],
       "evidence": [
-        "The guard tracks 58 scenarios by stable ID, file and exact test title.",
-        "validateScenarioGuardItself removes only SYN-B from a two-scenario synthetic file and requires exactly one SYN-B failure."
+        "Executable-title detection now skips comments and quoted/template strings before accepting direct it/test calls.",
+        "Repository-level adversarial copies with comment and string decoys both fail the contract."
       ],
       "validations": [
-        "Focused regression workflow printed contract valid for 58 scenarios/32 suites/9 TiDB gates.",
-        "32 Vitest files and 178 tests passed on the exact head."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-003",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "documentation-reconciliation",
-      "changed_files": [
-        "docs/testing/issue-217-onboarding-commercial-regression.md"
-      ],
-      "evidence": [
-        "PR body and testing documentation state that #898 technical rollout is integrated and covered.",
-        "#1024 is named as the canonical operational rollout evidence boundary."
-      ],
-      "validations": [
-        "Agent-first Documentation check passed on the exact head.",
-        "Repository-wide changed-surface review found no old #898-unimplemented claim in the two modified documentation surfaces."
+        "Exact published blob SHA is a39a096a00e5bc82cc604461e5b660bdcfd77910.",
+        "Contract-only positive path passes with 58 tracked scenarios."
       ]
     }
   ],

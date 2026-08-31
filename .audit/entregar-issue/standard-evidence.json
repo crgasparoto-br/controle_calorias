@@ -1,60 +1,54 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
   "requirements": [
     {
       "requirement_id": "REQ-GATE-CI",
       "positive_evidence": [
-        "Agent-first run 33355549361 completed success on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20; TypeScript, Tests, Architecture, Documentation, Build, Agent check and CI gate docs check all succeeded.",
-        "Issue 217 run 33355549368 completed success on the same exact material head, including focused and TiDB jobs."
+        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-EXACT-HEAD-CI-001",
+        "id": "CTRL-217-EXACT-HEAD-CI-002",
         "status": "passed",
-        "procedure": "Bind release evidence to workflow head SHA and exact-head repository artifact; reject green runs from an ancestor or previous base.",
-        "expected": "Both required workflows and the repository verification artifact identify the current material head.",
-        "observed": "Runs 33355549361 and 33355549368 are completed/success on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20; artifact agent-first-repository-2c240170dd683f6e74833eec4ed5d2a8f23f1c20 was produced by run 33355549361."
+        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
+        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
+        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
       },
       "regression_evidence": [
-        "Agent-first job 99376880384: all required general gates succeeded.",
-        "Issue 217 TiDB job 99376880271: isolated TiDB regression succeeded."
+        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
       ]
     },
     {
       "requirement_id": "REQ-GATE-NO-SKIP",
       "positive_evidence": [
-        "Focused run 33355549368 logged a valid contract with 58 tracked scenarios in 32 Vitest suites and 9 TiDB gates.",
-        "The same job executed all 32 suites: 32 test files passed and 178 tests passed."
+        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-NO-SKIP-001",
+        "id": "CTRL-217-SCENARIO-DECOY-002",
         "status": "passed",
-        "procedure": "Before running Vitest, scan every tracked suite for describe/it/test.skip, describe/it/test.todo, xdescribe, xit or xtest and fail the contract if any marker is present.",
-        "expected": "A mandatory disabled scenario stops the regression contract before the happy-path test run.",
-        "observed": "The exact-head aggregator scanned the 32 tracked suites without a forbidden marker, printed the contract-valid line, then executed 178 passing tests."
+        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
+        "expected": "Both decoys must be rejected as missing executable scenarios.",
+        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
       },
       "regression_evidence": [
-        "Dedicated focused regression job 99376880106 completed success.",
-        "The current script hash is 8c8e3460d97b0a9643fb5655b9e4edf6e7b76440cee06f0f9badddc713f50bde."
+        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
       ]
     },
     {
       "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
       "positive_evidence": [
-        "The exact-head contract maps 58 scenarios to stable ID + test file + exact executable title.",
-        "Focused workflow reached contract-valid only after validateScenarioGuardItself and the repository scenario map both passed."
+        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-SCENARIO-PRESENCE-001",
+        "id": "CTRL-217-COMMENT-STRING-001",
         "status": "passed",
-        "procedure": "Use two required synthetic scenarios in one test file, then remove only SYN-B and require scenarioContractFailures to return exactly one failure whose identifier is SYN-B.",
-        "expected": "Deleting one required scenario from a file that still contains another test must be detected; a file-level any-test implementation would fail this control.",
-        "observed": "The self-control is present in exact-head source 8c8e3460d97b0a9643fb5655b9e4edf6e7b76440cee06f0f9badddc713f50bde and runs before the contract-valid log; run 33355549368 reached that log with 58 tracked scenarios."
+        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
+        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
+        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
       },
       "regression_evidence": [
-        "The focused regression then executed 32 suites and 178 tests successfully.",
-        "A-002 is explicitly closed by audit escape AUDESC-217-A002-SCENARIO-GRANULARITY."
+        "The positive 58-scenario contract still passes with the hardened recognizer."
       ]
     }
   ]
