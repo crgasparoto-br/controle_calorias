@@ -26,6 +26,7 @@ import {
   type ProductForm,
   type VersionForm,
 } from "./BillingCatalogAdminForms";
+import { billingAdminMutationErrorMessage } from "./billingAdminMutationErrors";
 import { Layers3, Plus, RefreshCw, TicketPercent } from "lucide-react";
 import React, { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ export default function BillingCatalogAdminPanel() {
   const versions = trpc.billing.adminCatalogVersions.useQuery({ limit: 100 }, { retry: false });
   const coupons = trpc.billing.adminCoupons.useQuery({ limit: 100 }, { retry: false });
   const [flow, setFlow] = useState<Flow | null>(null);
+  const [flowError, setFlowError] = useState<string | null>(null);
   const [product, setProduct] = useState<ProductForm>(initialProduct);
   const [version, setVersion] = useState<VersionForm>(initialVersion);
   const [coupon, setCoupon] = useState<CouponForm>(initialCoupon);
@@ -67,32 +69,49 @@ export default function BillingCatalogAdminPanel() {
     ]);
   };
 
+  const reportFlowError = (
+    key: "createProduct" | "createVersion" | "createCoupon",
+    error: unknown
+  ) => {
+    const message = billingAdminMutationErrorMessage(key, error);
+    setFlowError(message);
+    toast.error(message);
+  };
+
+  const reportSensitiveError = (
+    key: "publishVersion" | "deactivateVersion" | "deactivateCoupon",
+    error: unknown
+  ) => {
+    toast.error(billingAdminMutationErrorMessage(key, error));
+  };
+
   const createProduct = trpc.billing.adminCreateCatalogProduct.useMutation({
-    onSuccess: async () => { toast.success("Família de produto criada."); setProduct(initialProduct); setFlow(null); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível criar o produto."),
+    onSuccess: async () => { toast.success("Família de produto criada."); setProduct(initialProduct); setFlowError(null); setFlow(null); await refresh(); },
+    onError: error => reportFlowError("createProduct", error),
   });
   const createVersion = trpc.billing.adminCreateCatalogVersion.useMutation({
-    onSuccess: async result => { toast.success(`Versão ${result.versionCode} criada como rascunho.`); setVersion(initialVersion); setFlow(null); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível criar a versão."),
+    onSuccess: async result => { toast.success(`Versão ${result.versionCode} criada como rascunho.`); setVersion(initialVersion); setFlowError(null); setFlow(null); await refresh(); },
+    onError: error => reportFlowError("createVersion", error),
   });
   const publishVersion = trpc.billing.adminPublishCatalogVersion.useMutation({
     onSuccess: async () => { toast.success("Versão publicada para novas contratações."); setActionReason(""); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível publicar a versão."),
+    onError: error => reportSensitiveError("publishVersion", error),
   });
   const deactivateVersion = trpc.billing.adminDeactivateCatalogVersion.useMutation({
     onSuccess: async () => { toast.success("Versão encerrada para novas contratações."); setActionReason(""); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível encerrar a versão."),
+    onError: error => reportSensitiveError("deactivateVersion", error),
   });
   const createCoupon = trpc.billing.adminCreateCouponRevision.useMutation({
-    onSuccess: async () => { toast.success("Revisão de cupom criada."); setCoupon(initialCoupon); setFlow(null); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível criar o cupom."),
+    onSuccess: async () => { toast.success("Revisão de cupom criada."); setCoupon(initialCoupon); setFlowError(null); setFlow(null); await refresh(); },
+    onError: error => reportFlowError("createCoupon", error),
   });
   const deactivateCoupon = trpc.billing.adminDeactivateCoupon.useMutation({
     onSuccess: async () => { toast.success("Cupom desativado para novos usos."); setActionReason(""); await refresh(); },
-    onError: error => toast.error(error.message || "Não foi possível desativar o cupom."),
+    onError: error => reportSensitiveError("deactivateCoupon", error),
   });
 
-  const openFlow = (next: Flow) => { lastFlow.current = next; setFlow(next); };
+  const openFlow = (next: Flow) => { lastFlow.current = next; setFlowError(null); setFlow(next); };
+  const closeFlow = () => { setFlowError(null); setFlow(null); };
   const askSensitive = (kind: Sensitive["kind"], code: string) => {
     const reason = actionReason.trim();
     if (reason.length < 3) return toast.error("Informe um motivo com pelo menos 3 caracteres antes da ação sensível.");
@@ -148,26 +167,26 @@ export default function BillingCatalogAdminPanel() {
             {coupons.data?.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-medium">{item.code}</p><p className="text-xs text-muted-foreground">rev. {item.revision} · {item.discountType === "percentage" ? `${item.discountValue}%` : item.discountValue} · {item.durationCharges} cobrança(s)</p></div><div className="flex items-center gap-2"><Badge variant={item.state === "active" ? "default" : "secondary"}>{item.state}</Badge>{item.state === "active" ? <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => askSensitive("deactivate-coupon", item.code)}>Desativar</Button> : null}</div></div>)}
             {coupons.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carregando cupons...</p> : null}
             {coupons.isError ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar os cupons.</p> : null}
-            {!coupons.isLoading && !coupons.data?.length ? <p className="text-sm text-muted-foreground">Nenhum cupom cadastrado.</p> : null}
+            {!coupons.isLoading && !coupons.isError && !coupons.data?.length ? <p className="text-sm text-muted-foreground">Nenhum cupom cadastrado.</p> : null}
           </CardContent>
         </Card>
       </div>
 
       <div className="flex justify-end"><Button variant="ghost" onClick={() => void refresh()}><RefreshCw className="h-4 w-4" />Atualizar catálogo</Button></div>
 
-      <Dialog open={flow !== null} onOpenChange={open => { if (!open) setFlow(null); }}>
+      <Dialog open={flow !== null} onOpenChange={open => { if (!open) closeFlow(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" onCloseAutoFocus={event => { event.preventDefault(); triggers[lastFlow.current].current?.focus(); }}>
-          {flow === "product" ? <ProductDialog form={product} setForm={setProduct} pending={createProduct.isPending} mutationError={createProduct.error?.message} onSubmit={() => {
+          {flow === "product" ? <ProductDialog form={product} setForm={setProduct} pending={createProduct.isPending} mutationError={flowError ?? undefined} onSubmit={() => {
             if (product.code.trim().length < 2 || product.name.trim().length < 2 || product.reason.trim().length < 3) return;
             createProduct.mutate({ code: product.code.trim(), audience: product.audience, name: product.name.trim(), description: null, reason: product.reason.trim(), provenance: { origin: "admin_manual" } });
           }} /> : null}
-          {flow === "version" ? <VersionDialog form={version} setForm={setVersion} pending={createVersion.isPending} mutationError={createVersion.error?.message} onSubmit={() => {
+          {flow === "version" ? <VersionDialog form={version} setForm={setVersion} pending={createVersion.isPending} mutationError={flowError ?? undefined} onSubmit={() => {
             const unitAmount = Math.round(Number(version.price.replace(",", ".")) * 100);
             const capacityLimit = version.capacity.trim() ? Number(version.capacity) : null;
             if (!version.productCode.trim() || !version.name.trim() || !Number.isInteger(unitAmount) || unitAmount <= 0 || (capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit <= 0)) || !splitCsv(version.resources).length || version.reason.trim().length < 3) return;
             createVersion.mutate({ productCode: version.productCode.trim(), name: version.name.trim(), description: null, billingCycle: version.cycle, currency: "BRL", unitAmount, capacityLimit, entitlements: splitCsv(version.resources), coveredBeneficiaryEntitlements: splitCsv(version.beneficiaryResources), commercialPaymentMethods: ["credit_card", "pix_automatic"], effectiveFrom: new Date(), effectiveUntil: null, sortOrder: 1000, reason: version.reason.trim(), provenance: { origin: "admin_manual" } });
           }} /> : null}
-          {flow === "coupon" ? <CouponDialog form={coupon} setForm={setCoupon} pending={createCoupon.isPending} mutationError={createCoupon.error?.message} onSubmit={() => {
+          {flow === "coupon" ? <CouponDialog form={coupon} setForm={setCoupon} pending={createCoupon.isPending} mutationError={flowError ?? undefined} onSubmit={() => {
             const percent = Number(coupon.percent); const cycles = splitCsv(coupon.cycles).filter(value => value === "monthly" || value === "yearly") as ("monthly" | "yearly")[]; const duration = cycles.includes("yearly") ? 1 : Number(coupon.duration);
             if (!coupon.code.trim() || !Number.isInteger(percent) || percent < 1 || percent > 30 || !cycles.length || !Number.isInteger(duration) || duration < 1 || duration > 3 || coupon.reason.trim().length < 3) return;
             createCoupon.mutate({ code: coupon.code.trim(), discountType: "percentage", discountValue: percent, currency: null, eligibleProductCodes: splitCsv(coupon.products), eligibleVersionCodes: [], eligibleCycles: cycles, validFrom: new Date(), validUntil: null, maxTotalUses: null, maxUsesPerUser: 1, firstContractOnly: true, durationCharges: duration, active: true, reason: coupon.reason.trim() });
