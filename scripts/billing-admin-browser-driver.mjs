@@ -72,7 +72,8 @@ export async function openBrowserHarness() {
   };
   const pressKey = async (key, code = key) => {
     const virtual = { Enter: 13, " ": 32, Escape: 27, ArrowRight: 39, ArrowLeft: 37, Tab: 9 }[key] ?? 0;
-    await call("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: virtual }, sessionId);
+    const text = key === "Enter" ? "\r" : key === " " ? " " : null;
+    await call("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: virtual, ...(text ? { text, unmodifiedText: text } : {}) }, sessionId);
     await call("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: virtual }, sessionId);
     await delay(100);
   };
