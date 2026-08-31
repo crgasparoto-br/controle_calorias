@@ -26,6 +26,13 @@ const STATUS_ORDER = [
   "expired",
 ] as const;
 
+function formatCurrency(amountMinor: number, currency: string) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency,
+  }).format(amountMinor / 100);
+}
+
 export default function BillingAdminStatusOverview() {
   const analytics = trpc.billing.adminAnalytics.useQuery(undefined, {
     retry: false,
@@ -37,7 +44,7 @@ export default function BillingAdminStatusOverview() {
         role="status"
         className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"
       >
-        Carregando distribuição das assinaturas...
+        Carregando visão geral comercial...
       </div>
     );
   }
@@ -49,29 +56,15 @@ export default function BillingAdminStatusOverview() {
         className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive"
       >
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-        Não foi possível carregar a distribuição comercial. As liberações
-        administrativas continuam disponíveis abaixo.
+        Não foi possível carregar a visão geral comercial. Tente novamente em alguns instantes.
       </div>
     );
   }
 
-  const { subscriptionStatusTotals, plans } = analytics.data;
+  const { estimatedMonthlyRecurringRevenue, plans } = analytics.data;
 
   return (
-    <section className="space-y-4" aria-labelledby="billing-status-overview-title">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {STATUS_ORDER.map(status => (
-          <div key={status} className="rounded-2xl border bg-card p-4">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              {STATUS_LABELS[status]}
-            </p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight">
-              {(subscriptionStatusTotals[status] ?? 0).toLocaleString("pt-BR")}
-            </p>
-          </div>
-        ))}
-      </div>
-
+    <section className="space-y-6" aria-labelledby="billing-status-overview-title">
       <Card>
         <CardHeader>
           <CardTitle
@@ -82,9 +75,7 @@ export default function BillingAdminStatusOverview() {
             Distribuição por plano e ciclo
           </CardTitle>
           <CardDescription>
-            Assinaturas, pacientes cobertos e capacidade são apresentados como
-            fatos distintos. Os valores vêm do catálogo e dos contratos do
-            backend.
+            Compare situação das assinaturas, cobertura e capacidade dos planos comerciais.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,15 +126,41 @@ export default function BillingAdminStatusOverview() {
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-              Nenhum plano comercial foi configurado no backend.
+              Nenhum plano comercial foi configurado.
             </div>
           )}
+        </CardContent>
+      </Card>
 
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-muted/30 p-4 text-sm text-muted-foreground">
-            <CircleDollarSign className="mt-0.5 h-4 w-4 shrink-0" />
-            Estes indicadores não confirmam pagamento nem substituem conciliação
-            financeira.
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CircleDollarSign className="h-5 w-5" />
+            Receita recorrente estimada
+          </CardTitle>
+          <CardDescription>
+            Valores operacionais separados por moeda para acompanhamento administrativo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {estimatedMonthlyRecurringRevenue.length ? (
+            estimatedMonthlyRecurringRevenue.map(item => (
+              <div
+                key={item.currency}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+              >
+                <span className="text-sm text-muted-foreground">Estimativa mensal · {item.currency}</span>
+                <span className="font-semibold">{formatCurrency(item.amountMinor, item.currency)}</span>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+              Ainda não há estimativa de receita disponível.
+            </div>
+          )}
+          <p className="text-xs leading-5 text-muted-foreground">
+            Estes indicadores apoiam a operação e não substituem conciliação financeira.
+          </p>
         </CardContent>
       </Card>
     </section>

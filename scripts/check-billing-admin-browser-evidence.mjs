@@ -1,216 +1,109 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { delay, openBrowserHarness } from "./billing-admin-browser-driver.mjs";
 
 const [url, outputPath] = process.argv.slice(2);
 if (!url || !outputPath) throw new Error("usage: node check-billing-admin-browser-evidence.mjs <url> <output>");
 
-async function executable() {
-  if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
-  const { execFileSync } = await import("node:child_process");
-  for (const command of ["google-chrome", "chromium", "chromium-browser"]) {
-    try { return execFileSync("which", [command], { encoding: "utf8" }).trim(); } catch {}
-  }
-  throw new Error("Chrome or Chromium was not found");
-}
+const browser = await openBrowserHarness();
+const { call, close, evaluate, pressKey, click, focus, setValue, navigate, runtimeEvents, sessionId } = browser;
 
-const chromeBin = await executable();
-const profile = await fs.mkdtemp(path.join(os.tmpdir(), "billing-admin-cdp-"));
-const child = spawn(chromeBin, [
-  "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
-  "--remote-debugging-pipe", `--user-data-dir=${profile}`, "about:blank",
-], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
+const readState = () => evaluate(`(() => { const text=document.body?.innerText??''; return { title:text.includes('Planos, assinaturas e acesso'), overview:text.includes('Distribuição por plano e ciclo'), access:text.includes('Usuários e origem do acesso'), catalog:text.includes('Catálogo e versões'), campaigns:text.includes('Campanhas e entregas'), economics:text.includes('Economia por identidade comercial'), rollout:text.includes('Rollout comercial'), overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, tabs:Array.from(document.querySelectorAll('[role="tab"]')).map(el=>({text:(el.textContent||'').trim(),selected:el.getAttribute('aria-selected')})), queries:globalThis.__billingQueryCalls??{}, mutations:globalThis.__billingMutationCalls??{} }; })()`);
+const waitFor = async (predicate, label) => {
+  let value;
+  for (let attempt = 0; attempt < 120; attempt += 1) { value = await readState(); if (predicate(value)) return value; await delay(100); }
+  throw new Error(`${label}: condition not reached; state=${JSON.stringify(value)} runtime=${JSON.stringify(runtimeEvents.slice(-10))}`);
+};
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const inactiveQueryPaths = [
+  "billing.adminSearchUsers", "billing.adminCatalogVersions", "billing.adminCoupons", "billing.adminNotifications",
+  "usageGovernance.analytics", "usageGovernance.adminOverview", "usageGovernance.adminEconomicRows",
+  "usageGovernance.consumptionChargingAuthorizations", "billing.adminRolloutOverview",
+];
 
 try {
-  const requestPipe = child.stdio[3];
-  const responsePipe = child.stdio[4];
-  if (!requestPipe || !responsePipe) throw new Error("Chrome DevTools pipe did not start");
-
-  let nextId = 1;
-  let responseBuffer = Buffer.alloc(0);
-  const pending = new Map();
-  const runtimeEvents = [];
-  responsePipe.on("data", chunk => {
-    responseBuffer = Buffer.concat([responseBuffer, chunk]);
-    let separatorIndex;
-    while ((separatorIndex = responseBuffer.indexOf(0)) >= 0) {
-      const frame = responseBuffer.subarray(0, separatorIndex).toString("utf8");
-      responseBuffer = responseBuffer.subarray(separatorIndex + 1);
-      if (!frame) continue;
-      const message = JSON.parse(frame);
-      if (!message.id) {
-        if (message.method === "Runtime.exceptionThrown") {
-          runtimeEvents.push({
-            method: message.method,
-            text: message.params?.exceptionDetails?.text ?? "runtime exception",
-            description: message.params?.exceptionDetails?.exception?.description ?? null,
-            url: message.params?.exceptionDetails?.url ?? null,
-            lineNumber: message.params?.exceptionDetails?.lineNumber ?? null,
-            columnNumber: message.params?.exceptionDetails?.columnNumber ?? null,
-          });
-        }
-        if (message.method === "Runtime.consoleAPICalled" && ["error", "warning"].includes(message.params?.type)) {
-          runtimeEvents.push({
-            method: message.method,
-            type: message.params?.type ?? null,
-            args: (message.params?.args ?? []).map(arg => arg.value ?? arg.description ?? arg.type).slice(0, 6),
-          });
-        }
-        continue;
-      }
-      const waiter = pending.get(message.id);
-      if (!waiter) continue;
-      pending.delete(message.id);
-      if (message.error) waiter.reject(new Error(message.error.message));
-      else waiter.resolve(message.result ?? {});
-    }
-  });
-  responsePipe.on("error", error => {
-    for (const waiter of pending.values()) waiter.reject(error);
-    pending.clear();
-  });
-  child.on("exit", code => {
-    if (code === 0 || pending.size === 0) return;
-    const error = new Error(`Chrome DevTools pipe exited with code ${code}`);
-    for (const waiter of pending.values()) waiter.reject(error);
-    pending.clear();
-  });
-  const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
-    const id = nextId++;
-    pending.set(id, { resolve, reject });
-    requestPipe.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
-  });
-
-  const readBillingState = async sessionId => {
-    const { result } = await call("Runtime.evaluate", {
-      expression: `(() => { const text = document.body?.innerText ?? ''; const root = document.getElementById('root'); return {title: text.includes('Billing, catálogo e governança'), campaigns: text.includes('Campanhas e entregas'), economics: text.includes('Economia por identidade comercial'), rollout: text.includes('Rollout comercial'), overflow: document.documentElement.scrollWidth > innerWidth || (document.body?.scrollWidth ?? 0) > innerWidth, focusable: document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])').length, tables: document.querySelectorAll('table').length, readyState: document.readyState, href: location.href, rootChildCount: root?.childElementCount ?? 0, bodyText: text.trim().slice(0, 1200), rootHtml: (root?.innerHTML ?? '').slice(0, 1200)}; })()`,
-      returnByValue: true,
-    }, sessionId);
-    return result.value;
-  };
-  const waitForBillingState = async sessionId => {
-    let value;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      value = await readBillingState(sessionId);
-      if (value.title && value.campaigns && value.economics && value.rollout) return value;
-      await delay(100);
-    }
-    return value;
-  };
-  const assertBillingReady = (label, value) => {
-    if (value.title && value.campaigns && value.economics && value.rollout) return;
-    const diagnostics = {
-      state: value,
-      runtimeEvents: runtimeEvents.slice(-12),
-    };
-    throw new Error(`${label}: required billing sections were not rendered; diagnostics=${JSON.stringify(diagnostics)}`);
-  };
-
-  const { targetId } = await call("Target.createTarget", { url: "about:blank" });
-  const { sessionId } = await call("Target.attachToTarget", { targetId, flatten: true });
-  await call("Page.enable", {}, sessionId);
-  await call("Runtime.enable", {}, sessionId);
-  await call("Accessibility.enable", {}, sessionId);
-
-  const viewports = [
-    { name: "desktop", width: 1440, height: 900 },
-    { name: "tablet", width: 1024, height: 768 },
-    { name: "mobile", width: 390, height: 844 },
-  ];
   const viewportEvidence = [];
-  for (const viewport of viewports) {
-    await call("Emulation.setDeviceMetricsOverride", {
-      width: viewport.width,
-      height: viewport.height,
-      deviceScaleFactor: 1,
-      mobile: viewport.width < 600,
-    }, sessionId);
-    const navigation = await call("Page.navigate", { url }, sessionId);
-    if (navigation.errorText) throw new Error(`${viewport.name}: navigation failed: ${navigation.errorText}`);
-    const value = await waitForBillingState(sessionId);
-    assertBillingReady(viewport.name, value);
-    if (value.overflow) throw new Error(`${viewport.name}: root horizontal overflow detected`);
-    if (value.focusable < 10) throw new Error(`${viewport.name}: insufficient focusable controls rendered`);
-    viewportEvidence.push({ ...viewport, ...value, bodyText: undefined, rootHtml: undefined });
+  for (const viewport of [{ name: "desktop-wide", width: 1440, height: 900 }, { name: "desktop-low", width: 1366, height: 768 }, { name: "mobile", width: 390, height: 844 }]) {
+    await navigate(url, viewport.width, viewport.height);
+    const initial = await waitFor(state => state.title && state.overview, `${viewport.name}: initial overview`);
+    if (initial.overflow) throw new Error(`${viewport.name}: root horizontal overflow detected`);
+    if (initial.tabs.length !== 5 || initial.tabs[0]?.selected !== "true") throw new Error(`${viewport.name}: expected five tabs with Visão geral selected`);
+    const mountedTooEarly = inactiveQueryPaths.filter(queryPath => (initial.queries[queryPath] ?? 0) > 0);
+    if (mountedTooEarly.length) throw new Error(`${viewport.name}: inactive areas queried on initial render: ${mountedTooEarly.join(', ')}`);
+    if ((initial.queries["billing.adminAnalytics"] ?? 0) < 1) throw new Error(`${viewport.name}: adminAnalytics was not used by overview`);
+    viewportEvidence.push({ ...viewport, tabs: initial.tabs, initialQueries: initial.queries });
   }
 
-  await call("Emulation.setDeviceMetricsOverride", { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const keyboardNavigation = await call("Page.navigate", { url }, sessionId);
-  if (keyboardNavigation.errorText) throw new Error(`keyboard: navigation failed: ${keyboardNavigation.errorText}`);
-  const keyboardReady = await waitForBillingState(sessionId);
-  assertBillingReady("keyboard", keyboardReady);
-  await call("Runtime.evaluate", { expression: "document.body.tabIndex=-1; document.body.focus();" }, sessionId);
+  await navigate(url, 1366, 768);
+  await waitFor(state => state.title && state.overview, "interaction baseline");
+  await focus("Visão geral");
+  await pressKey("ArrowRight", "ArrowRight");
+  const accessByKeyboard = await waitFor(state => state.access && state.tabs.find(tab => tab.text === "Acessos")?.selected === "true", "keyboard access tab");
+  await pressKey("ArrowLeft", "ArrowLeft");
+  await waitFor(state => state.overview, "keyboard overview return");
+
+  await click("Acessos");
+  const accessState = await waitFor(state => state.access && (state.queries["billing.adminSearchUsers"] ?? 0) > 0, "access tab");
+  if (accessState.overview) throw new Error("Visão geral remained mounted after activating Acessos");
+
+  await click("Comercial");
+  const commercialState = await waitFor(state => state.catalog && state.campaigns && (state.queries["billing.adminCatalogVersions"] ?? 0) > 0 && (state.queries["billing.adminNotifications"] ?? 0) > 0, "commercial tab");
+  if (commercialState.access) throw new Error("Acessos remained mounted after activating Comercial");
+
+  await setValue("catalog-action-reason", "publicação validada pela operação");
+  const publishBefore = commercialState.mutations["billing.adminPublishCatalogVersion"] ?? 0;
+  await focus("Publicar");
+  await pressKey("Enter", "Enter");
+  const confirmDialog = await evaluate(`(() => { const dialog=document.querySelector('[role="alertdialog"]'); return { open:Boolean(dialog), text:dialog?.textContent??'', labelled:Boolean(dialog?.getAttribute('aria-labelledby')), described:Boolean(dialog?.getAttribute('aria-describedby')), focusInside:Boolean(dialog&&dialog.contains(document.activeElement)) }; })()`);
+  if (!confirmDialog.open || !confirmDialog.text.includes("professional-v2") || !confirmDialog.text.includes("Publicar versão") || !confirmDialog.labelled || !confirmDialog.described || !confirmDialog.focusInside) throw new Error(`publish confirmation is incomplete: ${JSON.stringify(confirmDialog)}`);
+  await pressKey("Escape", "Escape");
+  const afterCancel = await readState();
+  if ((afterCancel.mutations["billing.adminPublishCatalogVersion"] ?? 0) !== publishBefore) throw new Error("canceling publish confirmation executed a mutation");
+  await focus("Publicar"); await pressKey("Enter", "Enter"); await focus("Publicar versão"); await pressKey("Enter", "Enter");
+  const afterConfirm = await readState();
+  if ((afterConfirm.mutations["billing.adminPublishCatalogVersion"] ?? 0) !== publishBefore + 1) throw new Error("confirming publish did not execute exactly one mutation");
+
+  await click("Novo produto");
+  const creationDialog = await evaluate(`(() => { const dialog=document.querySelector('[role="dialog"]'); return { open:Boolean(dialog), labelled:Boolean(dialog?.getAttribute('aria-labelledby')), described:Boolean(dialog?.getAttribute('aria-describedby')), focusInside:Boolean(dialog&&dialog.contains(document.activeElement)) }; })()`);
+  if (!creationDialog.open || !creationDialog.labelled || !creationDialog.described || !creationDialog.focusInside) throw new Error(`creation dialog accessibility contract failed: ${JSON.stringify(creationDialog)}`);
+  await setValue("product-code", "pro"); await setValue("product-name", "Produto visual"); await setValue("product-reason", "validação de persistência do formulário"); await click("Criar produto"); await delay(100);
+  const preservedForm = await evaluate(`(() => ({ dialogOpen:Boolean(document.querySelector('[role="dialog"]')), code:document.getElementById('product-code')?.value??null, name:document.getElementById('product-name')?.value??null, reason:document.getElementById('product-reason')?.value??null, attempts:globalThis.__billingCreateProductAttempts??0 }))()`);
+  if (!preservedForm.dialogOpen || preservedForm.attempts !== 1 || preservedForm.code !== "pro" || preservedForm.name !== "Produto visual" || !String(preservedForm.reason).includes("persistência")) throw new Error(`creation form did not preserve values after mutation error: ${JSON.stringify(preservedForm)}`);
+  await pressKey("Escape", "Escape");
+  const closeFocus = await evaluate(`(() => ({ dialogOpen:Boolean(document.querySelector('[role="dialog"]')), activeText:(document.activeElement?.textContent||document.activeElement?.getAttribute('aria-label')||'').trim() }))()`);
+  if (closeFocus.dialogOpen || !closeFocus.activeText.includes("Novo produto")) throw new Error(`creation dialog focus restoration failed: ${JSON.stringify(closeFocus)}`);
+
+  await setValue("campaign-reason", "retry audit evidence");
+  const retryIdentity = await evaluate(`(() => { const button=Array.from(document.querySelectorAll('button')).find(el=>el.textContent?.includes('Retry WhatsApp')); if(!button)return {ok:false}; button.click(); button.click(); const attempts=globalThis.__billingRetryAttempts??[]; return {ok:true,attempts,sameRequestId:attempts.length===2&&attempts[0].requestId===attempts[1].requestId}; })()`);
+  if (!retryIdentity?.sameRequestId) throw new Error(`retry identity was not stable: ${JSON.stringify(retryIdentity)}`);
+
+  await click("Governança");
+  const governanceState = await waitFor(state => (state.queries["usageGovernance.analytics"] ?? 0) > 0 && (state.queries["usageGovernance.adminOverview"] ?? 0) > 0, "governance tab");
+  if (governanceState.catalog || governanceState.campaigns) throw new Error("Comercial remained mounted after activating Governança");
+  await click("Rollout");
+  const rolloutState = await waitFor(state => state.rollout && (state.queries["billing.adminRolloutOverview"] ?? 0) > 0, "rollout tab");
+
+  await click("Visão geral"); await waitFor(state => state.overview, "overview return");
+  await evaluate("document.body.tabIndex=-1; document.body.focus();");
   const keyboardSequence = [];
-  for (let index = 0; index < 10; index += 1) {
-    await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, sessionId);
-    await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, sessionId);
-    const { result } = await call("Runtime.evaluate", {
-      expression: `(() => { const e=document.activeElement; return {tag:e?.tagName ?? '', text:(e?.getAttribute('aria-label') || e?.textContent || e?.getAttribute('placeholder') || '').trim().slice(0,120)}; })()`,
-      returnByValue: true,
-    }, sessionId);
-    keyboardSequence.push(result.value);
-  }
-  const uniqueFocus = new Set(keyboardSequence.map(item => `${item.tag}:${item.text}`).filter(value => !value.startsWith("BODY:") && !value.startsWith("HTML:")));
-  if (uniqueFocus.size < 5) throw new Error(`keyboard navigation reached only ${uniqueFocus.size} unique controls`);
-
-  const retryIdentity = await call("Runtime.evaluate", {
-    expression: `(() => {
-      const reason = document.getElementById('campaign-reason');
-      if (!reason) return {ok:false, reason:'reason-control-missing'};
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-      setter?.call(reason, 'retry audit evidence');
-      reason.dispatchEvent(new Event('input', {bubbles:true}));
-      reason.dispatchEvent(new Event('change', {bubbles:true}));
-      const button = Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Retry WhatsApp'));
-      if (!button) return {ok:false, reason:'retry-button-missing'};
-      button.click();
-      button.click();
-      const attempts = globalThis.__billingRetryAttempts ?? [];
-      return {ok:true, attempts, sameRequestId: attempts.length === 2 && attempts[0].requestId === attempts[1].requestId};
-    })()`,
-    returnByValue: true,
-  }, sessionId);
-  if (!retryIdentity.result.value?.sameRequestId) throw new Error(`retry identity was not stable: ${JSON.stringify(retryIdentity.result.value)}`);
+  for (let index = 0; index < 10; index += 1) { await pressKey("Tab", "Tab"); keyboardSequence.push(await evaluate(`(() => { const e=document.activeElement; return {tag:e?.tagName??'',role:e?.getAttribute('role')??'',text:(e?.getAttribute('aria-label')||e?.textContent||e?.getAttribute('placeholder')||'').trim().slice(0,120)}; })()`)); }
+  const uniqueFocus = new Set(keyboardSequence.map(item => `${item.tag}:${item.role}:${item.text}`).filter(value => !value.startsWith("BODY:") && !value.startsWith("HTML:")));
+  if (uniqueFocus.size < 5 || !keyboardSequence.some(item => item.role === "tab")) throw new Error("keyboard navigation did not cover the tab list and enough controls");
 
   const ax = await call("Accessibility.getFullAXTree", {}, sessionId);
-  const roles = new Map();
-  const names = [];
-  for (const node of ax.nodes ?? []) {
-    const role = node.role?.value;
-    if (role) roles.set(role, (roles.get(role) ?? 0) + 1);
-    const name = node.name?.value;
-    if (name) names.push(name);
-  }
-  for (const requiredRole of ["heading", "button", "textbox", "table"]) {
-    if (!roles.get(requiredRole)) throw new Error(`accessibility tree lacks role ${requiredRole}`);
-  }
-  if (!names.some(name => String(name).includes("Billing, catálogo e governança"))) throw new Error("accessibility tree lacks the page heading");
+  const roles = new Map(); const names = [];
+  for (const node of ax.nodes ?? []) { const role=node.role?.value; if(role)roles.set(role,(roles.get(role)??0)+1); const name=node.name?.value; if(name)names.push(name); }
+  for (const requiredRole of ["heading", "button", "tab"]) if (!roles.get(requiredRole)) throw new Error(`accessibility tree lacks role ${requiredRole}`);
+  if (!names.some(name => String(name).includes("Planos, assinaturas e acesso"))) throw new Error("accessibility tree lacks the page heading");
 
-  await call("Runtime.evaluate", { expression: "document.body.style.zoom='200%'" }, sessionId);
-  await delay(200);
-  const zoomResult = await call("Runtime.evaluate", {
-    expression: `(() => ({zoom: getComputedStyle(document.body).zoom || document.body.style.zoom, scrollWidth: document.documentElement.scrollWidth, innerWidth}))()`,
-    returnByValue: true,
-  }, sessionId);
+  await evaluate("document.body.style.zoom='200%'"); await delay(200);
+  const zoomResult = await evaluate(`(() => ({ zoom:getComputedStyle(document.body).zoom||document.body.style.zoom, overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, scrollWidth:document.documentElement.scrollWidth, innerWidth }))()`);
+  if (zoomResult.overflow) throw new Error(`200% zoom caused root horizontal overflow: ${JSON.stringify(zoomResult)}`);
 
-  const evidence = {
-    schemaVersion: 1,
-    route: "/admin/billing",
-    viewports: viewportEvidence,
-    keyboard: { sequence: keyboardSequence, uniqueFocusCount: uniqueFocus.size },
-    accessibility: { roleCounts: Object.fromEntries(roles), pageHeadingObserved: true },
-    retryIdentity: retryIdentity.result.value,
-    zoom200: zoomResult.result.value,
-  };
+  const evidence = { schemaVersion: 2, route: "/admin/billing", viewports: viewportEvidence, lazyMount: { initialForbiddenQueryPaths: inactiveQueryPaths, accessQueries: accessState.queries, commercialQueries: commercialState.queries, governanceQueries: governanceState.queries, rolloutQueries: rolloutState.queries }, keyboardTabs: { accessSelected: accessByKeyboard.tabs.find(tab => tab.text === "Acessos")?.selected === "true" }, sensitiveConfirmation: { dialog: confirmDialog, cancelMutationCount: afterCancel.mutations["billing.adminPublishCatalogVersion"] ?? 0, confirmMutationCount: afterConfirm.mutations["billing.adminPublishCatalogVersion"] ?? 0 }, creationDialog, formErrorPersistence: preservedForm, focusAfterDialogClose: closeFocus, retryIdentity, keyboard: { sequence: keyboardSequence, uniqueFocusCount: uniqueFocus.size }, accessibility: { roleCounts: Object.fromEntries(roles), pageHeadingObserved: true }, zoom200: zoomResult };
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
   console.log(JSON.stringify(evidence));
 } finally {
-  const exited = new Promise(resolve => child.once("exit", resolve));
-  child.kill("SIGTERM");
-  await Promise.race([exited, delay(1000)]);
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  await close();
 }
