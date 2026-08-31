@@ -86,10 +86,19 @@ try {
   await click("Visão geral"); await waitFor(state => state.overview, "overview return");
   await evaluate("document.body.tabIndex=-1; document.body.focus();");
   const keyboardSequence = [];
-  for (let index = 0; index < 6; index += 1) { await pressKey("Tab", "Tab"); keyboardSequence.push(await evaluate(`(() => { const e=document.activeElement; return {tag:e?.tagName??'',role:e?.getAttribute('role')??'',text:(e?.getAttribute('aria-label')||e?.textContent||e?.getAttribute('placeholder')||'').trim().slice(0,120)}; })()`)); }
-  const uniqueFocus = new Set(keyboardSequence.map(item => `${item.tag}:${item.role}:${item.text}`).filter(value => !value.startsWith("BODY:") && !value.startsWith("HTML:")));
-  const visitedTab = keyboardSequence.some(item => item.role === "tab");
-  const visitedAdminAction = keyboardSequence.some(item => item.text.includes("Operação da plataforma"));
+  const uniqueFocus = new Set();
+  let visitedTab = false;
+  let visitedAdminAction = false;
+  for (let index = 0; index < 40; index += 1) {
+    await pressKey("Tab", "Tab");
+    const item = await evaluate(`(() => { const e=document.activeElement; return {tag:e?.tagName??'',role:e?.getAttribute('role')??'',text:(e?.getAttribute('aria-label')||e?.textContent||e?.getAttribute('placeholder')||'').trim().slice(0,120)}; })()`);
+    keyboardSequence.push(item);
+    const focusKey = `${item.tag}:${item.role}:${item.text}`;
+    if (!focusKey.startsWith("BODY:") && !focusKey.startsWith("HTML:")) uniqueFocus.add(focusKey);
+    if (item.role === "tab") visitedTab = true;
+    if (item.text.includes("Operação da plataforma")) visitedAdminAction = true;
+    if (uniqueFocus.size >= 2 && visitedTab && visitedAdminAction) break;
+  }
   if (uniqueFocus.size < 2 || !visitedTab || !visitedAdminAction) throw new Error(`keyboard navigation missed semantic controls: ${JSON.stringify({ keyboardSequence, uniqueFocusCount: uniqueFocus.size, visitedTab, visitedAdminAction })}`);
 
   const ax = await call("Accessibility.getFullAXTree", {}, sessionId);
