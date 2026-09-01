@@ -6,7 +6,7 @@ Este documento complementa `docs/design-docs/whatsapp-ingestion.md` sem substitu
 
 A classificação genérica usa `WHATSAPP_INTENT` somente depois do gate de precedência, das operações pendentes e dos comandos determinísticos. O consumidor chama `executeResolvedCapability`; cada tentativa recebe provider e modelo já pareados e usa a fronteira sanitizada de resposta, sem `raw` do SDK no domínio.
 
-A compatibilidade `OPENAI_WHATSAPP_INTENT_MODEL` e `OPENAI_TEXT_MODEL` aplica-se apenas quando o provider resolvido usa o protocolo OpenAI. Gemini permanece associado a `GEMINI_MODEL` ou `AI_WHATSAPP_INTENT_MODEL`, impedindo envio de modelo OpenAI ao adapter Gemini e vice-versa.
+Desde a #960, provider e modelo de intenção são selecionados exclusivamente por `AI_WHATSAPP_INTENT_PROVIDER` e `AI_WHATSAPP_INTENT_MODEL`, com defaults versionados quando ausentes. Aliases globais/modelos de provider não participam mais da resolução, impedindo que configuração de outra capacidade seja reutilizada implicitamente.
 
 A migração não altera estados persistidos, interação pendente, correlação inbound, expiração, cancelamento, idempotência nem isolamento por usuário. Botão e lista são resolvidos no gate antes do classificador; áudio transcrito e texto equivalente continuam convergindo para o mesmo contrato de domínio quando chegam à etapa de intenção.
 
