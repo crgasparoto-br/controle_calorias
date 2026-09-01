@@ -1,38 +1,54 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "4c0035e3408390b0510aa1270f9b44115bb30943",
+  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
   "requirements": [
     {
-      "requirement_id": "REQ-HANDOFF-READINESS",
+      "requirement_id": "REQ-GATE-CI",
       "positive_evidence": [
-        "Current material head 4c0035e3408390b0510aa1270f9b44115bb30943 has tree 25e8b6f365ad71b30d7d1f9efbeab14c21900bb6, identical to the originally validated functional tree; the inherited handoff names PR 1022 and is not reused."
+        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
       ],
       "primary_negative_control": {
-        "id": "CTRL-HANDOFF-FOREIGN-001",
+        "id": "CTRL-217-EXACT-HEAD-CI-002",
         "status": "passed",
-        "procedure": "Compare the existing handoff subject with the current PR/branch/base identity and reject it when it belongs to another delivery.",
-        "expected": "The PR 1022 certificate is rejected as inherited-base-artifact and cannot satisfy readiness for PR 1028.",
-        "observed": "The existing handoff subject is issue 217 / PR 1022 / head test/217-onboarding-commercial-regression, so a new PR 1028 package is required."
+        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
+        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
+        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
       },
       "regression_evidence": [
-        "Prospective publication is restricted to .audit/entregar-issue/* paths and certifies the current material head without product edits."
+        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
       ]
     },
     {
-      "requirement_id": "REQ-FUNCTIONAL-PRESERVATION",
+      "requirement_id": "REQ-GATE-NO-SKIP",
       "positive_evidence": [
-        "At current head, readBillingState returns result?.value; waitForBillingState checks value?.title and continues up to 120 polls; assertBillingReady still throws after timeout when required sections are absent."
+        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
       ],
       "primary_negative_control": {
-        "id": "CTRL-CDP-TRANSIENT-001",
+        "id": "CTRL-217-SCENARIO-DECOY-002",
         "status": "passed",
-        "procedure": "Inspect the transient Runtime.evaluate branch and the timeout branch as separate cases.",
-        "expected": "A missing result.value must not throw during polling, while persistent missing billing sections must still fail through assertBillingReady.",
-        "observed": "The current source uses optional chaining on transient reads and retains the explicit timeout error path; the current tree exactly matches the prior Agent-first green functional tree."
+        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
+        "expected": "Both decoys must be rejected as missing executable scenarios.",
+        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
       },
       "regression_evidence": [
-        "No product file changed after the functional tree: current tree SHA equals the original functional commit tree SHA 25e8b6f365ad71b30d7d1f9efbeab14c21900bb6."
+        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
+      ]
+    },
+    {
+      "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
+      "positive_evidence": [
+        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-217-COMMENT-STRING-001",
+        "status": "passed",
+        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
+        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
+        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
+      },
+      "regression_evidence": [
+        "The positive 58-scenario contract still passes with the hardened recognizer."
       ]
     }
   ]

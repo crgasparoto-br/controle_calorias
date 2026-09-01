@@ -3,22 +3,23 @@
   "contract_version": "2026-08-20.3",
   "status": "rejected",
   "mode": "independent",
-  "rejection_id": "audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe",
-  "head_sha": "f2001b92fe01f91b47f65dcf59c1424e48fd41f6",
-  "material_head_sha": "f2001b92fe01f91b47f65dcf59c1424e48fd41f6",
+  "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+  "head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
+  "material_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "published_handoff_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
   "repository": "crgasparoto-br/controle_calorias",
   "issue_number": 217,
-  "pull_request_number": 1028,
+  "pull_request_number": 1022,
   "findings": [
     {
-      "id": "A-1028-001",
+      "id": "A-002",
       "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "A current-target handoff must be produced before independent audit.",
-      "summary": "The branch inherited the PR 1022 handoff from develop and had no handoff produced for PR 1028."
+      "requirement": "The regression contract must detect loss of an individual required scenario rather than textual remnants.",
+      "summary": "The prior guard used source.includes and accepted an exact required title left only in a comment or string after the executable test was removed."
     }
   ],
   "recommendations": []
