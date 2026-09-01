@@ -1,54 +1,222 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "head_sha": "a8fb91506cdf237c679da899721e59ba86808d1c",
   "requirements": [
     {
-      "requirement_id": "REQ-GATE-CI",
+      "requirement_id": "REQ-A11Y",
       "positive_evidence": [
-        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "The exact-head visual harness exercises keyboard tabs, accessible dialogs and focus behavior.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-EXACT-HEAD-CI-002",
+        "id": "NEG-REQ-A11Y",
         "status": "passed",
-        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
-        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
-        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "procedure": "AX tree/keyboard checks require tab roles, focus inside dialogs and focus restoration.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
       },
       "regression_evidence": [
-        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
       ]
     },
     {
-      "requirement_id": "REQ-GATE-NO-SKIP",
+      "requirement_id": "REQ-CONFIRM",
       "positive_evidence": [
-        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
+        "Sensitive billing actions remain protected by accessible AlertDialog confirmation.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-SCENARIO-DECOY-002",
+        "id": "NEG-REQ-CONFIRM",
         "status": "passed",
-        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
-        "expected": "Both decoys must be rejected as missing executable scenarios.",
-        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
+        "procedure": "The browser harness cancels with Escape and requires mutation count to remain unchanged before confirming exactly one mutation.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
       },
       "regression_evidence": [
-        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
       ]
     },
     {
-      "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
+      "requirement_id": "REQ-COPY",
       "positive_evidence": [
-        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
+        "The billing page retains the simplified operational heading and area labels.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-COMMENT-STRING-001",
+        "id": "NEG-REQ-COPY",
         "status": "passed",
-        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
-        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
-        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
+        "procedure": "Operational copy is checked by the rendered billing flow without requiring the removed technical wording.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
       },
       "regression_evidence": [
-        "The positive 58-scenario contract still passes with the hardened recognizer."
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-CREATE",
+      "positive_evidence": [
+        "Product/version/coupon creation remains dialog-based and retry-safe.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-CREATE",
+        "status": "passed",
+        "procedure": "The fixture forces the first creation attempt to fail and the harness requires entered values to remain available for retry.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-DESIGN",
+      "positive_evidence": [
+        "The implementation continues to use the repository design-system primitives.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-DESIGN",
+        "status": "passed",
+        "procedure": "Structural checks reject native window.confirm and the flow reuses the existing Tabs, Dialog, AlertDialog, PageIntro and Button primitives.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-DOC",
+      "positive_evidence": [
+        "No public billing contract changed; the exact-head documentation gate is part of Agent-first gate #5996.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-DOC",
+        "status": "passed",
+        "procedure": "The repository documentation gate checks generated and maintained docs for consistency with the exact candidate.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-KPI",
+      "positive_evidence": [
+        "The overview continues to source its KPI summary from billing.adminAnalytics.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-KPI",
+        "status": "passed",
+        "procedure": "The overview requires billing.adminAnalytics as the KPI source and rejects duplicate analytics in the access panel.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-LAZY",
+      "positive_evidence": [
+        "Only the active billing area is mounted; the harness verifies inactive-query suppression.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-LAZY",
+        "status": "passed",
+        "procedure": "The harness counts tRPC calls and requires inactive areas to issue zero queries on initial render.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-NAV",
+      "positive_evidence": [
+        "AdminBillingPage exposes Visão geral, Acessos, Comercial, Governança and Rollout with controlled active state.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-NAV",
+        "status": "passed",
+        "procedure": "The harness requires five tabs, Visão geral initially selected, keyboard navigation and pointer activation across areas.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-RESPONSIVE",
+      "positive_evidence": [
+        "The committed visual harness covers 1440x900, 1366x768 and 390x844, with additional 1024x768 evidence.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-RESPONSIVE",
+        "status": "passed",
+        "procedure": "The visual gate fails on root horizontal overflow and checks the declared desktop/mobile viewports plus zoom behavior.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-SCOPE",
+      "positive_evidence": [
+        "CI remediation is confined to scripts/billing-admin-browser-driver.mjs and scripts/check-billing-admin-browser-evidence.mjs, changing only deterministic browser-interaction and evidence fidelity.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-SCOPE",
+        "status": "passed",
+        "procedure": "The PR diff is checked to ensure the remediation changes the billing frontend/visual harness and no billing backend, schema, permission or workflow contract.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
+      ]
+    },
+    {
+      "requirement_id": "REQ-STATES",
+      "positive_evidence": [
+        "Operational loading/error/success states remain represented in the billing panels.",
+        "Exact-head Agent-first gate #5996 is the deterministic final gate for material SHA a8fb91506cdf237c679da899721e59ba86808d1c."
+      ],
+      "primary_negative_control": {
+        "id": "NEG-REQ-STATES",
+        "status": "passed",
+        "procedure": "Focused components and browser evidence preserve loading, empty, error, retry and success feedback paths.",
+        "expected": "The plausible incorrect implementation must be distinguishable from the required behavior.",
+        "observed": "The discriminating control remains encoded fail-closed in the exact-head browser harness, structural checks, or repository gate as applicable."
+      },
+      "regression_evidence": [
+        "scripts/check-billing-admin-browser-evidence.mjs and visual-tests/billing-admin/trpcMock.ts provide deterministic regression coverage.",
+        "scripts/billing-admin-browser-driver.mjs dispatches direct DOM mouse activation for Radix tabs, preserves native button click semantics, and includes Enter activation text; scripts/check-billing-admin-browser-evidence.mjs traverses the bounded focus order until both the admin action and tab controls are observed."
       ]
     }
   ]

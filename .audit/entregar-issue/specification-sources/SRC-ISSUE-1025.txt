@@ -1,0 +1,43 @@
+# Issue #1025 — Refatorar interface de /admin/billing para navegação por áreas e reduzir densidade operacional
+
+> specification_version: 2
+> Fonte: corpo da issue #1025 consultado no GitHub; transcrição normativa para o pacote connector-only.
+
+## Objetivo
+
+A interface administrativa de `/admin/billing` deve reduzir a densidade da página e organizar tarefas comerciais sem alterar regras de negócio, contratos de billing ou permissões existentes.
+
+## Critérios de aceite
+
+- Ao abrir `/admin/billing`, Visão geral deve ser a área ativa por padrão.
+- A página deve possuir navegação entre Visão geral, Acessos, Comercial, Governança e Rollout.
+- Visão geral deve conter `BillingAdminStatusOverview`; Acessos deve conter `BillingAdminPanel`; Comercial deve conter `BillingCatalogAdminPanel` e `BillingCampaignAdminPanel`; Governança deve conter `BillingGovernanceAdminPanel` e `BillingEconomicIdentityPanel`; Rollout deve conter `BillingRolloutAdminPanel`.
+- Somente a área ativa deve montar seus painéis operacionais; consultas específicas de abas inativas não devem disparar no carregamento inicial.
+- Os KPIs do cabeçalho devem usar `billing.adminAnalytics` e exibir assinaturas ativas, inadimplentes, usuários sem origem comercial válida e liberações administrativas ativas.
+- O painel Acessos não deve repetir a faixa de KPIs consolidada no cabeçalho.
+- O cabeçalho deve usar linguagem administrativa curta, próxima de “Planos, assinaturas e acesso”.
+- Textos técnicos desnecessários devem ser substituídos por linguagem operacional compreensível, preservando garantias relevantes sobre cobrança e assinatura.
+- Os formulários completos de novo produto/família, nova versão e novo cupom não devem permanecer expostos junto às listas; devem abrir em diálogo ou composição equivalente do design system.
+- Erros de validação ou mutation nos fluxos de criação devem preservar os valores preenchidos e apresentar mensagem acionável em português do Brasil.
+- Após sucesso em criação, o fluxo correspondente deve fornecer feedback e limpar/fechar de forma previsível.
+- Publicar versão, encerrar versão e desativar cupom não podem usar `window.confirm`; devem usar `AlertDialog` ou componente acessível equivalente já existente.
+- Cancelar ou fechar uma confirmação sensível não pode executar a mutation associada; a ação final deve exigir confirmação explícita com contexto, consequência e verbo específico.
+- A interface deve tratar loading, vazio, erro e sucesso nos módulos afetados.
+- A rota deve funcionar sem overflow horizontal acidental em 1440×900, 1366×768 e 390×844, com abas legíveis no mobile e diálogos contidos na viewport.
+- O fluxo principal deve operar por teclado nas abas, formulários e confirmações, com foco visível e retorno previsível de foco após fechar diálogos.
+- Labels devem permanecer associados aos campos e controles apenas com ícone devem possuir nome acessível.
+- A reorganização não deve alterar elegibilidade, lifecycle, capacidade, cobertura, cobrança, autorização administrativa, provider financeiro nem contratos tRPC existentes.
+- O frontend não deve criar números comerciais hardcoded, contagens paralelas ou regras de elegibilidade para reproduzir os KPIs existentes.
+- A implementação deve reutilizar `Tabs`, `Dialog`/`AlertDialog`, `PageIntro` e demais componentes do design system já existentes no projeto.
+- O teste deve distinguir montagem sob demanda de ocultação por CSS, observando que queries de Acessos, Comercial, Governança e Rollout aparecem apenas depois da ativação da área correspondente.
+- O teste de ações sensíveis deve comprovar cancelamento sem mutation e confirmação com exatamente uma mutation.
+- O teste dos formulários movidos deve comprovar validação perceptível, preservação dos valores após erro e restauração de foco.
+- A evidência visual deve cobrir `/admin/billing` em 1440×900, 1366×768 e 390×844 e incluir navegação por teclado.
+
+## Impacto na documentação
+
+- A mudança deve evitar documentação paralela; referências explícitas à navegação antiga só precisam ser ajustadas se divergirem do comportamento atual.
+
+## Fora de escopo
+
+Deep-link por aba, persistência da aba, alteração de URL, novas regras comerciais e mudanças no produto `/billing` do usuário final não fazem parte desta entrega.

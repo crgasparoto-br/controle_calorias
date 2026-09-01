@@ -12,10 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import {
-  AlertTriangle,
   BadgeCheck,
   Ban,
-  BarChart3,
   RefreshCw,
   Search,
   ShieldPlus,
@@ -50,13 +48,6 @@ function formatDate(value: Date | string | null | undefined) {
   return new Date(value).toLocaleString("pt-BR");
 }
 
-function formatCurrency(amountMinor: number, currency: string) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency,
-  }).format(amountMinor / 100);
-}
-
 export default function BillingAdminPanel() {
   const utils = trpc.useUtils();
   const [query, setQuery] = useState("");
@@ -67,9 +58,6 @@ export default function BillingAdminPanel() {
   const [endsAt, setEndsAt] = useState("");
   const [revokeReasons, setRevokeReasons] = useState<Record<string, string>>({});
 
-  const analytics = trpc.billing.adminAnalytics.useQuery(undefined, {
-    retry: false,
-  });
   const users = trpc.billing.adminSearchUsers.useQuery(
     {
       query,
@@ -144,50 +132,6 @@ export default function BillingAdminPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Overrides ativos"
-          value={(analytics.data?.activeOverrides ?? 0).toLocaleString("pt-BR")}
-          supporting="liberações administrativas vigentes"
-        />
-        <Metric
-          label="Sem acesso comercial"
-          value={(analytics.data?.usersWithoutCommercialAccess ?? 0).toLocaleString(
-            "pt-BR"
-          )}
-          supporting="sem nenhuma origem válida"
-        />
-        <Metric
-          label="Planos catalogados"
-          value={(analytics.data?.plans.length ?? 0).toLocaleString("pt-BR")}
-          supporting="ativos e inativos no backend"
-        />
-        <Metric
-          label="Assinaturas ativas"
-          value={(
-            analytics.data?.subscriptionStatusTotals.active ?? 0
-          ).toLocaleString("pt-BR")}
-          supporting="estado normalizado ativo"
-        />
-      </div>
-
-      {analytics.isError ? (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
-        >
-          <span>Não foi possível carregar os indicadores comerciais.</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void analytics.refetch()}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Tentar novamente
-          </Button>
-        </div>
-      ) : null}
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr),minmax(360px,0.85fr)]">
         <Card>
           <CardHeader>
@@ -196,8 +140,7 @@ export default function BillingAdminPanel() {
               Usuários e origem do acesso
             </CardTitle>
             <CardDescription>
-              Pesquise por nome, e-mail ou telefone. A situação exibida é a
-              decisão efetiva do serviço central de elegibilidade.
+              Pesquise por nome, e-mail ou telefone e confira por que o acesso está liberado ou bloqueado.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -230,7 +173,7 @@ export default function BillingAdminPanel() {
 
             {users.isLoading ? (
               <div role="status" className="rounded-xl border p-6 text-sm text-muted-foreground">
-                Consultando usuários e elegibilidade...
+                Consultando usuários e acessos...
               </div>
             ) : users.isError ? (
               <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
@@ -261,8 +204,7 @@ export default function BillingAdminPanel() {
                           {user.access.allowed ? "Liberado" : "Sem acesso"}
                         </Badge>
                         <Badge variant="outline">
-                          {ACCESS_REASON_LABELS[user.access.reason] ??
-                            user.access.reason}
+                          {ACCESS_REASON_LABELS[user.access.reason] ?? user.access.reason}
                         </Badge>
                       </div>
                     </button>
@@ -281,11 +223,10 @@ export default function BillingAdminPanel() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldPlus className="h-5 w-5" />
-              Exceção administrativa
+              Liberação administrativa
             </CardTitle>
             <CardDescription>
-              A liberação não cria assinatura, checkout ou evento financeiro.
-              Motivo, autoria e vigência ficam auditáveis.
+              Libere acesso excepcional sem criar cobrança ou assinatura. Motivo, autoria e vigência ficam registrados.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -312,6 +253,11 @@ export default function BillingAdminPanel() {
                     onChange={event => setGrantReason(event.target.value)}
                     placeholder="Descreva por que o acesso está sendo liberado."
                   />
+                  {grantReason.length > 0 && grantReason.trim().length < 3 ? (
+                    <p className="text-xs text-destructive" role="alert">
+                      Informe um motivo com pelo menos 3 caracteres.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -342,8 +288,7 @@ export default function BillingAdminPanel() {
               </>
             ) : (
               <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                Selecione um usuário na lista para consultar o histórico ou
-                conceder uma liberação.
+                Selecione um usuário na lista para consultar o histórico ou conceder uma liberação.
               </div>
             )}
           </CardContent>
@@ -414,12 +359,16 @@ export default function BillingAdminPanel() {
                           }
                           placeholder="Informe o motivo"
                         />
+                        {revokeReason.length > 0 && revokeReason.trim().length < 3 ? (
+                          <p className="text-xs text-destructive" role="alert">
+                            Informe um motivo com pelo menos 3 caracteres.
+                          </p>
+                        ) : null}
                         <Button
                           variant="destructive"
                           className="w-full"
                           disabled={
-                            revokeReason.trim().length < 3 ||
-                            revokeOverride.isPending
+                            revokeReason.trim().length < 3 || revokeOverride.isPending
                           }
                           onClick={() =>
                             revokeOverride.mutate({
@@ -444,77 +393,6 @@ export default function BillingAdminPanel() {
           </CardContent>
         </Card>
       ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Planos e receita estimada
-          </CardTitle>
-          <CardDescription>
-            Valores são separados por moeda e tratados como estimativa operacional.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {analytics.data?.estimatedMonthlyRecurringRevenue.map(item => (
-            <div key={item.currency} className="flex items-center justify-between rounded-xl border p-4">
-              <span className="text-sm text-muted-foreground">
-                Receita recorrente mensal estimada · {item.currency}
-              </span>
-              <span className="font-semibold">
-                {formatCurrency(item.amountMinor, item.currency)}
-              </span>
-            </div>
-          ))}
-          {analytics.data?.plans.map(plan => (
-            <div key={plan.planId} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[minmax(0,1fr),auto]">
-              <div className="min-w-0">
-                <p className="font-medium">{plan.planName}</p>
-                <p className="break-words text-sm text-muted-foreground">
-                  {plan.versionCode} · {plan.audience === "professional" ? "Profissional" : "Individual"}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <Badge variant="outline">
-                  {formatCurrency(plan.unitAmount, plan.currency)}
-                </Badge>
-                <Badge variant="outline">
-                  {plan.coveredBeneficiaries.toLocaleString("pt-BR")} coberturas
-                </Badge>
-                <Badge variant="outline">
-                  {plan.capacityUsed.toLocaleString("pt-BR")} vagas ocupadas
-                </Badge>
-              </div>
-            </div>
-          ))}
-          {!analytics.isLoading && !analytics.data?.plans.length ? (
-            <div className="flex items-center gap-3 rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-              <AlertTriangle className="h-4 w-4" />
-              Nenhum plano provider-neutral foi catalogado neste ambiente.
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
     </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  supporting,
-}: {
-  label: string;
-  value: string;
-  supporting: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-2 text-2xl font-semibold">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{supporting}</p>
-      </CardContent>
-    </Card>
   );
 }

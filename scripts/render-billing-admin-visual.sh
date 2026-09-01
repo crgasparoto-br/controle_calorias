@@ -50,6 +50,7 @@ capture() {
 }
 
 capture "desktop-1440x900" "1440,900"
+capture "desktop-1366x768" "1366,768"
 capture "tablet-1024x768" "1024,768"
 capture "mobile-390x844" "390,844"
 
@@ -60,9 +61,9 @@ node scripts/check-billing-admin-browser-evidence.mjs \
 {
   echo "route=/admin/billing"
   echo "commit=${GITHUB_SHA:-local}"
-  echo "viewports=1440x900,1024x768,390x844"
+  echo "viewports=1440x900,1366x768,1024x768,390x844"
   echo "source=actual AdminBillingPage with deterministic authenticated-admin tRPC fixture"
-  echo "controls=desktop/tablet/mobile root overflow, keyboard tab sequence, accessibility tree, 200 percent zoom observation"
+  echo "controls=lazy tab mounting, sensitive confirmations, error-state form persistence, desktop/mobile overflow, keyboard, accessibility tree, 200 percent zoom"
   sha256sum "$OUTPUT_DIR"/*.png "$OUTPUT_DIR/browser-evidence.json"
 } | tee "$OUTPUT_DIR/manifest.txt"
 

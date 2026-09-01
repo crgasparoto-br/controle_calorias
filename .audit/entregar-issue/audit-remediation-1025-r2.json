@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35",
+    "audit_report_sha256": "3d58b27e52522cb4f3d32bc214a10dc8e5115b08b7d1f1645dabfffc5cb504b2",
+    "audited_head_sha": "8c65f49b4bdde42411f744f7480f52d72b9e60a8"
+  },
+  "candidate_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-003",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "handoff-current-base-rebinding",
+      "changed_files": [
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/audit-remediation-1025-r2.json",
+        ".audit/entregar-issue/audit-source-result-1025-r2.json",
+        ".audit/entregar-issue/audit-escape-closure-1025-r2.json",
+        ".audit/entregar-issue/learning-closure-1025-r2.json"
+      ],
+      "evidence": [
+        "The product material head remains 7d193f048d686acdba7de6fa2ffed739b5acf84a and the stale published handoff is a direct result-only child.",
+        "The replacement certificate is bound to current develop base bd2ad6f5b585e87082ead6521e079d6a9f7c91a9.",
+        "The replacement publication is constructed as a sibling result-only child directly from the unchanged material head, not as a child of the stale handoff."
+      ],
+      "validations": [
+        "Remote compare confirmed the stale child changes only .audit/entregar-issue paths relative to material head.",
+        "Agent-first gate #6001 completed successfully on published head 8c65f49b4bdde42411f744f7480f52d72b9e60a8 against current PR base bd2ad6f5b585e87082ead6521e079d6a9f7c91a9.",
+        "Sibling recovery preserves material head 7d193f048d686acdba7de6fa2ffed739b5acf84a and current target PR #1026."
+      ]
+    }
+  ],
+  "status": "closed",
+  "remote_ci_validation": {
+    "run_id": 33447375252,
+    "run_number": 6001,
+    "status": "completed",
+    "conclusion": "success",
+    "published_head_sha": "8c65f49b4bdde42411f744f7480f52d72b9e60a8",
+    "material_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a",
+    "base_sha": "bd2ad6f5b585e87082ead6521e079d6a9f7c91a9",
+    "merge_preview_sha": "8050aaeef251ab2a863906f495e7377f4ef9ce3f",
+    "execution_kind": "merge-preview"
+  }
+}

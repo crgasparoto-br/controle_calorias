@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "PR1026-A001",
+      "escape_class": "documentation-artifact-contract-drift",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6",
+        "finding_id": "A-001",
+        "finding_ids": [
+          "A-001"
+        ],
+        "head_sha": "a3757a3efd173080120100387cbf1787c2157dae",
+        "audit_report_sha256": "2834bfe0985a30303629cda77f0803117835d879cc85517622da2e4f519d4ffc"
+      },
+      "plausible_wrong_implementation": "Update the visual harness with an additional supported viewport while leaving the canonical operational document and documented artifact count unchanged.",
+      "literal_case": {
+        "procedure": "Compare capture declarations in the billing visual harness with the canonical operations document.",
+        "expected": "Every harness viewport and the screenshot count are documented.",
+        "observed": "On current candidate 7d193f048d686acdba7de6fa2ffed739b5acf84a the document lists all four harness viewports and 4 screenshots.",
+        "status": "passed",
+        "evidence": "Agent-first gate #5999 completed success and its CI gate docs check passed on the PR merge-preview bound to material head 7d193f048d686acdba7de6fa2ffed739b5acf84a; focused doc-viewport-contract.txt sha256=46844c0bfd1f3bcc1be041bb0a8eab611d49b03daa613ce685bd3a3c74540acc"
+      },
+      "sibling_cases": [
+        {
+          "id": "viewport-removal",
+          "surface": "documentation",
+          "dimension": "missing-supported-viewport",
+          "status": "passed",
+          "evidence": "synthetic removal of 1366x768 is detected by the derived viewport control"
+        },
+        {
+          "id": "count-drift",
+          "surface": "documentation",
+          "dimension": "artifact-count-mismatch",
+          "status": "passed",
+          "evidence": "synthetic 3-vs-4 screenshot mismatch is detected by the count control"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "visual-viewport-set"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "artifact-count"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "scripts/check-ci-gate-docs.ts derives visual viewport/count contract from scripts/render-billing-admin-visual.sh",
+        "evidence": "material diff and doc-viewport-contract.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "CI gate docs check",
+        "control_id": "DOC-BILLING-VISUAL-CONTRACT-001",
+        "evidence": "viewport-removal and screenshot-count-drift focused controls passed; Agent-first gate #5999 CI gate docs check passed"
+      },
+      "trigger_terms": [
+        "visual harness",
+        "viewport",
+        "screenshots",
+        "canonical operations document"
+      ],
+      "required_risk_families": [
+        "documentation"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a"
+    },
+    {
+      "escape_id": "PR1026-A002",
+      "escape_class": "verification-head-checkout-provenance-conflation",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6",
+        "finding_id": "A-002",
+        "finding_ids": [
+          "A-002"
+        ],
+        "head_sha": "a3757a3efd173080120100387cbf1787c2157dae",
+        "audit_report_sha256": "2834bfe0985a30303629cda77f0803117835d879cc85517622da2e4f519d4ffc"
+      },
+      "plausible_wrong_implementation": "Label a pull-request workflow run as exact-head by copying the bound PR head SHA while ignoring that the runner actually checked out a distinct merge-preview SHA.",
+      "literal_case": {
+        "procedure": "Classify execution provenance from verification manifest headSha, checkoutSha and ref.",
+        "expected": "Distinct head and checkout under refs/pull/* is reported as merge-preview, never exact-head.",
+        "observed": "Agent-first gate #5999 verification manifest binds the material head to a distinct pull-request merge checkout under refs/pull/1026/merge; the provenance classifier reports execution_kind=merge-preview and does not present the checkout as the material or exact head.",
+        "status": "passed",
+        "evidence": "Agent-first verification artifact run #5999 plus provenance-control.txt sha256=fa57fa3b4a532046244262d9eee381402c6179b47c7224c6c2888aa9484fcb1c"
+      },
+      "sibling_cases": [
+        {
+          "id": "pull-request-distinct-checkout",
+          "surface": "verification-manifest",
+          "dimension": "head-vs-checkout",
+          "status": "passed",
+          "evidence": "headSha!=checkoutSha plus refs/pull/* classified merge-preview"
+        },
+        {
+          "id": "push-equal-checkout",
+          "surface": "verification-manifest",
+          "dimension": "equal-head-checkout",
+          "status": "passed",
+          "evidence": "synthetic headSha==checkoutSha classified exact-head"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "semantic-identity-propagation",
+          "dimension": "head-vs-checkout-sha"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "execution-provenance-label"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "standard-evidence-1025-r1.json binds current run #5999 execution kind to headSha+checkoutSha+ref and records completed/success without calling the PR merge-preview checkout exact-head",
+        "evidence": "refreshed standard evidence and Agent-first verification manifest #5999"
+      },
+      "detection_change": {
+        "skill_or_gate": "handoff provenance control",
+        "control_id": "EVIDENCE-EXECUTION-PROVENANCE-001",
+        "evidence": "provenance-control.txt"
+      },
+      "trigger_terms": [
+        "headSha",
+        "checkoutSha",
+        "refs/pull",
+        "exact-head",
+        "merge-preview"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a"
+    }
+  ]
+}
