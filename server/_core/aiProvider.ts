@@ -5,9 +5,6 @@ import type {
 } from "openai/resources/responses/responses";
 import { AiNonRetryableError, AiOperationalError } from "./ai/policyExecutor";
 import { assertOpenAiStructuredOutputSchema } from "./ai/openAiStructuredOutputSchema";
-import { ENV } from "./env";
-import { GeminiProvider } from "./geminiProvider";
-import { createOpenAiClient } from "./openaiClient";
 
 export type AiProviderResponseFormat =
   | { type: "text" }
@@ -547,41 +544,5 @@ export class OpenAiProvider implements AiProvider {
   }
 }
 
+/** Factory type used by the canonical per-capability provider resolver and tests. */
 export type AiProviderFactory = () => AiProvider;
-
-const openAiProviderFactory: AiProviderFactory = () =>
-  new OpenAiProvider(() => createOpenAiClient());
-
-const geminiProviderFactory: AiProviderFactory = () => {
-  const apiKey = ENV.geminiApiKey;
-  if (!apiKey) {
-    throw new Error(
-      "AI_VISION_PROVIDER is set to 'gemini' but GEMINI_API_KEY is not configured. " +
-      "Set GEMINI_API_KEY to your Google AI Studio key to use Gemini.",
-    );
-  }
-  return new GeminiProvider(apiKey);
-};
-
-const defaultAiProviderFactory: AiProviderFactory = () => {
-  if (ENV.aiVisionProvider === "gemini") return geminiProviderFactory();
-  return openAiProviderFactory();
-};
-
-let aiProviderFactory: AiProviderFactory = defaultAiProviderFactory;
-
-export function createAiProvider(): AiProvider {
-  return defaultAiProviderFactory();
-}
-
-export function getAiProvider(): AiProvider {
-  return aiProviderFactory();
-}
-
-export function setAiProviderFactory(factory: AiProviderFactory) {
-  aiProviderFactory = factory;
-}
-
-export function resetAiProviderFactory() {
-  aiProviderFactory = defaultAiProviderFactory;
-}
