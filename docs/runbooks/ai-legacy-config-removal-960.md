@@ -23,13 +23,15 @@
 | `OPENAI_WHATSAPP_INTENT_RETRIES` | remove | A política usa `AI_WHATSAPP_INTENT_MAX_ATTEMPTS`; sem override, preserva baseline de 2 tentativas. |
 | `ENV.aiVisionProvider` | remove | Getter removido; não existe seleção global de provider. |
 | `ENV.visionModel` e getters de modelos globais | remove | Getters removidos; modelo é pareado com provider pelo resolver por capacidade. |
-| `createAiProvider()`, `getAiProvider()`, `setAiProviderFactory()`, `resetAiProviderFactory()` | remove | O último consumidor produtivo (`imageGeneration.ts`) foi migrado para `resolveCapabilityConfig("IMAGE_ANNOTATION")` + `executeResolvedCapability`. |
+| `createAiProvider()`, `getAiProvider()`, `setAiProviderFactory()`, `resetAiProviderFactory()` | remove | A API/factory global de runtime foi removida depois de migrar o último consumidor produtivo (`imageGeneration.ts`) para `resolveCapabilityConfig("IMAGE_ANNOTATION")` + `executeResolvedCapability`. |
+| mocks preexistentes `getAiProvider: () => ...` em testes funcionais de nutrição | retain-nonlegacy | São stubs inertes em fixtures que também mockam a fronteira canônica `providerResolver`; o código sob teste não importa a API global removida. Não são consumidores nem testes de compatibilidade e sua remoção em massa não altera o contrato da #960. |
 | `OPENAI_API_KEY` | retain-nonlegacy | Credencial do adapter OpenAI/OpenAI-compatible; não é seletor legado. |
 | `GEMINI_API_KEY` | retain-nonlegacy | Credencial do adapter Gemini; não é seletor legado. |
 | `OPENAI_BASE_URL` | retain-nonlegacy | Endpoint do adapter OpenAI-compatible; não é seletor legado. |
-| `usedLegacyVariables` | retain-nonlegacy | Campo de resultado tipado mantido temporariamente como forma estável para fixtures; desde #960 é literal `false` e não representa branch de compatibilidade. |
+| `usedLegacyVariables` | retain-nonlegacy | Campo de resultado tipado mantido temporariamente como forma estável para fixtures; desde #960 é literal `false` e não representa branch, seleção ou diagnóstico de compatibilidade. |
 | `.audit/entregar-issue/**` | historical-only | Snapshots/evidências de auditorias anteriores preservam o estado histórico e não são fonte operacional atual. |
-| documentos históricos/analíticos que mostram configuração anterior | historical-only | Podem preservar exemplos antigos quando claramente históricos; não devem ser usados como instrução operacional atual. |
+| `docs/runbooks/openai-rollout-checklist.md` | historical-only | O próprio documento está marcado como deprecado desde #927 e redireciona para o runbook multi-provider vigente. |
+| `analise_ia_fotos.md` e análises equivalentes | historical-only | Preservam trechos e decisões do estado anterior para referência histórica; não são instrução operacional vigente. |
 
 ## Migração de consumidores
 
@@ -57,17 +59,26 @@ A equivalência semântica é explícita: `IMAGE_ANNOTATION` já exige `image_ge
 
 ## Varredura e classificação de ocorrências
 
-Termos antigos pesquisados no repositório: `AI_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL`, `OPENAI_WHATSAPP_INTENT_MODEL`, `OPENAI_TEXT_MODEL`, `OPENAI_WHATSAPP_INTENT_TIMEOUT_MS`, `OPENAI_WHATSAPP_INTENT_RETRIES`, `openaiImageModel`, `getAiProvider`, `createAiProvider`, `setAiProviderFactory`, `resetAiProviderFactory` e `[deprecated]` associado ao resolver.
+Termos pesquisados no repositório: `AI_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL`, `OPENAI_WHATSAPP_INTENT_MODEL`, `OPENAI_TEXT_MODEL`, `OPENAI_WHATSAPP_INTENT_TIMEOUT_MS`, `OPENAI_WHATSAPP_INTENT_RETRIES`, `openaiImageModel`, `getAiProvider`, `createAiProvider`, `setAiProviderFactory`, `resetAiProviderFactory` e `[deprecated]` associado ao resolver.
 
 Categorias aplicadas às ocorrências:
 
 - **contrato atual**: resolver/executor por capacidade, credenciais e endpoint válidos;
 - **legado aposentado**: removido de runtime, configuração ativa e testes dedicados de compatibilidade;
-- **histórica**: `.audit/entregar-issue/**` e análises explicitamente retrospectivas;
-- **teste discriminante**: aliases podem aparecer apenas como entradas deliberadamente ignoradas, com expectativa explícita de não influenciar a resolução;
-- **contradição**: documentação viva que ainda indique precedência/uso operacional do alias deve ser atualizada na mesma entrega.
+- **histórica**: `.audit/entregar-issue/**`, checklist OpenAI explicitamente deprecado e análises retrospectivas;
+- **teste discriminante**: aliases podem aparecer como entradas deliberadamente ignoradas, com expectativa explícita de não influenciar a resolução;
+- **stub funcional inerte**: mocks preexistentes da antiga exportação podem permanecer somente quando o código sob teste já atravessa `providerResolver` e o mock não é consumido; isso não constitui compatibilidade de runtime;
+- **contradição**: documentação viva que indique precedência/uso operacional do alias deve ser atualizada na mesma entrega.
 
-A verificação final deve repetir a busca no SHA candidato e manter `unresolved_contradictions=[]` antes do handoff.
+### Resultado da varredura do candidato
+
+- Não há consumidor produtivo de `createAiProvider()` ou `getAiProvider()` no código alterado; `imageGeneration.ts` usa a capacidade canônica.
+- Não há leitura dos aliases candidatos no resolver ou em `ENV`.
+- Não há diagnóstico `[deprecated]` produzido pelo resolver.
+- As ocorrências restantes dos nomes antigos pertencem a testes que provam que eles são ignorados, stubs funcionais inertes ou fontes explicitamente históricas.
+- `OPENAI_TRANSCRIPTION_MODELS` e `OPENAI_IMAGE_MODELS` em `supportMatrix.ts` são nomes de allowlists internas de modelos suportados e não variáveis de ambiente; portanto são `retain-nonlegacy`.
+- `getAiProviderById` é a fronteira canônica que materializa um adapter a partir de um `AiProviderId` já resolvido e não é a factory global removida.
+- `unresolved_contradictions=[]` nas fontes normativas revisadas (`README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `.env.example`, `docs/SECURITY.md`, `docs/RELIABILITY.md` e design docs afetados).
 
 ## Segurança e operação
 
