@@ -112,7 +112,7 @@ Fluxos de comunicação profissional devem reutilizar o contrato central de mens
 
 ## Fundação multi-provider de IA (#921)
 
-`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION` para `resolveCapabilityConfig` + `executeResolvedCapability`, mantendo o modo local como default seguro.
+`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION` para `resolveCapabilityConfig` + `executeResolvedCapability`, mantendo o modo local como default seguro. A #962 concluiu posteriormente o passo operacional de implantação das configurações por capacidade no Render; os valores efetivos do ambiente não são duplicados no repositório.
 
 - `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio; `IMAGE_ANNOTATION` externa exige geração e edição de imagem. `FOOD_CLASSIFICATION` permanece reservada.
 - `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`. Gemini declara texto, visão, Structured Output e pesquisa web, mas não anuncia embeddings nem transcrição.
@@ -142,11 +142,11 @@ web / WhatsApp
   -> consumidor usa text; metadados são opcionais
 ```
 
-- O baseline de produção continua `openai` + `whisper-1`. A #927 não promove modelo alternativo: a comparação disponível identifica o alias mutável `gpt-4o-mini-transcribe` e não há preço runtime versionado para um snapshot imutável equivalente; qualquer promoção futura exige nova evidência antes da janela autorizada da #962.
+- O baseline técnico versionado permanece `openai` + `whisper-1` para compatibilidade, comportamento sem override e referência histórica de rollback. A configuração efetiva de produção é fornecida por `AI_TRANSCRIPTION_*` no Render; a #962 registrou que o rollout por capacidade foi executado e está operacional. A comparação da #927 com o alias mutável `gpt-4o-mini-transcribe` continua sendo evidência histórica e não deve ser usada para inferir o valor efetivo do ambiente.
 - `whisper-1` usa `verbose_json`; modelos GPT-4o de transcrição usam `json`.
 - O contrato raiz e o contrato de domínio exigem `task` e `text`; `language`, `duration`, `segments` e `usage` são opcionais. Adapters não fabricam `segments: []`, `duration: 0` ou idioma vazio quando o provider omite esses campos.
 - Data URL sem `;base64`, base64 não canônico, MIME não permitido, payload vazio, arquivo acima de 16 MiB ou configuração inválida falham antes da criação do adapter.
-- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; a #927 não aprovou cross-provider, que continua bloqueado em produção até nova evidência, revisão LGPD e autorização específicas por capacidade.
+- Retry e fallback pertencem exclusivamente ao executor comum. Fallback permanece desabilitado por padrão; cross-provider continua bloqueado em produção pelos guardrails atuais até nova evidência, revisão LGPD e autorização específicas por capacidade.
 - O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
 - Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
 

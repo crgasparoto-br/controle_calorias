@@ -62,10 +62,13 @@ O plano histórico em `docs/exec-plans/active/migrate-ai-to-openai.md` permanece
 
 Situação atual:
 
-- Transcrição de áudio resolve `TRANSCRIPTION` pelo executor comum. A #927 mantém `openai` + `whisper-1` como baseline: a comparação live disponível usa o alias mutável `gpt-4o-mini-transcribe` e não possui um snapshot imutável com preço correspondente no catálogo runtime, portanto não existe candidato promovível para a #962.
+- As capacidades `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION` e `IMAGE_ANNOTATION` resolvem configuração de forma independente pelo executor comum. Em 2026-09-01, o responsável confirmou na #962 que as configurações por capacidade foram implantadas no Render e estão funcionando em produção. Os valores efetivos do ambiente permanecem no Render e não são inferidos dos defaults versionados.
+- Para `TRANSCRIPTION`, `openai` + `whisper-1` permanece o baseline técnico/default versionado e referência histórica de rollback. A comparação da #927 com o alias mutável `gpt-4o-mini-transcribe` continua sendo evidência histórica e não representa, por si só, a configuração efetiva de produção após a #962.
 - Inferência nutricional de texto e imagem resolve `MEAL_TEXT` e `MEAL_VISION` independentemente pelo executor comum, com saída estruturada e validação Zod.
-- Anotação de foto resolve seu próprio modo e, quando externa, a capacidade `IMAGE_ANNOTATION`. O default `local` cria um PNG derivado por composição determinística sobre uma cópia da foto original, sem novo envio a provider; `external` exige configuração explícita e `off` não produz derivado.
+- Anotação de foto resolve seu próprio modo e, quando externa, a capacidade `IMAGE_ANNOTATION`. O default técnico `local` cria um PNG derivado por composição determinística sobre uma cópia da foto original, sem novo envio a provider; `external` exige configuração explícita e `off` não produz derivado.
 - Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise e o registro da refeição continuam normalmente.
+
+O registro sanitizado da conclusão operacional da #962 está em `docs/history/ai-multi-provider-rollout-2026-09-01.md`. O procedimento para mudanças futuras continua em `docs/runbooks/multi-provider-rollout.md`.
 
 ## Seleção legada de Provider de IA (Visão e Texto)
 
@@ -85,17 +88,17 @@ A seleção global abaixo continua funcionando durante a migração por capacida
   GEMINI_MODEL=gemini-2.5-flash # opcional
   ```
 
-*Nota: `TRANSCRIPTION` ainda usa OpenAI por padrão, mas não depende de `AI_VISION_PROVIDER`. Configure-a com `AI_TRANSCRIPTION_*`; `OPENAI_API_KEY` permanece necessária enquanto o provider efetivo for OpenAI.*
+*Nota: `TRANSCRIPTION` usa OpenAI como default técnico quando não há override da capacidade, mas não depende de `AI_VISION_PROVIDER`. Configure-a com `AI_TRANSCRIPTION_*`; `OPENAI_API_KEY` permanece necessária enquanto o provider efetivo for OpenAI.*
 
 ## Fundação multi-provider por capacidade (#921)
 
 A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION` e `IMAGE_ANNOTATION` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `FOOD_CLASSIFICATION` permanece reservada (ver #922) — com:
 
 - **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings; `TRANSCRIPTION` exige a operação de áudio do adapter; `IMAGE_ANNOTATION` externa exige geração e edição de imagem, enquanto o modo local não cria adapter externo;
-- **matriz baseada no adapter real e na combinação por modelo**: cada provider declara somente operações implementadas; Gemini 2.5 pode executar `QUESTION` com Google Search, mas `NUTRITION_SEARCH` combina Google Search + Structured Output e exige modelo Gemini 3 explicitamente aprovado. `gemini-2.5-flash` é rejeitado antes da rede para essa combinação, e a #927 preservou o default vigente por falta de comparação live suficiente. Gemini não anuncia embeddings nem transcrição, então `EMBEDDING` e `TRANSCRIPTION` não obtêm fallback Gemini implícito;
+- **matriz baseada no adapter real e na combinação por modelo**: cada provider declara somente operações implementadas; Gemini 2.5 pode executar `QUESTION` com Google Search, mas `NUTRITION_SEARCH` combina Google Search + Structured Output e exige modelo Gemini 3 explicitamente aprovado. `gemini-2.5-flash` é rejeitado antes da rede para essa combinação. Gemini não anuncia embeddings nem transcrição, então `EMBEDDING` e `TRANSCRIPTION` não obtêm fallback Gemini implícito;
 - **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
 - **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
-- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` fora de produção e usa modelo próprio do provider de destino; em `NODE_ENV=production`, cross-provider permanece bloqueado fail-closed. A #927 não aprovou promoção cross-provider; qualquer liberação futura exige evidência própria, revisão LGPD e autorização operacional por capacidade;
+- **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` fora de produção e usa modelo próprio do provider de destino; em `NODE_ENV=production`, cross-provider permanece bloqueado fail-closed pelos guardrails atuais. Qualquer liberação futura exige evidência própria, revisão LGPD e autorização operacional por capacidade;
 - **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
 - **erros e saídas normalizados**: timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem seguir a política limitada; autenticação, modelo inexistente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam fallback;
 - **contrato de transcrição sem granularidade fabricada**: texto é obrigatório; `language`, `duration`, `segments` e `usage` são opcionais, e consumidores continuam apenas com texto útil;
@@ -225,10 +228,10 @@ Resumo do rollout:
 - configurar `JWT_SECRET` e `DATABASE_URL` somente no backend;
 - executar as migrations do Drizzle antes do deploy quando houver alteração de schema;
 - validar que `NODE_ENV=production` falha o startup sem `DATABASE_URL` ou com conexão de banco inválida;
-- configurar OpenAI apenas no backend do Render ou runtime equivalente;
-- manter `AI_TRANSCRIPTION_FALLBACK_ENABLED=false` e o default `whisper-1` até uma execução autorizada do rollout controlado na #962;
-- manter `AI_IMAGE_ANNOTATION_MODE=local`, `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=off` e fallback/cross-provider externos desabilitados; a #927 encerrou a avaliação sem recomendar promoção externa;
-- executar e registrar o benchmark sanitizado antes de promover outro modelo de transcrição ou ativar anotação externa;
+- as configurações `AI_<CAPABILITY>_*` por capacidade já foram implantadas no Render e estão funcionando em produção conforme confirmação operacional da #962; os valores efetivos devem ser consultados no ambiente e não inferidos deste README;
+- usar `whisper-1` e os demais defaults versionados como baseline técnico/compatibilidade e referência de rollback, não como declaração automática da configuração efetiva atual;
+- manter os guardrails de fallback/cross-provider definidos pelo resolvedor e pelas políticas de produção; qualquer liberação futura exige evidência e autorização específicas por capacidade;
+- executar e registrar benchmark sanitizado antes de uma nova promoção de modelo ou mudança de compartilhamento externo;
 - manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
 - configurar `STRAVA_REDIRECT_URI` com o domínio público da API;
