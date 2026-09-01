@@ -30,13 +30,9 @@ describe("canonical WHATSAPP_INTENT policy", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
     process.env.OPENAI_API_KEY = "test-openai-key";
-    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-whatsapp-specific";
-    process.env.OPENAI_TEXT_MODEL = "gpt-text-legacy";
-    process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
-    delete process.env.AI_WHATSAPP_INTENT_MODEL;
-    delete process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS;
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gpt-whatsapp-specific";
+    process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS = "1";
     delete process.env.AI_WHATSAPP_INTENT_TIMEOUT_MS;
-    delete process.env.AI_VISION_PROVIDER;
   });
 
   afterEach(() => {
