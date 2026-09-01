@@ -1,0 +1,8 @@
+# PR #1028 - resolução de conflitos
+
+## Critérios de aceite
+
+- Integrar o develop atual na branch da PR #1028 e resolver os conflitos sem remover as mudanças incorporadas pelo PR #1026.
+- Preservar a correção funcional da PR #1028: ausência transitória de Runtime.evaluate.result.value não pode lançar erro durante o polling; o polling mantém até 120 tentativas e falha quando a condição não é atingida.
+- Manter o diff final contra develop restrito ao comportamento necessário da correção, sem carregar artefatos .audit conflitantes como mudança material.
+- Publicar um novo handoff para o material head após a resolução dos conflitos, pois o handoff anterior ficou stale.

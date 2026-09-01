@@ -1,1 +1,110 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-closure","compression":"gzip","encoded_size":7008,"encoded_sha256":"34268eec3e8027b6cb801fad11dd7a4a2b89852c1bd0b1d5920846e03d3c0e11","decoded_size":25679,"decoded_sha256":"c9cea235698834eb9e065dfd662fe07c6b229a2941ea66f674719a10b85e4591","parts":[{"path":"requirement-closure.parts/part-000.b64","size":7008,"sha256":"34268eec3e8027b6cb801fad11dd7a4a2b89852c1bd0b1d5920846e03d3c0e11"}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "specification_snapshot": {
+    "sha256": "f0376fc74d64ce2f80793394cb142cb651ffbe1e66e49b10ae7cb337e16d61f4"
+  },
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "e6c0c32255844a794803f5fa43f3b4aa3102e8b31aff7fdb68faacf7d0483af5",
+      "source_id": "SRC-PR1028-CONFLICTS",
+      "source_sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de",
+      "source_line": 5,
+      "source_text": "Integrar o develop atual na branch da PR #1028 e resolver os conflitos sem remover as mudanças incorporadas pelo PR #1026.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-CONFLICT-001"
+      ]
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "d2d2df550c5d09a9c134782ab6fb04679c593c84db11416ee0febbfc4a78384d",
+      "source_id": "SRC-PR1028-CONFLICTS",
+      "source_sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de",
+      "source_line": 6,
+      "source_text": "Preservar a correção funcional da PR #1028: ausência transitória de Runtime.evaluate.result.value não pode lançar erro durante o polling; o polling mantém até 120 tentativas e falha quando a condição não é atingida.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-CONFLICT-002"
+      ]
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "beec3c785958e1c443daacfaef072097f53e66823821cd7b40a3eff9621fe738",
+      "source_id": "SRC-PR1028-CONFLICTS",
+      "source_sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de",
+      "source_line": 7,
+      "source_text": "Manter o diff final contra develop restrito ao comportamento necessário da correção, sem carregar artefatos .audit conflitantes como mudança material.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-CONFLICT-003"
+      ]
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "79c4f62d478fe454e608263fc214fd49eb5af8d4e5aba69eac55e21be26035a8",
+      "source_id": "SRC-PR1028-CONFLICTS",
+      "source_sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de",
+      "source_line": 8,
+      "source_text": "Publicar um novo handoff para o material head após a resolução dos conflitos, pois o handoff anterior ficou stale.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-CONFLICT-004"
+      ]
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-PR1028-CONFLICTS",
+      "candidate_count": 4,
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "structural_invariant_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "The contract changes merge integration and a CI helper without prescribing a special canonical implementation structure."
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "The conflict resolution does not alter a historical read model, pagination, authorship, or versioned application data."
+  },
+  "canonical_source_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "The request does not define competing application sources of truth; develop is only the Git merge baseline."
+  },
+  "documentation_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "No authorization, route, default, provisioning, or normative product documentation behavior is changed."
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "findings": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "reviewed_all_specification_sources": true,
+    "rederived_without_pr_description": true,
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004"
+    ]
+  }
+}

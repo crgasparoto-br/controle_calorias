@@ -3,23 +3,32 @@
   "contract_version": "2026-08-20.3",
   "status": "rejected",
   "mode": "independent",
-  "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-  "head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
-  "material_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
-  "published_handoff_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad",
+  "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+  "head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25",
+  "material_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
   "repository": "crgasparoto-br/controle_calorias",
   "issue_number": 217,
-  "pull_request_number": 1022,
+  "pull_request_number": 1028,
   "findings": [
     {
-      "id": "A-002",
+      "id": "A-1028-002",
       "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "The regression contract must detect loss of an individual required scenario rather than textual remnants.",
-      "summary": "The prior guard used source.includes and accepted an exact required title left only in a comment or string after the executable test was removed."
+      "requirement": "The handoff certificate must hash the exact published requirement-closure.json bytes.",
+      "summary": "handoff-ready.json certified a requirement-closure SHA-256 different from the published artifact bytes."
+    },
+    {
+      "id": "A-1028-003",
+      "severity": "blocker",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "Normative specification items must be preserved exactly in requirement-closure.json.",
+      "summary": "OBL-004 altered the canonical criterion text (missing spacing/backtick corruption), so normative coverage failed."
     }
   ],
   "recommendations": []

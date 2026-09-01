@@ -3,29 +3,39 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
-    "audited_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad"
+    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
+    "audited_head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25"
   },
-  "candidate_head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "candidate_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-002",
+      "source_id": "A-1028-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "regression-guard-hardening",
-      "changed_files": [
-        "scripts/test-issue-217-regression.ts"
-      ],
+      "closure_kind": "handoff-artifact-integrity-rebuild",
+      "changed_files": [],
       "evidence": [
-        "Executable-title detection now skips comments and quoted/template strings before accepting direct it/test calls.",
-        "Repository-level adversarial copies with comment and string decoys both fail the contract."
+        "Regenerated handoff-ready.json from the final corrected requirement-closure.json so the certified sha256/logical_sha256 match the exact published bytes."
       ],
       "validations": [
-        "Exact published blob SHA is a39a096a00e5bc82cc604461e5b660bdcfd77910.",
-        "Contract-only positive path passes with 58 tracked scenarios."
+        "validate_handoff_certificate.py and validate_terminal_handoff.py must pass on the synthesized result-only child before publication."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-1028-003",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "normative-closure-canonicalization",
+      "changed_files": [],
+      "evidence": [
+        "OBL-004 source_text now exactly matches SRC-PR1028-CONFLICTS.txt line 8."
+      ],
+      "validations": [
+        "validate_specification_coverage.py must pass before handoff publication."
       ]
     }
   ],
