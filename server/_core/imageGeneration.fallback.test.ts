@@ -6,25 +6,35 @@ const storagePutMock = vi.fn(async (key: string, buffer: Buffer, mimeType: strin
   size: buffer.length,
   mimeType,
 }));
+const observeUnavailableMock = vi.fn();
+const executeResolvedCapabilityMock = vi.fn();
 
 vi.mock("server/storage", () => ({
   storagePut: storagePutMock,
 }));
 
-vi.mock("./openaiClient", () => ({
-  isOpenAiConfigured: () => false,
-}));
-
-vi.mock("./aiProvider", () => ({
-  getAiProvider: () => ({
-    createImageGeneration: vi.fn(),
+vi.mock("./ai/configResolver", () => ({
+  resolveCapabilityConfig: () => ({
+    capability: "IMAGE_ANNOTATION",
+    state: "disabled",
+    primary: { provider: "openai", model: "gpt-image-1" },
+    timeoutMs: 30_000,
+    maxAttempts: 1,
+    fallback: {
+      requested: false,
+      effectivelyEnabled: false,
+      provider: null,
+      model: null,
+      crossProviderEnabled: false,
+    },
+    diagnostics: ["capability=IMAGE_ANNOTATION provider=openai missing required secret"],
+    usedLegacyVariables: false,
   }),
 }));
 
-vi.mock("./env", () => ({
-  ENV: {
-    openaiImageModel: "gpt-image-test",
-  },
+vi.mock("./ai/capabilityExecutor", () => ({
+  observeUnavailableResolvedCapability: observeUnavailableMock,
+  executeResolvedCapability: executeResolvedCapabilityMock,
 }));
 
 const { generateImage } = await import("./imageGeneration");
@@ -32,9 +42,11 @@ const { generateImage } = await import("./imageGeneration");
 describe("generateImage fallback", () => {
   beforeEach(() => {
     storagePutMock.mockClear();
+    observeUnavailableMock.mockClear();
+    executeResolvedCapabilityMock.mockClear();
   });
 
-  it("gera uma imagem PNG local quando o provider de imagem não está configurado", async () => {
+  it("gera uma imagem PNG local quando IMAGE_ANNOTATION não está configurada", async () => {
     const result = await generateImage({
       prompt: [
         "Crie uma imagem quadrada com cards nutricionais.",
@@ -50,6 +62,8 @@ describe("generateImage fallback", () => {
     expect(result.mimeType).toBe("image/png");
     expect(result.skippedReason).toBeUndefined();
     expect(result.detail).toContain("Provider de imagem não configurado");
+    expect(observeUnavailableMock).toHaveBeenCalledOnce();
+    expect(executeResolvedCapabilityMock).not.toHaveBeenCalled();
     expect(storagePutMock).toHaveBeenCalledOnce();
     const [, buffer, mimeType] = storagePutMock.mock.calls[0];
     expect(mimeType).toBe("image/png");
