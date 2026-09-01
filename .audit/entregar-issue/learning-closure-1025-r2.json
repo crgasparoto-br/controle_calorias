@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35",
+    "audit_report_sha256": "3d58b27e52522cb4f3d32bc214a10dc8e5115b08b7d1f1645dabfffc5cb504b2",
+    "finding_ids": [
+      "A-003"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed delivery contract already requires current-base handoff binding and sibling result-only recovery when a terminal child is stale; this rejection is closed by applying that existing repository handoff rule rather than introducing a new global rule."
+  }
+}
