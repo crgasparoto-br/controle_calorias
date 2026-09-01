@@ -1,8 +1,10 @@
 import { deflateSync } from "node:zlib";
 import { storagePut } from "server/storage";
-import { getAiProvider } from "./aiProvider";
-import { ENV } from "./env";
-import { isOpenAiConfigured } from "./openaiClient";
+import {
+  executeResolvedCapability,
+  observeUnavailableResolvedCapability,
+} from "./ai/capabilityExecutor";
+import { resolveCapabilityConfig } from "./ai/configResolver";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -310,8 +312,9 @@ async function generateFallbackImage(prompt: string, detail: string): Promise<Ge
 
 /**
  * Auxiliary image generation must never block meal registration or confirmation.
- * When OpenAI image generation is unavailable or fails, this helper returns a
- * local PNG fallback with the detected meal classification whenever storage is available.
+ * Provider/model selection is resolved exclusively through IMAGE_ANNOTATION.
+ * When external generation is unavailable or fails, this helper returns the
+ * same local PNG fallback used before the #960 selector cleanup.
  */
 export async function generateImage(
   options: GenerateImageOptions,
@@ -321,24 +324,44 @@ export async function generateImage(
     return { skippedReason: "no_prompt" };
   }
 
-  if (!isOpenAiConfigured()) {
-    console.warn("[ImageGeneration] OpenAI image generation is not configured; using local fallback image.");
-    return generateFallbackImage(prompt, "Provider de imagem não configurado; fallback local de classificação gerado.");
+  const config = resolveCapabilityConfig("IMAGE_ANNOTATION");
+  const observability = {
+    origin: "system" as const,
+    flow: "image_annotation" as const,
+  };
+
+  if (config.state === "disabled" || config.state === "invalid") {
+    await observeUnavailableResolvedCapability(config, observability);
+    console.warn(
+      "[ImageGeneration] IMAGE_ANNOTATION is not configured; using local fallback image.",
+    );
+    return generateFallbackImage(
+      prompt,
+      "Provider de imagem não configurado; fallback local de classificação gerado.",
+    );
   }
 
   try {
-    const generated = await getAiProvider().createImageGeneration({
-      prompt,
-      model: ENV.openaiImageModel,
-      size: "1024x1024",
-      quality: "low",
-      outputFormat: "png",
-      originalImages: options.originalImages?.filter(image => image.b64Json).map(image => ({
-        b64Json: image.b64Json as string,
-        mimeType: image.mimeType,
-      })),
-    });
+    const execution = await executeResolvedCapability(
+      config,
+      ({ provider, model, signal }) => provider.createImageGeneration(
+        {
+          prompt,
+          model,
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          originalImages: options.originalImages?.filter(image => image.b64Json).map(image => ({
+            b64Json: image.b64Json as string,
+            mimeType: image.mimeType,
+          })),
+        },
+        { signal },
+      ),
+      { observability },
+    );
 
+    const generated = execution.value;
     const imageBuffer = Buffer.from(generated.b64Json, "base64");
     const storageKey = `generated/meal-support/${Date.now()}.png`;
     const upload = await storagePut(storageKey, imageBuffer, generated.mimeType, { publicRead: true });
@@ -351,7 +374,7 @@ export async function generateImage(
     };
   } catch (error) {
     console.warn(
-      "[ImageGeneration] OpenAI image generation failed; using local fallback image.",
+      "[ImageGeneration] IMAGE_ANNOTATION provider execution failed; using local fallback image.",
       error instanceof Error ? error.message : error,
     );
     return generateFallbackImage(
