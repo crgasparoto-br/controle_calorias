@@ -3,29 +3,25 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
-    "audited_head_sha": "04adc0e62961523b61805e771559e98e6d83bbad"
+    "rejection_id": "audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe",
+    "audit_report_sha256": "2d8d0738b105eeca5ed8ac1f4949b91df55e38ba53dce5ea8563cb55769170ac",
+    "audited_head_sha": "f2001b92fe01f91b47f65dcf59c1424e48fd41f6"
   },
-  "candidate_head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "candidate_head_sha": "4c0035e3408390b0510aa1270f9b44115bb30943",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-002",
+      "source_id": "A-1028-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "regression-guard-hardening",
-      "changed_files": [
-        "scripts/test-issue-217-regression.ts"
-      ],
+      "closure_kind": "handoff-readiness-rebuild",
+      "changed_files": [],
       "evidence": [
-        "Executable-title detection now skips comments and quoted/template strings before accepting direct it/test calls.",
-        "Repository-level adversarial copies with comment and string decoys both fail the contract."
+        "The foreign inherited PR 1022 certificate is excluded and a fresh PR 1028 package is built for the current material head."
       ],
       "validations": [
-        "Exact published blob SHA is a39a096a00e5bc82cc604461e5b660bdcfd77910.",
-        "Contract-only positive path passes with 58 tracked scenarios."
+        "Current product tree equals the audited functional tree; no material file is added by this remediation."
       ]
     }
   ],
