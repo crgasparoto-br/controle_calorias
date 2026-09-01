@@ -6,58 +6,83 @@ function envWith(vars: Record<string, string>): NodeJS.ProcessEnv {
 }
 
 describe("capability config resolver", () => {
-  it("uses new variables before legacy variables and defaults", () => {
+  it("uses canonical variables and ignores retired aliases", () => {
     const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
       OPENAI_API_KEY: "sk-test",
       AI_VISION_PROVIDER: "gemini",
-      GEMINI_MODEL: "gemini-legacy",
+      GEMINI_MODEL: "gemini-retired",
+      OPENAI_MODEL: "gpt-retired",
       AI_MEAL_TEXT_PROVIDER: "openai",
       AI_MEAL_TEXT_MODEL: "gpt-new",
     }));
     expect(resolved.primary).toEqual({ provider: "openai", model: "gpt-new" });
     expect(resolved.usedLegacyVariables).toBe(false);
+    expect(resolved.diagnostics.some(item => item.includes("[deprecated]"))).toBe(false);
     expect(resolved.state).toBe("ready");
   });
 
-  it("preserves legacy Gemini provider and GEMINI_MODEL precedence", () => {
+  it("ignores retired global Gemini provider/model aliases", () => {
     const resolved = resolveCapabilityConfig("MEAL_VISION", envWith({
-      GEMINI_API_KEY: "g-test",
-      AI_VISION_PROVIDER: "gemini",
-      GEMINI_MODEL: "gemini-custom-legacy",
-      OPENAI_MODEL: "must-not-leak",
-    }));
-    expect(resolved.primary).toEqual({
-      provider: "gemini",
-      model: "gemini-custom-legacy",
-    });
-    expect(resolved.usedLegacyVariables).toBe(true);
-    expect(resolved.diagnostics.filter((item) => item.includes("[deprecated]")).length).toBe(2);
-  });
-
-  it("preserves the legacy Gemini provider and model for WhatsApp intent", () => {
-    const resolved = resolveCapabilityConfig("WHATSAPP_INTENT", envWith({
-      GEMINI_API_KEY: "g-test",
-      AI_VISION_PROVIDER: "gemini",
-      GEMINI_MODEL: "gemini-intent-legacy",
-    }));
-
-    expect(resolved.primary).toEqual({
-      provider: "gemini",
-      model: "gemini-intent-legacy",
-    });
-    expect(resolved.state).toBe("ready");
-    expect(resolved.usedLegacyVariables).toBe(true);
-    expect(resolved.diagnostics.filter((item) => item.includes("[deprecated]")).length).toBe(2);
-  });
-
-  it("preserves legacy OpenAI model for meal capabilities", () => {
-    const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
       OPENAI_API_KEY: "sk-test",
-      OPENAI_MODEL: "gpt-legacy-custom",
+      GEMINI_API_KEY: "g-test",
+      AI_VISION_PROVIDER: "gemini",
+      GEMINI_MODEL: "gemini-custom-retired",
+      OPENAI_MODEL: "gpt-custom-retired",
     }));
     expect(resolved.primary).toEqual({
       provider: "openai",
-      model: "gpt-legacy-custom",
+      model: "gpt-4.1-mini",
+    });
+    expect(resolved.usedLegacyVariables).toBe(false);
+    expect(resolved.diagnostics.some(item => item.includes("[deprecated]"))).toBe(false);
+  });
+
+  it("ignores retired global aliases for WhatsApp intent", () => {
+    const resolved = resolveCapabilityConfig("WHATSAPP_INTENT", envWith({
+      OPENAI_API_KEY: "sk-test",
+      GEMINI_API_KEY: "g-test",
+      AI_VISION_PROVIDER: "gemini",
+      GEMINI_MODEL: "gemini-intent-retired",
+      OPENAI_WHATSAPP_INTENT_MODEL: "gpt-retired",
+      OPENAI_TEXT_MODEL: "gpt-retired-2",
+      OPENAI_WHATSAPP_INTENT_TIMEOUT_MS: "1234",
+      OPENAI_WHATSAPP_INTENT_RETRIES: "9",
+    }));
+
+    expect(resolved.primary).toEqual({
+      provider: "openai",
+      model: "gpt-4.1-mini",
+    });
+    expect(resolved.timeoutMs).toBe(8_000);
+    expect(resolved.maxAttempts).toBe(2);
+    expect(resolved.state).toBe("ready");
+    expect(resolved.usedLegacyVariables).toBe(false);
+  });
+
+  it("ignores retired OpenAI model alias for meal capabilities", () => {
+    const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_MODEL: "gpt-retired-custom",
+    }));
+    expect(resolved.primary).toEqual({
+      provider: "openai",
+      model: "gpt-4.1-mini",
+    });
+  });
+
+  it("ignores retired transcription and image model aliases", () => {
+    const env = envWith({
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_TRANSCRIPTION_MODEL: "retired-transcription",
+      OPENAI_IMAGE_MODEL: "retired-image",
+    });
+    expect(resolveCapabilityConfig("TRANSCRIPTION", env).primary).toEqual({
+      provider: "openai",
+      model: "whisper-1",
+    });
+    expect(resolveCapabilityConfig("IMAGE_ANNOTATION", env).primary).toEqual({
+      provider: "openai",
+      model: "gpt-image-1",
     });
   });
 
@@ -71,7 +96,7 @@ describe("capability config resolver", () => {
     const env = envWith({
       OPENAI_API_KEY: "sk-test",
       GEMINI_API_KEY: "g-test",
-      AI_VISION_PROVIDER: "gemini",
+      AI_MEAL_TEXT_PROVIDER: "gemini",
       AI_QUESTION_PROVIDER: "openai",
     });
     expect(resolveCapabilityConfig("MEAL_TEXT", env).primary?.provider).toBe("gemini");
@@ -161,19 +186,20 @@ describe("capability config resolver", () => {
     expect(resolved.fallback.crossProviderEnabled).toBe(false);
   });
 
-  it("uses the fallback provider default instead of leaking the primary model", () => {
+  it("uses the fallback provider default and ignores retired provider model aliases", () => {
     const resolved = resolveCapabilityConfig("MEAL_TEXT", envWith({
       OPENAI_API_KEY: "sk-test",
       GEMINI_API_KEY: "g-test",
-      OPENAI_MODEL: "gpt-primary-custom",
-      GEMINI_MODEL: "gemini-fallback-custom",
+      OPENAI_MODEL: "gpt-retired-custom",
+      GEMINI_MODEL: "gemini-retired-custom",
+      AI_MEAL_TEXT_MODEL: "gpt-primary-canonical",
       AI_MEAL_TEXT_FALLBACK_ENABLED: "true",
       AI_MEAL_TEXT_FALLBACK_PROVIDER: "gemini",
       AI_MEAL_TEXT_CROSS_PROVIDER_FALLBACK_ENABLED: "true",
     }));
     expect(resolved.fallback.effectivelyEnabled).toBe(true);
-    expect(resolved.fallback.model).toBe("gemini-fallback-custom");
-    expect(resolved.fallback.model).not.toBe("gpt-primary-custom");
+    expect(resolved.fallback.model).toBe("gemini-2.5-flash");
+    expect(resolved.fallback.model).not.toBe("gpt-primary-canonical");
   });
 
   it("reports disabled when the primary secret is absent", () => {
@@ -214,7 +240,6 @@ describe("capability config resolver", () => {
     });
     expect(resolved.state).toBe("ready");
   });
-
 
   it("rejects Gemini 2.5 for NUTRITION_SEARCH before network access", () => {
     const resolved = resolveCapabilityConfig("NUTRITION_SEARCH", envWith({
