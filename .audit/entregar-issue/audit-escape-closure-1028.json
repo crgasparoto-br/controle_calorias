@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUDESC-1028-HANDOFF-NOT-PRODUCED",
+      "escape_class": "inherited-base-handoff-readiness-gap",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe",
+        "finding_id": "A-1028-001",
+        "head_sha": "f2001b92fe01f91b47f65dcf59c1424e48fd41f6",
+        "audit_report_sha256": "2d8d0738b105eeca5ed8ac1f4949b91df55e38ba53dce5ea8563cb55769170ac"
+      },
+      "plausible_wrong_implementation": "Treat the inherited PR 1022 handoff as valid for PR 1028 merely because the certificate file exists in the branch tree.",
+      "literal_case": {
+        "procedure": "Compare the inherited certificate subject to the current PR 1028 target.",
+        "expected": "Foreign PR/head identity is rejected and a fresh current-target handoff is required.",
+        "observed": "At material head b257bd66ce72159af439dfe1be21ed1f43b594ee the inherited package is not used; a new PR 1028 package is being generated.",
+        "status": "passed",
+        "evidence": "target-binding-and-post-write-refreeze"
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-pr",
+          "surface": "handoff-subject",
+          "dimension": "pull-request-number",
+          "status": "passed",
+          "evidence": "PR 1022 differs from PR 1028"
+        },
+        {
+          "id": "foreign-head",
+          "surface": "handoff-subject",
+          "dimension": "head-ref",
+          "status": "passed",
+          "evidence": "test/217-onboarding-commercial-regression differs from fix/1022-billing-visual-cdp"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-readiness",
+          "surface": "handoff-subject",
+          "dimension": "foreign-target-reuse"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing entregar-issue delivery-target-binding contract",
+        "evidence": "fresh current-target handoff is required and generated"
+      },
+      "detection_change": {
+        "skill_or_gate": "delivery target binding plus terminal handoff guard",
+        "control_id": "CTRL-HANDOFF-FOREIGN-001",
+        "evidence": "foreign inherited subject is rejected before publication"
+      },
+      "trigger_terms": [
+        "inherited handoff",
+        "foreign target",
+        "handoff not produced"
+      ],
+      "required_risk_families": [
+        "delivery-readiness"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "b257bd66ce72159af439dfe1be21ed1f43b594ee"
+    }
+  ]
+}

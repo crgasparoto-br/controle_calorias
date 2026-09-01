@@ -1,54 +1,118 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "9eeaa64358bc0d38d9f85cad3ec01f4980874d54",
+  "head_sha": "b257bd66ce72159af439dfe1be21ed1f43b594ee",
   "requirements": [
     {
-      "requirement_id": "REQ-GATE-CI",
+      "requirement_id": "REQ-FUNCTIONAL-PRESERVATION",
       "positive_evidence": [
-        "Material change is isolated to scripts/test-issue-217-regression.ts; prior product-wide gates were green on 2c240170dd683f6e74833eec4ed5d2a8f23f1c20 and new exact-head workflows were automatically queued for 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "The material tree 25e8b6f365ad71b30d7d1f9efbeab14c21900bb6 is identical to the validated functional tree; develop..material changes only scripts/check-billing-admin-browser-evidence.mjs."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-EXACT-HEAD-CI-002",
+        "id": "CTRL-CDP-TRANSIENT-001",
         "status": "passed",
-        "procedure": "Observe workflow runs after publishing the material commit and do not reuse their future result before it exists.",
-        "expected": "Current workflows are recorded as pending when not yet terminal, rather than falsely claimed green.",
-        "observed": "Agent-first run 33384534635 and Issue 217 run 33384534675 were observed queued on 9eeaa64358bc0d38d9f85cad3ec01f4980874d54."
+        "procedure": "Inspect the exact material tree and the known functional patch for transient Runtime.evaluate.result.value absence versus persistent timeout.",
+        "expected": "Transient missing result.value is tolerated during polling while persistent missing billing sections still fail after timeout.",
+        "observed": "The material tree is unchanged from the functional candidate where readBillingState uses result?.value, waitForBillingState checks value?.title, and assertBillingReady preserves timeout failure."
       },
       "regression_evidence": [
-        "Local exact material blob a39a096a00e5bc82cc604461e5b660bdcfd77910 matches the published file."
+        "No product path changed during post-write-refreeze; only prior invalid .audit results were removed from the material tree."
       ]
     },
     {
-      "requirement_id": "REQ-GATE-NO-SKIP",
+      "requirement_id": "REQ-SPEC-SOURCE-PUBLISHED",
       "positive_evidence": [
-        "node --experimental-strip-types scripts/test-issue-217-regression.ts --contract-only passed on the exact published blob and reported 58 scenarios, 32 Vitest suites and 9 TiDB gates."
+        "specification-snapshot.json now names specification-sources/SRC-AUDIT-1028-R2.txt and the builder copied that exact UTF-8 source into the package workspace."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-SCENARIO-DECOY-002",
+        "id": "CTRL-SPEC-SOURCE-MISSING-001",
         "status": "passed",
-        "procedure": "Replace the required ONB-PUBLIC-CONFLICT test with a comment decoy and separately with a quoted-string decoy containing the exact title.",
-        "expected": "Both decoys must be rejected as missing executable scenarios.",
-        "observed": "Both adversarial copies exited non-zero and reported ONB-PUBLIC-CONFLICT as absent; the unchanged repository copy passed."
+        "procedure": "Resolve every required specification-snapshot source path inside the package and compare its sha256 with the snapshot.",
+        "expected": "A missing or hash-mismatched required source blocks readiness.",
+        "observed": "SRC-AUDIT-1028-R2.txt exists locally at the declared package path and hashes to decc079f0b5c35e7639d7f5f6b41f81235e8f17370a107625663f46f44c0fea9."
       },
       "regression_evidence": [
-        "git diff --check passed locally; Node type stripping parsed and executed the contract-only path successfully."
+        "The source is separately allowlisted for publication in the result-only child so the prior 404 class cannot recur silently."
       ]
     },
     {
-      "requirement_id": "REQ-GATE-SCENARIO-PRESENCE",
+      "requirement_id": "REQ-MERGEABILITY-EVIDENCE",
       "positive_evidence": [
-        "hasExecutableTestTitle now lexically skips line comments, block comments, strings and template literals before recognizing direct it/test calls."
+        "Git compare develop..b257bd66 reports status=ahead, behind_by=0, and merge_base=bd2ad6f5b585e87082ead6521e079d6a9f7c91a9; only the billing evidence script differs from develop."
       ],
       "primary_negative_control": {
-        "id": "CTRL-217-COMMENT-STRING-001",
+        "id": "CTRL-MERGEABILITY-METADATA-001",
         "status": "passed",
-        "procedure": "Leave the exact tracked title only inside // comment or a normal string after removing the executable declaration.",
-        "expected": "scenarioContractFailures returns the tracked scenario as missing.",
-        "observed": "The new synthetic self-controls and repository-level adversarial copies reject both representations."
+        "procedure": "Cross-check PR mergeability metadata against commit-graph ancestry and the pull merge ref instead of trusting one field.",
+        "expected": "A true content conflict must not be dismissed; a stale metadata field must not justify artificial SHA churn.",
+        "observed": "The PR API still says mergeable=false, but the exact Git compare proves develop is the merge base and the branch is not behind. refs/pull/1028/merge exists but is explicitly recorded as stale because it merges f2001b92 rather than the current material head."
       },
       "regression_evidence": [
-        "The positive 58-scenario contract still passes with the hardened recognizer."
+        "No artificial no-op commit was created to manipulate mergeability metadata; the material refreeze had a real evidence-cleanup effect."
+      ]
+    },
+    {
+      "requirement_id": "REQ-HANDOFF-READINESS",
+      "positive_evidence": [
+        "The invalid result package was removed by post-write-refreeze, making b257bd66 the new material head for a rebuilt current-target certificate."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-HANDOFF-STALE-001",
+        "status": "passed",
+        "procedure": "Compare the prior handoff parent/material identity with the new material head after the cleanup write.",
+        "expected": "Any prior certificate for 4c0035e must be stale once b257bd66 becomes material and cannot be reused.",
+        "observed": "The previous published handoff 8af83cdb is an ancestor of b257bd66 and its certificate targets 4c0035e; the rebuilt package targets b257bd66."
+      },
+      "regression_evidence": [
+        "The final result-only child must be a direct child of b257bd66 and contain only certificate allowlisted .audit paths."
+      ]
+    },
+    {
+      "requirement_id": "REQ-CI-SNAPSHOT-TRUTHFUL",
+      "positive_evidence": [
+        "A single delivery-snapshot collection on material b257bd66 returned no workflow runs, recorded as pending-no-run."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-CI-ANCESTOR-GREEN-001",
+        "status": "passed",
+        "procedure": "Attempt to satisfy the current exact-SHA CI requirement with a green run from an ancestor and reject that inference.",
+        "expected": "Ancestor CI cannot be promoted to current material; no-run must remain pending-no-run and claimed_green=false.",
+        "observed": "The current material snapshot contains zero workfow runs and connector evidence explicitly records claimed_green=false; no rerun, dispatch, or polling occurred."
+      },
+      "regression_evidence": [
+        "remote-gate-evidence.json binds pending-no-run to b257bd66 and ci_mode=delivery-snapshot."
+      ]
+    },
+    {
+      "requirement_id": "REQ-REJECTION-LINEAGE",
+      "positive_evidence": [
+        "The prior independent rejection audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe and finding A-1028-001 are preserved in audit-source-result, audit-remediation, learning-closure, and audit-escape-closure."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-REJECTION-LINEAGE-001",
+        "status": "passed",
+        "procedure": "Cross-check rejection_id and finding_id across the historical audit source, remediation ledger, learning closure, and escape closure.",
+        "expected": "Any missing or changed rejection/finding identifier blocks closure.",
+        "observed": "All current lineage artifacts carry the same rejection_id and A-1028-001; the escape is revalidated at b257bd66."
+      },
+      "regression_evidence": [
+        "The remediation remains targeted/implementation-only and does not manufacture a second learning event for the same rejection."
+      ]
+    },
+    {
+      "requirement_id": "REQ-HANDOFF-IDENTITY",
+      "positive_evidence": [
+        "The certificate will bind repository crgasparoto-br/controle_calorias, issue 217, PR 1028, base develop, and head fix/1022-billing-visual-cdp to material b257bd66."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-HANDOFF-PRODUCT-PATH-001",
+        "status": "passed",
+        "procedure": "Inspect the prospective result-only child changed paths against the certificate allowlist and reject any product path.",
+        "expected": "Only .audit/entregar-issue result paths may appear after the material freeze.",
+        "observed": "The prospective package contains only .audit/entregar-issue artifacts, including the required specification source; product code stays in material b257bd66."
+      },
+      "regression_evidence": [
+        "A fresh remote head read and terminal guard will verify current_head==published_handoff_head after publication."
       ]
     }
   ]
