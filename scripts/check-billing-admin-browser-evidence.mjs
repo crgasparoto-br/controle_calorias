@@ -11,7 +11,7 @@ const { call, close, evaluate, pressKey, click, focus, setValue, navigate, runti
 const readState = () => evaluate(`(() => { const text=document.body?.innerText??''; return { title:text.includes('Planos, assinaturas e acesso'), overview:text.includes('Distribuição por plano e ciclo'), access:text.includes('Usuários e origem do acesso'), catalog:text.includes('Catálogo e versões'), campaigns:text.includes('Campanhas e entregas'), economics:text.includes('Economia por identidade comercial'), rollout:text.includes('Rollout comercial'), overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, tabs:Array.from(document.querySelectorAll('[role="tab"]')).map(el=>({text:(el.textContent||'').trim(),selected:el.getAttribute('aria-selected')})), queries:globalThis.__billingQueryCalls??{}, mutations:globalThis.__billingMutationCalls??{} }; })()`);
 const waitFor = async (predicate, label) => {
   let value;
-  for (let attempt = 0; attempt < 120; attempt += 1) { value = await readState(); if (predicate(value)) return value; await delay(100); }
+  for (let attempt = 0; attempt < 120; attempt += 1) { value = await readState(); if (value && predicate(value)) return value; await delay(100); }
   throw new Error(`${label}: condition not reached; state=${JSON.stringify(value)} runtime=${JSON.stringify(runtimeEvents.slice(-10))}`);
 };
 

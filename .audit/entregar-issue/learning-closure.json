@@ -2,15 +2,16 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-audit-rejection",
-    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
-    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
     "finding_ids": [
-      "A-002"
+      "A-1028-002",
+      "A-1028-003"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The governing delivery and audit contracts already require discriminant negative controls. This escape was a local recognizer implementation gap, closed by making executable-test detection ignore non-code textual decoys and by adding permanent comment/string controls."
+    "reason": "Both findings are localized handoff-generation defects already covered by existing artifact-integrity and normative-coverage validators; remediation rebuilds the package using those existing controls."
   }
 }

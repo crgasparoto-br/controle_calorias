@@ -68,7 +68,7 @@ export async function openBrowserHarness() {
 
   const evaluate = async expression => {
     const { result } = await call("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, sessionId);
-    return result.value;
+    return result?.value;
   };
   const pressKey = async (key, code = key) => {
     const virtual = { Enter: 13, " ": 32, Escape: 27, ArrowRight: 39, ArrowLeft: 37, Tab: 9 }[key] ?? 0;

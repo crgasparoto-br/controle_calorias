@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "AUDESC-1028-HANDOFF-NOT-PRODUCED",
+      "escape_class": "inherited-base-handoff-readiness-gap",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe",
+        "finding_id": "A-1028-001",
+        "head_sha": "f2001b92fe01f91b47f65dcf59c1424e48fd41f6",
+        "audit_report_sha256": "2d8d0738b105eeca5ed8ac1f4949b91df55e38ba53dce5ea8563cb55769170ac"
+      },
+      "plausible_wrong_implementation": "Treat the inherited PR 1022 handoff as valid for PR 1028 merely because the certificate file exists in the branch tree.",
+      "literal_case": {
+        "procedure": "Compare the inherited certificate subject to the current PR 1028 target.",
+        "expected": "Foreign PR/head identity is rejected and a fresh current-target handoff is required.",
+        "observed": "At material head 888b879fcafab222db2fc7e8d6ea1901f6958916 the inherited package is not used; a fresh PR 1028 package is regenerated after resolving the develop conflict.",
+        "status": "passed",
+        "evidence": "target-binding-conflict-refreeze"
+      },
+      "sibling_cases": [
+        {
+          "id": "foreign-pr",
+          "surface": "handoff-subject",
+          "dimension": "pull-request-number",
+          "status": "passed",
+          "evidence": "PR 1022 differs from PR 1028"
+        },
+        {
+          "id": "foreign-head",
+          "surface": "handoff-subject",
+          "dimension": "head-ref",
+          "status": "passed",
+          "evidence": "test/217-onboarding-commercial-regression differs from fix/1022-billing-visual-cdp"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-readiness",
+          "surface": "handoff-subject",
+          "dimension": "foreign-target-reuse"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing entregar-issue delivery-target-binding contract",
+        "evidence": "fresh current-target handoff is required and generated"
+      },
+      "detection_change": {
+        "skill_or_gate": "delivery target binding plus terminal handoff guard",
+        "control_id": "CTRL-HANDOFF-FOREIGN-001",
+        "evidence": "foreign inherited subject is rejected before publication"
+      },
+      "trigger_terms": [
+        "inherited handoff",
+        "foreign target",
+        "handoff not produced"
+      ],
+      "required_risk_families": [
+        "delivery-readiness"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916"
+    },
+    {
+      "escape_id": "AUDESC-1028-CERTIFIED-HASH-MISMATCH",
+      "escape_class": "handoff-artifact-integrity-gap",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+        "finding_id": "A-1028-002",
+        "head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25",
+        "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde"
+      },
+      "plausible_wrong_implementation": "Publish a handoff certificate generated before the final requirement-closure bytes are written.",
+      "literal_case": {
+        "procedure": "Hash the final requirement-closure.json bytes and compare them with certificate artifacts.requirement_closure.sha256 and logical_sha256.",
+        "expected": "Both certificate hashes exactly equal the final artifact hash.",
+        "observed": "The rebuilt certificate is generated after the closure fix and binds the final bytes.",
+        "status": "passed",
+        "evidence": "validate-handoff-artifact-hash"
+      },
+      "sibling_cases": [
+        {
+          "id": "standard-evidence-hash",
+          "surface": "handoff-artifact",
+          "dimension": "certified-hash",
+          "status": "passed",
+          "evidence": "certificate builder hashes final standard-evidence bytes"
+        },
+        {
+          "id": "audit-remediation-hash",
+          "surface": "handoff-artifact",
+          "dimension": "certified-hash",
+          "status": "passed",
+          "evidence": "certificate builder hashes final remediation bytes"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-readiness",
+          "surface": "handoff-artifact",
+          "dimension": "certified-hash"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing build_handoff_certificate.py final-byte hashing",
+        "evidence": "certificate is rebuilt from final artifact files"
+      },
+      "detection_change": {
+        "skill_or_gate": "validate_handoff_certificate.py / validate_terminal_handoff.py",
+        "control_id": "CTRL-HANDOFF-HASH-001",
+        "evidence": "exact artifact hash comparison before publication"
+      },
+      "trigger_terms": [
+        "handoff hash",
+        "artifact hash mismatch",
+        "certificate integrity"
+      ],
+      "required_risk_families": [
+        "delivery-readiness"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916"
+    },
+    {
+      "escape_id": "AUDESC-1028-NORMATIVE-CLOSURE-TEXT-DRIFT",
+      "escape_class": "normative-closure-coverage-gap",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+        "finding_id": "A-1028-003",
+        "head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25",
+        "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde"
+      },
+      "plausible_wrong_implementation": "Copy a normative specification item into requirement closure with a subtle textual corruption while retaining the same requirement mapping.",
+      "literal_case": {
+        "procedure": "Rederive Markdown list items from SRC-PR1028-CONFLICTS.txt and match OBL-004 source_text exactly.",
+        "expected": "The line-8 acceptance criterion is represented verbatim in requirement closure.",
+        "observed": "OBL-004 now exactly matches the canonical line-8 text.",
+        "status": "passed",
+        "evidence": "validate-specification-coverage"
+      },
+      "sibling_cases": [
+        {
+          "id": "obl-001-exact-text",
+          "surface": "requirement-closure",
+          "dimension": "canonical-source-text",
+          "status": "passed",
+          "evidence": "OBL-001 remains exact"
+        },
+        {
+          "id": "obl-002-exact-text",
+          "surface": "requirement-closure",
+          "dimension": "canonical-source-text",
+          "status": "passed",
+          "evidence": "OBL-002 remains exact"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-readiness",
+          "surface": "requirement-closure",
+          "dimension": "canonical-source-text"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "existing canonical source_text preservation contract",
+        "evidence": "closure corrected from source snapshot before certificate rebuild"
+      },
+      "detection_change": {
+        "skill_or_gate": "validate_specification_coverage.py",
+        "control_id": "CTRL-NORMATIVE-CLOSURE-001",
+        "evidence": "normative coverage validator executed before publication"
+      },
+      "trigger_terms": [
+        "normative coverage",
+        "source_text",
+        "requirement closure"
+      ],
+      "required_risk_families": [
+        "delivery-readiness"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916"
+    }
+  ]
+}
