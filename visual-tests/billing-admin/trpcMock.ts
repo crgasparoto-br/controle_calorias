@@ -1,6 +1,13 @@
 const resolved = async () => undefined;
 
-function query(data: unknown) {
+function recordQuery(path: string) {
+  const g = globalThis as any;
+  g.__billingQueryCalls = g.__billingQueryCalls ?? {};
+  g.__billingQueryCalls[path] = (g.__billingQueryCalls[path] ?? 0) + 1;
+}
+
+function query(path: string, data: unknown) {
+  recordQuery(path);
   return {
     data,
     isLoading: false,
@@ -15,12 +22,24 @@ function query(data: unknown) {
 function mutation(path: string, options?: { onSuccess?: (data: any, variables: any) => void; onError?: (error: Error, variables: any) => void }) {
   return {
     mutate: (variables: any) => {
+      const g = globalThis as any;
+      g.__billingMutationCalls = g.__billingMutationCalls ?? {};
+      g.__billingMutationCalls[path] = (g.__billingMutationCalls[path] ?? 0) + 1;
       if (path === "billing.adminRetryNotification") {
-        const g = globalThis as any;
         g.__billingRetryAttempts = g.__billingRetryAttempts ?? [];
         g.__billingRetryAttempts.push(variables);
         if (g.__billingRetryAttempts.length === 1) options?.onError?.(new Error("synthetic lost response"), variables);
         else options?.onSuccess?.({ status: "delivered", idempotent: true }, variables);
+        return;
+      }
+      if (path === "billing.adminCreateCatalogProduct") {
+        g.__billingCreateProductAttempts = (g.__billingCreateProductAttempts ?? 0) + 1;
+        if (g.__billingCreateProductAttempts === 1) options?.onError?.(new Error("synthetic catalog validation failure"), variables);
+        else options?.onSuccess?.({}, variables);
+        return;
+      }
+      if (path === "billing.adminCreateCatalogVersion") {
+        options?.onSuccess?.({ versionCode: "visual-v2" }, variables);
         return;
       }
       options?.onSuccess?.({}, variables);
@@ -164,8 +183,13 @@ const dataByPath: Record<string, unknown> = {
   "billing.adminAnalytics": analytics,
   "billing.adminSearchUsers": [],
   "billing.adminListOverrides": [],
-  "billing.adminCatalogVersions": [],
-  "billing.adminCoupons": [],
+  "billing.adminCatalogVersions": [
+    { id: "version-draft", name: "Profissional v2", productCode: "professional", versionCode: "professional-v2", status: "draft", billingCycle: "monthly", unitAmount: 54900, currency: "BRL", capacityLimit: 30, entitlements: ["system_access", "web_access"] },
+    { id: "version-active", name: "Profissional v1", productCode: "professional", versionCode: "professional-v1", status: "active", billingCycle: "monthly", unitAmount: 49900, currency: "BRL", capacityLimit: 25, entitlements: ["system_access", "web_access", "whatsapp_access"] },
+  ],
+  "billing.adminCoupons": [
+    { id: "coupon-welcome", code: "BEMVINDO10", revision: 1, discountType: "percentage", discountValue: 10, durationCharges: 1, state: "active" },
+  ],
   "billing.adminNotifications": notifications,
   "billing.adminRolloutOverview": rolloutOverview,
   "usageGovernance.analytics": usageAnalytics,
@@ -178,7 +202,12 @@ function branch(path: string[]): any {
   return new Proxy(() => undefined, {
     get(_target, property) {
       const key = String(property);
-      if (key === "useQuery") return () => query(dataByPath[path.join(".")]);
+      if (key === "useQuery") {
+        return () => {
+          const joined = path.join(".");
+          return query(joined, dataByPath[joined]);
+        };
+      }
       if (key === "useMutation") return (options: any) => mutation(path.join("."), options);
       return branch([...path, key]);
     },

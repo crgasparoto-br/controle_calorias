@@ -1,11 +1,56 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "material_head_sha": "b257bd66ce72159af439dfe1be21ed1f43b594ee",
+  "status": "terminal-green",
+  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
+  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
+  "merge_preview_sha": "85be13eed1b67904e3e04bb1fcdb4f6a415f95bb",
   "ci_mode": "delivery-snapshot",
-  "status": "pending-no-run",
-  "workflow_runs": [],
-  "observation_count": 1,
-  "may_rerun_or_dispatch": false,
-  "note": "No pull-request workflow run was associated with the exact material SHA in the single allowed snapshot; no green claim is made."
+  "runs": [
+    {
+      "id": 33221107032,
+      "name": "Agent-first gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107020,
+      "name": "Billing persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107078,
+      "name": "Professional persistence TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107053,
+      "name": "Onboarding activation TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107018,
+      "name": "WhatsApp context TiDB gate",
+      "conclusion": "success"
+    },
+    {
+      "id": 33221107019,
+      "name": "AI provider live smoke",
+      "conclusion": "skipped",
+      "reason": "workflow condition"
+    }
+  ],
+  "agent_first_artifacts": {
+    "repository_bundle": {
+      "id": 9705331022,
+      "digest": "sha256:8b31af4a5216f0ddf029d4ae901943bcd08387fdaad864a049064f47e1e40d66"
+    },
+    "verification": {
+      "id": 9705330230,
+      "digest": "sha256:f61497fb73030885e807d5f4c29ef088dc7b46e1972a1dbdc6ee096de6b802da"
+    },
+    "visual": {
+      "id": 9705329675,
+      "digest": "sha256:105623e802619cdbc6d89a5570be37aad77c9304fb6302876e9cb13b67aaea45"
+    }
+  }
 }

@@ -2,15 +2,15 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:0fb203e9-243c-4a8b-81b8-7b913e8f5fbe",
-    "audit_report_sha256": "2d8d0738b105eeca5ed8ac1f4949b91df55e38ba53dce5ea8563cb55769170ac",
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:1bf40714-8370-4343-a766-5a633f580fb6",
+    "audit_report_sha256": "45e7e8747a5ffa60dde465dadcb3ad54353e55a4cf9cb28c671b2f08de4caac4",
     "finding_ids": [
-      "A-1028-001"
+      "A-002"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The delivery contract already forbids reuse of inherited or foreign handoff artifacts. This rejection is closed by applying that existing rule and producing the missing current-target handoff; no new global rule is required."
+    "reason": "The governing delivery and audit contracts already require discriminant negative controls. This escape was a local recognizer implementation gap, closed by making executable-test detection ignore non-code textual decoys and by adding permanent comment/string controls."
   }
 }
