@@ -27,7 +27,21 @@ const resolveCapabilityConfigMock = vi.fn(() => ({
   diagnostics: [],
   usedLegacyVariables: false,
 }));
-const executeResolvedCapabilityMock = vi.fn(async (config: ReturnType<typeof resolveCapabilityConfigMock>, operation: Function) => {
+
+type ImageAttemptContext = {
+  provider: { createImageGeneration: typeof createImageGenerationMock };
+  providerId: "openai";
+  model: string | undefined;
+  source: "primary";
+  attempt: number;
+  timeoutMs: number;
+  signal: AbortSignal;
+};
+
+const executeResolvedCapabilityMock = vi.fn(async (
+  config: ReturnType<typeof resolveCapabilityConfigMock>,
+  operation: (context: ImageAttemptContext) => Promise<unknown>,
+) => {
   const value = await operation({
     provider: { createImageGeneration: createImageGenerationMock },
     providerId: "openai",
