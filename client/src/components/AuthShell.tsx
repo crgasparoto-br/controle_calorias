@@ -16,6 +16,7 @@ type AuthShellProps = {
   children: ReactNode;
   metrics: AuthMetric[];
   hideHero?: boolean;
+  brand?: ReactNode;
 };
 
 export default function AuthShell({
@@ -28,6 +29,7 @@ export default function AuthShell({
   children,
   metrics,
   hideHero = false,
+  brand,
 }: AuthShellProps) {
   const hasHero = !hideHero;
 
@@ -73,6 +75,7 @@ export default function AuthShell({
 
         <Card className="border-border/70 bg-card/95 py-0 shadow-sm backdrop-blur-sm">
           <CardContent className="flex h-full flex-col justify-center p-6 sm:p-8">
+            {brand ? <div className="mb-5 flex items-center">{brand}</div> : null}
             <div className="space-y-2">
               <h2 className="text-2xl font-semibold tracking-tight text-foreground">{formTitle}</h2>
               <p className="text-sm leading-6 text-muted-foreground">{formDescription}</p>
