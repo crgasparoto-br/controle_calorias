@@ -15,6 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function formatDateTime(value: number | null) {
   if (!value) return null;
@@ -72,9 +77,13 @@ export default function ProfessionalOperationalAlertsPanel({
     }
   );
   const close = trpc.professionalRecord.operationalAlerts.close.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await query.refetch();
-      toast.success("Pendência atualizada.");
+      toast.success(
+        variables.decision === "resolved"
+          ? "Pendência marcada como resolvida."
+          : "Pendência dispensada."
+      );
     },
     onError: error => toast.error(error.message),
   });
@@ -253,33 +262,51 @@ export default function ProfessionalOperationalAlertsPanel({
                     Abrir paciente
                   </Button>
                 ) : null}
-                <Button
-                  size="sm"
-                  disabled={isUpdating}
-                  onClick={() =>
-                    close.mutate({
-                      alertId: alert.id,
-                      decision: "resolved",
-                    })
-                  }
-                >
-                  <Check className="h-4 w-4" />
-                  Resolver
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isUpdating}
-                  onClick={() =>
-                    close.mutate({
-                      alertId: alert.id,
-                      decision: "dismissed",
-                    })
-                  }
-                >
-                  <EyeOff className="h-4 w-4" />
-                  Dispensar
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      disabled={isUpdating}
+                      onClick={() =>
+                        close.mutate({
+                          alertId: alert.id,
+                          decision: "resolved",
+                        })
+                      }
+                    >
+                      <Check className="h-4 w-4" />
+                      Marcar como resolvido
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    Marca esta pendência como tratada e a remove da lista de
+                    pendências abertas. Não executa a ação sugerida nem altera
+                    os dados do paciente. Se a condição continuar, uma nova
+                    pendência poderá aparecer em uma reavaliação futura.
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isUpdating}
+                      onClick={() =>
+                        close.mutate({
+                          alertId: alert.id,
+                          decision: "dismissed",
+                        })
+                      }
+                    >
+                      <EyeOff className="h-4 w-4" />
+                      Dispensar
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    Encerra esta ocorrência como dispensada quando nenhuma ação
+                    é necessária. Ela deixa de aparecer como pendência aberta.
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
           ))
