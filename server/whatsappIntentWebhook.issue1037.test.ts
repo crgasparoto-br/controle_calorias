@@ -124,6 +124,7 @@ vi.mock("./modules/whatsapp/conversationHistory", () => ({
 }));
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   markMessageProcessed: mocks.markMessageProcessed,
   recordDomainLink: mocks.recordDomainLink,
   wasMessageAlreadyProcessed: vi.fn(async () => false),
