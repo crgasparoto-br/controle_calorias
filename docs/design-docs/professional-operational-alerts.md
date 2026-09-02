@@ -20,7 +20,9 @@ Acompanhamentos pausados, encerrados ou sem autorização aprovada não são ava
 
 ## Estados, auditoria e origem
 
-Alertas usam os estados `open`, `resolved`, `dismissed` e `inactive`. Resolver e dispensar registram ator, data e observação opcional. Uma falha de persistência não altera o estado exibido.
+Alertas usam os estados `open`, `resolved`, `dismissed` e `inactive`. Na interface, a decisão `resolved` é apresentada como **Marcar como resolvido** para deixar explícito que o profissional está registrando aquela ocorrência como tratada. Essa ação não executa a ação sugerida e não altera automaticamente os dados do paciente. A decisão `dismissed` continua apresentada como **Dispensar**, indicando que nenhuma ação é necessária para aquela ocorrência. Tooltips nos dois botões reforçam essa distinção antes da ação.
+
+Resolver e dispensar registram ator, data e observação opcional. Uma falha de persistência não altera o estado exibido.
 
 Solicitações operacionais persistem quem encerrou, quando ocorreu o encerramento, o motivo objetivo e uma referência da resposta quando aplicável. Respostas podem ser registradas pelo paciente vinculado ou pelo profissional responsável; cancelamentos exigem o profissional responsável.
 
