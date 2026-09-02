@@ -6,6 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
+import calorieControlIcon from "../../../imagens/premium_app_icon_for_a_smart_calorie_control_2.png";
 
 const INTERNAL_RETURN_ORIGIN = "https://controle-calorias.local";
 
@@ -51,6 +52,13 @@ export default function LoginPage() {
       formDescription="Acesse sua conta com e-mail e senha."
       metrics={[]}
       hideHero
+      brand={
+        <img
+          src={calorieControlIcon}
+          alt="Controle de Calorias"
+          className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-1 ring-border/70"
+        />
+      }
       footer={
         <>
           Ainda não tem conta?{" "}
