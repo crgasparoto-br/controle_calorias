@@ -3,8 +3,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LoginPage, { resolveSafeLoginReturnTo } from "./LoginPage";
 
-const invalidateMe = vi.fn().mockResolvedValue(undefined);
-const mutateLogin = vi.fn();
+const { invalidateMe, mutateLogin } = vi.hoisted(() => ({
+  invalidateMe: vi.fn().mockResolvedValue(undefined),
+  mutateLogin: vi.fn(),
+}));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
