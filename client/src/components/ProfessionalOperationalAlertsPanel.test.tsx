@@ -8,6 +8,13 @@ const listOptions = vi.fn();
 let enabledResources: string[] = [];
 let alertData: unknown[] = [];
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
