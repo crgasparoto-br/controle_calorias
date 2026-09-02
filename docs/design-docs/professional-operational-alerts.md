@@ -20,7 +20,7 @@ Acompanhamentos pausados, encerrados ou sem autorização aprovada não são ava
 
 ## Estados, auditoria e origem
 
-Alertas usam os estados `open`, `resolved`, `dismissed` e `inactive`. Na interface, a decisão `resolved` é apresentada como **Marcar como resolvido** para deixar explícito que o profissional está registrando aquela ocorrência como tratada. Essa ação não executa a ação sugerida e não altera automaticamente os dados do paciente. A decisão `dismissed` continua apresentada como **Dispensar**, indicando que nenhuma ação é necessária para aquela ocorrência. Tooltips nos dois botões reforçam essa distinção antes da ação.
+Alertas usam os estados `open`, `resolved`, `dismissed` e `inactive`. Na interface, a decisão `resolved` é apresentada como **Marcar como resolvido** para deixar explícito que o profissional está registrando aquela ocorrência como tratada. Essa ação não executa a ação sugerida e não altera automaticamente os dados do paciente. Se a condição que originou o alerta continuar válida, uma nova ocorrência poderá ser criada em uma reavaliação futura. A decisão `dismissed` continua apresentada como **Dispensar**, indicando que nenhuma ação é necessária para aquela ocorrência. Tooltips nos dois botões reforçam essa distinção antes da ação.
 
 Resolver e dispensar registram ator, data e observação opcional. Uma falha de persistência não altera o estado exibido.
 
