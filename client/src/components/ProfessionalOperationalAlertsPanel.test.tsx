@@ -158,9 +158,10 @@ describe("ProfessionalOperationalAlertsPanel entitlement", () => {
     expect(screen.queryByRole("button", { name: "Resolver" })).toBeNull();
 
     await user.hover(resolveButton);
-    expect(
-      await screen.findByText(/Não executa a ação sugerida nem altera/)
-    ).toBeTruthy();
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toContain(
+      "Não executa a ação sugerida nem altera"
+    );
   });
 
   it("uses safe fallbacks for unknown alert and origin values", async () => {
