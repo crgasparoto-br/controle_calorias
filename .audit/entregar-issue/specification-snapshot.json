@@ -1,15 +1,31 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 217,
-  "primary_source_id": "SRC-PR1028-CONFLICTS",
+  "issue": 960,
+  "created_at": "2026-09-02T00:30:55.494954+00:00",
+  "primary_source_id": "SRC-ISSUE",
   "sources": [
     {
-      "id": "SRC-PR1028-CONFLICTS",
+      "id": "SRC-ISSUE",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-PR1028-CONFLICTS.txt",
-      "sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de",
-      "textual": true
+      "path": "specification-sources/SRC-ISSUE.txt",
+      "locator": "/tmp/handoff960/sources/issue.md",
+      "sha256": "9a9b36080562cac89dbe3f3e747dd926d7a4f7fc99d807069f2258b845184e46",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 134
+    },
+    {
+      "id": "SRC-COMMENT-5226019333",
+      "kind": "issue-comment",
+      "path": "specification-sources/SRC-COMMENT-5226019333.txt",
+      "locator": "/tmp/handoff960/sources/comment-5226019333.md",
+      "sha256": "50d932358ab7e0506bcbe7fb02808213e9158eea7c468f2648cb4a45b058256d",
+      "textual": true,
+      "extract_source_id": null,
+      "required": true,
+      "line_count": 12
     }
   ]
 }
