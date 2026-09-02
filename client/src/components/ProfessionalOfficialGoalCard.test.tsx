@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { useState } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -100,6 +100,23 @@ function Harness() {
   );
 }
 
+async function fillJustification(user: ReturnType<typeof userEvent.setup>) {
+  const field = screen.getByLabelText("Justificativa profissional");
+  await user.clear(field);
+  await user.type(field, "Ajuste definido em consulta profissional");
+}
+
+async function switchMainGoalToPercent(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  const selector = screen.getByRole("group", {
+    name: "Modo de preenchimento da meta padrão",
+  });
+  await user.click(
+    within(selector).getByRole("button", { name: "Por percentual" })
+  );
+}
+
 beforeEach(() => {
   stateData = {
     trackingStatus: "active",
@@ -152,5 +169,137 @@ describe("ProfessionalOfficialGoalCard", () => {
     expect(screen.getByText("Primeira versão oficial")).toBeTruthy();
     expect(screen.getByText("Página 2 de 2")).toBeTruthy();
     expect(screen.queryByText("goal-v5")).toBeNull();
+  });
+
+  it("converts default macro percentages to grams and keeps the API payload canonical", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await screen.findByDisplayValue("2150");
+    await switchMainGoalToPercent(user);
+
+    const calories = screen.getByLabelText("Calorias (kcal)");
+    await user.clear(calories);
+    await user.type(calories, "2000");
+
+    const protein = screen.getByLabelText("Proteínas");
+    const carbs = screen.getByLabelText("Carboidratos");
+    const fat = screen.getByLabelText("Gorduras");
+    await user.clear(protein);
+    await user.type(protein, "30");
+    await user.clear(carbs);
+    await user.type(carbs, "40");
+    await user.clear(fat);
+    await user.type(fat, "30");
+    await fillJustification(user);
+
+    expect(screen.getByText(/150 g/)).toBeTruthy();
+    expect(screen.getByText(/200 g/)).toBeTruthy();
+    expect(screen.getByText(/67 g/)).toBeTruthy();
+
+    const activateButton = screen.getByRole("button", {
+      name: "Ativar nova versão",
+    }) as HTMLButtonElement;
+    expect(activateButton.disabled).toBe(false);
+    await user.click(activateButton);
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patientId: 41,
+        expectedVersion: 6,
+        effectiveFrom: expect.any(String),
+        justification: "Ajuste definido em consulta profissional",
+        goal: {
+          includeExerciseCalories: true,
+          defaultGoal: {
+            calories: 2000,
+            proteinGrams: 150,
+            carbsGrams: 200,
+            fatGrams: 67,
+          },
+          exceptions: [],
+        },
+      })
+    );
+  });
+
+  it("blocks activation when percent macros do not total 100 percent", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await screen.findByDisplayValue("2150");
+    await switchMainGoalToPercent(user);
+
+    const protein = screen.getByLabelText("Proteínas");
+    const carbs = screen.getByLabelText("Carboidratos");
+    const fat = screen.getByLabelText("Gorduras");
+    await user.clear(protein);
+    await user.type(protein, "30");
+    await user.clear(carbs);
+    await user.type(carbs, "40");
+    await user.clear(fat);
+    await user.type(fat, "20");
+    await fillJustification(user);
+
+    expect(screen.getByRole("alert").textContent).toContain("90,0%");
+    const activateButton = screen.getByRole("button", {
+      name: "Ativar nova versão",
+    }) as HTMLButtonElement;
+    expect(activateButton.disabled).toBe(true);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("supports an independent percent mode for an exception and sends its converted grams", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await screen.findByDisplayValue("2150");
+    await fillJustification(user);
+    await user.click(screen.getByRole("button", { name: "Adicionar exceção" }));
+
+    const selector = screen.getByRole("group", {
+      name: "Modo de preenchimento da exceção 1",
+    });
+    await user.click(
+      within(selector).getByRole("button", { name: "Por percentual" })
+    );
+
+    const calories = screen.getByLabelText("Calorias (kcal) da exceção 1");
+    await user.clear(calories);
+    await user.type(calories, "2400");
+
+    const protein = screen.getByLabelText("Proteínas da exceção 1");
+    const carbs = screen.getByLabelText("Carboidratos da exceção 1");
+    const fat = screen.getByLabelText("Gorduras da exceção 1");
+    await user.clear(protein);
+    await user.type(protein, "25");
+    await user.clear(carbs);
+    await user.type(carbs, "50");
+    await user.clear(fat);
+    await user.type(fat, "25");
+
+    const activateButton = screen.getByRole("button", {
+      name: "Ativar nova versão",
+    }) as HTMLButtonElement;
+    expect(activateButton.disabled).toBe(false);
+    await user.click(activateButton);
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        goal: expect.objectContaining({
+          exceptions: [
+            {
+              weekday: 0,
+              durationType: "always",
+              calories: 2400,
+              proteinGrams: 150,
+              carbsGrams: 300,
+              fatGrams: 67,
+            },
+          ],
+        }),
+      })
+    );
   });
 });

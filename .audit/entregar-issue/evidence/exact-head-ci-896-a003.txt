@@ -1,0 +1,34 @@
+PR #1015 exact-head evidence after develop synchronization
+material_head_sha=2fabc744421e2b23c622eed3fdadfd1bfb59dbcf
+base_ref=develop
+base_sha=4f67cc78a8326aaa9cc16b8701fec5aebc932fe6
+merge_preview_sha=85be13eed1b67904e3e04bb1fcdb4f6a415f95bb
+
+Agent-first gate run 33221107032: completed/success
+- TypeScript check: success
+- Tests: success
+- Architecture check: success
+- Documentation check: success
+- Build: success
+- Agent check: success
+- Billing admin visual evidence upload: success
+- CI gate docs check: success
+- Exact-head verification manifest: success
+- Exact-head repository bundle: success
+
+Other exact-head pull-request gates:
+- Billing persistence TiDB gate 33221107020: completed/success
+- Professional persistence TiDB gate 33221107078: completed/success
+- Onboarding activation TiDB gate 33221107053: completed/success
+- WhatsApp context TiDB gate 33221107018: completed/success
+- AI provider live smoke 33221107019: completed/skipped by workflow condition
+
+Agent-first artifacts:
+- repository artifact 9705331022 sha256:8b31af4a5216f0ddf029d4ae901943bcd08387fdaad864a049064f47e1e40d66
+- verification artifact 9705330230 sha256:f61497fb73030885e807d5f4c29ef088dc7b46e1972a1dbdc6ee096de6b802da
+- billing-admin visual artifact 9705329675 sha256:105623e802619cdbc6d89a5570be37aad77c9304fb6302876e9cb13b67aaea45
+
+The downloaded repository artifact manifest binds repository crgasparoto-br/controle_calorias,
+head 2fabc744421e2b23c622eed3fdadfd1bfb59dbcf, base develop at
+4f67cc78a8326aaa9cc16b8701fec5aebc932fe6, run 33221107032. The bundle checkout
+reproduces material tree 3a7bae0c95692f0003667db779cb73eea98dd345 with a clean worktree.

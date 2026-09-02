@@ -1,6 +1,7 @@
 import { getDb, logPersistenceWarning } from "../../db";
 import { createBillingSubscriptionLifecycleRepository } from "../../repositories/billingSubscriptionLifecycleRepository";
 import { createBillingLifecycleRemediationReadModel } from "../../repositories/billingLifecycleRemediationReadModel";
+import { reconcilePendingWhatsappOnboardingActivations } from "../onboarding/whatsappActivationReconciler";
 import { billingCatalogService } from "./catalogRuntime";
 import { professionalCoverageService } from "./professionalCoverageService";
 import {
@@ -61,6 +62,16 @@ async function applyProfessionalCoverageFacts() {
   await professionalCoverageService.processLifecycleFacts(100);
 }
 
+async function reconcileOnboardingActivations(limit = 100) {
+  try {
+    await reconcilePendingWhatsappOnboardingActivations(limit);
+  } catch (error) {
+    // Billing/provider state is authoritative and must not be rolled back when
+    // the recoverable onboarding side effect cannot run in the same request.
+    logPersistenceWarning("billing_onboarding_activation_reconciliation", error);
+  }
+}
+
 export const billingSubscriptionLifecycleService = {
   ...baseBillingSubscriptionLifecycleService,
   async startContract(
@@ -68,6 +79,7 @@ export const billingSubscriptionLifecycleService = {
   ) {
     const result = await baseBillingSubscriptionLifecycleService.startContract(input);
     await runBillingProviderAfterStartContract(input, result);
+    await reconcileOnboardingActivations();
     return result;
   },
   async applyFinancialFact(input: BillingProviderNeutralFinancialFact) {
@@ -75,6 +87,7 @@ export const billingSubscriptionLifecycleService = {
       await enrichBillingProviderFinancialFact(input)
     );
     await applyProfessionalCoverageFacts();
+    await reconcileOnboardingActivations();
     return result;
   },
   async tickSubscription(
@@ -86,11 +99,13 @@ export const billingSubscriptionLifecycleService = {
       now
     );
     await applyProfessionalCoverageFacts();
+    await reconcileOnboardingActivations();
     return result;
   },
   async processDue(limit = 100) {
     const result = await baseBillingSubscriptionLifecycleService.processDue(limit);
     await professionalCoverageService.processLifecycleFacts(limit);
+    await reconcileOnboardingActivations(limit);
     return result;
   },
 };

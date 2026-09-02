@@ -1,0 +1,196 @@
+# [billing][onboarding][high] Integrar elegibilidade e ativação segura no onboarding via WhatsApp
+
+## Objetivo
+
+Concluir a integração do onboarding iniciado pelo WhatsApp com catálogo, cupom, checkout, trials e ativação comercial da #145, evoluindo a fundação da PR #870 sem recriar lead, conta, vínculo, elegibilidade ou saudação em fluxos paralelos.
+
+Parent: #209
+
+Esta issue implementa o fluxo. A #217 valida o comportamento final e não é dependência bloqueante para iniciar a implementação.
+
+## Contratos vinculantes
+
+Modos de rollout:
+- `open_access`;
+- `enforced`.
+
+Fontes válidas avaliadas pelo backend:
+- isenção administrativa;
+- cobertura profissional;
+- assinatura própria paga;
+- trial;
+- transição;
+- acesso aberto de rollout.
+
+Precedência efetiva: isenção > cobertura > assinatura paga > trial > transição > leitura.
+
+Não são fontes válidas: retorno do navegador, checkout pendente, mensagem do frontend, perfil profissional isolado ou estado local do cliente.
+
+## Conclusão do cadastro
+
+- Reutilizar conclusão transacional/recuperável e claim atômico da PR #870.
+- Validar token, consentimentos e conflitos no backend.
+- Consumir token uma única vez mesmo se ativação comercial ficar pendente.
+- Preservar conta, perfil, consentimentos e vínculo após checkout abandonado, recusado ou expirado.
+- Criar sessão para acompanhamento autenticado.
+- Em `enforced`, bloquear recursos protegidos enquanto `userCanUseSystem` negar acesso.
+
+A resposta estruturada inclui cadastro, elegibilidade, origem efetiva, próxima ação, intenção/checkout, retomada e estado pendente/confirmado/reconciliação.
+
+## Catálogo, cupom e checkout
+
+- Obter produtos, versões, ciclos, preços, recursos, trials, cupons elegíveis e métodos pelo backend.
+- Não manter valores ou regras no frontend.
+- Permitir aplicar um único cupom elegível.
+- Trial + cupom inicia desconto somente na primeira cobrança.
+- Cupom não concede trial ou origem de acesso.
+- Desconto de 100% deve ser tratado como isenção administrativa.
+- Criar/reutilizar intenção idempotente e checkout pela #892.
+- Callback permanece pendente até confirmação autoritativa.
+- Retomada autenticada não reutiliza magic link nem cria intenções paralelas ilimitadas.
+
+## Trials
+
+### Individual
+- 7 dias;
+- cartão antes do início;
+- primeira cobrança no dia seguinte ao encerramento;
+- uso único conforme #893.
+
+### Profissional
+- 14 dias;
+- cartão antes do início;
+- recursos pessoais e profissionais completos;
+- limite de 5 pacientes, sem consumir vaga pelo uso pessoal do pagador;
+- efetivação antecipada libera 30 ou 100 somente após confirmação financeira;
+- falha ou abandono mantém trial e limite original.
+
+Contratações fora do trial seguem a decisão da #145: cartão ou Pix Automático; Pix Automático inicia contratação paga sem trial.
+
+## Ativação posterior
+
+Assinatura, trial, cobertura, transição, isenção e acesso aberto convergem para a mesma orquestração idempotente:
+- reavaliar elegibilidade no backend;
+- aplicar precedência da #145;
+- transicionar lead para `active` uma única vez;
+- preservar origem efetiva;
+- auditar de forma sanitizada;
+- enviar saudação no máximo uma vez;
+- manter recuperação caso a saudação falhe.
+
+Pagamento e isenção concorrentes não duplicam ativação ou saudação.
+
+## Conta já existente — estratégia canônica
+
+Quando telefone, e-mail ou outro identificador informado no onboarding corresponder a uma conta existente:
+1. não criar nova conta, novo perfil ou novo vínculo;
+2. manter o onboarding em estado recuperável, associado ao lead e ao token originais;
+3. mostrar no fluxo público apenas mensagem genérica de continuidade segura, sem revelar que existe conta, e-mail, nome, plano ou status;
+4. exigir autenticação ou recuperação da conta existente;
+5. exigir também prova de posse do número do WhatsApp pelo token opaco de uso único enviado ao canal ou mecanismo equivalente aprovado;
+6. somente após as duas provas, exibir confirmação explícita para vincular o WhatsApp à conta autenticada;
+7. executar o vínculo de forma transacional, idempotente e auditável;
+8. recuperar a sessão e retomar o onboarding exatamente do estado preservado.
+
+### Casos específicos
+- Número já vinculado à mesma conta autenticada: confirmar o vínculo existente e retomar, sem recriar qualquer registro.
+- Conta encontrada por e-mail, mas número ainda não vinculado: autenticar a conta, validar o token enviado ao WhatsApp, confirmar e vincular.
+- Número vinculado a outra conta: não mover, substituir ou desvincular automaticamente; oferecer recuperação da conta titular ou atendimento administrativo auditável.
+- Usuário não consegue autenticar: oferecer recuperação segura pela credencial já cadastrada e retornar ao mesmo onboarding após sucesso.
+- Conta autenticada diferente da conta do conflito: bloquear o vínculo, preservar o estado recuperável e não revelar dados da outra conta.
+- Token expirado ou consumido antes da conclusão: permitir emissão/rotação controlada para o mesmo lead, sem criar conta ou vínculo paralelo.
+
+### Efeitos comerciais e de dados
+O vínculo com conta existente:
+- não concede novo trial;
+- não reinicia transição gratuita;
+- não cria nova assinatura, checkout, cobertura ou isenção;
+- não altera preço, versão, ciclo ou origem efetiva;
+- não apaga nem separa histórico, metas, registros, vínculos profissionais ou consentimentos válidos;
+- coleta apenas consentimentos obrigatórios ausentes ou que exijam nova versão;
+- preserva a elegibilidade calculada para a conta existente.
+
+## Frontend
+
+A página deve:
+- refletir `open_access`/`enforced` do backend;
+- consumir catálogo, cupom e ações do backend;
+- distinguir cadastro, conta existente, autenticação, recuperação, confirmação de vínculo, seleção, cupom, checkout, pendência, recusa, reconciliação e acesso liberado;
+- apresentar trials com cartão prévio;
+- permitir retomada autenticada;
+- preservar o retorno após login/recuperação sem reutilizar token inseguramente;
+- usar mensagens genéricas antes da autenticação e dados mascarados somente após autorização;
+- nunca ativar acesso localmente;
+- ignorar resposta atrasada de token, usuário, cupom ou intenção anterior.
+
+## WhatsApp
+
+- Consultar elegibilidade após identificar usuário e antes de qualquer efeito nutricional.
+- Usuário pendente não é tratado como desconhecido nem recebe novo magic link indiscriminadamente.
+- Texto, imagem, áudio, água, exercício e confirmação bloqueados não geram persistência.
+- Resposta orienta para continuidade segura sem detalhes sensíveis.
+- Usuário vinculado e ativado volta ao fluxo normal sem novo vínculo.
+
+## Concorrência e idempotência
+
+- Claim do token atômico.
+- Uma intenção ativa por usuário/produto/versão/ciclo/tentativa.
+- Webhook duplicado não repete ativação, desconto ou saudação.
+- Retry consulta intenção/provider antes de criar nova operação.
+- Falha parcial permanece retomável.
+- Fontes concorrentes produzem uma única ativação.
+- Múltiplas abas, login concorrente e retries convergem para um único vínculo do telefone.
+- Um telefone não pode terminar vinculado a duas contas.
+- Vínculo já confirmado retorna sucesso idempotente sem novo efeito.
+
+## Fronteiras com issues relacionadas
+
+- #891 fornece catálogo, matriz de recursos e cupons.
+- #893 fornece trial e estados comerciais.
+- #892 fornece checkout e fatos financeiros normalizados.
+- #894 fornece cobertura profissional.
+- #895 fornece a experiência autenticada de Plano e acesso reutilizada na retomada.
+- Esta issue integra esses contratos ao onboarding; não reimplementa seus domínios.
+- #217 valida o fluxo implementado e pode ser desenvolvida incrementalmente em paralelo, mas não deve ser listada como pré-requisito desta issue.
+
+## Critérios de aceite
+
+- Usa somente `open_access` e `enforced`.
+- Cadastro pode concluir sem conceder acesso.
+- Token é consumido uma vez e falha é retomável.
+- Catálogo, cupom e checkout vêm de #891/#892.
+- Callback não concede acesso.
+- Trial individual e profissional exigem cartão prévio.
+- Efetivação profissional só amplia capacidade após confirmação.
+- Um cupom elegível pode ser aplicado sem duplicidade.
+- Fontes convergem para ativação idempotente com precedência determinística.
+- Usuário pendente é bloqueado antes das procedures e do WhatsApp.
+- Conta existente nunca gera segunda conta, perfil ou vínculo paralelo.
+- Vínculo exige sessão autenticada da conta e prova de posse do WhatsApp.
+- Fluxo público não revela existência ou dados da conta.
+- Recuperação retorna ao onboarding preservado.
+- Número vinculado a outra conta não é transferido automaticamente.
+- Vínculo com conta existente não concede novo trial nem altera origem comercial.
+- Concorrência e retry produzem um único vínculo auditável.
+- Saudação ocorre somente após elegibilidade e no máximo uma vez.
+- Documentação reflete o fluxo final.
+- Cenários correspondentes são cobertos pela #217 antes do encerramento da #209.
+
+## Dependências bloqueantes
+
+- #145
+- #869 / PR #870
+- #891
+- #892
+- #893
+- #894
+- #895
+
+## Validação posterior
+
+- #217 consolida a suíte de regressão desta issue e dos contratos comerciais associados.
+- #209 somente pode ser encerrada após #215 e #217 estarem concluídas e auditadas.
+
+## Prontidão
+
+Pronta para implementação quando as dependências técnicas estiverem disponíveis. A estratégia de conta existente está definida e não há mais decisão funcional pendente neste ramo.

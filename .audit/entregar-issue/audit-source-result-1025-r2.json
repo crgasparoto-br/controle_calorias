@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "mode": "independent",
+  "rejection_id": "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35",
+  "head_sha": "8c65f49b4bdde42411f744f7480f52d72b9e60a8",
+  "material_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a",
+  "published_handoff_head_sha": "8c65f49b4bdde42411f744f7480f52d72b9e60a8",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1025,
+  "pull_request_number": 1026,
+  "base_sha": "bd2ad6f5b585e87082ead6521e079d6a9f7c91a9",
+  "findings": [
+    {
+      "id": "A-003",
+      "severity": "blocker",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "delivery handoff readiness",
+      "summary": "Published handoff certificate bound material head 7d193f048d686acdba7de6fa2ffed739b5acf84a to stale base 95b65a2c4b8082a0d1ee92df5bbde6d653e98e7f while PR base develop had advanced to bd2ad6f5b585e87082ead6521e079d6a9f7c91a9."
+    }
+  ],
+  "recommendations": []
+}

@@ -42,7 +42,7 @@ AI_IMAGE_ANNOTATION_FALLBACK_MODEL=gpt-image-1
 AI_IMAGE_ANNOTATION_CROSS_PROVIDER_FALLBACK_ENABLED=false
 ```
 
-`OPENAI_IMAGE_MODEL` permanece somente como compatibilidade legada do modelo OpenAI. Nenhuma variável de visão seleciona provider ou modelo para anotação. O provider OpenAI nativo aceita somente IDs explicitamente aprovados para geração e edição (`gpt-image-1`, `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-1.5-2025-12-16` e `gpt-image-2`); novos aliases ou snapshots precisam ser adicionados deliberadamente à matriz. Um endpoint `openai-compatible` exige, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`.
+Desde a #960, somente `AI_IMAGE_ANNOTATION_*` e os defaults versionados da capacidade participam da seleção de provider/modelo. Nenhuma variável de visão ou alias global seleciona provider/modelo para anotação. O provider OpenAI nativo aceita somente IDs explicitamente aprovados para geração e edição (`gpt-image-1`, `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-1.5-2025-12-16` e `gpt-image-2`); novos aliases ou snapshots precisam ser adicionados deliberadamente à matriz. Um endpoint `openai-compatible` exige, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`.
 
 ## Renderização local
 
@@ -62,7 +62,7 @@ O caminho local não reconstrói, completa, remove ou adiciona alimentos. Ele so
 
 ## Execução externa e fallback
 
-Somente o modo `external` chama `resolveCapabilityConfig("IMAGE_ANNOTATION")` e `executeResolvedCapability`.
+Somente o modo `external` do fluxo de anotação chama `resolveCapabilityConfig("IMAGE_ANNOTATION")` e `executeResolvedCapability`. O helper separado `imageGeneration.ts`, usado para resumo visual auxiliar, também resolve a mesma capacidade quando precisa executar geração/edição externa, porque exerce as mesmas operações de imagem; seu fallback PNG local continua independente do modo de anotação do WhatsApp.
 
 - Provider, operações e compatibilidade do modelo são validados antes da criação do adapter; configuração incompatível não envia a foto.
 - Uma tentativa do executor realiza exatamente uma chamada `createImageGeneration`.
@@ -110,11 +110,11 @@ O resultado interno distingue:
 - `attempts`, somente no modo externo;
 - `skippedReason` sanitizado quando nenhum artefato é produzido.
 
-O cartão-resumo legado não recebe `artifactKind=photo_annotation`.
+O cartão-resumo separado não recebe `artifactKind=photo_annotation`.
 
 ## Testes discriminantes
 
-- default local mesmo com `AI_VISION_PROVIDER`/`AI_MEAL_VISION_PROVIDER` apontando para outro provider;
+- default local mesmo com `AI_MEAL_VISION_PROVIDER` apontando para outro provider;
 - `local` e `off` sem criação de adapter externo;
 - derivado separado, dimensões preservadas e bytes originais intactos;
 - texto longo, markup escapado, imagem pequena e ausência de itens;

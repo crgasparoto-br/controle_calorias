@@ -69,7 +69,6 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
     `data:image/jpeg;base64,${source.toString("base64")}`,
     {
       NODE_ENV: "test",
-      AI_VISION_PROVIDER: "gemini",
       AI_MEAL_VISION_PROVIDER: "gemini",
     },
     {

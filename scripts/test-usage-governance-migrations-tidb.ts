@@ -12,6 +12,7 @@ const migrationPaths = [
   "drizzle/0045_billing_usage_cost_reconciliation.sql",
   "drizzle/0046_billing_usage_provider_dispatch_state.sql",
   "drizzle/0047_usage_governance_audit_closure.sql",
+  "drizzle/0048_billing_consumption_charge_state_machine.sql",
 ];
 
 const connection = await mysql.createConnection(databaseUrl);
@@ -37,6 +38,9 @@ try {
   const [appealsTable] = await connection.query<mysql.RowDataPacket[]>(
     "SHOW TABLES LIKE 'billingUsageLimitationAppeals'"
   );
+  const [authorizationStateColumn] = await connection.query<mysql.RowDataPacket[]>(
+    "SHOW COLUMNS FROM billingConsumptionChargeAuthorizations LIKE 'state'"
+  );
 
   if (providerDispatchColumn.length !== 1) {
     throw new Error("providerDispatchStartedAt was not installed by migration 0046.");
@@ -47,8 +51,11 @@ try {
   if (appealsTable.length !== 1) {
     throw new Error("billingUsageLimitationAppeals was not installed by migration 0047.");
   }
+  if (authorizationStateColumn.length !== 1 || authorizationStateColumn[0]?.Default !== "draft") {
+    throw new Error("billingConsumptionChargeAuthorizations.state default was not changed to draft by migration 0048.");
+  }
 
-  console.log("Usage governance migrations 0043-0047 validated on TiDB.");
+  console.log("Usage governance migrations 0043-0048 validated on TiDB.");
 } finally {
   await connection.end();
 }

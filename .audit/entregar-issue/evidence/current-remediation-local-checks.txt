@@ -1,0 +1,11 @@
+material_head_sha=a6f3d1855e2a0a8fd2b0c3bc69aa762e01625a48
+material_tree_sha=30581e0b65781fe874357e612955e4e216ecc8b6
+base_sha=657373adf6542ae27e10b96df89369dbfaa019e5
+local_git_diff_check=passed
+changed_typescript_parse_files=22
+changed_typescript_parse_errors=0
+browser_evidence_script_node_check=passed
+full_pnpm_suite=not-executed: pnpm unavailable and registry.npmjs.org returned EAI_AGAIN
+remote_ci_snapshot=pending-no-run
+workflow_rerun_or_dispatch=false
+controls_materially_implemented=ADMIN-STATE-MACHINE-001,IDENTITY-PROP-001,RESTART-IDEM-001

@@ -1,0 +1,14 @@
+# Correção vinculante — contratos comerciais finais da #145
+
+Para o onboarding comercial final:
+- trial individual: 7 dias, cartão antes do início;
+- trial profissional: 14 dias, cartão antes do início, recursos completos e limite de 5 pacientes;
+- efetivação antecipada profissional libera 30 ou 100 pacientes somente após confirmação financeira autoritativa;
+- a indicação anterior de que o meio de pagamento prévio do trial profissional estava pendente fica substituída por esta decisão;
+- o backend deve permitir aplicar um único cupom elegível na contratação;
+- trial + cupom aplica o desconto somente na primeira cobrança;
+- cupom não concede trial ou origem de acesso;
+- desconto de 100% deve ser tratado como isenção administrativa;
+- a página e as respostas estruturadas devem respeitar a precedência: isenção, cobertura, assinatura paga, trial, transição e leitura.
+
+A decisão ainda pendente sobre meios de pagamento limita-se às contratações fora dos trials.

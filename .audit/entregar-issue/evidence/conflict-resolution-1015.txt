@@ -1,0 +1,13 @@
+PR=1015
+issue=896
+head_before=e9a24b1556391679d98516c521988cc812ad46b0
+develop=6fa1db325250607296776b3f7747d86e63d607d1
+resolved_material_head=f83f378097213b05acb9f271c6122f85b71e85a0
+resolved_tree=9f0f6fb50e688d729688767af046bf8ee12cace5
+merge_parent_1=e9a24b1556391679d98516c521988cc812ad46b0
+merge_parent_2=6fa1db325250607296776b3f7747d86e63d607d1
+functional_overlap_outside_audit=false
+resolution=develop product delta incorporated; PR1015 billing and audit package preserved
+pr_mergeable_after_resolution=true
+ci_snapshot=in_progress
+ci_rerun_or_dispatch=false

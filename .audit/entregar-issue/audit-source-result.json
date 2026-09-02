@@ -1,38 +1,34 @@
 {
   "schema_version": 1,
-  "kind": "independent-audit-rejection",
-  "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
-  "head_sha": "9522932fbdc82f47b899c27afae0c68b00cb3316",
-  "published_head_sha": "520df6d24f56b75b79dfb5fb88a3514423fff47f",
+  "contract_version": "2026-08-20.3",
   "status": "rejected",
+  "mode": "independent",
+  "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+  "head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25",
+  "material_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 217,
+  "pull_request_number": 1028,
   "findings": [
     {
-      "id": "A-006",
-      "title": "Critical handoff packet does not close INHERITED-AUDIT-ESCAPES with candidate-head controls",
-      "status": "open",
+      "id": "A-1028-002",
+      "severity": "blocker",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-evidence-gap",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
-      "requirements": [
-        "INHERITED-AUDIT-ESCAPES"
-      ]
+      "requirement": "The handoff certificate must hash the exact published requirement-closure.json bytes.",
+      "summary": "handoff-ready.json certified a requirement-closure SHA-256 different from the published artifact bytes."
     },
     {
-      "id": "A-007",
-      "title": "Inherited active controls are inconsistent with risk-family saturation",
-      "status": "open",
+      "id": "A-1028-003",
+      "severity": "blocker",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "risk-saturation-gap",
-      "recovery_scope": "handoff-only",
-      "requires_refreeze": false,
-      "requirements": [
-        "INHERITED-AUDIT-ESCAPES"
-      ]
+      "requirement": "Normative specification items must be preserved exactly in requirement-closure.json.",
+      "summary": "OBL-004 altered the canonical criterion text (missing spacing/backtick corruption), so normative coverage failed."
     }
   ],
   "recommendations": []

@@ -36,6 +36,13 @@ export type CountableFoodResolvedMeasure = {
   };
 };
 
+function splitCountableFoodTextSegments(text: string) {
+  // The shared splitter treats commas as item separators. Protect decimal commas
+  // first so inputs such as "1,5 pão francês" remain a single countable item.
+  const decimalSafeText = text.replace(/(\d),(?=\d)/g, "$1.");
+  return splitFoodTextSegments(decimalSafeText);
+}
+
 function parseBareCount(segment: string): CountableFoodQuantityRequest | null {
   const match = segment.trim().match(/^(\d+(?:[,.]\d+)?|um|uma|dois|duas|tres|três)\s+(.+)$/iu);
   if (!match) return null;
@@ -88,7 +95,7 @@ export function findUnsafeCountableFoodQuantity(
   text?: string | null,
 ): CountableFoodQuantityRequest | null {
   if (!text?.trim()) return null;
-  for (const segment of splitFoodTextSegments(text)) {
+  for (const segment of splitCountableFoodTextSegments(text)) {
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
     const local = findCatalogFood(request.foodName);
@@ -102,7 +109,7 @@ export function hasUnsafeKnownCountableFoodQuantity(
   text?: string | null,
 ) {
   if (!text?.trim()) return false;
-  for (const segment of splitFoodTextSegments(text)) {
+  for (const segment of splitCountableFoodTextSegments(text)) {
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
     const local = findCatalogFood(request.foodName) ?? findTacoFood(request.foodName);
@@ -129,7 +136,7 @@ export function resolveSafeCountableCatalogGrams(
 }
 
 export function prepareCountableFoodRegistration(registrationText: string) {
-  const registrationSegments = splitFoodTextSegments(registrationText);
+  const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
   const rewrittenSegments = registrationSegments.map((segment, segmentIndex) => {
     const request = parseCountableFoodQuantitySegment(segment);
@@ -163,7 +170,7 @@ export async function prepareCountableFoodRegistrationResolved(
   userId: number,
   registrationText: string,
 ) {
-  const registrationSegments = splitFoodTextSegments(registrationText);
+  const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const rewrittenSegments = [...registrationSegments];
   const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
   const resolutions: CountableFoodResolvedMeasure[] = [];

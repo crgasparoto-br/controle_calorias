@@ -3,19 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:fd5955c3-d7d4-4e5d-bd52-fcd567742163",
-    "audit_report_sha256": "7a1443df491d427929d000d281f575dde4de9875d3ea1532828c9b490d8fa634",
+    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
+    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
     "finding_ids": [
-      "A-006",
-      "A-007"
+      "A-1028-002",
+      "A-1028-003"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection is targeted to this critical handoff packet: the producer data omitted candidate-head control closure for the synthetic inherited-audit requirement and omitted the active inherited semantic-effect family from saturation. The reusable validators already detect both classes; this remediation makes the packet conform to those existing generic controls."
-  },
-  "implementation_closure": {
-    "prevention": "Build the synthetic inherited-audit requirement from current-head inherited controls and build risk saturation from the union of matrix plus active inherited-control families/surfaces.",
-    "detection": "Run the consumer-side auditar-issue delivery saturation checker, including negative mutations for missing/stale controls and omitted inherited risk family/surface, before publication."
+    "reason": "Both findings are localized handoff-generation defects already covered by existing artifact-integrity and normative-coverage validators; remediation rebuilds the package using those existing controls."
   }
 }

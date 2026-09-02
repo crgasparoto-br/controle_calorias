@@ -1,0 +1,111 @@
+name: Issue 217 onboarding commercial regression
+
+on:
+  pull_request:
+    paths:
+      - "server/auth.whatsappOnboarding.test.ts"
+      - "server/modules/onboarding/**"
+      - "server/modules/billing/**"
+      - "scripts/test-issue-217-regression.ts"
+      - "scripts/test-whatsapp-onboarding-activation-tidb.ts"
+      - "scripts/test-whatsapp-active-phone-migration-tidb.ts"
+      - "scripts/test-billing-*-tidb.ts"
+      - "scripts/test-asaas-concurrency-tidb.ts"
+      - "scripts/test-professional-capacity-alert-lifecycle-tidb.ts"
+      - "scripts/test-usage-governance-retention-tidb.ts"
+      - "docs/testing/issue-217-onboarding-commercial-regression.md"
+      - ".github/workflows/issue-217-onboarding-commercial-regression.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "server/auth.whatsappOnboarding.test.ts"
+      - "server/modules/onboarding/**"
+      - "server/modules/billing/**"
+      - "scripts/test-issue-217-regression.ts"
+      - "scripts/test-whatsapp-onboarding-activation-tidb.ts"
+      - "scripts/test-whatsapp-active-phone-migration-tidb.ts"
+      - "scripts/test-billing-*-tidb.ts"
+      - "scripts/test-asaas-concurrency-tidb.ts"
+      - "scripts/test-professional-capacity-alert-lifecycle-tidb.ts"
+      - "scripts/test-usage-governance-retention-tidb.ts"
+      - "docs/testing/issue-217-onboarding-commercial-regression.md"
+      - ".github/workflows/issue-217-onboarding-commercial-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused-regression:
+    name: Issue 217 focused regression
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate matrix and run focused Vitest regression
+        run: pnpm exec tsx scripts/test-issue-217-regression.ts
+
+  tidb-regression:
+    name: Issue 217 TiDB regression
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+      NODE_ENV: test
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start TiDB
+        shell: bash
+        run: |
+          docker run -d --name issue-217-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const connection = await mysql.createConnection({ host: "127.0.0.1", port: 4000, user: "root" }); await connection.query("SELECT 1"); await connection.end();'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 issue-217-tidb
+          exit 1
+
+      - name: Run required isolated TiDB regression
+        run: pnpm exec tsx scripts/test-issue-217-regression.ts --tidb-only
+
+      - name: Show TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 issue-217-tidb

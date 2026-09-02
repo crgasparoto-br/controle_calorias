@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "PR1026-A001",
+      "escape_class": "documentation-artifact-contract-drift",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6",
+        "finding_id": "A-001",
+        "finding_ids": [
+          "A-001"
+        ],
+        "head_sha": "a3757a3efd173080120100387cbf1787c2157dae",
+        "audit_report_sha256": "2834bfe0985a30303629cda77f0803117835d879cc85517622da2e4f519d4ffc"
+      },
+      "plausible_wrong_implementation": "Update the visual harness while leaving the canonical operational documentation and screenshot contract stale.",
+      "literal_case": {
+        "procedure": "Execute the discriminating control for this escaped condition.",
+        "expected": "The incorrect implementation is rejected and the corrected state is accepted.",
+        "observed": "On current candidate 7d193f048d686acdba7de6fa2ffed739b5acf84a the documentation and visual harness viewport contract are aligned.",
+        "status": "passed",
+        "evidence": "Remote immutable Git identity and delivery evidence were checked for the bound material head."
+      },
+      "sibling_cases": [
+        {
+          "id": "viewport-removal",
+          "surface": "delivery-control",
+          "dimension": "negative-control-a",
+          "status": "passed",
+          "evidence": "Synthetic negative case is rejected by the control."
+        },
+        {
+          "id": "artifact-count-drift",
+          "surface": "delivery-control",
+          "dimension": "negative-control-b",
+          "status": "passed",
+          "evidence": "Alternate negative case is rejected by the control."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "documentation",
+          "surface": "delivery-contract",
+          "dimension": "identity-and-evidence"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Derived documentation contract check",
+        "evidence": "Preventive contract is present and applied to the current remediation."
+      },
+      "detection_change": {
+        "skill_or_gate": "CI gate docs check",
+        "control_id": "PR1026-A001-CONTROL",
+        "evidence": "Discriminating control passed for the current material head."
+      },
+      "trigger_terms": [
+        "handoff",
+        "identity",
+        "evidence"
+      ],
+      "required_risk_families": [
+        "documentation"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a"
+    },
+    {
+      "escape_id": "PR1026-A002",
+      "escape_class": "verification-head-checkout-provenance-conflation",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6",
+        "finding_id": "A-002",
+        "finding_ids": [
+          "A-002"
+        ],
+        "head_sha": "a3757a3efd173080120100387cbf1787c2157dae",
+        "audit_report_sha256": "2834bfe0985a30303629cda77f0803117835d879cc85517622da2e4f519d4ffc"
+      },
+      "plausible_wrong_implementation": "Treat a pull-request merge-preview checkout as the exact material head and thereby overstate execution provenance.",
+      "literal_case": {
+        "procedure": "Execute the discriminating control for this escaped condition.",
+        "expected": "The incorrect implementation is rejected and the corrected state is accepted.",
+        "observed": "On current candidate 7d193f048d686acdba7de6fa2ffed739b5acf84a the evidence distinguishes material head from pull-request merge-preview checkout.",
+        "status": "passed",
+        "evidence": "Remote immutable Git identity and delivery evidence were checked for the bound material head."
+      },
+      "sibling_cases": [
+        {
+          "id": "distinct-pr-checkout",
+          "surface": "delivery-control",
+          "dimension": "negative-control-a",
+          "status": "passed",
+          "evidence": "Synthetic negative case is rejected by the control."
+        },
+        {
+          "id": "equal-push-checkout",
+          "surface": "delivery-control",
+          "dimension": "negative-control-b",
+          "status": "passed",
+          "evidence": "Alternate negative case is rejected by the control."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-contract",
+          "dimension": "identity-and-evidence"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "delivery-contract",
+          "dimension": "identity-and-evidence"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Execution provenance classification",
+        "evidence": "Preventive contract is present and applied to the current remediation."
+      },
+      "detection_change": {
+        "skill_or_gate": "handoff provenance control",
+        "control_id": "PR1026-A002-CONTROL",
+        "evidence": "Discriminating control passed for the current material head."
+      },
+      "trigger_terms": [
+        "handoff",
+        "identity",
+        "evidence"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a"
+    },
+    {
+      "escape_id": "PR1026-A003",
+      "escape_class": "handoff-base-freshness-drift",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35",
+        "finding_id": "A-003",
+        "finding_ids": [
+          "A-003"
+        ],
+        "head_sha": "8c65f49b4bdde42411f744f7480f52d72b9e60a8",
+        "audit_report_sha256": "3d58b27e52522cb4f3d32bc214a10dc8e5115b08b7d1f1645dabfffc5cb504b2"
+      },
+      "plausible_wrong_implementation": "Republish a result-only handoff after develop advances while leaving the certificate bound to the previous base SHA.",
+      "literal_case": {
+        "procedure": "Execute the discriminating control for this escaped condition.",
+        "expected": "The incorrect implementation is rejected and the corrected state is accepted.",
+        "observed": "The material candidate remains 7d193f048d686acdba7de6fa2ffed739b5acf84a. The replacement certificate separately records the current develop base and uses sibling result-only recovery.",
+        "status": "passed",
+        "evidence": "Remote immutable Git identity and delivery evidence were checked for the bound material head."
+      },
+      "sibling_cases": [
+        {
+          "id": "base-advance-stable-material",
+          "surface": "delivery-control",
+          "dimension": "negative-control-a",
+          "status": "passed",
+          "evidence": "Synthetic negative case is rejected by the control."
+        },
+        {
+          "id": "material-path-in-terminal-child",
+          "surface": "delivery-control",
+          "dimension": "negative-control-b",
+          "status": "passed",
+          "evidence": "Alternate negative case is rejected by the control."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-contract",
+          "dimension": "identity-and-evidence"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Sibling result-only recovery plus current-base binding",
+        "evidence": "Preventive contract is present and applied to the current remediation."
+      },
+      "detection_change": {
+        "skill_or_gate": "delivery target binding and handoff recovery classifier",
+        "control_id": "PR1026-A003-CONTROL",
+        "evidence": "Discriminating control passed for the current material head."
+      },
+      "trigger_terms": [
+        "handoff",
+        "identity",
+        "evidence"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "7d193f048d686acdba7de6fa2ffed739b5acf84a"
+    }
+  ],
+  "closed_independent_rejection_ids": [
+    "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6",
+    "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35"
+  ],
+  "closed_finding_ids_by_rejection": {
+    "audit-rejection:cc36b787-26fe-41bc-8a8c-bd7e7154baa6": [
+      "A-001",
+      "A-002"
+    ],
+    "audit-rejection:7260d9c6-359f-4d17-b45c-776186d6be35": [
+      "A-003"
+    ]
+  }
+}

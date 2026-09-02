@@ -1,0 +1,38 @@
+Issue #896 / PR #1015 exact-material-head remediation evidence
+material_head_sha=cc47377936566568939628659c3594b1fa1f2189
+base_sha=6fa1db325250607296776b3f7747d86e63d607d1
+merge_preview_sha=638464fb2d660726b07680375c921f40291287f5
+source_rejection=audit-rejection:b6860b49-b56a-4908-bddf-82e011d744a3
+
+Exact-head verification:
+- Agent-first run 33186912609 completed its job successfully for PR head cc47377936566568939628659c3594b1fa1f2189.
+- Verification artifact 9692391525 (digest sha256:b65b7cd8156a982b7bae5c6564f89a51f3c4b7833f61b82183a054837bd61054) states headSha=cc47377936566568939628659c3594b1fa1f2189 and checkoutSha=638464fb2d660726b07680375c921f40291287f5.
+- Repository bundle artifact 9692393336 (digest sha256:357df7fdf93580a3c7e67d86bdb4f6576ec72e0715fd4df0ce413a3fd6dfe47c) reconstructs head cc47377936566568939628659c3594b1fa1f2189 and develop base 6fa1db325250607296776b3f7747d86e63d607d1.
+- Billing admin visual artifact 9692390447 (digest sha256:7039bc3487d57684647f043d179ed90e96336ed9f5ad166d18786128d77b2965) is bound to the same exact PR head.
+
+Agent-first reached/passed:
+- TypeScript check: success
+- Tests: success (24 sequential single-worker Vitest shards)
+- Architecture check: success
+- Documentation check: success
+- Build: success
+- Agent check: success
+- Billing admin visual evidence upload: success
+- CI gate docs check: success
+- Exact-head verification manifest creation/upload: success
+- Exact-head repository bundle creation/upload: success
+- Database integrity check: skipped by workflow condition; explicit skip step succeeded
+
+Sibling exact-head gates from the same delivery snapshot:
+- Billing persistence TiDB: run 33186912603, completed/success; migration chain, Drizzle metadata, persistence/concurrency/idempotency and referential integrity passed.
+- Professional persistence TiDB: run 33186912594, completed/success; migration/repository, privacy-safe receipts, public access boundary, idempotent backfill and referential integrity passed.
+- Onboarding activation TiDB: run 33186912607, completed/success; migration and concurrent transition persistence passed.
+- WhatsApp context TiDB: run 33186912619, completed/success; schema, canonical food signal tables, referential integrity and context regressions passed.
+- AI provider live smoke: run 33186912674, completed/skipped by workflow condition.
+
+Finding A-002 literal control:
+- server/modules/usageGovernance/chargingRollbackSaturation.auditRemediation.test.ts now configures transitionConsumptionChargeAuthorization to resolve the repository result contract { id, state }.
+- The exact-head Tests step passed after this fix.
+- The rollback regression still asserts id, actorUserId, trimmed reason and toState=revoked; the empty-reason sibling remains a no-write negative control.
+
+Current issue #896 controls revalidated by the exact-head gate set include authorization/session authorship, reporting-retention 13m/24m/5y, commercial identity separation, complete campaign/economic population reads, explicit rollout scenario coverage and runtime billing-admin visual evidence.

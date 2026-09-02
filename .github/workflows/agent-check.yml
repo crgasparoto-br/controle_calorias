@@ -113,6 +113,14 @@ jobs:
           CI_SHARDED_TESTS_COMPLETE: "1"
         run: pnpm agent:check
 
+      - name: Upload billing admin visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-admin-visual-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/billing-admin
+          if-no-files-found: error
+          retention-days: 30
+
       - name: CI gate docs check
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
 

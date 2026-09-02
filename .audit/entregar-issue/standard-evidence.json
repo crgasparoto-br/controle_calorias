@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "requirements": [
+    {
+      "requirement_id": "REQ-CONFLICT-001",
+      "positive_evidence": [
+        "Merge commit 888b879fcafab222db2fc7e8d6ea1901f6958916 has parents from the prior PR head and develop d9dda8f4c5ed0643c32847418dd05e8ccb0624a6; GitHub reports mergeable=true."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-001",
+        "status": "passed",
+        "procedure": "Compare the final PR head to develop and verify that the merge base is develop and behind_by is zero.",
+        "expected": "The branch contains develop and no unresolved merge conflict remains.",
+        "observed": "Compare d9dda8f4c5ed0643c32847418dd05e8ccb0624a6..888b879fcafab222db2fc7e8d6ea1901f6958916 reports ahead with develop as merge base and only two changed files."
+      },
+      "regression_evidence": [
+        "GitHub raw PR metadata reports mergeable=true after the merge commit."
+      ]
+    },
+    {
+      "requirement_id": "REQ-CONFLICT-002",
+      "positive_evidence": [
+        "billing-admin-browser-driver.mjs returns result?.value, and check-billing-admin-browser-evidence.mjs ignores an undefined polling sample before evaluating the predicate."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-002",
+        "status": "passed",
+        "procedure": "Inject the transient condition conceptually by evaluating the guard with an undefined sample before a valid object.",
+        "expected": "The undefined sample is skipped instead of dereferenced, while later valid state may satisfy the predicate and timeout behavior remains intact.",
+        "observed": "The final source uses return result?.value and if (value && predicate(value)) before returning from the polling loop."
+      },
+      "regression_evidence": [
+        "The polling loop remains capped at 120 attempts and still throws condition-not-reached after exhaustion."
+      ]
+    },
+    {
+      "requirement_id": "REQ-CONFLICT-003",
+      "positive_evidence": [
+        "Final compare against develop contains only scripts/billing-admin-browser-driver.mjs and scripts/check-billing-admin-browser-evidence.mjs, with one-line changes in each."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-003",
+        "status": "passed",
+        "procedure": "Compare the final material head against develop and reject any .audit path or unrelated product path in the PR delta.",
+        "expected": "Only the two CI/browser evidence scripts differ from develop.",
+        "observed": "GitHub compare reports exactly two files and additions=1/deletions=1 in each relevant file."
+      },
+      "regression_evidence": [
+        "No client, docs, workflow, fixture, or .audit path is part of the material PR diff against develop."
+      ]
+    },
+    {
+      "requirement_id": "REQ-CONFLICT-004",
+      "positive_evidence": [
+        "The previous result-only handoff is not reused as terminal evidence after material merge 888b879fcafab222db2fc7e8d6ea1901f6958916; a fresh current-target package is generated."
+      ],
+      "primary_negative_control": {
+        "id": "CTRL-004",
+        "status": "passed",
+        "procedure": "Verify that the new certificate material_head_sha equals the post-conflict material head and that it is published only in a direct result-only child.",
+        "expected": "The handoff certifies the new material SHA rather than the stale pre-conflict SHA.",
+        "observed": "Package generation is bound to material head 888b879fcafab222db2fc7e8d6ea1901f6958916 and base d9dda8f4c5ed0643c32847418dd05e8ccb0624a6."
+      },
+      "regression_evidence": [
+        "The result-only child allowlist contains only .audit/entregar-issue paths."
+      ]
+    }
+  ]
+}

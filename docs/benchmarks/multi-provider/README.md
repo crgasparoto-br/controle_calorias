@@ -13,7 +13,7 @@ As fixtures são sintéticas e licenciadas. O relatório guarda somente identifi
 - `IMAGE_ANNOTATION` permanece em modo `local`;
 - `FOOD_CLASSIFICATION` permanece embutida em `MEAL_TEXT` e `MEAL_VISION`, sem chamada separada;
 - nenhuma variável do Render, segredo, provider ou modelo de produção é alterada pelo harness;
-- ausência de comparação live suficiente preserva o baseline.
+- ausência de comparação live suficiente preserva o baseline técnico versionado.
 
 ## Cobertura executável
 
@@ -118,6 +118,8 @@ O candidato atual continua sendo validado separadamente: `smoke:issue-927` execu
 
 ## Promoção e rollout
 
-Nenhuma capacidade possui evidência suficiente para promover um novo modelo. Em `TRANSCRIPTION`, a comparação live histórica favorece `gpt-4o-mini-transcribe`, porém esse identificador é um alias mutável e o catálogo runtime versionado não contém um snapshot imutável equivalente com preço validado. Portanto `whisper-1` permanece baseline e a decisão é `keep-baseline`. Fallback e cross-provider não foram promovidos.
+A conclusão do benchmark da #927 permanece histórica: naquele recorte nenhuma capacidade possuía evidência suficiente para promover um novo modelo. Em `TRANSCRIPTION`, a comparação live histórica favorecia `gpt-4o-mini-transcribe`, porém esse identificador era um alias mutável e o catálogo runtime versionado não continha um snapshot imutável equivalente com preço validado. Por isso a #927 manteve `whisper-1` como baseline técnico e `keep-baseline`, sem promover fallback ou cross-provider.
 
-O rollout/rollback real no Render não foi executado pela PR e exige autorização, responsável, janela, smoke anterior/posterior e observação sanitizada na issue #962. O procedimento canônico está em `docs/runbooks/multi-provider-rollout.md`.
+Esse resultado não descreve o estado operacional posterior. Em 2026-09-01, o responsável confirmou na #962 que as configurações de IA por capacidade foram implantadas no Render e estão funcionando em produção. A PR da #927 não executou esse rollout; a execução ocorreu posteriormente no fluxo operacional da #962.
+
+Os valores efetivos de produção permanecem gerenciados no Render e não são inferidos dos defaults deste benchmark. O registro sanitizado dessa conclusão está em `docs/history/ai-multi-provider-rollout-2026-09-01.md`; futuras mudanças e reversões continuam seguindo `docs/runbooks/multi-provider-rollout.md`.

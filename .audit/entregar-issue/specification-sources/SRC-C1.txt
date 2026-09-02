@@ -1,0 +1,20 @@
+## Ampliação vinculante da matriz de testes — decisões finais da #145
+
+Adicionar cobertura executável, sem `skip`/`todo`, para:
+
+- trial profissional de 14 dias com cartão prévio;
+- prevenção de repetição por usuário interno, documento protegido e telefone normalizado;
+- efetivação antecipada liberando capacidade somente após confirmação;
+- reservas profissionais permanecendo ocupadas durante `suspended` e sendo reutilizadas na recuperação;
+- precedência de acesso: isenção > cobertura > assinatura paga > trial > transição > leitura;
+- cupom válido, inválido, expirado, inelegível, esgotado e concorrente;
+- um cupom por contratação e não acumulação;
+- limite público de 30%; mensal por até 3 cobranças; anual somente na primeira;
+- trial + cupom iniciando desconto na primeira cobrança;
+- rejeição de cupom de 100% e uso de isenção administrativa;
+- callback, retry e reconciliação sem consumir cupom duas vezes;
+- alertas de consumo em 70%, 85% e 100%;
+- liberação administrativa de franquia sem cobrança;
+- impossibilidade de ativar cobrança futura por consumo sem autorização administrativa explícita, vigência, comunicação, ausência de retroatividade e rollback.
+
+Esses cenários complementam e substituem qualquer fixture baseada nas decisões anteriormente marcadas como pendentes.

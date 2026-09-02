@@ -1,0 +1,54 @@
+## Matriz adicional obrigatória — comunicações multicanal
+
+Adicionar cobertura automatizada para a política de comunicações da #145.
+
+### Persistência e idempotência
+
+- notificação interna é persistida antes de e-mail ou WhatsApp;
+- a mesma campanha/marco/usuário gera uma única comunicação lógica;
+- retries reutilizam a chave original;
+- evento duplicado, webhook repetido e job reexecutado não duplicam notificação;
+- falha parcial retoma do canal pendente sem repetir os canais concluídos;
+- ação concluída ou evento superveniente torna retries obsoletos;
+- alteração de template cria nova versão sem mudar histórico enviado.
+
+### Canais e retries
+
+- e-mail: inicial, +1 hora e +24 horas;
+- WhatsApp: inicial, +2 horas e +24 horas;
+- falha definitiva gera pendência operacional;
+- falha externa não apaga nem conclui a notificação interna;
+- sucesso de um canal não mascara falha de outro;
+- relógio controlado valida todos os marcos.
+
+### Segurança e isolamento
+
+- canais externos trazem resumo e link autenticado, sem token reutilizável;
+- mensagens não contêm documento, cartão, dados clínicos, IDs ou enums internos;
+- paciente coberto não recebe finanças ou capacidade do profissional;
+- fluxo de conta existente permanece genérico antes da autenticação;
+- contexto de usuário/campanha obsoleto não é aplicado a outra sessão.
+
+### Opt-out e categorias
+
+- opt-out promocional bloqueia somente campanha promocional;
+- avisos operacionais, financeiros e de segurança seguem a classificação configurada;
+- preferência é aplicada por usuário, categoria, canal e vigência;
+- alteração de opt-out não reclassifica retrospectivamente histórico.
+
+### Administração e frontend
+
+- `/billing` exibe histórico e diferencia leitura, entrega e ação concluída;
+- `/admin/billing` filtra campanhas, versões, canais, falhas e retries;
+- reprocessamento manual exige motivo e mantém correlação;
+- pausa de campanha preserva histórico;
+- conteúdo histórico permanece associado à versão enviada;
+- acessibilidade e responsividade cobrem lista, detalhe, falha e ação.
+
+### Critérios adicionais
+
+- [ ] Não há `skip`/`todo` nos cenários de comunicação aplicáveis.
+- [ ] Concorrência não duplica comunicação, tentativa ou conclusão.
+- [ ] Métricas distinguem notificação interna, e-mail e WhatsApp.
+- [ ] Testes não imprimem destinatário completo, segredo, conteúdo clínico ou payload bruto.
+- [ ] Gates TiDB validam unicidade, transição de status, obsolescência e reprocessamento.

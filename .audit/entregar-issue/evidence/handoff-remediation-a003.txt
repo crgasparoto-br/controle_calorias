@@ -1,0 +1,31 @@
+Independent rejection: audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b
+Finding: A-003 - certified base drifted behind current develop.
+
+Rejected published head: ab9fd9fc3e7d20ecce504063df74356651fc5ba7
+Previously certified material: cc47377936566568939628659c3594b1fa1f2189
+Previously certified base: 6fa1db325250607296776b3f7747d86e63d607d1
+Current develop incorporated for remediation: 4f67cc78a8326aaa9cc16b8701fec5aebc932fe6
+Remediated material head: 2fabc744421e2b23c622eed3fdadfd1bfb59dbcf
+Remediated material parents:
+- ab9fd9fc3e7d20ecce504063df74356651fc5ba7
+- 4f67cc78a8326aaa9cc16b8701fec5aebc932fe6
+Current merge preview: 85be13eed1b67904e3e04bb1fcdb4f6a415f95bb
+
+The synchronization preserved the PR #1015 billing material and incorporated the three functional
+food-resolution files from the newer develop. Conflicting repository-global .audit content from the
+unrelated base delivery was not adopted as evidence for #1015. GitHub reports the PR mergeable again.
+The exact remediated material was then exercised by Agent-first run 33221107032 (success), including
+full Tests, TypeScript, architecture, documentation, build, agent check and billing visual evidence;
+all applicable TiDB gates observed for this SHA completed successfully.
+
+Final local critical-package validation on the exact material bundle:
+- validate_specification_coverage.py: READY
+- validate_requirement_attack_matrix.py: READY
+- validate_evidence_freshness.py: READY
+- validate_risk_saturation.py: READY
+- validate_inherited_controls.py: READY
+- validate_audit_remediation.py: READY (1 actionable item closed)
+- validate_learning_closure.py: READY
+- validate_audit_escape_lineage.py: READY (cumulative and monotonic)
+- validate_independent_rejection_closure.py: READY
+- validate_handoff_readiness.py --evidence-profile critical: READY

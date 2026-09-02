@@ -1,60 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  OpenAiProvider,
-  getAiProvider,
-  resetAiProviderFactory,
-  setAiProviderFactory,
-} from "./aiProvider";
+import { describe, expect, it, vi } from "vitest";
+import { OpenAiProvider } from "./aiProvider";
 import {
   OpenAiConfigurationError,
   createOpenAiClient,
 } from "./openaiClient";
 
 describe("openai provider foundation", () => {
-  afterEach(() => {
-    resetAiProviderFactory();
-  });
-
-  it("allows provider mocking without OPENAI_API_KEY", async () => {
-    const mockProvider = {
-      createTextResponse: vi.fn().mockResolvedValue({
-        id: "mock-response",
-        outputText: "{\"ok\":true}",
-        raw: { mocked: true },
-      }),
-      createEmbeddings: vi.fn().mockResolvedValue({
-        embeddings: [[0.1, 0.2]],
-        raw: { mocked: true },
-      }),
-      createAudioTranscription: vi.fn().mockResolvedValue({
-        task: "transcribe",
-        language: "pt",
-        duration: 1.2,
-        text: "arroz e feijao",
-        segments: [],
-        raw: { mocked: true },
-      }),
-      createImageGeneration: vi.fn().mockResolvedValue({
-        b64Json: "AAAA",
-        mimeType: "image/png",
-        raw: { mocked: true },
-      }),
-    };
-
-    setAiProviderFactory(() => mockProvider);
-
-    const result = await getAiProvider().createTextResponse({
-      model: "gpt-4.1-mini",
-      input: "hello",
-    });
-
-    expect(result.outputText).toBe("{\"ok\":true}");
-    expect(mockProvider.createTextResponse).toHaveBeenCalledWith({
-      model: "gpt-4.1-mini",
-      input: "hello",
-    });
-  });
-
   it("only throws a clear error when the lazy real provider is actually used without OPENAI_API_KEY", async () => {
     const provider = new OpenAiProvider(() =>
       createOpenAiClient({

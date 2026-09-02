@@ -1,4 +1,0 @@
-{"source":"Queijo mussarela","candidate":"Queijo mussarela e presunto; 1 fatia pesa 18 g","expected":false,"observed":false}
-{"source":"Requeijão cremoso","candidate":"Requeijão cremoso / manteiga; 1 colher de sopa pesa 15 g","expected":false,"observed":false}
-{"source":"Iogurte natural","candidate":"Iogurte natural | sobremesa láctea; 1 unidade pesa 170 g","expected":false,"observed":false}
-{"source":"Queijo mussarela","candidate":"Tabela de medidas e porções de queijo mussarela; 1 fatia pesa 18 g","expected":true,"observed":true}

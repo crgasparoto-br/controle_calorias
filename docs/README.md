@@ -57,6 +57,7 @@ Exemplos principais:
 - `design-docs/whatsapp-onboarding.md`
 - `design-docs/professional-ai-assistance.md`
 - `design-docs/billing-foundation.md`
+- `design-docs/billing-admin-operations.md`
 - `design-docs/billing-subscription-lifecycle.md`
 - `design-docs/billing-professional-coverage.md`
 - `design-docs/billing-asaas-adapter.md`
@@ -71,19 +72,22 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 
 ## Documentação operacional e sensível
 
-| Documento         | Uso                                                                                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                       |
-| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                    |
-| `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                           |
-| `runbooks/`       | Runbooks operacionais. Billing Asaas está em `runbooks/billing-asaas.md`; o rollout de IA por capacidade está em `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
+| Documento         | Uso                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PRIVACY_LGPD.md` | Política técnica canônica para dados pessoais, dados sensíveis, IA, mídia, logs, exportação e exclusão.                                                                                                                                                                                                                                                   |
+| `SECURITY.md`     | Regras de segurança, segredos e hardening.                                                                                                                                                                                                                                                                                                                |
+| `RELIABILITY.md`  | Resiliência, observabilidade e riscos operacionais.                                                                                                                                                                                                                                                                                                       |
+| `runbooks/`       | Runbooks operacionais e técnicos. O controle técnico do rollout comercial de billing está em `runbooks/billing-commercial-rollout.md`; a execução operacional real é rastreada pela #1024. Billing Asaas está em `runbooks/billing-asaas.md`; o rollout de IA por capacidade foi executado na #962 e mudanças futuras continuam governadas por `runbooks/multi-provider-rollout.md`; a aposentadoria do legado profissional está em `runbooks/professional-legacy-retirement.md`. `runbooks/openai-rollout-checklist.md` e `runbooks/openai-rollout-evidence.md` são histórico deprecado (issue #927) e não devem ser usados para rollout vigente. |
+
+O template de evidência sanitizada da execução operacional da #1024 está em `history/billing-commercial-rollout-evidence-template.md`. Ele referencia a #898 como contrato técnico; copie-o para um registro datado por janela. O template não é evidência de execução nem autorização de produção.
 
 ### IA multi-provider e benchmark
 
 - `benchmarks/multi-provider/README.md` — contrato, fixtures, métricas e critérios de promoção da #927.
 - `benchmarks/multi-provider/fixtures/manifest.json` — cenários sintéticos e sem PII.
 - `benchmarks/question-latency/README.md` — coorte, protocolo before/after, métricas e gate de latência da capacidade `QUESTION` (#989).
-- `runbooks/multi-provider-rollout.md` — promoção e rollback por capacidade, sem autorização implícita de produção.
+- `runbooks/multi-provider-rollout.md` — promoção e rollback por capacidade; registra a conclusão operacional da #962 e governa futuras janelas.
+- `history/ai-multi-provider-rollout-2026-09-01.md` — registro sanitizado da confirmação de que as configurações por capacidade estão implantadas e funcionando em produção.
 - `design-docs/ai-observability-pricing.md` — usage normalizado e catálogo de preços versionado.
 
 ## Documentação gerada

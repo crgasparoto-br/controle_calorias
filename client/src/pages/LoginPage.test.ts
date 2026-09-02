@@ -1,5 +1,44 @@
-import { describe, expect, it } from "vitest";
-import { resolveSafeLoginReturnTo } from "./LoginPage";
+// @vitest-environment jsdom
+import React from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import LoginPage, { resolveSafeLoginReturnTo } from "./LoginPage";
+
+const { invalidateMe, mutateLogin } = vi.hoisted(() => ({
+  invalidateMe: vi.fn().mockResolvedValue(undefined),
+  mutateLogin: vi.fn(),
+}));
+
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    useUtils: () => ({
+      auth: { me: { invalidate: invalidateMe } },
+    }),
+    auth: {
+      login: {
+        useMutation: () => ({
+          mutate: mutateLogin,
+          isPending: false,
+        }),
+      },
+    },
+  },
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe("LoginPage", () => {
+  it("renders the application logo", () => {
+    render(React.createElement(LoginPage));
+
+    expect(
+      screen.getByRole("img", { name: "Controle de Calorias" })
+    ).toBeTruthy();
+  });
+});
 
 describe("resolveSafeLoginReturnTo", () => {
   it("preserves an internal WhatsApp onboarding return path", () => {

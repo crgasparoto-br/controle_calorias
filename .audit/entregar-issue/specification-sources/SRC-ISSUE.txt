@@ -1,7 +1,223 @@
-## Critérios de aceite — recorte material da Issue #1016 afetado por A-005
+## Objetivo
 
-8. Quando não houver porção exata, mas houver base compatível suficiente para uma média usual do mesmo alimento/tipo/medida, o sistema deve usar essa estimativa e concluir a operação sem pedir ao usuário um peso que ele próprio pode estimar.
-9. Uma média usual nunca pode ser universal por unidade (`fatia`, `colher`, `unidade`); deve ser contextual ao alimento/tipo/preparo.
-10. Uma média derivada de outro produto compatível pode servir apenas como estimativa de quantidade e deve ser apresentada como estimativa, nunca como correspondência exata da marca/variante.
-11. Depois de resolver ou estimar os gramas da medida, calorias e macros devem ser calculados proporcionalmente para essa quantidade.
-12. Quando média usual for utilizada, a resposta deve informar que a gramatura é aproximada e que o usuário pode corrigi-la pelo WhatsApp ou pela tela de ajuste.
+Consolidar a suíte automatizada de regressão do onboarding via WhatsApp e da integração comercial final, cobrindo lead, token, cadastro recuperável, conta existente, catálogo, cupom, checkout, elegibilidade, ativação, saudação, capacidade, migração e continuidade nutricional.
+
+Parent: #209
+
+## Princípios
+
+- Testar comportamento observável e contratos entre módulos.
+- Usar relógio controlado para token, trial, carência, transição, capacidade temporária e recuperação.
+- Usar provider fake e fixtures Asaas sanitizadas.
+- Não chamar Meta ou Asaas real.
+- Cenário obrigatório não pode permanecer com `skip` ou `todo`.
+- Concorrência, unicidade e migrations devem ser validadas em TiDB quando aplicável.
+- Usar somente `open_access` e `enforced`.
+- Não imprimir token, telefone completo, credencial, dados de saúde ou conteúdo sensível.
+
+## Matriz obrigatória
+
+### Lead, token e retomada
+
+- telefone normalizado e lead deduplicado;
+- token opaco, hash, validade, rotação e uso único;
+- duas conclusões concorrentes geram uma conta;
+- falha parcial retoma conta, perfil, consentimentos e vínculo;
+- conflito de e-mail/telefone não revela outra conta;
+- token expirado pode ser rotacionado para o mesmo lead sem duplicar identidade;
+- múltiplas abas e retries convergem para o mesmo estado recuperável.
+
+### Persistência e procedures
+
+- estados `converting`, `pending_activation` e `active`;
+- claim atômico;
+- resposta estruturada com cadastro, elegibilidade, origem e próxima ação;
+- `open_access` sem assinatura fictícia;
+- `enforced` bloqueando até origem válida;
+- cliente não força estado ativo.
+
+### Catálogo, cupom e checkout
+
+- catálogo e ações vêm do backend;
+- versão inativa não é oferecida;
+- intenção e checkout são idempotentes;
+- callback antes do webhook permanece pendente;
+- recusa, cancelamento, expiração e abandono permitem retomada;
+- cartão e Pix Automático aparecem somente quando elegíveis;
+- trial inicia apenas com cartão;
+- Pix Automático exige renúncia explícita ao trial e permanece pendente até confirmação;
+- boleto e Pix manual não aparecem no lançamento;
+- um cupom por contratação;
+- cupom válido, inválido, expirado, esgotado, inelegível, já utilizado e concorrente;
+- cupons não acumuláveis;
+- desconto público máximo de 30%;
+- mensal por até 3 cobranças;
+- anual somente na primeira cobrança;
+- desconto de 100% rejeitado e tratado como isenção;
+- trial + cupom inicia desconto na primeira cobrança;
+- retry, troca de método e reconciliação não consomem cupom duas vezes;
+- método de pagamento não aprovado não aparece.
+
+### Webhook e ativação
+
+- autenticação válida/inválida;
+- evento persistido antes do processamento;
+- evento duplicado, atrasado, desconhecido e fora de ordem;
+- retorno do navegador não ativa;
+- fontes válidas convergem para uma única ativação e saudação;
+- aplicar precedência: isenção > cobertura > assinatura paga > trial > transição > leitura.
+
+### Trials e ciclo comercial
+
+- individual: 7 dias, cartão prévio, cancelamento sem cobrança e uso único;
+- profissional: 14 dias, cartão prévio, matriz pessoal e profissional completa e limite de 5;
+- uso pessoal do profissional não consome vaga;
+- prevenção de repetição por usuário interno, documento protegido e telefone normalizado;
+- efetivação antecipada só amplia para 30/100 após confirmação;
+- falha/abandono mantém trial e limite original;
+- `past_due` mantém acesso por 7 dias;
+- avisos nos dias 0, 2, 5 e 7;
+- `suspended` aplica restrições individuais/profissionais;
+- reservas profissionais permanecem ocupadas durante 30 dias;
+- recuperação reutiliza as mesmas reservas;
+- pagamento tardio não reativa automaticamente.
+
+### Capacidade excedida e migração profissional
+
+- profissional existente com carteira superior ao plano contratado recebe capacidade temporária inicial de 90 dias;
+- a data inicial deriva da confirmação da contratação e não da simples abertura do checkout;
+- a concessão registra plano/versão, limite contratado, ocupação inicial, limite temporário, início, término, motivo e origem de migração;
+- pacientes, vínculos, prontuários, autorizações e históricos permanecem preservados;
+- enquanto excedido, somente novas aprovações, inclusões e reativações ficam bloqueadas;
+- encerramentos naturais reduzem a ocupação sem ampliar novamente o limite temporário;
+- redução natural para dentro do limite encerra o estado excedido de forma idempotente;
+- upgrade suficiente resolve o estado excedido e aplica a nova capacidade;
+- avisos são enviados no início, a 60, 30, 15 e 7 dias do fim e no vencimento;
+- cada aviso possui chave idempotente e mostra capacidade contratada, ocupação, excedente, prazo e alternativas;
+- nenhum aviso ou job escolhe, remove ou bloqueia pacientes existentes;
+- carteira acima de 100 pacientes, sem plano público suficiente, gera pendência administrativa/comercial;
+- extensão somente pode ser concedida por 30 dias, com motivo, responsável, início, término e limite temporário;
+- extensão automática, retroativa, sem data final ou concorrente sem reavaliação é rejeitada;
+- duas extensões concorrentes não duplicam prazo nem auditoria;
+- vencimento sem regularização produz `grandfathered_expired`;
+- `grandfathered_expired` preserva pacientes e dados e mantém bloqueio de novas inclusões/reativações;
+- assinatura financeiramente válida continua com seus demais efeitos após o vencimento da capacidade temporária;
+- profissional sem plano ao fim da transição comercial perde cobertura sem perder vínculos ou dados;
+- migração, extensão, expiração e resolução são recuperáveis após falha parcial e reexecução;
+- estados `within_capacity`, `grandfathered_active`, `grandfathered_expiring`, `grandfathered_expired` e `grandfathered_resolved` são persistidos e expostos corretamente;
+- rollback para `open_access` não apaga concessões, prazos, avisos ou auditoria.
+
+### Conta existente — autenticação, posse e vínculo
+
+- conflito por e-mail ou telefone não cria segunda conta, perfil ou vínculo;
+- resposta pública é genérica e não revela existência, nome, e-mail, plano ou status;
+- login correto na conta existente, combinado com token válido enviado ao WhatsApp, permite confirmar o vínculo;
+- autenticação sem prova de posse do WhatsApp não vincula;
+- token do WhatsApp sem sessão autenticada da conta não vincula;
+- login em conta diferente da conta conflitante bloqueia o vínculo sem revelar dados;
+- recuperação de credencial retorna ao mesmo onboarding e preserva lead, token e estado;
+- número já vinculado à mesma conta retorna sucesso idempotente e retoma o fluxo;
+- conta encontrada por e-mail e número livre vincula somente após as duas provas e confirmação explícita;
+- número vinculado a outra conta não é transferido, substituído ou desvinculado automaticamente;
+- fluxo de suporte/atendimento administrativo exige autorização e auditoria quando aplicável;
+- token expirado ou usado antes da conclusão pode ser rotacionado de forma controlada sem duplicar vínculo;
+- múltiplas abas, retries e requisições concorrentes geram exatamente um vínculo;
+- um telefone não termina vinculado a duas contas;
+- consentimentos válidos são preservados e apenas versões obrigatórias ausentes são coletadas;
+- vínculo com conta existente não concede novo trial, não reinicia transição e não cria assinatura, cobertura ou isenção;
+- histórico, metas, registros, vínculos profissionais e origem comercial permanecem na conta existente;
+- retomada continua exatamente do estado preservado e não envia nova saudação indevida.
+
+### WhatsApp e saudação
+
+- telefone desconhecido cria/reutiliza lead e não chega ao pipeline;
+- usuário pendente não é tratado como desconhecido;
+- mensagem duplicada não repete efeito;
+- usuário bloqueado não registra texto, imagem, áudio, água, exercício ou confirmação;
+- conteúdo bruto bloqueado não é persistido desnecessariamente;
+- saudação apenas após elegibilidade, no máximo uma vez;
+- falha de saudação não reverte ativação;
+- conta existente vinculada volta ao fluxo normal sem novo onboarding.
+
+### Administração, isenção e consumo
+
+- não administrador não acessa endpoints;
+- isenção com plano de referência, vigência e motivo;
+- isenção não cria assinatura financeira;
+- isenção profissional aplica matriz pessoal e profissional sem consumir vaga pelo pagador;
+- administração filtra capacidade excedida ativa, próxima, vencida e resolvida;
+- concessão inicial de 90 dias é visível e auditável;
+- extensão de 30 dias exige confirmação e prévia de impacto;
+- caso sem plano suficiente aparece na fila administrativa/comercial;
+- reenvio manual de aviso mantém correlação e registra motivo;
+- alertas de consumo em 70%, 85% e 100%;
+- atingir 100% não bloqueia uso normal automaticamente;
+- liberação de franquia e isenção temporária de limites não criam cobrança;
+- limitação por abuso preserva funções básicas e é reversível;
+- cobrança futura por consumo não pode ser ativada sem autorização administrativa explícita;
+- autorização registra responsável, política, preços, planos, vigência, comunicação, ausência de retroatividade e rollback.
+
+### Frontend
+
+- estados de cadastro, conta existente, autenticação, recuperação, confirmação de vínculo, catálogo, cupom, checkout, pendência, recusa, reconciliação e acesso;
+- retorno após login/recuperação preserva o onboarding correto;
+- mensagens públicas genéricas e informações mascaradas somente após autenticação;
+- trials com cartão prévio;
+- Pix Automático com contratação paga sem trial;
+- efetivação profissional;
+- callback pendente;
+- tela profissional mostra capacidade contratada, ocupação, excedente, prazo e bloqueios;
+- estados de capacidade são apresentados com linguagem amigável sem expor enums;
+- vencimento não comunica remoção automática de pacientes;
+- paciente coberto não vê informações financeiras ou de capacidade do profissional;
+- mensagens sem IDs ou enums internos;
+- acessibilidade e responsividade.
+
+### Regressões
+
+- cadastro/login web;
+- recuperação de conta existente fora do onboarding continua funcional;
+- fluxo inverso #292;
+- usuário elegível registra texto, imagem, áudio, água e exercício;
+- perfil profissional isolado não concede elegibilidade;
+- retorno a `open_access` não apaga assinatura ou histórico;
+- vínculo do WhatsApp não altera silenciosamente e-mail, senha, perfil ou origem comercial;
+- capacidade temporária não altera permanentemente a versão contratada.
+
+## Critérios de aceite
+
+- [ ] Todos os grupos aplicáveis têm testes executáveis sem `skip`/`todo`.
+- [ ] Catálogo, cupom, checkout, callback e webhook são cobertos com fakes.
+- [ ] Trial individual e profissional exigem cartão prévio.
+- [ ] Pix Automático contrata sem trial e não ativa antes da confirmação.
+- [ ] Antifraude de trial considera conta, documento e telefone.
+- [ ] Cupons respeitam não acumulação, limites, duração e idempotência.
+- [ ] Precedência de acesso é determinística.
+- [ ] Suspensão preserva reservas profissionais e recuperação reutiliza as mesmas vagas.
+- [ ] Usuário pendente não produz efeitos nutricionais.
+- [ ] Capacidade temporária inicial dura 90 dias e não permite crescimento da carteira.
+- [ ] Avisos de capacidade ocorrem nos seis marcos sem duplicidade.
+- [ ] Extensões são de 30 dias e exigem autorização auditada.
+- [ ] Vencimento e resolução preservam dados e aplicam estados corretos.
+- [ ] Concorrência não duplica concessão, extensão, aviso ou resolução.
+- [ ] Conta existente exige autenticação da conta e prova de posse do WhatsApp.
+- [ ] Fluxo público não revela a conta existente.
+- [ ] Recuperação e retries retomam sem duplicar conta ou vínculo.
+- [ ] Número pertencente a outra conta não é transferido automaticamente.
+- [ ] Vínculo com conta existente não concede novo trial nem altera origem comercial.
+- [ ] Concorrência garante unicidade do telefone e idempotência do vínculo.
+- [ ] Administração, matriz profissional, capacidade temporária, alertas de consumo e trava de cobrança futura estão cobertos.
+- [ ] Frontend cobre estados comerciais, conta existente, capacidade excedida, acessibilidade e responsividade.
+- [ ] Nenhum teste imprime segredo ou conteúdo sensível.
+- [ ] Passam `pnpm test`, `pnpm check`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e gates TiDB aplicáveis.
+
+## Dependências
+
+- #145
+- #869 / PR #870
+- #891–#897
+- #215
+
+## Prontidão
+
+**Pronta para implementação incremental.** A estratégia de conta existente, os meios de pagamento, a matriz profissional e a política de capacidade temporária estão definidos; cada cenário permanece condicionado somente à funcionalidade correspondente.

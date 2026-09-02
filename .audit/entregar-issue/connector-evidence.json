@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 217,
+  "pull_request": 1022,
+  "material_head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+  "base_sha": "ee5cf76ebda601b80c39296e2b6920ec1fb1ebca",
+  "merge_preview_sha": "ad07f5ea52ec1a624870b3c5f058b929ae8915e9",
+  "work_item_start_sha": "ee5cf76ebda601b80c39296e2b6920ec1fb1ebca",
+  "changed_paths": [
+    ".github/workflows/issue-217-onboarding-commercial-regression.yml",
+    "docs/testing/issue-217-onboarding-commercial-regression.md",
+    "scripts/test-issue-217-regression.ts"
+  ],
+  "pr_state": {
+    "open": true,
+    "mergeable": true,
+    "base_ref": "develop",
+    "head_ref": "test/217-onboarding-commercial-regression"
+  },
+  "exact_head_files": {
+    "scripts/test-issue-217-regression.ts": {
+      "sha256": "8c8e3460d97b0a9643fb5655b9e4edf6e7b76440cee06f0f9badddc713f50bde",
+      "scenario_count": 58,
+      "suite_count": 32,
+      "self_guard": "validateScenarioGuardItself removes SYN-B from a two-scenario synthetic suite and requires exactly one SYN-B failure"
+    },
+    "docs/testing/issue-217-onboarding-commercial-regression.md": {
+      "sha256": "97fea84b4fca62230284d32eb62c503325c25de5dfaa67c5a22f44346776cd18",
+      "claim": "#898 technical rollout is covered; #1024 owns real operational rollout evidence"
+    },
+    ".github/workflows/issue-217-onboarding-commercial-regression.yml": {
+      "sha256": "0f059dd60ab7638c889c32560fdf5e3a9c2078bcc5494424ca49d8c3ffa72fbb"
+    }
+  },
+  "remote_ci": [
+    {
+      "workflow": "Issue 217 onboarding commercial regression",
+      "run_id": 33355549368,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+      "jobs": [
+        {
+          "job_id": 99376880106,
+          "name": "Issue 217 focused regression",
+          "conclusion": "success",
+          "observations": [
+            "contract log: 58 tracked scenarios in 32 Vitest suites and 9 TiDB gates",
+            "Vitest: 32 files passed, 178 tests passed"
+          ]
+        },
+        {
+          "job_id": 99376880271,
+          "name": "Issue 217 TiDB regression",
+          "conclusion": "success",
+          "observations": [
+            "required isolated TiDB regression completed successfully"
+          ]
+        }
+      ]
+    },
+    {
+      "workflow": "Agent-first gate",
+      "run_id": 33355549361,
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "2c240170dd683f6e74833eec4ed5d2a8f23f1c20",
+      "jobs": [
+        {
+          "job_id": 99376880384,
+          "name": "Agent-first gate",
+          "conclusion": "success",
+          "observations": [
+            "TypeScript check: success",
+            "Tests: success",
+            "Architecture check: success",
+            "Documentation check: success",
+            "Build: success",
+            "Agent check: success",
+            "CI gate docs check: success",
+            "Exact-head verification manifest: success",
+            "Exact-head repository bundle: success"
+          ]
+        }
+      ]
+    }
+  ],
+  "negative_controls": {
+    "scenario_individual_loss": {
+      "procedure": "The exact-head aggregator executes validateScenarioGuardItself before validating repository files. The synthetic source contains two required scenarios; the negative fixture removes only SYN-B and requires exactly one failure whose prefix is SYN-B.",
+      "expected": "A gate that only checks file existence or any test in the file would fail this self-control; the current guard must identify the missing individual scenario.",
+      "observed": "The exact-head workflow reached the contract-valid log after the self-control, and the source hash above contains the SYN-B single-removal assertion."
+    },
+    "skip_todo": {
+      "procedure": "The exact-head aggregator scans every tracked suite for describe/it/test.skip or .todo and xdescribe/xit/xtest before running Vitest.",
+      "expected": "Any mandatory suite containing a disabled test marker makes the contract exit non-zero before the regression run.",
+      "observed": "Contract validation completed with 58 scenarios across 32 suites, then all 32 suites executed and 178 tests passed."
+    },
+    "exact_head_ci": {
+      "procedure": "Bind both workflow runs and the uploaded repository artifact to the material head SHA, rejecting ancestor-only green evidence.",
+      "expected": "All release evidence names the same material head SHA.",
+      "observed": "Both workflow runs and artifact agent-first-repository-2c240170... are bound to 2c240170dd683f6e74833eec4ed5d2a8f23f1c20."
+    },
+    "documentation_boundary": {
+      "procedure": "Inspect both PR description and versioned testing documentation for the old claim that #898 lacks rollout/cohort implementation and for the new #898/#1024 boundary.",
+      "expected": "No current claim says #898 is unimplemented; technical #898 coverage and operational #1024 evidence are separated.",
+      "observed": "PR body and docs both state #898 technical implementation is integrated and #1024 owns real operational rollout evidence."
+    }
+  },
+  "historical_lineage": {
+    "policy": "Foreign-target audit escapes inherited from develop are preserved as historical lineage only; their source_audit heads remain historical and are not reused as current issue evidence."
+  }
+}

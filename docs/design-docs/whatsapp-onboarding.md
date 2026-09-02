@@ -4,7 +4,7 @@
 
 Permitir que um telefone ainda não vinculado inicie o cadastro pelo WhatsApp sem criar uma conta completa automaticamente. O primeiro contato gera um lead com token opaco, expirável, e um link para finalização do cadastro no site.
 
-O cadastro, a elegibilidade comercial e o envio da saudação são responsabilidades separadas. Concluir os dados não cria assinatura nem confirma pagamento. A elegibilidade é obtida do serviço central da épica #145.
+O cadastro, a elegibilidade comercial, a contratação e o envio da saudação são responsabilidades separadas. Concluir os dados não cria assinatura nem confirma pagamento. Catálogo, trial, cupom, checkout, lifecycle e elegibilidade são autoritativos no backend de billing; o retorno do navegador nunca concede acesso por si só.
 
 ## Fluxo implementado: WhatsApp para site
 
@@ -21,11 +21,12 @@ O cadastro, a elegibilidade comercial e o envio da saudação são responsabilid
 11. Perfil, vínculo WhatsApp e consentimentos são gravados por operações idempotentes.
 12. Em falha antes da criação da conta, o lead volta a `pending_onboarding`; em falha posterior, permanece `converting` associado à conta e pode ser retomado sem criar outro usuário.
 13. O backend consulta `getUserEntitlements(userId)`.
-14. A procedure retorna `eligibility`, `nextAction` e `resumed`:
+14. A procedure retorna `eligibility`, `nextAction`, `resumed` e `commercial`, onde `commercial` reutiliza o mesmo read model autoritativo de `/billing`:
     - `continue`, quando existe uma origem válida de acesso;
     - `await_activation`, quando o cadastro foi concluído, mas o uso protegido ainda não está liberado;
-    - `resumed = true`, quando a tentativa recuperou uma conclusão interrompida depois da criação da conta.
-15. A página redireciona o usuário liberado para o onboarding normal ou o usuário pendente para `/billing`.
+    - `resumed = true`, quando a tentativa recuperou uma conclusão interrompida depois da criação da conta;
+    - `commercial` contém origem efetiva, assinatura/lifecycle, reconciliação, catálogo, trial elegível e ações comerciais permitidas pelo backend; se esse read model estiver temporariamente indisponível, retorna `null` sem desfazer cadastro ou vínculo.
+15. A página redireciona o usuário liberado para o onboarding normal ou o usuário pendente para `/billing`, que pode repetir a leitura comercial autenticada sem reutilizar o token de onboarding.
 
 O estado persistido acompanha a situação real:
 
@@ -50,7 +51,23 @@ A continuação ocorre por `auth.whatsappOnboarding.linkExistingAccount({ token 
 
 No banco, o lead é bloqueado por `FOR UPDATE`; claim do token, verificação de conflito, ativação ou criação da conexão em `whatsappConnections` e associação de `converted_user_id` são executados na mesma transação. A chave única do telefone no lead serializa tentativas concorrentes do mesmo número. Repetição pelo mesmo usuário é idempotente; tentativa por outra conta retorna resposta genérica e não troca o vínculo.
 
-Esse caminho não cria nova conta, perfil, trial, transição, assinatura ou entitlement. O perfil, o histórico nutricional, a elegibilidade e os consentimentos válidos da conta autenticada não são sobrescritos. Depois do vínculo, a elegibilidade central define `continue` ou `await_activation`, e a saudação continua protegida pelo contrato de envio único.
+Esse caminho não cria nova conta, perfil, trial, transição, assinatura ou entitlement. O perfil, o histórico nutricional, a elegibilidade e os consentimentos válidos da conta autenticada não são sobrescritos. Depois do vínculo, a elegibilidade central define `continue` ou `await_activation`, a resposta inclui o mesmo snapshot comercial autenticado e a saudação continua protegida pelo contrato de envio único.
+
+## Contratação e continuidade comercial
+
+Usuário em `pending_activation` segue para **Plano e acesso** sem perder cadastro, perfil, consentimentos ou vínculo WhatsApp.
+
+A tela `/billing` consome exclusivamente o backend para catálogo, versão, preço, ciclo, capacidade, meios permitidos, cupom, trial, checkout e estado de reconciliação. O frontend não cria assinatura fictícia nem decide ativação por mensagem local.
+
+Contratos vigentes:
+
+- Individual: trial de 7 dias somente com cartão previamente cadastrado/validado pelo fluxo seguro;
+- Profissional: trial de 14 dias somente com cartão, matriz pessoal + profissional e capacidade inicial de 5 pacientes durante o trial;
+- Pix Automático inicia contratação paga sem trial e exige renúncia explícita ao período de avaliação;
+- apenas um cupom elegível por contratação; cupom não é origem de acesso;
+- desconto público de 100% não é checkout gratuito e depende de isenção administrativa;
+- callback/retorno do navegador permanece pendente até confirmação financeira autoritativa;
+- retries, múltiplas abas e troca de meio reaproveitam as garantias de idempotência do billing, sem consumir cupom ou criar contratação em duplicidade.
 
 ## Ativação comercial posterior
 
@@ -65,7 +82,24 @@ Ela:
 5. registra `activation_source` e `activated_at`;
 6. dispara a saudação idempotente, sem reverter a ativação se o envio falhar.
 
-Uma liberação administrativa chama essa mesma orquestração depois de persistir o override. A rota protegida `billing.refreshOnboardingActivation` permite que o usuário autenticado reavalie a ativação na página **Plano e acesso**. Provider, webhook financeiro e trial futuros devem chamar a mesma função depois de atualizarem sua fonte autoritativa.
+Uma liberação administrativa chama essa mesma orquestração depois de persistir o override. A rota protegida `billing.refreshOnboardingActivation` permanece como recuperação manual autenticada na página **Plano e acesso**.
+
+A integração da #215 também executa `reconcilePendingWhatsappOnboardingActivations()` depois das transições autoritativas do lifecycle de billing: início de contrato/trial, fatos financeiros, ticks e processamento de fatos pendentes, após a reconciliação de cobertura profissional quando aplicável. O reconciliador faz uma varredura limitada de leads `pending_activation` e chama a mesma orquestração central para cada usuário. Ele nunca infere acesso a partir de callback, checkout ou payload do provider. Chamadas repetidas e concorrentes convergem pela atualização condicional `pending_activation -> active` e pelo contrato idempotente da saudação.
+
+Falha nessa reconciliação é recuperável: não desfaz pagamento, trial, assinatura, cobertura, cadastro ou vínculo. O lead permanece pendente e pode ser reavaliado por evento posterior, processamento periódico ou `billing.refreshOnboardingActivation`.
+
+## Precedência de elegibilidade
+
+Em `enforced`, a origem efetiva é selecionada no backend pela política central, preservando origens secundárias válidas:
+
+1. isenção administrativa;
+2. cobertura profissional;
+3. assinatura própria paga;
+4. trial;
+5. período de transição;
+6. acesso somente para leitura.
+
+`open_access` permanece o padrão de rollout até a ativação progressiva governada pela #898. Cupom, checkout pendente, retorno do navegador e estado local do frontend não são fontes de acesso.
 
 ## Bloqueio pré-pipeline no WhatsApp
 
@@ -75,6 +109,7 @@ Quando `allowed = false`:
 
 - a mensagem não chega ao pipeline de texto, imagem ou áudio;
 - nenhuma refeição, água, exercício ou confirmação é persistida;
+- o usuário pendente não é tratado como telefone desconhecido e não recebe novo onboarding;
 - o usuário recebe orientação para consultar **Plano e acesso** no sistema web;
 - o evento é registrado sem telefone, conteúdo cru ou detalhes financeiros sensíveis.
 
@@ -99,15 +134,12 @@ Mensagem enviada:
 
 ## Fora de escopo desta etapa
 
-- Escolher provedor financeiro, publicar preço ou criar checkout real.
-- Criar assinatura `pending` sem catálogo e política comercial aprovados.
+- Ativar `BILLING_ACCESS_MODE=enforced` ou executar coortes de rollout; isso pertence à #898.
 - Confirmar pagamento pelo retorno do navegador.
-- Implementar trial sem decisão comercial.
 - Criação de conta completa apenas com a primeira mensagem no WhatsApp.
-- Disparos ativos de marketing.
-- Mensagens recorrentes sem nova regra de consentimento.
-- Migração automática de usuários existentes para o modo `enforced`.
+- Disparos ativos de marketing fora das políticas/campanhas autorizadas.
 - Alteração livre de telefone quando já existe vínculo WhatsApp ativo para o usuário.
+- Duplicar no onboarding regras comerciais já pertencentes a catálogo, Asaas, lifecycle, cobertura ou administração de billing.
 
 ## Segurança e privacidade
 
@@ -123,7 +155,9 @@ Mensagem enviada:
 - Marketing pelo WhatsApp é opt-in separado e opcional.
 - A saudação web exige consentimento operacional específico antes do envio.
 - Logs do serviço usam telefone mascarado nos eventos novos do onboarding.
-- A resposta de acesso pendente não informa plano, dívida, valor ou motivo financeiro detalhado.
+- A resposta pública anterior à autenticação não informa plano, dívida, valor ou motivo financeiro detalhado.
+- O snapshot `commercial` só é retornado depois da criação da sessão da nova conta ou em procedure já protegida para conta existente.
+- O reconciliador automático não registra token, telefone, conteúdo de mensagem, dados de saúde ou payload bruto de provider.
 - `completion_error_code` usa vocabulário fechado; mensagens de exceção, e-mail, telefone, senha e token nunca são persistidos nesse campo.
 
 ## Persistência
@@ -144,7 +178,7 @@ Campos principais:
 - `completion_error_code`: código sanitizado e pertencente ao vocabulário fechado da última falha recuperável;
 - `last_message_at`: atualização operacional para mensagens repetidas do mesmo telefone.
 
-A compatibilidade de runtime apenas verifica a estrutura em produção. Mudanças estruturais devem ser aplicadas por migrations versionadas antes do deploy.
+A compatibilidade de runtime apenas verifica a estrutura em produção. Mudanças estruturais devem ser aplicadas por migrations versionadas antes do deploy. A #215 não adiciona migration: ela compõe estados e contratos já existentes.
 
 A saudação do onboarding web usa `userPreferences` com a chave `whatsapp_web_greeting_status`. A mensagem de boas-vindas completa usa `whatsapp_welcome_v2_status` e registra a quantidade de mensagens já entregues para permitir retry seguro.
 
@@ -153,11 +187,12 @@ A saudação do onboarding web usa `userPreferences` com a chave `whatsapp_web_g
 Rotas tRPC públicas em `auth.whatsappOnboarding`:
 
 - `validate({ token })`: valida o token e retorna telefone mascarado, status e expiração;
-- `complete({ token, email, password, profile, consents })`: cria ou retoma uma conta nova, salva onboarding, vincula WhatsApp, inicia sessão e retorna `{ user, eligibility, nextAction, resumed }`; conflito com conta existente usa resposta genérica e mantém o token retomável.
+- `complete({ token, email, password, profile, consents })`: cria ou retoma uma conta nova, salva onboarding, vincula WhatsApp, inicia sessão e retorna `{ user, eligibility, nextAction, resumed, commercial }`; conflito com conta existente usa resposta genérica e mantém o token retomável.
 
 Rotas tRPC protegidas:
 
-- `auth.whatsappOnboarding.linkExistingAccount({ token })`: associa transacionalmente o telefone provado pelo token à conta autenticada, sem sobrescrever perfil, histórico ou consentimentos;
+- `auth.whatsappOnboarding.linkExistingAccount({ token })`: associa transacionalmente o telefone provado pelo token à conta autenticada, sem sobrescrever perfil, histórico ou consentimentos, e devolve também `commercial`;
+- `billing.webOverview`: read model autoritativo de origem efetiva, assinatura/lifecycle, reconciliação, catálogo, trial e ações comerciais permitidas;
 - `billing.subscriptionStatus`: consulta a origem efetiva, assinatura própria e capacidade profissional sem depender da liberação dos demais recursos;
 - `billing.refreshOnboardingActivation`: reavalia a elegibilidade e conclui uma ativação pendente sem confiar em estado do cliente;
 - `auth.sendWhatsappGreeting({ acceptedOperationalWhatsapp })`: envia ou registra skip da saudação inicial para usuário logado com WhatsApp vinculado;
@@ -181,8 +216,12 @@ Rotas tRPC protegidas:
 - Cadastro sem consentimentos obrigatórios é recusado.
 - `open_access` conclui o cadastro, retorna `continue` e envia a saudação uma única vez.
 - Elegibilidade negada persiste `pending_activation`, retorna `await_activation` e não envia saudação.
+- Resposta de conclusão/vínculo inclui o read model comercial do backend sem tornar falha de leitura comercial uma falha de cadastro.
 - Override vigente ou outra origem válida ativa o mesmo lead uma única vez.
-- Usuário pendente que envia imagem com quantidade explícita de água não produz registro nutricional.
+- Trial, confirmação financeira, recuperação ou cobertura profissional que tornam o usuário elegível acionam a mesma reconciliação idempotente de `pending_activation`.
+- Callback de navegador, checkout apenas criado ou mensagem local de frontend não ativam o lead.
+- Falha do reconciliador não reverte o fato comercial e permite retry posterior.
+- Usuário pendente que envia texto, imagem, áudio, água, exercício ou confirmação não produz efeito nutricional em `enforced`.
 - Usuário elegível continua no fluxo normal de refeição, hidratação e comandos.
 - Onboarding web exibe a opção de saudação apenas quando houver telefone WhatsApp vinculado.
 - Salvar Perfil com telefone novo persiste o vínculo com o código do país selecionado e tenta enviar a saudação inicial uma única vez.

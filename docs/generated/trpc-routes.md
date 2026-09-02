@@ -31,8 +31,8 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `professionalRecord.operationalAlerts` | 7 | 1 | 6 | professional-entitled | Alertas e solicitações operacionais profissionais |
 | `professionalRecord.ai` | 2 | 1 | 1 | professional-entitled | Assistência profissional por IA |
 | `professionalRecord.settings` | 6 | 3 | 3 | professional-entitled | Configurações profissionais e entitlements |
-| `billing` | 27 | 12 | 15 | admin | Elegibilidade própria e administração comercial de billing |
-| `usageGovernance` | 16 | 1 | 15 | admin | Medição, economia gerencial, fair use, recurso e retenção |
+| `billing` | 37 | 14 | 23 | admin | Elegibilidade própria e administração comercial de billing |
+| `usageGovernance` | 21 | 4 | 17 | admin | Medição, economia gerencial, fair use, recurso e retenção |
 
 ## Procedures por grupo
 
@@ -312,18 +312,32 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `adminDeactivateCoupon` | mutation | admin |
 | `adminAnalytics` | query | admin |
 | `adminUsageAnalytics` | query | admin |
+| `adminNotifications` | query | admin |
+| `adminRetryNotification` | mutation | admin |
+| `adminAcknowledgeNotificationFailure` | mutation | admin |
+| `adminSetCampaignPaused` | mutation | admin |
+| `adminRolloutOverview` | query | admin |
+| `adminCreateRolloutSnapshot` | mutation | admin |
+| `adminRecordRolloutGateDecision` | mutation | admin |
+| `adminRecordRolloutIncident` | mutation | admin |
+| `adminSetRolloutPause` | mutation | admin |
+| `adminRecordRolloutRollback` | mutation | admin |
 
 ### usageGovernance
 
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `analytics` | query | admin |
+| `myLimitations` | query | protected |
+| `adminOverview` | query | admin |
+| `adminEconomicRows` | query | admin |
 | `configurePolicy` | mutation | admin |
 | `reconcileUsageCost` | mutation | admin |
 | `recordEconomicFact` | mutation | admin |
 | `grantAllowance` | mutation | admin |
 | `revokeAllowance` | mutation | admin |
 | `openAbuseCase` | mutation | admin |
+| `assignAbuseCase` | mutation | admin |
 | `reviewAbuseCase` | mutation | admin |
 | `applyLimitation` | mutation | admin |
 | `revokeLimitation` | mutation | admin |
@@ -333,6 +347,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `revokeConsumptionCharging` | mutation | admin |
 | `placeLegalHold` | mutation | admin |
 | `revokeLegalHold` | mutation | admin |
+| `reprocessRetention` | mutation | admin |
 
 ## Regras para novas procedures
 

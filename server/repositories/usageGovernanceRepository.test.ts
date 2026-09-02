@@ -107,7 +107,7 @@ describe("usage governance retention legal holds", () => {
     const queries=mocks.execute.mock.calls.map(call=>String(call[0]));
     expect(queries.some(query=>query.includes("SET state='expired'")&&query.includes("endsAt <="))).toBe(true);
     expect(queries.some(query=>query.includes("reviewOutcome='dismissed'")&&query.includes("closedAt=COALESCE"))).toBe(true);
-    const limited=queries.find(query=>query.includes("JOIN (\n        SELECT abuseCaseId"))??"";
+    const limited=queries.find(query=>query.includes("UPDATE billingUsageAbuseCases c")&&query.includes("SELECT abuseCaseId"))??"";
     expect(limited).toContain("appeal.state='pending'");
     const cases=queries.find(query=>query.includes("DELETE c FROM billingUsageAbuseCases"))??"";
     expect(cases).toContain("c.closedAt <");

@@ -4,6 +4,8 @@ const workflow = readFileSync(".github/workflows/agent-check.yml", "utf8");
 const contributing = readFileSync("CONTRIBUTING.md", "utf8");
 const pullRequestTemplate = readFileSync(".github/pull_request_template.md", "utf8");
 const branchProtection = readFileSync(".github/branch-protection-main.md", "utf8");
+const billingAdminOperations = readFileSync("docs/design-docs/billing-admin-operations.md", "utf8");
+const billingVisualScript = readFileSync("scripts/render-billing-admin-visual.sh", "utf8");
 
 const failures: string[] = [];
 
@@ -49,6 +51,28 @@ requireText(contributing, "push direto para `develop` executa o workflow `Agent-
 requireText(branchProtection, "Required status check: `Agent-first gate`", ".github/branch-protection-main.md");
 requireText(pullRequestTemplate, "`Agent-first gate` passou em PR contra `main` ou `develop`", ".github/pull_request_template.md");
 requireText(pullRequestTemplate, "db:check-integrity", ".github/pull_request_template.md");
+
+const billingViewportMatches = [
+  ...billingVisualScript.matchAll(/capture\s+"[^"]+"\s+"(\d+),(\d+)"/g),
+];
+const billingViewports = billingViewportMatches.map((match) => `${match[1]}x${match[2]}`);
+
+if (billingViewports.length === 0) {
+  failures.push("scripts/render-billing-admin-visual.sh deve declarar ao menos um viewport de captura");
+} else {
+  for (const viewport of billingViewports) {
+    requireText(
+      billingAdminOperations,
+      viewport,
+      "docs/design-docs/billing-admin-operations.md deve refletir os viewports do harness visual"
+    );
+  }
+  requireText(
+    billingAdminOperations,
+    `${billingViewports.length} screenshots`,
+    "docs/design-docs/billing-admin-operations.md deve refletir a quantidade de screenshots do harness visual"
+  );
+}
 
 if (failures.length > 0) {
   console.error("\nFalhas de alinhamento do gate de CI:\n");

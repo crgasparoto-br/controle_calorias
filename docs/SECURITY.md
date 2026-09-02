@@ -27,12 +27,13 @@
 - Telemetria de custo e uso aceita somente unidades, valores, enums e correlações opacas ou hasheadas. Chaves de storage, identificadores de mídia, conteúdo, telefone, prompt, transcrição e resposta de provider não podem compor o ledger.
 - Ativação/revisão de meta profissional valida no backend perfil ativo, autorização aprovada, acompanhamento ativo, ator e paciente. A chave única por paciente protege também contra corrida entre profissionais.
 - Retry de notificação de meta só pode ser executado pelo profissional autor e nunca retorna ou registra a justificativa privada.
-- O resolvedor de configuração de IA por capacidade (`server/_core/ai/configResolver.ts`, #921) nunca inclui valor de segredo, payload, prompt ou mídia em seus diagnósticos — apenas identificadores de capacidade/provider e a razão do estado (`ready`/`degraded`/`disabled`/`invalid`).
+- O resolvedor de configuração de IA por capacidade (`server/_core/ai/configResolver.ts`, #921/#960) nunca inclui valor de segredo, payload, prompt ou mídia em seus diagnósticos — apenas identificadores de capacidade/provider e a razão do estado (`ready`/`degraded`/`disabled`/`invalid`).
+- Provider, modelo, timeout, tentativas e fallback de IA são selecionados apenas por `AI_<CAPABILITY>_*` e defaults versionados da capacidade. Seletores globais/modelos aposentados na #960 não devem ser reintroduzidos em runtime, configuração operacional ou documentação normativa.
+- `OPENAI_API_KEY`, `GEMINI_API_KEY` e `OPENAI_BASE_URL` continuam válidos como credenciais/endpoint de adapters; não são seletores de capacidade e não devem ser removidos junto com aliases aposentados.
 - `OPENAI_BASE_URL` não vazio é tratado automaticamente como endpoint `openai-compatible`; nenhuma operação é considerada disponível até ser listada em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
 - Fallback entre providers de uma mesma capacidade nunca envia dados ao segundo provider sem que `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` esteja explicitamente configurado para aquela capacidade. Em `NODE_ENV=production`, essa flag não libera o segundo envio: a #927 não aprovou cross-provider, que permanece bloqueado fail-closed até nova evidência, revisão de privacidade e autorização operacional específicas.
 - O executor comum fornece `AbortSignal` a cada chamada. Depois de timeout, retry ou fallback só pode começar após a chamada anterior confirmar encerramento. Provider que ignora o cancelamento encerra a execução em modo fail-closed, sem segundo envio.
 - Erros concretos de SDK/HTTP são classificados pela fronteira comum. Erros desconhecidos são não recuperáveis por padrão e não acionam fallback.
-- Resolução de capacidade por variável legada (`AI_VISION_PROVIDER`, `OPENAI_MODEL`, `GEMINI_MODEL`, etc.) inclui aviso `[deprecated]` sanitizado em `diagnostics`, sem expor o valor configurado.
 - Código mutável de uma PR não pode receber secrets permanentes do repositório para executar smoke ou benchmark de provider. Validação em PR usa testes herméticos, fake server, contract tests, replay sanitizado ou doubles. Uma coleta real deve ocorrer em contexto confiável que execute código já revisado.
 - A conclusão pública do onboarding pelo WhatsApp não confirma se e-mail, telefone ou conta existem. Conflitos de conta usam resposta genérica e preservam o token somente enquanto ele continuar válido.
 - Registro público nunca adiciona senha local nem adota identidade preexistente somente pelo conhecimento do e-mail. Conta existente exige login ou recuperação antes de receber novos vínculos.
@@ -66,9 +67,9 @@ Refeição e intenção do WhatsApp recebem respostas por `_core/ai/domainTextRe
 
 Áudio, transcrição, prompt, base64 e URL de mídia não podem compor diagnóstico, telemetria ou resultado de benchmark. O callback duplicado do WhatsApp é descartado antes do download e da transcrição. Fallback de `TRANSCRIPTION` permanece desabilitado por padrão; a #927 não aprovou cross-provider, que continua bloqueado em produção até nova evidência, revisão LGPD e autorização operacional específicas.
 
-### Fronteira de anotação de imagem #925
+### Fronteira de anotação de imagem #925/#960
 
-`IMAGE_ANNOTATION` é independente de `MEAL_VISION`. O modo `local` é o default e compõe uma camada determinística sobre uma cópia auto-orientada da foto original, sem chamada externa. O modo `external` exige configuração executável específica da capacidade (`AI_IMAGE_ANNOTATION_*`) e representa um novo envio da foto ao provider de imagem.
+`IMAGE_ANNOTATION` é independente de `MEAL_VISION`. O modo `local` é o default e compõe uma camada determinística sobre uma cópia auto-orientada da foto original, sem chamada externa. O modo `external` exige configuração executável específica da capacidade (`AI_IMAGE_ANNOTATION_*`) e representa um novo envio da foto ao provider de imagem. O helper de resumo visual `imageGeneration.ts` também resolve `IMAGE_ANNOTATION` para qualquer execução externa e mantém seu fallback PNG local quando a capacidade estiver indisponível ou falhar.
 Para OpenAI nativa, somente modelos de imagem explicitamente aprovados pela matriz são aceitos. Em endpoint `openai-compatible`, além de `image_generation,image_edit` em `AI_OPENAI_COMPATIBLE_OPERATIONS`, o ID exato do modelo deve constar em `AI_OPENAI_COMPATIBLE_IMAGE_MODELS`; configuração incompatível falha antes da criação do adapter e do envio da foto.
 
 A foto original e o derivado usam buffers e chaves de storage distintos. Falha local, externa, de upload ou de envio do derivado não remove o original, não altera a resposta textual e não bloqueia o registro da refeição. Um cartão-resumo sem a foto original é outro artefato e nunca pode ser apresentado como anotação.
@@ -81,7 +82,7 @@ Entradas base64 são validadas quanto a forma canônica e tamanho estimado antes
 
 O workflow temporário da issue #922 foi aposentado depois da validação daquela entrega. Testes versionados não devem depender de workflows temporários já removidos.
 
-O harness `scripts/issue-923-live-provider-smoke.ts` e o benchmark `scripts/issue-924-transcription-benchmark.ts` podem ser executados somente em contexto confiável. Restringir repositório, proprietário, branch ou SHA não torna seguro entregar um secret a código ainda controlado pela PR: o próprio head pode ler ou exfiltrar a credencial. Portanto, workflows de `pull_request` não devem executar esses harnesses com `OPENAI_API_KEY`, `GEMINI_API_KEY` ou aliases.
+O harness `scripts/issue-923-live-provider-smoke.ts` e o benchmark `scripts/issue-924-transcription-benchmark.ts` podem ser executados somente em contexto confiável. Restringir repositório, proprietário, branch ou SHA não torna seguro entregar um secret a código ainda controlado pela PR: o próprio head pode ler ou exfiltrar a credencial. Portanto, workflows de `pull_request` não devem executar esses harnesses com `OPENAI_API_KEY` ou `GEMINI_API_KEY`.
 
 Para PRs, provar comportamento com testes herméticos, adapters determinísticos, fake server, replay sanitizado e controles de contagem de chamadas. Quando uma comparação real for necessária, executá-la localmente ou em infraestrutura protegida sobre código imutável e revisado, disponibilizando a chave somente no processo externo. O resultado deve ser sanitizado, vinculado ao SHA testado, hasheado e versionado antes de ser usado como evidência durável.
 

@@ -28,7 +28,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 - Exportação e exclusão de dados.
 - Migrações e integridade referencial.
 - Elegibilidade, capacidade profissional e eventos idempotentes de billing.
-- Migração da camada de IA para OpenAI, conforme `docs/exec-plans/active/migrate-ai-to-openai.md`.
+- Arquitetura multi-provider de IA por capacidade, incluindo rollout, fallback e aposentadoria dos seletores globais conforme `ARCHITECTURE.md` e `docs/runbooks/ai-legacy-config-removal-960.md`.
 
 ## Gates recomendados
 
@@ -53,7 +53,7 @@ pnpm db:check-integrity
 - Testes de serviço para integrações de saúde devem cobrir paginação, idempotência, atividade sem calorias no resumo, fallback estimado para treino de força, metadados detalhados do Strava e falhas externas controladas.
 - Smoke tests futuros para web, WhatsApp e banco.
 - Checks estruturais para impedir drift de arquitetura e documentação.
-- Para migração OpenAI, testes de caracterização antes da troca de provider e mocks para transcrição, texto, imagem e falha externa.
+- Para IA multi-provider, testes devem provar pareamento provider/modelo por capacidade, rejeição fail-closed, timeout/retry/fallback limitados e ausência de efeito dos seletores globais aposentados.
 - Para visual auxiliar opcional, testes devem provar que falhas do provider não bloqueiam análise nem confirmação da refeição.
 - Para produto industrializado com marca reconhecida, miss do catálogo local pode produzir no máximo uma pesquisa nutricional específica por item antes do fallback. Fonte de outra marca, variante ou porção deve ser rejeitada sem segunda consulta oculta; falha/indisponibilidade preserva a identidade comercial e degrada para a referência heurística canônica.
 - Para `IMAGE_ANNOTATION`, testes devem distinguir `local`, `external` e `off`, provar ausência de rede no default local, preservar os bytes originais, limitar uma chamada por tentativa e manter falhas locais/externas não bloqueantes.
@@ -100,6 +100,7 @@ pnpm db:check-integrity
 - Resumo visual genérico sendo apresentado como anotação da foto original.
 - Falha de upload do derivado sobrescrevendo ou removendo o original.
 - Fallback externo criando cadeia de providers ou mais de uma operação outbound por tentativa.
+- Alias global/modelo aposentado voltando a influenciar provider, modelo, timeout ou tentativas de uma capacidade.
 
 ## Metas profissionais oficiais
 
@@ -121,19 +122,20 @@ pnpm db:check-integrity
 - Falhas na sincronização automática devem ser registradas de forma segura e não podem impedir o servidor de iniciar.
 - `STRAVA_AUTO_SYNC_INTERVAL_MINUTES` controla o intervalo da rotina; `STRAVA_AUTO_SYNC_DISABLED=true` desativa o agendamento.
 
-## Guardrails para migração OpenAI
+## Guardrails para IA por capacidade
 
-- Implementar em fases pequenas, seguindo `docs/exec-plans/active/migrate-ai-to-openai.md`.
-- Não misturar migração de autenticação com migração de IA.
-- Manter fallback seguro ou erro controlado quando a OpenAI estiver indisponível.
+- Não misturar migração de autenticação com mudanças de IA.
+- Provider, modelo, timeout, tentativas e fallback devem ser resolvidos por `AI_<CAPABILITY>_*` e defaults versionados; não reintroduzir seletores globais/modelos aposentados na #960.
+- `OPENAI_API_KEY`, `GEMINI_API_KEY` e `OPENAI_BASE_URL` continuam sendo credencial/endpoint de adapter e não fazem parte da aposentadoria de seletores.
+- Manter fallback seguro ou erro controlado quando o provider efetivo estiver indisponível.
 - Confirmação de refeição não deve depender de chamada externa.
 - Validar saída de IA com Zod antes de retornar ou persistir.
 - Recalcular totais nutricionais no backend a partir dos itens validados.
-- Falha de visual auxiliar deve degradar para ausência de imagem, nunca para falha de refeição.
+- Falha de visual auxiliar deve degradar para ausência/fallback local de imagem, nunca para falha de refeição.
 - Falha de leitura da preferência de imagem anotada deve degradar para o estado desabilitado, com diagnóstico sanitizado e sem impedir análise, persistência da foto original, registro ou resposta textual.
-- Rodar smoke test web e WhatsApp antes de ativar em produção.
+- Rodar smoke test web e WhatsApp antes de ativar mudança operacional de provider/modelo em produção.
 
-## Fundação multi-provider de IA por capacidade (#921)
+## Fundação multi-provider de IA por capacidade (#921/#960)
 
 `server/_core/ai/` define o registro de capacidades, a matriz de suporte, o resolvedor e o executor comum:
 
@@ -143,16 +145,16 @@ pnpm db:check-integrity
 - `OPENAI_BASE_URL` não vazio ativa automaticamente o modo `openai-compatible`; o endpoint começa sem operações suportadas e exige allowlist explícita em `AI_OPENAI_COMPATIBLE_OPERATIONS`.
 - Timeout e tentativas inválidos tornam a capacidade `invalid`; não são aceitos como configuração pronta.
 - O executor rejeita estados `invalid` e `disabled`, limites não positivos/não inteiros e fallback habilitado sem callback antes de qualquer chamada. Estado `degraded` só executa quando o primário continua válido.
-- Variáveis novas prevalecem sobre variáveis legadas. Para os fluxos de texto/visão, a compatibilidade preserva `OPENAI_MODEL` ou `GEMINI_MODEL` conforme o provider efetivo.
+- A seleção usa exclusivamente `AI_<CAPABILITY>_*` quando configurado e, caso contrário, o default versionado da capacidade. Aliases globais/modelos antigos não participam mais da resolução desde a #960.
 - O fallback usa modelo próprio do provider de destino. Um modelo do primário nunca é reutilizado silenciosamente em provider diferente. Em `NODE_ENV=production`, fallback cross-provider permanece inelegível mesmo com opt-in explícito: a #927 não aprovou essa promoção, que exige nova evidência, revisão de privacidade e autorização operacional por capacidade; fallback same-provider continua seguindo a política da capacidade.
 - Erros concretos de SDK/HTTP/rede são classificados pelo executor. Timeout, rede, rate limit recuperável, saída vazia, JSON inválido e payload inválido podem acionar a política limitada; autenticação, modelo ausente, bloqueio de segurança, configuração inválida e erro desconhecido não acionam segundo provider.
 - Cada tentativa recebe `AbortSignal`; o contrato `AiProvider` e os adapters OpenAI/Gemini propagam o sinal para a chamada do SDK. Depois do timeout, o executor aguarda o encerramento local da chamada antes de retry/fallback; se a chamada não reconhecer o cancelamento na janela definida, a execução termina sem nova chamada. O cancelamento do cliente não deve ser interpretado como garantia de interrupção do processamento remoto ou de ausência de cobrança pelo provider.
 - `MAX_ATTEMPTS` é o total de chamadas do primário. Depois delas, existe no máximo uma chamada de fallback, sem retorno ao primário e sem cadeia adicional.
 - Escalonamento de qualidade é política separada e não é ativado nesta fase.
 - Degradação funcional local, como busca não semântica ou anotação local, não é fallback de provider.
-- O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. O consumidor legado de refeições possui testes pelo entrypoint real para texto e para o data URL inline de imagem produzido pelo WhatsApp.
+- O adapter Gemini usa `models.generateContent` com `responseJsonSchema`, preservando recursos dos schemas reais do projeto, como `additionalProperties: false`, nulabilidade e limites numéricos. Os consumidores de refeições possuem testes pelos entrypoints reais para texto e para o data URL inline de imagem produzido pelo WhatsApp.
 - Respostas textuais e de embeddings podem expor metadados normalizados de usage; conteúdo sensível e valores de segredo não entram nos diagnósticos.
-- Nenhum consumidor existente foi migrado para o novo resolvedor na issue #921.
+- Os consumidores migrados em #922-#925 e o helper `imageGeneration.ts` alinhado em #960 devem reutilizar a fundação comum; não criar factory/selector paralelo por consumidor.
 
 ## Mutações multirrefeição pelo WhatsApp
 
@@ -170,7 +172,7 @@ Solicitações compostas de ajuste ou substituição usam uma unidade lógica co
 
 ## Consumidores migrados em #923
 
-`QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Em `QUESTION`, `AI_QUESTION_WEB_SEARCH_MODE=auto` oferece a ferramenta sem forçá-la; `disabled` (e o alias legado `off`) não envia a ferramenta, e valores desconhecidos falham fechados. Em `NUTRITION_SEARCH`, o resolvedor também valida a combinação provider + modelo + operações: Gemini 2.5 continua elegível para `QUESTION`, mas é rejeitado para Structured Output + Google Search na mesma chamada; apenas um Gemini 3 explicitamente aprovado pode executar essa combinação, e a #927 preservou os defaults por falta de comparação live suficiente. Fonte insuficiente, ferramenta não executada, citação sem suporte à evidência ou incompatibilidade de marca, produto, sabor, peso ou embalagem degrada para o fallback nutricional canônico local, sem probe, retry ou fallback externo oculto dentro da tentativa do executor. Variantes ou medidas presentes apenas no candidato são tratadas como ambiguidade, não como correspondência. JSON/payload inválido pode consumir retry/fallback operacional; `found=false` é resultado funcional e não provoca segunda consulta. `EMBEDDING` indisponível ou com espaço vetorial divergente degrada para busca textual/canônica; Gemini segue inelegível por não anunciar `embeddings`.
+`QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Em `QUESTION`, `AI_QUESTION_WEB_SEARCH_MODE=auto` oferece a ferramenta sem forçá-la; `disabled` (e o alias legado `off` do modo de pesquisa) não envia a ferramenta, e valores desconhecidos falham fechados. Em `NUTRITION_SEARCH`, o resolvedor também valida a combinação provider + modelo + operações: Gemini 2.5 continua elegível para `QUESTION`, mas é rejeitado para Structured Output + Google Search na mesma chamada; apenas um Gemini 3 explicitamente aprovado pode executar essa combinação, e a #927 preservou os defaults por falta de comparação live suficiente. Fonte insuficiente, ferramenta não executada, citação sem suporte à evidência ou incompatibilidade de marca, produto, sabor, peso ou embalagem degrada para o fallback nutricional canônico local, sem probe, retry ou fallback externo oculto dentro da tentativa do executor. Variantes ou medidas presentes apenas no candidato são tratadas como ambiguidade, não como correspondência. JSON/payload inválido pode consumir retry/fallback operacional; `found=false` é resultado funcional e não provoca segunda consulta. `EMBEDDING` indisponível ou com espaço vetorial divergente degrada para busca textual/canônica; Gemini segue inelegível por não anunciar `embeddings`.
 
 ## Consumidor migrado em #924
 
@@ -180,7 +182,7 @@ A regressão do WhatsApp é comportamental: duas entregas do mesmo callback resu
 
 Antes de promover modelo em produção, executar `pnpm agent:check`, `pnpm build`, o smoke controlado e o benchmark real descrito em `docs/benchmarks/transcription/results/README.md`. A comparação não altera o default automaticamente.
 
-## Consumidor migrado em #925
+## Consumidor migrado em #925 e alinhado em #960
 
 `IMAGE_ANNOTATION` possui três modos especializados e independentes de `MEAL_VISION`:
 
@@ -189,6 +191,8 @@ Antes de promover modelo em produção, executar `pnpm agent:check`, `pnpm build
 - `off` encerra sem derivado.
 
 Falha externa só degrada para local com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; essa transição é degradação funcional e não fallback de provider. Falhas de configuração, provider, renderização local, upload ou envio do derivado não bloqueiam resposta textual, confirmação nem persistência da refeição. O original nunca é sobrescrito ou removido, e cartão-resumo separado não pode ser usado para mascarar ausência de anotação.
+
+O helper `server/_core/imageGeneration.ts` também resolve `IMAGE_ANNOTATION` quando executa geração/edição externa e mantém o fallback PNG local já existente. Não possui factory ou seleção global própria desde a #960.
 
 O gate discriminante inclui: default local sem rede mesmo quando a visão usa outro provider; derivado separado com dimensões preservadas; input inválido rejeitado antes de Sharp/storage/provider; same-provider fallback único; cross-provider sem flag não cria adapter; logs e respostas sem foto, base64, URL, prompt, segredo ou erro bruto. Rollout e rollback ficam documentados em `docs/design-docs/image-annotation-capability.md`.
 

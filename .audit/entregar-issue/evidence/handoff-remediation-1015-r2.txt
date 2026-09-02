@@ -1,0 +1,22 @@
+PR 1015 handoff-only remediation evidence
+material_head_sha=ba567cf95a3dda430bb8dda9e6cb09f624873942
+audited_published_head_sha=b96fcab1f628349b1577795a07651c05d1692406
+latest_rejection_id=audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014
+audit_source_sha256=a7ba7992190c647360575c2cf7647ee39a9c06a8c80c01634122d69111c2ec25
+work_item_start_sha=05c62369f78e8a812ca769a94b3eb5471c8d3faa
+work_item_scope_path_count=72
+cumulative_escape_count=15
+semantic_effect_control_count=102
+focused_validation_status=passed
+
+Focused validator output:
+## validate audit remediation
+READY: 4 actionable audit items closed on ba567cf95a3dda430bb8dda9e6cb09f624873942
+## validate learning
+READY: rejection learning is closed and generalized
+## validate independent rejection closure
+READY: independent rejection audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014 is explicitly closed in the cumulative audit escape ledger
+## validate escape lineage
+READY: audit escape closure is complete and monotonic
+## validate risk saturation
+READY: canonical risk families, attack surfaces and audit-escape dimensions are saturated
