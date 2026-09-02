@@ -281,7 +281,8 @@ export default function ProfessionalOperationalAlertsPanel({
                   <TooltipContent side="top" className="max-w-xs">
                     Marca esta pendência como tratada e a remove da lista de
                     pendências abertas. Não executa a ação sugerida nem altera
-                    os dados do paciente.
+                    os dados do paciente. Se a condição continuar, uma nova
+                    pendência poderá aparecer em uma reavaliação futura.
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
