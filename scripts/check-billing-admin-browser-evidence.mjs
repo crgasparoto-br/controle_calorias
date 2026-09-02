@@ -20,6 +20,7 @@ const inactiveQueryPaths = [
   "usageGovernance.analytics", "usageGovernance.adminOverview", "usageGovernance.adminEconomicRows",
   "usageGovernance.consumptionChargingAuthorizations", "billing.adminRolloutOverview",
 ];
+const expectedTabs = ["Visão geral", "Acessos", "Comercial", "Governança", "Rollout", "Manual"];
 
 try {
   const viewportEvidence = [];
@@ -27,7 +28,7 @@ try {
     await navigate(url, viewport.width, viewport.height);
     const initial = await waitFor(state => state.title && state.overview, `${viewport.name}: initial overview`);
     if (initial.overflow) throw new Error(`${viewport.name}: root horizontal overflow detected`);
-    if (initial.tabs.length !== 5 || initial.tabs[0]?.selected !== "true") throw new Error(`${viewport.name}: expected five tabs with Visão geral selected`);
+    if (initial.tabs.length !== expectedTabs.length || initial.tabs[0]?.selected !== "true" || initial.tabs.some((tab, index) => tab.text !== expectedTabs[index])) throw new Error(`${viewport.name}: expected tabs ${expectedTabs.join(', ')} with Visão geral selected`);
     const mountedTooEarly = inactiveQueryPaths.filter(queryPath => (initial.queries[queryPath] ?? 0) > 0);
     if (mountedTooEarly.length) throw new Error(`${viewport.name}: inactive areas queried on initial render: ${mountedTooEarly.join(', ')}`);
     if ((initial.queries["billing.adminAnalytics"] ?? 0) < 1) throw new Error(`${viewport.name}: adminAnalytics was not used by overview`);

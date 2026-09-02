@@ -4,6 +4,7 @@ import BillingCampaignAdminPanel from "@/components/admin/BillingCampaignAdminPa
 import BillingCatalogAdminPanel from "@/components/admin/BillingCatalogAdminPanel";
 import BillingEconomicIdentityPanel from "@/components/admin/BillingEconomicIdentityPanel";
 import BillingGovernanceAdminPanel from "@/components/admin/BillingGovernanceAdminPanel";
+import BillingManualPanel from "@/components/admin/BillingManualPanel";
 import BillingRolloutAdminPanel from "@/components/admin/BillingRolloutAdminPanel";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageIntro from "@/components/PageIntro";
@@ -14,7 +15,13 @@ import { Settings } from "lucide-react";
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 
-type BillingAdminArea = "overview" | "access" | "commercial" | "governance" | "rollout";
+type BillingAdminArea =
+  | "overview"
+  | "access"
+  | "commercial"
+  | "governance"
+  | "rollout"
+  | "manual";
 
 const AREA_TABS: Array<{ value: BillingAdminArea; label: string }> = [
   { value: "overview", label: "Visão geral" },
@@ -22,6 +29,7 @@ const AREA_TABS: Array<{ value: BillingAdminArea; label: string }> = [
   { value: "commercial", label: "Comercial" },
   { value: "governance", label: "Governança" },
   { value: "rollout", label: "Rollout" },
+  { value: "manual", label: "Manual" },
 ];
 
 function formatMetric(value: number | undefined, state: { isLoading: boolean; isError: boolean }) {
@@ -136,6 +144,9 @@ export default function AdminBillingPage() {
           </TabsContent>
           <TabsContent value="rollout" className="mt-0 space-y-6">
             {activeArea === "rollout" ? <BillingRolloutAdminPanel /> : null}
+          </TabsContent>
+          <TabsContent value="manual" className="mt-0 space-y-6">
+            {activeArea === "manual" ? <BillingManualPanel /> : null}
           </TabsContent>
         </Tabs>
       </div>
