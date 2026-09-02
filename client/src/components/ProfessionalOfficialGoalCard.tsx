@@ -1,7 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, RotateCcw, Stethoscope, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Plus,
+  RotateCcw,
+  Stethoscope,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import {
+  formatDecimalInputPtBr,
+  formatGrams,
+  formatPercentPtBr,
+  parseDecimalInputPtBr,
+} from "@/lib/numberFormat";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,27 +24,44 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-export type ProfessionalOfficialGoalDraftException = {
-  weekday: number;
-  durationType: "1_week" | "2_weeks" | "3_weeks" | "always";
-  calories: string;
-  proteinGrams: string;
-  carbsGrams: string;
-  fatGrams: string;
-};
+export type ProfessionalMacroInputMode = "grams" | "percent";
+
+type ProfessionalMacroPercentField =
+  | "proteinPercent"
+  | "carbsPercent"
+  | "fatPercent";
+type ProfessionalMacroGramField =
+  | "proteinGrams"
+  | "carbsGrams"
+  | "fatGrams";
+type ProfessionalGoalValueField = "calories" | ProfessionalMacroGramField;
 
 export type ProfessionalOfficialGoalTarget = {
   calories: string;
   proteinGrams: string;
   carbsGrams: string;
   fatGrams: string;
+  inputMode: ProfessionalMacroInputMode;
+  proteinPercent: number;
+  carbsPercent: number;
+  fatPercent: number;
 };
+
+export type ProfessionalOfficialGoalDraftException =
+  ProfessionalOfficialGoalTarget & {
+    weekday: number;
+    durationType: "1_week" | "2_weeks" | "3_weeks" | "always";
+  };
 
 const emptyTarget: ProfessionalOfficialGoalTarget = {
   calories: "",
   proteinGrams: "",
   carbsGrams: "",
   fatGrams: "",
+  inputMode: "grams",
+  proteinPercent: 0,
+  carbsPercent: 0,
+  fatPercent: 0,
 };
 
 export type ProfessionalOfficialGoalDraft = {
@@ -54,6 +83,211 @@ export function createEmptyProfessionalOfficialGoalDraft(): ProfessionalOfficial
     exceptions: [],
     sourceGoalId: null,
     touched: false,
+  };
+}
+
+function roundToOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function macroPercentagesFromGoal(
+  goal: Pick<
+    ProfessionalOfficialGoalTarget,
+    "proteinGrams" | "carbsGrams" | "fatGrams"
+  >
+) {
+  const proteinCalories = Number(goal.proteinGrams) * 4;
+  const carbsCalories = Number(goal.carbsGrams) * 4;
+  const fatCalories = Number(goal.fatGrams) * 9;
+  const totalMacroCalories = proteinCalories + carbsCalories + fatCalories;
+
+  if (!totalMacroCalories) {
+    return {
+      proteinPercent: 0,
+      carbsPercent: 0,
+      fatPercent: 0,
+    };
+  }
+
+  const proteinPercent = roundToOneDecimal(
+    (proteinCalories / totalMacroCalories) * 100
+  );
+  const carbsPercent = roundToOneDecimal(
+    (carbsCalories / totalMacroCalories) * 100
+  );
+  const fatPercent = roundToOneDecimal(
+    Math.max(0, 100 - proteinPercent - carbsPercent)
+  );
+
+  return {
+    proteinPercent,
+    carbsPercent,
+    fatPercent,
+  };
+}
+
+function normalizeGoalTarget(
+  target: ProfessionalOfficialGoalTarget
+): ProfessionalOfficialGoalTarget {
+  const stored = target as Partial<ProfessionalOfficialGoalTarget>;
+  const base = {
+    calories: stored.calories ?? "",
+    proteinGrams: stored.proteinGrams ?? "",
+    carbsGrams: stored.carbsGrams ?? "",
+    fatGrams: stored.fatGrams ?? "",
+  };
+  const derived = macroPercentagesFromGoal({
+    ...emptyTarget,
+    ...base,
+  });
+
+  return {
+    ...base,
+    inputMode: stored.inputMode === "percent" ? "percent" : "grams",
+    proteinPercent: Number.isFinite(stored.proteinPercent)
+      ? Number(stored.proteinPercent)
+      : derived.proteinPercent,
+    carbsPercent: Number.isFinite(stored.carbsPercent)
+      ? Number(stored.carbsPercent)
+      : derived.carbsPercent,
+    fatPercent: Number.isFinite(stored.fatPercent)
+      ? Number(stored.fatPercent)
+      : derived.fatPercent,
+  };
+}
+
+function createGoalTarget(
+  goal: Pick<
+    ProfessionalOfficialGoalTarget,
+    "calories" | "proteinGrams" | "carbsGrams" | "fatGrams"
+  >,
+  inputMode: ProfessionalMacroInputMode = "grams"
+): ProfessionalOfficialGoalTarget {
+  const target = normalizeGoalTarget({
+    ...goal,
+    inputMode,
+    proteinPercent: 0,
+    carbsPercent: 0,
+    fatPercent: 0,
+  });
+  const percentages = macroPercentagesFromGoal(target);
+  const withPercentages = { ...target, ...percentages, inputMode };
+  return inputMode === "percent"
+    ? applyPercentagesToGoal(withPercentages, percentages)
+    : withPercentages;
+}
+
+function applyPercentagesToGoal(
+  goal: ProfessionalOfficialGoalTarget,
+  percentages: Pick<
+    ProfessionalOfficialGoalTarget,
+    "proteinPercent" | "carbsPercent" | "fatPercent"
+  >
+): ProfessionalOfficialGoalTarget {
+  const calories = Math.max(0, Number(goal.calories));
+  const proteinPercent = roundToOneDecimal(percentages.proteinPercent);
+  const carbsPercent = roundToOneDecimal(percentages.carbsPercent);
+  const fatPercent = roundToOneDecimal(percentages.fatPercent);
+
+  return {
+    ...goal,
+    proteinPercent,
+    carbsPercent,
+    fatPercent,
+    proteinGrams: String(
+      Math.round((calories * (proteinPercent / 100)) / 4)
+    ),
+    carbsGrams: String(Math.round((calories * (carbsPercent / 100)) / 4)),
+    fatGrams: String(Math.round((calories * (fatPercent / 100)) / 9)),
+  };
+}
+
+function updateGoalValueField(
+  current: ProfessionalOfficialGoalTarget,
+  field: ProfessionalGoalValueField,
+  value: string
+) {
+  const normalized = normalizeGoalTarget(current);
+  const nextGoal = { ...normalized, [field]: value };
+
+  if (field === "calories" && normalized.inputMode === "percent") {
+    return applyPercentagesToGoal(nextGoal, {
+      proteinPercent: normalized.proteinPercent,
+      carbsPercent: normalized.carbsPercent,
+      fatPercent: normalized.fatPercent,
+    });
+  }
+
+  return {
+    ...nextGoal,
+    ...macroPercentagesFromGoal(nextGoal),
+  };
+}
+
+function updateGoalPercent(
+  current: ProfessionalOfficialGoalTarget,
+  field: ProfessionalMacroPercentField,
+  value: number
+) {
+  const normalized = normalizeGoalTarget(current);
+  return applyPercentagesToGoal(
+    { ...normalized, inputMode: "percent" },
+    {
+      proteinPercent:
+        field === "proteinPercent" ? value : normalized.proteinPercent,
+      carbsPercent:
+        field === "carbsPercent" ? value : normalized.carbsPercent,
+      fatPercent: field === "fatPercent" ? value : normalized.fatPercent,
+    }
+  );
+}
+
+function updateGoalInputMode(
+  current: ProfessionalOfficialGoalTarget,
+  mode: ProfessionalMacroInputMode
+) {
+  const normalized = normalizeGoalTarget(current);
+  if (mode === normalized.inputMode) return normalized;
+
+  if (mode === "percent") {
+    return applyPercentagesToGoal(
+      { ...normalized, inputMode: mode },
+      {
+        proteinPercent: normalized.proteinPercent,
+        carbsPercent: normalized.carbsPercent,
+        fatPercent: normalized.fatPercent,
+      }
+    );
+  }
+
+  return {
+    ...normalized,
+    inputMode: mode,
+    ...macroPercentagesFromGoal(normalized),
+  };
+}
+
+function percentSum(goal: ProfessionalOfficialGoalTarget) {
+  const normalized = normalizeGoalTarget(goal);
+  return roundToOneDecimal(
+    normalized.proteinPercent +
+      normalized.carbsPercent +
+      normalized.fatPercent
+  );
+}
+
+function percentModeValid(goal: ProfessionalOfficialGoalTarget) {
+  const normalized = normalizeGoalTarget(goal);
+  return normalized.inputMode !== "percent" || percentSum(normalized) === 100;
+}
+
+function normalizeException(
+  item: ProfessionalOfficialGoalDraftException
+): ProfessionalOfficialGoalDraftException {
+  return {
+    weekday: item.weekday,
+    durationType: item.durationType,
+    ...normalizeGoalTarget(item),
   };
 }
 
@@ -114,6 +348,195 @@ function goalOriginLabel(origin: string) {
   return origin === "professional" ? "Profissional" : "Não informada";
 }
 
+function MacroModeSelector({
+  mode,
+  onChange,
+  disabled,
+  ariaLabel,
+}: {
+  mode: ProfessionalMacroInputMode;
+  onChange: (mode: ProfessionalMacroInputMode) => void;
+  disabled: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-background p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium tracking-tight">
+            Como preencher os macronutrientes
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Use gramas quando já souber os valores. Use percentual das calorias
+            do dia quando quiser dividir a meta entre proteínas, carboidratos e
+            gorduras.
+          </p>
+        </div>
+        <div
+          role="group"
+          aria-label={ariaLabel}
+          className="flex rounded-full bg-muted p-1"
+        >
+          <button
+            type="button"
+            disabled={disabled}
+            aria-pressed={mode === "grams"}
+            className={`rounded-full px-4 py-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${mode === "grams" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+            onClick={() => onChange("grams")}
+          >
+            Por gramas
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            aria-pressed={mode === "percent"}
+            className={`rounded-full px-4 py-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${mode === "percent" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+            onClick={() => onChange("percent")}
+          >
+            Por percentual
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CaloriesField({
+  value,
+  onChange,
+  disabled,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <label className="grid gap-1 text-sm">
+      <span className="font-medium">Calorias (kcal)</span>
+      <Input
+        aria-label={ariaLabel}
+        type="number"
+        min={1}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function MacroField({
+  label,
+  ariaLabel,
+  mode,
+  grams,
+  percent,
+  onGramChange,
+  onPercentChange,
+  disabled,
+}: {
+  label: string;
+  ariaLabel: string;
+  mode: ProfessionalMacroInputMode;
+  grams: string;
+  percent: number;
+  onGramChange: (value: string) => void;
+  onPercentChange: (value: number) => void;
+  disabled: boolean;
+}) {
+  const formattedPercent = formatDecimalInputPtBr(percent, 1);
+  const [percentInputValue, setPercentInputValue] = useState(formattedPercent);
+  const [isPercentFocused, setIsPercentFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isPercentFocused) {
+      setPercentInputValue(formattedPercent);
+    }
+  }, [formattedPercent, isPercentFocused]);
+
+  function handlePercentChange(value: string) {
+    setPercentInputValue(value);
+    onPercentChange(parseDecimalInputPtBr(value));
+  }
+
+  function handlePercentBlur() {
+    setIsPercentFocused(false);
+    setPercentInputValue(formatDecimalInputPtBr(percent, 1));
+  }
+
+  return (
+    <label className="grid gap-1 text-sm">
+      <span className="font-medium">{label}</span>
+      <div className="flex items-center gap-3">
+        {mode === "grams" ? (
+          <Input
+            aria-label={ariaLabel}
+            type="number"
+            min={1}
+            value={grams}
+            onChange={event => onGramChange(event.target.value)}
+            disabled={disabled}
+          />
+        ) : (
+          <Input
+            aria-label={ariaLabel}
+            type="text"
+            inputMode="decimal"
+            value={percentInputValue}
+            onFocus={() => setIsPercentFocused(true)}
+            onChange={event => handlePercentChange(event.target.value)}
+            onBlur={handlePercentBlur}
+            disabled={disabled}
+          />
+        )}
+        <span className="text-sm text-muted-foreground">
+          {mode === "grams" ? "g" : "%"}
+        </span>
+      </div>
+      {mode === "percent" ? (
+        <span className="text-xs text-muted-foreground">
+          Calculado automaticamente pela meta calórica: {formatGrams(Number(grams))}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function PercentValidationNote({
+  goal,
+}: {
+  goal: ProfessionalOfficialGoalTarget;
+}) {
+  const normalized = normalizeGoalTarget(goal);
+  if (normalized.inputMode !== "percent") return null;
+
+  const sum = percentSum(normalized);
+  const isValid = sum === 100;
+
+  return (
+    <div
+      role={isValid ? "status" : "alert"}
+      className={`rounded-2xl border p-4 text-sm ${isValid ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-destructive/30 bg-destructive/5 text-destructive"}`}
+    >
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <p className="font-medium tracking-tight">
+            Distribuição dos macronutrientes
+          </p>
+          <p>
+            A soma atual é de <strong>{formatPercentPtBr(sum, 1)}%</strong>.
+            Para ativar por percentual, proteínas, carboidratos e gorduras
+            precisam somar exatamente <strong>100%</strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfessionalOfficialGoalCard({
   patientId,
   disabled,
@@ -159,27 +582,40 @@ export default function ProfessionalOfficialGoalCard({
     if (!current || draft.touched || draft.sourceGoalId === current.id) return;
     onDraftChange(existing => ({
       ...existing,
-      target: {
-        calories: String(current.calories),
-        proteinGrams: String(current.proteinGrams),
-        carbsGrams: String(current.carbsGrams),
-        fatGrams: String(current.fatGrams),
-      },
+      target: createGoalTarget(
+        {
+          calories: String(current.calories),
+          proteinGrams: String(current.proteinGrams),
+          carbsGrams: String(current.carbsGrams),
+          fatGrams: String(current.fatGrams),
+        },
+        "grams"
+      ),
       effectiveFrom: tomorrowAfter(current.effectiveFrom),
       includeExerciseCalories: current.includeExerciseCalories,
       sourceGoalId: current.id,
       touched: false,
     }));
   }, [current, draft.sourceGoalId, draft.touched, onDraftChange]);
-  const { target, effectiveFrom, justification, includeExerciseCalories } =
-    draft;
-  const exceptions = draft.exceptions;
+  const target = useMemo(() => normalizeGoalTarget(draft.target), [draft.target]);
+  const { effectiveFrom, justification, includeExerciseCalories } = draft;
+  const exceptions = useMemo(
+    () => draft.exceptions.map(normalizeException),
+    [draft.exceptions]
+  );
   const valid = useMemo(
     () =>
-      Object.values(target).every(value => Number(value) > 0) &&
+      [
+        target.calories,
+        target.proteinGrams,
+        target.carbsGrams,
+        target.fatGrams,
+      ].every(value => Number(value) > 0) &&
+      percentModeValid(target) &&
+      exceptions.every(percentModeValid) &&
       justification.trim().length >= 3 &&
       Boolean(effectiveFrom),
-    [effectiveFrom, justification, target]
+    [effectiveFrom, exceptions, justification, target]
   );
   const refresh = async () => {
     await Promise.all([
@@ -223,17 +659,60 @@ export default function ProfessionalOfficialGoalCard({
       ...updater(currentDraft),
       touched: true,
     }));
-  const updateTarget = (field: keyof typeof target, value: string) =>
+  const updateTargetField = (
+    field: ProfessionalGoalValueField,
+    value: string
+  ) =>
     updateDraft(currentDraft => ({
       ...currentDraft,
-      target: { ...currentDraft.target, [field]: value },
+      target: updateGoalValueField(
+        normalizeGoalTarget(currentDraft.target),
+        field,
+        value
+      ),
+    }));
+  const updateTargetPercent = (
+    field: ProfessionalMacroPercentField,
+    value: number
+  ) =>
+    updateDraft(currentDraft => ({
+      ...currentDraft,
+      target: updateGoalPercent(
+        normalizeGoalTarget(currentDraft.target),
+        field,
+        value
+      ),
+    }));
+  const updateTargetInputMode = (mode: ProfessionalMacroInputMode) =>
+    updateDraft(currentDraft => ({
+      ...currentDraft,
+      target: updateGoalInputMode(
+        normalizeGoalTarget(currentDraft.target),
+        mode
+      ),
+    }));
+  const updateException = (
+    index: number,
+    updater: (
+      item: ProfessionalOfficialGoalDraftException
+    ) => ProfessionalOfficialGoalDraftException
+  ) =>
+    updateDraft(currentDraft => ({
+      ...currentDraft,
+      exceptions: currentDraft.exceptions.map((value, itemIndex) =>
+        itemIndex === index ? updater(normalizeException(value)) : value
+      ),
     }));
   const addException = () =>
     updateDraft(currentDraft => ({
       ...currentDraft,
       exceptions: [
         ...currentDraft.exceptions,
-        { weekday: 0, durationType: "always", ...currentDraft.target },
+        {
+          weekday: 0,
+          durationType: "always",
+          ...normalizeGoalTarget(currentDraft.target),
+        },
       ],
     }));
 
@@ -467,31 +946,55 @@ export default function ProfessionalOfficialGoalCard({
             </nav>
           ) : null}
         </section>
+
+        <MacroModeSelector
+          mode={target.inputMode}
+          onChange={updateTargetInputMode}
+          disabled={disabled}
+          ariaLabel="Modo de preenchimento da meta padrão"
+        />
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {(
-            ["calories", "proteinGrams", "carbsGrams", "fatGrams"] as const
-          ).map((field, index) => (
-            <label key={field} className="grid gap-1 text-sm">
-              <span className="font-medium">
-                {
-                  [
-                    "Calorias (kcal)",
-                    "Proteínas (g)",
-                    "Carboidratos (g)",
-                    "Gorduras (g)",
-                  ][index]
-                }
-              </span>
-              <Input
-                type="number"
-                min={1}
-                value={target[field]}
-                onChange={event => updateTarget(field, event.target.value)}
-                disabled={disabled}
-              />
-            </label>
-          ))}
+          <CaloriesField
+            value={target.calories}
+            onChange={value => updateTargetField("calories", value)}
+            disabled={disabled}
+            ariaLabel="Calorias (kcal)"
+          />
+          <MacroField
+            label="Proteínas"
+            ariaLabel="Proteínas"
+            mode={target.inputMode}
+            grams={target.proteinGrams}
+            percent={target.proteinPercent}
+            onGramChange={value => updateTargetField("proteinGrams", value)}
+            onPercentChange={value =>
+              updateTargetPercent("proteinPercent", value)
+            }
+            disabled={disabled}
+          />
+          <MacroField
+            label="Carboidratos"
+            ariaLabel="Carboidratos"
+            mode={target.inputMode}
+            grams={target.carbsGrams}
+            percent={target.carbsPercent}
+            onGramChange={value => updateTargetField("carbsGrams", value)}
+            onPercentChange={value => updateTargetPercent("carbsPercent", value)}
+            disabled={disabled}
+          />
+          <MacroField
+            label="Gorduras"
+            ariaLabel="Gorduras"
+            mode={target.inputMode}
+            grams={target.fatGrams}
+            percent={target.fatPercent}
+            onGramChange={value => updateTargetField("fatGrams", value)}
+            onPercentChange={value => updateTargetPercent("fatPercent", value)}
+            disabled={disabled}
+          />
         </div>
+        <PercentValidationNote goal={target} />
+
         <div className="grid gap-3 md:grid-cols-2">
           <label className="grid gap-1 text-sm">
             <span className="font-medium">Início da vigência</span>
@@ -525,6 +1028,7 @@ export default function ProfessionalOfficialGoalCard({
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Justificativa profissional</span>
           <textarea
+            aria-label="Justificativa profissional"
             className="min-h-24 rounded-md border bg-background p-3"
             value={justification}
             onChange={event =>
@@ -560,106 +1064,174 @@ export default function ProfessionalOfficialGoalCard({
             </Button>
           </div>
           {exceptions.map((item, index) => (
-            <div
-              key={index}
-              className="grid gap-2 rounded-md border p-3 md:grid-cols-6"
-            >
-              <select
-                aria-label={`Dia da exceção ${index + 1}`}
-                className="h-10 rounded-md border bg-background px-2 text-sm"
-                value={item.weekday}
-                disabled={disabled}
-                onChange={event =>
-                  updateDraft(currentDraft => ({
-                    ...currentDraft,
-                    exceptions: currentDraft.exceptions.map(
-                      (value, itemIndex) =>
-                        itemIndex === index
-                          ? { ...value, weekday: Number(event.target.value) }
-                          : value
-                    ),
-                  }))
-                }
-              >
-                {[
-                  "Segunda",
-                  "Terça",
-                  "Quarta",
-                  "Quinta",
-                  "Sexta",
-                  "Sábado",
-                  "Domingo",
-                ].map((label, weekday) => (
-                  <option key={label} value={weekday}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label={`Duração da exceção ${index + 1}`}
-                className="h-10 rounded-md border bg-background px-2 text-sm"
-                value={item.durationType}
-                disabled={disabled}
-                onChange={event =>
-                  updateDraft(currentDraft => ({
-                    ...currentDraft,
-                    exceptions: currentDraft.exceptions.map(
-                      (value, itemIndex) =>
-                        itemIndex === index
-                          ? {
-                              ...value,
-                              durationType: event.target
-                                .value as ProfessionalOfficialGoalDraftException["durationType"],
-                            }
-                          : value
-                    ),
-                  }))
-                }
-              >
-                <option value="1_week">1 semana</option>
-                <option value="2_weeks">2 semanas</option>
-                <option value="3_weeks">3 semanas</option>
-                <option value="always">Sempre</option>
-              </select>
-              {(
-                ["calories", "proteinGrams", "carbsGrams", "fatGrams"] as const
-              ).map(field => (
-                <Input
-                  key={field}
-                  aria-label={`${field} da exceção ${index + 1}`}
-                  type="number"
-                  min={1}
-                  value={item[field]}
+            <div key={index} className="space-y-3 rounded-md border p-3">
+              <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                <select
+                  aria-label={`Dia da exceção ${index + 1}`}
+                  className="h-10 rounded-md border bg-background px-2 text-sm"
+                  value={item.weekday}
                   disabled={disabled}
                   onChange={event =>
+                    updateException(index, value => ({
+                      ...value,
+                      weekday: Number(event.target.value),
+                    }))
+                  }
+                >
+                  {[
+                    "Segunda",
+                    "Terça",
+                    "Quarta",
+                    "Quinta",
+                    "Sexta",
+                    "Sábado",
+                    "Domingo",
+                  ].map((label, weekday) => (
+                    <option key={label} value={weekday}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label={`Duração da exceção ${index + 1}`}
+                  className="h-10 rounded-md border bg-background px-2 text-sm"
+                  value={item.durationType}
+                  disabled={disabled}
+                  onChange={event =>
+                    updateException(index, value => ({
+                      ...value,
+                      durationType: event.target
+                        .value as ProfessionalOfficialGoalDraftException["durationType"],
+                    }))
+                  }
+                >
+                  <option value="1_week">1 semana</option>
+                  <option value="2_weeks">2 semanas</option>
+                  <option value="3_weeks">3 semanas</option>
+                  <option value="always">Sempre</option>
+                </select>
+                <Button
+                  aria-label={`Remover exceção ${index + 1}`}
+                  variant="ghost"
+                  size="icon"
+                  disabled={disabled}
+                  onClick={() =>
                     updateDraft(currentDraft => ({
                       ...currentDraft,
-                      exceptions: currentDraft.exceptions.map(
-                        (value, itemIndex) =>
-                          itemIndex === index
-                            ? { ...value, [field]: event.target.value }
-                            : value
+                      exceptions: currentDraft.exceptions.filter(
+                        (_, itemIndex) => itemIndex !== index
                       ),
                     }))
                   }
-                />
-              ))}
-              <Button
-                aria-label={`Remover exceção ${index + 1}`}
-                variant="ghost"
-                size="icon"
-                disabled={disabled}
-                onClick={() =>
-                  updateDraft(currentDraft => ({
-                    ...currentDraft,
-                    exceptions: currentDraft.exceptions.filter(
-                      (_, itemIndex) => itemIndex !== index
-                    ),
-                  }))
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <MacroModeSelector
+                mode={item.inputMode}
+                onChange={mode =>
+                  updateException(index, value =>
+                    Object.assign(value, updateGoalInputMode(value, mode))
+                  )
                 }
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                disabled={disabled}
+                ariaLabel={`Modo de preenchimento da exceção ${index + 1}`}
+              />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <CaloriesField
+                  value={item.calories}
+                  onChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalValueField(currentItem, "calories", value),
+                    }))
+                  }
+                  disabled={disabled}
+                  ariaLabel={`Calorias (kcal) da exceção ${index + 1}`}
+                />
+                <MacroField
+                  label="Proteínas"
+                  ariaLabel={`Proteínas da exceção ${index + 1}`}
+                  mode={item.inputMode}
+                  grams={item.proteinGrams}
+                  percent={item.proteinPercent}
+                  onGramChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalValueField(
+                        currentItem,
+                        "proteinGrams",
+                        value
+                      ),
+                    }))
+                  }
+                  onPercentChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalPercent(
+                        currentItem,
+                        "proteinPercent",
+                        value
+                      ),
+                    }))
+                  }
+                  disabled={disabled}
+                />
+                <MacroField
+                  label="Carboidratos"
+                  ariaLabel={`Carboidratos da exceção ${index + 1}`}
+                  mode={item.inputMode}
+                  grams={item.carbsGrams}
+                  percent={item.carbsPercent}
+                  onGramChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalValueField(
+                        currentItem,
+                        "carbsGrams",
+                        value
+                      ),
+                    }))
+                  }
+                  onPercentChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalPercent(
+                        currentItem,
+                        "carbsPercent",
+                        value
+                      ),
+                    }))
+                  }
+                  disabled={disabled}
+                />
+                <MacroField
+                  label="Gorduras"
+                  ariaLabel={`Gorduras da exceção ${index + 1}`}
+                  mode={item.inputMode}
+                  grams={item.fatGrams}
+                  percent={item.fatPercent}
+                  onGramChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalValueField(
+                        currentItem,
+                        "fatGrams",
+                        value
+                      ),
+                    }))
+                  }
+                  onPercentChange={value =>
+                    updateException(index, currentItem => ({
+                      ...currentItem,
+                      ...updateGoalPercent(currentItem, "fatPercent", value),
+                    }))
+                  }
+                  disabled={disabled}
+                />
+              </div>
+              <PercentValidationNote goal={item} />
             </div>
           ))}
         </div>
