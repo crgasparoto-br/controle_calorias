@@ -43,20 +43,21 @@ function mockMealResponse() {
   });
 }
 
-describe("legacy meal consumer remains compatible with Gemini after SDK migration", () => {
+describe("Gemini capability consumers", () => {
   afterEach(() => {
     generateContentMock.mockReset();
-    delete process.env.AI_VISION_PROVIDER;
-    delete process.env.GEMINI_MODEL;
     delete process.env.GEMINI_API_KEY;
+    delete process.env.AI_MEAL_TEXT_PROVIDER;
+    delete process.env.AI_MEAL_TEXT_MODEL;
+    delete process.env.AI_MEAL_VISION_PROVIDER;
+    delete process.env.AI_MEAL_VISION_MODEL;
     delete process.env.AI_WHATSAPP_INTENT_PROVIDER;
     delete process.env.AI_WHATSAPP_INTENT_MODEL;
-    delete process.env.OPENAI_WHATSAPP_INTENT_MODEL;
   });
 
-  it("executes mealAiExtraction with its real schema, including additionalProperties and nullable brand", async () => {
-    process.env.AI_VISION_PROVIDER = "gemini";
-    process.env.GEMINI_MODEL = "gemini-legacy-custom";
+  it("executes MEAL_TEXT with its real schema on the canonical Gemini configuration", async () => {
+    process.env.AI_MEAL_TEXT_PROVIDER = "gemini";
+    process.env.AI_MEAL_TEXT_MODEL = "gemini-2.5-flash";
     process.env.GEMINI_API_KEY = "fake-key";
     mockMealResponse();
 
@@ -68,7 +69,7 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
 
     expect(result?.items[0]?.foodName).toBe("banana");
     const request = generateContentMock.mock.calls[0][0];
-    expect(request.model).toBe("gemini-legacy-custom");
+    expect(request.model).toBe("gemini-2.5-flash");
     expect(request.config.responseJsonSchema.additionalProperties).toBe(false);
     expect(request.config.responseJsonSchema.properties.items.items.properties.brand.type).toEqual([
       "string",
@@ -76,9 +77,9 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
     ]);
   });
 
-  it("passes the real inline WhatsApp image format through mealAiExtraction to Gemini", async () => {
-    process.env.AI_VISION_PROVIDER = "gemini";
-    process.env.GEMINI_MODEL = "gemini-legacy-custom";
+  it("passes the real inline WhatsApp image format through MEAL_VISION to Gemini", async () => {
+    process.env.AI_MEAL_VISION_PROVIDER = "gemini";
+    process.env.AI_MEAL_VISION_MODEL = "gemini-2.5-flash";
     process.env.GEMINI_API_KEY = "fake-key";
     mockMealResponse();
 
@@ -97,11 +98,10 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
     expect(request.config.responseJsonSchema.additionalProperties).toBe(false);
   });
 
-  it("executes WHATSAPP_INTENT with its real anyOf/additionalProperties schema on Gemini", async () => {
+  it("executes WHATSAPP_INTENT with its real schema on the canonical Gemini configuration", async () => {
     process.env.GEMINI_API_KEY = "fake-key";
     process.env.AI_WHATSAPP_INTENT_PROVIDER = "gemini";
-    process.env.AI_WHATSAPP_INTENT_MODEL = "gemini-intent";
-    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-must-not-leak";
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gemini-2.5-flash";
     generateContentMock.mockResolvedValue({
       text: JSON.stringify({
         intent: "list_meal_records",
@@ -134,10 +134,9 @@ describe("legacy meal consumer remains compatible with Gemini after SDK migratio
 
     expect(result.source).toBe("llm");
     const request = generateContentMock.mock.calls[0][0];
-    expect(request.model).toBe("gemini-intent");
+    expect(request.model).toBe("gemini-2.5-flash");
     expect(request.config.responseJsonSchema.additionalProperties).toBe(false);
     expect(request.config.responseJsonSchema.properties.meal.anyOf).toHaveLength(2);
     expect(request.config.responseJsonSchema.properties.quantity.anyOf).toHaveLength(2);
   });
-
 });

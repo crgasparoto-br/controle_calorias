@@ -121,9 +121,9 @@ describe("segurança transitiva do resumo conversacional", () => {
     vi.clearAllMocks();
     process.env.OPENAI_API_KEY = "test-openai-key";
     process.env.OPENAI_WHATSAPP_INTENT_ENABLED = "true";
-    process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
     process.env.AI_WHATSAPP_INTENT_PROVIDER = "openai";
     process.env.AI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
+    process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS = "1";
     invokeLLMMock.mockResolvedValue({
       choices: [{
         message: {

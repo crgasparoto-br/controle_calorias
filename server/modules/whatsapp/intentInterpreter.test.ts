@@ -165,16 +165,14 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
     resolvedProviderIds.length = 0;
-    process.env.OPENAI_API_KEY = "test-openai-key";
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.AI_VISION_PROVIDER;
-    delete process.env.GEMINI_MODEL;
-    delete process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
-    process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "1";
-    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
     for (const key of Object.keys(process.env)) {
       if (key.startsWith("AI_WHATSAPP_INTENT_")) delete process.env[key];
     }
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENAI_WHATSAPP_INTENT_ENABLED;
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gpt-4.1-mini";
+    process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS = "2";
   });
 
   afterEach(() => {
@@ -361,18 +359,17 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
     }));
   });
 
-  it("keeps a legacy Gemini provider paired with the Gemini model", async () => {
-    process.env.AI_VISION_PROVIDER = "gemini";
+  it("uses the canonical Gemini provider paired with its capability model", async () => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
-    process.env.GEMINI_MODEL = "gemini-intent-legacy";
-    process.env.OPENAI_WHATSAPP_INTENT_MODEL = "gpt-must-not-leak";
+    process.env.AI_WHATSAPP_INTENT_PROVIDER = "gemini";
+    process.env.AI_WHATSAPP_INTENT_MODEL = "gemini-intent-canonical";
     createTextResponseMock.mockResolvedValue({ id: "gemini", outputText: llmIntentJson(), raw: {} });
 
     const result = await interpretWhatsappMessageWithDiagnostics("registro", context);
 
     expect(result.source).toBe("llm");
     expect(resolvedProviderIds).toEqual(["gemini"]);
-    expect(createTextResponseMock.mock.calls[0][0].model).toBe("gemini-intent-legacy");
+    expect(createTextResponseMock.mock.calls[0][0].model).toBe("gemini-intent-canonical");
   });
 
   it("does not retry or invoke fallback on authentication errors", async () => {
@@ -394,7 +391,7 @@ describe("interpretWhatsappMessageWithDiagnostics", () => {
   });
 
   it("uses the resolved fallback adapter and model once after an operational failure", async () => {
-    process.env.OPENAI_WHATSAPP_INTENT_RETRIES = "0";
+    process.env.AI_WHATSAPP_INTENT_MAX_ATTEMPTS = "1";
     process.env.AI_WHATSAPP_INTENT_FALLBACK_ENABLED = "true";
     process.env.AI_WHATSAPP_INTENT_FALLBACK_PROVIDER = "gemini";
     process.env.AI_WHATSAPP_INTENT_FALLBACK_MODEL = "gemini-intent-fallback";

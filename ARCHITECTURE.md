@@ -11,7 +11,7 @@ A plataforma possui duas experiências de primeira classe — Área do Paciente 
 | Frontend               | React + Vite + Tailwind                  | Fluxos web, dashboard, formulários e visualizações                        |
 | Backend                | Express + tRPC                           | Contratos tipados, autenticação, orquestração e casos de uso              |
 | Banco                  | MySQL/TiDB + Drizzle                     | Persistência relacional, migrações e integridade referencial              |
-| IA principal           | Provider OpenAI ou Gemini (selecionável) | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
+| IA principal           | OpenAI/Gemini resolvidos por capacidade  | Transcrição, inferência nutricional multimodal e visual auxiliar opcional |
 | IA legada remanescente | Forge restrito ao assistente educativo   | Sugestões alimentares fora do fluxo principal de refeição                 |
 | Canal externo          | WhatsApp Business Cloud API              | Entrada e saída conversacional oficial                                    |
 | Testes                 | Vitest                                   | Cobertura de regras, routers e UI                                         |
@@ -27,13 +27,13 @@ server/modules/timeZone/service.ts -> resolução central do timezone efetivo po
 server/repositories/*          -> acesso a dados reutilizável por domínio
 server/_core/openaiClient.ts   -> cliente oficial da OpenAI, isolado do domínio
 server/_core/geminiProvider.ts -> implementação do provider Gemini, sobre o SDK @google/genai
-server/_core/aiProvider.ts     -> interface interna e factory global legada que seleciona o provider ativo (AI_VISION_PROVIDER)
-server/_core/ai/               -> fundação multi-provider (#921): registro, matriz, resolvedor e execução vinculada por capacidade
+server/_core/aiProvider.ts     -> contrato interno dos adapters; não seleciona provider/modelo global
+server/_core/ai/               -> fundação multi-provider (#921/#960): registro, matriz, resolvedor e execução vinculada por capacidade
 server/_core/voiceTranscription.ts -> fronteira da capacidade TRANSCRIPTION para web e WhatsApp
 server/_core/imageAnnotation.ts -> fronteira externa da capacidade IMAGE_ANNOTATION, isolada de MEAL_VISION
 server/modules/whatsapp/localMealPhotoOverlay.ts -> compositor local determinístico da anotação sobre uma cópia da foto
 server/modules/whatsapp/annotatedImage.ts -> consumidor que seleciona local, external ou off e aplica degradação explícita
-server/_core/imageGeneration.ts -> helper legado de resumo visual separado; não representa anotação da foto
+server/_core/imageGeneration.ts -> helper de resumo visual que usa IMAGE_ANNOTATION quando executa provider externo
 server/db.ts                   -> persistência legada e funções agregadoras ainda centralizadas
 drizzle/schema.ts              -> fonte de verdade do modelo relacional
 shared/*                       -> tipos, cálculos e mensagens sem dependência de ambiente
@@ -110,16 +110,16 @@ A deduplicação por `message.id` ocorre no orquestrador antes de `beginInboundM
 
 Fluxos de comunicação profissional devem reutilizar o contrato central de mensagens e o transporte oficial. Não criar cliente, formatter ou fila paralela somente para a Área Profissional.
 
-## Fundação multi-provider de IA (#921)
+## Fundação multi-provider de IA (#921/#960)
 
-`server/_core/ai/` é a fundação compartilhada para evoluir a seleção de IA de global (`AI_VISION_PROVIDER`) para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION` para `resolveCapabilityConfig` + `executeResolvedCapability`, mantendo o modo local como default seguro. A #962 concluiu posteriormente o passo operacional de implantação das configurações por capacidade no Render; os valores efetivos do ambiente não são duplicados no repositório.
+`server/_core/ai/` é a fundação compartilhada para configuração independente por capacidade. #921 criou a fundação; #922 migrou `MEAL_TEXT`, `MEAL_VISION` e `WHATSAPP_INTENT`; #923 migrou `QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING`; #924 migrou `TRANSCRIPTION`; #925 migrou o caminho externo de `IMAGE_ANNOTATION`; #962 concluiu a implantação operacional das configurações por capacidade no Render; e #960 removeu a seleção global remanescente, migrando também `imageGeneration.ts` para `IMAGE_ANNOTATION`. Os valores efetivos do ambiente não são duplicados no repositório.
 
-- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio; `IMAGE_ANNOTATION` externa exige geração e edição de imagem. `FOOD_CLASSIFICATION` permanece reservada.
+- `capabilities.ts` registra `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION`, `IMAGE_ANNOTATION` e `FOOD_CLASSIFICATION`. `QUESTION` exige texto e pesquisa web e envia somente o contrato interno estável `{ type: "web_search" }`; `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` é uma capacidade separada; `TRANSCRIPTION` exige a operação de áudio; `IMAGE_ANNOTATION` exige geração e edição de imagem quando há execução externa. `FOOD_CLASSIFICATION` permanece reservada.
 - `supportMatrix.ts` declara somente operações implementadas pelo adapter do projeto e valida combinações documentadas por modelo. No OpenAI, texto/visão/Structured Output/pesquisa web passam por `createTextResponse`, embeddings por `createEmbeddings`, transcrição por `createAudioTranscription` e geração/edição por `createImageGeneration`. Gemini declara texto, visão, Structured Output e pesquisa web, mas não anuncia embeddings nem transcrição.
 - `openai-compatible` é fail-closed. Qualquer `OPENAI_BASE_URL` não vazio faz o resolvedor aplicar automaticamente essa identidade, e somente operações explicitamente listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS` ficam disponíveis.
 - `policyDefaults.ts` concentra timeout, tentativas e janela de confirmação do cancelamento.
-- `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica `AI_<CAPABILITY>_*` novo > variável legada compatível > default equivalente ao baseline; rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
-- `providerResolver.ts` transforma somente um `AiProviderId` já resolvido no adapter correspondente; não consulta nome de modelo nem a seleção global legada.
+- `configResolver.ts` seleciona primeiro o adapter e depois o modelo; aplica exclusivamente `AI_<CAPABILITY>_*` quando configurado e, de outro modo, o default versionado da capacidade. Rejeita modelo vazio, operação incompatível e timeout/tentativas inválidos. O fallback possui modelo próprio do provider de destino e nunca reutiliza silenciosamente o modelo do primário em provider diferente.
+- `providerResolver.ts` transforma somente um `AiProviderId` já resolvido no adapter correspondente; não consulta nome de modelo nem seleção global.
 - `capabilityExecutor.ts` recebe o `ResolvedCapabilityConfig` completo e vincula provider, modelo e adapter em cada tentativa. Primário e retries permanecem no alvo primário resolvido; o fallback usa somente o provider/modelo resolvido para fallback.
 - `domainTextResponse.ts`, `domainAudioTranscription.ts` e a fronteira externa de `imageAnnotation.ts` removem `raw` do SDK antes de entregar resposta a consumidores.
 - `policyExecutor.ts` aplica timeout, retry, fallback e classificação de erro depois que a identidade da capacidade foi vinculada. Estados `disabled` e `invalid`, limites não inteiros/positivos e fallback habilitado sem alvo executável são rejeitados antes de outbound.
@@ -150,7 +150,7 @@ web / WhatsApp
 - O benchmark usa o mesmo entrypoint produtivo, seis fixtures sintéticos PT-BR, uma tentativa, sem fallback e execução sequencial. O resultado sanitizado não contém áudio, prompt nem transcrição.
 - Detalhes do contrato e do benchmark ficam em `docs/design-docs/transcription-capability.md` e `docs/benchmarks/transcription/`.
 
-### Contrato de `IMAGE_ANNOTATION` (#925)
+### Contrato de `IMAGE_ANNOTATION` (#925/#960)
 
 ```text
 WhatsApp com preferência ativa
@@ -162,10 +162,17 @@ WhatsApp com preferência ativa
                 -> AiProvider.createImageGeneration com originalImages
         -> off: não produz derivado
   -> resposta textual e refeição continuam independentes do artefato auxiliar
+
+Resumo visual auxiliar
+  -> imageGeneration.generateImage
+     -> resolveCapabilityConfig("IMAGE_ANNOTATION")
+     -> executeResolvedCapability
+     -> em indisponibilidade/falha, mantém fallback PNG local
 ```
 
-- `local` é o default e não cria adapter externo, mesmo que `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` apontem para outro provider.
-- `external` exige configuração explícita da capacidade e representa novo envio da foto ao provider de imagem.
+- `local` é o default do fluxo de anotação do WhatsApp e não cria adapter externo, independentemente da configuração de outras capacidades.
+- `external` exige configuração explícita de `IMAGE_ANNOTATION` e representa novo envio da foto ao provider de imagem.
+- `imageGeneration.ts` usa a mesma capacidade porque exerce `image_generation` e, quando há imagem original, `image_edit`; não possui selector/factory própria.
 - Uma tentativa do executor corresponde a exatamente uma operação de imagem; existe no máximo uma chamada posterior de fallback.
 - Fallback externo permanece desabilitado por padrão; provider diferente exige opt-in específico e continua bloqueado em produção. A #927 preservou `IMAGE_ANNOTATION` em modo local e não recomendou promoção externa.
 - A transição `external -> local` só ocorre com `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE=local`; é degradação funcional do consumidor, não fallback de provider.
@@ -174,9 +181,9 @@ WhatsApp com preferência ativa
 - O resultado normalizado distingue `mode`, `artifactKind`, `degradation`, `providerSource`, `attempts` e `skippedReason` sem expor foto, prompt, payload ou resposta bruta.
 - Detalhes de segurança, privacidade, rollout e rollback ficam em `docs/design-docs/image-annotation-capability.md`.
 
-**Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` e a superfície `models.generateContent`. Structured Output usa `responseJsonSchema`, preservando `additionalProperties: false`, tipos anuláveis, limites numéricos e demais recursos presentes nos schemas reais do projeto. O fluxo legado de refeição é testado pelo entrypoint `mealAiExtraction` em variantes textual e visual, usando o data URL inline realmente produzido pelo pipeline do WhatsApp. Metadados de usage são normalizados em `AiProviderTextResponse.usage` quando o provider os retorna.
+**Migração do SDK Gemini**: `server/_core/geminiProvider.ts` usa `@google/genai` e a superfície `models.generateContent`. Structured Output usa `responseJsonSchema`, preservando `additionalProperties: false`, tipos anuláveis, limites numéricos e demais recursos presentes nos schemas reais do projeto. Os fluxos de refeição são testados pelos entrypoints produtivos em variantes textual e visual, usando o data URL inline realmente produzido pelo pipeline do WhatsApp. Metadados de usage são normalizados em `AiProviderTextResponse.usage` quando o provider os retorna.
 
-**Compatibilidade legada**: `AI_VISION_PROVIDER`, `GEMINI_MODEL`, `OPENAI_MODEL` e as variáveis `OPENAI_WHATSAPP_INTENT_*` continuam disponíveis durante a transição. O provider é resolvido antes do modelo; uma variável OpenAI específica de intenção nunca sobrescreve o modelo quando o provider resolvido é Gemini. O resolvedor inclui aviso `[deprecated]` sanitizado em `diagnostics` quando usa compatibilidade legada. `TRANSCRIPTION` usa `AI_TRANSCRIPTION_*`; `IMAGE_ANNOTATION` usa seu modo e `AI_IMAGE_ANNOTATION_*`; nenhuma das duas depende de `AI_VISION_PROVIDER`.
+**Aposentadoria dos seletores globais (#960)**: provider, modelo, timeout, tentativas e fallback são resolvidos apenas pelo contrato da capacidade correspondente. Os aliases globais/modelos antigos foram removidos do runtime e da configuração operacional. `OPENAI_API_KEY`, `GEMINI_API_KEY` e `OPENAI_BASE_URL` permanecem porque são credenciais/endpoint de adapter. Snapshots sob `.audit/entregar-issue/**` podem preservar o estado histórico; o inventário reproduzível está em `docs/runbooks/ai-legacy-config-removal-960.md`.
 
 ## Regras de dependência
 
@@ -186,7 +193,7 @@ WhatsApp com preferência ativa
 - Serviços não devem depender de componentes React.
 - Schemas devem ser reutilizados pelo router e, quando útil, pelo frontend via tipos inferidos.
 - O SDK oficial da OpenAI deve ficar restrito à camada `_core` do backend.
-- `voiceTranscription`, inferência nutricional e anotação externa devem usar suas capacidades específicas; o compositor local não acessa provider.
+- `voiceTranscription`, inferência nutricional, `imageGeneration` e anotação externa devem usar suas capacidades específicas; o compositor local não acessa provider.
 - Falha de imagem auxiliar nunca deve bloquear criação ou confirmação de refeição.
 - A foto original nunca deve ser sobrescrita pelo derivado; resumo visual separado não pode mascarar ausência de anotação.
 - Fluxos multimodais devem usar imagem e áudio inline para inferência e transcrição quando houver mídia anexada; upload para storage serve persistência e não pode ser pré-requisito para a IA consumir a mídia.

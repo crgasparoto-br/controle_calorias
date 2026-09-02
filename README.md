@@ -66,37 +66,36 @@ Situação atual:
 - Para `TRANSCRIPTION`, `openai` + `whisper-1` permanece o baseline técnico/default versionado e referência histórica de rollback. A comparação da #927 com o alias mutável `gpt-4o-mini-transcribe` continua sendo evidência histórica e não representa, por si só, a configuração efetiva de produção após a #962.
 - Inferência nutricional de texto e imagem resolve `MEAL_TEXT` e `MEAL_VISION` independentemente pelo executor comum, com saída estruturada e validação Zod.
 - Anotação de foto resolve seu próprio modo e, quando externa, a capacidade `IMAGE_ANNOTATION`. O default técnico `local` cria um PNG derivado por composição determinística sobre uma cópia da foto original, sem novo envio a provider; `external` exige configuração explícita e `off` não produz derivado.
-- Geração visual auxiliar é opcional. Se falhar ou não estiver configurada, a análise e o registro da refeição continuam normalmente.
+- Geração visual auxiliar usa a mesma capacidade `IMAGE_ANNOTATION` para provider/modelo quando externa. Se falhar ou não estiver configurada, a análise e o registro da refeição continuam normalmente pelo fallback local existente.
 
-O registro sanitizado da conclusão operacional da #962 está em `docs/history/ai-multi-provider-rollout-2026-09-01.md`. O procedimento para mudanças futuras continua em `docs/runbooks/multi-provider-rollout.md`.
+O registro sanitizado da conclusão operacional da #962 está em `docs/history/ai-multi-provider-rollout-2026-09-01.md`. O procedimento para mudanças futuras continua em `docs/runbooks/multi-provider-rollout.md`. O inventário versionado da remoção dos aliases está em `docs/runbooks/ai-legacy-config-removal-960.md`.
 
-## Seleção legada de Provider de IA (Visão e Texto)
+## Seleção de provider e modelo por capacidade (#960)
 
-A seleção global abaixo continua funcionando durante a migração por capacidade. Ela se aplica ao consumidor legado de inferência nutricional de texto/imagem; perguntas, pesquisa nutricional, embeddings, transcrição e anotação de foto já possuem configuração própria por capacidade. Alterar `AI_VISION_PROVIDER` ou `AI_MEAL_VISION_PROVIDER` não autoriza nem redireciona um segundo envio da foto para anotação.
+Desde a #960 não existe seleção global de provider/modelo para a camada de IA. Cada consumidor resolve exclusivamente seu contrato `AI_<CAPABILITY>_*` e, quando não houver override, usa o default versionado da própria capacidade.
 
-- **OpenAI (Padrão):**
-  ```env
-  AI_VISION_PROVIDER=openai
-  OPENAI_API_KEY=<sua_chave_openai>
-  OPENAI_MODEL=gpt-4.1-mini # opcional
-  ```
+Exemplos:
 
-- **Gemini:**
-  ```env
-  AI_VISION_PROVIDER=gemini
-  GEMINI_API_KEY=<sua_chave_google_ai_studio>
-  GEMINI_MODEL=gemini-2.5-flash # opcional
-  ```
+```env
+AI_MEAL_TEXT_PROVIDER=openai
+AI_MEAL_TEXT_MODEL=gpt-4.1-mini
+AI_MEAL_VISION_PROVIDER=gemini
+AI_MEAL_VISION_MODEL=gemini-2.5-flash
+AI_TRANSCRIPTION_PROVIDER=openai
+AI_TRANSCRIPTION_MODEL=whisper-1
+AI_IMAGE_ANNOTATION_PROVIDER=openai
+AI_IMAGE_ANNOTATION_MODEL=gpt-image-1
+```
 
-*Nota: `TRANSCRIPTION` usa OpenAI como default técnico quando não há override da capacidade, mas não depende de `AI_VISION_PROVIDER`. Configure-a com `AI_TRANSCRIPTION_*`; `OPENAI_API_KEY` permanece necessária enquanto o provider efetivo for OpenAI.*
+`OPENAI_API_KEY`, `GEMINI_API_KEY` e `OPENAI_BASE_URL` continuam válidos porque são credencial/endpoint dos adapters, não seletores de capacidade.
 
 ## Fundação multi-provider por capacidade (#921)
 
-A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION` e `IMAGE_ANNOTATION` já usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `FOOD_CLASSIFICATION` permanece reservada (ver #922) — com:
+`MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `QUESTION`, `NUTRITION_SEARCH`, `EMBEDDING`, `TRANSCRIPTION` e `IMAGE_ANNOTATION` usam `server/_core/ai/` para configurar cada capacidade de IA do produto de forma independente — `FOOD_CLASSIFICATION` permanece reservada (ver #922) — com:
 
 - **operações distintas por capacidade**: `NUTRITION_SEARCH` exige texto, Structured Output e pesquisa web; `EMBEDDING` exige somente embeddings; `TRANSCRIPTION` exige a operação de áudio do adapter; `IMAGE_ANNOTATION` externa exige geração e edição de imagem, enquanto o modo local não cria adapter externo;
 - **matriz baseada no adapter real e na combinação por modelo**: cada provider declara somente operações implementadas; Gemini 2.5 pode executar `QUESTION` com Google Search, mas `NUTRITION_SEARCH` combina Google Search + Structured Output e exige modelo Gemini 3 explicitamente aprovado. `gemini-2.5-flash` é rejeitado antes da rede para essa combinação. Gemini não anuncia embeddings nem transcrição, então `EMBEDDING` e `TRANSCRIPTION` não obtêm fallback Gemini implícito;
-- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência variável nova > variável legada compatível > default equivalente ao baseline; `OPENAI_MODEL` e `GEMINI_MODEL` permanecem compatíveis conforme o provider;
+- **resolução por capacidade**: `AI_<CAPABILITY>_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` / `_MAX_ATTEMPTS` / `_FALLBACK_*`, com precedência de configuração canônica sobre o default versionado da capacidade. Aliases globais/modelos legados não participam mais da resolução;
 - **endpoint compatível fail-closed**: `OPENAI_BASE_URL` não vazio aplica automaticamente `openai-compatible`, sem assumir operações até elas serem listadas em `AI_OPENAI_COMPATIBLE_OPERATIONS`;
 - **fallback por capacidade, desabilitado por padrão**: provider diferente exige `AI_<CAPABILITY>_CROSS_PROVIDER_FALLBACK_ENABLED=true` fora de produção e usa modelo próprio do provider de destino; em `NODE_ENV=production`, cross-provider permanece bloqueado fail-closed pelos guardrails atuais. Qualquer liberação futura exige evidência própria, revisão LGPD e autorização operacional por capacidade;
 - **timeout sem sobreposição**: cada chamada recebe `AbortSignal`; retry/fallback só começa após a chamada anterior encerrar, e provider que não reconhece o cancelamento interrompe a execução sem segundo envio;
@@ -106,7 +105,7 @@ A seleção acima (`AI_VISION_PROVIDER`) continua como compatibilidade legada. `
 - **Gemini compatível com schemas reais**: o adapter usa `@google/genai`, `models.generateContent` e `responseJsonSchema`, preservando nulabilidade, `additionalProperties: false` e limites usados pelo fluxo de refeição;
 - **usage normalizado**: respostas textuais podem incluir metadados de tokens em `AiProviderTextResponse.usage`.
 
-Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; em #923, o assistente de perguntas do WhatsApp (`QUESTION`), a pesquisa nutricional de itens embalados (`NUTRITION_SEARCH`) e a busca semântica de catálogo (`EMBEDDING`) passaram pela mesma migração. Em #924, a ingestão de áudio passou a `TRANSCRIPTION`, com segmentos opcionais, validação anterior à rede e benchmark reproduzível documentado em `docs/design-docs/transcription-capability.md`. Em #925, a foto anotada passou a usar modo local seguro por padrão e `IMAGE_ANNOTATION` somente no modo externo explícito; o contrato completo está em `docs/design-docs/image-annotation-capability.md`. `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
+Detalhes completos em `ARCHITECTURE.md`, `.env.example`, `docs/RELIABILITY.md`, `docs/SECURITY.md` e `docs/PRIVACY_LGPD.md`. Em #922, refeição textual, visão e intenção do WhatsApp passaram a usar `resolveCapabilityConfig` + `executeResolvedCapability`; em #923, o assistente de perguntas do WhatsApp (`QUESTION`), a pesquisa nutricional de itens embalados (`NUTRITION_SEARCH`) e a busca semântica de catálogo (`EMBEDDING`) passaram pela mesma migração. Em #924, a ingestão de áudio passou a `TRANSCRIPTION`, com segmentos opcionais, validação anterior à rede e benchmark reproduzível documentado em `docs/design-docs/transcription-capability.md`. Em #925, a foto anotada passou a usar modo local seguro por padrão e `IMAGE_ANNOTATION` somente no modo externo explícito; em #960, a geração visual auxiliar foi alinhada à mesma capacidade e os seletores globais foram aposentados. `FOOD_CLASSIFICATION` permanece reservada e a NOVA continua no mesmo Structured Output da refeição, sem segunda inferência.
 
 ## Variáveis de ambiente obrigatórias
 
@@ -135,16 +134,16 @@ A ausência destas variáveis não derruba o backend por si só, mas deixa a fea
 
 | Feature | Variáveis | Comportamento quando ausentes |
 |---|---|---|
-| OpenAI / Gemini | `AI_VISION_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` | Fluxos que dependem do provider ficam indisponíveis se a chave correspondente não estiver configurada. |
-| Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS` | Configuração inválida produz estado `invalid`/`disabled`; fallback nunca é habilitado implicitamente. |
-| Transcrição | `AI_TRANSCRIPTION_*`, `OPENAI_API_KEY` quando OpenAI for o provider efetivo | Sem configuração executável, áudio falha antes da rede com diagnóstico sanitizado; `whisper-1` permanece o default compatível. |
-| Anotação de imagem | `AI_IMAGE_ANNOTATION_MODE`, `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE`, `AI_IMAGE_ANNOTATION_*` | Sem override, usa `local` e não envia a foto a provider de imagem. `external` sem configuração executável encerra sem anotação, salvo degradação local explicitamente autorizada. |
+| Adapters OpenAI / Gemini | `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_BASE_URL` | Fluxos que dependem do adapter ficam indisponíveis se a credencial correspondente não estiver configurada. |
+| Capacidades de IA | `AI_<CAPABILITY>_*`, `AI_OPENAI_COMPATIBLE_OPERATIONS`, `AI_OPENAI_COMPATIBLE_IMAGE_MODELS` | Configuração inválida produz estado `invalid`/`disabled`; fallback nunca é habilitado implicitamente. |
+| Transcrição | `AI_TRANSCRIPTION_*`, `OPENAI_API_KEY` quando OpenAI for o provider efetivo | Sem configuração executável, áudio falha antes da rede com diagnóstico sanitizado; `whisper-1` permanece o default versionado. |
+| Anotação/geração de imagem | `AI_IMAGE_ANNOTATION_MODE`, `AI_IMAGE_ANNOTATION_EXTERNAL_FAILURE_MODE`, `AI_IMAGE_ANNOTATION_*` | Sem override, a anotação usa `local` e não envia a foto a provider de imagem. Execuções externas usam a mesma capacidade `IMAGE_ANNOTATION`. |
 | Forge/built-in AI | `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY` | Fluxos dependentes do provider Forge ficam indisponíveis quando esse provider estiver selecionado sem configuração. |
 | WhatsApp | `WHATSAPP_PHONE_NUMBER`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Webhook, envio e operação administrativa do canal ficam indisponíveis até configurar o canal oficial. |
 | Strava | `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_APP_REDIRECT_BASE_URL`, `STRAVA_MAX_ACTIVITY_DETAIL_REQUESTS_PER_SYNC` | OAuth, webhook e importação manual do Strava ficam desabilitados quando as credenciais obrigatórias estão ausentes. O limite de detalhes usa o padrão seguro quando ausente. |
 | Criptografia dedicada de segredos | `APP_SECRETS_ENCRYPTION_KEY` | Quando ausente, segredos persistidos (ex.: token do WhatsApp em `appSecrets`) continuam sendo criptografados com uma chave derivada de `JWT_SECRET` (fallback legado), acoplando rotação de sessão à leitura de segredos. |
 
-`OPENAI_API_KEY` deve existir apenas no backend. Não exponha `OPENAI_*`, `JWT_SECRET`, `APP_SECRETS_ENCRYPTION_KEY`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
+`OPENAI_API_KEY` e `GEMINI_API_KEY` devem existir apenas no backend. Não exponha credenciais de IA, `JWT_SECRET`, `APP_SECRETS_ENCRYPTION_KEY`, tokens do WhatsApp ou credenciais de banco via `VITE_*` ou em código executado no navegador.
 
 ### Criptografia de segredos persistidos (`APP_SECRETS_ENCRYPTION_KEY`)
 
@@ -159,8 +158,6 @@ Estratégia de migração:
 2. A partir do próximo deploy, novos segredos (ou atualizações de segredos existentes, como reconexão do WhatsApp) passam a usar a chave dedicada automaticamente — não há script de reescrita obrigatório.
 3. Segredos ainda não reescritos continuam sendo lidos com a chave legada derivada de `JWT_SECRET`. Rotacionar `JWT_SECRET` antes de reescrever esses segredos os torna ilegíveis — force a reescrita (ex.: reenviando o token do WhatsApp) antes de rotacionar `JWT_SECRET` se a chave dedicada ainda não estiver configurada.
 4. Risco residual: enquanto algum segredo persistido não tiver sido reescrito com a chave dedicada, ele permanece dependente de `JWT_SECRET`. Nenhum valor de chave ou segredo decriptado é logado; falhas de decriptação retornam erro sanitizado.
-
-`OPENAI_IMAGE_MODEL` permanece compatível apenas como fallback legado do modelo OpenAI para `IMAGE_ANNOTATION` externa. O modo local padrão não usa essa variável nem cria chamada externa.
 
 Durante o startup, o backend registra aviso para features opcionais sem configuração suficiente. Esses avisos não exibem valores de segredos.
 
@@ -229,10 +226,11 @@ Resumo do rollout:
 - executar as migrations do Drizzle antes do deploy quando houver alteração de schema;
 - validar que `NODE_ENV=production` falha o startup sem `DATABASE_URL` ou com conexão de banco inválida;
 - as configurações `AI_<CAPABILITY>_*` por capacidade já foram implantadas no Render e estão funcionando em produção conforme confirmação operacional da #962; os valores efetivos devem ser consultados no ambiente e não inferidos deste README;
+- seletores/modelos globais aposentados na #960 não devem ser recriados em Render, `.env` ou código; novas mudanças de IA usam somente o contrato da capacidade correspondente;
 - usar `whisper-1` e os demais defaults versionados como baseline técnico/compatibilidade e referência de rollback, não como declaração automática da configuração efetiva atual;
 - manter os guardrails de fallback/cross-provider definidos pelo resolvedor e pelas políticas de produção; qualquer liberação futura exige evidência e autorização específicas por capacidade;
 - executar e registrar benchmark sanitizado antes de uma nova promoção de modelo ou mudança de compartilhamento externo;
-- manter frontend/Vercel sem `OPENAI_API_KEY`, sem `JWT_SECRET` e sem tokens do WhatsApp;
+- manter frontend/Vercel sem credenciais de IA, sem `JWT_SECRET` e sem tokens do WhatsApp;
 - configurar as credenciais do Strava apenas no backend;
 - configurar `STRAVA_REDIRECT_URI` com o domínio público da API;
 - configurar `STRAVA_APP_REDIRECT_BASE_URL` com o domínio público do frontend;

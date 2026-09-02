@@ -5,6 +5,9 @@
  * and no decision is inferred from a model name. A non-empty OPENAI_BASE_URL is
  * treated conservatively as an OpenAI-compatible endpoint and therefore uses
  * only operations explicitly validated in AI_OPENAI_COMPATIBLE_OPERATIONS.
+ *
+ * Since #960, only AI_<CAPABILITY>_* selectors participate in routing. Legacy
+ * global/model aliases are intentionally ignored.
  */
 
 import type { AiCapabilityId } from "./capabilities";
@@ -46,12 +49,11 @@ export type ResolvedCapabilityConfig = {
   fallback: ResolvedFallbackPolicy;
   /** Sanitized diagnostics: never include secret values, prompts, payloads or media. */
   diagnostics: string[];
-  usedLegacyVariables: boolean;
+  /** Compatibility-neutral result shape retained for existing typed fixtures; always false after #960. */
+  usedLegacyVariables: false;
 };
 
-type LegacyMapping = {
-  legacyProviderEnv?: string;
-  legacyModelEnvByProvider?: Partial<Record<AiProviderId, string>>;
+type CapabilityDefaults = {
   defaultProvider: AiProviderId;
   defaultModelByProvider: Partial<Record<AiProviderId, string>>;
 };
@@ -62,45 +64,28 @@ const TEXT_MODEL_DEFAULTS = {
   gemini: "gemini-2.5-flash",
 } satisfies Partial<Record<AiProviderId, string>>;
 
-const TEXT_MODEL_LEGACY_ENVS = {
-  openai: "OPENAI_MODEL",
-  "openai-compatible": "OPENAI_MODEL",
-  gemini: "GEMINI_MODEL",
-} satisfies Partial<Record<AiProviderId, string>>;
-
-const LEGACY_MAPPING: Record<AiCapabilityId, LegacyMapping> = {
+const CAPABILITY_DEFAULTS: Record<AiCapabilityId, CapabilityDefaults> = {
   MEAL_TEXT: {
-    legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   MEAL_VISION: {
-    legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   FOOD_CLASSIFICATION: {
-    legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   WHATSAPP_INTENT: {
-    legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   QUESTION: {
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
   NUTRITION_SEARCH: {
-    legacyProviderEnv: "AI_VISION_PROVIDER",
-    legacyModelEnvByProvider: TEXT_MODEL_LEGACY_ENVS,
     defaultProvider: "openai",
     defaultModelByProvider: TEXT_MODEL_DEFAULTS,
   },
@@ -112,10 +97,6 @@ const LEGACY_MAPPING: Record<AiCapabilityId, LegacyMapping> = {
     },
   },
   TRANSCRIPTION: {
-    legacyModelEnvByProvider: {
-      openai: "OPENAI_TRANSCRIPTION_MODEL",
-      "openai-compatible": "OPENAI_TRANSCRIPTION_MODEL",
-    },
     defaultProvider: "openai",
     defaultModelByProvider: {
       openai: "whisper-1",
@@ -123,10 +104,6 @@ const LEGACY_MAPPING: Record<AiCapabilityId, LegacyMapping> = {
     },
   },
   IMAGE_ANNOTATION: {
-    legacyModelEnvByProvider: {
-      openai: "OPENAI_IMAGE_MODEL",
-      "openai-compatible": "OPENAI_IMAGE_MODEL",
-    },
     defaultProvider: "openai",
     defaultModelByProvider: {
       openai: "gpt-image-1",
@@ -175,41 +152,26 @@ function resolveProvider(
   capability: AiCapabilityId,
   env: NodeJS.ProcessEnv,
   diagnostics: string[],
-): { provider: string; usedLegacy: boolean; invalid: boolean } {
-  const mapping = LEGACY_MAPPING[capability];
-  const newValue = readTrimmed(env, `AI_${capability}_PROVIDER`).toLowerCase();
-
-  let provider = newValue;
-  let usedLegacy = false;
-  if (!provider && mapping.legacyProviderEnv) {
-    provider = readTrimmed(env, mapping.legacyProviderEnv).toLowerCase();
-    usedLegacy = Boolean(provider);
-  }
-  if (!provider) provider = mapping.defaultProvider;
-
-  provider = applyEndpointPolicy(capability, provider, env, diagnostics);
-  return { provider, usedLegacy, invalid: !isKnownProvider(provider) };
+): { provider: string; invalid: boolean } {
+  const defaults = CAPABILITY_DEFAULTS[capability];
+  const configured = readTrimmed(env, `AI_${capability}_PROVIDER`).toLowerCase();
+  const provider = applyEndpointPolicy(
+    capability,
+    configured || defaults.defaultProvider,
+    env,
+    diagnostics,
+  );
+  return { provider, invalid: !isKnownProvider(provider) };
 }
 
 function resolveModel(
   capability: AiCapabilityId,
   provider: AiProviderId,
   env: NodeJS.ProcessEnv,
-): { model: string; usedLegacy: boolean; legacyEnv?: string } {
-  const mapping = LEGACY_MAPPING[capability];
-  const newValue = readTrimmed(env, `AI_${capability}_MODEL`);
-  if (newValue) return { model: newValue, usedLegacy: false };
-
-  const legacyEnv = mapping.legacyModelEnvByProvider?.[provider];
-  if (legacyEnv) {
-    const legacyValue = readTrimmed(env, legacyEnv);
-    if (legacyValue) return { model: legacyValue, usedLegacy: true, legacyEnv };
-  }
-
-  return {
-    model: mapping.defaultModelByProvider[provider]?.trim() ?? "",
-    usedLegacy: false,
-  };
+): string {
+  const configured = readTrimmed(env, `AI_${capability}_MODEL`);
+  if (configured) return configured;
+  return CAPABILITY_DEFAULTS[capability].defaultModelByProvider[provider]?.trim() ?? "";
 }
 
 function resolveFallbackModel(
@@ -218,24 +180,13 @@ function resolveFallbackModel(
   primaryProvider: AiProviderId,
   primaryModel: string,
   env: NodeJS.ProcessEnv,
-): { model: string; usedLegacy: boolean; legacyEnv?: string } {
-  const explicitModel = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
-  if (explicitModel) return { model: explicitModel, usedLegacy: false };
+): string {
+  const configured = readTrimmed(env, `AI_${capability}_FALLBACK_MODEL`);
+  if (configured) return configured;
 
-  const mapping = LEGACY_MAPPING[capability];
-  const legacyEnv = mapping.legacyModelEnvByProvider?.[provider];
-  if (legacyEnv) {
-    const legacyModel = readTrimmed(env, legacyEnv);
-    if (legacyModel) return { model: legacyModel, usedLegacy: true, legacyEnv };
-  }
-
-  const defaultModel = mapping.defaultModelByProvider[provider]?.trim() ?? "";
-  if (defaultModel) return { model: defaultModel, usedLegacy: false };
-
-  return {
-    model: provider === primaryProvider ? primaryModel : "",
-    usedLegacy: false,
-  };
+  const defaultModel = CAPABILITY_DEFAULTS[capability].defaultModelByProvider[provider]?.trim() ?? "";
+  if (defaultModel) return defaultModel;
+  return provider === primaryProvider ? primaryModel : "";
 }
 
 function emptyFallback(requested = false): ResolvedFallbackPolicy {
@@ -253,17 +204,9 @@ export function resolveCapabilityConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedCapabilityConfig {
   const diagnostics: string[] = [];
-  let usedLegacyVariables = false;
   const definition = AI_CAPABILITY_REGISTRY[capability];
 
   const providerResolution = resolveProvider(capability, env, diagnostics);
-  if (providerResolution.usedLegacy) {
-    usedLegacyVariables = true;
-    diagnostics.push(
-      `[deprecated] capability=${capability} resolved provider via legacy variable ${LEGACY_MAPPING[capability].legacyProviderEnv}; migrate to AI_${capability}_PROVIDER`,
-    );
-  }
-
   if (providerResolution.invalid) {
     diagnostics.push(`capability=${capability} unknown provider identifier configured`);
     return {
@@ -274,21 +217,15 @@ export function resolveCapabilityConfig(
       maxAttempts: DEFAULT_MAX_ATTEMPTS,
       fallback: emptyFallback(),
       diagnostics,
-      usedLegacyVariables,
+      usedLegacyVariables: false,
     };
   }
 
   const provider = providerResolution.provider as AiProviderId;
-  const modelResolution = resolveModel(capability, provider, env);
-  if (modelResolution.usedLegacy) {
-    usedLegacyVariables = true;
-    diagnostics.push(
-      `[deprecated] capability=${capability} resolved model via legacy variable ${modelResolution.legacyEnv}; migrate to AI_${capability}_MODEL`,
-    );
-  }
+  const model = resolveModel(capability, provider, env);
 
   let state: AiCapabilityState = "ready";
-  if (!modelResolution.model) {
+  if (!model) {
     diagnostics.push(`capability=${capability} provider=${provider} has no model configured`);
     state = "invalid";
   }
@@ -303,7 +240,7 @@ export function resolveCapabilityConfig(
 
   const primaryCompatibilityIssues = findOperationCompatibilityIssues(
     provider,
-    modelResolution.model,
+    model,
     definition.requiredOperations,
   );
   for (const issue of primaryCompatibilityIssues) {
@@ -363,22 +300,13 @@ export function resolveCapabilityConfig(
     } else {
       const fallbackProvider = normalizedFallbackProvider;
       const isCrossProvider = fallbackProvider !== provider;
-      const fallbackModelResolution = resolveFallbackModel(
+      const fallbackModel = resolveFallbackModel(
         capability,
         fallbackProvider,
         provider,
-        modelResolution.model,
+        model,
         env,
       );
-      const fallbackModel = fallbackModelResolution.model;
-
-      if (fallbackModelResolution.usedLegacy) {
-        usedLegacyVariables = true;
-        diagnostics.push(
-          `[deprecated] capability=${capability} resolved fallback model via legacy variable ${fallbackModelResolution.legacyEnv}; migrate to AI_${capability}_FALLBACK_MODEL`,
-        );
-      }
-
       const productionCrossProviderBlocked =
         isCrossProvider && readTrimmed(env, "NODE_ENV").toLowerCase() === "production";
 
@@ -462,11 +390,11 @@ export function resolveCapabilityConfig(
   return {
     capability,
     state,
-    primary: { provider, model: modelResolution.model },
+    primary: { provider, model },
     timeoutMs,
     maxAttempts,
     fallback,
     diagnostics,
-    usedLegacyVariables,
+    usedLegacyVariables: false,
   };
 }
