@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listOptions = vi.fn();
@@ -117,6 +118,42 @@ describe("ProfessionalOperationalAlertsPanel entitlement", () => {
     expect(screen.getByText("Registros alimentares")).toBeTruthy();
     expect(screen.queryByText("attention")).toBeNull();
     expect(screen.queryByText(/meal-visual-1/)).toBeNull();
+  });
+
+  it("clarifies the resolution action with explicit copy and tooltip", async () => {
+    enabledResources = [
+      "professional_record",
+      "professional_operational_alerts",
+    ];
+    alertData = [
+      {
+        id: 11,
+        patientUserId: 41,
+        patientName: "Ana",
+        type: "no_food_records",
+        reason: "Nenhum registro alimentar confirmado no período.",
+        period: { start: null, end: null },
+        origin: { type: "meals", id: null },
+        suggestedAction: "Revisar o acompanhamento.",
+        severity: "attention",
+      },
+    ];
+    const { default: ProfessionalOperationalAlertsPanel } = await import(
+      "./ProfessionalOperationalAlertsPanel"
+    );
+    const user = userEvent.setup();
+    render(<ProfessionalOperationalAlertsPanel patientId={41} />);
+
+    const resolveButton = screen.getByRole("button", {
+      name: "Marcar como resolvido",
+    });
+    expect(resolveButton).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Resolver" })).toBeNull();
+
+    await user.hover(resolveButton);
+    expect(
+      await screen.findByText(/Não executa a ação sugerida nem altera/)
+    ).toBeTruthy();
   });
 
   it("uses safe fallbacks for unknown alert and origin values", async () => {
