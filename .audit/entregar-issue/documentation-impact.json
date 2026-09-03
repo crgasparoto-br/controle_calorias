@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "paths": [
+    "docs/testing/whatsapp-response-contract-regression.md",
+    "docs/design-docs/whatsapp-countable-measure-passthrough.md",
+    "docs/testing/whatsapp-response-contract-regression.baseline.md"
+  ],
+  "docs_check": "passed in Agent-first gate #6040"
+}

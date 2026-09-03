@@ -1,0 +1,252 @@
+specification_version: 2
+
+## Objetivo
+
+Corrigir uma regressão no registro normal de refeições por texto no WhatsApp em que medidas contáveis já resolvidas pelo mecanismo canônico (`fatia`, `unidade` etc.) não chegam ao pipeline nutricional com a gramatura convertida, fazendo presunto/mussarela voltarem ao fallback genérico `150 kcal | P 6 g | C 15 g | G 5 g por 100 g`.
+
+Usar `develop` como branch base.
+
+## Evidência em produção
+
+Em 02/09/2026, após a promoção de `develop` para `main` pela PR #1031, foi enviado:
+
+```text
+1 pão francês, 3 fatias de presunto, 2 fatias de mussarela, 45g requeijão, 4 xícaras de café sem açúcar
+```
+
+O retorno exibiu:
+
+```text
+Pão Francês — 1 unidade (aprox. 50g)
+135 kcal | P 4,5 g | C 28 g | G 1,5 g
+
+Presunto — 3 fatia (aprox. 100g)
+150 kcal | P 6 g | C 15 g | G 5 g
+
+Mussarela — 2 fatia (aprox. 100g)
+150 kcal | P 6 g | C 15 g | G 5 g
+
+Requeijão — 45g
+67,5 kcal | P 2,7 g | C 6,8 g | G 2,3 g
+```
+
+O mesmo perfil genérico foi aplicado a presunto e mussarela, apesar das correções das issues #997/#1016 e PRs #998/#1020.
+
+## Causa identificada
+
+O resolvedor de medidas caseiras está implementado e `prepareCountableFoodRegistrationResolved()` consegue reescrever medidas contáveis para gramas quando encontra porção canônica, referência exata ou média usual segura.
+
+O problema está na fronteira de roteamento do registro textual:
+
+1. `executeWhatsappTextIntent()` chama `prepareWhatsappCountableFoodRegistration()` por meio de `resolveUnsafeKnownCountableFoodRegistration()`;
+2. quando a resposta é `kind: "clarification"`, ela é devolvida normalmente;
+3. quando a resposta é `kind: "ready"`, o `registrationText` reescrito é descartado e o executor retorna `null`;
+4. no `whatsappIntentWebhook`, mensagens com quantidade explícita não passam pelo classificador contextual (`shouldTryContextualLlmIntent()` retorna `false`);
+5. o gate de medidas contáveis no webhook só é executado hoje quando existe `nutritionFallback` vindo desse classificador;
+6. assim, uma mensagem explícita como `3 fatias de presunto` segue para o webhook nutricional base com o texto original, não com a gramatura resolvida.
+
+Resultado: as garantias do resolvedor existem, mas o texto convertido se perde antes do pipeline nutricional que cria a refeição.
+
+Há ainda duas fronteiras que precisam ser protegidas na correção:
+
+- `executeWhatsappTextIntent()` possui consumidores diretos além do wrapper textual de produção, inclusive áudio transcrito e retomada de interações; não é seguro corrigir o texto removendo globalmente o preflight desses consumidores;
+- o caminho `água + alimento` retorna um `passthroughText` antecipadamente depois do split. Se o fragmento alimentar contiver medida contável, ele também precisa alcançar a mesma resolução canônica antes do fallback nutricional.
+
+## Escopo
+
+- Propagar a gramatura já resolvida pelo preflight contável até o pipeline nutricional no registro textual normal.
+- Garantir uma única execução lógica do preflight por mensagem/fragmento alimentar encaminhado ao fallback, sem repetir pesquisa de medida.
+- Preservar a procedência da resolução (`porção canônica`, `medida exata pesquisada`, `média usual`) necessária para as garantias de transparência da #1016.
+- Cobrir o caminho normal, o passthrough após split de água + alimento e os consumidores diretos que não podem perder a proteção existente.
+
+## Fora de escopo
+
+- Alterar os pesos de `food_portions`, inventar pesos fixos para fatia/unidade ou criar tabela paralela de gramaturas.
+- Alterar a composição nutricional de presunto, mussarela, pão, requeijão ou café.
+- Recalcular refeições históricas já persistidas.
+- Reescrever o pipeline nutricional ou o resolvedor de medidas caseiras que já é canônico.
+
+## Requisitos funcionais
+
+- O registro normal por texto deve encaminhar ao pipeline nutricional a versão reescrita por `prepareWhatsappCountableFoodRegistration()` quando o gate retornar `kind: "ready"`.
+- O preflight/gate deve executar uma única vez por mensagem lógica no caminho de registro textual. Dentro dessa execução, cada segmento contável pode ser resolvido independentemente; “uma única vez” não significa limitar a resolução a um único alimento da mensagem.
+- Se o gate retornar `kind: "clarification"`, manter a clarificação persistente existente e não delegar o texto original ao pipeline nutricional.
+- O fluxo de `Adicionar ... a uma refeição` deve continuar sendo tratado pelo intent canônico de adição e não deve ser reescrito indevidamente pelo passthrough do registro normal.
+- Prioridades anteriores (segurança/idempotência, callbacks/pendências, água, peso, ajustes, exclusão, seleção pendente, adição a refeição etc.) devem permanecer inalteradas.
+- O `text override` já suportado pelo webhook deve ser reutilizado para transportar o texto quantitativamente resolvido; não criar outro pipeline nutricional ou tabela paralela de gramaturas.
+- O caso principal não pode depender de `nutritionFallback`/classificação contextual da IA para executar a resolução contável. Mensagens explícitas como `3 fatias de presunto` devem ser protegidas mesmo quando `shouldTryContextualLlmIntent()` retornar `false`.
+- O caminho `água + alimento` deve preservar o registro único da água e o prefixo diferido atual, mas o fragmento alimentar resultante do split deve passar pela mesma fronteira contável antes de chegar ao fallback nutricional.
+- Consumidores diretos de `executeWhatsappTextIntent()` que hoje dependem do preflight, como áudio transcrito e retomadas, não podem perder a proteção contra `1 fatia -> 1 g/100 g` como efeito colateral da correção do wrapper textual.
+
+### Preservação da procedência e da medida original
+
+O texto reescrito em gramas é o transporte quantitativo para o motor nutricional, não uma autorização para apagar a origem da medida.
+
+`prepareCountableFoodRegistrationResolved()` já distingue resoluções conceitualmente equivalentes a:
+
+- porção canônica/local;
+- referência exata pesquisada;
+- média usual estimada;
+- clarificação necessária.
+
+Quando o caminho `ready` for encaminhado ao fallback nutricional, deve permanecer disponível informação suficiente para não degradar as garantias da #1016:
+
+- a quantidade/unidade pedida pelo usuário (`3 fatias`, `2 fatias` etc.);
+- a gramatura resolvida usada no cálculo;
+- a natureza exata/canônica ou estimada da resolução quando ela afetar a resposta.
+
+Em especial, uma implementação que apenas transforme `3 fatias de presunto` em `X g de presunto` e descarte que `X` veio de uma `usual_average` é incompleta: os macros podem ficar corretos, mas a resposta perderia a transparência obrigatória de que a gramatura foi estimada.
+
+## Cenário principal de regressão
+
+Entrada:
+
+```text
+1 pão francês, 3 fatias de presunto, 2 fatias de mussarela, 45g requeijão, 4 xícaras de café sem açúcar
+```
+
+Validar que:
+
+- `3 fatias de presunto` chegam ao pipeline base como a gramatura resolvida para três fatias, nunca como `100 g` por fallback implícito;
+- `2 fatias de mussarela` chegam como a gramatura resolvida para duas fatias, nunca como `100 g` por fallback implícito;
+- pão, requeijão e café continuam no fluxo esperado;
+- nenhuma composição nutricional genérica `150/6/15/5` é usada para presunto/mussarela quando uma referência nutricional compatível estiver disponível no pipeline canônico;
+- a resposta final calcula nutrientes proporcionalmente à gramatura efetivamente resolvida;
+- se alguma fatia tiver sido resolvida por média usual, a resposta continua indicando que a gramatura é aproximada/estimada, conforme #1016.
+
+## Cenários adicionais obrigatórios
+
+### Água + alimento
+
+```text
+300 ml de água
+3 fatias de presunto
+```
+
+Validar que a água é registrada uma única vez e permanece como prefixo diferido da resposta, enquanto `3 fatias de presunto` é resolvido para gramas antes de alcançar o pipeline nutricional. O retorno antecipado do split não pode contornar o preflight contável.
+
+### Adição a refeição existente
+
+```text
+Adicionar 3 fatias de presunto ao café da manhã
+```
+
+Validar que o comando permanece no handler canônico de adição e não é desviado para o passthrough de registro normal.
+
+### Medida realmente não resolvida
+
+Para uma medida sem porção canônica, referência exata nem média usual defensável, validar que a clarificação persistente continua sendo o último recurso e que o webhook nutricional base não é chamado com o texto original.
+
+### Consumidor direto fora do wrapper textual
+
+Executar pelo menos um consumidor direto que dependa de `executeWhatsappTextIntent()` (por exemplo áudio transcrito ou retomada de clarificação) e validar que a correção do passthrough textual não remove a proteção contável existente desse caminho.
+
+## Critérios de aceite
+
+- [ ] O `registrationText` produzido pelo gate em estado `ready` não é descartado no registro textual normal.
+- [ ] O webhook base recebe o texto reescrito via mecanismo de `textOverrides` existente ou pela mesma fronteira interna já usada por esse mecanismo, sem criar um segundo pipeline.
+- [ ] O preflight contável é executado uma única vez para a mesma mensagem lógica no caminho normal; uma mensagem com vários itens ainda resolve todos os segmentos necessários dentro dessa execução.
+- [ ] Uma resolução que necessite pesquisa externa não dispara a mesma pesquisa duas vezes por duplicação entre `executeWhatsappTextIntent` e `whatsappIntentWebhook`.
+- [ ] `3 fatias de presunto` e `2 fatias de mussarela` deixam de aparecer como `aprox. 100g` por efeito do fallback genérico.
+- [ ] O cenário reportado possui regressão automatizada na fronteira `handleWhatsAppWebhookWithTextIntent -> handleWhatsAppWebhook`, comprovando o texto efetivamente encaminhado.
+- [ ] Existe também uma regressão que atravessa o motor nutricional com fixture determinística e comprova que os nutrientes finais são proporcionais à gramatura resolvida e que o perfil genérico `150/6/15/5` não mascara uma referência compatível disponível.
+- [ ] Quando a resolução for `usual_average`, a resposta final preserva a sinalização de estimativa e a relação com a medida original, em vez de apresentar apenas gramas como se fossem quantidade explícita do usuário.
+- [ ] O caminho `água + alimento` aplica a resolução contável ao fragmento alimentar sem registrar água ou refeição duas vezes.
+- [ ] Há controle garantindo que comandos de adição a refeição existente continuam no handler específico e não são desviados para o passthrough de registro.
+- [ ] Pelo menos um consumidor direto de `executeWhatsappTextIntent()` fora do wrapper textual mantém o comportamento contável anterior.
+- [ ] Testes, TypeScript, architecture check e docs check permanecem aprovados.
+
+## Considerações de testes
+
+A cobertura mínima deve distinguir correção real de implementações que apenas fazem o caminho feliz passar:
+
+1. teste de fronteira do webhook com `ready`, verificando o body encaminhado e contando uma única execução do gate;
+2. teste com mais de um item contável na mesma mensagem, garantindo uma única invocação do preflight e resolução independente dos segmentos;
+3. teste com `usual_average`, verificando que a procedência/aviso de estimativa sobrevive ao passthrough;
+4. teste `água + alimento contável`, cobrindo o retorno antecipado do split;
+5. teste do comando `Adicionar ...` para preservar a precedência do handler de adição;
+6. teste de consumidor direto (áudio transcrito/retomada) para impedir remoção global da proteção;
+7. teste integrado do resultado nutricional para não confundir “texto convertido corretamente” com “nutrição final correta”.
+
+## Invariantes estruturais
+
+### `must_behave`
+
+- Toda medida contável resolvida em estado `ready` deve chegar quantitativamente resolvida ao pipeline que calcula/persiste a refeição.
+- A mesma mensagem com vários alimentos deve resolver todos os segmentos necessários sem multiplicar a execução do preflight da mensagem.
+- Procedência de média usual deve sobreviver até a apresentação final quando for necessária para transparência.
+
+### `must_not_behave`
+
+- O caminho `ready` não pode ser descartado e seguido pelo texto original.
+- A correção não pode resolver a medida duas vezes nem repetir pesquisa externa para o mesmo segmento por duplicação de camadas.
+- O split `água + alimento` não pode contornar a resolução contável do fragmento alimentar.
+- A correção do texto não pode transformar um comando de adição a refeição existente em novo registro de refeição.
+
+### `must_reuse`
+
+- Reutilizar `prepareWhatsappCountableFoodRegistration` / `prepareCountableFoodRegistrationResolved` como fronteira canônica de medida.
+- Reutilizar o mecanismo de `textOverrides`/passthrough já existente no webhook para o texto encaminhado.
+- Reutilizar o pipeline nutricional canônico para identidade/composição; não calcular macros no webhook.
+
+### `must_be_single_source`
+
+- Gramatura de fatia/unidade continua tendo uma única fonte de resolução no domínio de medidas; o webhook não pode manter pesos próprios.
+- A classificação de procedência (`canônica/exata/média usual`) deve vir do resultado da fronteira de medida, não ser reinferida pelo formatter ou pelo LLM.
+
+### `must_not_depend_on`
+
+- O caso explícito `3 fatias de presunto` não pode depender de o classificador contextual produzir `nutritionFallback` para acionar o gate.
+- A correção não pode depender de uma segunda chamada ao resolvedor para reconstruir informação que já estava disponível na primeira resolução.
+
+### `precedence_invariants`
+
+No webhook textual, preservar conceitualmente:
+
+```text
+segurança/idempotência/pendências
+-> intents de domínio com precedência (água, peso, delete, ajustes, adição etc.)
+-> resolução contável do fragmento que efetivamente seguirá para nutrição
+-> fallback nutricional
+```
+
+Para `água + alimento`, o registro de água continua anterior e único, mas o fragmento alimentar passa pela resolução contável antes do fallback nutricional.
+
+### `forbidden_implementation`
+
+1. **Chamar o gate novamente no webhook sem impedir/reutilizar a chamada já feita pelo executor.**
+   - Pode corrigir o resultado visual, mas duplica pesquisa e custo.
+   - Controle: spy/telemetria exige uma única execução lógica e uma única pesquisa por segmento.
+2. **Criar `PRESUNTO_SLICE_GRAMS`, `MOZZARELLA_SLICE_GRAMS` ou regra equivalente no webhook/parser.**
+   - Pode fazer exatamente o cenário reportado passar, mas viola a fonte canônica.
+   - Controle: teste com alimento contável novo resolvido somente pela fronteira canônica + architecture check.
+3. **Encaminhar apenas o `registrationText` e descartar a procedência da resolução.**
+   - Pode produzir macros corretos, mas perde a transparência obrigatória de `usual_average`.
+   - Controle: teste de média usual exige aviso de estimativa e relação com a medida original.
+4. **Remover globalmente o gate de `executeWhatsappTextIntent` para evitar duplicidade.**
+   - Pode corrigir o wrapper textual e quebrar áudio/retomada/simulador ou outro consumidor direto.
+   - Controle: regressão em pelo menos um consumidor direto fora do wrapper textual.
+5. **Aplicar o passthrough contável antes da identificação de `Adicionar ... a uma refeição`.**
+   - Pode calcular gramas corretamente e ainda registrar no lugar errado.
+   - Controle: teste de adição exige execução do handler específico e zero criação de nova refeição pelo fallback.
+6. **Corrigir somente o caminho normal e ignorar o retorno antecipado de `água + alimento`.**
+   - O cenário principal passa, mas uma mensagem mista continua encaminhando `3 fatias` sem conversão.
+   - Controle: regressão específica da mensagem mista.
+
+## Impacto na documentação
+
+Esta issue restaura um contrato já documentado; não altera a regra de negócio de medidas caseiras.
+
+- `docs/design-docs/food-portions-household-measures.md` já declara que a conversão ocorre antes do cálculo nutricional e que o preflight é compartilhado; não deve ser reescrito semanticamente, apenas mantido consistente caso a implementação revele alguma frase contraditória.
+- `docs/design-docs/whatsapp-food-registration-clarification.md` já exige porção exata/média usual antes de clarificação e transparência da estimativa; a correção não pode degradar esse contrato.
+- `docs/testing/whatsapp-response-contract-regression.md` deve registrar a regressão da fronteira do registro por texto, incluindo o passthrough de medida contável e o caso `água + alimento`, pois essa matriz documenta a cadeia real de produção e os testes que protegem o roteamento.
+
+Critério documental: `pnpm docs:check` permanece aprovado e nenhuma documentação pode passar a sugerir que o fallback nutricional recebe a medida contável original depois que ela já foi resolvida pelo preflight.
+
+## Relação com trabalho anterior
+
+Regressão/lacuna de integração das garantias de #997 e #1016. Não reverter as proteções implementadas por #998/#1020; corrigir a propagação do resultado já resolvido entre o roteador textual e o pipeline nutricional.
+
+## Perguntas em aberto
+
+Nenhuma decisão funcional bloqueante permanece após esta revisão. A implementação pode escolher o detalhe interno de como reutilizar o resultado do preflight entre as camadas, desde que cumpra os invariantes de execução única, preservação de procedência e compatibilidade dos demais entrypoints.

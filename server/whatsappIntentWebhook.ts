@@ -85,6 +85,10 @@ type TextIntentHandlingResult =
         | import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]
         | null;
     };
+type ReadyCountableFoodRegistration = Extract<
+  Awaited<ReturnType<typeof prepareWhatsappCountableFoodRegistration>>,
+  { kind: "ready" }
+>;
 const textIntentMessageDeduplicationCache = createMessageDeduplicationCache();
 const TEXT_INTENT_CONTEXT_TTL_MS = 10 * 60 * 1000;
 const PERIOD_REPORT_PENDING_ORIGIN = "whatsappIntentWebhook";
@@ -167,6 +171,27 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(
     value
   );
+}
+
+function buildCountableResolutionPrefixBlock(
+  resolutions: ReadyCountableFoodRegistration["resolutions"]
+) {
+  if (!resolutions.length) return null;
+  const lines = resolutions.map(({ request, resolution }) => {
+    const requested = `${formatNumber(request.count)} ${request.requestedUnit}`;
+    const grams = formatNumber(resolution.grams);
+    if (resolution.kind === "usual_average") {
+      return `• ${request.foodName}: ${requested} → aprox. ${grams} g (média usual estimada)`;
+    }
+    const sourceLabel =
+      resolution.kind === "researched_exact"
+        ? "medida verificada"
+        : resolution.kind === "canonical_portion"
+          ? "porção canônica"
+          : "porção canônica do catálogo";
+    return `• ${request.foodName}: ${requested} → ${grams} g (${sourceLabel})`;
+  });
+  return ["Medidas usadas no cálculo:", ...lines].join("\n");
 }
 
 function parseWeightKg(text: string) {
@@ -737,10 +762,15 @@ async function tryHandleTextIntent(
         waterResults.push(result);
       }
 
-      // Água e alimento na mesma entrada formam uma única resposta funcional
-      // lógica (#785): os blocos canônicos de água entram como prefixo da
-      // resposta final do fluxo nutricional, sem outbound próprio.
-      const prefixBlocks = waterResults.map(result => result.reply);
+      const countableGate = await prepareWhatsappCountableFoodRegistration({
+        userId,
+        text: mixedWaterFood.foodText,
+        originalText: text,
+        inboundMessageId: message.id ?? null,
+        receivedAt: occurredAt,
+        userTimezone,
+      });
+      const waterPrefixBlocks = waterResults.map(result => result.reply);
       const domainLinks: DomainLinkInput[] = waterResults
         .map(result =>
           typeof result.data?.waterLogId === "number"
@@ -748,6 +778,39 @@ async function tryHandleTextIntent(
             : null
         )
         .filter((link): link is { waterLogId: number } => Boolean(link));
+
+      if (countableGate.kind === "clarification") {
+        for (const domainLink of domainLinks) {
+          await recordDomainLink(lifecycleHandle, domainLink);
+        }
+        markTextIntentMessageHandled(message.id);
+        await clearPendingTextIntentContext(userId);
+        await sendAndLogTextReply({
+          userId,
+          sourcePhone,
+          userMessage: text,
+          reply: [...waterPrefixBlocks, countableGate.result.reply].join("\n\n"),
+          eventType: countableGate.result.eventType,
+          detail: countableGate.result.detail,
+          status: "warning",
+          occurredAtMs,
+          lifecycleHandle,
+          interactiveReply: countableGate.result.interactiveReply,
+        });
+        return true;
+      }
+
+      // Água e alimento na mesma entrada formam uma única resposta funcional
+      // lógica (#785): os blocos canônicos de água entram como prefixo da
+      // resposta final do fluxo nutricional, sem outbound próprio. A resolução
+      // de medidas contáveis ocorre antes do passthrough para não perder gramas.
+      const countableResolutionPrefix = buildCountableResolutionPrefixBlock(
+        countableGate.resolutions
+      );
+      const prefixBlocks = [
+        ...waterPrefixBlocks,
+        ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
+      ];
       setWhatsAppDeferredLogicalReply(req, message.id, {
         prefixBlocks,
         domainLinks,
@@ -760,7 +823,7 @@ async function tryHandleTextIntent(
         detail:
           "Hidratação registrada e composta como prefixo da resposta nutricional da mesma mensagem.",
       });
-      return { passthroughText: mixedWaterFood.foodText };
+      return { passthroughText: countableGate.registrationText };
     }
 
     const pendingContext = await getPendingTextIntentContext(userId);
@@ -897,10 +960,11 @@ async function tryHandleTextIntent(
       return true;
     }
 
-    const gramsIncrementResult = isFoodAdditionCommand(
+    const canonicalFoodAddition = isFoodAdditionCommand(
       textForIntent,
       occurredAt
-    )
+    );
+    const gramsIncrementResult = canonicalFoodAddition
       ? null
       : await executeWhatsappGramsIncrementIntent(userId, {
           text: textForIntent,
@@ -929,10 +993,54 @@ async function tryHandleTextIntent(
       });
       return true;
     }
+
+    // O wrapper textual é o dono do passthrough para o pipeline nutricional.
+    // Resolve medidas contáveis aqui, depois dos handlers de maior precedência,
+    // e entrega o texto já reescrito ao executeWhatsappTextIntent. Assim o
+    // preflight interno dos consumidores diretos continua existindo, mas não
+    // reexecuta a resolução neste caminho porque passa a receber gramas.
+    const countableGate = canonicalFoodAddition
+      ? null
+      : await prepareWhatsappCountableFoodRegistration({
+          userId,
+          text: textForIntent,
+          originalText: text,
+          inboundMessageId: message.id ?? null,
+          receivedAt: occurredAt,
+          userTimezone,
+        });
+    if (countableGate?.kind === "clarification") {
+      markTextIntentMessageHandled(message.id);
+      await clearPendingTextIntentContext(userId);
+      await sendAndLogTextReply({
+        userId,
+        sourcePhone,
+        userMessage: text,
+        reply: countableGate.result.reply,
+        eventType: countableGate.result.eventType,
+        detail: countableGate.result.detail,
+        status: "warning",
+        occurredAtMs,
+        lifecycleHandle,
+        interactiveReply: countableGate.result.interactiveReply,
+      });
+      return true;
+    }
+    const textForNutrition =
+      countableGate?.kind === "ready"
+        ? countableGate.registrationText
+        : textForIntent;
+    const hasCountableResolution =
+      countableGate?.kind === "ready" && countableGate.resolutions.length > 0;
+    const countableResolutionPrefix =
+      countableGate?.kind === "ready"
+        ? buildCountableResolutionPrefixBlock(countableGate.resolutions)
+        : null;
+
     let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
     let result: TextIntentResult | null = await executeWhatsappTextIntent(
       userId,
-      { text: textForIntent, receivedAt: occurredAt, userTimezone }
+      { text: textForNutrition, receivedAt: occurredAt, userTimezone }
     );
     if (!result && shouldTryContextualLlmIntent(textForIntent)) {
       const llmResult = await executeWhatsappLlmIntent(userId, {
@@ -950,38 +1058,62 @@ async function tryHandleTextIntent(
 
     if (!result) {
       // Se o classificador gerou um intentHint (fallback nutricional com contexto),
-      // encaminha ao pipeline de imagem/nutricional com o hint para coordenar a extração
+      // encaminha ao pipeline de imagem/nutricional com o hint para coordenar a extração.
+      // Reutiliza o mesmo preflight já executado acima; só executa aqui quando o
+      // caminho canônico de adição foi preservado e ainda assim houve fallback.
       if (nutritionFallback) {
-        const countableGate = await prepareWhatsappCountableFoodRegistration({
-          userId,
-          text,
-          originalText: text,
-          inboundMessageId: message.id ?? null,
-          receivedAt: occurredAt,
-          userTimezone,
-        });
-        if (countableGate.kind === "clarification") {
+        const fallbackGate =
+          countableGate ??
+          (await prepareWhatsappCountableFoodRegistration({
+            userId,
+            text: textForIntent,
+            originalText: text,
+            inboundMessageId: message.id ?? null,
+            receivedAt: occurredAt,
+            userTimezone,
+          }));
+        if (fallbackGate.kind === "clarification") {
           markTextIntentMessageHandled(message.id);
           await clearPendingTextIntentContext(userId);
           await sendAndLogTextReply({
             userId,
             sourcePhone,
             userMessage: text,
-            reply: countableGate.result.reply,
-            eventType: countableGate.result.eventType,
-            detail: countableGate.result.detail,
+            reply: fallbackGate.result.reply,
+            eventType: fallbackGate.result.eventType,
+            detail: fallbackGate.result.detail,
             status: "warning",
             occurredAtMs,
             lifecycleHandle,
-            interactiveReply: countableGate.result.interactiveReply,
+            interactiveReply: fallbackGate.result.interactiveReply,
           });
           return true;
         }
+        const fallbackResolutionPrefix = buildCountableResolutionPrefixBlock(
+          fallbackGate.resolutions
+        );
+        if (fallbackResolutionPrefix) {
+          setWhatsAppDeferredLogicalReply(req, message.id, {
+            prefixBlocks: [fallbackResolutionPrefix],
+            domainLinks: [],
+          });
+        }
         return {
-          passthroughText: countableGate.registrationText,
+          passthroughText: fallbackGate.registrationText,
           intentHint: nutritionFallback.intentHint,
         };
       }
+
+      if (hasCountableResolution && countableGate?.kind === "ready") {
+        if (countableResolutionPrefix) {
+          setWhatsAppDeferredLogicalReply(req, message.id, {
+            prefixBlocks: [countableResolutionPrefix],
+            domainLinks: [],
+          });
+        }
+        return { passthroughText: countableGate.registrationText };
+      }
+
       const unknownFoodReply = buildUnknownFoodReply(text);
       if (!unknownFoodReply) return false;
       markTextIntentMessageHandled(message.id);

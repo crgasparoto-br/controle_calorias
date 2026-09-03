@@ -1,13 +1,12 @@
 {
   "schema_version": 1,
-  "complete": true,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 1037,
   "sources": [
     {
-      "id": "SRC-PR1028-CONFLICTS",
+      "id": "SRC-ISSUE-1037",
       "kind": "issue-body",
-      "locator": "current user request + resolved PR 1028 conflict contract",
-      "sha256": "2117f75083c3cea545f61d6f8423ff1da42deb9940eda8afe30519bd579731de"
+      "sha256": "f1d2396b1fcf632851af3e938d3ed4c9ff6e86808f0a2043a76fcfe8fbbaf4f6"
     }
-  ],
-  "omitted_sources": []
+  ]
 }

@@ -1,12 +1,15 @@
 {
   "schema_version": 1,
+  "contract_version": "2026-08-20.3",
   "controller_mode": "delivery-single-invocation",
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 897,
-  "branch": "feat/897-usage-governance",
+  "issue_number": 1037,
+  "pull_request_number": 1038,
   "base_ref": "develop",
-  "material_head_sha": "416259389d21de97ea1fb7421f028df5a3b4fe7c",
-  "base_sha": "c1d178642418cf0a54a247f97e15da4d27b103b4",
-  "contract_version": "2026-08-06.2",
-  "work_item_fingerprint": "audit-897-commercial-identity-remediation-post-ci-refreeze"
+  "base_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+  "head_ref": "fix/1037-whatsapp-countable-passthrough",
+  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "work_item_start_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+  "artifact_reuse": "inherited-base-artifact-reset",
+  "ci_state": "green"
 }

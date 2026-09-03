@@ -1,1 +1,331 @@
-{"schema_version":1,"head_sha":"67277681c5bb8569e788b1306cd824bdcc29fc80","families":[{"family":"authorization","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-004-02","NEG-010-01","NEG-017-01","NEG-018-01","NEG-031-01","NEG-036-01","NEG-041-02","NEG-051-01","NEG-052-01","NEG-065-02"],"dimensions":[{"surface":"authorization-scope","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-004-02","NEG-010-01","NEG-017-01","NEG-018-01","NEG-031-01","NEG-036-01","NEG-041-02","NEG-051-01","NEG-052-01","NEG-065-02"],"status":"passed"}],"status":"passed"},{"family":"tenant-isolation","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"public-boundary","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"reference-liveness","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-002-02","NEG-003-03","NEG-004-03","NEG-010-02","NEG-011-01","NEG-014-01","NEG-015-01","NEG-017-02","NEG-018-02","NEG-022-01","NEG-028-01","NEG-033-01","NEG-035-01","NEG-036-02","NEG-039-01","NEG-040-01","NEG-041-03","NEG-042-01","NEG-046-01","NEG-052-02","NEG-053-01","NEG-059-01","NEG-060-01","NEG-061-02","NEG-062-02","NEG-063-01","NEG-065-04","NEG-066-02"],"dimensions":[{"surface":"historical-reference","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-002-02","NEG-003-03","NEG-004-03","NEG-010-02","NEG-011-01","NEG-014-01","NEG-015-01","NEG-017-02","NEG-018-02","NEG-022-01","NEG-028-01","NEG-033-01","NEG-035-01","NEG-036-02","NEG-039-01","NEG-040-01","NEG-041-03","NEG-042-01","NEG-046-01","NEG-052-02","NEG-053-01","NEG-059-01","NEG-060-01","NEG-061-02","NEG-062-02","NEG-063-01","NEG-065-04","NEG-066-02"],"status":"passed"}],"status":"passed"},{"family":"temporal-consistency","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-003-01","NEG-004-01","NEG-009-01","NEG-041-01","NEG-049-01","NEG-050-01","NEG-051-02","NEG-061-01","NEG-064-01","NEG-065-01"],"dimensions":[{"surface":"reporting-availability-window","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-003-01","NEG-004-01","NEG-041-01","NEG-050-01","NEG-061-01","NEG-065-01"],"status":"passed"},{"surface":"state-continuity","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-009-01","NEG-049-01","NEG-051-02","NEG-064-01"],"status":"passed"}],"status":"passed"},{"family":"temporal-destination","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"concurrency-atomicity","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"idempotency","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"rollback","applicable":false,"reason":"No canonical obligation, declared attack surface, or inherited control makes this risk family material to issue 1039.","control_ids":[],"dimensions":[],"status":"not-applicable"},{"family":"historical-immutability","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-002-01","NEG-003-02"],"dimensions":[{"surface":"historical-record","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-002-01","NEG-003-02"],"status":"passed"}],"status":"passed"},{"family":"structural-contract","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-062-01"],"dimensions":[{"surface":"relational-semantic-integrity","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-062-01"],"status":"passed"}],"status":"passed"},{"family":"documentation","applicable":true,"reason":"All declared material surfaces for this family have exact-head adversarial controls in the requirement attack matrix.","control_ids":["NEG-065-03","NEG-066-01"],"dimensions":[{"surface":"canonical-claims","reason":"The matching negative control and sibling cases were exercised and recorded for the frozen material candidate.","control_ids":["NEG-065-03","NEG-066-01"],"status":"passed"}],"status":"passed"}],"material_families_missing_controls":[]}
+{
+  "schema_version": 1,
+  "head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-043-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "effect-boundary",
+          "reason": "The requirement must not let an unrelated fallback or inferred path substitute for the explicitly resolved domain result.",
+          "control_ids": [
+            "NEG-OBL-043-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-013-1",
+        "NEG-OBL-020-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "reference-validity",
+          "reason": "Resolved measure/provenance must remain valid when it reaches the later nutrition boundary.",
+          "control_ids": [
+            "NEG-OBL-013-1",
+            "NEG-OBL-020-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-008-1",
+        "NEG-OBL-012-1",
+        "NEG-OBL-020-2",
+        "NEG-OBL-024-1",
+        "NEG-OBL-031-1",
+        "NEG-OBL-033-1",
+        "NEG-OBL-043-2",
+        "NEG-OBL-068-1",
+        "NEG-OBL-070-1",
+        "NEG-OBL-080-1",
+        "NEG-OBL-083-3",
+        "NEG-OBL-084-2",
+        "NEG-OBL-087-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "sequence-ordering",
+          "reason": "Routing order must preserve higher-precedence handlers before countable resolution and nutrition fallback.",
+          "control_ids": [
+            "NEG-OBL-008-1",
+            "NEG-OBL-012-1",
+            "NEG-OBL-020-2",
+            "NEG-OBL-024-1",
+            "NEG-OBL-031-1",
+            "NEG-OBL-033-1",
+            "NEG-OBL-043-2",
+            "NEG-OBL-068-1",
+            "NEG-OBL-070-1",
+            "NEG-OBL-080-1",
+            "NEG-OBL-083-3",
+            "NEG-OBL-084-2",
+            "NEG-OBL-087-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-017-1",
+        "NEG-OBL-018-1",
+        "NEG-OBL-035-1",
+        "NEG-OBL-038-1",
+        "NEG-OBL-063-1",
+        "NEG-OBL-064-1",
+        "NEG-OBL-065-1",
+        "NEG-OBL-069-1",
+        "NEG-OBL-071-1",
+        "NEG-OBL-072-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NEG-OBL-017-1",
+            "NEG-OBL-018-1",
+            "NEG-OBL-035-1",
+            "NEG-OBL-038-1",
+            "NEG-OBL-063-1",
+            "NEG-OBL-064-1",
+            "NEG-OBL-065-1",
+            "NEG-OBL-069-1",
+            "NEG-OBL-071-1",
+            "NEG-OBL-072-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-001-1",
+        "NEG-OBL-007-1",
+        "NEG-OBL-009-1",
+        "NEG-OBL-010-1",
+        "NEG-OBL-011-1",
+        "NEG-OBL-014-1",
+        "NEG-OBL-015-1",
+        "NEG-OBL-016-1",
+        "NEG-OBL-018-2",
+        "NEG-OBL-019-1",
+        "NEG-OBL-021-1",
+        "NEG-OBL-023-1",
+        "NEG-OBL-025-1",
+        "NEG-OBL-026-1",
+        "NEG-OBL-027-1",
+        "NEG-OBL-029-1",
+        "NEG-OBL-030-1",
+        "NEG-OBL-032-1",
+        "NEG-OBL-034-1",
+        "NEG-OBL-036-1",
+        "NEG-OBL-037-1",
+        "NEG-OBL-039-1",
+        "NEG-OBL-040-1",
+        "NEG-OBL-041-1",
+        "NEG-OBL-042-1",
+        "NEG-OBL-044-1",
+        "NEG-OBL-045-1",
+        "NEG-OBL-046-1",
+        "NEG-OBL-047-1",
+        "NEG-OBL-048-1",
+        "NEG-OBL-050-1",
+        "NEG-OBL-051-1",
+        "NEG-OBL-052-1",
+        "NEG-OBL-053-1",
+        "NEG-OBL-054-1",
+        "NEG-OBL-055-1",
+        "NEG-OBL-056-1",
+        "NEG-OBL-057-1",
+        "NEG-OBL-058-1",
+        "NEG-OBL-059-1",
+        "NEG-OBL-060-1",
+        "NEG-OBL-061-1",
+        "NEG-OBL-062-1",
+        "NEG-OBL-063-2",
+        "NEG-OBL-064-2",
+        "NEG-OBL-066-1",
+        "NEG-OBL-067-1",
+        "NEG-OBL-071-2",
+        "NEG-OBL-073-1",
+        "NEG-OBL-074-1",
+        "NEG-OBL-076-1",
+        "NEG-OBL-077-1",
+        "NEG-OBL-079-1",
+        "NEG-OBL-081-1",
+        "NEG-OBL-083-2",
+        "NEG-OBL-087-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "The implementation must reuse the canonical measure resolver and existing passthrough/nutrition boundaries without a parallel source.",
+          "control_ids": [
+            "NEG-OBL-001-1",
+            "NEG-OBL-007-1",
+            "NEG-OBL-009-1",
+            "NEG-OBL-010-1",
+            "NEG-OBL-011-1",
+            "NEG-OBL-014-1",
+            "NEG-OBL-015-1",
+            "NEG-OBL-016-1",
+            "NEG-OBL-018-2",
+            "NEG-OBL-019-1",
+            "NEG-OBL-021-1",
+            "NEG-OBL-023-1",
+            "NEG-OBL-025-1",
+            "NEG-OBL-026-1",
+            "NEG-OBL-027-1",
+            "NEG-OBL-029-1",
+            "NEG-OBL-030-1",
+            "NEG-OBL-032-1",
+            "NEG-OBL-034-1",
+            "NEG-OBL-036-1",
+            "NEG-OBL-037-1",
+            "NEG-OBL-039-1",
+            "NEG-OBL-040-1",
+            "NEG-OBL-041-1",
+            "NEG-OBL-042-1",
+            "NEG-OBL-044-1",
+            "NEG-OBL-045-1",
+            "NEG-OBL-046-1",
+            "NEG-OBL-047-1",
+            "NEG-OBL-048-1",
+            "NEG-OBL-050-1",
+            "NEG-OBL-051-1",
+            "NEG-OBL-052-1",
+            "NEG-OBL-053-1",
+            "NEG-OBL-054-1",
+            "NEG-OBL-055-1",
+            "NEG-OBL-056-1",
+            "NEG-OBL-057-1",
+            "NEG-OBL-058-1",
+            "NEG-OBL-059-1",
+            "NEG-OBL-060-1",
+            "NEG-OBL-061-1",
+            "NEG-OBL-062-1",
+            "NEG-OBL-063-2",
+            "NEG-OBL-064-2",
+            "NEG-OBL-066-1",
+            "NEG-OBL-067-1",
+            "NEG-OBL-071-2",
+            "NEG-OBL-073-1",
+            "NEG-OBL-074-1",
+            "NEG-OBL-076-1",
+            "NEG-OBL-077-1",
+            "NEG-OBL-079-1",
+            "NEG-OBL-081-1",
+            "NEG-OBL-083-2",
+            "NEG-OBL-087-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-082-1",
+        "NEG-OBL-083-1",
+        "NEG-OBL-084-1",
+        "NEG-OBL-085-1",
+        "NEG-OBL-086-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Canonical documentation must describe the same production routing and regression protections as the implemented exact-head behavior.",
+          "control_ids": [
+            "NEG-OBL-082-1",
+            "NEG-OBL-083-1",
+            "NEG-OBL-084-1",
+            "NEG-OBL-085-1",
+            "NEG-OBL-086-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
