@@ -58,8 +58,17 @@ function formatAdditionActionFoodName(item: MealItemInput) {
 }
 
 function formatQuantityResolutionNote(item: CanonicalFoodAdditionItem) {
-  if (item.quantityResolution?.kind !== "usual_average") return null;
-  return `A gramatura de ${item.foodName} foi estimada pela média usual da mesma medida e os nutrientes foram calculados com essa estimativa. Você pode corrigir depois pelo WhatsApp ou na tela da refeição.`;
+  const kind = item.quantityResolution?.kind;
+  if (kind === "usual_average") {
+    return `A gramatura de ${item.foodName} foi estimada pela média usual da mesma medida e os nutrientes foram calculados com essa estimativa. Você pode corrigir depois pelo WhatsApp ou na tela da refeição.`;
+  }
+  if (kind === "contextual_estimate") {
+    return `A gramatura de ${item.foodName} foi estimada de forma contextual para essa medida e os nutrientes foram calculados com essa aproximação. Você pode corrigir depois pelo WhatsApp ou na tela da refeição.`;
+  }
+  if (kind === "user_learned") {
+    return `Usei como aproximação uma referência pessoal anterior que você corrigiu para ${item.foodName}. Você pode corrigir novamente pelo WhatsApp ou na tela da refeição.`;
+  }
+  return null;
 }
 
 async function resolveAdditionItems(input: {
@@ -97,7 +106,7 @@ async function resolveAdditionItems(input: {
         expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
         receivedAt,
         messageId: input.context?.messageId,
-        instructionText: `Não encontrei uma gramatura verificável nem uma média usual segura para ${resolution.item.quantity} ${resolution.item.unit} de ${resolution.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
+        instructionText: `Não encontrei uma gramatura verificável nem uma estimativa segura para ${resolution.item.quantity} ${resolution.item.unit} de ${resolution.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
       }),
     };
   } catch (error) {
