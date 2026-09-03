@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
 import { getCatalogCache } from "./catalogRuntime";
+import {
+  householdMeasureResolutionSourceLabel,
+  isApproximateHouseholdMeasureResolutionKind,
+} from "./householdMeasureResolution";
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
@@ -180,16 +184,9 @@ function buildCountableResolutionPrefixBlock(
   const lines = resolutions.map(({ request, resolution }) => {
     const requested = `${formatNumber(request.count)} ${request.requestedUnit}`;
     const grams = formatNumber(resolution.grams);
-    if (resolution.kind === "usual_average") {
-      return `• ${request.foodName}: ${requested} → aprox. ${grams} g (média usual estimada)`;
-    }
-    const sourceLabel =
-      resolution.kind === "researched_exact"
-        ? "medida verificada"
-        : resolution.kind === "canonical_portion"
-          ? "porção canônica"
-          : "porção canônica do catálogo";
-    return `• ${request.foodName}: ${requested} → ${grams} g (${sourceLabel})`;
+    const approximate = isApproximateHouseholdMeasureResolutionKind(resolution.kind);
+    const sourceLabel = householdMeasureResolutionSourceLabel(resolution.kind);
+    return `• ${request.foodName}: ${requested} → ${approximate ? "aprox. " : ""}${grams} g (${sourceLabel})`;
   });
   return ["Medidas usadas no cálculo:", ...lines].join("\n");
 }
