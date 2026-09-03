@@ -5,6 +5,12 @@ import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
 import { findCatalogFood } from "./catalogMatching";
 import { hasFoodIdentityLexemes, isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
+import {
+  loadPersistedHouseholdMeasureResolution,
+  persistHouseholdMeasureResolution,
+  type PersistedHouseholdMeasureKind,
+  type PersistedHouseholdMeasureResolution,
+} from "./householdMeasureResolutionStore";
 import { parseQuantityUnitFromPortionText } from "./mealTextParsing";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import {
@@ -22,6 +28,12 @@ const BROAD_FOOD_TYPE_TOKENS = new Set([
   "carne",
   "embutido",
   "laticinio",
+]);
+const AMBIGUOUS_CONTEXTUAL_MEASURE_UNITS = new Set([
+  "porcao",
+  "pedaco",
+  "pacote",
+  "punhado",
 ]);
 const PHYSICAL_PREPARATION_QUALIFIERS = [
   "light",
@@ -64,7 +76,9 @@ type SearchedPortionResult = {
 export type HouseholdMeasureResolutionKind =
   | "canonical_portion"
   | "researched_exact"
-  | "usual_average";
+  | "user_learned"
+  | "usual_average"
+  | "contextual_estimate";
 
 export type HouseholdMeasureResolution = {
   kind: HouseholdMeasureResolutionKind;
@@ -94,6 +108,8 @@ type HouseholdMeasureResolutionRuntime = {
   resolveCapabilityConfig: typeof resolveCapabilityConfig;
   executeResolvedCapability: typeof executeResolvedCapability;
   createDomainTextResponse: typeof createDomainTextResponse;
+  loadPersistedHouseholdMeasureResolution?: typeof loadPersistedHouseholdMeasureResolution;
+  persistHouseholdMeasureResolution?: typeof persistHouseholdMeasureResolution;
 };
 
 const defaultRuntime: HouseholdMeasureResolutionRuntime = {
@@ -103,6 +119,8 @@ const defaultRuntime: HouseholdMeasureResolutionRuntime = {
   resolveCapabilityConfig,
   executeResolvedCapability,
   createDomainTextResponse,
+  loadPersistedHouseholdMeasureResolution,
+  persistHouseholdMeasureResolution,
 };
 
 const searchedPortionJsonSchema = {
@@ -177,6 +195,25 @@ function normalizeHttpUrl(value: string | undefined) {
 function normalizeCountableUnit(value: string) {
   const unit = normalizeMeasurementUnit(value);
   return unit === "un" ? "unidade" : unit;
+}
+
+export function isApproximateHouseholdMeasureResolutionKind(kind: HouseholdMeasureResolutionKind) {
+  return kind === "usual_average" || kind === "contextual_estimate" || kind === "user_learned";
+}
+
+export function householdMeasureResolutionSourceLabel(kind: HouseholdMeasureResolutionKind) {
+  switch (kind) {
+    case "researched_exact":
+      return "medida verificada";
+    case "canonical_portion":
+      return "porção canônica";
+    case "user_learned":
+      return "referência pessoal anterior";
+    case "usual_average":
+      return "média usual estimada";
+    case "contextual_estimate":
+      return "estimativa contextual";
+  }
 }
 
 function portionSupportsUnit(portion: { label: string; unit: string }, requestedUnit: string) {
@@ -515,6 +552,12 @@ function uniqueReferencesBySource(references: PortionReference[]) {
   });
 }
 
+function supportsContextualEstimate(input: HouseholdMeasureResolutionInput) {
+  const normalizedUnit = normalize(normalizeCountableUnit(input.unit));
+  if (AMBIGUOUS_CONTEXTUAL_MEASURE_UNITS.has(normalizedUnit)) return false;
+  return hasFoodIdentityLexemes(input.foodName);
+}
+
 function buildSearchResolution(
   input: HouseholdMeasureResolutionInput,
   result: SearchedPortionResult,
@@ -539,10 +582,21 @@ function buildSearchResolution(
   const usual = uniqueReferencesBySource(
     verified.filter(reference => reference.referenceKind === "same_food_type"),
   );
-  const canUseSingleTypical = usual.length === 1 && usual[0].describesTypicalMeasure;
-  const hasMultisourceBasis = usual.length >= MIN_MULTISOURCE_REFERENCES;
-  if (!canUseSingleTypical && !hasMultisourceBasis) return null;
+  if (usual.length === 1) {
+    const selected = usual[0];
+    if (!selected.describesTypicalMeasure && !supportsContextualEstimate(input)) return null;
+    return {
+      kind: selected.describesTypicalMeasure ? "usual_average" : "contextual_estimate",
+      grams: Number(gramsForRequestedQuantity(selected, input.quantity).toFixed(2)),
+      requestedQuantity: input.quantity,
+      requestedUnit: normalizeCountableUnit(input.unit),
+      evidence: selected.evidence.trim() || null,
+      sourceUrls: [selected.sourceUrl],
+      referenceCount: 1,
+    };
+  }
 
+  if (usual.length < MIN_MULTISOURCE_REFERENCES) return null;
   const values = usual.map(reference => gramsForRequestedQuantity(reference, input.quantity));
   if (!averageIsCoherent(values)) return null;
   const grams = median(values);
@@ -614,6 +668,56 @@ async function searchVerifiedMeasure(
   }
 }
 
+function resolutionFromPersisted(
+  input: HouseholdMeasureResolutionInput,
+  record: PersistedHouseholdMeasureResolution,
+): HouseholdMeasureResolution {
+  const grams = (record.grams * input.quantity) / record.measureQuantity;
+  return {
+    kind: record.kind,
+    grams: Number(grams.toFixed(2)),
+    requestedQuantity: input.quantity,
+    requestedUnit: normalizeCountableUnit(input.unit),
+    evidence: record.evidence,
+    sourceUrls: [...record.sourceUrls],
+    referenceCount: record.referenceCount,
+  };
+}
+
+async function resolvePersistedByPrecedence(
+  input: HouseholdMeasureResolutionInput,
+  runtime: HouseholdMeasureResolutionRuntime,
+) {
+  const loader = runtime.loadPersistedHouseholdMeasureResolution;
+  if (!loader) return null;
+  const kinds: PersistedHouseholdMeasureKind[] = [
+    "researched_exact",
+    "user_learned",
+    "usual_average",
+    "contextual_estimate",
+  ];
+  const record = await loader(input, kinds);
+  return record ? resolutionFromPersisted(input, record) : null;
+}
+
+async function persistReusableResolution(
+  input: HouseholdMeasureResolutionInput,
+  resolution: HouseholdMeasureResolution,
+  runtime: HouseholdMeasureResolutionRuntime,
+) {
+  if (resolution.kind === "canonical_portion" || resolution.kind === "user_learned") return;
+  const persist = runtime.persistHouseholdMeasureResolution;
+  if (!persist) return;
+  await persist({
+    ...input,
+    kind: resolution.kind,
+    grams: resolution.grams,
+    evidence: resolution.evidence,
+    sourceUrls: resolution.sourceUrls,
+    referenceCount: resolution.referenceCount,
+  });
+}
+
 export async function resolveHouseholdMeasure(
   input: HouseholdMeasureResolutionInput,
   runtime: HouseholdMeasureResolutionRuntime = defaultRuntime,
@@ -628,5 +732,12 @@ export async function resolveHouseholdMeasure(
 
   const staticCatalog = resolveStaticCatalogPortion(normalizedInput);
   if (staticCatalog) return staticCatalog;
-  return searchVerifiedMeasure(normalizedInput, runtime);
+
+  const persisted = await resolvePersistedByPrecedence(normalizedInput, runtime);
+  if (persisted) return persisted;
+
+  const researched = await searchVerifiedMeasure(normalizedInput, runtime);
+  if (!researched) return null;
+  await persistReusableResolution(normalizedInput, researched, runtime);
+  return researched;
 }
