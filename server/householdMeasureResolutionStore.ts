@@ -59,6 +59,12 @@ export type UserLearnedHouseholdMeasureInput = {
 const PREFERENCE_PREFIX = "household_measure_v1:";
 export const HOUSEHOLD_MEASURE_SEARCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
+const PERSISTED_KINDS: PersistedHouseholdMeasureKind[] = [
+  "researched_exact",
+  "usual_average",
+  "contextual_estimate",
+  "user_learned",
+];
 
 function normalizeIdentityText(value: string) {
   return value
@@ -103,10 +109,10 @@ function parseStoredResolution(
   try {
     const parsed = JSON.parse(value) as Partial<PersistedHouseholdMeasureResolution>;
     if (parsed.version !== 1) return null;
-    if (!parsed.kind || !["researched_exact", "usual_average", "contextual_estimate", "user_learned"].includes(parsed.kind)) return null;
+    if (!parsed.kind || !PERSISTED_KINDS.includes(parsed.kind)) return null;
     if (!parsed.normalizedFoodName || typeof parsed.normalizedBrand !== "string" || !parsed.unit) return null;
-    if (!Number.isFinite(parsed.measureQuantity) || Number(parsed.measureQuantity) <= 0) return null;
-    if (!Number.isFinite(parsed.grams) || Number(parsed.grams) <= 0) return null;
+    if (typeof parsed.measureQuantity !== "number" || !Number.isFinite(parsed.measureQuantity) || parsed.measureQuantity <= 0) return null;
+    if (typeof parsed.grams !== "number" || !Number.isFinite(parsed.grams) || parsed.grams <= 0) return null;
     if (!parsed.verifiedAt || Number.isNaN(new Date(parsed.verifiedAt).getTime())) return null;
     if (parsed.expiresAt && Number.isNaN(new Date(parsed.expiresAt).getTime())) return null;
     return {
@@ -117,13 +123,15 @@ function parseStoredResolution(
       brand: parsed.brand ?? null,
       normalizedBrand: parsed.normalizedBrand,
       unit: parsed.unit,
-      measureQuantity: Number(parsed.measureQuantity),
-      grams: Number(parsed.grams),
+      measureQuantity: parsed.measureQuantity,
+      grams: parsed.grams,
       evidence: typeof parsed.evidence === "string" ? parsed.evidence : null,
       sourceUrls: Array.isArray(parsed.sourceUrls)
-        ? parsed.sourceUrls.filter((value): value is string => typeof value === "string")
+        ? parsed.sourceUrls.filter((item): item is string => typeof item === "string")
         : [],
-      referenceCount: Number.isFinite(parsed.referenceCount) ? Math.max(0, Number(parsed.referenceCount)) : 0,
+      referenceCount: typeof parsed.referenceCount === "number" && Number.isFinite(parsed.referenceCount)
+        ? Math.max(0, parsed.referenceCount)
+        : 0,
       verifiedAt: parsed.verifiedAt,
       expiresAt: parsed.expiresAt ?? null,
     };
