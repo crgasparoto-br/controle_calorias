@@ -1,4 +1,5 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { persistUserLearnedHouseholdMeasure } from "../../../householdMeasureResolutionStore";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
@@ -108,6 +109,26 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
   });
 }
 
+async function learnFromSuccessfulExplicitCorrection(input: {
+  userId: number;
+  item: MealItemInput;
+  correctedQuantity: number;
+  correctedUnit: string;
+}) {
+  const originalQuantity = Number(input.item.quantity);
+  const originalUnit = input.item.unit?.trim();
+  if (!Number.isFinite(originalQuantity) || originalQuantity <= 0 || !originalUnit) return false;
+  return persistUserLearnedHouseholdMeasure({
+    userId: input.userId,
+    foodName: input.item.foodName,
+    brand: input.item.brand,
+    originalQuantity,
+    originalUnit,
+    correctedQuantity: input.correctedQuantity,
+    correctedUnit: input.correctedUnit,
+  });
+}
+
 async function buildUpdatedMealsReply(
   userId: number,
   updatedMeals: MealRecord[],
@@ -209,6 +230,7 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
   }
 
   const target = targets[0];
+  const originalItem = toMealItemInput(target.item);
   const nextItems = latestMeal.items.map((item, index) => index === target.index
     ? scaleMealItemQuantity(toMealItemInput(item), correction.nextQuantity, correction.nextUnit)
     : item);
@@ -218,6 +240,12 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     occurredAt: new Date(latestMeal.occurredAt).toISOString(),
     notes: latestMeal.notes,
     items: nextItems as MealItemInput[],
+  });
+  await learnFromSuccessfulExplicitCorrection({
+    userId,
+    item: originalItem,
+    correctedQuantity: correction.nextQuantity,
+    correctedUnit: correction.nextUnit,
   });
   const previous = correction.previousQuantity && correction.previousUnit
     ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
@@ -293,10 +321,19 @@ async function updateLatestMealItemGrams(input: {
     } satisfies WhatsappIntentResult;
   }
 
+  const originalItem = toMealItemInput(target.item);
   const previousGrams = Number(target.item.estimatedGrams || 0);
   const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
   target.meal.items = target.meal.items.map((item, index) => index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item);
   const updatedMeal = await updateMealItems(input.userId, target.meal);
+  if (input.selectionAction.kind === "grams_absolute") {
+    await learnFromSuccessfulExplicitCorrection({
+      userId: input.userId,
+      item: originalItem,
+      correctedQuantity: nextGrams,
+      correctedUnit: "g",
+    });
+  }
   return {
     handled: true,
     action: "meal_item_grams_adjusted",
