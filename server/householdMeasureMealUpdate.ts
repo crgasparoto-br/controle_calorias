@@ -1,4 +1,4 @@
-import { calculateMealTotals } from "./nutritionTotals";
+import { calculateMealTotals } from "../shared/mealTotals";
 import { foodCatalogDirectKey } from "./foodCatalogKeys";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "./householdMeasureResolutionPersistence";
 import { getDb, listUserMeals, logInferenceEvent, logPersistenceWarning, rebuildUserMealHabits } from "./dbImplementation";

@@ -119,9 +119,7 @@ export function buildUserLearnedHouseholdMeasurePreference(
   const identity = normalizedHouseholdMeasureIdentity({
     foodName: input.foodName,
     brand: input.brand,
-    quantity: input.originalQuantity,
     unit: originalUnit,
-    userId: input.userId,
   });
   const record: PersistedHouseholdMeasureResolution = {
     version: 1,
@@ -142,10 +140,8 @@ export function buildUserLearnedHouseholdMeasurePreference(
 
   return {
     preferenceKey: householdMeasurePreferenceKey({
-      userId: input.userId,
       foodName: input.foodName,
       brand: input.brand,
-      quantity: input.originalQuantity,
       unit: originalUnit,
     }, "user_learned"),
     preferenceValue: JSON.stringify(record),
