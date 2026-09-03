@@ -226,7 +226,7 @@ assert_dom \
 assert_dom \
   "notes" \
   "$NOTES_URL" \
-  "Nova anotpãão privada" \
+  "Nova anotação privada" \
   "Anotações anteriores" \
   "Paciente relatou boa adesão"
 assert_dom \
@@ -330,7 +330,7 @@ for spec in "${GOAL_VIEWPORTS[@]}"; do
     'data-visual-goals-exception-visible="true"' \
     'data-visual-goals-primary-action-disabled="true"' \
     'data-visual-goals-all-mutations-disabled="true"' \
-     'data-visual-goals-tracking-state="paused"'
+    'data-visual-goals-tracking-state="paused"'
 done
 
 assert_dom_at_size \
@@ -371,11 +371,10 @@ routes=/professional/patients/1,/professional/patients/1/assessment,/professiona
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
 scenarios=summary,assessment,assessment-comparison-open-desktop,assessment-comparison-open-mobile,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
-viewports=1440x900,1366x768,1024x768,309x844,390x1200
+viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatientWorkspace and ProfessionalReportsWorkspace with deterministic auth and tRPC transport fixtures
 interaction=canonical patient deep links, opening an assessment comparison through the real Visualizar avaliação button, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
 assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment history with explicit visualization action, open assessment comparison side-by-side on desktop and vertical on mobile with read-only history, editable current draft, visible close action and no horizontal overflow, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
-
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

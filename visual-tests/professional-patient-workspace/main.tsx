@@ -244,7 +244,7 @@ function writeVisualDiagnostics() {
   }
 
   const reportTitle = Array.from(document.querySelectorAll<HTMLElement>("h1")).find(
-    element => element.textContent?.trim() === "Diagnóstico nutricional do períÙdo"
+    element => element.textContent?.trim() === "Diagnóstico nutricional do período"
   );
   const periodSelector = document.querySelector<HTMLElement>(
     "[data-period-scope-selector]"
@@ -294,7 +294,7 @@ function writeVisualDiagnostics() {
     );
     root.dataset.visualMessagesInboxConversationLinks = String(
       conversationButtons.length >= 2
-   );
+    );
     root.dataset.visualMessagesInboxFilters = String(
       Boolean(
         document.querySelector<HTMLInputElement>(
