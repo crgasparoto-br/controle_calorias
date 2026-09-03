@@ -1,12 +1,11 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
-import { persistUserLearnedHouseholdMeasure } from "../../../householdMeasureResolutionStore";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppItemNotFoundReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
 import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
-import { listMeals, updateMeal } from "../../meals/service";
+import { listMeals, updateMeal, updateMealWithHouseholdMeasureLearning } from "../../meals/service";
 import type { MealItemInput } from "../../meals/schemas";
 import {
   createPendingMealItemSelection,
@@ -109,7 +108,7 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
   });
 }
 
-async function learnFromSuccessfulExplicitCorrection(input: {
+function buildHouseholdMeasureLearningRelation(input: {
   userId: number;
   item: MealItemInput;
   correctedQuantity: number;
@@ -117,8 +116,8 @@ async function learnFromSuccessfulExplicitCorrection(input: {
 }) {
   const originalQuantity = Number(input.item.quantity);
   const originalUnit = input.item.unit?.trim();
-  if (!Number.isFinite(originalQuantity) || originalQuantity <= 0 || !originalUnit) return false;
-  return persistUserLearnedHouseholdMeasure({
+  if (!Number.isFinite(originalQuantity) || originalQuantity <= 0 || !originalUnit) return null;
+  return {
     userId: input.userId,
     foodName: input.item.foodName,
     brand: input.item.brand,
@@ -126,6 +125,33 @@ async function learnFromSuccessfulExplicitCorrection(input: {
     originalUnit,
     correctedQuantity: input.correctedQuantity,
     correctedUnit: input.correctedUnit,
+  };
+}
+
+async function updateMealItemsWithOptionalLearning(input: {
+  userId: number;
+  meal: MutableMealRecord;
+  originalItem: MealItemInput;
+  correctedQuantity: number;
+  correctedUnit: string;
+}) {
+  const updateInput = {
+    mealId: input.meal.id,
+    mealLabel: input.meal.mealLabel,
+    occurredAt: new Date(input.meal.occurredAt).toISOString(),
+    notes: input.meal.notes,
+    items: input.meal.items,
+  };
+  const relation = buildHouseholdMeasureLearningRelation({
+    userId: input.userId,
+    item: input.originalItem,
+    correctedQuantity: input.correctedQuantity,
+    correctedUnit: input.correctedUnit,
+  });
+  if (!relation) return updateMeal(input.userId, updateInput);
+  return updateMealWithHouseholdMeasureLearning(input.userId, updateInput, {
+    expectedOriginalItem: input.originalItem,
+    relation,
   });
 }
 
@@ -234,16 +260,11 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
   const nextItems = latestMeal.items.map((item, index) => index === target.index
     ? scaleMealItemQuantity(toMealItemInput(item), correction.nextQuantity, correction.nextUnit)
     : item);
-  const updatedMeal = await updateMeal(userId, {
-    mealId: latestMeal.id,
-    mealLabel: latestMeal.mealLabel,
-    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
-    notes: latestMeal.notes,
-    items: nextItems as MealItemInput[],
-  });
-  await learnFromSuccessfulExplicitCorrection({
+  const mutableMeal = { ...latestMeal, items: nextItems as MealItemInput[] } as MutableMealRecord;
+  const updatedMeal = await updateMealItemsWithOptionalLearning({
     userId,
-    item: originalItem,
+    meal: mutableMeal,
+    originalItem,
     correctedQuantity: correction.nextQuantity,
     correctedUnit: correction.nextUnit,
   });
@@ -325,15 +346,15 @@ async function updateLatestMealItemGrams(input: {
   const previousGrams = Number(target.item.estimatedGrams || 0);
   const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
   target.meal.items = target.meal.items.map((item, index) => index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item);
-  const updatedMeal = await updateMealItems(input.userId, target.meal);
-  if (input.selectionAction.kind === "grams_absolute") {
-    await learnFromSuccessfulExplicitCorrection({
-      userId: input.userId,
-      item: originalItem,
-      correctedQuantity: nextGrams,
-      correctedUnit: "g",
-    });
-  }
+  const updatedMeal = input.selectionAction.kind === "grams_absolute"
+    ? await updateMealItemsWithOptionalLearning({
+        userId: input.userId,
+        meal: target.meal,
+        originalItem,
+        correctedQuantity: nextGrams,
+        correctedUnit: "g",
+      })
+    : await updateMealItems(input.userId, target.meal);
   return {
     handled: true,
     action: "meal_item_grams_adjusted",

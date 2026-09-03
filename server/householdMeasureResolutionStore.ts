@@ -1,32 +1,22 @@
-import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { userPreferences } from "../drizzle/schema";
-import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import { getDb } from "./db";
+import {
+  buildUserLearnedHouseholdMeasurePreference,
+  householdMeasurePreferenceKey,
+  normalizedHouseholdMeasureIdentity,
+  upsertHouseholdMeasurePreference,
+  type PersistedHouseholdMeasureKind,
+  type PersistedHouseholdMeasureResolution,
+  type UserLearnedHouseholdMeasureInput,
+} from "./householdMeasureResolutionPersistence";
 import { safeLogDetail } from "./privacy";
 
-export type PersistedHouseholdMeasureKind =
-  | "researched_exact"
-  | "usual_average"
-  | "contextual_estimate"
-  | "user_learned";
-
-export type PersistedHouseholdMeasureResolution = {
-  version: 1;
-  kind: PersistedHouseholdMeasureKind;
-  foodName: string;
-  normalizedFoodName: string;
-  brand: string | null;
-  normalizedBrand: string;
-  unit: string;
-  measureQuantity: number;
-  grams: number;
-  evidence: string | null;
-  sourceUrls: string[];
-  referenceCount: number;
-  verifiedAt: string;
-  expiresAt: string | null;
-};
+export type {
+  PersistedHouseholdMeasureKind,
+  PersistedHouseholdMeasureResolution,
+  UserLearnedHouseholdMeasureInput,
+} from "./householdMeasureResolutionPersistence";
 
 export type HouseholdMeasurePersistenceInput = {
   userId: number;
@@ -46,61 +36,13 @@ export type PersistHouseholdMeasureResolutionInput = HouseholdMeasurePersistence
   expiresAt?: Date | null;
 };
 
-export type UserLearnedHouseholdMeasureInput = {
-  userId: number;
-  foodName: string;
-  brand?: string | null;
-  originalQuantity: number;
-  originalUnit: string;
-  correctedQuantity: number;
-  correctedUnit: string;
-};
-
-const PREFERENCE_PREFIX = "household_measure_v1:";
 export const HOUSEHOLD_MEASURE_SEARCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 const PERSISTED_KINDS: PersistedHouseholdMeasureKind[] = [
   "researched_exact",
   "usual_average",
   "contextual_estimate",
   "user_learned",
 ];
-
-function normalizeIdentityText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")
-    .replace(/\blaticinios?\b/g, "laticinio")
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeCountableUnit(value: string) {
-  const unit = normalizeMeasurementUnit(value);
-  return unit === "un" ? "unidade" : unit;
-}
-
-function normalizedIdentity(input: Pick<HouseholdMeasurePersistenceInput, "foodName" | "brand" | "unit">) {
-  return {
-    foodName: normalizeIdentityText(input.foodName),
-    brand: normalizeIdentityText(input.brand ?? ""),
-    unit: normalizeCountableUnit(input.unit),
-  };
-}
-
-function preferenceKey(
-  input: Pick<HouseholdMeasurePersistenceInput, "foodName" | "brand" | "unit">,
-  kind: PersistedHouseholdMeasureKind,
-) {
-  const identity = normalizedIdentity(input);
-  const digest = createHash("sha256")
-    .update([identity.foodName, identity.brand, identity.unit, kind].join("|"))
-    .digest("hex");
-  return `${PREFERENCE_PREFIX}${digest}`;
-}
 
 function parseStoredResolution(
   value: string | null | undefined,
@@ -144,7 +86,7 @@ function recordMatchesInput(
   record: PersistedHouseholdMeasureResolution,
   input: HouseholdMeasurePersistenceInput,
 ) {
-  const identity = normalizedIdentity(input);
+  const identity = normalizedHouseholdMeasureIdentity(input);
   return record.normalizedFoodName === identity.foodName
     && record.normalizedBrand === identity.brand
     && record.unit === identity.unit;
@@ -164,7 +106,7 @@ export async function loadPersistedHouseholdMeasureResolution(
   const db = await getDb();
   if (!db) return null;
 
-  const keys = kinds.map(kind => preferenceKey(input, kind));
+  const keys = kinds.map(kind => householdMeasurePreferenceKey(input, kind));
   try {
     const rows = await db
       .select({
@@ -178,7 +120,7 @@ export async function loadPersistedHouseholdMeasureResolution(
       ));
     const byKey = new Map(rows.map(row => [row.preferenceKey, row.preferenceValue]));
     for (const kind of kinds) {
-      const record = parseStoredResolution(byKey.get(preferenceKey(input, kind)));
+      const record = parseStoredResolution(byKey.get(householdMeasurePreferenceKey(input, kind)));
       if (!record || record.kind !== kind) continue;
       if (!recordMatchesInput(record, input)) continue;
       if (!recordIsActive(record, now)) continue;
@@ -198,7 +140,7 @@ export async function persistHouseholdMeasureResolution(
   const db = await getDb();
   if (!db) return false;
 
-  const identity = normalizedIdentity(input);
+  const identity = normalizedHouseholdMeasureIdentity(input);
   const verifiedAt = input.verifiedAt ?? new Date();
   const expiresAt = input.kind === "user_learned"
     ? null
@@ -219,7 +161,7 @@ export async function persistHouseholdMeasureResolution(
     verifiedAt: verifiedAt.toISOString(),
     expiresAt: expiresAt?.toISOString() ?? null,
   };
-  const key = preferenceKey(input, input.kind);
+  const key = householdMeasurePreferenceKey(input, input.kind);
   const serialized = JSON.stringify(record);
 
   try {
@@ -240,43 +182,18 @@ export async function persistHouseholdMeasureResolution(
   }
 }
 
-function correctedMassOrVolumeToGrams(quantity: number, unit: string) {
-  const normalizedUnit = normalizeMeasurementUnit(unit);
-  if (!MASS_VOLUME_UNITS.has(normalizedUnit)) return null;
-  if (!Number.isFinite(quantity) || quantity <= 0) return null;
-  switch (normalizedUnit) {
-    case "kg": return quantity * 1000;
-    case "mg": return quantity / 1000;
-    case "l": return quantity * 1000;
-    case "ml":
-    case "g":
-      return quantity;
-    default:
-      return null;
-  }
-}
-
 export async function persistUserLearnedHouseholdMeasure(
   input: UserLearnedHouseholdMeasureInput,
 ): Promise<boolean> {
-  const originalUnit = normalizeCountableUnit(input.originalUnit);
-  if (MASS_VOLUME_UNITS.has(originalUnit)) return false;
-  if (!Number.isFinite(input.originalQuantity) || input.originalQuantity <= 0) return false;
-  const correctedGrams = correctedMassOrVolumeToGrams(input.correctedQuantity, input.correctedUnit);
-  if (!correctedGrams || correctedGrams <= 0) return false;
-
-  return persistHouseholdMeasureResolution({
-    userId: input.userId,
-    foodName: input.foodName,
-    brand: input.brand,
-    quantity: input.originalQuantity,
-    unit: originalUnit,
-    kind: "user_learned",
-    grams: correctedGrams,
-    evidence: "Correção explícita do usuário para a mesma medida e identidade alimentar.",
-    sourceUrls: [],
-    referenceCount: 0,
-    verifiedAt: new Date(),
-    expiresAt: null,
-  });
+  const built = buildUserLearnedHouseholdMeasurePreference(input);
+  if (!built) return false;
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await upsertHouseholdMeasurePreference(db, { userId: input.userId, ...built });
+    return true;
+  } catch (error) {
+    console.warn("[Database] Household measure persistence skipped:", safeLogDetail(error));
+    return false;
+  }
 }

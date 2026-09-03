@@ -118,6 +118,56 @@ describe("issue #1037 — controles adicionais do passthrough", () => {
     expect(forwarded.body.entry[0].changes[0].value.messages[0].text.body).toBe("60 g de presunto\n41 g de mussarela");
   });
 
+  it("cobre a mensagem completa da #1043 sem reduzir presunto e mussarela à mesma gramatura", async () => {
+    const text = "1 pão francês, 4 fatias de presunto, 2 fatias de mussarela, 4 xícaras de café sem açúcar e 50 g de requeijão";
+    const registrationText = "1 pão francês, 72 g de presunto, 41 g de mussarela, 4 xícaras de café sem açúcar e 50 g de requeijão";
+    mocks.countableGate.mockResolvedValue({
+      kind: "ready",
+      registrationText,
+      resolutions: [
+        {
+          segmentIndex: 1,
+          request: { segment: "4 fatias de presunto", foodName: "presunto", count: 4, requestedUnit: "fatia" },
+          resolution: {
+            kind: "contextual_estimate",
+            grams: 72,
+            requestedQuantity: 4,
+            requestedUnit: "fatia",
+            evidence: "1 fatia pesa 18 g",
+            sourceUrls: ["https://example.com/presunto-contextual"],
+            referenceCount: 1,
+          },
+        },
+        {
+          segmentIndex: 2,
+          request: { segment: "2 fatias de mussarela", foodName: "mussarela", count: 2, requestedUnit: "fatia" },
+          resolution: {
+            kind: "contextual_estimate",
+            grams: 41,
+            requestedQuantity: 2,
+            requestedUnit: "fatia",
+            evidence: "2 fatias pesam 41 g",
+            sourceUrls: ["https://example.com/mussarela-contextual"],
+            referenceCount: 1,
+          },
+        },
+      ],
+    });
+    mocks.executeTextIntent.mockResolvedValue(null);
+
+    await handleWhatsAppWebhookWithTextIntent(request(text, "wamid-1043-full-meal") as never, response() as never);
+
+    expect(mocks.countableGate).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTextIntent).toHaveBeenCalledWith(42, expect.objectContaining({ text: registrationText }));
+    const forwarded = mocks.handleBaseWebhook.mock.calls[0][0];
+    expect(forwarded.body.entry[0].changes[0].value.messages[0].text.body).toBe(registrationText);
+    expect(registrationText).toContain("72 g de presunto");
+    expect(registrationText).toContain("41 g de mussarela");
+    expect(registrationText).toContain("1 pão francês");
+    expect(registrationText).toContain("4 xícaras de café sem açúcar");
+    expect(registrationText).toContain("50 g de requeijão");
+  });
+
   it("mantém Adicionar no handler canônico e fora do passthrough normal", async () => {
     const text = "Adicionar 3 fatias de presunto ao café da manhã";
     mocks.parseMealCommand.mockReturnValue({ intent: "add_items_to_meal", mealType: "breakfast", items: [{ foodName: "presunto", quantity: 3, unit: "fatia" }] });

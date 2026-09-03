@@ -2,6 +2,7 @@ import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
+import { upsertHouseholdMeasurePreference, type BuiltHouseholdMeasurePreference } from "../householdMeasureResolutionPersistence";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -59,6 +60,13 @@ export type MealsRepository = {
     items: MealDraftItem[];
     resolvedCatalogIds: Map<string, number>;
   }): Promise<void>;
+  persistMealUpdateWithHouseholdMeasureLearning(input: {
+    meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
+    items: MealDraftItem[];
+    expectedOriginalItem: MealDraftItem;
+    resolvedCatalogIds: Map<string, number>;
+    learning: BuiltHouseholdMeasurePreference;
+  }): Promise<"updated" | "stale" | "not_found" | "unsupported">;
   deleteMeal(userId: number, mealId: number): Promise<void>;
   findItemsWithMealDates(userId: number): Promise<Array<{ canonicalName: string; foodName: string; foodCatalogId: number | null; occurredAt: number }>>;
   insertInference(draft: {
@@ -125,6 +133,55 @@ async function assertMealBelongsToUser(tx: any, userId: number, mealId: number) 
     .where(and(eq(meals.userId, userId), eq(meals.id, mealId)))
     .limit(1);
   return rows.length > 0;
+}
+
+function samePersistedMealItem(row: any, expected: MealDraftItem) {
+  const numericEqual = (actual: unknown, wanted: unknown) => {
+    const a = Number(actual);
+    const b = Number(wanted);
+    return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-9;
+  };
+  return String(row.foodName ?? "") === String(expected.foodName ?? "")
+    && String(row.canonicalName ?? "") === String(expected.canonicalName ?? "")
+    && String(row.portionText ?? "") === String(expected.portionText ?? "")
+    && String(row.unit ?? "") === String(expected.unit ?? "")
+    && numericEqual(row.quantity, expected.quantity)
+    && numericEqual(row.estimatedGrams, expected.estimatedGrams)
+    && numericEqual(row.calories, expected.calories)
+    && numericEqual(row.protein, expected.protein)
+    && numericEqual(row.carbs, expected.carbs)
+    && numericEqual(row.fat, expected.fat);
+}
+
+async function replaceMealItemsInTransaction(
+  tx: any,
+  input: {
+    meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
+    items: MealDraftItem[];
+    resolvedCatalogIds: Map<string, number>;
+  },
+) {
+  await tx
+    .update(meals)
+    .set({ status: "draft" })
+    .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
+
+  await tx.delete(mealItems).where(eq(mealItems.mealId, input.meal.id));
+  if (input.items.length) {
+    await tx.insert(mealItems).values(buildMealItemValues(input.meal.id, input.items, input.resolvedCatalogIds));
+  }
+
+  await tx
+    .update(meals)
+    .set({
+      mealLabel: input.meal.mealLabel,
+      notes: input.meal.notes ?? null,
+      confidence: input.meal.confidence,
+      occurredAt: new Date(input.meal.occurredAt),
+      updatedAt: new Date(),
+      status: "confirmed",
+    })
+    .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
 }
 
 export function createDrizzleMealsRepository(deps: {
@@ -261,28 +318,35 @@ export function createDrizzleMealsRepository(deps: {
       await runInTransaction(db, async tx => {
         const ownsMeal = await assertMealBelongsToUser(tx, meal.userId, meal.id);
         if (!ownsMeal) return;
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+      });
+    },
 
-        await tx
-          .update(meals)
-          .set({ status: "draft" })
-          .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+    async persistMealUpdateWithHouseholdMeasureLearning({ meal, items, expectedOriginalItem, resolvedCatalogIds, learning }) {
+      const db = await deps.getDb();
+      if (!db || typeof db.transaction !== "function") return "unsupported";
 
-        await tx.delete(mealItems).where(eq(mealItems.mealId, meal.id));
-        if (items.length) {
-          await tx.insert(mealItems).values(buildMealItemValues(meal.id, items, resolvedCatalogIds));
+      return db.transaction(async (tx: any) => {
+        if (learning.record.kind !== "user_learned") {
+          throw new Error("Household measure learning mutation requires user_learned provenance.");
         }
 
-        await tx
-          .update(meals)
-          .set({
-            mealLabel: meal.mealLabel,
-            notes: meal.notes ?? null,
-            confidence: meal.confidence,
-            occurredAt: new Date(meal.occurredAt),
-            updatedAt: new Date(),
-            status: "confirmed",
-          })
-          .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)));
+        const lockedMeals = await tx
+          .select({ id: meals.id, userId: meals.userId })
+          .from(meals)
+          .where(and(eq(meals.userId, meal.userId), eq(meals.id, meal.id)))
+          .for("update")
+          .limit(1);
+        if (!lockedMeals.length) return "not_found" as const;
+        if (Number(lockedMeals[0].userId) !== meal.userId) return "not_found" as const;
+
+        const currentItems = await tx.select().from(mealItems).where(eq(mealItems.mealId, meal.id));
+        const matchingItems = currentItems.filter((row: unknown) => samePersistedMealItem(row, expectedOriginalItem));
+        if (matchingItems.length !== 1) return "stale" as const;
+
+        await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
+        await upsertHouseholdMeasurePreference(tx, { userId: meal.userId, ...learning });
+        return "updated" as const;
       });
     },
 

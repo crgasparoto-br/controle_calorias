@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMealsMock = vi.hoisted(() => vi.fn());
 const updateMealMock = vi.hoisted(() => vi.fn());
-const persistLearnedMock = vi.hoisted(() => vi.fn(async () => true));
+const updateMealWithLearningMock = vi.hoisted(() => vi.fn());
 const createPendingMock = vi.hoisted(() => vi.fn(async () => ({
   reply: "Escolha o item",
   eventType: "whatsapp.intent.clarification_needed",
@@ -13,9 +13,7 @@ const createPendingMock = vi.hoisted(() => vi.fn(async () => ({
 vi.mock("../../meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
-}));
-vi.mock("../../../householdMeasureResolutionStore", () => ({
-  persistUserLearnedHouseholdMeasure: persistLearnedMock,
+  updateMealWithHouseholdMeasureLearning: updateMealWithLearningMock,
 }));
 vi.mock("../mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReply: vi.fn(async () => "Quantidade corrigida"),
@@ -30,6 +28,7 @@ import { handleQuantityCorrectionIntent } from "./gramsAdjustmentHandlers";
 function item(overrides: Record<string, unknown> = {}) {
   return {
     foodName: "Presunto cozido",
+    canonicalName: "presunto cozido",
     brand: "Marca A",
     portionText: "4 fatias (aprox. 72 g)",
     quantity: 4,
@@ -41,7 +40,7 @@ function item(overrides: Record<string, unknown> = {}) {
     carbs: 2,
     fat: 4,
     confidence: 0.8,
-    source: "ai",
+    source: "hybrid",
     ...overrides,
   };
 }
@@ -67,60 +66,78 @@ const correction = {
 describe("handleQuantityCorrectionIntent learning (#1043)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    persistLearnedMock.mockResolvedValue(true);
   });
 
-  it("persiste aprendizado somente depois que a mutação da refeição conclui", async () => {
-    const originalMeal = meal([item()]);
+  it("envia mutação e aprendizado juntos com o snapshot original", async () => {
+    const originalItem = item();
+    const originalMeal = meal([originalItem]);
     listMealsMock.mockResolvedValue([originalMeal]);
-    updateMealMock.mockResolvedValue({ ...originalMeal, items: [item({ quantity: 80, unit: "g", estimatedGrams: 80 })] });
+    updateMealWithLearningMock.mockResolvedValue({
+      ...originalMeal,
+      items: [item({ quantity: 80, unit: "g", estimatedGrams: 80 })],
+    });
 
     const result = await handleQuantityCorrectionIntent(71, correction);
 
     expect(result.action).toBe("meal_item_grams_adjusted");
-    expect(updateMealMock).toHaveBeenCalledTimes(1);
-    expect(persistLearnedMock).toHaveBeenCalledWith({
-      userId: 71,
-      foodName: "Presunto cozido",
-      brand: "Marca A",
-      originalQuantity: 4,
-      originalUnit: "fatia",
-      correctedQuantity: 80,
-      correctedUnit: "g",
-    });
-    expect(updateMealMock.mock.invocationCallOrder[0]).toBeLessThan(persistLearnedMock.mock.invocationCallOrder[0]);
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(updateMealWithLearningMock).toHaveBeenCalledTimes(1);
+    expect(updateMealWithLearningMock).toHaveBeenCalledWith(
+      71,
+      expect.objectContaining({ mealId: 901 }),
+      {
+        expectedOriginalItem: expect.objectContaining({
+          foodName: "Presunto cozido",
+          quantity: 4,
+          unit: "fatia",
+          estimatedGrams: 72,
+        }),
+        relation: {
+          userId: 71,
+          foodName: "Presunto cozido",
+          brand: "Marca A",
+          originalQuantity: 4,
+          originalUnit: "fatia",
+          correctedQuantity: 80,
+          correctedUnit: "g",
+        },
+      },
+    );
   });
 
-  it("não aprende quando a atualização da refeição falha", async () => {
+  it("propaga falha do boundary atômico sem executar fallback não transacional", async () => {
     listMealsMock.mockResolvedValue([meal([item()])]);
-    updateMealMock.mockRejectedValue(new Error("write failed"));
+    updateMealWithLearningMock.mockRejectedValue(new Error("stale correction"));
 
-    await expect(handleQuantityCorrectionIntent(71, correction)).rejects.toThrow("write failed");
-    expect(persistLearnedMock).not.toHaveBeenCalled();
+    await expect(handleQuantityCorrectionIntent(71, correction)).rejects.toThrow("stale correction");
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 
-  it("não aprende quando o alvo da correção é ambíguo", async () => {
+  it("não tenta aprender quando o alvo da correção é ambíguo", async () => {
     listMealsMock.mockResolvedValue([meal([
-      item({ foodName: "Presunto cozido A" }),
-      item({ foodName: "Presunto cozido B" }),
+      item({ foodName: "Presunto cozido A", canonicalName: "presunto cozido a" }),
+      item({ foodName: "Presunto cozido B", canonicalName: "presunto cozido b" }),
     ])]);
 
     const result = await handleQuantityCorrectionIntent(71, correction);
 
     expect(result.action).toBe("clarification_needed");
     expect(updateMealMock).not.toHaveBeenCalled();
-    expect(persistLearnedMock).not.toHaveBeenCalled();
+    expect(updateMealWithLearningMock).not.toHaveBeenCalled();
   });
 
-  it("uma reentrega confirmada executa o mesmo upsert lógico sem alterar a identidade aprendida", async () => {
+  it("retry envia a mesma identidade lógica para o upsert idempotente", async () => {
     const originalMeal = meal([item()]);
     listMealsMock.mockResolvedValue([originalMeal]);
-    updateMealMock.mockResolvedValue(originalMeal);
+    updateMealWithLearningMock.mockResolvedValue(originalMeal);
 
     await handleQuantityCorrectionIntent(71, correction);
     await handleQuantityCorrectionIntent(71, correction);
 
-    expect(persistLearnedMock).toHaveBeenCalledTimes(2);
-    expect(persistLearnedMock.mock.calls[0][0]).toEqual(persistLearnedMock.mock.calls[1][0]);
+    expect(updateMealWithLearningMock).toHaveBeenCalledTimes(2);
+    expect(updateMealWithLearningMock.mock.calls[0][2].relation)
+      .toEqual(updateMealWithLearningMock.mock.calls[1][2].relation);
+    expect(updateMealWithLearningMock.mock.calls[0][2].expectedOriginalItem)
+      .toEqual(updateMealWithLearningMock.mock.calls[1][2].expectedOriginalItem);
   });
 });

@@ -104,7 +104,7 @@ Uma correção do usuário só gera `user_learned` quando todas as condições a
 - a atualização canônica da refeição termina com sucesso;
 - a identidade alimentar não foi substituída por outra incompatível.
 
-A gravação ocorre **depois** da mutação da refeição e usa upsert idempotente. Falha de escrita, cancelamento, ambiguidade, estado stale ou tentativa que não chega à mutação não ensinam nada. Uma correção posterior da mesma relação atualiza a referência pessoal em vez de acumular duplicatas.
+A mutação da refeição e o upsert `user_learned` são confirmados na **mesma transação**, depois de bloquear/revalidar a refeição e conferir que o item ainda corresponde ao snapshot contável original. Se o snapshot estiver stale, a transação é recusada sem alterar refeição nem aprendizado; se o adapter não oferecer transação, o caminho que aprenderia falha fechado em vez de separar os dois efeitos. O upsert continua idempotente, e uma correção posterior válida da mesma relação substitui a referência pessoal em vez de acumular duplicatas.
 
 O aprendizado não vira dado global: uma referência corrigida pelo usuário A não pode resolver a medida do usuário B. Também não atravessa alimento, marca/variante ou unidade diferentes. Porção canônica e medida pesquisada exata específica continuam tendo precedência sobre uma referência pessoal genérica.
 
