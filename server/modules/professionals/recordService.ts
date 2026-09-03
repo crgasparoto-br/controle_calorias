@@ -34,6 +34,34 @@ function numberOrNull(value: unknown) {
 function count(result: unknown) {
   return Number(rows(result)[0]?.total ?? 0);
 }
+function assessmentRecord(row: Row) {
+  return {
+    id: String(row.id),
+    version: Number(row.version),
+    objective: String(row.objective ?? ""),
+    weightKg: numberOrNull(row.weightKg),
+    heightCm: numberOrNull(row.heightCm),
+    routineAndSchedule: row.routineAndSchedule
+      ? String(row.routineAndSchedule)
+      : null,
+    physicalActivity: row.physicalActivity ? String(row.physicalActivity) : null,
+    foodPreferences: row.foodPreferences ? String(row.foodPreferences) : null,
+    restrictionsAndAllergies: row.restrictionsAndAllergies
+      ? String(row.restrictionsAndAllergies)
+      : null,
+    reportedDifficulties: row.reportedDifficulties
+      ? String(row.reportedDifficulties)
+      : null,
+    relevantHabits: row.relevantHabits ? String(row.relevantHabits) : null,
+    professionalObservations: row.professionalObservations
+      ? String(row.professionalObservations)
+      : null,
+    assessedAt: timestamp(row.assessedAt),
+    nextReviewAt: timestamp(row.nextReviewAt),
+    createdAt: timestamp(row.createdAt),
+    authorName: String(row.authorName ?? "Profissional"),
+  };
+}
 
 export function resolveProfessionalNextReviewAt(input: {
   assessedAt: number;
@@ -159,8 +187,7 @@ export async function getProfessionalRecord(
       WHERE a.authorizationId = ${scope.authorizationId}
       ORDER BY a.version DESC LIMIT 1`),
     scope.db.execute(sql`
-      SELECT a.id, a.version, a.objective, a.assessedAt, a.nextReviewAt,
-        a.createdAt, p.displayName AS authorName
+      SELECT a.*, p.displayName AS authorName
       FROM professionalAssessments a
       LEFT JOIN professionalProfiles p ON p.userId = a.professionalUserId
       WHERE a.authorizationId = ${scope.authorizationId}
@@ -214,49 +241,8 @@ export async function getProfessionalRecord(
       authorizationStatus: "approved" as const,
       trackingStatus: scope.trackingStatus,
     },
-    latestAssessment: latest
-      ? {
-          id: String(latest.id),
-          version: Number(latest.version),
-          objective: String(latest.objective ?? ""),
-          weightKg: numberOrNull(latest.weightKg),
-          heightCm: numberOrNull(latest.heightCm),
-          routineAndSchedule: latest.routineAndSchedule
-            ? String(latest.routineAndSchedule)
-            : null,
-          physicalActivity: latest.physicalActivity
-            ? String(latest.physicalActivity)
-            : null,
-          foodPreferences: latest.foodPreferences
-            ? String(latest.foodPreferences)
-            : null,
-          restrictionsAndAllergies: latest.restrictionsAndAllergies
-            ? String(latest.restrictionsAndAllergies)
-            : null,
-          reportedDifficulties: latest.reportedDifficulties
-            ? String(latest.reportedDifficulties)
-            : null,
-          relevantHabits: latest.relevantHabits
-            ? String(latest.relevantHabits)
-            : null,
-          professionalObservations: latest.professionalObservations
-            ? String(latest.professionalObservations)
-            : null,
-          assessedAt: timestamp(latest.assessedAt),
-          nextReviewAt: timestamp(latest.nextReviewAt),
-          createdAt: timestamp(latest.createdAt),
-          authorName: String(latest.authorName ?? "Profissional"),
-        }
-      : null,
-    assessmentHistory: rows(assessmentHistoryResult).map(row => ({
-      id: String(row.id),
-      version: Number(row.version),
-      objective: String(row.objective ?? ""),
-      assessedAt: timestamp(row.assessedAt),
-      nextReviewAt: timestamp(row.nextReviewAt),
-      createdAt: timestamp(row.createdAt),
-      authorName: String(row.authorName ?? "Profissional"),
-    })),
+    latestAssessment: latest ? assessmentRecord(latest) : null,
+    assessmentHistory: rows(assessmentHistoryResult).map(assessmentRecord),
     notes: rows(notesResult).map(row => ({
       id: String(row.id),
       content: String(row.content ?? ""),
