@@ -6,6 +6,7 @@ import {
 } from "../replyMessages";
 import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
 import { listMeals, updateMeal, updateMealWithHouseholdMeasureLearning } from "../../meals/service";
+import { buildUserLearnedHouseholdMeasurePreference } from "../../../householdMeasureResolutionPersistence";
 import type { MealItemInput } from "../../meals/schemas";
 import {
   createPendingMealItemSelection,
@@ -117,7 +118,7 @@ function buildHouseholdMeasureLearningRelation(input: {
   const originalQuantity = Number(input.item.quantity);
   const originalUnit = input.item.unit?.trim();
   if (!Number.isFinite(originalQuantity) || originalQuantity <= 0 || !originalUnit) return null;
-  return {
+  const relation = {
     userId: input.userId,
     foodName: input.item.foodName,
     brand: input.item.brand,
@@ -126,6 +127,7 @@ function buildHouseholdMeasureLearningRelation(input: {
     correctedQuantity: input.correctedQuantity,
     correctedUnit: input.correctedUnit,
   };
+  return buildUserLearnedHouseholdMeasurePreference(relation) ? relation : null;
 }
 
 async function updateMealItemsWithOptionalLearning(input: {
