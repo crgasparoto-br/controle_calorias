@@ -7,6 +7,7 @@ const logInferenceEventMock = vi.fn();
 const upsertUserWhatsappConnectionMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
+const updateMealWithHouseholdMeasureLearningMock = vi.fn();
 const processMealDraftMock = vi.fn();
 const executeWhatsappDatedFoodAdditionIntentMock = vi.fn();
 const executeWhatsappLlmIntentMock = vi.fn();
@@ -25,6 +26,7 @@ vi.mock("../../db", () => ({
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
+  updateMealWithHouseholdMeasureLearning: updateMealWithHouseholdMeasureLearningMock,
   processMealDraft: processMealDraftMock,
 }));
 
@@ -79,6 +81,7 @@ describe("simulateWhatsappInbound", () => {
     upsertUserWhatsappConnectionMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
+    updateMealWithHouseholdMeasureLearningMock.mockReset();
     processMealDraftMock.mockReset();
     executeWhatsappDatedFoodAdditionIntentMock.mockReset();
     executeWhatsappLlmIntentMock.mockReset();
@@ -87,6 +90,7 @@ describe("simulateWhatsappInbound", () => {
     getDbMock.mockResolvedValue(null);
     listMealsMock.mockResolvedValue([]);
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
+    updateMealWithHouseholdMeasureLearningMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: input.mealId, ...input }));
     executeWhatsappDatedFoodAdditionIntentMock.mockResolvedValue(null);
     executeWhatsappLlmIntentMock.mockResolvedValue(null);
     executeWhatsappTextIntentMock.mockResolvedValue(null);
@@ -168,7 +172,8 @@ describe("simulateWhatsappInbound", () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
     const result = await simulateWhatsappInbound(420, { text: "era 150g", receivedAt: new Date("2026-06-14T15:00:00.000Z"), messageId: "ctx-2-1" });
     expect(result).toEqual(expect.objectContaining({ action: "meal_item_grams_adjusted" }));
-    expect(updateMealMock).toHaveBeenCalledOnce();
+    expect(updateMealWithHouseholdMeasureLearningMock).toHaveBeenCalledOnce();
+    expect(updateMealMock).not.toHaveBeenCalled();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
 
