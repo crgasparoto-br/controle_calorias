@@ -1,34 +1,26 @@
 {
-  "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "status": "rejected",
   "mode": "independent",
-  "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-  "head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25",
-  "material_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "status": "rejected",
   "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 217,
-  "pull_request_number": 1028,
+  "issue_number": 1039,
+  "pull_request_number": 1041,
+  "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+  "published_head_sha": "a6037457cac164b901b06885957d4bfb32d7f9e8",
+  "rejection_id": "audit-rejection:0f536f8a-6c1d-49a3-9c87-fb5c3198d9c2",
   "findings": [
     {
-      "id": "A-1028-002",
-      "severity": "blocker",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
+      "severity": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "requirement": "The handoff certificate must hash the exact published requirement-closure.json bytes.",
-      "summary": "handoff-ready.json certified a requirement-closure SHA-256 different from the published artifact bytes."
-    },
-    {
-      "id": "A-1028-003",
-      "severity": "blocker",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "requirement": "Normative specification items must be preserved exactly in requirement-closure.json.",
-      "summary": "OBL-004 altered the canonical criterion text (missing spacing/backtick corruption), so normative coverage failed."
+      "category": "delivery-not-ready",
+      "title": "Escopo issue-local do handoff inconsistente",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "evidence": "The certified scope listed nine paths while the immutable work-item compare contains additional paths introduced by the develop synchronization."
     }
   ],
   "recommendations": []
