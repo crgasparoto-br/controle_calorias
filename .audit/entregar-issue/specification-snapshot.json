@@ -1,31 +1,20 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 960,
-  "created_at": "2026-09-02T00:30:55.494954+00:00",
-  "primary_source_id": "SRC-ISSUE",
+  "issue": 1039,
+  "created_at": "2026-09-03T01:31:16.652835+00:00",
+  "primary_source_id": "SRC-ISSUE-1039",
   "sources": [
     {
-      "id": "SRC-ISSUE",
+      "id": "SRC-ISSUE-1039",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE.txt",
-      "locator": "/tmp/handoff960/sources/issue.md",
-      "sha256": "9a9b36080562cac89dbe3f3e747dd926d7a4f7fc99d807069f2258b845184e46",
+      "path": "specification-sources/SRC-ISSUE-1039.txt",
+      "locator": "/mnt/data/issue1039-handoff/issue-1039.md",
+      "sha256": "37691d66e17ebe5be80443c31793fa9e89f607ccb3539762966c894213e9ede6",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 134
-    },
-    {
-      "id": "SRC-COMMENT-5226019333",
-      "kind": "issue-comment",
-      "path": "specification-sources/SRC-COMMENT-5226019333.txt",
-      "locator": "/tmp/handoff960/sources/comment-5226019333.md",
-      "sha256": "50d932358ab7e0506bcbe7fb02808213e9158eea7c468f2648cb4a45b058256d",
-      "textual": true,
-      "extract_source_id": null,
-      "required": true,
-      "line_count": 12
+      "line_count": 144
     }
   ]
 }
