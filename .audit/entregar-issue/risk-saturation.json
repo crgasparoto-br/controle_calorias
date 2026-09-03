@@ -1,26 +1,20 @@
 {
   "schema_version": 1,
-  "head_sha": "ec17f7d494ca7102b6c0670cbd2f87ed65e54365",
+  "head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-SAFETY-01",
-        "NEG-REQ-SAFETY-03",
-        "NEG-REQ-SAFETY-04",
-        "NEG-REQ-SAFETY-05"
+        "NEG-OBL-043-1"
       ],
       "dimensions": [
         {
-          "surface": "production-change-authorization",
-          "reason": "Cleanup could mutate production configuration or credentials without explicit authorization.",
+          "surface": "effect-boundary",
+          "reason": "The requirement must not let an unrelated fallback or inferred path substitute for the explicitly resolved domain result.",
           "control_ids": [
-            "NEG-REQ-SAFETY-01",
-            "NEG-REQ-SAFETY-03",
-            "NEG-REQ-SAFETY-04",
-            "NEG-REQ-SAFETY-05"
+            "NEG-OBL-043-1"
           ],
           "status": "passed"
         }
@@ -48,44 +42,16 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-CONSUMER-03",
-        "NEG-REQ-HISTORY-ROLLBACK-01",
-        "NEG-REQ-HISTORY-ROLLBACK-02",
-        "NEG-REQ-HISTORY-ROLLBACK-03",
-        "NEG-REQ-INVENTORY-01",
-        "NEG-REQ-INVENTORY-02",
-        "NEG-REQ-INVENTORY-03",
-        "NEG-REQ-INVENTORY-04",
-        "NEG-REQ-INVENTORY-05",
-        "NEG-REQ-INVENTORY-06",
-        "NEG-REQ-INVENTORY-07",
-        "NEG-REQ-INVENTORY-09",
-        "NEG-REQ-INVENTORY-10",
-        "NEG-REQ-INVENTORY-11",
-        "NEG-REQ-INVENTORY-12",
-        "NEG-REQ-SAFETY-06"
+        "NEG-OBL-013-1",
+        "NEG-OBL-020-1"
       ],
       "dimensions": [
         {
-          "surface": "active-reference-revalidation",
-          "reason": "A consumer reference could remain active after the global selector is removed.",
+          "surface": "reference-validity",
+          "reason": "Resolved measure/provenance must remain valid when it reaches the later nutrition boundary.",
           "control_ids": [
-            "NEG-REQ-CONSUMER-03",
-            "NEG-REQ-HISTORY-ROLLBACK-01",
-            "NEG-REQ-HISTORY-ROLLBACK-02",
-            "NEG-REQ-HISTORY-ROLLBACK-03",
-            "NEG-REQ-INVENTORY-01",
-            "NEG-REQ-INVENTORY-02",
-            "NEG-REQ-INVENTORY-03",
-            "NEG-REQ-INVENTORY-04",
-            "NEG-REQ-INVENTORY-05",
-            "NEG-REQ-INVENTORY-06",
-            "NEG-REQ-INVENTORY-07",
-            "NEG-REQ-INVENTORY-09",
-            "NEG-REQ-INVENTORY-10",
-            "NEG-REQ-INVENTORY-11",
-            "NEG-REQ-INVENTORY-12",
-            "NEG-REQ-SAFETY-06"
+            "NEG-OBL-013-1",
+            "NEG-OBL-020-1"
           ],
           "status": "passed"
         }
@@ -97,35 +63,38 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-CANONICAL-02",
-        "NEG-REQ-CONSUMER-02",
-        "NEG-REQ-CONSUMER-04",
-        "NEG-REQ-CONSUMER-05",
-        "NEG-REQ-CONSUMER-10",
-        "NEG-REQ-GATES-01",
-        "NEG-REQ-INVENTORY-08",
-        "SURF-REQ-HISTORY-ROLLBACK-02"
+        "NEG-OBL-008-1",
+        "NEG-OBL-012-1",
+        "NEG-OBL-020-2",
+        "NEG-OBL-024-1",
+        "NEG-OBL-031-1",
+        "NEG-OBL-033-1",
+        "NEG-OBL-043-2",
+        "NEG-OBL-068-1",
+        "NEG-OBL-070-1",
+        "NEG-OBL-080-1",
+        "NEG-OBL-083-3",
+        "NEG-OBL-084-2",
+        "NEG-OBL-087-2"
       ],
       "dimensions": [
         {
-          "surface": "reporting-availability-window",
-          "reason": "A coverage claim could be treated as complete even when the tested capability/state matrix is incomplete.",
+          "surface": "sequence-ordering",
+          "reason": "Routing order must preserve higher-precedence handlers before countable resolution and nutrition fallback.",
           "control_ids": [
-            "NEG-REQ-CONSUMER-04",
-            "NEG-REQ-GATES-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "rollout-ordering",
-          "reason": "Removal could occur before the operational capability configuration is confirmed current.",
-          "control_ids": [
-            "NEG-REQ-CANONICAL-02",
-            "NEG-REQ-CONSUMER-02",
-            "NEG-REQ-CONSUMER-05",
-            "NEG-REQ-CONSUMER-10",
-            "NEG-REQ-INVENTORY-08",
-            "SURF-REQ-HISTORY-ROLLBACK-02"
+            "NEG-OBL-008-1",
+            "NEG-OBL-012-1",
+            "NEG-OBL-020-2",
+            "NEG-OBL-024-1",
+            "NEG-OBL-031-1",
+            "NEG-OBL-033-1",
+            "NEG-OBL-043-2",
+            "NEG-OBL-068-1",
+            "NEG-OBL-070-1",
+            "NEG-OBL-080-1",
+            "NEG-OBL-083-3",
+            "NEG-OBL-084-2",
+            "NEG-OBL-087-2"
           ],
           "status": "passed"
         }
@@ -150,32 +119,48 @@
     },
     {
       "family": "idempotency",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
-    },
-    {
-      "family": "rollback",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-GATES-02",
-        "SURF-REQ-HISTORY-ROLLBACK-01"
+        "NEG-OBL-017-1",
+        "NEG-OBL-018-1",
+        "NEG-OBL-035-1",
+        "NEG-OBL-038-1",
+        "NEG-OBL-063-1",
+        "NEG-OBL-064-1",
+        "NEG-OBL-065-1",
+        "NEG-OBL-069-1",
+        "NEG-OBL-071-1",
+        "NEG-OBL-072-1"
       ],
       "dimensions": [
         {
-          "surface": "rollback-configuration",
-          "reason": "Rollback guidance could still depend on retired aliases instead of capability configuration.",
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "NEG-REQ-GATES-02",
-            "SURF-REQ-HISTORY-ROLLBACK-01"
+            "NEG-OBL-017-1",
+            "NEG-OBL-018-1",
+            "NEG-OBL-035-1",
+            "NEG-OBL-038-1",
+            "NEG-OBL-063-1",
+            "NEG-OBL-064-1",
+            "NEG-OBL-065-1",
+            "NEG-OBL-069-1",
+            "NEG-OBL-071-1",
+            "NEG-OBL-072-1"
           ],
           "status": "passed"
         }
       ],
       "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "historical-immutability",
@@ -190,46 +175,124 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-ARCH-DOC-02",
-        "NEG-REQ-ARCH-DOC-03",
-        "NEG-REQ-ARCH-DOC-05",
-        "NEG-REQ-CANONICAL-03",
-        "NEG-REQ-CANONICAL-04",
-        "NEG-REQ-CANONICAL-05",
-        "NEG-REQ-CANONICAL-06",
-        "NEG-REQ-INVENTORY-13",
-        "NEG-REQ-SAFETY-02",
-        "SURF-REQ-CANONICAL-01"
+        "NEG-OBL-001-1",
+        "NEG-OBL-007-1",
+        "NEG-OBL-009-1",
+        "NEG-OBL-010-1",
+        "NEG-OBL-011-1",
+        "NEG-OBL-014-1",
+        "NEG-OBL-015-1",
+        "NEG-OBL-016-1",
+        "NEG-OBL-018-2",
+        "NEG-OBL-019-1",
+        "NEG-OBL-021-1",
+        "NEG-OBL-023-1",
+        "NEG-OBL-025-1",
+        "NEG-OBL-026-1",
+        "NEG-OBL-027-1",
+        "NEG-OBL-029-1",
+        "NEG-OBL-030-1",
+        "NEG-OBL-032-1",
+        "NEG-OBL-034-1",
+        "NEG-OBL-036-1",
+        "NEG-OBL-037-1",
+        "NEG-OBL-039-1",
+        "NEG-OBL-040-1",
+        "NEG-OBL-041-1",
+        "NEG-OBL-042-1",
+        "NEG-OBL-044-1",
+        "NEG-OBL-045-1",
+        "NEG-OBL-046-1",
+        "NEG-OBL-047-1",
+        "NEG-OBL-048-1",
+        "NEG-OBL-050-1",
+        "NEG-OBL-051-1",
+        "NEG-OBL-052-1",
+        "NEG-OBL-053-1",
+        "NEG-OBL-054-1",
+        "NEG-OBL-055-1",
+        "NEG-OBL-056-1",
+        "NEG-OBL-057-1",
+        "NEG-OBL-058-1",
+        "NEG-OBL-059-1",
+        "NEG-OBL-060-1",
+        "NEG-OBL-061-1",
+        "NEG-OBL-062-1",
+        "NEG-OBL-063-2",
+        "NEG-OBL-064-2",
+        "NEG-OBL-066-1",
+        "NEG-OBL-067-1",
+        "NEG-OBL-071-2",
+        "NEG-OBL-073-1",
+        "NEG-OBL-074-1",
+        "NEG-OBL-076-1",
+        "NEG-OBL-077-1",
+        "NEG-OBL-079-1",
+        "NEG-OBL-081-1",
+        "NEG-OBL-083-2",
+        "NEG-OBL-087-1"
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "A baseline/path check could bypass the real production entrypoint and miss a surviving wrapper operation.",
-          "control_ids": [
-            "NEG-REQ-CANONICAL-05",
-            "NEG-REQ-CANONICAL-06"
-          ],
-          "status": "passed"
-        },
-        {
           "surface": "canonical-source-consistency",
-          "reason": "Runtime consumers could diverge from the single capability resolver/executor source of truth.",
+          "reason": "The implementation must reuse the canonical measure resolver and existing passthrough/nutrition boundaries without a parallel source.",
           "control_ids": [
-            "NEG-REQ-ARCH-DOC-02",
-            "NEG-REQ-ARCH-DOC-03",
-            "NEG-REQ-ARCH-DOC-05",
-            "NEG-REQ-CANONICAL-03",
-            "NEG-REQ-CANONICAL-04",
-            "NEG-REQ-INVENTORY-13",
-            "NEG-REQ-SAFETY-02"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "reason": "Provider and model can look valid separately while their linked canonical pair is overwritten before the producer boundary.",
-          "control_ids": [
-            "SURF-REQ-CANONICAL-01"
+            "NEG-OBL-001-1",
+            "NEG-OBL-007-1",
+            "NEG-OBL-009-1",
+            "NEG-OBL-010-1",
+            "NEG-OBL-011-1",
+            "NEG-OBL-014-1",
+            "NEG-OBL-015-1",
+            "NEG-OBL-016-1",
+            "NEG-OBL-018-2",
+            "NEG-OBL-019-1",
+            "NEG-OBL-021-1",
+            "NEG-OBL-023-1",
+            "NEG-OBL-025-1",
+            "NEG-OBL-026-1",
+            "NEG-OBL-027-1",
+            "NEG-OBL-029-1",
+            "NEG-OBL-030-1",
+            "NEG-OBL-032-1",
+            "NEG-OBL-034-1",
+            "NEG-OBL-036-1",
+            "NEG-OBL-037-1",
+            "NEG-OBL-039-1",
+            "NEG-OBL-040-1",
+            "NEG-OBL-041-1",
+            "NEG-OBL-042-1",
+            "NEG-OBL-044-1",
+            "NEG-OBL-045-1",
+            "NEG-OBL-046-1",
+            "NEG-OBL-047-1",
+            "NEG-OBL-048-1",
+            "NEG-OBL-050-1",
+            "NEG-OBL-051-1",
+            "NEG-OBL-052-1",
+            "NEG-OBL-053-1",
+            "NEG-OBL-054-1",
+            "NEG-OBL-055-1",
+            "NEG-OBL-056-1",
+            "NEG-OBL-057-1",
+            "NEG-OBL-058-1",
+            "NEG-OBL-059-1",
+            "NEG-OBL-060-1",
+            "NEG-OBL-061-1",
+            "NEG-OBL-062-1",
+            "NEG-OBL-063-2",
+            "NEG-OBL-064-2",
+            "NEG-OBL-066-1",
+            "NEG-OBL-067-1",
+            "NEG-OBL-071-2",
+            "NEG-OBL-073-1",
+            "NEG-OBL-074-1",
+            "NEG-OBL-076-1",
+            "NEG-OBL-077-1",
+            "NEG-OBL-079-1",
+            "NEG-OBL-081-1",
+            "NEG-OBL-083-2",
+            "NEG-OBL-087-1"
           ],
           "status": "passed"
         }
@@ -241,26 +304,22 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-ARCH-DOC-01",
-        "NEG-REQ-ARCH-DOC-04",
-        "NEG-REQ-CONSUMER-01",
-        "NEG-REQ-CONSUMER-06",
-        "NEG-REQ-CONSUMER-07",
-        "NEG-REQ-CONSUMER-08",
-        "NEG-REQ-CONSUMER-09"
+        "NEG-OBL-082-1",
+        "NEG-OBL-083-1",
+        "NEG-OBL-084-1",
+        "NEG-OBL-085-1",
+        "NEG-OBL-086-1"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Living documentation could continue advertising retired aliases and recreate operational drift.",
+          "reason": "Canonical documentation must describe the same production routing and regression protections as the implemented exact-head behavior.",
           "control_ids": [
-            "NEG-REQ-ARCH-DOC-01",
-            "NEG-REQ-ARCH-DOC-04",
-            "NEG-REQ-CONSUMER-01",
-            "NEG-REQ-CONSUMER-06",
-            "NEG-REQ-CONSUMER-07",
-            "NEG-REQ-CONSUMER-08",
-            "NEG-REQ-CONSUMER-09"
+            "NEG-OBL-082-1",
+            "NEG-OBL-083-1",
+            "NEG-OBL-084-1",
+            "NEG-OBL-085-1",
+            "NEG-OBL-086-1"
           ],
           "status": "passed"
         }

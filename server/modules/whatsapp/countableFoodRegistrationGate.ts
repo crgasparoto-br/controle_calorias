@@ -1,10 +1,17 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
-import { prepareCountableFoodRegistrationResolved } from "../../countableFoodQuantity";
+import {
+  prepareCountableFoodRegistrationResolved,
+  type CountableFoodResolvedMeasure,
+} from "../../countableFoodQuantity";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
 
 export type CountableFoodRegistrationGateResult =
-  | { kind: "ready"; registrationText: string }
+  | {
+      kind: "ready";
+      registrationText: string;
+      resolutions: CountableFoodResolvedMeasure[];
+    }
   | { kind: "clarification"; result: WhatsappIntentResult };
 
 export async function prepareWhatsappCountableFoodRegistration(input: {
@@ -19,7 +26,11 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   const prepared = await prepareCountableFoodRegistrationResolved(input.userId, text);
   const firstPending = prepared.pendingItems[0];
   if (!firstPending) {
-    return { kind: "ready", registrationText: prepared.registrationText || text };
+    return {
+      kind: "ready",
+      registrationText: prepared.registrationText || text,
+      resolutions: prepared.resolutions,
+    };
   }
 
   const occurredAt = input.receivedAt ?? new Date();

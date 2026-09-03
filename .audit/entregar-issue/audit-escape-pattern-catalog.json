@@ -1,1 +1,5 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-pattern-catalog","compression":"gzip","encoded_size":3104,"encoded_sha256":"cf5cb70c2eba427bf7bd8b4e95002c2120cf94fbd4a81802d5b42fd24a202b55","decoded_size":12611,"decoded_sha256":"2daca26c0803409ad886533fafbcba8308060a95a14510eee1d24e2a8cdcddd2","parts":[{"path":"audit-escape-pattern-catalog.parts/part-000.b64","size":3104,"sha256":"cf5cb70c2eba427bf7bd8b4e95002c2120cf94fbd4a81802d5b42fd24a202b55"}]}
+{
+  "schema_version": 1,
+  "patterns": [],
+  "note": "No prior independent rejection exists for issue 1037; inherited base package from issue 960 was not reused."
+}
