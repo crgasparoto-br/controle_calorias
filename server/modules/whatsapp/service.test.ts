@@ -172,8 +172,8 @@ describe("simulateWhatsappInbound", () => {
     listMealsMock.mockResolvedValue([recentMeal()]);
     const result = await simulateWhatsappInbound(420, { text: "era 150g", receivedAt: new Date("2026-06-14T15:00:00.000Z"), messageId: "ctx-2-1" });
     expect(result).toEqual(expect.objectContaining({ action: "meal_item_grams_adjusted" }));
-    expect(updateMealWithHouseholdMeasureLearningMock).toHaveBeenCalledOnce();
-    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(updateMealWithHouseholdMeasureLearningMock).not.toHaveBeenCalled();
+    expect(updateMealMock).toHaveBeenCalledOnce();
     expect(processMealDraftMock).not.toHaveBeenCalled();
   });
 
