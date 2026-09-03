@@ -1,13 +1,18 @@
 {
   "schema_version": 1,
   "status": "frozen",
-  "material_head_sha": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
-  "base_sha": "4f67cc78a8326aaa9cc16b8701fec5aebc932fe6",
-  "merge_preview_sha": "85be13eed1b67904e3e04bb1fcdb4f6a415f95bb",
-  "reason": "independent-audit-a003-base-drift-post-write-refreeze",
-  "source_rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
-  "previous_audited_head_sha": "ab9fd9fc3e7d20ecce504063df74356651fc5ba7",
-  "material_fix_commit": "2fabc744421e2b23c622eed3fdadfd1bfb59dbcf",
-  "remote_gate": "exact-head-agent-first-and-persistence-gates-green",
-  "recovery_scope": "post-write-refreeze"
+  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "base_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+  "ci_runs": [
+    {
+      "name": "Agent-first gate",
+      "run_number": 6040,
+      "conclusion": "success"
+    },
+    {
+      "name": "WhatsApp context TiDB gate",
+      "run_number": 2927,
+      "conclusion": "success"
+    }
+  ]
 }

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "applicable": [
+    "structural-contract",
+    "idempotency",
+    "reference-liveness",
+    "temporal-consistency",
+    "documentation"
+  ],
+  "not_applicable": [
+    "visual-interface",
+    "database-migration",
+    "secrets"
+  ]
+}
