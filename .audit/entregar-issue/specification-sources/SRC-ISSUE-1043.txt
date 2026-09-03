@@ -1,0 +1,42 @@
+## Objetivo
+Evitar que o WhatsApp interrompa o registro de refeições pedindo peso/volume para medidas caseiras comuns quando há base suficiente para estimar a gramatura de forma contextual, transparente e reutilizável.
+
+## Escopo
+- Introduzir `contextual_estimate` como estado distinto de porção exata e `usual_average`.
+- Reutilizar resoluções verificadas de forma durável, preservando tipo e procedência.
+- Permitir `user_learned` somente após correção explícita, bem-sucedida e inequivocamente vinculada à medida original.
+- Manter clarificação como último recurso para medidas realmente ambíguas ou evidência insuficiente/conflitante.
+- Preservar paridade entre registro normal, adição e fluxos que usam a fronteira canônica de medidas.
+- Preservar a medida original na resposta e no contexto necessário à correção posterior.
+
+## Requisitos
+- Preservar precedência: massa/volume explícitos -> canonical_portion -> researched_exact -> user_learned compatível -> usual_average -> contextual_estimate -> clarificação.
+- `user_learned` vence estimativas genéricas, mas não quantidade explícita nem referência exata mais específica.
+- Aprendizado genérico não pode sobrepor porção exata de marca/variante materialmente diferente.
+- Uma única referência `same_food_type` verificável pode sustentar `contextual_estimate` quando identidade, preparo, unidade, relação física e fonte forem compatíveis e não houver contradição material.
+- Duas ou mais referências coerentes permanecem `usual_average`; referências materialmente conflitantes devem clarificar, sem escolher arbitrariamente uma fonte.
+- Referência incompatível, evidência não vinculada, URL não retornada, unidade incompatível, marca incompatível para resultado exato ou categoria ampla demais devem continuar inválidas.
+- A reutilização deve ser durável após restart e em múltiplas instâncias; memória do processo não pode ser a fonte canônica.
+- Persistência deve preservar identidade/qualificadores, medida, relação quantidade↔gramas, tipo, procedência, fontes/evidência e data de verificação/atualização quando aplicável.
+- `contextual_estimate`, `usual_average` e `user_learned` devem preservar sua procedência ao serem relidos.
+- Resolução expirada/inválida deve ser cache miss e seguir a precedência normal.
+- `user_learned` deve ser isolado por usuário e nunca gravado como porção global.
+- Handlers de WhatsApp não podem manter cache/tabela paralela de gramaturas.
+- Aprendizado exige alvo único, medida original preservada, correção explícita válida para massa/volume e mutação da refeição concluída com sucesso.
+- Correção ambígua, cancelada, expirada, stale ou com falha de persistência não pode criar/atualizar aprendizado.
+- Retry da mesma correção deve ser idempotente; correção posterior válida para a mesma chave substitui a relação anterior.
+- Se um entrypoint não puder provar associação entre correção e medida original, ele não aprende.
+- `contextual_estimate`, `usual_average` e `user_learned` devem ser apresentados como aproximações, preservando quantidade/unidade original e gramatura usada.
+- Clarificação permanece para medidas estruturalmente ambíguas, identidade insuficiente, evidência inválida, referências conflitantes ou cache expirado sem nova resolução aceitável.
+
+## Critérios de aceite
+- Primeira ocorrência com uma única referência compatível resolve como `contextual_estimate` sem clarificação e sem apresentá-la como exata.
+- Referências coerentes produzem `usual_average`; conflitantes produzem clarificação.
+- Reutilização após restart preserva `contextual_estimate` e não chama pesquisa externa quando a entrada persistida ainda é válida.
+- Massa/volume explícitos permanecem prioritários.
+- Correção explícita bem-sucedida aprende relação pessoal; falha, ambiguidade e correção não-massa/volume não aprendem.
+- Retry não duplica aprendizado e correção posterior atualiza a mesma chave pessoal.
+- Isolamento por usuário, marca/identidade e unidade é preservado.
+- Formatação deixa explícita a aproximação para `contextual_estimate`, `usual_average` e `user_learned`.
+- Cobertura automatizada inclui pelo menos 15 cenários discriminantes.
+- Documentação de medidas caseiras, clarificação, motor nutricional e regressão WhatsApp é atualizada.

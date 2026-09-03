@@ -1,26 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-  "base_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+  "material_head_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
+  "base_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
   "evidence": [
     {
-      "evidence_id": "EVID-B-1037",
-      "kind": "behavioral",
-      "path": "server/whatsappIntentWebhook.issue1037.test.ts",
-      "sha256": "78bdc2b4af3ad24068e9583390448b358a86c93a7b8f3e49a379259f8b8de724",
-      "subject_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions Agent-first gate #6040 / Vitest exact-head suite",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-Q-1037",
+      "evidence_id": "EVID-Q-1043",
       "kind": "quantitative",
-      "path": "server/whatsappIntentWebhook.issue1037.test.ts",
-      "sha256": "78bdc2b4af3ad24068e9583390448b358a86c93a7b8f3e49a379259f8b8de724",
-      "subject_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+      "path": "server/householdMeasureResolution.issue1043.test.ts",
+      "sha256": "3d607e13983766cf788c6e480e4057efe9ae17840e2d3ee06673028062353e2b",
+      "subject_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
       "freshness_policy": "exact-material-head",
-      "producer": "Vitest assertions for original countable quantity, resolved grams, and single-call counts on exact material head",
+      "producer": "Agent-first gate #6051",
       "status": "passed"
     }
   ]

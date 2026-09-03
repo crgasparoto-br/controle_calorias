@@ -1,33 +1,33 @@
 {
   "schema_version": 1,
-  "head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "head_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-043-1"
-      ],
-      "dimensions": [
-        {
-          "surface": "effect-boundary",
-          "reason": "The requirement must not let an unrelated fallback or inferred path substitute for the explicitly resolved domain result.",
-          "control_ids": [
-            "NEG-OBL-043-1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
-    },
-    {
-      "family": "tenant-isolation",
       "applicable": false,
       "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R018-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "reason": "Material boundary derived from the requirement and implementation surface.",
+          "control_ids": [
+            "NEG-R018-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
@@ -39,62 +39,34 @@
     },
     {
       "family": "reference-liveness",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-013-1",
-        "NEG-OBL-020-1"
-      ],
-      "dimensions": [
-        {
-          "surface": "reference-validity",
-          "reason": "Resolved measure/provenance must remain valid when it reaches the later nutrition boundary.",
-          "control_ids": [
-            "NEG-OBL-013-1",
-            "NEG-OBL-020-1"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "temporal-consistency",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-OBL-008-1",
-        "NEG-OBL-012-1",
-        "NEG-OBL-020-2",
-        "NEG-OBL-024-1",
-        "NEG-OBL-031-1",
-        "NEG-OBL-033-1",
-        "NEG-OBL-043-2",
-        "NEG-OBL-068-1",
-        "NEG-OBL-070-1",
-        "NEG-OBL-080-1",
-        "NEG-OBL-083-3",
-        "NEG-OBL-084-2",
-        "NEG-OBL-087-2"
+        "NEG-R004-1",
+        "NEG-R034-1"
       ],
       "dimensions": [
         {
-          "surface": "sequence-ordering",
-          "reason": "Routing order must preserve higher-precedence handlers before countable resolution and nutrition fallback.",
+          "surface": "behavioral-boundary",
+          "reason": "Material boundary derived from the requirement and implementation surface.",
           "control_ids": [
-            "NEG-OBL-008-1",
-            "NEG-OBL-012-1",
-            "NEG-OBL-020-2",
-            "NEG-OBL-024-1",
-            "NEG-OBL-031-1",
-            "NEG-OBL-033-1",
-            "NEG-OBL-043-2",
-            "NEG-OBL-068-1",
-            "NEG-OBL-070-1",
-            "NEG-OBL-080-1",
-            "NEG-OBL-083-3",
-            "NEG-OBL-084-2",
-            "NEG-OBL-087-2"
+            "NEG-R004-1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reporting-availability-window",
+          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
+          "control_ids": [
+            "NEG-R034-1"
           ],
           "status": "passed"
         }
@@ -122,32 +94,16 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-OBL-017-1",
-        "NEG-OBL-018-1",
-        "NEG-OBL-035-1",
-        "NEG-OBL-038-1",
-        "NEG-OBL-063-1",
-        "NEG-OBL-064-1",
-        "NEG-OBL-065-1",
-        "NEG-OBL-069-1",
-        "NEG-OBL-071-1",
-        "NEG-OBL-072-1"
+        "NEG-R022-1",
+        "NEG-R031-1"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
           "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "NEG-OBL-017-1",
-            "NEG-OBL-018-1",
-            "NEG-OBL-035-1",
-            "NEG-OBL-038-1",
-            "NEG-OBL-063-1",
-            "NEG-OBL-064-1",
-            "NEG-OBL-065-1",
-            "NEG-OBL-069-1",
-            "NEG-OBL-071-1",
-            "NEG-OBL-072-1"
+            "NEG-R022-1",
+            "NEG-R031-1"
           ],
           "status": "passed"
         }
@@ -175,124 +131,42 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-OBL-001-1",
-        "NEG-OBL-007-1",
-        "NEG-OBL-009-1",
-        "NEG-OBL-010-1",
-        "NEG-OBL-011-1",
-        "NEG-OBL-014-1",
-        "NEG-OBL-015-1",
-        "NEG-OBL-016-1",
-        "NEG-OBL-018-2",
-        "NEG-OBL-019-1",
-        "NEG-OBL-021-1",
-        "NEG-OBL-023-1",
-        "NEG-OBL-025-1",
-        "NEG-OBL-026-1",
-        "NEG-OBL-027-1",
-        "NEG-OBL-029-1",
-        "NEG-OBL-030-1",
-        "NEG-OBL-032-1",
-        "NEG-OBL-034-1",
-        "NEG-OBL-036-1",
-        "NEG-OBL-037-1",
-        "NEG-OBL-039-1",
-        "NEG-OBL-040-1",
-        "NEG-OBL-041-1",
-        "NEG-OBL-042-1",
-        "NEG-OBL-044-1",
-        "NEG-OBL-045-1",
-        "NEG-OBL-046-1",
-        "NEG-OBL-047-1",
-        "NEG-OBL-048-1",
-        "NEG-OBL-050-1",
-        "NEG-OBL-051-1",
-        "NEG-OBL-052-1",
-        "NEG-OBL-053-1",
-        "NEG-OBL-054-1",
-        "NEG-OBL-055-1",
-        "NEG-OBL-056-1",
-        "NEG-OBL-057-1",
-        "NEG-OBL-058-1",
-        "NEG-OBL-059-1",
-        "NEG-OBL-060-1",
-        "NEG-OBL-061-1",
-        "NEG-OBL-062-1",
-        "NEG-OBL-063-2",
-        "NEG-OBL-064-2",
-        "NEG-OBL-066-1",
-        "NEG-OBL-067-1",
-        "NEG-OBL-071-2",
-        "NEG-OBL-073-1",
-        "NEG-OBL-074-1",
-        "NEG-OBL-076-1",
-        "NEG-OBL-077-1",
-        "NEG-OBL-079-1",
-        "NEG-OBL-081-1",
-        "NEG-OBL-083-2",
-        "NEG-OBL-087-1"
+        "NEG-R001-1",
+        "NEG-R003-1",
+        "NEG-R008-1",
+        "NEG-R014-1",
+        "NEG-R014-2",
+        "NEG-R017-1",
+        "NEG-R025-1",
+        "NEG-R028-1"
       ],
       "dimensions": [
         {
-          "surface": "canonical-source-consistency",
-          "reason": "The implementation must reuse the canonical measure resolver and existing passthrough/nutrition boundaries without a parallel source.",
+          "surface": "behavioral-boundary",
+          "reason": "Material boundary derived from the requirement and implementation surface.",
           "control_ids": [
-            "NEG-OBL-001-1",
-            "NEG-OBL-007-1",
-            "NEG-OBL-009-1",
-            "NEG-OBL-010-1",
-            "NEG-OBL-011-1",
-            "NEG-OBL-014-1",
-            "NEG-OBL-015-1",
-            "NEG-OBL-016-1",
-            "NEG-OBL-018-2",
-            "NEG-OBL-019-1",
-            "NEG-OBL-021-1",
-            "NEG-OBL-023-1",
-            "NEG-OBL-025-1",
-            "NEG-OBL-026-1",
-            "NEG-OBL-027-1",
-            "NEG-OBL-029-1",
-            "NEG-OBL-030-1",
-            "NEG-OBL-032-1",
-            "NEG-OBL-034-1",
-            "NEG-OBL-036-1",
-            "NEG-OBL-037-1",
-            "NEG-OBL-039-1",
-            "NEG-OBL-040-1",
-            "NEG-OBL-041-1",
-            "NEG-OBL-042-1",
-            "NEG-OBL-044-1",
-            "NEG-OBL-045-1",
-            "NEG-OBL-046-1",
-            "NEG-OBL-047-1",
-            "NEG-OBL-048-1",
-            "NEG-OBL-050-1",
-            "NEG-OBL-051-1",
-            "NEG-OBL-052-1",
-            "NEG-OBL-053-1",
-            "NEG-OBL-054-1",
-            "NEG-OBL-055-1",
-            "NEG-OBL-056-1",
-            "NEG-OBL-057-1",
-            "NEG-OBL-058-1",
-            "NEG-OBL-059-1",
-            "NEG-OBL-060-1",
-            "NEG-OBL-061-1",
-            "NEG-OBL-062-1",
-            "NEG-OBL-063-2",
-            "NEG-OBL-064-2",
-            "NEG-OBL-066-1",
-            "NEG-OBL-067-1",
-            "NEG-OBL-071-2",
-            "NEG-OBL-073-1",
-            "NEG-OBL-074-1",
-            "NEG-OBL-076-1",
-            "NEG-OBL-077-1",
-            "NEG-OBL-079-1",
-            "NEG-OBL-081-1",
-            "NEG-OBL-083-2",
-            "NEG-OBL-087-1"
+            "NEG-R001-1",
+            "NEG-R003-1",
+            "NEG-R008-1",
+            "NEG-R017-1",
+            "NEG-R025-1",
+            "NEG-R028-1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
+          "control_ids": [
+            "NEG-R014-1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-R014-2"
           ],
           "status": "passed"
         }
@@ -304,22 +178,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-OBL-082-1",
-        "NEG-OBL-083-1",
-        "NEG-OBL-084-1",
-        "NEG-OBL-085-1",
-        "NEG-OBL-086-1"
+        "NEG-R035-1"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Canonical documentation must describe the same production routing and regression protections as the implemented exact-head behavior.",
+          "reason": "Material boundary derived from the requirement and implementation surface.",
           "control_ids": [
-            "NEG-OBL-082-1",
-            "NEG-OBL-083-1",
-            "NEG-OBL-084-1",
-            "NEG-OBL-085-1",
-            "NEG-OBL-086-1"
+            "NEG-R035-1"
           ],
           "status": "passed"
         }
