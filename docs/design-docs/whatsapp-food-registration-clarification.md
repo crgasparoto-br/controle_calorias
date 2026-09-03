@@ -8,7 +8,7 @@ Consumidores do contrato: #858 e #860
 
 Preservar a mensagem alimentar original quando o registro depende de confirmação, quantidade ou seleção. Uma resposta curta só pode resolver uma pendência compatível; sem pendência, palavras operacionais e números isolados nunca entram no pipeline nutricional.
 
-A clarificação de quantidade é o último recurso quando o domínio não consegue resolver nem estimar a quantidade com base suficiente. Sempre que houver porção canônica, referência exata ou média usual contextual defensável, o sistema deve concluir o registro sem interromper o usuário e informar quando tiver usado estimativa.
+A clarificação de quantidade é o último recurso quando o domínio não consegue resolver nem estimar a quantidade com base suficiente. Sempre que houver porção canônica, referência exata, referência pessoal aprendida, média usual ou estimativa contextual defensável, o sistema deve concluir o registro sem interromper o usuário e informar quando tiver usado aproximação.
 
 ## Ordem de precedência
 
@@ -42,7 +42,7 @@ Uma nova linha em `whatsappPendingOperations` pode ser criada ao mudar de seleç
 
 Esse contrato é consumível pela #858 sem reimplementar a regra alimentar. A #858 decide genericamente o componente de transporte; a #855 continua dona da detecção, da compatibilidade da resposta e do efeito de domínio.
 
-## Contagem, porção canônica e média usual
+## Contagem, porção canônica e estimativas reutilizáveis
 
 Uma contagem pode virar gramas sem perguntar ao usuário quando existir base suficiente para resolver ou estimar a medida:
 
@@ -51,14 +51,16 @@ Uma contagem pode virar gramas sem perguntar ao usuário quando existir base suf
 - produto exato de marca com embalagem fixa em massa/volume pode ser aceito;
 - referência `100 g` é apenas base nutricional e nunca representa implicitamente uma unidade;
 - depois da porção local, uma referência exata e verificável da mesma medida para o mesmo alimento/produto pode resolver a quantidade;
-- se não houver referência exata, uma média usual contextual e defensável da mesma medida para o mesmo alimento/tipo/preparo pode resolver a quantidade como **estimativa**;
+- uma referência pessoal (`user_learned`) da mesma identidade e medida pode ser reutilizada depois de uma correção explícita concluída com sucesso;
+- duas ou mais referências independentes e coerentes, ou uma fonte que declare explicitamente a medida típica/usual, podem produzir `usual_average`;
+- uma única referência verificável do mesmo alimento/tipo/preparo pode produzir `contextual_estimate` quando a medida for fisicamente definida, a relação quantidade-unidade-gramas estiver sustentada e não houver contradição conhecida;
 - candidato aproximado ou produto semelhante não pode ser apresentado como porção exata do alimento original.
 
 Exemplo: uma porção canônica de `Pão integral Wickbold` equivale a `2 fatias` e `50 g`. Portanto, `1 pão integral Wickbold` registra `50 g` e `2 pão integral Wickbold` registra `100 g`, equivalentes a duas e quatro fatias, com peso e nutrientes proporcionais definidos pelo domínio.
 
-Exemplo de estimativa: se `1 fatia de presunto` não possuir porção exata local, mas o domínio tiver base compatível suficiente para estabelecer uma fatia usual de aproximadamente `X g`, a operação pode ser registrada com `X g`, marcada como estimada e apresentada ao usuário como valor aproximado. Não deve abrir clarificação apenas porque a porção não estava persistida em `food_portions`.
+Exemplo de estimativa: se `1 fatia de presunto` não possuir porção exata local, mas houver uma única referência verificável e compatível indicando `18 g` por fatia, a operação pode ser registrada como `contextual_estimate`, apresentada como aproximadamente `18 g` e corrigida depois pelo usuário. Não deve abrir clarificação apenas porque a porção não estava persistida em `food_portions`.
 
-A média usual não é uma constante universal da unidade. `1 fatia de presunto`, `1 fatia de mussarela` e `1 fatia de pão` podem produzir gramaturas diferentes. Para produtos com marca, uma média usual de alimento/tipo compatível pode estimar a quantidade sem transformar outra marca em correspondência exata do produto.
+Média usual, estimativa contextual e referência pessoal não são constantes universais da unidade. `1 fatia de presunto`, `1 fatia de mussarela` e `1 fatia de pão` podem produzir gramaturas diferentes. Para produtos com marca, uma referência compatível de alimento/tipo pode estimar a quantidade sem transformar outra marca em correspondência exata do produto.
 
 A precedência para quantidade contável é:
 
@@ -66,31 +68,46 @@ A precedência para quantidade contável é:
 massa/volume explícitos
 -> food_portions/porção canônica local
 -> referência exata verificável da medida
--> média usual contextual defensável
+-> referência pessoal anterior da mesma identidade/medida
+-> média usual coerente
+-> estimativa contextual verificável
 -> clarificação persistente
 ```
 
-Somente quando nenhuma dessas fontes resolver ou estimar a quantidade com segurança suficiente o sistema preserva o alimento e pergunta peso, volume ou tamanho. Uma descrição estruturalmente ambígua como `1 porção de lasanha`, sem base útil para uma porção usual, ainda pode gerar pendência aberta.
+Duas ou mais referências verificadas materialmente conflitantes não permitem escolher uma delas arbitrariamente: o fluxo deve clarificar. Medidas estruturalmente vagas, como `porção`, `pedaço`, `pacote` ou `punhado`, também não viram `contextual_estimate` só porque existe uma referência isolada.
+
+As resoluções pesquisadas reutilizáveis e as referências pessoais são persistidas por usuário em `userPreferences`, com identidade alimentar, marca/variante quando aplicável, unidade, quantidade de referência, gramas, tipo, procedência, evidência e datas. Resultados pesquisados possuem validade temporal; expirados são tratados como miss e podem ser pesquisados novamente. `user_learned` permanece isolado por usuário e não é promovido para uso global.
+
+Somente quando nenhuma dessas fontes resolver ou estimar a quantidade com segurança suficiente o sistema preserva o alimento e pergunta peso, volume ou tamanho. Uma descrição estruturalmente ambígua como `1 porção de lasanha`, sem base útil para uma medida física, ainda pode gerar pendência aberta.
 
 Um candidato único sem quantidade resolvida não substitui o candidato normalizado preservado. Quando o usuário escolhe explicitamente uma opção entre múltiplos candidatos, essa opção passa a ser a identidade usada para resolução de quantidade e persistência final.
 
-## Estimativa transparente e correção posterior
+## Estimativa transparente, correção e aprendizado posterior
 
-Uma estimativa média usual aceita não exige confirmação prévia. Ela deve ser registrada com procedência suficiente para distinguir, conceitualmente, entre:
+Uma estimativa aceita não exige confirmação prévia. A procedência distingue conceitualmente entre:
 
-- porção exata/canônica;
-- medida exata pesquisada;
-- média usual estimada;
+- `canonical_portion` — porção exata/canônica;
+- `researched_exact` — medida exata pesquisada;
+- `user_learned` — referência pessoal anterior corrigida pelo mesmo usuário;
+- `usual_average` — média usual estimada;
+- `contextual_estimate` — estimativa contextual sustentada por referência verificável;
 - clarificação necessária.
 
-A resposta do WhatsApp deve deixar claro quando a gramatura é aproximada e que os nutrientes foram calculados com essa estimativa. Exemplo conceitual:
+`usual_average`, `contextual_estimate` e `user_learned` são apresentados como aproximações. A resposta preserva a medida original e informa os gramas efetivamente usados no cálculo nutricional. Exemplos conceituais:
 
 ```text
 Presunto — 1 fatia (aprox. 18 g)
-Estimativa baseada na medida média usual para fatia de presunto.
+Estimativa contextual usada no cálculo. Você pode corrigir depois.
 ```
 
-O usuário pode corrigir posteriormente pelo fluxo canônico de ajuste no WhatsApp ou pela tela de ajuste da refeição. A correção não deve criar um mecanismo paralelo de persistência.
+```text
+Presunto — 1 fatia (aprox. 20 g)
+Usei como aproximação uma referência pessoal anterior que você corrigiu.
+```
+
+O aprendizado só acontece depois de uma correção explícita com alvo único e mutação da refeição concluída. Antes da mutação, o fluxo precisa preservar alimento, marca/variante, quantidade e unidade contável originais; a correção precisa fornecer massa/volume válido. Falha de escrita, cancelamento, ambiguidade, estado stale ou operação que não chega à mutação não gravam aprendizado. Repetição segura usa upsert da mesma relação, e nova correção substitui o valor anterior.
+
+O usuário pode corrigir posteriormente pelo fluxo canônico de ajuste no WhatsApp ou pela tela de ajuste da refeição. A correção não cria tabela ou mapa paralelo no handler.
 
 ## Café com açúcar sem quantidade explícita
 
@@ -123,7 +140,7 @@ Erros ortográficos simples conhecidos, como `natual` → `natural`, são aplica
 
 - um candidato exato e seguro após normalização gera confirmação específica;
 - múltiplos candidatos seguros geram seleção;
-- ausência de porção local, por si só, não gera pergunta: o domínio tenta referência exata e média usual antes de clarificar;
+- ausência de porção local, por si só, não gera pergunta: o domínio percorre a precedência de resolução/estimativa antes de clarificar;
 - ausência de quantidade resolvível ou estimável gera pergunta aberta de quantidade;
 - nunca ocorre correção silenciosa quando a resolução de identidade ainda é ambígua.
 
@@ -163,9 +180,16 @@ As barreiras são:
 - `1 pão integral Wickbold` com porção canônica de `2 fatias / 50 g` registra `50 g`;
 - `2 pão integral Wickbold` com a mesma porção registra `100 g` e nutrientes proporcionais;
 - iogurte exato com embalagem estável registra a porção canônica;
-- medida sem porção local, mas com média usual defensável, registra com gramatura aproximada e informa a estimativa sem abrir pendência;
-- medida sem porção local, referência exata nem média usual defensável pede peso/tamanho sem assumir `1 g` ou `100 g`;
-- `1 fatia de presunto` e `1 fatia de mussarela` podem usar médias usuais diferentes;
+- uma única referência compatível e verificável de `fatia` pode registrar `contextual_estimate` com gramatura aproximada;
+- duas referências independentes e coerentes continuam produzindo `usual_average`;
+- duas referências verificadas conflitantes obrigam clarificação, sem cherry-pick;
+- medida ampla/incompatível ou evidência que não sustenta quantidade-unidade-gramas pede clarificação;
+- resolução contextual persistida é reutilizada após restart sem nova pesquisa enquanto válida e conserva a procedência;
+- correção explícita bem-sucedida aprende a relação apenas para o mesmo usuário/alimento/variante/medida;
+- falha, cancelamento, ambiguidade e stale não gravam aprendizado;
+- retry do aprendizado é idempotente e correção posterior atualiza a relação;
+- porção/medida exata específica vence referência pessoal aprendida; massa/volume explícito vence todas;
+- `1 fatia de presunto` e `1 fatia de mussarela` podem produzir gramaturas diferentes;
 - `1 iogurte natual desnatado` preserva original e normaliza o candidato;
 - seleção de candidato sem quantidade segura mantém a opção escolhida ao receber o peso;
 - `170 g` e `170 g.` concluem pendência aberta;
@@ -184,7 +208,7 @@ As barreiras são:
 - reentrega, expiração, cancelamento, callback repetido e isolamento entre usuários são fail-closed;
 - transições e retries seguros preservam o mesmo `interactionId`.
 
-## Extensão: refeição textual e ajuste misto (#997 / #1016)
+## Extensão: refeição textual e ajuste misto (#997 / #1016 / #1043)
 
 Medidas contáveis em uma refeição textual e ajustes heterogêneos reutilizam a mesma infraestrutura persistente. O estado lógico do ajuste composto é `parsed -> awaiting_selection|awaiting_quantity -> ready_to_apply -> applied`, com `cancelled|expired|superseded|stale` como terminais sem mutação.
 
@@ -199,4 +223,4 @@ Regras de atomicidade:
 - antes da escrita final, refeição e identidade dos itens são recarregadas; alvo alterado torna o plano `stale` sem mutação;
 - o lote final usa a mutação compensada de refeições e retries/callbacks repetidos não aplicam o plano novamente.
 
-No registro textual, pão/café ou outra contagem com porção canônica segura pode ser convertida antes do pipeline nutricional. Quando não houver porção canônica, o domínio tenta referência exata e média usual contextual antes de abrir clarificação. Itens resolvidos por estimativa permanecem marcados como aproximados e não bloqueiam o comando. Apenas itens que continuem sem quantidade resolvível/estimável permanecem no contexto persistido até a resposta de peso/volume. A refeição somente é confirmada depois que todas as quantidades realmente pendentes forem resolvidas.
+No registro textual, pão/café ou outra contagem com porção canônica segura pode ser convertida antes do pipeline nutricional. Quando não houver porção canônica, o domínio percorre `researched_exact -> user_learned -> usual_average -> contextual_estimate` antes de abrir clarificação. Itens resolvidos por aproximação permanecem marcados como aproximados e não bloqueiam o comando. Apenas itens que continuem sem quantidade resolvível/estimável permanecem no contexto persistido até a resposta de peso/volume. A refeição somente é confirmada depois que todas as quantidades realmente pendentes forem resolvidas.
