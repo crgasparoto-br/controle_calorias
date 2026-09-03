@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "status": "internally-approved-pending-independent-audit",
+  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+  "ci_state": "green",
+  "terminal_handoff": "READY"
+}

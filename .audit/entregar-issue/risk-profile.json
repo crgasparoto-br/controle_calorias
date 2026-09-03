@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "evidence_profile": "critical",
+  "reason": "Single-execution and no-duplicate-effect requirements on WhatsApp routing activate adversarial idempotency/atomicity controls."
+}
