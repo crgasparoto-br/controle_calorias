@@ -43,6 +43,14 @@ function authorLabel(value: string | null | undefined) {
   return value?.trim() || "Autoria não informada";
 }
 
+function scheduleFocus(callback: () => void) {
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(callback);
+    return;
+  }
+  window.setTimeout(callback, 0);
+}
+
 export function professionalHistoryExcerpt(value: string, limit = 180) {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= limit) return normalized;
@@ -90,14 +98,14 @@ export function ProfessionalGuidanceHistoryLayout({
 
   const open = (id: string) => {
     setSelectedId(id);
-    window.requestAnimationFrame(() => detailRef.current?.focus());
+    scheduleFocus(() => detailRef.current?.focus());
   };
 
   const close = () => {
     const id = selectedId;
     setSelectedId(null);
     if (id) {
-      window.requestAnimationFrame(() => triggerRefs.current.get(id)?.focus());
+      scheduleFocus(() => triggerRefs.current.get(id)?.focus());
     }
   };
 
@@ -228,14 +236,14 @@ export function ProfessionalNotesHistoryLayout({
 
   const open = (id: string) => {
     setSelectedId(id);
-    window.requestAnimationFrame(() => detailRef.current?.focus());
+    scheduleFocus(() => detailRef.current?.focus());
   };
 
   const close = () => {
     const id = selectedId;
     setSelectedId(null);
     if (id) {
-      window.requestAnimationFrame(() => triggerRefs.current.get(id)?.focus());
+      scheduleFocus(() => triggerRefs.current.get(id)?.focus());
     }
   };
 
