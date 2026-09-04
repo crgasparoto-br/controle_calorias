@@ -7,7 +7,7 @@
     "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
     "audited_head_sha": "eaa46ed7026586c798c51835a5ca49ee88ab5b2b"
   },
-  "candidate_head_sha": "44d5188a1d2d5ae950763ec3925a95ebd480b6a1",
+  "candidate_head_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -21,10 +21,10 @@
         "server/householdMeasureResolution.issue1043.test.ts"
       ],
       "evidence": [
-        "The canonical resolver now checks coherence across multiple independent exact_product references before selecting one; 18 g vs 42 g returns clarification on exact head 44d5188a1d2d5ae950763ec3925a95ebd480b6a1."
+        "The canonical resolver now checks coherence across multiple independent exact_product references before selecting one; 18 g vs 42 g returns clarification on exact head 1ff3813d91535c3dffdb75260d41a5a36e89a1fe."
       ],
       "validations": [
-        "Agent-first #6070 and TiDB #2945 passed on 44d5188a1d2d5ae950763ec3925a95ebd480b6a1; regressions cover conflicting exact_product, coherent exact_product, and conflicting same_food_type references."
+        "Agent-first #6073 and TiDB #2946 passed on 1ff3813d91535c3dffdb75260d41a5a36e89a1fe; regressions cover conflicting exact_product, coherent exact_product, and conflicting same_food_type references."
       ]
     }
   ],

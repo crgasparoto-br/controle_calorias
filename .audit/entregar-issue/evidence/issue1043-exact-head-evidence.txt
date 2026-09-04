@@ -1,16 +1,18 @@
 Issue #1043 / PR #1044 exact-material-head evidence
-material_head_sha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
-base_sha=55ec6877dc536db7261cc5d61d4e6eb9d15e2867
-merge_preview_sha=70e1b499289d422b2f344958e3894157ae7b3b73
-agent_first_run=#6070 (run_id=33834885101) conclusion=success
-whatsapp_context_tidb_run=#2945 conclusion=success
-verification_manifest.headSha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
-verification_manifest.checkoutSha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
-verification_manifest.eventSha=70e1b499289d422b2f344958e3894157ae7b3b73
+material_head_sha=1ff3813d91535c3dffdb75260d41a5a36e89a1fe
+base_sha=5190f5cbbb957983a4bc949952b0bfa084c71761
+merge_preview_sha=6000ce6330d4c62cdc5ee6b4543f702800d87bc0
+agent_first_run=#6073 (run_id=33872928470) conclusion=success
+whatsapp_context_tidb_run=#2946 (run_id=33872928484) conclusion=success
+verification_manifest.headSha=1ff3813d91535c3dffdb75260d41a5a36e89a1fe
+verification_manifest.checkoutSha=1ff3813d91535c3dffdb75260d41a5a36e89a1fe
+verification_manifest.eventSha=6000ce6330d4c62cdc5ee6b4543f702800d87bc0
 verification_manifest.identity=PASS (headSha == checkoutSha)
-agent_first_steps=TypeScript check PASS; Tests PASS; Architecture check PASS; Documentation check PASS; Build PASS; Agent check PASS; CI gate docs check PASS
+agent_first_steps=TypeScript check PASS; Tests PASS; Architecture check PASS; Documentation check PASS; Build PASS; Agent check PASS; CI gate docs check PASS; exact-head manifest PASS; exact-head repository bundle PASS
 merge_preview_integration=TypeScript integration check PASS; Test merge preview PASS
+whatsapp_context_tidb=Schema PASS; referential integrity PASS; pending operation insert regression PASS; quick edit meal update regression PASS; persistent context regression PASS
 A-004 literal regression=server/householdMeasureResolution.issue1043.test.ts :: não escolhe arbitrariamente entre referências exact_product conflitantes do mesmo produto PASS
 A-004 sibling coherent case=server/householdMeasureResolution.issue1043.test.ts :: preserva researched_exact quando múltiplas referências exact_product são coerentes PASS
 A-004 sibling alternate-kind case=server/householdMeasureResolution.issue1043.test.ts :: não escolhe arbitrariamente entre referências verificadas conflitantes PASS
 resolver_guard=server/householdMeasureResolution.ts requires coherent values before selecting among multiple independent exact_product references
+conflict_resolution=develop 5190f5cbbb957983a4bc949952b0bfa084c71761 merged into PR head; merge preview 6000ce6330d4c62cdc5ee6b4543f702800d87bc0 passed integration tests and current PR is mergeable
