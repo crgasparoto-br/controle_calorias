@@ -40,7 +40,8 @@ const noteItems: ProfessionalNoteHistoryItem[] = [
   {
     id: "note-1",
     content:
-      "Paciente relatou dificuldade com o horário do almoço. Manter observação privada para a próxima revisão.",
+      "Paciente relatou dificuldade com o horário do almoço. Manter observação privada para a próxima revisão. " +
+      "Detalhe privado adicional para validar que o seletor compacto não expõe o conteúdo integral antes da seleção. ".repeat(3),
     authorName: "Nutricionista Ana",
     createdAt: Date.UTC(2026, 8, 3, 13, 0),
   },
