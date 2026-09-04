@@ -2,42 +2,43 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+  "remediation_mode": "systemic-remediation",
   "source": {
-    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
-    "audited_head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25"
+    "rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
+    "audited_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+    "audit_report_sha256": "4b5feb58fc8bf0f62a51c2843c78998a8de63aa02ab3658727eb9e63b92de88f"
   },
-  "candidate_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
-  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1028-002",
-      "remediation_mode": "targeted-remediation",
+      "source_id": "A-001",
+      "remediation_mode": "systemic-remediation",
       "status": "fixed",
-      "closure_kind": "handoff-artifact-integrity-rebuild",
-      "changed_files": [],
+      "closure_kind": "systemic-control-fix",
+      "changed_files": [
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/risk-saturation.json",
+        ".audit/entregar-issue/inherited-controls.json",
+        ".audit/entregar-issue/audit-escape-closure-1039-r3.json",
+        ".audit/entregar-issue/learning-closure.json"
+      ],
       "evidence": [
-        "Regenerated handoff-ready.json from the final corrected requirement-closure.json so the certified sha256/logical_sha256 match the exact published bytes."
+        "The escaped packet was reproduced with the consumer preflight and failed specifically because semantic-effect was omitted from risk saturation.",
+        "The corrected risk saturation now contains semantic-effect as applicable/passed with the complete user-visible-behavior control set.",
+        "The producer-side risk validator now rejects extended material families omitted from saturation, and a generic regression proves both reject/accept branches.",
+        "The cumulative inherited-control and audit-escape ledgers preserve prior controls and add the risk-family propagation/parity defenses for the current material candidate."
       ],
       "validations": [
-        "validate_handoff_certificate.py and validate_terminal_handoff.py must pass on the synthesized result-only child before publication."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-1028-003",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "normative-closure-canonicalization",
-      "changed_files": [],
-      "evidence": [
-        "OBL-004 source_text now exactly matches SRC-PR1028-CONFLICTS.txt line 8."
-      ],
-      "validations": [
-        "validate_specification_coverage.py must pass before handoff publication."
+        "Generic delivery saturation regression suite: 17 passed",
+        "Skill genericity gate: READY",
+        "Requirement attack matrix validation: READY",
+        "Risk saturation validation with current audit escape closure: READY",
+        "Inherited controls monotonic validation: READY",
+        "Learning closure validation: READY",
+        "Audit escape lineage validation: READY"
       ]
     }
-  ],
-  "status": "closed"
+  ]
 }

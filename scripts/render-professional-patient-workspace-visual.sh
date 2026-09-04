@@ -96,6 +96,7 @@ assert_dom_at_size() {
 
 BASE_URL="http://127.0.0.1:${PORT}/professional/patients/1"
 ASSESSMENT_URL="${BASE_URL}/assessment"
+ASSESSMENT_COMPARISON_URL="${ASSESSMENT_URL}?assessment-comparison=open"
 GOALS_URL="${BASE_URL}/goals"
 GOALS_PAUSED_URL="${GOALS_URL}?goal-transition=paused"
 GUIDANCE_URL="${BASE_URL}/guidance"
@@ -112,6 +113,8 @@ capture "summary-notebook-1366x768" "1366,768" "$BASE_URL"
 capture "summary-tablet-1024x768" "1024,768" "$BASE_URL"
 capture "summary-mobile-390x844" "390,844" "$BASE_URL"
 capture "assessment-desktop-1440x900" "1440,900" "$ASSESSMENT_URL"
+capture "assessment-comparison-desktop-1440x900" "1440,900" "$ASSESSMENT_COMPARISON_URL"
+capture "assessment-comparison-mobile-390x1200" "390,1200" "$ASSESSMENT_COMPARISON_URL"
 capture "guidance-notebook-1366x768" "1366,768" "$GUIDANCE_URL"
 capture "notes-mobile-390x1200" "390,1200" "$NOTES_URL"
 capture "history-desktop-1366x768" "1366,768" "$HISTORY_URL"
@@ -157,9 +160,36 @@ assert_dom \
   "assessment" \
   "$ASSESSMENT_URL" \
   "Nova versão da avaliação" \
-  "Versões anteriores" \
+  "Histórico de avaliações" \
   "Versão 2" \
+  "Visualizar avaliação" \
   "Salvar nova versão"
+assert_dom_at_size \
+  "assessment-comparison-desktop" \
+  "1440,900" \
+  "$ASSESSMENT_COMPARISON_URL" \
+  "Avaliação histórica · Versão 2" \
+  "Fechar comparação" \
+  'data-visual-assessment-comparison-open="true"' \
+  'data-visual-assessment-comparison-layout="side-by-side"' \
+  'data-visual-assessment-comparison-contained="true"' \
+  'data-visual-assessment-comparison-historical-read-only="true"' \
+  'data-visual-assessment-comparison-current-editable="true"' \
+  'data-visual-assessment-comparison-close-visible="true"' \
+  'data-visual-horizontal-overflow="false"'
+assert_dom_at_size \
+  "assessment-comparison-mobile" \
+  "390,1200" \
+  "$ASSESSMENT_COMPARISON_URL" \
+  "Avaliação histórica · Versão 2" \
+  "Fechar comparação" \
+  'data-visual-assessment-comparison-open="true"' \
+  'data-visual-assessment-comparison-layout="vertical"' \
+  'data-visual-assessment-comparison-contained="true"' \
+  'data-visual-assessment-comparison-historical-read-only="true"' \
+  'data-visual-assessment-comparison-current-editable="true"' \
+  'data-visual-assessment-comparison-close-visible="true"' \
+  'data-visual-horizontal-overflow="false"'
 assert_dom \
   "goals-active" \
   "$GOALS_URL" \
@@ -340,11 +370,11 @@ cat > "$OUTPUT_DIR/manifest.txt" <<MANIFEST
 routes=/professional/patients/1,/professional/patients/1/assessment,/professional/patients/1/goals,/professional/patients/1/guidance,/professional/patients/1/notes,/professional/patients/1/history,/professional/patients/1/reports
 head_sha=${GITHUB_HEAD_SHA:-${GITHUB_SHA:-local}}
 checkout_sha=${GITHUB_SHA:-local}
-scenarios=summary,assessment,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
+scenarios=summary,assessment,assessment-comparison-open-desktop,assessment-comparison-open-mobile,goals-active,goals-paused-with-seeded-exception,guidance,notes,history,reports-individual,paused,ended,loading,error,draft-history-back-cancel,draft-history-back-accept,draft-history-forward-cancel,draft-history-forward-accept
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatientWorkspace and ProfessionalReportsWorkspace with deterministic auth and tRPC transport fixtures
-interaction=canonical patient deep links, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
-assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+interaction=canonical patient deep links, opening an assessment comparison through the real Visualizar avaliação button, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
+assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment history with explicit visualization action, open assessment comparison side-by-side on desktop and vertical on mobile with read-only history, editable current draft, visible close action and no horizontal overflow, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

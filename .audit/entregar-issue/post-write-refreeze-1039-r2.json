@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1039,
+  "pull_request_number": 1041,
+  "previous_frozen_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+  "material_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+  "base_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
+  "reason": "post-write-refreeze",
+  "material_commits": [
+    "2ef93f69e920787c550c33f32fa8b6ba489cf3e1",
+    "356a9a71613fc3c1db28e3c226ae161ea48ddfb6"
+  ],
+  "ci_state": "green",
+  "ci_runs": [
+    {
+      "name": "Agent-first gate",
+      "id": 33804802701,
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional persistence TiDB gate",
+      "id": 33804802916,
+      "conclusion": "success"
+    },
+    {
+      "name": "Professional workspace visual evidence",
+      "id": 33804802713,
+      "conclusion": "success"
+    }
+  ],
+  "closed_rejection_id": "audit-rejection:c9cb71f1-d5f1-4e04-af13-b0ecf26e68a3",
+  "closed_finding_ids": [
+    "A-002"
+  ],
+  "issue_delta_sha256": "41105e13b83f0328a7e75719ac4e983f1aa1684621978217a6eb8c3298a4e3cc"
+}

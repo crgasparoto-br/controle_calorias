@@ -6,6 +6,7 @@ import ProfessionalOfficialGoalCard, {
 import ProfessionalOperationalAlertsPanel from "@/components/ProfessionalOperationalAlertsPanel";
 import ProfessionalReportsWorkspace from "@/components/ProfessionalReportsWorkspace";
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
+import ProfessionalAssessmentComparison from "@/components/professional/ProfessionalAssessmentComparison";
 import {
   ProfessionalAsyncState,
   ProfessionalLoadingState,
@@ -658,158 +659,17 @@ function AssessmentSection({
     mutate: (input: any) => void;
   };
 }) {
-  const field = (
-    key: keyof AssessmentDraft,
-    label: string,
-    multiline = false,
-    type = "text"
-  ) => (
-    <label className="grid min-w-0 gap-1 text-sm">
-      <span className="font-medium">{label}</span>
-      {multiline ? (
-        <textarea
-          className="min-h-24 rounded-md border bg-background p-3"
-          value={draft[key]}
-          onChange={event =>
-            onDraftChange(current => ({
-              ...current,
-              [key]: event.target.value,
-            }))
-          }
-        />
-      ) : (
-        <Input
-          type={type}
-          value={draft[key]}
-          onChange={event =>
-            onDraftChange(current => ({
-              ...current,
-              [key]: event.target.value,
-            }))
-          }
-        />
-      )}
-    </label>
-  );
   return (
-    <ProfessionalSplitLayout
-      aside={
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Versões anteriores</CardTitle>
-            <CardDescription>
-              Cada salvamento cria uma nova versão auditável.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
-              {record.assessmentHistory.length ? (
-                record.assessmentHistory.map((item: any) => (
-                  <article key={item.id} className="rounded-xl border p-3">
-                    <p className="font-medium">Versão {item.version}</p>
-                    <p className="mt-1 break-words text-sm text-muted-foreground">
-                      {item.objective}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {item.authorName ?? "Autoria não informada"} ·{" "}
-                      {formatDate(item.assessedAt)}
-                    </p>
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma avaliação registrada.
-                </p>
-              )}
-            </div>
-            <RecordCollectionPagination
-              label="avaliações"
-              page={page}
-              total={recordCollectionTotal({
-                total: record.pagination?.totals?.assessments,
-                visibleCount: record.assessmentHistory.length,
-                page,
-              })}
-              onPageChange={onPageChange}
-            />
-          </CardContent>
-        </Card>
-      }
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>Nova versão da avaliação</CardTitle>
-          <CardDescription>
-            A versão anterior será preservada. Campos sem informação podem
-            permanecer vazios.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid min-w-0 gap-4">
-          {!active ? (
-            <p role="status" className="rounded-xl border bg-muted p-4 text-sm">
-              Novas avaliações ficam bloqueadas enquanto o acompanhamento não
-              estiver ativo.
-            </p>
-          ) : null}
-          {field("objective", "Objetivo do acompanhamento", true)}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {field("weightKg", "Peso (kg)")}
-            {field("heightCm", "Altura (cm)")}
-          </div>
-          {field("routineAndSchedule", "Rotina e horários habituais", true)}
-          {field("physicalActivity", "Atividade física", true)}
-          {field("foodPreferences", "Preferências alimentares", true)}
-          {field("restrictionsAndAllergies", "Restrições e alergias", true)}
-          {field("reportedDifficulties", "Dificuldades relatadas", true)}
-          {field("relevantHabits", "Hábitos relevantes", true)}
-          {field(
-            "professionalObservations",
-            "Observações do nutricionista",
-            true
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {field("assessedAt", "Data da avaliação", false, "datetime-local")}
-            {field("nextReviewAt", "Próxima revisão", false, "datetime-local")}
-          </div>
-          {save.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {save.error?.message}
-            </p>
-          ) : null}
-          <Button
-            disabled={
-              !active ||
-              !draft.objective.trim() ||
-              !draft.assessedAt ||
-              save.isPending
-            }
-            onClick={() =>
-              save.mutate({
-                patientId,
-                objective: draft.objective,
-                weightKg: draft.weightKg ? Number(draft.weightKg) : undefined,
-                heightCm: draft.heightCm ? Number(draft.heightCm) : undefined,
-                routineAndSchedule: draft.routineAndSchedule || undefined,
-                physicalActivity: draft.physicalActivity || undefined,
-                foodPreferences: draft.foodPreferences || undefined,
-                restrictionsAndAllergies:
-                  draft.restrictionsAndAllergies || undefined,
-                reportedDifficulties: draft.reportedDifficulties || undefined,
-                relevantHabits: draft.relevantHabits || undefined,
-                professionalObservations:
-                  draft.professionalObservations || undefined,
-                assessedAt: new Date(draft.assessedAt).getTime(),
-                nextReviewAt: draft.nextReviewAt
-                  ? new Date(draft.nextReviewAt).getTime()
-                  : undefined,
-              })
-            }
-          >
-            {save.isPending ? "Salvando..." : "Salvar nova versão"}
-          </Button>
-        </CardContent>
-      </Card>
-    </ProfessionalSplitLayout>
+    <ProfessionalAssessmentComparison
+      active={active}
+      draft={draft}
+      onDraftChange={onDraftChange}
+      onPageChange={onPageChange}
+      page={page}
+      patientId={patientId}
+      record={record}
+      save={save}
+    />
   );
 }
 

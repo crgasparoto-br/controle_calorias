@@ -16,6 +16,10 @@ Todas as entidades do prontuário são consultadas pelo `authorizationId` vigent
 
 Cada salvamento cria uma nova versão imutável em `professionalAssessments`. A versão anterior não é sobrescrita. A próxima revisão também atualiza o agendamento operacional do acompanhamento.
 
+A aba **Avaliação** apresenta um **Histórico de avaliações** paginado. Cada item histórico expõe, dentro do vínculo profissional autorizado, os próprios campos persistidos da versão correspondente. A interface usa esses dados como fonte única: não completa uma versão antiga com valores de `latestAssessment`, do rascunho atual ou de outra versão.
+
+Ao selecionar **Visualizar avaliação**, a versão histórica é aberta somente para leitura. Em desktop, ela é apresentada ao lado da nova avaliação em preenchimento; em viewport estreito, a comparação é empilhada verticalmente. Abrir, trocar ou fechar a comparação não altera o rascunho da nova versão, e a ação **Salvar nova versão** continua exclusiva do formulário atual. Em acompanhamento `paused`, o histórico permanece consultável e novas avaliações continuam bloqueadas. Em `ended`, a rota de Avaliação permanece indisponível e o contrato history-only não expõe avaliações.
+
 Campos da primeira versão:
 
 - objetivo;

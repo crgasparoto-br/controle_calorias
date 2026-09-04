@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-DELIVERY-SCOPE-001",
+      "escape_class": "delivery-issue-scope-binding-drift",
+      "source_audit": {
+        "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+        "rejection_id": "audit-rejection:0f536f8a-6c1d-49a3-9c87-fb5c3198d9c2",
+        "finding_id": "A-001",
+        "audit_report_sha256": "e50b3cfade85d9b4495354718e9519ebacf94c50f56b363a8089a8e4e62f3d9c"
+      },
+      "plausible_wrong_implementation": "Build a valid-looking handoff certificate from a manually curated subset of issue paths instead of binding scope to the complete immutable work-item compare.",
+      "literal_case": {
+        "procedure": "Compare the old certified issue_changed_paths with the immutable work-item compare and then rebuild the certificate using every observed path.",
+        "expected": "The prior subset is rejected and the replacement certificate scope exactly equals the immutable compare.",
+        "observed": "The current material head 984d86339ce4c1bb7ec1aa2220f09308a02c6080 retains the same product bytes; the replacement handoff uses the complete immutable compare path set and passes the scope validator.",
+        "status": "passed",
+        "evidence": "audit-remediation.json and the deterministic builder/terminal validation logs for this handoff-only recovery."
+      },
+      "sibling_cases": [
+        {
+          "id": "scope-upstream-sync",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-paths",
+          "status": "passed",
+          "evidence": "The exact-scope validator receives paths added by the upstream develop synchronization, so omitting them causes a mismatch."
+        },
+        {
+          "id": "scope-single-path-omission",
+          "surface": "delivery-scope",
+          "dimension": "missing-observed-path",
+          "status": "passed",
+          "evidence": "The exact-scope validator compares sorted sets and rejects a certificate when any observed compare path is omitted."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "exact-immutable-compare-binding"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-path-expansion"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "delivery execution procedure",
+        "evidence": "The replacement scope is sourced directly from the immutable connector compare rather than a curated implementation-only list."
+      },
+      "detection_change": {
+        "skill_or_gate": "validate_handoff_certificate.py",
+        "control_id": "DELIVERY-SCOPE-EXACT-001",
+        "evidence": "The certificate validation is invoked with --work-item-start-sha and one --issue-changed-path for every immutable compare path before publication."
+      },
+      "trigger_terms": [
+        "work_item_start_sha",
+        "issue_changed_paths",
+        "develop sync",
+        "base synchronization"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+      "status": "passed"
+    }
+  ]
+}

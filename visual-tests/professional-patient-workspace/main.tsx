@@ -8,6 +8,7 @@ import "../professional-home/visual.css";
 const searchParams = new URLSearchParams(window.location.search);
 const draftHistoryScenario = searchParams.get("draft-history");
 const goalTransitionScenario = searchParams.get("goal-transition");
+const assessmentComparisonScenario = searchParams.get("assessment-comparison");
 
 // Visual evidence exercises message layout with a deliberately dirty composer.
 // Disable the long-lived revocation stream and suppress only the browser-exit prompt
@@ -162,6 +163,57 @@ function writeGoalDiagnostics(root: HTMLElement) {
   ).get("state") ?? "active";
 }
 
+function writeAssessmentComparisonDiagnostics(root: HTMLElement) {
+  const comparison = document.querySelector<HTMLElement>(
+    '[data-assessment-comparison="open"]'
+  );
+  const historical = document.querySelector<HTMLElement>(
+    '[data-testid="historical-assessment"]'
+  );
+  const saveButton = findButton("Salvar nova versão");
+  const current = saveButton?.closest<HTMLElement>('[data-slot="card"]') ?? null;
+  if (!comparison || !historical || !current) return;
+
+  const comparisonRect = comparison.getBoundingClientRect();
+  const historicalRect = historical.getBoundingClientRect();
+  const currentRect = current.getBoundingClientRect();
+  const isDesktop = window.innerWidth >= 1280;
+  const layoutIsCorrect = isDesktop
+    ? historicalRect.right <= currentRect.left + 1
+    : historicalRect.bottom <= currentRect.top + 1;
+
+  root.dataset.visualAssessmentComparisonOpen = "true";
+  root.dataset.visualAssessmentComparisonLayout = isDesktop
+    ? layoutIsCorrect
+      ? "side-by-side"
+      : "invalid"
+    : layoutIsCorrect
+      ? "vertical"
+      : "invalid";
+  root.dataset.visualAssessmentComparisonContained = String(
+    comparisonRect.left >= 0 &&
+      comparisonRect.right <= window.innerWidth &&
+      historicalRect.left >= 0 &&
+      historicalRect.right <= window.innerWidth &&
+      currentRect.left >= 0 &&
+      currentRect.right <= window.innerWidth
+  );
+  root.dataset.visualAssessmentComparisonHistoricalReadOnly = String(
+    historical.querySelectorAll("input, textarea, select").length === 0 &&
+      !findButton("Salvar nova versão", historical)
+  );
+  root.dataset.visualAssessmentComparisonCurrentEditable = String(
+    Array.from(
+      current.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+        "input, textarea"
+      )
+    ).some(field => !field.disabled)
+  );
+  root.dataset.visualAssessmentComparisonCloseVisible = String(
+    Boolean(findButton("Fechar comparação", historical))
+  );
+}
+
 function writeVisualDiagnostics() {
   const root = document.documentElement;
   const horizontalOverflow =
@@ -294,9 +346,31 @@ function writeVisualDiagnostics() {
   }
 
   writeGoalDiagnostics(root);
+  writeAssessmentComparisonDiagnostics(root);
 }
 
 function VisualProfessionalPatientWorkspace() {
+  useEffect(() => {
+    if (
+      assessmentComparisonScenario !== "open" ||
+      !window.location.pathname.endsWith("/assessment")
+    )
+      return;
+
+    const run = window.setTimeout(() => {
+      const openComparison = findButton("Visualizar avaliação");
+      if (!openComparison) {
+        document.documentElement.dataset.visualAssessmentComparisonError =
+          "open-action-not-found";
+        return;
+      }
+      openComparison.click();
+      window.setTimeout(writeVisualDiagnostics, 600);
+    }, 700);
+
+    return () => window.clearTimeout(run);
+  }, []);
+
   useEffect(() => {
     if (!draftHistoryScenario) return;
 

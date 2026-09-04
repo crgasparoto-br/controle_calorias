@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
-  "patterns": [
+  "escapes": [
     {
+      "escape_id": "ESC-DELIVERY-SCOPE-001",
       "escape_class": "delivery-issue-scope-binding-drift",
       "source_audit": {
         "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
@@ -10,6 +11,13 @@
         "audit_report_sha256": "e50b3cfade85d9b4495354718e9519ebacf94c50f56b363a8089a8e4e62f3d9c"
       },
       "plausible_wrong_implementation": "Build a valid-looking handoff certificate from a manually curated subset of issue paths instead of binding scope to the complete immutable work-item compare.",
+      "literal_case": {
+        "procedure": "Compare the old certified issue_changed_paths with the immutable work-item compare and then rebuild the certificate using every observed path.",
+        "expected": "The prior subset is rejected and the replacement certificate scope exactly equals the immutable compare.",
+        "observed": "On material head 356a9a71613fc3c1db28e3c226ae161ea48ddfb6, the immutable work-item compare contains 60 paths and the replacement certificate is built from that complete set; scope digest is 41105e13b83f0328a7e75719ac4e983f1aa1684621978217a6eb8c3298a4e3cc.",
+        "status": "passed",
+        "evidence": "The exact 82b429068a98ac973afddbcbb4b06f5c97b065fa..356a9a71613fc3c1db28e3c226ae161ea48ddfb6 path inventory and the prepublication/terminal handoff validation for the regenerated certificate."
+      },
       "sibling_cases": [
         {
           "id": "scope-upstream-sync",
@@ -24,6 +32,18 @@
           "dimension": "missing-observed-path",
           "status": "passed",
           "evidence": "The exact-scope validator compares sorted sets and rejects a certificate when any observed compare path is omitted."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "exact-immutable-compare-binding"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-path-expansion"
         }
       ],
       "prevention_change": {
@@ -44,77 +64,11 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "delivery-scope",
-          "dimension": "exact-immutable-compare-binding"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "delivery-scope",
-          "dimension": "upstream-sync-path-expansion"
-        }
-      ]
+      "revalidated_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+      "status": "passed"
     },
     {
-      "escape_class": "delivery-risk-family-propagation-gap",
-      "source_audit": {
-        "head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
-        "published_head_sha": "de33a541838022459e5b5345dd12aa2515832711",
-        "rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
-        "finding_id": "A-001",
-        "audit_report_sha256": "4b5feb58fc8bf0f62a51c2843c78998a8de63aa02ab3658727eb9e63b92de88f"
-      },
-      "plausible_wrong_implementation": "Generate risk saturation from only a fixed canonical family list while the attack matrix or inherited controls retain an additional material family, allowing a producer-side ready state that a stricter consumer preflight rejects.",
-      "sibling_cases": [
-        {
-          "id": "matrix-extended-family-omission",
-          "surface": "risk-family-propagation",
-          "dimension": "extended-family-saturation",
-          "status": "passed",
-          "evidence": "Generic producer regression omits a family declared by the attack matrix and proves the saturation validator rejects it."
-        },
-        {
-          "id": "producer-consumer-family-parity",
-          "surface": "handoff-preflight-parity",
-          "dimension": "producer-consumer-preflight-parity",
-          "status": "passed",
-          "evidence": "The consumer preflight reproduced the escaped rejection while the strengthened producer validation now derives the same material-family union."
-        }
-      ],
-      "prevention_change": {
-        "skill_or_code": "entregar-issue risk saturation validation",
-        "evidence": "Producer validation now treats attack-matrix and active inherited-control families as material even when they are outside the canonical baseline."
-      },
-      "detection_change": {
-        "skill_or_gate": "terminal delivery preflight parity",
-        "control_id": "RISK-FAMILY-PROPAGATION-001",
-        "evidence": "A consumer-equivalent preflight is replayed as the deterministic closure gate for this escape class."
-      },
-      "trigger_terms": [
-        "extended risk family",
-        "active inherited control",
-        "risk saturation omission",
-        "producer consumer preflight parity"
-      ],
-      "required_risk_families": [
-        "structural-contract"
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "risk-family-propagation",
-          "dimension": "extended-family-saturation"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "handoff-preflight-parity",
-          "dimension": "producer-consumer-preflight-parity"
-        }
-      ]
-    },
-    {
+      "escape_id": "ESC-VISUAL-OPEN-STATE-001",
       "escape_class": "visual-gate-interactive-state-coverage-gap",
       "source_audit": {
         "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
@@ -124,6 +78,13 @@
         "audit_report_sha256": "2017810966aaf92bc7748dea3f0de362276ef39226002009edd0b5bf59f01e29"
       },
       "plausible_wrong_implementation": "Keep component classes and closed-state screenshots correct while never opening the historical comparison in a real browser, allowing responsive overflow or ordering defects in the core state to escape the gate.",
+      "literal_case": {
+        "procedure": "Run the professional patient workspace visual harness on the exact material head, use the real Visualizar avaliação button to open a historical version, and inspect runtime geometry plus screenshots.",
+        "expected": "The comparison-open state is rendered by Chromium; desktop is side-by-side, mobile is vertical, historical data is read-only, current data remains editable, close is visible and page-level horizontal overflow is absent.",
+        "observed": "On exact material head 356a9a71613fc3c1db28e3c226ae161ea48ddfb6, workflow #744 completed successfully and artifact 9912627687 contains comparison-open desktop/mobile captures with all runtime layout/read-only/editable/overflow assertions passing.",
+        "status": "passed",
+        "evidence": "evidence-issue1039.json and professional workspace visual artifact 9912627687."
+      },
       "sibling_cases": [
         {
           "id": "open-comparison-desktop",
@@ -138,6 +99,18 @@
           "dimension": "user-visible-behavior-primary",
           "status": "passed",
           "evidence": "390x1200 real-browser comparison-open scenario verifies vertical ordering/containment and no horizontal overflow."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "reference-liveness",
+          "surface": "historical-reference",
+          "dimension": "historical-reference-primary"
+        },
+        {
+          "risk_family": "semantic-effect",
+          "surface": "user-visible-behavior",
+          "dimension": "user-visible-behavior-primary"
         }
       ],
       "prevention_change": {
@@ -161,18 +134,8 @@
         "reference-liveness",
         "semantic-effect"
       ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "reference-liveness",
-          "surface": "historical-reference",
-          "dimension": "historical-reference-primary"
-        },
-        {
-          "risk_family": "semantic-effect",
-          "surface": "user-visible-behavior",
-          "dimension": "user-visible-behavior-primary"
-        }
-      ]
+      "revalidated_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+      "status": "passed"
     }
   ]
 }
