@@ -3,16 +3,23 @@
   "contract_version": "2026-08-20.3",
   "status": "rejected",
   "mode": "independent",
-  "rejection_id": "audit-rejection:6bee550765e66a2959d3",
-  "head_sha": "86e1ca431c7786ad03a544d41deac5692524bda1",
-  "material_head_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
+  "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+  "head_sha": "eaa46ed7026586c798c51835a5ca49ee88ab5b2b",
+  "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
   "repository": "crgasparoto-br/controle_calorias",
   "issue_number": 1043,
   "pull_request_number": 1044,
   "findings": [
-    {"id":"A-001","severity":"high","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"systemic-remediation","requirement":"Exact-head quantitative evidence must be produced by a checkout whose measured SHA equals the declared material subject SHA.","summary":"The prior workflow tested the pull-request merge ref while the evidence manifest certified the material head as exact."},
-    {"id":"A-002","severity":"high","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","requirement":"The delivery specification snapshot and closure must cover the full immutable issue body, including all normative scenarios and acceptance criteria.","summary":"The prior certified source was a condensed 42-line summary rather than the full issue body."},
-    {"id":"A-003","severity":"high","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","requirement":"Meal correction and user-learned household-measure persistence must be atomic against concurrent stale corrections.","summary":"Split writes could leave a final meal value and learned relation from different concurrent corrections."}
+    {
+      "id": "A-004",
+      "severity": "high",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "Duas ou mais referências verificadas materialmente conflitantes não podem ser reduzidas arbitrariamente à primeira referência disponível; devem seguir para clarificação.",
+      "summary": "O caminho exact_product selecionava exact[0] antes de verificar conflito material entre duas fontes independentes do mesmo produto."
+    }
   ],
   "recommendations": []
 }

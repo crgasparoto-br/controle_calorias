@@ -1,24 +1,17 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
-  "source_event": {"kind":"independent-rejection","rejection_id":"audit-rejection:6bee550765e66a2959d3","audit_report_sha256":"2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f","finding_ids":["A-001","A-002","A-003"]},
-  "generalized_learning": {
-    "escape_class":"exact-head-evidence-provenance-drift",
-    "generalized_failure_pattern":"A verification pipeline can label evidence as exact-subject while actually executing tests on an implicit synthetic or merge checkout, making the certificate stronger than the execution that produced it.",
-    "plausible_wrong_implementation":"A workflow records the intended subject identifier in a manifest but leaves checkout selection implicit, so tests execute a different revision while the manifest still looks internally consistent.",
-    "trigger_signals":["verification manifest declares a subject identifier","checkout action has no explicit subject ref","provider event uses a synthetic integration revision"],
-    "risk_families":["structural-contract","reference-liveness"],
-    "reusable_control":"Before accepting exact-subject evidence, compare the revision physically checked out by the verification job with the revision declared as the evidence subject and fail closed on any mismatch.",
-    "prevention_rule":"Verification jobs that issue exact-subject claims must explicitly check out the declared subject before executing measurements or tests; synthetic integration checks remain separate evidence.",
-    "detection_rule":"The evidence manifest must record both declared subject and observed checkout identifiers, and a gate must reject publication unless they are equal for exact-subject evidence.",
-    "transfer_cases":[
-      {"surface":"workflow-checkout","scenario":"Synthetic integration event differs from declared verification subject; explicit checkout is required before tests.","status":"passed"},
-      {"surface":"evidence-manifest","scenario":"Manifest carries distinct declared and observed revisions; exact-subject certification rejects the mismatch.","status":"passed"}
-    ],
-    "promotion_status":"promoted"
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+    "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
+    "finding_ids": [
+      "A-004"
+    ]
   },
-  "skill_changes":[
-    {"role":"prevention","path":".github/workflows/agent-check.yml","status":"passed","evidence":"The verification job explicitly checks out the declared subject before exact-head TypeScript/tests and keeps merge-preview integration in a separate job."},
-    {"role":"detection","path":"scripts/check-ci-gate-docs.ts","status":"passed","evidence":"The repository CI contract check enforces the exact-head verification structure and the successful run emitted matching headSha/checkoutSha."}
-  ]
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The rejection exposed a local resolver branch ordering defect specific to same-rank exact_product evidence. The issue-level prevention and regression controls close the escape without evidence of a generalized controller or Skill defect."
+  },
+  "skill_changes": []
 }

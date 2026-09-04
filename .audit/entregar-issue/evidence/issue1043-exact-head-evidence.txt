@@ -1,18 +1,16 @@
-Issue 1043 exact-head delivery evidence
-material_head_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
-agent_first_run_id=33802972619
-agent_first_run_number=6065
-agent_first_conclusion=success
-verification_head_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
-verification_checkout_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
-verification_event_sha=dc9dbdf74fd926cb2cf08bdeec32fde2e01e7aa9
-whatsapp_tidb_run_id=33802972747
-whatsapp_tidb_run_number=2943
-whatsapp_tidb_conclusion=success
-issue1043_discrete_test_declarations=24
-issue1043_parameterized_extra_cases=1
-issue1043_minimum_discriminant_scenarios_observed=25
-minimum_required_scenarios=15
-result=passed
-Test surfaces counted from exact-head files: household resolver (9), durable store (5), grams adjustment handler (4), canonical addition formatter (2 runtime cases from it.each), transactional repository (2), full WhatsApp mixed-meal/addition regression (3).
-The exact-head CI ran TypeScript, full Vitest suite, architecture check, documentation check, build, agent check, CI gate docs check, and emitted an exact-head verification manifest where checkoutSha equals headSha.
+Issue #1043 / PR #1044 exact-material-head evidence
+material_head_sha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
+base_sha=55ec6877dc536db7261cc5d61d4e6eb9d15e2867
+merge_preview_sha=70e1b499289d422b2f344958e3894157ae7b3b73
+agent_first_run=#6070 (run_id=33834885101) conclusion=success
+whatsapp_context_tidb_run=#2945 conclusion=success
+verification_manifest.headSha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
+verification_manifest.checkoutSha=44d5188a1d2d5ae950763ec3925a95ebd480b6a1
+verification_manifest.eventSha=70e1b499289d422b2f344958e3894157ae7b3b73
+verification_manifest.identity=PASS (headSha == checkoutSha)
+agent_first_steps=TypeScript check PASS; Tests PASS; Architecture check PASS; Documentation check PASS; Build PASS; Agent check PASS; CI gate docs check PASS
+merge_preview_integration=TypeScript integration check PASS; Test merge preview PASS
+A-004 literal regression=server/householdMeasureResolution.issue1043.test.ts :: não escolhe arbitrariamente entre referências exact_product conflitantes do mesmo produto PASS
+A-004 sibling coherent case=server/householdMeasureResolution.issue1043.test.ts :: preserva researched_exact quando múltiplas referências exact_product são coerentes PASS
+A-004 sibling alternate-kind case=server/householdMeasureResolution.issue1043.test.ts :: não escolhe arbitrariamente entre referências verificadas conflitantes PASS
+resolver_guard=server/householdMeasureResolution.ts requires coherent values before selecting among multiple independent exact_product references
