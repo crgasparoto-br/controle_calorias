@@ -565,8 +565,12 @@ function buildSearchResolution(
 ): HouseholdMeasureResolution | null {
   if (!result.found) return null;
   const verified = result.references.filter(reference => verifiedReference(input, reference, webSearch));
-  const exact = verified.filter(reference => reference.referenceKind === "exact_product");
+  const exact = uniqueReferencesBySource(
+    verified.filter(reference => reference.referenceKind === "exact_product"),
+  );
   if (exact.length) {
+    const values = exact.map(reference => gramsForRequestedQuantity(reference, input.quantity));
+    if (exact.length >= MIN_MULTISOURCE_REFERENCES && !averageIsCoherent(values)) return null;
     const selected = exact[0];
     return {
       kind: "researched_exact",

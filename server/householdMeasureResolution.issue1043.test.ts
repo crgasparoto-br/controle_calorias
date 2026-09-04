@@ -156,6 +156,76 @@ describe("resolveHouseholdMeasure (#1043)", () => {
     expect(await resolveHouseholdMeasure(input, runtime as any)).toBeNull();
   });
 
+  it("não escolhe arbitrariamente entre referências exact_product conflitantes do mesmo produto", async () => {
+    const runtime = baseRuntime();
+    const exactInput = {
+      userId: 71,
+      foodName: "Presunto cozido Sadia",
+      brand: "Sadia",
+      quantity: 1,
+      unit: "fatia",
+    };
+    const first = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      grams: 18,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.com/presunto-sadia-a",
+      evidence: "Presunto cozido Sadia: 1 fatia corresponde a 18 g.",
+    });
+    const second = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      grams: 42,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.org/presunto-sadia-b",
+      evidence: "Presunto cozido Sadia: 1 fatia corresponde a 42 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([first, second]) as any);
+
+    expect(await resolveHouseholdMeasure(exactInput, runtime as any)).toBeNull();
+    expect(runtime.persistHouseholdMeasureResolution).not.toHaveBeenCalled();
+  });
+
+  it("preserva researched_exact quando múltiplas referências exact_product são coerentes", async () => {
+    const runtime = baseRuntime();
+    const exactInput = {
+      userId: 71,
+      foodName: "Presunto cozido Sadia",
+      brand: "Sadia",
+      quantity: 1,
+      unit: "fatia",
+    };
+    const first = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      grams: 18,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.com/presunto-sadia-a",
+      evidence: "Presunto cozido Sadia: 1 fatia corresponde a 18 g.",
+    });
+    const second = reference({
+      matchedFoodName: "Presunto cozido Sadia",
+      foodTypeName: "presunto cozido",
+      brandName: "Sadia",
+      grams: 20,
+      referenceKind: "exact_product",
+      sourceUrl: "https://example.org/presunto-sadia-b",
+      evidence: "Presunto cozido Sadia: 1 fatia corresponde a 20 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([first, second]) as any);
+
+    expect(await resolveHouseholdMeasure(exactInput, runtime as any)).toEqual(expect.objectContaining({
+      kind: "researched_exact",
+      grams: 18,
+      sourceUrls: ["https://example.com/presunto-sadia-a"],
+      referenceCount: 1,
+    }));
+  });
+
   it("reutiliza resolução persistida após restart sem nova pesquisa e preserva procedência", async () => {
     const runtime = baseRuntime();
     runtime.loadPersistedHouseholdMeasureResolution.mockResolvedValueOnce({
