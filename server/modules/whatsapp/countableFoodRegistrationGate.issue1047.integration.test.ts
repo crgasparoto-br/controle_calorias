@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { COUNTABLE_FOOD_REGISTRATION_PARITY_CASES } from "./testFixtures/countableFoodRegistrationParityCases";
 
-const requestClarification = vi.fn(() => {
-  throw new Error("A matriz positiva da issue #1047 não deve solicitar esclarecimento.");
-});
+const mocks = vi.hoisted(() => ({
+  requestClarification: vi.fn(() => {
+    throw new Error("A matriz positiva da issue #1047 não deve solicitar esclarecimento.");
+  }),
+}));
 
 vi.mock("./foodQuantityClarification", () => ({
-  requestWhatsappConfirmedTextMealQuantityClarification: requestClarification,
+  requestWhatsappConfirmedTextMealQuantityClarification: mocks.requestClarification,
 }));
 
 const { prepareWhatsappCountableFoodRegistration } = await import("./countableFoodRegistrationGate");
@@ -39,7 +41,7 @@ describe("issue #1047 — integração real do countable gate", () => {
           grams: item.grams,
         },
       })));
-      expect(requestClarification).not.toHaveBeenCalled();
+      expect(mocks.requestClarification).not.toHaveBeenCalled();
     },
   );
 });
