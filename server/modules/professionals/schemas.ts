@@ -91,24 +91,23 @@ const professionalAssessmentSummarySchema = z
     authorName: z.string(),
   })
   .strict();
+const professionalAssessmentRecordSchema = professionalAssessmentSummarySchema.extend({
+  weightKg: z.number().nullable(),
+  heightCm: z.number().nullable(),
+  routineAndSchedule: z.string().nullable(),
+  physicalActivity: z.string().nullable(),
+  foodPreferences: z.string().nullable(),
+  restrictionsAndAllergies: z.string().nullable(),
+  reportedDifficulties: z.string().nullable(),
+  relevantHabits: z.string().nullable(),
+  professionalObservations: z.string().nullable(),
+});
 
 export const professionalRecordOutputSchema = z
   .object({
     patient: professionalRecordPatientSchema,
-    latestAssessment: professionalAssessmentSummarySchema
-      .extend({
-        weightKg: z.number().nullable(),
-        heightCm: z.number().nullable(),
-        routineAndSchedule: z.string().nullable(),
-        physicalActivity: z.string().nullable(),
-        foodPreferences: z.string().nullable(),
-        restrictionsAndAllergies: z.string().nullable(),
-        reportedDifficulties: z.string().nullable(),
-        relevantHabits: z.string().nullable(),
-        professionalObservations: z.string().nullable(),
-      })
-      .nullable(),
-    assessmentHistory: z.array(professionalAssessmentSummarySchema),
+    latestAssessment: professionalAssessmentRecordSchema.nullable(),
+    assessmentHistory: z.array(professionalAssessmentRecordSchema),
     notes: z.array(
       z
         .object({

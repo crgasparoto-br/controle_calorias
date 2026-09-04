@@ -1,0 +1,144 @@
+## Objetivo
+Melhorar a experiência da aba **Avaliação** em `/professional/patients/:patientId/assessment`, tornando as avaliações anteriores fáceis de localizar, abrir e comparar com uma nova avaliação em preenchimento.
+
+Base de implementação: `develop`.
+
+`specification_version: 2`
+
+## Contexto
+Hoje a tela já preserva cada salvamento como uma nova versão imutável de avaliação e apresenta um painel lateral de **Versões anteriores**. Porém, cada item mostra apenas versão, objetivo, autoria e data, sem ação para abrir os dados completos da avaliação antiga.
+
+A paginação atual também não ajuda na descoberta do histórico: os botões **Anterior** e **Próxima** só aparecem quando há mais de uma página de registros, atualmente com limite de 20 avaliações por página. Para pacientes com poucas avaliações, o usuário vê os cards resumidos, mas não tem uma forma clara de consultar o conteúdo completo de uma versão anterior.
+
+O contrato atual de `professionalRecord.get` expõe `assessmentHistory` apenas como resumo da versão histórica (`id`, `version`, `objective`, datas e autoria). Os demais campos clínico-operacionais são expostos hoje apenas em `latestAssessment`. Portanto, a visualização completa de uma versão antiga exige que o contrato autorizado de leitura passe a disponibilizar os campos persistidos da versão histórica selecionada; esses dados não podem ser reconstruídos no cliente a partir da avaliação atual, do rascunho ou do resumo histórico.
+
+## Escopo
+- Renomear/reorganizar a área de versões anteriores para um bloco claramente identificado como **Histórico de avaliações**.
+- Manter a listagem resumida das avaliações anteriores.
+- Permitir abrir uma avaliação antiga em modo somente leitura.
+- Permitir comparar a avaliação antiga selecionada com a nova avaliação em preenchimento.
+- Preservar o rascunho da nova avaliação durante abertura, troca e fechamento da comparação.
+- Disponibilizar, pelo contrato profissional autorizado, os campos completos da versão histórica selecionada necessários à visualização.
+- Manter a paginação para volumes maiores de avaliações, sem usá-la como mecanismo principal de acesso ao conteúdo de cada versão.
+
+## Fora de escopo
+- Editar ou sobrescrever avaliações antigas.
+- Alterar a regra atual de versionamento imutável.
+- Alterar o modelo persistente das avaliações sem necessidade técnica comprovada.
+- Alterar regras de autorização ou estado do acompanhamento.
+- Tornar avaliações novamente consultáveis pela rota de Avaliação quando o acompanhamento estiver `ended`; deve permanecer o comportamento canônico de redirecionamento para Histórico e payload history-only.
+
+## Requisitos funcionais
+
+### 1. Histórico de avaliações
+Na aba **Avaliação**, exibir um bloco chamado **Histórico de avaliações**.
+
+Cada registro deve apresentar, no mínimo:
+- versão;
+- data da avaliação;
+- objetivo;
+- profissional/autor;
+- ação **Visualizar avaliação**.
+
+A avaliação mais recente pode ser identificada visualmente como **Atual**, desde que isso não gere ambiguidade com o formulário de nova avaliação.
+
+### 2. Visualização da avaliação antiga
+Ao selecionar **Visualizar avaliação**, carregar todos os campos persistidos daquela versão em modo somente leitura.
+
+A visualização histórica deve apresentar os mesmos campos e a mesma ordem lógica do formulário de nova avaliação, incluindo objetivo, peso, altura, rotina, atividade física, preferências, restrições, dificuldades, hábitos, observações, data da avaliação e próxima revisão.
+
+O dado exibido deve vir da própria versão histórica persistida e autorizada. O cliente **não pode** preencher campos ausentes usando `latestAssessment`, o rascunho da nova avaliação ou valores de outra versão.
+
+A implementação pode estender o contrato existente ou usar uma leitura específica da versão selecionada, desde que preserve o mesmo escopo de autorização profissional e isolamento pelo vínculo vigente. Não é requisito carregar todos os campos completos de todas as versões simultaneamente se isso não for necessário para a experiência.
+
+Não deve existir ação de salvar, editar ou sobrescrever uma avaliação antiga.
+
+### 3. Modo de comparação
+Ao abrir uma avaliação histórica em desktop, apresentar modo de comparação com:
+- **lado esquerdo:** avaliação histórica selecionada, somente leitura;
+- **lado direito:** nova avaliação em preenchimento.
+
+Os campos devem seguir ordem equivalente entre as duas áreas para facilitar comparação visual.
+
+A ação **Salvar nova versão** deve continuar pertencendo exclusivamente à nova avaliação.
+
+Disponibilizar ação clara **Fechar comparação** para retornar ao estado normal da tela.
+
+### 4. Comportamento responsivo
+Em viewport estreito, não forçar duas colunas apertadas.
+
+A avaliação histórica selecionada deve ser apresentada acima da nova avaliação ou por outro arranjo vertical equivalente, mantendo leitura, comparação e edição da nova avaliação utilizáveis.
+
+### 5. Preservação do rascunho
+Abrir, trocar ou fechar uma avaliação histórica não pode limpar nem substituir os dados já digitados na nova avaliação.
+
+A proteção existente contra perda de alterações não salvas deve continuar funcionando.
+
+### 6. Paginação
+Manter paginação quando houver avaliações suficientes para mais de uma página.
+
+Os controles **Anterior** e **Próxima** podem continuar ocultos quando houver apenas uma página, desde que todos os registros visíveis tenham uma ação explícita para consultar seu conteúdo completo.
+
+Trocar de página e retornar à aba deve continuar preservando o contexto de paginação conforme o comportamento atual do workspace.
+
+### 7. Autorização e estados do acompanhamento
+- `active`: histórico consultável e nova avaliação editável conforme regras atuais.
+- `paused`: histórico consultável e nova avaliação bloqueada conforme regras atuais.
+- `ended`: `/assessment` não deve expor avaliações nem montar o formulário; deve permanecer o redirecionamento canônico para `/history` e o backend deve continuar retornando somente o contrato history-only.
+- autorização revogada: nenhum dado histórico previamente carregado pode permanecer visível; preservar limpeza de contexto/cache e redirecionamento atuais.
+
+## Estados e casos de borda
+- Sem avaliações anteriores: mostrar estado vazio claro, sem ação de comparação.
+- Uma única avaliação: permitir visualização completa normalmente, sem depender de paginação.
+- Muitas avaliações: permitir paginação e abertura de qualquer versão da página atual.
+- Avaliação histórica com campos opcionais vazios: apresentar valor equivalente a `Não informado` ou padrão visual já utilizado pela área profissional.
+- Acompanhamento pausado: histórico continua consultável; nova avaliação permanece bloqueada conforme regra atual.
+- Acompanhamento encerrado: a rota de Avaliação permanece indisponível e redireciona para Histórico; não reintroduzir leitura de avaliações nesse estado.
+- Autorização revogada: manter o comportamento atual de bloqueio e limpeza de contexto sensível.
+
+## Critérios de aceite
+- [ ] O usuário consegue identificar claramente onde consultar avaliações anteriores.
+- [ ] Cada avaliação listada possui ação explícita **Visualizar avaliação**.
+- [ ] É possível visualizar todos os campos persistidos de uma versão antiga sem editá-la.
+- [ ] Os campos exibidos pertencem à versão histórica selecionada e não são reconstruídos a partir da avaliação atual ou do rascunho.
+- [ ] A leitura completa da versão histórica respeita o mesmo vínculo/autorização profissional vigente usado pelo prontuário.
+- [ ] Em desktop, ao selecionar uma versão histórica, avaliação antiga e nova ficam disponíveis lado a lado para comparação.
+- [ ] Em mobile/viewport estreito, a comparação usa layout vertical utilizável.
+- [ ] O rascunho da nova avaliação não é perdido ao abrir, trocar ou fechar versões históricas.
+- [ ] Avaliações antigas continuam imutáveis.
+- [ ] A ação **Salvar nova versão** não aparece associada à avaliação histórica.
+- [ ] Uma avaliação pode ser consultada mesmo quando existe apenas uma página de histórico e os controles de paginação estão ocultos.
+- [ ] A paginação continua funcionando quando houver mais registros do que o limite por página.
+- [ ] Em `paused`, a consulta histórica continua disponível sem habilitar nova avaliação.
+- [ ] Em `ended`, a rota de Avaliação continua redirecionando para Histórico e nenhum payload completo de avaliação é exposto por esse fluxo.
+- [ ] Após revogação da autorização, conteúdo histórico carregado não permanece renderizado.
+
+## Testes esperados
+- Teste de componente/rota com 0, 1, várias e mais de 20 avaliações.
+- Teste de contrato/backend provando que a versão histórica selecionada retorna seus próprios campos completos somente dentro do vínculo profissional autorizado.
+- Teste negativo provando que a visualização não usa `latestAssessment` ou o rascunho para preencher campos ausentes da versão histórica.
+- Teste de abertura e fechamento da comparação preservando o rascunho da nova avaliação.
+- Teste de troca entre duas versões históricas sem alterar o formulário novo.
+- Teste garantindo que avaliação histórica não possui controles editáveis ou ação de salvamento.
+- Teste responsivo para desktop e mobile.
+- Teste de acompanhamento pausado garantindo consulta histórica sem habilitar nova intervenção.
+- Teste de acompanhamento encerrado garantindo redirecionamento para Histórico e ausência de dados de avaliação no contrato history-only.
+- Teste de revogação garantindo remoção de conteúdo histórico já carregado.
+
+## Invariantes estruturais
+- `must_behave`: a versão selecionada deve ser lida integralmente e exibida em modo somente leitura enquanto o rascunho novo permanece intacto.
+- `must_not_behave`: uma versão histórica não pode ser editada, sobrescrita ou receber a ação **Salvar nova versão**.
+- `must_not_depend_on`: a visualização completa não pode depender de `latestAssessment`, do rascunho local ou de outra versão para completar campos históricos.
+- `must_be_single_source`: os valores históricos exibidos têm como fonte a própria versão persistida identificada pelo registro selecionado.
+- `forbidden_implementation`: copiar os valores da última avaliação ou do formulário atual para campos não presentes no resumo histórico pode aparentar funcionar quando as versões são iguais, mas deve falhar em fixture com duas versões deliberadamente diferentes; esse é o controle discriminante obrigatório.
+- `forbidden_implementation`: flexibilizar o contrato `ended` para voltar a expor avaliações pode fazer a comparação funcionar em testes isolados, mas viola o contrato canônico; o controle é testar acesso direto a `/assessment` e `professionalRecord.get` com acompanhamento encerrado.
+
+## Impacto na documentação
+- Atualizar `docs/design-docs/professional-record-cycle.md` para registrar que o histórico de avaliações possui seleção/visualização completa da versão autorizada e modo de comparação sem mutabilidade da versão antiga.
+- Atualizar `docs/testing/professional-workspace-routing.md` com regressão para abertura de versão histórica, preservação de rascunho, comportamento responsivo, estado `paused`, contrato `ended` e revogação.
+- Não alterar a regra documentada de versionamento imutável nem a fronteira de autorização.
+
+## Referência de comportamento atual
+A implementação atual está concentrada em `client/src/pages/professional/ProfessionalPatientWorkspace.tsx`, no componente `AssessmentSection`, com histórico em `record.assessmentHistory` e paginação via `RecordCollectionPagination`.
+
+O contrato atual está em `server/modules/professionals/schemas.ts` e `server/modules/professionals/recordService.ts`: `assessmentHistory` contém apenas o resumo das versões, enquanto `latestAssessment` contém os campos completos.
