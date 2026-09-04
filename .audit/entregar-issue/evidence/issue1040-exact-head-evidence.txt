@@ -1,0 +1,17 @@
+Issue #1040 exact-material-head delivery evidence
+material_head_sha=538458047ca91e0a74db295adb4125ac4c77a652
+base_sha=91750c9176febf868e47b9131a4d894d643bf2b5
+pull_request=1046
+branch=feat/1040-professional-history
+merge_preview_workflow_run=33898169790
+merge_preview_job=101105690625
+merge_preview_result=success
+merge_preview_steps=TypeScript integration check:success; Test merge preview:success
+visual_workflow_run=33898169670
+visual_job=101105689862
+visual_result=success
+visual_steps=Render professional aggregate evidence:success; Render professional patient workspace evidence:success; Upload professional workspace screenshots:success
+messages_visual_job=101105690206
+messages_visual_result=success
+validated_behavior=compact guidance/note history selectors; explicit visualize actions; dedicated read-only detail; draft preservation; authorized-item removal clears selected detail; responsive visual evidence; no per-item query introduced by selection component
+material_paths=client/src/components/professional/ProfessionalRecordHistory.tsx;client/src/components/professional/ProfessionalRecordHistory.test.tsx;client/src/pages/professional/ProfessionalPatientWorkspace.tsx;docs/design-docs/professional-record-cycle.md;docs/testing/professional-workspace-routing.md;scripts/render-professional-patient-workspace-visual.sh;visual-tests/professional-patient-workspace/trpcMock.ts
