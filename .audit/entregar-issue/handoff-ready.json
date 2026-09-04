@@ -1,1 +1,295 @@
-{"schema_version":2,"status":"ready","created_at":"2026-09-03T14:43:25.182621+00:00","identity":{"head_sha":"be88a15b66eeae74f68b0f4aae185e92d3b9bcd7","material_head_sha":"be88a15b66eeae74f68b0f4aae185e92d3b9bcd7","base_sha":"55ec6877dc536db7261cc5d61d4e6eb9d15e2867","merge_preview_sha":null,"material_merge_preview_sha":null},"subject":{"repository":"crgasparoto-br/controle_calorias","issue_number":1043,"pull_request_number":1044,"work_item_kind":"issue","work_item_number":1043,"pull_request":1044,"base_ref":"develop","head_ref":"fix/1043-household-measure-learning"},"scope":{"schema_version":1,"work_item_start_sha":"55ec6877dc536db7261cc5d61d4e6eb9d15e2867","material_head_sha":"be88a15b66eeae74f68b0f4aae185e92d3b9bcd7","issue_changed_paths":["docs/design-docs/food-portions-household-measures.md","docs/design-docs/nutrition-engine.md","docs/design-docs/whatsapp-food-registration-clarification.md","docs/testing/whatsapp-response-contract-regression.md","server/countableFoodQuantity.ts","server/householdMeasureResolution.issue1016.test.ts","server/householdMeasureResolution.issue1043.test.ts","server/householdMeasureResolution.ts","server/householdMeasureResolutionStore.issue1043.test.ts","server/householdMeasureResolutionStore.ts","server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1043.test.ts","server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts","server/modules/whatsapp/intent/foodAdditionHandlers.ts","server/modules/whatsapp/intent/gramsAdjustmentHandlers.issue1043.test.ts","server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts","server/modules/whatsapp/intentActions.issue970.test.ts","server/whatsappIntentWebhook.ts"],"issue_delta_sha256":"6d6a20a5aff023786f9e55c5e48d6985314fc24fadb95d74ac28ade9460bb348"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/evidence-provenance.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/inherited-controls.json",".audit/entregar-issue/inherited-controls.parts/part-000.b64",".audit/entregar-issue/inherited-controls.parts/part-001.b64",".audit/entregar-issue/inherited-controls.parts/part-002.b64",".audit/entregar-issue/inherited-controls.parts/part-003.b64",".audit/entregar-issue/requirement-attack-matrix.json",".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",".audit/entregar-issue/requirement-attack-matrix.parts/part-003.b64",".audit/entregar-issue/requirement-closure.json",".audit/entregar-issue/requirement-closure.parts/part-000.b64",".audit/entregar-issue/requirement-closure.parts/part-001.b64",".audit/entregar-issue/requirement-closure.parts/part-002.b64",".audit/entregar-issue/risk-saturation.json",".audit/entregar-issue/specification-snapshot.json",".audit/entregar-issue/specification-sources/SRC-ISSUE-1043.txt"]},"contract_version":"2026-08-20.3","evidence_profile":"critical","remediation_mode":null,"producer":{"skill":"entregar-issue","skill_sha256":"0dde7774782e6f3d3d12c03635ad35ca3e9ada0faa6c4c9d23573b34ee6f92d2"},"validators":{"validate_specification_coverage.py":"01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b","validate_handoff_readiness.py":"e2bbbe81297b416c4ff087b7c79ffb398207d44093fee3b184b09fbbc929a2cd","validate_standard_evidence.py":"87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588","validate_requirement_attack_matrix.py":"96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99","validate_evidence_freshness.py":"e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04","validate_risk_saturation.py":"5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac","validate_inherited_controls.py":"183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146","validate_learning_closure.py":"d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc","validate_independent_rejection_closure.py":"61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4","validate_audit_remediation.py":"aa0e7555122ab9a01dcbfd057f4de92d4f30f94e1e0dad1cace9b49a74171777"},"artifact_transport":{"version":1,"supported_formats":["plain-json","base64-shards-v1"]},"artifacts":{"specification_snapshot":{"name":"specification-snapshot.json","sha256":"eda188fb47e40390e564b050809fdbf05168356873014eceb298aee46724badc","logical_sha256":"eda188fb47e40390e564b050809fdbf05168356873014eceb298aee46724badc","logical_size":581,"artifact_transport":{"format":"plain-json","version":1}},"requirement_closure":{"name":"requirement-closure.json","sha256":"757886840cc0210ede5ad83b1ef300fecbabf0dc59a79563500c9fe122d8caab","logical_sha256":"9e04e26f642c9c89288f6c435b37f55afec413c3b284938c837297d6d92eef91","logical_size":32603,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":7952,"decoded_size":32603,"decoded_sha256":"9e04e26f642c9c89288f6c435b37f55afec413c3b284938c837297d6d92eef91","encoded_sha256":"ec272c59bf03396c444cd0cd0b426c92d9cffd2d5bc93aeff8968e4e1ec39c69","parts":[{"path":"requirement-closure.parts/part-000.b64","size":3000,"sha256":"0ff4f91a77e617c5d5661a84e0ccf0f44684d8db77a635677a3a01c16feaa421"},{"path":"requirement-closure.parts/part-001.b64","size":3000,"sha256":"9477900c1681abcf693e9872226e1200553dc26310a2bbb06f1b7a6e0e9fb477"},{"path":"requirement-closure.parts/part-002.b64","size":1952,"sha256":"7f9594274e00b2bf25ffb726ab1da12f9c3d4ae47b447ba78e12ba6987fe2eb2"}]}},"requirement_attack_matrix":{"name":"requirement-attack-matrix.json","sha256":"a4b1e1b34b5554a206a0d843262d30ec5341dd4794de54114f8b276a238b790a","logical_sha256":"bc16752e65e6024a74e14b55d5143ad497e5341c22067da893ce31a77c0ae1be","logical_size":137949,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":10584,"decoded_size":137949,"decoded_sha256":"bc16752e65e6024a74e14b55d5143ad497e5341c22067da893ce31a77c0ae1be","encoded_sha256":"ed7ac625f60694b5ea6e4a18916a8c672cb49527cbe7a41584dd589725a94a06","parts":[{"path":"requirement-attack-matrix.parts/part-000.b64","size":3000,"sha256":"c41f76045229891622d33af22b9c3ed1114a4fa847312a76671afb3cdf7d860f"},{"path":"requirement-attack-matrix.parts/part-001.b64","size":3000,"sha256":"1d08f022858c5f73930945313ae5bea99de82585b3c18915a50181dd958ca040"},{"path":"requirement-attack-matrix.parts/part-002.b64","size":3000,"sha256":"f1fc912a2fe3f094e67071d41dbb9fb8b8da99f860cf5227a62b4c26e3d976c9"},{"path":"requirement-attack-matrix.parts/part-003.b64","size":1584,"sha256":"cfc9933089a4bb334f61e6a9d74c7f7fe5aa8e76ac5c37ba0c6f8e9ccbc3be85"}]}},"risk_saturation":{"name":"risk-saturation.json","sha256":"c5c3e71c1b6a9757e29b0e975660e7b1176e24742a7ee80b5ce1ecd0b99b5840","logical_sha256":"c5c3e71c1b6a9757e29b0e975660e7b1176e24742a7ee80b5ce1ecd0b99b5840","logical_size":5682,"artifact_transport":{"format":"plain-json","version":1}},"inherited_controls":{"name":"inherited-controls.json","sha256":"b34531281eee076040d16bc1a6b9a2f7a4041d58fba32a6f5e45244229f93e7f","logical_sha256":"abfd41a5611287fca05daac5e6484e9b6656beccbb2b0284c34d441da10d33bd","logical_size":21257,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":4648,"decoded_size":21257,"decoded_sha256":"abfd41a5611287fca05daac5e6484e9b6656beccbb2b0284c34d441da10d33bd","encoded_sha256":"af3b9f61361a1c1d495f5f9ebac8b67a7e2a3a7bdd0330fafd5e0cc74dfb9c59","parts":[{"path":"inherited-controls.parts/part-000.b64","size":1500,"sha256":"c369659a1ee4f80fd0c779a5fb80f50fbee1ffebf42295b737a64e2ee65eb25a"},{"path":"inherited-controls.parts/part-001.b64","size":1500,"sha256":"5885e04521d2edc265c1435b47a465f79687cbce6e8494d38119cce2b652348c"},{"path":"inherited-controls.parts/part-002.b64","size":1500,"sha256":"9afa0194c25fe96d76fcf9fd3a997992a30f541fd0a0efff5ffc269a17cb7472"},{"path":"inherited-controls.parts/part-003.b64","size":148,"sha256":"c65e3f83e9faecc0cbcfe619655bf282720474c1f33d125fe321728759e4523f"}]}},"evidence_provenance":{"name":"evidence-provenance.json","sha256":"4a4f38901916f0d3de8034b870ea9c502ca3ec8931d371982acc9c07db8a5b31","logical_sha256":"4a4f38901916f0d3de8034b870ea9c502ca3ec8931d371982acc9c07db8a5b31","logical_size":586,"artifact_transport":{"format":"plain-json","version":1}}},"previous_independent_rejection":false}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-09-04T01:22:56.183500+00:00",
+  "identity": {
+    "head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+    "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+    "base_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
+    "merge_preview_sha": "dc9dbdf74fd926cb2cf08bdeec32fde2e01e7aa9",
+    "material_merge_preview_sha": "dc9dbdf74fd926cb2cf08bdeec32fde2e01e7aa9"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1043,
+    "pull_request_number": 1044,
+    "work_item_kind": "issue",
+    "work_item_number": 1043,
+    "pull_request": 1044,
+    "base_ref": "develop",
+    "head_ref": "fix/1043-household-measure-learning"
+  },
+  "scope": {
+    "schema_version": 1,
+    "work_item_start_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
+    "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+    "issue_changed_paths": [
+      ".audit/entregar-issue/evidence-provenance.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/inherited-controls.parts/part-000.b64",
+      ".audit/entregar-issue/inherited-controls.parts/part-001.b64",
+      ".audit/entregar-issue/inherited-controls.parts/part-002.b64",
+      ".audit/entregar-issue/inherited-controls.parts/part-003.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-003.b64",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-002.b64",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1043.txt",
+      ".github/branch-protection-main.md",
+      ".github/pull_request_template.md",
+      ".github/workflows/agent-check.yml",
+      "CONTRIBUTING.md",
+      "docs/design-docs/food-portions-household-measures.md",
+      "docs/design-docs/nutrition-engine.md",
+      "docs/design-docs/whatsapp-food-registration-clarification.md",
+      "docs/testing/whatsapp-response-contract-regression.md",
+      "scripts/check-ci-gate-docs.ts",
+      "server/countableFoodQuantity.ts",
+      "server/householdMeasureMealUpdate.ts",
+      "server/householdMeasureResolution.issue1016.test.ts",
+      "server/householdMeasureResolution.issue1043.test.ts",
+      "server/householdMeasureResolution.ts",
+      "server/householdMeasureResolutionPersistence.ts",
+      "server/householdMeasureResolutionStore.issue1043.test.ts",
+      "server/householdMeasureResolutionStore.ts",
+      "server/modules/meals/service.ts",
+      "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1043.test.ts",
+      "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts",
+      "server/modules/whatsapp/intent/foodAdditionHandlers.ts",
+      "server/modules/whatsapp/intent/gramsAdjustmentHandlers.issue1043.test.ts",
+      "server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts",
+      "server/modules/whatsapp/intentActions.issue970.test.ts",
+      "server/modules/whatsapp/service.test.ts",
+      "server/repositories/mealsRepository.householdMeasureLearning.test.ts",
+      "server/repositories/mealsRepository.ts",
+      "server/whatsappIntentWebhook.issue1037.additional.test.ts",
+      "server/whatsappIntentWebhook.ts"
+    ],
+    "issue_delta_sha256": "c9c4b86b2dc1811bffc960d93e68a10a79b63663f6b80820d39a11600638fe21"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-escape-closure.parts/part-000.b64",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/evidence-provenance.json",
+      ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/inherited-controls.parts/part-000.b64",
+      ".audit/entregar-issue/learning-closure.json",
+      ".audit/entregar-issue/requirement-attack-matrix.json",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
+      ".audit/entregar-issue/requirement-attack-matrix.parts/part-002.b64",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
+      ".audit/entregar-issue/risk-saturation.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1043.txt"
+    ]
+  },
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "critical",
+  "remediation_mode": "mixed-remediation",
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "0dde7774782e6f3d3d12c03635ad35ca3e9ada0faa6c4c9d23573b34ee6f92d2"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
+    "validate_handoff_readiness.py": "e2bbbe81297b416c4ff087b7c79ffb398207d44093fee3b184b09fbbc929a2cd",
+    "validate_standard_evidence.py": "87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588",
+    "validate_requirement_attack_matrix.py": "96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99",
+    "validate_evidence_freshness.py": "e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04",
+    "validate_risk_saturation.py": "5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac",
+    "validate_inherited_controls.py": "183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146",
+    "validate_learning_closure.py": "d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc",
+    "validate_independent_rejection_closure.py": "61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4",
+    "validate_audit_remediation.py": "aa0e7555122ab9a01dcbfd057f4de92d4f30f94e1e0dad1cace9b49a74171777"
+  },
+  "artifact_transport": {
+    "version": 1,
+    "supported_formats": [
+      "plain-json",
+      "base64-shards-v1"
+    ]
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "cb0f434dd04a8e266409063e0f974d44a8421a6cb8fd3eee4cab9133270299df",
+      "logical_sha256": "cb0f434dd04a8e266409063e0f974d44a8421a6cb8fd3eee4cab9133270299df",
+      "logical_size": 586,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "2437a5c31d3ac5c320aa514d5f424e7b53bef7901a326fd7d841bae695758a75",
+      "logical_sha256": "9ad20d6170e1b6de183ce56941499271ae70664714c9bd8c39cccc2d3ec9be06",
+      "logical_size": 119419,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 24192,
+        "decoded_size": 119419,
+        "decoded_sha256": "9ad20d6170e1b6de183ce56941499271ae70664714c9bd8c39cccc2d3ec9be06",
+        "encoded_sha256": "3b52033a64895e8d662f0dd93ba6ab20795517d39c591e363bf7c16ceeb28b1e",
+        "parts": [
+          {
+            "path": "requirement-closure.parts/part-000.b64",
+            "size": 12288,
+            "sha256": "0deed257dfdabd014fa0bd9544d3c1b4001d9794ca8581fb8beae833b0be333d"
+          },
+          {
+            "path": "requirement-closure.parts/part-001.b64",
+            "size": 11904,
+            "sha256": "fd659cc45fd593bfa866e0017acd715d40a82830b9aa764960ccb93454b7a75d"
+          }
+        ]
+      }
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "2d268846d2be47216fc4e7b14f97f4cf5bec95b8abc79600d22cd2222fe1a7da",
+      "logical_sha256": "a29f82a3c1ee57ec7be4827439678369ceedf546f6b1e79163a3a62844cd07c6",
+      "logical_size": 827116,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 36612,
+        "decoded_size": 827116,
+        "decoded_sha256": "a29f82a3c1ee57ec7be4827439678369ceedf546f6b1e79163a3a62844cd07c6",
+        "encoded_sha256": "a03163cb536cc6687bcb12d2ee59b986da223f96412745a0416947e7b87c32f9",
+        "parts": [
+          {
+            "path": "requirement-attack-matrix.parts/part-000.b64",
+            "size": 12288,
+            "sha256": "2aafcd7dc1d2abcb7826c597b3eff8fd96ee0947e0b532b7f582a0ecd7ebffcd"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-001.b64",
+            "size": 12288,
+            "sha256": "e3ca66755728e23c4e16e87aeac389a4bcb504ff7ce599d6c12443c96c3fa3ba"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-002.b64",
+            "size": 12036,
+            "sha256": "b9560552ac7c1c2b8c30a768c48847e82b76e68caeb634a4c4b4c61d11aa43fc"
+          }
+        ]
+      }
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "037f8868e7321fa1d0172c0362a30cb1a77dc9d450da759c81e1930c1dccf779",
+      "logical_sha256": "037f8868e7321fa1d0172c0362a30cb1a77dc9d450da759c81e1930c1dccf779",
+      "logical_size": 16518,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "6abfa50a90448d06e1bbe15a29d3aa29e9ef010e7a5d0c9ae3681058420e6ad0",
+      "logical_sha256": "9f16e24520f4d12223ff13a3657c7367f374935813969bb3cd3c78d8084fe4e6",
+      "logical_size": 29471,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 6284,
+        "decoded_size": 29471,
+        "decoded_sha256": "9f16e24520f4d12223ff13a3657c7367f374935813969bb3cd3c78d8084fe4e6",
+        "encoded_sha256": "d4591227ce5cc4e85ead76135b5ccd7399483677f6a501183f421aa94b3d60eb",
+        "parts": [
+          {
+            "path": "inherited-controls.parts/part-000.b64",
+            "size": 6284,
+            "sha256": "d4591227ce5cc4e85ead76135b5ccd7399483677f6a501183f421aa94b3d60eb"
+          }
+        ]
+      }
+    },
+    "evidence_provenance": {
+      "name": "evidence-provenance.json",
+      "sha256": "0392567030e504ffcb74916163104e758aaa2bb3b9105a4e7ec1d2eaa6e04453",
+      "logical_sha256": "0392567030e504ffcb74916163104e758aaa2bb3b9105a4e7ec1d2eaa6e04453",
+      "logical_size": 1093,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "56d58b026408b4942fae44d9c2612628ebd6ad65854dd592b907200caea6e07e",
+      "logical_sha256": "cd52479b65924b49b3439b5415c9c6b1e7701b284f26fc2cdc0241d2394a784c",
+      "logical_size": 83018,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 11436,
+        "decoded_size": 83018,
+        "decoded_sha256": "cd52479b65924b49b3439b5415c9c6b1e7701b284f26fc2cdc0241d2394a784c",
+        "encoded_sha256": "7615cfe1c8a203d3725e6bc9c202512de23e8294789742c6ee4e64b6457af908",
+        "parts": [
+          {
+            "path": "audit-escape-closure.parts/part-000.b64",
+            "size": 11436,
+            "sha256": "7615cfe1c8a203d3725e6bc9c202512de23e8294789742c6ee4e64b6457af908"
+          }
+        ]
+      }
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "3abd912a3a3e3d22c0b86908159c7587672493472c87d5773034f8d59e772a3f",
+      "logical_sha256": "3abd912a3a3e3d22c0b86908159c7587672493472c87d5773034f8d59e772a3f",
+      "logical_size": 2696,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "bd36b58a7f988ebe5bb2d67a27ed4862882faa16b5f44c5259adaa211973d297",
+      "logical_sha256": "bd36b58a7f988ebe5bb2d67a27ed4862882faa16b5f44c5259adaa211973d297",
+      "logical_size": 2458,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f",
+      "logical_sha256": "2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f",
+      "logical_size": 1654,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    }
+  },
+  "previous_independent_rejection": true
+}

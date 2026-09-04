@@ -1,0 +1,18 @@
+Issue 1043 exact-head delivery evidence
+material_head_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
+agent_first_run_id=33802972619
+agent_first_run_number=6065
+agent_first_conclusion=success
+verification_head_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
+verification_checkout_sha=ddc9508db607a2c1d21effd2710066442d7ba2a1
+verification_event_sha=dc9dbdf74fd926cb2cf08bdeec32fde2e01e7aa9
+whatsapp_tidb_run_id=33802972747
+whatsapp_tidb_run_number=2943
+whatsapp_tidb_conclusion=success
+issue1043_discrete_test_declarations=24
+issue1043_parameterized_extra_cases=1
+issue1043_minimum_discriminant_scenarios_observed=25
+minimum_required_scenarios=15
+result=passed
+Test surfaces counted from exact-head files: household resolver (9), durable store (5), grams adjustment handler (4), canonical addition formatter (2 runtime cases from it.each), transactional repository (2), full WhatsApp mixed-meal/addition regression (3).
+The exact-head CI ran TypeScript, full Vitest suite, architecture check, documentation check, build, agent check, CI gate docs check, and emitted an exact-head verification manifest where checkoutSha equals headSha.

@@ -1,42 +1,391 @@
+specification_version: 2
+
 ## Objetivo
-Evitar que o WhatsApp interrompa o registro de refeições pedindo peso/volume para medidas caseiras comuns quando há base suficiente para estimar a gramatura de forma contextual, transparente e reutilizável.
+
+Evitar que o WhatsApp interrompa o registro de refeições pedindo peso/volume para medidas caseiras comuns quando o sistema possui base suficiente para estimar a gramatura de forma contextual, transparente e reutilizável.
+
+Exemplo real observado em produção:
+
+```text
+1 pão francês, 4 fatias de presunto, 2 fatias de mussarela, 4 xícaras de café sem açúcar e 50 g de requeijão
+```
+
+O sistema respondeu:
+
+```text
+Não encontrei uma gramatura verificável nem uma média usual segura para 4 fatias de presunto.
+Informe somente o peso ou volume correspondente, por exemplo 20 g.
+```
+
+Para alimentos comuns e medidas fisicamente bem definidas, como `fatia de presunto`, esse comportamento deve ser excepcional, não o fluxo normal.
+
+Usar `develop` como branch base.
+
+## Contexto e lacuna atual
+
+A #1016 introduziu a resolução canônica de medidas caseiras e a #1037 já protege, em `develop`, a propagação do resultado quantitativo até o pipeline nutricional. Esta issue não deve reimplementar esse roteamento.
+
+Na implementação atual, `resolveHouseholdMeasure()` segue porção persistida/catálogo e depois pesquisa verificável. A pesquisa retorna `researched_exact` para produto exato ou `usual_average` quando existe uma fonte que declare explicitamente uma medida típica/usual ou pelo menos duas fontes independentes coerentes. Uma única referência compatível do mesmo tipo, quando não declara explicitamente que a medida é típica, ainda termina em `null` e consequentemente em clarificação.
+
+A melhoria desta issue deve manter todas as verificações de identidade, unidade, relação física, origem da evidência e coerência da #1016, mas acrescentar uma forma segura de aproveitar uma referência contextual verificável sem obrigar o usuário a informar uma gramatura que ele normalmente não conhece.
 
 ## Escopo
-- Introduzir `contextual_estimate` como estado distinto de porção exata e `usual_average`.
+
+- Introduzir o estado conceitual `contextual_estimate` para uma estimativa contextual verificável, distinta de porção exata e de `usual_average`.
 - Reutilizar resoluções verificadas de forma durável, preservando tipo e procedência.
-- Permitir `user_learned` somente após correção explícita, bem-sucedida e inequivocamente vinculada à medida original.
+- Permitir aprendizado por usuário (`user_learned`) somente após correção explícita, bem-sucedida e inequivocamente vinculada à medida original.
 - Manter clarificação como último recurso para medidas realmente ambíguas ou evidência insuficiente/conflitante.
-- Preservar paridade entre registro normal, adição e fluxos que usam a fronteira canônica de medidas.
+- Preservar paridade entre registro normal, adição e demais fluxos que já usam a fronteira canônica de medidas.
 - Preservar a medida original na resposta e no contexto necessário à correção posterior.
 
-## Requisitos
-- Preservar precedência: massa/volume explícitos -> canonical_portion -> researched_exact -> user_learned compatível -> usual_average -> contextual_estimate -> clarificação.
-- `user_learned` vence estimativas genéricas, mas não quantidade explícita nem referência exata mais específica.
-- Aprendizado genérico não pode sobrepor porção exata de marca/variante materialmente diferente.
-- Uma única referência `same_food_type` verificável pode sustentar `contextual_estimate` quando identidade, preparo, unidade, relação física e fonte forem compatíveis e não houver contradição material.
-- Duas ou mais referências coerentes permanecem `usual_average`; referências materialmente conflitantes devem clarificar, sem escolher arbitrariamente uma fonte.
-- Referência incompatível, evidência não vinculada, URL não retornada, unidade incompatível, marca incompatível para resultado exato ou categoria ampla demais devem continuar inválidas.
-- A reutilização deve ser durável após restart e em múltiplas instâncias; memória do processo não pode ser a fonte canônica.
-- Persistência deve preservar identidade/qualificadores, medida, relação quantidade↔gramas, tipo, procedência, fontes/evidência e data de verificação/atualização quando aplicável.
-- `contextual_estimate`, `usual_average` e `user_learned` devem preservar sua procedência ao serem relidos.
-- Resolução expirada/inválida deve ser cache miss e seguir a precedência normal.
-- `user_learned` deve ser isolado por usuário e nunca gravado como porção global.
-- Handlers de WhatsApp não podem manter cache/tabela paralela de gramaturas.
-- Aprendizado exige alvo único, medida original preservada, correção explícita válida para massa/volume e mutação da refeição concluída com sucesso.
-- Correção ambígua, cancelada, expirada, stale ou com falha de persistência não pode criar/atualizar aprendizado.
-- Retry da mesma correção deve ser idempotente; correção posterior válida para a mesma chave substitui a relação anterior.
-- Se um entrypoint não puder provar associação entre correção e medida original, ele não aprende.
-- `contextual_estimate`, `usual_average` e `user_learned` devem ser apresentados como aproximações, preservando quantidade/unidade original e gramatura usada.
-- Clarificação permanece para medidas estruturalmente ambíguas, identidade insuficiente, evidência inválida, referências conflitantes ou cache expirado sem nova resolução aceitável.
+## Fora de escopo
+
+- Criar constantes como `PRESUNTO_SLICE_GRAMS`, `MOZZARELLA_SLICE_GRAMS` ou `DEFAULT_SLICE_GRAMS` em handler, parser ou formatter.
+- Criar média universal por unidade (`fatia`, `colher`, `unidade`, `pedaço` etc.).
+- Alterar composição nutricional dos alimentos.
+- Recalcular refeições históricas.
+- Aceitar fonte incompatível apenas para evitar clarificação.
+- Aprender implicitamente a partir de estimativas automáticas nunca corrigidas/confirmadas pelo usuário.
+- Reimplementar o passthrough resolvido pela #1037.
+
+## Estados conceituais da resolução
+
+A fronteira de medidas deve conseguir distinguir, conceitualmente, pelo menos:
+
+- `canonical_portion`: porção persistida/canônica compatível;
+- `researched_exact`: referência pesquisada exata do mesmo produto/identidade;
+- `usual_average`: média usual sustentada pelo contrato atual;
+- `contextual_estimate`: estimativa contextual verificável, porém não forte o suficiente para ser apresentada como porção exata ou média usual;
+- `user_learned`: relação pessoal aprendida a partir de correção explícita do usuário;
+- `clarification`: ausência de base suficientemente segura.
+
+Os nomes internos podem variar, mas a distinção de procedência deve permanecer verificável e disponível para apresentação, reutilização e auditoria.
+
+## Precedência de resolução
+
+Para uma medida contável, preservar a seguinte precedência conceitual:
+
+```text
+massa/volume explícitos na mensagem atual
+-> porção persistida/canônica exata e compatível
+-> referência pesquisada exata
+-> user_learned com a mesma identidade + medida e especificidade compatível
+-> usual_average
+-> contextual_estimate
+-> clarificação
+```
+
+Regras adicionais:
+
+- `user_learned` vence estimativas genéricas, mas não substitui quantidade explícita nem uma referência exata mais específica disponível para o pedido atual.
+- Um aprendizado genérico de `presunto` não pode sobrepor silenciosamente uma porção exata de `Presunto Marca X` nem ser aplicado a uma variante/preparo materialmente diferente.
+- A identidade armazenada para reutilização/aprendizado deve preservar os qualificadores relevantes usados pela fronteira semântica do domínio.
+
+## Criação de `contextual_estimate` na primeira utilização
+
+A nova camada precisa resolver também a primeira ocorrência, e não apenas reutilizar valores previamente armazenados.
+
+Depois que as etapas mais precisas falharem, uma única referência `same_food_type` pode sustentar `contextual_estimate` quando **todas** as condições abaixo forem atendidas:
+
+1. a referência já passou pela mesma validação verificável existente para referências pesquisadas: fonte real retornada pela pesquisa, relação explícita entre quantidade + unidade + gramas, unidade compatível e evidência vinculada;
+2. alimento/tipo/preparo são semanticamente compatíveis com o pedido;
+3. a medida física é suficientemente definida para o alimento (`fatia de presunto`, `fatia de mussarela`, `unidade de alimento fisicamente definido` etc.);
+4. a referência não depende de categoria ampla incompatível, como `queijo` genérico para uma mussarela já identificada;
+5. não existem outras referências verificadas da mesma busca que contradigam materialmente esse valor.
+
+Uma única referência válida nesse estado é **estimativa**, nunca correspondência exata nem declaração de média usual.
+
+Se existirem duas ou mais referências verificadas:
+
+- se cumprirem o contrato atual de média/coerência, usar `usual_average`;
+- se forem materialmente conflitantes, não é permitido escolher arbitrariamente a mais conveniente para fabricar `contextual_estimate`; deve seguir para clarificação.
+
+Continuam inválidas referências com alimento diferente, unidade diferente, evidência não vinculada, URL não presente na pesquisa executada, marca incompatível quando o resultado se apresenta como exato ou categoria ampla demais.
+
+## Persistência e reutilização
+
+Uma resolução pesquisada aceita deve poder ser reutilizada sem repetir pesquisa externa desnecessária.
+
+Requisitos:
+
+- a reutilização deve ser durável e funcionar após restart do processo e em mais de uma instância; memória do processo pode ser otimização, nunca a fonte canônica;
+- armazenar informação suficiente para recuperar identidade/qualificadores, medida, relação quantidade↔gramas, tipo da resolução, procedência, fontes/evidência quando aplicável e data de verificação/atualização;
+- uma resolução persistida como `contextual_estimate` deve continuar sendo `contextual_estimate` ao ser lida novamente; persistir e reler não pode promovê-la silenciosamente a `canonical_portion`/exata;
+- o mesmo vale para `usual_average` e `user_learned`: a procedência não pode ser perdida no cache/persistência;
+- permitir invalidação/expiração conforme o mecanismo de domínio adotado; registro inválido/expirado deve ser tratado como cache miss e seguir a precedência normal;
+- uma resolução baseada apenas em evidência pública pode ser reutilizada em escopo global somente quando a identidade alimentar também for global e a política de catálogo permitir; não ampliar a visibilidade de alimento personalizado;
+- `user_learned` é sempre isolado por usuário e nunca pode ser gravado como porção global de um alimento compartilhado;
+- handlers de WhatsApp não mantêm tabela ou cache paralelo de gramaturas.
+
+A implementação pode usar a infraestrutura existente ou introduzir uma estrutura persistente específica, desde que a leitura/escrita seja encapsulada pela fronteira de domínio de medidas e preserve os requisitos acima.
+
+## Aprendizado por usuário
+
+O aprendizado pessoal só pode nascer de uma correção explícita que permita recuperar, antes da mutação, a relação original da medida.
+
+Exemplo:
+
+```text
+4 fatias de presunto -> usuário corrige explicitamente para 72 g
+```
+
+pode produzir uma relação pessoal equivalente a `1 fatia -> 18 g` para aquele usuário e identidade compatível.
+
+### Condições obrigatórias
+
+- o item alvo foi identificado sem ambiguidade;
+- antes da correção, o item ainda preservava quantidade/unidade contável e identidade suficientes para formar a relação original;
+- a correção nova fornece massa/volume explícitos válidos;
+- a mutação da refeição foi concluída com sucesso;
+- a correção não trocou simultaneamente a identidade alimentar de forma que tornasse a relação original inválida.
+
+### Ciclo e idempotência
+
+```text
+item com medida original
+-> comando explícito de correção
+-> alvo único validado
+-> mutação da refeição concluída
+-> upsert idempotente da relação user_learned
+-> próxima resolução pode reutilizar a relação
+```
+
+- não criar aprendizado na fase de parsing, antes de a correção ser efetivamente aplicada;
+- correção ambígua, cancelada, expirada, stale ou com falha de persistência não cria/atualiza aprendizado;
+- retry da mesma correção não pode criar registros pessoais duplicados;
+- correção posterior válida para a mesma chave pessoal deve atualizar/substituir a relação anterior, sem acumular regras conflitantes;
+- se não for possível provar a associação entre correção e medida original em determinado entrypoint, esse entrypoint não aprende; ele continua apenas corrigindo a refeição.
+
+## Transparência da resposta
+
+`contextual_estimate` e `usual_average` devem continuar aparecendo como aproximação, por exemplo:
+
+```text
+Presunto — 4 fatias (aprox. X g)
+Gramatura estimada para essa medida. Você pode corrigir depois.
+```
+
+`user_learned` também não deve ser apresentado como porção oficial/exata do fabricante. A resposta pode indicar, de forma breve, que utilizou a referência pessoal anterior do usuário, preservando:
+
+- quantidade/unidade originalmente informadas;
+- gramatura usada no cálculo;
+- natureza estimada/pessoal quando aplicável;
+- possibilidade de correção posterior.
+
+Formatters que hoje tratam apenas `usual_average` como aproximado devem ser ampliados para não perder a sinalização dos novos estados.
+
+## Clarificação continua necessária quando
+
+- a medida é estruturalmente ambígua (`1 porção`, `1 pedaço` com grande variação, `1 pacote` sem apresentação);
+- a identidade alimentar é insuficiente para definir a apresentação física;
+- a única evidência falha nos guards atuais de identidade/unidade/relação física/fonte;
+- existem referências verificadas conflitantes e não há fonte mais precisa ou aprendizado pessoal compatível;
+- a reutilização encontrada está expirada/inválida e uma nova pesquisa também não produz resolução aceitável.
+
+## Cenários obrigatórios
+
+### 1. Cenário principal
+
+```text
+1 pão francês, 4 fatias de presunto, 2 fatias de mussarela, 4 xícaras de café sem açúcar e 50 g de requeijão
+```
+
+Validar que, existindo evidência contextual verificável para presunto e mussarela:
+
+- não há clarificação apenas pela ausência de duas fontes;
+- presunto e mussarela são resolvidos independentemente e podem ter gramaturas diferentes;
+- nutrientes usam as gramaturas resolvidas;
+- a resposta preserva as medidas originais e marca aproximação;
+- pão, café e requeijão mantêm suas regras atuais.
+
+### 2. Primeira ocorrência com uma única referência compatível
+
+Sem cache e sem porção local, a pesquisa retorna uma única referência válida de `fatia de presunto`, não marcada como típica.
+
+Esperado: `contextual_estimate`, sem clarificação e sem apresentá-la como exata/média usual.
+
+### 3. Referências conflitantes
+
+A pesquisa retorna duas referências verificadas da mesma medida, mas com dispersão materialmente incompatível.
+
+Esperado: não escolher uma delas arbitrariamente; seguir para clarificação.
+
+### 4. Reutilização após restart
+
+A primeira execução obtém e persiste `contextual_estimate`; a segunda execução simula novo processo/instância.
+
+Esperado: reutilizar a resolução durável, preservar `contextual_estimate` e não repetir pesquisa externa.
+
+### 5. Aprendizado pessoal
+
+1. registrar `4 fatias de presunto` usando estimativa;
+2. corrigir explicitamente o mesmo item para `72 g`;
+3. após sucesso da correção, registrar novamente a mesma medida.
+
+Esperado: reutilizar `user_learned`, sem pesquisa externa desnecessária, mantendo escopo do usuário.
+
+### 6. Falha/cancelamento de correção
+
+Tentar a mesma correção anterior, mas falhar antes da mutação, cancelar ou resolver alvo ambíguo.
+
+Esperado: nenhum `user_learned` novo ou alterado.
+
+### 7. Isolamento
+
+Após usuário A aprender `fatia de presunto`, usuário B registra o mesmo alimento; ou o usuário A registra `fatia de mussarela`.
+
+Esperado: nenhuma reutilização indevida do aprendizado pessoal.
+
+### 8. Identidade mais específica
+
+Existe aprendizado pessoal genérico para `presunto`, mas a entrada atual identifica produto/variante para a qual há porção exata compatível.
+
+Esperado: a porção exata mais específica vence; o aprendizado genérico não mascara essa fonte.
+
+### 9. Medida realmente ambígua
+
+```text
+1 pedaço de bolo
+```
+
+Sem base contextual suficientemente segura, manter clarificação.
 
 ## Critérios de aceite
-- Primeira ocorrência com uma única referência compatível resolve como `contextual_estimate` sem clarificação e sem apresentá-la como exata.
-- Referências coerentes produzem `usual_average`; conflitantes produzem clarificação.
-- Reutilização após restart preserva `contextual_estimate` e não chama pesquisa externa quando a entrada persistida ainda é válida.
-- Massa/volume explícitos permanecem prioritários.
-- Correção explícita bem-sucedida aprende relação pessoal; falha, ambiguidade e correção não-massa/volume não aprendem.
-- Retry não duplica aprendizado e correção posterior atualiza a mesma chave pessoal.
-- Isolamento por usuário, marca/identidade e unidade é preservado.
-- Formatação deixa explícita a aproximação para `contextual_estimate`, `usual_average` e `user_learned`.
-- Cobertura automatizada inclui pelo menos 15 cenários discriminantes.
-- Documentação de medidas caseiras, clarificação, motor nutricional e regressão WhatsApp é atualizada.
+
+- [ ] Uma única referência `same_food_type` verificável pode produzir `contextual_estimate` quando cumprir todos os guards e não houver evidência conflitante.
+- [ ] A nova regra não relaxa os guards atuais de identidade, unidade, relação física, URL/evidência e compatibilidade semântica.
+- [ ] Duas ou mais referências conflitantes não podem ser reduzidas arbitrariamente à primeira referência disponível.
+- [ ] `contextual_estimate` e `user_learned` são procedências distintas de `canonical_portion`, `researched_exact` e `usual_average`.
+- [ ] Reutilizar uma estimativa não a promove silenciosamente a resolução exata/canônica.
+- [ ] `4 fatias de presunto` não gera clarificação quando houver resolução contextual segura.
+- [ ] Presunto e mussarela podem resultar em gramaturas distintas para `fatia`.
+- [ ] O cálculo nutricional usa a gramatura efetivamente resolvida/estimada, nunca `1 g` ou `100 g` por convenção implícita.
+- [ ] A resposta final mantém a medida original e sinaliza aproximação/referência pessoal conforme a procedência.
+- [ ] Resolução persistida é reutilizável após restart e não exige repetir pesquisa externa quando ainda válida.
+- [ ] `user_learned` só é criado/atualizado depois de uma correção explícita, inequívoca e persistida com sucesso.
+- [ ] Falha, cancelamento, ambiguidade ou retry da mesma correção não geram aprendizado incorreto/duplicado.
+- [ ] Aprendizado pessoal é isolado por usuário e por identidade/medida compatível.
+- [ ] Quantidade explícita e fontes exatas mais específicas mantêm precedência sobre estimativas menos específicas.
+- [ ] Medidas realmente ambíguas continuam entrando em clarificação.
+- [ ] Registro normal e adição mantêm paridade por usarem a mesma fronteira de medidas.
+- [ ] Nenhum handler do WhatsApp chama provider/web diretamente nem mantém pesos/cache próprios.
+- [ ] Se houver mudança de schema/persistência, migrations e documentação de banco são atualizadas.
+- [ ] `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e `pnpm agent:check` permanecem aprovados; validação de banco aplicável deve ser registrada quando houver alteração persistente.
+
+## Cobertura automatizada mínima
+
+1. primeira ocorrência com uma referência compatível -> `contextual_estimate`;
+2. referência única de categoria ampla/alimento incompatível -> clarificação;
+3. referência com unidade/evidência inválida -> clarificação;
+4. duas referências coerentes -> continua `usual_average`;
+5. duas referências conflitantes -> clarificação, sem cherry-pick;
+6. `contextual_estimate` persistido -> segunda resolução após restart, zero nova pesquisa e mesma procedência;
+7. formatter/resposta de registro e adição sinalizando `contextual_estimate` como aproximação;
+8. aprendizado após correção explícita bem-sucedida e reutilização posterior;
+9. correção com falha/cancelada/ambígua -> zero aprendizado;
+10. retry da mesma correção -> upsert idempotente, sem duplicidade;
+11. isolamento entre usuários, alimentos e variantes incompatíveis;
+12. porção exata específica vencendo aprendizado genérico menos específico;
+13. massa/volume explícitos vencendo toda estimativa/aprendizado;
+14. cenário completo com presunto + mussarela + demais itens da mensagem original;
+15. caso ambíguo permanecendo em clarificação.
+
+## Invariantes estruturais
+
+### `must_behave`
+
+- Clarificação é último recurso quando existe estimativa contextual verificável suficiente.
+- A primeira ocorrência pode formar `contextual_estimate`; a funcionalidade não depende de cache pré-populado.
+- Reutilização preserva tipo/procedência da resolução.
+- Aprendizado pessoal só se torna ativo após correção de domínio concluída com sucesso.
+
+### `must_not_behave`
+
+- Não criar peso universal por medida/alimento no WhatsApp.
+- Não aceitar referência que falhe nos guards atuais para evitar a pergunta ao usuário.
+- Não escolher arbitrariamente uma referência quando múltiplas referências verificadas são conflitantes.
+- Não transformar `contextual_estimate`/`user_learned` em porção exata por efeito da persistência.
+- Não aprender antes do sucesso da correção nem a partir de estimativa automática não corrigida.
+- Não vazar aprendizado entre usuários/alimentos/variantes incompatíveis.
+
+### `must_reuse`
+
+- Reutilizar `resolveHouseholdMeasure()` ou a mesma fronteira canônica de domínio como ponto central da precedência.
+- Reutilizar os guards semânticos/evidenciais existentes da pesquisa verificável.
+- Reutilizar o pipeline nutricional canônico para composição e cálculo.
+- Reutilizar o fluxo de correção existente como evento de confirmação, sem criar um comando paralelo de aprendizado.
+
+### `must_be_single_source`
+
+- Toda resolução quantitativa reutilizável é lida pela mesma fronteira de medidas, independentemente de ter origem canônica, pesquisada, estimada ou pessoal.
+- `user_learned` possui fonte persistente isolada por usuário; não pode ser representado como porção global compartilhada.
+- O WhatsApp não mantém um segundo catálogo/cache de gramaturas.
+
+### `must_not_depend_on`
+
+- O caso de primeira utilização não pode depender de a fonte conter literalmente as palavras `média`, `usual` ou `típica` quando uma única referência contextual já passou pelos guards completos e pode ser apresentada apenas como estimativa.
+- A correção não pode depender de memória do processo para recuperar a medida original depois que a mutação já a transformou em gramas; os dados necessários devem ser capturados antes da mutação ou estar persistidos de forma confiável.
+- A reutilização não pode depender de uma segunda chamada ao provider para reconstruir procedência já persistida.
+- A correção/registro não pode depender de cache em memória para ser correta após restart/múltiplas instâncias.
+
+### `precedence_invariants`
+
+```text
+massa/volume explícitos
+> porção persistida/canônica exata
+> referência pesquisada exata
+> user_learned com assinatura compatível
+> usual_average
+> contextual_estimate
+> clarificação
+```
+
+A precedência considera especificidade: uma relação pessoal genérica não mascara uma fonte exata de produto/variante mais específica.
+
+### `forbidden_implementation`
+
+1. **Adicionar `PRESUNTO_SLICE_GRAMS`/mapa equivalente no handler.**
+   - Controle discriminante: alimento novo resolvido apenas pela fronteira canônica também deve funcionar; architecture/source check não pode encontrar tabela paralela.
+2. **Aceitar a primeira referência externa sem os guards existentes.**
+   - Controle: fonte de outro alimento, categoria ampla ou unidade incompatível deve continuar em clarificação.
+3. **Persistir `contextual_estimate` como `food_portions` exata sem procedência.**
+   - Controle: após restart, a mesma resolução deve continuar com kind estimado e resposta aproximada.
+4. **Usar somente cache em memória.**
+   - Controle: teste recria o runtime/processo e exige zero nova pesquisa com a resolução durável ainda válida.
+5. **Gravar `user_learned` antes de `updateMeal`/mutação equivalente concluir.**
+   - Controle: simular falha da mutação e provar ausência de aprendizado.
+6. **Gravar aprendizado de usuário em porção global.**
+   - Controle: usuário B não pode observar a relação aprendida pelo usuário A.
+7. **Deixar aprendizado genérico vencer porção exata de variante mais específica.**
+   - Controle: fixture com aprendizado `presunto` e porção exata `Presunto Marca X` exige a fonte exata.
+8. **Atualizar apenas o resolver e deixar formatter reconhecer estimativa somente para `usual_average`.**
+   - Controle: respostas com `contextual_estimate` e `user_learned` devem manter marcação adequada e não parecer medidas explícitas/exatas.
+
+## Dependências e riscos
+
+- Preservar todas as garantias de #1016 para validação de evidência e semântica.
+- Reutilizar a cadeia de passthrough já documentada/implementada pela #1037 em `develop`; não criar uma segunda passagem do preflight.
+- A implementação provavelmente tocará persistência. Se uma nova tabela/estrutura for necessária, `drizzle/schema.ts`, migrations e repository de domínio devem permanecer alinhados.
+- O modelo atual de item de refeição preserva quantidade/unidade antes da correção, mas os helpers de ajuste convertem o item para gramas; portanto o aprendizado deve capturar a relação original antes da mutação e somente confirmar a gravação depois do sucesso.
+
+## Impacto na documentação
+
+Atualizar:
+
+- `docs/design-docs/food-portions-household-measures.md`: nova precedência, diferença entre `usual_average` e `contextual_estimate`, reutilização durável e `user_learned`;
+- `docs/design-docs/whatsapp-food-registration-clarification.md`: clarificação como último recurso com os novos estados de procedência e transparência;
+- `docs/testing/whatsapp-response-contract-regression.md`: primeira ocorrência, reutilização após restart, transparência e isolamento;
+- documentação da correção/ajuste de itens quando o aprendizado pessoal for ligado a esse fluxo;
+- `docs/design-docs/database-persistence.md` e documentação gerada de banco se houver nova estrutura persistente;
+- `docs/design-docs/global-food-catalog.md` se a implementação alterar o contrato de escopo/reutilização de porções globais/personalizadas.
+
+Critério documental: nenhuma documentação pode sugerir peso universal de `fatia`, promover estimativa a porção exata ou afirmar que cache em memória é fonte canônica.
+
+## Relação com trabalho anterior
+
+- #1016 — resolução canônica de medidas caseiras, validação de evidência, média usual e paridade entre fluxos.
+- #1037 — passthrough da resolução contável até o pipeline nutricional, já protegido na `develop`.
+
+## Perguntas em aberto
+
+Nenhuma decisão funcional bloqueante. A implementação pode escolher o desenho físico da persistência e a política concreta de expiração/invalidação, desde que cumpra isolamento, durabilidade, preservação de procedência e os testes discriminantes desta especificação.

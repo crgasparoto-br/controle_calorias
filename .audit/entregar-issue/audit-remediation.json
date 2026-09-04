@@ -2,42 +2,13 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
-    "audited_head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25"
-  },
-  "candidate_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
-  "remediation_mode": "targeted-remediation",
+  "source": {"rejection_id":"audit-rejection:6bee550765e66a2959d3","audit_report_sha256":"2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f","audited_head_sha":"86e1ca431c7786ad03a544d41deac5692524bda1"},
+  "candidate_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+  "remediation_mode": "mixed-remediation",
   "items": [
-    {
-      "source_kind": "finding",
-      "source_id": "A-1028-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "handoff-artifact-integrity-rebuild",
-      "changed_files": [],
-      "evidence": [
-        "Regenerated handoff-ready.json from the final corrected requirement-closure.json so the certified sha256/logical_sha256 match the exact published bytes."
-      ],
-      "validations": [
-        "validate_handoff_certificate.py and validate_terminal_handoff.py must pass on the synthesized result-only child before publication."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-1028-003",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "normative-closure-canonicalization",
-      "changed_files": [],
-      "evidence": [
-        "OBL-004 source_text now exactly matches SRC-PR1028-CONFLICTS.txt line 8."
-      ],
-      "validations": [
-        "validate_specification_coverage.py must pass before handoff publication."
-      ]
-    }
+    {"source_kind":"finding","source_id":"A-001","remediation_mode":"systemic-remediation","status":"fixed","closure_kind":"exact-head-evidence-provenance-closure","changed_files":[".github/workflows/agent-check.yml","scripts/check-ci-gate-docs.ts"],"evidence":["Agent-first run #6065 succeeded with verification manifest headSha == checkoutSha == ddc9508db607a2c1d21effd2710066442d7ba2a1 and a separate merge-preview event SHA."],"validations":["Exact-head TypeScript, full Vitest, architecture, documentation, build, agent and CI-gate checks succeeded; verification artifact 9912361960 binds checkoutSha to the material head."]},
+    {"source_kind":"finding","source_id":"A-002","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"full-specification-rebuild","changed_files":[],"evidence":["The canonical source was rebuilt from the full 391-line issue body with SHA-256 cbef5a296602c825127e72f722084966f4bb2def047dc8eea96de6cb92fba8ca and 135 extracted obligations."],"validations":["validate_specification_coverage.py passed against the full source; the mandatory mixed-meal regression is present in server/whatsappIntentWebhook.issue1037.additional.test.ts."]},
+    {"source_kind":"finding","source_id":"A-003","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"transactional-atomicity-closure","changed_files":["server/householdMeasureMealUpdate.ts","server/modules/meals/service.ts","server/repositories/mealsRepository.ts","server/repositories/mealsRepository.householdMeasureLearning.test.ts","server/modules/whatsapp/intent/gramsAdjustmentHandlers.ts"],"evidence":["The correction and user_learned update share one transactional repository boundary, with a concurrent stale-snapshot regression on the exact head."],"validations":["Repository regression serializes concurrent corrections and prevents the stale snapshot from overwriting the learned winner; exact-head Agent-first #6065 and TiDB #2943 both succeeded."]}
   ],
   "status": "closed"
 }

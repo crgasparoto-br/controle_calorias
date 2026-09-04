@@ -1,16 +1,26 @@
 {
   "schema_version": 1,
-  "material_head_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
+  "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
   "base_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
   "evidence": [
     {
       "evidence_id": "EVID-Q-1043",
       "kind": "quantitative",
-      "path": "server/householdMeasureResolution.issue1043.test.ts",
-      "sha256": "3d607e13983766cf788c6e480e4057efe9ae17840e2d3ee06673028062353e2b",
-      "subject_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
+      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
+      "sha256": "25f7b540ad9c1e5cd71b04bc48eaa71f0e3bdab6c8d29bca7906cb4f1bbb685b",
+      "subject_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
       "freshness_policy": "exact-material-head",
-      "producer": "Agent-first gate #6051",
+      "producer": "Agent-first gate #6065 plus exact-head test inventory",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-B-1043",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
+      "sha256": "25f7b540ad9c1e5cd71b04bc48eaa71f0e3bdab6c8d29bca7906cb4f1bbb685b",
+      "subject_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+      "freshness_policy": "exact-material-head",
+      "producer": "Agent-first gate #6065 and WhatsApp context TiDB gate #2943",
       "status": "passed"
     }
   ]

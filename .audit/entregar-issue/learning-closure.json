@@ -1,17 +1,24 @@
 {
   "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
-    "finding_ids": [
-      "A-1028-002",
-      "A-1028-003"
-    ]
-  },
+  "classification": "systemic-escape",
+  "source_event": {"kind":"independent-rejection","rejection_id":"audit-rejection:6bee550765e66a2959d3","audit_report_sha256":"2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f","finding_ids":["A-001","A-002","A-003"]},
   "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "Both findings are localized handoff-generation defects already covered by existing artifact-integrity and normative-coverage validators; remediation rebuilds the package using those existing controls."
-  }
+    "escape_class":"exact-head-evidence-provenance-drift",
+    "generalized_failure_pattern":"A verification pipeline can label evidence as exact-subject while actually executing tests on an implicit synthetic or merge checkout, making the certificate stronger than the execution that produced it.",
+    "plausible_wrong_implementation":"A workflow records the intended subject identifier in a manifest but leaves checkout selection implicit, so tests execute a different revision while the manifest still looks internally consistent.",
+    "trigger_signals":["verification manifest declares a subject identifier","checkout action has no explicit subject ref","provider event uses a synthetic integration revision"],
+    "risk_families":["structural-contract","reference-liveness"],
+    "reusable_control":"Before accepting exact-subject evidence, compare the revision physically checked out by the verification job with the revision declared as the evidence subject and fail closed on any mismatch.",
+    "prevention_rule":"Verification jobs that issue exact-subject claims must explicitly check out the declared subject before executing measurements or tests; synthetic integration checks remain separate evidence.",
+    "detection_rule":"The evidence manifest must record both declared subject and observed checkout identifiers, and a gate must reject publication unless they are equal for exact-subject evidence.",
+    "transfer_cases":[
+      {"surface":"workflow-checkout","scenario":"Synthetic integration event differs from declared verification subject; explicit checkout is required before tests.","status":"passed"},
+      {"surface":"evidence-manifest","scenario":"Manifest carries distinct declared and observed revisions; exact-subject certification rejects the mismatch.","status":"passed"}
+    ],
+    "promotion_status":"promoted"
+  },
+  "skill_changes":[
+    {"role":"prevention","path":".github/workflows/agent-check.yml","status":"passed","evidence":"The verification job explicitly checks out the declared subject before exact-head TypeScript/tests and keeps merge-preview integration in a separate job."},
+    {"role":"detection","path":"scripts/check-ci-gate-docs.ts","status":"passed","evidence":"The repository CI contract check enforces the exact-head verification structure and the successful run emitted matching headSha/checkoutSha."}
+  ]
 }

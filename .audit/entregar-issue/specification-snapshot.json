@@ -2,19 +2,19 @@
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 1043,
-  "created_at": "2026-09-03T14:21:11.897855+00:00",
+  "created_at": "2026-09-04T01:17:24.151889+00:00",
   "primary_source_id": "SRC-ISSUE-1043",
   "sources": [
     {
       "id": "SRC-ISSUE-1043",
       "kind": "issue-body",
       "path": "specification-sources/SRC-ISSUE-1043.txt",
-      "locator": "/tmp/issue1043-handoff/issue-1043.txt",
-      "sha256": "a4f178c9c33b49c87094816df6d3cad5cc116be5e9cf6d343810fce51521d8d0",
+      "locator": "/mnt/data/pr1044-final/issue-1043-full.md",
+      "sha256": "cbef5a296602c825127e72f722084966f4bb2def047dc8eea96de6cb92fba8ca",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 42
+      "line_count": 391
     }
   ]
 }

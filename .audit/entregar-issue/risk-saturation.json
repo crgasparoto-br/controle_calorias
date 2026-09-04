@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "be88a15b66eeae74f68b0f4aae185e92d3b9bcd7",
+  "head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
   "families": [
     {
       "family": "authorization",
@@ -15,14 +15,18 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R018-1"
+        "NEG-R041-1",
+        "NEG-R087-1",
+        "NEG-R109-1"
       ],
       "dimensions": [
         {
-          "surface": "tenant-scope-isolation",
-          "reason": "Material boundary derived from the requirement and implementation surface.",
+          "surface": "user-scope-isolation",
+          "reason": "Discriminant surface for tenant-isolation derived from the canonical obligation and current audit risk.",
           "control_ids": [
-            "NEG-R018-1"
+            "NEG-R041-1",
+            "NEG-R087-1",
+            "NEG-R109-1"
           ],
           "status": "passed"
         }
@@ -39,34 +43,100 @@
     },
     {
       "family": "reference-liveness",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R007-1",
+        "NEG-R016-1",
+        "NEG-R023-1",
+        "NEG-R031-1",
+        "NEG-R084-ESC-5",
+        "NEG-R084-ESC-6",
+        "NEG-R084-ESC-7",
+        "NEG-R130-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "exact-head-evidence-liveness",
+          "reason": "Cumulative independent-audit escape requires exact coverage of reference-liveness:exact-head-evidence-liveness:declared-vs-observed-sha.",
+          "control_ids": [
+            "NEG-R084-ESC-5"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "persisted-reference-validity",
+          "reason": "Discriminant surface for reference-liveness derived from the canonical obligation and current audit risk.",
+          "control_ids": [
+            "NEG-R007-1",
+            "NEG-R016-1",
+            "NEG-R023-1",
+            "NEG-R031-1",
+            "NEG-R130-1"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "reference-revalidation",
+          "reason": "Cumulative independent-audit escape requires exact coverage of reference-liveness:reference-revalidation:bounded-fixed-prefix-progress.",
+          "control_ids": [
+            "NEG-R084-ESC-6",
+            "NEG-R084-ESC-7"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-consistency",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R004-1",
-        "NEG-R034-1"
+        "NEG-R007-2",
+        "NEG-R011-1",
+        "NEG-R019-1",
+        "NEG-R023-2",
+        "NEG-R035-3",
+        "NEG-R044-1",
+        "NEG-R047-1",
+        "NEG-R052-1",
+        "NEG-R072-1",
+        "NEG-R077-1",
+        "NEG-R084-1",
+        "NEG-R085-1",
+        "NEG-R096-1",
+        "NEG-R112-1",
+        "NEG-R114-1",
+        "NEG-R120-1",
+        "NEG-R122-1",
+        "NEG-R130-2",
+        "NEG-R132-1"
       ],
       "dimensions": [
         {
-          "surface": "behavioral-boundary",
-          "reason": "Material boundary derived from the requirement and implementation surface.",
+          "surface": "ordering-and-expiry",
+          "reason": "Discriminant surface for temporal-consistency derived from the canonical obligation and current audit risk.",
           "control_ids": [
-            "NEG-R004-1"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "reporting-availability-window",
-          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable.",
-          "control_ids": [
-            "NEG-R034-1"
+            "NEG-R007-2",
+            "NEG-R011-1",
+            "NEG-R019-1",
+            "NEG-R023-2",
+            "NEG-R035-3",
+            "NEG-R044-1",
+            "NEG-R047-1",
+            "NEG-R052-1",
+            "NEG-R072-1",
+            "NEG-R077-1",
+            "NEG-R084-1",
+            "NEG-R085-1",
+            "NEG-R096-1",
+            "NEG-R112-1",
+            "NEG-R114-1",
+            "NEG-R120-1",
+            "NEG-R122-1",
+            "NEG-R130-2",
+            "NEG-R132-1"
           ],
           "status": "passed"
         }
@@ -83,27 +153,46 @@
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R086-2",
+        "NEG-R086-ESC-4"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-serialization",
+          "reason": "Discriminant surface for concurrency-atomicity derived from the canonical obligation and current audit risk.",
+          "control_ids": [
+            "NEG-R086-2",
+            "NEG-R086-ESC-4"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R022-1",
-        "NEG-R031-1"
+        "NEG-R050-1",
+        "NEG-R053-1",
+        "NEG-R054-1",
+        "NEG-R086-1",
+        "NEG-R086-ESC-5"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
           "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "NEG-R022-1",
-            "NEG-R031-1"
+            "NEG-R050-1",
+            "NEG-R053-1",
+            "NEG-R054-1",
+            "NEG-R086-1",
+            "NEG-R086-ESC-5"
           ],
           "status": "passed"
         }
@@ -112,19 +201,45 @@
     },
     {
       "family": "rollback",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R086-3",
+        "NEG-R086-ESC-6"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-failure-rollback",
+          "reason": "Discriminant surface for rollback derived from the canonical obligation and current audit risk.",
+          "control_ids": [
+            "NEG-R086-3",
+            "NEG-R086-ESC-6"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R084-ESC-3",
+        "NEG-R084-ESC-4"
+      ],
+      "dimensions": [
+        {
+          "surface": "snapshot-cohort",
+          "reason": "Cumulative independent-audit escape requires exact coverage of historical-immutability:snapshot-cohort:checkpoint-failed-member-retry.",
+          "control_ids": [
+            "NEG-R084-ESC-3",
+            "NEG-R084-ESC-4"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "structural-contract",
@@ -132,33 +247,284 @@
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
         "NEG-R001-1",
+        "NEG-R002-1",
         "NEG-R003-1",
+        "NEG-R004-1",
+        "NEG-R005-1",
+        "NEG-R006-1",
         "NEG-R008-1",
+        "NEG-R009-1",
+        "NEG-R010-1",
+        "NEG-R012-1",
+        "NEG-R013-1",
         "NEG-R014-1",
-        "NEG-R014-2",
+        "NEG-R015-1",
         "NEG-R017-1",
+        "NEG-R018-1",
+        "NEG-R019-2",
+        "NEG-R020-1",
+        "NEG-R021-1",
+        "NEG-R022-1",
+        "NEG-R024-1",
         "NEG-R025-1",
-        "NEG-R028-1"
+        "NEG-R026-1",
+        "NEG-R027-1",
+        "NEG-R028-1",
+        "NEG-R029-1",
+        "NEG-R030-1",
+        "NEG-R032-1",
+        "NEG-R033-1",
+        "NEG-R034-1",
+        "NEG-R035-1",
+        "NEG-R035-2",
+        "NEG-R036-1",
+        "NEG-R037-1",
+        "NEG-R038-1",
+        "NEG-R039-1",
+        "NEG-R040-1",
+        "NEG-R041-2",
+        "NEG-R042-1",
+        "NEG-R043-1",
+        "NEG-R045-1",
+        "NEG-R046-1",
+        "NEG-R048-1",
+        "NEG-R049-1",
+        "NEG-R051-1",
+        "NEG-R055-1",
+        "NEG-R056-1",
+        "NEG-R057-1",
+        "NEG-R058-1",
+        "NEG-R059-1",
+        "NEG-R060-1",
+        "NEG-R061-1",
+        "NEG-R062-1",
+        "NEG-R063-1",
+        "NEG-R064-1",
+        "NEG-R065-1",
+        "NEG-R066-1",
+        "NEG-R067-1",
+        "NEG-R068-1",
+        "NEG-R069-1",
+        "NEG-R070-1",
+        "NEG-R071-1",
+        "NEG-R073-1",
+        "NEG-R074-1",
+        "NEG-R075-1",
+        "NEG-R076-1",
+        "NEG-R078-1",
+        "NEG-R079-1",
+        "NEG-R080-1",
+        "NEG-R081-1",
+        "NEG-R082-1",
+        "NEG-R083-1",
+        "NEG-R084-2",
+        "NEG-R088-1",
+        "NEG-R089-1",
+        "NEG-R090-1",
+        "NEG-R091-1",
+        "NEG-R093-1",
+        "NEG-R093-2",
+        "NEG-R093-ESC-10",
+        "NEG-R093-ESC-11",
+        "NEG-R093-ESC-3",
+        "NEG-R093-ESC-4",
+        "NEG-R093-ESC-5",
+        "NEG-R093-ESC-6",
+        "NEG-R093-ESC-7",
+        "NEG-R093-ESC-8",
+        "NEG-R093-ESC-9",
+        "NEG-R094-1",
+        "NEG-R095-1",
+        "NEG-R096-2",
+        "NEG-R097-1",
+        "NEG-R098-1",
+        "NEG-R099-1",
+        "NEG-R100-1",
+        "NEG-R101-1",
+        "NEG-R102-1",
+        "NEG-R103-1",
+        "NEG-R104-1",
+        "NEG-R105-1",
+        "NEG-R106-1",
+        "NEG-R107-1",
+        "NEG-R108-1",
+        "NEG-R109-2",
+        "NEG-R110-1",
+        "NEG-R111-1",
+        "NEG-R113-1",
+        "NEG-R115-1",
+        "NEG-R116-1",
+        "NEG-R117-1",
+        "NEG-R118-1",
+        "NEG-R119-1",
+        "NEG-R121-1",
+        "NEG-R123-1",
+        "NEG-R124-1",
+        "NEG-R125-1",
+        "NEG-R126-1",
+        "NEG-R127-1",
+        "NEG-R128-1",
+        "NEG-R129-1",
+        "NEG-R131-1",
+        "NEG-R132-2",
+        "NEG-R133-1",
+        "NEG-R134-1",
+        "NEG-R135-1"
       ],
       "dimensions": [
         {
+          "surface": "base-head-freshness",
+          "reason": "Cumulative independent-audit escape requires exact coverage of structural-contract:base-head-freshness:base-advance.",
+          "control_ids": [
+            "NEG-R093-ESC-3"
+          ],
+          "status": "passed"
+        },
+        {
           "surface": "behavioral-boundary",
-          "reason": "Material boundary derived from the requirement and implementation surface.",
+          "reason": "Discriminant surface for structural-contract derived from the canonical obligation and current audit risk.",
           "control_ids": [
             "NEG-R001-1",
+            "NEG-R002-1",
             "NEG-R003-1",
+            "NEG-R004-1",
+            "NEG-R005-1",
+            "NEG-R006-1",
             "NEG-R008-1",
+            "NEG-R009-1",
+            "NEG-R010-1",
+            "NEG-R012-1",
+            "NEG-R013-1",
+            "NEG-R014-1",
+            "NEG-R015-1",
             "NEG-R017-1",
+            "NEG-R018-1",
+            "NEG-R019-2",
+            "NEG-R020-1",
+            "NEG-R021-1",
+            "NEG-R022-1",
+            "NEG-R024-1",
             "NEG-R025-1",
-            "NEG-R028-1"
+            "NEG-R026-1",
+            "NEG-R027-1",
+            "NEG-R028-1",
+            "NEG-R029-1",
+            "NEG-R030-1",
+            "NEG-R032-1",
+            "NEG-R033-1",
+            "NEG-R034-1",
+            "NEG-R036-1",
+            "NEG-R037-1",
+            "NEG-R038-1",
+            "NEG-R039-1",
+            "NEG-R040-1",
+            "NEG-R041-2",
+            "NEG-R042-1",
+            "NEG-R043-1",
+            "NEG-R045-1",
+            "NEG-R046-1",
+            "NEG-R048-1",
+            "NEG-R049-1",
+            "NEG-R051-1",
+            "NEG-R055-1",
+            "NEG-R056-1",
+            "NEG-R057-1",
+            "NEG-R058-1",
+            "NEG-R059-1",
+            "NEG-R060-1",
+            "NEG-R061-1",
+            "NEG-R062-1",
+            "NEG-R063-1",
+            "NEG-R064-1",
+            "NEG-R065-1",
+            "NEG-R066-1",
+            "NEG-R067-1",
+            "NEG-R068-1",
+            "NEG-R069-1",
+            "NEG-R070-1",
+            "NEG-R071-1",
+            "NEG-R073-1",
+            "NEG-R074-1",
+            "NEG-R075-1",
+            "NEG-R076-1",
+            "NEG-R078-1",
+            "NEG-R079-1",
+            "NEG-R080-1",
+            "NEG-R081-1",
+            "NEG-R082-1",
+            "NEG-R083-1",
+            "NEG-R084-2",
+            "NEG-R088-1",
+            "NEG-R089-1",
+            "NEG-R090-1",
+            "NEG-R091-1",
+            "NEG-R093-1",
+            "NEG-R094-1",
+            "NEG-R095-1",
+            "NEG-R096-2",
+            "NEG-R097-1",
+            "NEG-R098-1",
+            "NEG-R099-1",
+            "NEG-R100-1",
+            "NEG-R101-1",
+            "NEG-R102-1",
+            "NEG-R103-1",
+            "NEG-R104-1",
+            "NEG-R105-1",
+            "NEG-R106-1",
+            "NEG-R107-1",
+            "NEG-R108-1",
+            "NEG-R109-2",
+            "NEG-R110-1",
+            "NEG-R111-1",
+            "NEG-R113-1",
+            "NEG-R115-1",
+            "NEG-R116-1",
+            "NEG-R117-1",
+            "NEG-R118-1",
+            "NEG-R119-1",
+            "NEG-R121-1",
+            "NEG-R123-1",
+            "NEG-R124-1",
+            "NEG-R125-1",
+            "NEG-R126-1",
+            "NEG-R127-1",
+            "NEG-R128-1",
+            "NEG-R129-1",
+            "NEG-R131-1",
+            "NEG-R132-2",
+            "NEG-R133-1",
+            "NEG-R134-1",
+            "NEG-R135-1"
           ],
           "status": "passed"
         },
         {
           "surface": "canonical-source-consistency",
-          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
+          "reason": "Cumulative independent-audit escape requires exact coverage of structural-contract:canonical-source-consistency:artifact-byte-integrity.",
           "control_ids": [
-            "NEG-R014-1"
+            "NEG-R035-1",
+            "NEG-R093-ESC-4",
+            "NEG-R093-ESC-5",
+            "NEG-R093-ESC-6",
+            "NEG-R093-ESC-7"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "exact-head-evidence",
+          "reason": "Cumulative independent-audit escape requires exact coverage of structural-contract:exact-head-evidence:ancestor-green-rejection.",
+          "control_ids": [
+            "NEG-R093-ESC-8"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "exact-head-verification",
+          "reason": "Independent audit found that exact-head evidence must prove the checkout SHA equals the declared evidence subject.",
+          "control_ids": [
+            "NEG-R093-2",
+            "NEG-R093-ESC-9"
           ],
           "status": "passed"
         },
@@ -166,7 +532,23 @@
           "surface": "relational-semantic-integrity",
           "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
           "control_ids": [
-            "NEG-R014-2"
+            "NEG-R035-2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "specified-test-matrix",
+          "reason": "Cumulative independent-audit escape requires exact coverage of structural-contract:specified-test-matrix:individual-scenario-deletion.",
+          "control_ids": [
+            "NEG-R093-ESC-10"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "test-executability",
+          "reason": "Cumulative independent-audit escape requires exact coverage of structural-contract:test-executability:skip-todo-marker.",
+          "control_ids": [
+            "NEG-R093-ESC-11"
           ],
           "status": "passed"
         }
@@ -178,14 +560,31 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-R035-1"
+        "NEG-R092-1",
+        "NEG-R132-ESC-3",
+        "NEG-R132-ESC-4",
+        "NEG-R132-ESC-5",
+        "NEG-R132-ESC-6",
+        "NEG-R133-2"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Material boundary derived from the requirement and implementation surface.",
+          "reason": "Discriminant surface for documentation derived from the canonical obligation and current audit risk.",
           "control_ids": [
-            "NEG-R035-1"
+            "NEG-R092-1",
+            "NEG-R132-ESC-3",
+            "NEG-R132-ESC-4",
+            "NEG-R132-ESC-5",
+            "NEG-R133-2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "delivery-metadata",
+          "reason": "Cumulative independent-audit escape requires exact coverage of documentation:delivery-metadata:current-blocker-claim.",
+          "control_ids": [
+            "NEG-R132-ESC-6"
           ],
           "status": "passed"
         }
