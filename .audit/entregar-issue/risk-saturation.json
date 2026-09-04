@@ -1,1 +1,224 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":3068,"encoded_sha256":"c580dc0f3cb545a40b1d713121c650e3fe38049ca883e83622fe3c63920dfa01","decoded_size":16592,"decoded_sha256":"c70ddc2731dbb0e6139a56c9bbbc8a9a29ce4bd5396f50172b5881b33b13a0b8","parts":[{"path":"risk-saturation.parts/part-000.b64","size":3068,"sha256":"c580dc0f3cb545a40b1d713121c650e3fe38049ca883e83622fe3c63920dfa01"}]}
+{
+  "schema_version": 1,
+  "head_sha": "538458047ca91e0a74db295adb4125ac4c77a652",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-012-01",
+        "NEG-038-01",
+        "NEG-044-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "revoked-context-clearing",
+          "reason": "This obligation exposes the authorization contract on the revoked-context-clearing surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-012-01",
+            "NEG-038-01",
+            "NEG-044-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-003-01",
+        "NEG-005-01",
+        "NEG-010-01",
+        "NEG-015-01",
+        "NEG-016-01",
+        "NEG-018-01",
+        "NEG-035-01",
+        "NEG-038-02",
+        "NEG-042-01",
+        "NEG-044-02",
+        "NEG-050-01",
+        "NEG-055-01",
+        "NEG-059-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "authorized-payload-liveness",
+          "reason": "This obligation exposes the reference-liveness contract on the authorized-payload-liveness surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-003-01",
+            "NEG-005-01",
+            "NEG-010-01",
+            "NEG-015-01",
+            "NEG-016-01",
+            "NEG-018-01",
+            "NEG-035-01",
+            "NEG-038-02",
+            "NEG-042-01",
+            "NEG-044-02",
+            "NEG-050-01",
+            "NEG-055-01",
+            "NEG-059-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-005-03",
+        "NEG-010-03",
+        "NEG-015-02",
+        "NEG-032-01",
+        "NEG-042-02",
+        "NEG-050-02",
+        "NEG-060-01",
+        "NEG-071-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "history-availability-consistency",
+          "reason": "This obligation exposes the temporal-consistency contract on the history-availability-consistency surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-005-03",
+            "NEG-010-03",
+            "NEG-015-02",
+            "NEG-032-01",
+            "NEG-042-02",
+            "NEG-050-02",
+            "NEG-060-01",
+            "NEG-071-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-005-04"
+      ],
+      "dimensions": [
+        {
+          "surface": "lifecycle-route-availability",
+          "reason": "This obligation exposes the temporal-destination contract on the lifecycle-route-availability surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-005-04"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-005-02",
+        "NEG-010-02",
+        "NEG-073-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "implementation-contract-shape",
+          "reason": "This obligation exposes the structural-contract contract on the implementation-contract-shape surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-005-02",
+            "NEG-010-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-073-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-076-01",
+        "NEG-077-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "This obligation exposes the documentation contract on the canonical-claims surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-076-01",
+            "NEG-077-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

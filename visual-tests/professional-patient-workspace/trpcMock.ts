@@ -160,6 +160,8 @@ function recordQuery(input: {
         version: 1,
         content:
           "Planejar uma refeição leve antes do treino e registrar qualquer desconforto percebido.",
+        visibility: "patient",
+        deliveryStatus: "sent",
         authorName: "Nutricionista de validação",
         createdAt: now - 45 * 60_000,
       },
