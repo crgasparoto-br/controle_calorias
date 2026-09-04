@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1039,
+  "pull_request_number": 1041,
+  "material_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+  "published_rejected_head_sha": "de33a541838022459e5b5345dd12aa2515832711",
+  "source_rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
+  "literal_failure": {
+    "gate": "auditar-issue check_delivery_preflight.py",
+    "status": "failed-as-expected-before-remediation",
+    "observed": "BLOCK: active inherited control CTRL-1039-VISUAL-OPEN-MOBILE-001 requires risk family semantic-effect but risk saturation marks it not applicable"
+  },
+  "generic_prevention_control": {
+    "gate": "entregar-issue validate_risk_saturation.py",
+    "scenario": "an extended/fallback risk family is declared by the attack matrix and an active inherited control while omitted from risk-saturation",
+    "expected": "the producer-side risk saturation gate rejects the packet before handoff",
+    "result": "passed",
+    "test": "test_risk_saturation_rejects_extended_family_required_by_active_inherited_control"
+  },
+  "generic_transfer_validation": {
+    "test_file": "tests/test_delivery_saturation_regression.py",
+    "result": "17 passed",
+    "genericity_gate": "READY: skill permanent assets are free of obvious issue-number coupling"
+  },
+  "material_product_change": false
+}

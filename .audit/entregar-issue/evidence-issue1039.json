@@ -1,87 +1,91 @@
 {
+  "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 1039,
   "pull_request": 1041,
   "base_ref": "develop",
   "work_item_start_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
   "base_sha": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
-  "material_head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
-  "merge_preview_sha": "bfedddde1c31db5f683516e5e6558b2ee8680c2a",
+  "material_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+  "merge_preview_sha": "7b203dc9f4a6284fb3c1ef742d1c02218fa19f19",
   "post_write_refreeze": {
-    "reason": "develop advanced after the first handoff and was merged into the issue branch; the merge commit became the new material head.",
-    "merge_commit": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
-    "first_parent_handoff": "da58d59dda5e15cbde48aa2328dfcce0740e425f",
-    "develop_parent": "55ec6877dc536db7261cc5d61d4e6eb9d15e2867",
-    "issue_delta_against_current_base": [
-      "client/src/components/professional/ProfessionalAssessmentComparison.test.tsx",
-      "client/src/components/professional/ProfessionalAssessmentComparison.tsx",
-      "client/src/pages/professional/ProfessionalPatientWorkspace.tsx",
-      "docs/design-docs/professional-record-cycle.md",
-      "docs/testing/professional-workspace-routing.md",
-      "scripts/render-professional-patient-workspace-visual.sh",
-      "server/modules/professionals/recordService.assessmentHistory.test.ts",
-      "server/modules/professionals/recordService.ts",
-      "server/modules/professionals/schemas.ts"
+    "reason": "Independent audit A-002 required the visual gate to exercise the open historical-assessment comparison in a real browser; the visual harness changed after the prior freeze, so the green remediation SHA is the new material head.",
+    "previous_certified_material_head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+    "material_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+    "material_commits": [
+      "2ef93f69e920787c550c33f32fa8b6ba489cf3e1",
+      "356a9a71613fc3c1db28e3c226ae161ea48ddfb6"
     ],
-    "material_blob_identity": {
-      "previous_material_head_sha": "67277681c5bb8569e788b1306cd824bdcc29fc80",
-      "current_material_head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
-      "all_issue_blobs_byte_identical": true,
-      "blobs": {
-        "client/src/components/professional/ProfessionalAssessmentComparison.test.tsx": "4db4b842e3048507893afc74579da43b51139610",
-        "client/src/components/professional/ProfessionalAssessmentComparison.tsx": "66480e2f7f8859be0d77e9e02f002a44ee29cc5f",
-        "client/src/pages/professional/ProfessionalPatientWorkspace.tsx": "de53b0ec783a96291f9f01f834a09fbf3b8b1482",
-        "docs/design-docs/professional-record-cycle.md": "8d43b1e251cb2f607be9e7f39cd907d511449227",
-        "docs/testing/professional-workspace-routing.md": "cf06f3349468b746657754ba1cd0e0a801ea18ff",
-        "scripts/render-professional-patient-workspace-visual.sh": "cda8f38b065dba24ee0adaa8ff6f53be9870c09d",
-        "server/modules/professionals/recordService.assessmentHistory.test.ts": "a3f02f5aae12e276d8480619d89bccda0b2fcece",
-        "server/modules/professionals/recordService.ts": "577a14e552fb209436c12947cd1285dd54c45f17",
-        "server/modules/professionals/schemas.ts": "fd316ecb35e6b8bcb41aebc701cb4f6aeeb59a6c"
-      }
+    "issue_scope": {
+      "work_item_start_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+      "path_count": 60,
+      "issue_delta_sha256": "41105e13b83f0328a7e75719ac4e983f1aa1684621978217a6eb8c3298a4e3cc"
+    },
+    "material_blobs": {
+      "client/src/components/professional/ProfessionalAssessmentComparison.test.tsx": "4db4b842e3048507893afc74579da43b51139610",
+      "client/src/components/professional/ProfessionalAssessmentComparison.tsx": "66480e2f7f8859be0d77e9e02f002a44ee29cc5f",
+      "client/src/pages/professional/ProfessionalPatientWorkspace.tsx": "de53b0ec783a96291f9f01f834a09fbf3b8b1482",
+      "docs/design-docs/professional-record-cycle.md": "8d43b1e251cb2f607be9e7f39cd907d511449227",
+      "docs/testing/professional-workspace-routing.md": "cf06f3349468b746657754ba1cd0e0a801ea18ff",
+      "scripts/render-professional-patient-workspace-visual.sh": "441534ed631c0b92cc0ea46acb43759c67d8871c",
+      "server/modules/professionals/recordService.assessmentHistory.test.ts": "a3f02f5aae12e276d8480619d89bccda0b2fcece",
+      "server/modules/professionals/recordService.ts": "577a14e552fb209436c12947cd1285dd54c45f17",
+      "server/modules/professionals/schemas.ts": "fd316ecb35e6b8bcb41aebc701cb4f6aeeb59a6c",
+      "visual-tests/professional-patient-workspace/main.tsx": "23a6a4b8371a466d6b083657a5b72ee3f926d25d"
     }
   },
   "workflows": [
     {
-      "id": 33747026409,
+      "id": 33804802701,
       "name": "Agent-first gate",
-      "run_number": 6045,
+      "run_number": 6067,
       "status": "completed",
-      "conclusion": "success"
+      "conclusion": "success",
+      "subject_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6"
     },
     {
-      "id": 33747026317,
+      "id": 33804802916,
       "name": "Professional persistence TiDB gate",
-      "run_number": 2101,
+      "run_number": 2107,
       "status": "completed",
-      "conclusion": "success"
+      "conclusion": "success",
+      "subject_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6"
     },
     {
-      "id": 33747026422,
+      "id": 33804802713,
       "name": "Professional workspace visual evidence",
-      "run_number": 738,
+      "run_number": 744,
       "status": "completed",
-      "conclusion": "success"
+      "conclusion": "success",
+      "subject_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6"
     }
   ],
-  "changed_paths": [
-    "client/src/components/professional/ProfessionalAssessmentComparison.test.tsx",
-    "client/src/components/professional/ProfessionalAssessmentComparison.tsx",
-    "client/src/pages/professional/ProfessionalPatientWorkspace.tsx",
-    "docs/design-docs/professional-record-cycle.md",
-    "docs/testing/professional-workspace-routing.md",
-    "scripts/render-professional-patient-workspace-visual.sh",
-    "server/modules/professionals/recordService.assessmentHistory.test.ts",
-    "server/modules/professionals/recordService.ts",
-    "server/modules/professionals/schemas.ts"
-  ],
+  "visual_artifact": {
+    "artifact_id": 9912627687,
+    "name": "professional-workspace-visual-356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+    "digest": "sha256:dfa3412fd38a9581bf7b23b4be8207d52dd3afe13e943ffc0f06e6366665c0f8",
+    "screenshots": [
+      "professional-patient-workspace/assessment-comparison-desktop-1440x900.png",
+      "professional-patient-workspace/assessment-comparison-mobile-390x1200.png"
+    ],
+    "runtime_assertions": [
+      "open comparison through real Visualizar avaliação button",
+      "desktop side-by-side geometry",
+      "mobile vertical geometry",
+      "historical card read-only",
+      "current form editable",
+      "Fechar comparação visible",
+      "no horizontal overflow"
+    ]
+  },
   "controls": {
-    "historical_source": "Backend mapping uses the persisted historical row itself; the focused backend test uses values deliberately different from latestAssessment and asserts the historical null/value is preserved rather than borrowed. The exact source/test blobs are unchanged across the develop merge and the current exact-head persistence gate is green.",
-    "readonly_comparison": "The component test opens a historical version, verifies the historical card has no textbox or save action, switches between two versions, and verifies the new draft remains unchanged. Its blob is identical on the current material head and Agent-first is green on that head.",
-    "responsive": "The comparison class is xl:grid-cols-2 only when a historical version is open; below xl it remains a vertical grid. The professional workspace visual evidence workflow completed successfully on the current exact material head.",
-    "paused": "The component test keeps history visualization available while the Save new version action is disabled when active=false; the exact test blob is unchanged and current-head CI passed.",
-    "ended": "The backend focused test asserts ended tracking returns latestAssessment null and assessmentHistory empty without querying assessment versions; existing route behavior continues redirecting /assessment to /history. Current-head CI passed with the same blobs.",
-    "revocation": "The comparison component clears selected historical state whenever authorizationId or patientId changes, while the existing workspace authorization failure path remains unchanged; Agent-first passed on the current exact head.",
-    "pagination": "The component test exercises a total of 21 historical versions, exposes Next, clears the open comparison on page change, and forwards page 2 through the existing workspace pagination callback. Current-head CI passed with the identical test blob.",
-    "documentation": "Both required professional record-cycle and professional workspace routing documents remain in the issue delta against the new develop base; their blobs are byte-identical to the prior freeze and Agent-first passed on the current head."
+    "historical_source": "Backend and component tests use deliberately divergent historical/latest values and keep selected persisted history as the source.",
+    "readonly_comparison": "The component and real-browser visual gate open a historical version; the historical card has no editable fields/save action while the current assessment remains editable.",
+    "responsive": "Visual workflow #744 on the exact material head opens the comparison through the real Visualizar avaliação action, records desktop 1440x900 and mobile 390x1200 screenshots, and asserts side-by-side desktop geometry, vertical mobile geometry, contained panels and no horizontal overflow.",
+    "paused": "Focused component coverage preserves history visualization while current-version save remains blocked for paused tracking.",
+    "ended": "Backend/route coverage preserves history-only ended behavior and does not re-expose assessments.",
+    "revocation": "Selection is cleared on patient/authorization change and existing authorization failure behavior remains intact.",
+    "pagination": "Focused component coverage exercises 21 historical versions, next-page navigation and comparison reset.",
+    "documentation": "The professional record-cycle and workspace-routing documents remain aligned with the delivered history/comparison contract."
   }
 }

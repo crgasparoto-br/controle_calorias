@@ -5,9 +5,9 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue_number": 1039,
   "pull_request_number": 1041,
-  "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
-  "published_head_sha": "a6037457cac164b901b06885957d4bfb32d7f9e8",
-  "rejection_id": "audit-rejection:0f536f8a-6c1d-49a3-9c87-fb5c3198d9c2",
+  "head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+  "published_head_sha": "de33a541838022459e5b5345dd12aa2515832711",
+  "rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
   "findings": [
     {
       "id": "A-001",
@@ -15,12 +15,12 @@
       "status": "open",
       "severity": "blocking",
       "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "category": "delivery-not-ready",
-      "title": "Escopo issue-local do handoff inconsistente",
+      "remediation_mode": "systemic-remediation",
+      "category": "control-propagation-gap",
+      "title": "Saturação de risco incompatível com controle herdado",
       "recovery_scope": "handoff-only",
       "requires_refreeze": false,
-      "evidence": "The certified scope listed nine paths while the immutable work-item compare contains additional paths introduced by the develop synchronization."
+      "evidence": "The exact delivery preflight rejected the published result-only child because active inherited control CTRL-1039-VISUAL-OPEN-MOBILE-001 uses risk family semantic-effect while risk-saturation omitted that family. Functional material 356a9a71613fc3c1db28e3c226ae161ea48ddfb6 remained green and unchanged."
     }
   ],
   "recommendations": []
