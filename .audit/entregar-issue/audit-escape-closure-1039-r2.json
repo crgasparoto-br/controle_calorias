@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-DELIVERY-SCOPE-001",
+      "escape_class": "delivery-issue-scope-binding-drift",
+      "source_audit": {
+        "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+        "rejection_id": "audit-rejection:0f536f8a-6c1d-49a3-9c87-fb5c3198d9c2",
+        "finding_id": "A-001",
+        "audit_report_sha256": "e50b3cfade85d9b4495354718e9519ebacf94c50f56b363a8089a8e4e62f3d9c"
+      },
+      "plausible_wrong_implementation": "Build a valid-looking handoff certificate from a manually curated subset of issue paths instead of binding scope to the complete immutable work-item compare.",
+      "literal_case": {
+        "procedure": "Compare the old certified issue_changed_paths with the immutable work-item compare and then rebuild the certificate using every observed path.",
+        "expected": "The prior subset is rejected and the replacement certificate scope exactly equals the immutable compare.",
+        "observed": "On material head 356a9a71613fc3c1db28e3c226ae161ea48ddfb6, the immutable work-item compare contains 60 paths and the replacement certificate is built from that complete set; scope digest is 41105e13b83f0328a7e75719ac4e983f1aa1684621978217a6eb8c3298a4e3cc.",
+        "status": "passed",
+        "evidence": "The exact 82b429068a98ac973afddbcbb4b06f5c97b065fa..356a9a71613fc3c1db28e3c226ae161ea48ddfb6 path inventory and the prepublication/terminal handoff validation for the regenerated certificate."
+      },
+      "sibling_cases": [
+        {
+          "id": "scope-upstream-sync",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-paths",
+          "status": "passed",
+          "evidence": "The exact-scope validator receives paths added by the upstream develop synchronization, so omitting them causes a mismatch."
+        },
+        {
+          "id": "scope-single-path-omission",
+          "surface": "delivery-scope",
+          "dimension": "missing-observed-path",
+          "status": "passed",
+          "evidence": "The exact-scope validator compares sorted sets and rejects a certificate when any observed compare path is omitted."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "exact-immutable-compare-binding"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-path-expansion"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "delivery execution procedure",
+        "evidence": "The replacement scope is sourced directly from the immutable connector compare rather than a curated implementation-only list."
+      },
+      "detection_change": {
+        "skill_or_gate": "validate_handoff_certificate.py",
+        "control_id": "DELIVERY-SCOPE-EXACT-001",
+        "evidence": "The certificate validation is invoked with --work-item-start-sha and one --issue-changed-path for every immutable compare path before publication."
+      },
+      "trigger_terms": [
+        "work_item_start_sha",
+        "issue_changed_paths",
+        "develop sync",
+        "base synchronization"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-VISUAL-OPEN-STATE-001",
+      "escape_class": "visual-gate-interactive-state-coverage-gap",
+      "source_audit": {
+        "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+        "published_head_sha": "3068d3dceaaa62cc8904562606b54a6201ac5df3",
+        "rejection_id": "audit-rejection:c9cb71f1-d5f1-4e04-af13-b0ecf26e68a3",
+        "finding_id": "A-002",
+        "audit_report_sha256": "2017810966aaf92bc7748dea3f0de362276ef39226002009edd0b5bf59f01e29"
+      },
+      "plausible_wrong_implementation": "Keep component classes and closed-state screenshots correct while never opening the historical comparison in a real browser, allowing responsive overflow or ordering defects in the core state to escape the gate.",
+      "literal_case": {
+        "procedure": "Run the professional patient workspace visual harness on the exact material head, use the real Visualizar avaliação button to open a historical version, and inspect runtime geometry plus screenshots.",
+        "expected": "The comparison-open state is rendered by Chromium; desktop is side-by-side, mobile is vertical, historical data is read-only, current data remains editable, close is visible and page-level horizontal overflow is absent.",
+        "observed": "On exact material head 356a9a71613fc3c1db28e3c226ae161ea48ddfb6, workflow #744 completed successfully and artifact 9912627687 contains comparison-open desktop/mobile captures with all runtime layout/read-only/editable/overflow assertions passing.",
+        "status": "passed",
+        "evidence": "evidence-issue1039.json and professional workspace visual artifact 9912627687."
+      },
+      "sibling_cases": [
+        {
+          "id": "open-comparison-desktop",
+          "surface": "historical-reference",
+          "dimension": "historical-reference-primary",
+          "status": "passed",
+          "evidence": "1440x900 real-browser comparison-open scenario verifies selected history remains bound while displayed beside the current form."
+        },
+        {
+          "id": "open-comparison-mobile",
+          "surface": "user-visible-behavior",
+          "dimension": "user-visible-behavior-primary",
+          "status": "passed",
+          "evidence": "390x1200 real-browser comparison-open scenario verifies vertical ordering/containment and no horizontal overflow."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "reference-liveness",
+          "surface": "historical-reference",
+          "dimension": "historical-reference-primary"
+        },
+        {
+          "risk_family": "semantic-effect",
+          "surface": "user-visible-behavior",
+          "dimension": "user-visible-behavior-primary"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "scripts/render-professional-patient-workspace-visual.sh and visual-tests/professional-patient-workspace/main.tsx",
+        "evidence": "The harness now has an explicit comparison-open scenario that clicks the real action and captures both target viewports."
+      },
+      "detection_change": {
+        "skill_or_gate": "Professional workspace visual evidence",
+        "control_id": "VISUAL-OPEN-COMPARISON-001",
+        "evidence": "The gate now fails unless runtime DOM diagnostics prove the comparison-open layout, mutability boundaries, close action and overflow constraints."
+      },
+      "trigger_terms": [
+        "comparison-open",
+        "Visualizar avaliação",
+        "responsive comparison",
+        "historical read-only",
+        "desktop side-by-side",
+        "mobile vertical"
+      ],
+      "required_risk_families": [
+        "reference-liveness",
+        "semantic-effect"
+      ],
+      "revalidated_head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+      "status": "passed"
+    }
+  ]
+}

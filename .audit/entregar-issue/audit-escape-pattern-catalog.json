@@ -1,5 +1,178 @@
 {
   "schema_version": 1,
-  "patterns": [],
-  "note": "No prior independent rejection exists for issue 1037; inherited base package from issue 960 was not reused."
+  "patterns": [
+    {
+      "escape_class": "delivery-issue-scope-binding-drift",
+      "source_audit": {
+        "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+        "rejection_id": "audit-rejection:0f536f8a-6c1d-49a3-9c87-fb5c3198d9c2",
+        "finding_id": "A-001",
+        "audit_report_sha256": "e50b3cfade85d9b4495354718e9519ebacf94c50f56b363a8089a8e4e62f3d9c"
+      },
+      "plausible_wrong_implementation": "Build a valid-looking handoff certificate from a manually curated subset of issue paths instead of binding scope to the complete immutable work-item compare.",
+      "sibling_cases": [
+        {
+          "id": "scope-upstream-sync",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-paths",
+          "status": "passed",
+          "evidence": "The exact-scope validator receives paths added by the upstream develop synchronization, so omitting them causes a mismatch."
+        },
+        {
+          "id": "scope-single-path-omission",
+          "surface": "delivery-scope",
+          "dimension": "missing-observed-path",
+          "status": "passed",
+          "evidence": "The exact-scope validator compares sorted sets and rejects a certificate when any observed compare path is omitted."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "delivery execution procedure",
+        "evidence": "The replacement scope is sourced directly from the immutable connector compare rather than a curated implementation-only list."
+      },
+      "detection_change": {
+        "skill_or_gate": "validate_handoff_certificate.py",
+        "control_id": "DELIVERY-SCOPE-EXACT-001",
+        "evidence": "The certificate validation is invoked with --work-item-start-sha and one --issue-changed-path for every immutable compare path before publication."
+      },
+      "trigger_terms": [
+        "work_item_start_sha",
+        "issue_changed_paths",
+        "develop sync",
+        "base synchronization"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "exact-immutable-compare-binding"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "delivery-scope",
+          "dimension": "upstream-sync-path-expansion"
+        }
+      ]
+    },
+    {
+      "escape_class": "delivery-risk-family-propagation-gap",
+      "source_audit": {
+        "head_sha": "356a9a71613fc3c1db28e3c226ae161ea48ddfb6",
+        "published_head_sha": "de33a541838022459e5b5345dd12aa2515832711",
+        "rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
+        "finding_id": "A-001",
+        "audit_report_sha256": "4b5feb58fc8bf0f62a51c2843c78998a8de63aa02ab3658727eb9e63b92de88f"
+      },
+      "plausible_wrong_implementation": "Generate risk saturation from only a fixed canonical family list while the attack matrix or inherited controls retain an additional material family, allowing a producer-side ready state that a stricter consumer preflight rejects.",
+      "sibling_cases": [
+        {
+          "id": "matrix-extended-family-omission",
+          "surface": "risk-family-propagation",
+          "dimension": "extended-family-saturation",
+          "status": "passed",
+          "evidence": "Generic producer regression omits a family declared by the attack matrix and proves the saturation validator rejects it."
+        },
+        {
+          "id": "producer-consumer-family-parity",
+          "surface": "handoff-preflight-parity",
+          "dimension": "producer-consumer-preflight-parity",
+          "status": "passed",
+          "evidence": "The consumer preflight reproduced the escaped rejection while the strengthened producer validation now derives the same material-family union."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "entregar-issue risk saturation validation",
+        "evidence": "Producer validation now treats attack-matrix and active inherited-control families as material even when they are outside the canonical baseline."
+      },
+      "detection_change": {
+        "skill_or_gate": "terminal delivery preflight parity",
+        "control_id": "RISK-FAMILY-PROPAGATION-001",
+        "evidence": "A consumer-equivalent preflight is replayed as the deterministic closure gate for this escape class."
+      },
+      "trigger_terms": [
+        "extended risk family",
+        "active inherited control",
+        "risk saturation omission",
+        "producer consumer preflight parity"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-family-propagation",
+          "dimension": "extended-family-saturation"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "handoff-preflight-parity",
+          "dimension": "producer-consumer-preflight-parity"
+        }
+      ]
+    },
+    {
+      "escape_class": "visual-gate-interactive-state-coverage-gap",
+      "source_audit": {
+        "head_sha": "984d86339ce4c1bb7ec1aa2220f09308a02c6080",
+        "published_head_sha": "3068d3dceaaa62cc8904562606b54a6201ac5df3",
+        "rejection_id": "audit-rejection:c9cb71f1-d5f1-4e04-af13-b0ecf26e68a3",
+        "finding_id": "A-002",
+        "audit_report_sha256": "2017810966aaf92bc7748dea3f0de362276ef39226002009edd0b5bf59f01e29"
+      },
+      "plausible_wrong_implementation": "Keep component classes and closed-state screenshots correct while never opening the historical comparison in a real browser, allowing responsive overflow or ordering defects in the core state to escape the gate.",
+      "sibling_cases": [
+        {
+          "id": "open-comparison-desktop",
+          "surface": "historical-reference",
+          "dimension": "historical-reference-primary",
+          "status": "passed",
+          "evidence": "1440x900 real-browser comparison-open scenario verifies selected history remains bound while displayed beside the current form."
+        },
+        {
+          "id": "open-comparison-mobile",
+          "surface": "user-visible-behavior",
+          "dimension": "user-visible-behavior-primary",
+          "status": "passed",
+          "evidence": "390x1200 real-browser comparison-open scenario verifies vertical ordering/containment and no horizontal overflow."
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "scripts/render-professional-patient-workspace-visual.sh and visual-tests/professional-patient-workspace/main.tsx",
+        "evidence": "The harness now has an explicit comparison-open scenario that clicks the real action and captures both target viewports."
+      },
+      "detection_change": {
+        "skill_or_gate": "Professional workspace visual evidence",
+        "control_id": "VISUAL-OPEN-COMPARISON-001",
+        "evidence": "The gate now fails unless runtime DOM diagnostics prove the comparison-open layout, mutability boundaries, close action and overflow constraints."
+      },
+      "trigger_terms": [
+        "comparison-open",
+        "Visualizar avaliação",
+        "responsive comparison",
+        "historical read-only",
+        "desktop side-by-side",
+        "mobile vertical"
+      ],
+      "required_risk_families": [
+        "reference-liveness",
+        "semantic-effect"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "reference-liveness",
+          "surface": "historical-reference",
+          "dimension": "historical-reference-primary"
+        },
+        {
+          "risk_family": "semantic-effect",
+          "surface": "user-visible-behavior",
+          "dimension": "user-visible-behavior-primary"
+        }
+      ]
+    }
+  ]
 }

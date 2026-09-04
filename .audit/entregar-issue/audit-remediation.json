@@ -3,39 +3,28 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
-    "audited_head_sha": "f8b39ee4c1d87e357b49fe40cd9b5577a0c4cd25"
+    "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+    "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
+    "audited_head_sha": "eaa46ed7026586c798c51835a5ca49ee88ab5b2b"
   },
-  "candidate_head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "candidate_head_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1028-002",
+      "source_id": "A-004",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "handoff-artifact-integrity-rebuild",
-      "changed_files": [],
+      "closure_kind": "targeted-functional-regression",
+      "changed_files": [
+        "server/householdMeasureResolution.ts",
+        "server/householdMeasureResolution.issue1043.test.ts"
+      ],
       "evidence": [
-        "Regenerated handoff-ready.json from the final corrected requirement-closure.json so the certified sha256/logical_sha256 match the exact published bytes."
+        "The canonical resolver now checks coherence across multiple independent exact_product references before selecting one; 18 g vs 42 g returns clarification on exact head 1ff3813d91535c3dffdb75260d41a5a36e89a1fe."
       ],
       "validations": [
-        "validate_handoff_certificate.py and validate_terminal_handoff.py must pass on the synthesized result-only child before publication."
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-1028-003",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "normative-closure-canonicalization",
-      "changed_files": [],
-      "evidence": [
-        "OBL-004 source_text now exactly matches SRC-PR1028-CONFLICTS.txt line 8."
-      ],
-      "validations": [
-        "validate_specification_coverage.py must pass before handoff publication."
+        "Agent-first #6073 and TiDB #2946 passed on 1ff3813d91535c3dffdb75260d41a5a36e89a1fe; regressions cover conflicting exact_product, coherent exact_product, and conflicting same_food_type references."
       ]
     }
   ],

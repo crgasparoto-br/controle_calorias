@@ -1,6 +1,10 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { isCoffeeOrTeaBeverage } from "../../../foodSemanticCompatibility";
-import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "../../../householdMeasureResolution";
+import {
+  isApproximateHouseholdMeasureResolutionKind,
+  resolveHouseholdMeasure,
+  type HouseholdMeasureResolution,
+} from "../../../householdMeasureResolution";
 import { processMealInput } from "../../../nutritionEngine";
 import type { MealItemInput } from "../../meals/schemas";
 import type { FoodAdditionIntent } from "./types";
@@ -90,7 +94,7 @@ function buildPortionText(
   normalizedUnit: string,
   measure: HouseholdMeasureResolution,
 ) {
-  const approx = measure.kind === "usual_average" ? "aprox. " : "";
+  const approx = isApproximateHouseholdMeasureResolutionKind(measure.kind) ? "aprox. " : "";
   return `${formatNumber(item.quantity)} ${normalizedUnit} (${approx}${formatNumber(measure.grams)} g)`;
 }
 

@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:ffd38e88-89b0-4c97-ac7b-a09e896216c2",
-    "audit_report_sha256": "b185d3869b0963beed16e8f5a2a6ab032817b6607b742e9819d9cfa33bf18fde",
+    "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+    "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
     "finding_ids": [
-      "A-1028-002",
-      "A-1028-003"
+      "A-004"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "Both findings are localized handoff-generation defects already covered by existing artifact-integrity and normative-coverage validators; remediation rebuilds the package using those existing controls."
-  }
+    "reason": "The rejection exposed a local resolver branch ordering defect specific to same-rank exact_product evidence. The issue-level prevention and regression controls close the escape without evidence of a generalized controller or Skill defect."
+  },
+  "skill_changes": []
 }

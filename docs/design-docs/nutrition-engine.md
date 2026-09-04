@@ -50,20 +50,29 @@ Para quantidade/medida caseira, a precedência é:
 massa/volume explícitos
 -> porção canônica local
 -> referência exata verificável da medida
--> média usual contextual defensável
+-> referência pessoal anterior da mesma identidade/medida
+-> média usual coerente
+-> estimativa contextual verificável
 -> clarificação
 ```
 
 Regras:
 
-- uma média usual deve continuar vinculada ao alimento/tipo/preparo e à medida física; não existe peso universal de `fatia`, `unidade`, `colher` ou `xícara`;
+- `canonical_portion` e `researched_exact` são fontes específicas e têm precedência sobre referências pessoais ou estimadas;
+- `user_learned` é uma referência pessoal da mesma identidade, marca/variante quando aplicável e medida, criada somente após correção explícita bem-sucedida; nunca atravessa usuários ou identidades diferentes;
+- `usual_average` continua vinculada ao alimento/tipo/preparo e à medida física; não existe peso universal de `fatia`, `unidade`, `colher` ou `xícara`;
+- uma fonte que declare explicitamente média/usual/típica pode sustentar `usual_average`; duas ou mais referências independentes e coerentes também podem produzir o valor central;
+- uma única referência verificável que não se declare típica pode produzir `contextual_estimate` somente para o mesmo alimento/tipo/preparo, com relação quantidade-unidade-gramas verificável e medida fisicamente definida;
+- medidas vagas como `porção`, `pedaço`, `pacote` e `punhado` não são promovidas automaticamente a `contextual_estimate` por uma referência isolada;
+- duas ou mais referências verificadas que divirjam materialmente obrigam clarificação; não é permitido escolher uma delas arbitrariamente;
 - uma referência explícita da mesma marca/variante tem precedência sobre média de categoria;
-- quando a média usual de um alimento genérico compatível for usada para estimar **quantidade** de um produto de marca, isso não autoriza substituir a composição nutricional específica do produto;
-- a média usual deve vir de fonte que declare medida média/usual/típica ou de múltiplas referências compatíveis que permitam derivar um valor central coerente;
-- a primeira referência encontrada não pode ser tratada automaticamente como média;
+- quando uma referência de alimento genérico compatível for usada para estimar **quantidade** de um produto de marca, isso não autoriza substituir a composição nutricional específica do produto;
 - gramatura estimada e composição nutricional são decisões separadas e devem ter compatibilidade semântica independente;
-- toda estimativa utilizada deve manter procedência suficiente para distinguir valor exato/canônico, medida exata pesquisada, média usual estimada e fallback nutricional;
-- a resposta ao usuário deve marcar a quantidade como aproximada quando aplicável e oferecer correção posterior, sem exigir confirmação prévia se a estimativa cumprir o contrato;
+- toda estimativa utilizada deve manter procedência suficiente para distinguir valor exato/canônico, medida exata pesquisada, referência pessoal aprendida, média usual, estimativa contextual e fallback nutricional;
+- resoluções pesquisadas reutilizáveis são persistidas com validade temporal; registro expirado volta a ser miss e pode ser verificado novamente;
+- o armazenamento durável de resolução/aprendizado é por usuário e identidade; memória de processo não é fonte de verdade para reuse após restart ou múltiplas instâncias;
+- `usual_average`, `contextual_estimate` e `user_learned` devem ser marcados como aproximações na resposta, preservando a medida original e os gramas efetivamente usados;
+- correção explícita só pode gerar aprendizado depois que a mutação canônica da refeição concluir; falha, cancelamento, ambiguidade ou stale não ensinam;
 - handlers de canal não devem manter tabelas/constantes paralelas de médias; a política pertence ao domínio nutricional e deve ser reutilizada por web e WhatsApp.
 
 ## Componentes calóricos sem quantidade

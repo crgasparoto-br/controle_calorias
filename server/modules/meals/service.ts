@@ -19,6 +19,8 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
+import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
 import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTimePartsInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
@@ -334,6 +336,35 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
     }
   }
 
+  return meal;
+}
+
+export async function updateMealWithHouseholdMeasureLearning(
+  userId: number,
+  input: UpdateMealInput,
+  learning: {
+    expectedOriginalItem: MealDraftItem;
+    relation: UserLearnedHouseholdMeasureInput;
+  },
+) {
+  if (learning.relation.userId !== userId) {
+    throw new Error("Household measure learning user must match the authenticated user.");
+  }
+  if (!buildUserLearnedHouseholdMeasurePreference(learning.relation)) {
+    return updateMeal(userId, input);
+  }
+  const items = await prepareMealItemsForSave(userId, input.items);
+  const meal = decorateMealWithImageUrl(await updateMealAndHouseholdMeasureLearning({
+    userId,
+    mealId: input.mealId,
+    mealLabel: input.mealLabel,
+    occurredAt: input.occurredAt,
+    notes: input.notes,
+    items,
+    expectedOriginalItem: learning.expectedOriginalItem,
+    learning: learning.relation,
+  }));
+  await persistMealItemNutritionSnapshots(meal.id, items);
   return meal;
 }
 

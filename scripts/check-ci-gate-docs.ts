@@ -10,29 +10,23 @@ const billingVisualScript = readFileSync("scripts/render-billing-admin-visual.sh
 const failures: string[] = [];
 
 function requireText(source: string, expected: string, context: string) {
-  if (!source.includes(expected)) {
-    failures.push(`${context} deve conter: ${expected}`);
-  }
+  if (!source.includes(expected)) failures.push(`${context} deve conter: ${expected}`);
 }
 
 function requireRegex(source: string, expected: RegExp, context: string) {
-  if (!expected.test(source)) {
-    failures.push(`${context} deve atender ao padrão: ${expected}`);
-  }
+  if (!expected.test(source)) failures.push(`${context} deve atender ao padrão: ${expected}`);
 }
 
 requireText(workflow, "name: Agent-first gate", ".github/workflows/agent-check.yml");
-requireRegex(workflow, /jobs:\s+agent-check:[\s\S]*?name:\s+Agent-first gate/, ".github/workflows/agent-check.yml");
+requireRegex(workflow, /jobs:\s+merge-preview-integration:[\s\S]*?name:\s+Merge preview integration[\s\S]*?if:\s+github\.event_name == 'pull_request'/, ".github/workflows/agent-check.yml");
+requireRegex(workflow, /agent-check:[\s\S]*?name:\s+Agent-first gate[\s\S]*?needs:\s+merge-preview-integration[\s\S]*?if:\s+\$\{\{ always\(\) \}\}/, ".github/workflows/agent-check.yml");
+requireText(workflow, "needs.merge-preview-integration.result != 'success'", ".github/workflows/agent-check.yml merge-preview failure propagation");
 requireRegex(workflow, /push:\s*\n\s+branches:\s*\n\s+- main\s*\n\s+- develop/, ".github/workflows/agent-check.yml");
+requireText(workflow, "ref: ${{ env.VERIFICATION_HEAD_SHA }}", ".github/workflows/agent-check.yml exact-head checkout");
+requireText(workflow, 'CHECKOUT_SHA="$(git rev-parse HEAD)"', ".github/workflows/agent-check.yml exact-head manifest");
+requireText(workflow, "value.checkoutSha !== value.headSha", ".github/workflows/agent-check.yml exact-head assertion");
 
-for (const command of [
-  "pnpm check",
-  "pnpm test",
-  "pnpm architecture:check",
-  "pnpm docs:check",
-  "pnpm build",
-  "pnpm agent:check",
-]) {
+for (const command of ["pnpm check", "pnpm test", "pnpm architecture:check", "pnpm docs:check", "pnpm build", "pnpm agent:check"]) {
   requireText(workflow, command, ".github/workflows/agent-check.yml");
 }
 
@@ -49,36 +43,24 @@ for (const doc of [contributing, pullRequestTemplate, branchProtection]) {
 requireText(contributing, "status check obrigatório", "CONTRIBUTING.md");
 requireText(contributing, "push direto para `develop` executa o workflow `Agent-first gate`", "CONTRIBUTING.md");
 requireText(branchProtection, "Required status check: `Agent-first gate`", ".github/branch-protection-main.md");
-requireText(pullRequestTemplate, "`Agent-first gate` passou em PR contra `main` ou `develop`", ".github/pull_request_template.md");
+requireText(pullRequestTemplate, "`Merge preview integration` concluiu com sucesso e `Agent-first gate` passou no `head_sha` exato da PR contra `main` ou `develop`", ".github/pull_request_template.md");
 requireText(pullRequestTemplate, "db:check-integrity", ".github/pull_request_template.md");
 
-const billingViewportMatches = [
-  ...billingVisualScript.matchAll(/capture\s+"[^"]+"\s+"(\d+),(\d+)"/g),
-];
+const billingViewportMatches = [...billingVisualScript.matchAll(/capture\s+"[^"]+"\s+"(\d+),(\d+)"/g)];
 const billingViewports = billingViewportMatches.map((match) => `${match[1]}x${match[2]}`);
 
 if (billingViewports.length === 0) {
   failures.push("scripts/render-billing-admin-visual.sh deve declarar ao menos um viewport de captura");
 } else {
   for (const viewport of billingViewports) {
-    requireText(
-      billingAdminOperations,
-      viewport,
-      "docs/design-docs/billing-admin-operations.md deve refletir os viewports do harness visual"
-    );
+    requireText(billingAdminOperations, viewport, "docs/design-docs/billing-admin-operations.md deve refletir os viewports do harness visual");
   }
-  requireText(
-    billingAdminOperations,
-    `${billingViewports.length} screenshots`,
-    "docs/design-docs/billing-admin-operations.md deve refletir a quantidade de screenshots do harness visual"
-  );
+  requireText(billingAdminOperations, `${billingViewports.length} screenshots`, "docs/design-docs/billing-admin-operations.md deve refletir a quantidade de screenshots do harness visual");
 }
 
 if (failures.length > 0) {
   console.error("\nFalhas de alinhamento do gate de CI:\n");
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
+  for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 

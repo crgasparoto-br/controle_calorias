@@ -139,3 +139,14 @@ O catálogo público do backend é o inventário obrigatório dos tipos canônic
 - Cancelar preserva rota, paciente e campos montados; confirmar o descarte limpa somente os campos não salvos e permite a navegação. Se paciente e autorização não mudarem, o workspace permanece montado e conserva paginações; após salvar, não há diálogo.
 - O formulário de meta oficial usa o mesmo snapshot transitório do paciente e da autorização. Ele não amplia o diálogo de descarte destinado a avaliação, anotação e orientação, mas deve sobreviver a toda navegação interna e a revalidações de entitlement do mesmo workspace. Ativação bem-sucedida, descarte explícito, revogação ou troca de ciclo eliminam esse rascunho.
 - Os testes unitários verificam cliques e eventos `navigate` canceláveis. O gate visual executa `history.back()` e `history.forward()` no Chromium real com um formulário controlado preenchido: cancelar deve manter a URL e o valor; confirmar deve alcançar o destino, desmontar o formulário e eliminar o rascunho.
+
+## Histórico e comparação de avaliações — issue #1039
+
+A regressão da aba `/professional/patients/:patientId/assessment` deve usar pelo menos duas versões persistidas com valores deliberadamente diferentes. Cada item de **Histórico de avaliações** precisa oferecer **Visualizar avaliação** e abrir somente os dados daquela versão, sem completar campos vazios a partir de `latestAssessment` ou do rascunho atual.
+
+- Abrir a versão histórica deve manter objetivo, peso, altura, rotina, atividade física, preferências, restrições, dificuldades, hábitos, observações, data da avaliação e próxima revisão em modo somente leitura.
+- O formulário **Nova versão da avaliação** permanece editável apenas conforme o estado do acompanhamento, conserva o rascunho ao abrir, trocar e fechar versões históricas e mantém **Salvar nova versão** exclusivamente no lado atual.
+- Em desktop, a versão histórica selecionada fica à esquerda e a nova avaliação à direita; em viewport estreito, a versão histórica aparece acima da nova avaliação, sem overflow horizontal.
+- Os cenários mínimos são: nenhum registro, um registro, várias versões, mais de 20 versões com paginação, versão com campos opcionais vazios, acompanhamento `paused`, acompanhamento `ended` e revogação da autorização.
+- `paused` mantém o histórico consultável, mas não habilita salvamento de nova avaliação. `ended` continua redirecionando a rota de Avaliação para Histórico e `professionalRecord.get` continua retornando `latestAssessment: null` e `assessmentHistory: []`.
+- A revogação continua removendo o contexto e o cache individual; uma comparação já aberta não pode permanecer renderizada depois que o acesso deixa de ser válido.

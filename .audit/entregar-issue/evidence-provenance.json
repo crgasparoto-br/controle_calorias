@@ -1,26 +1,26 @@
 {
   "schema_version": 1,
-  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-  "base_sha": "82b429068a98ac973afddbcbb4b06f5c97b065fa",
+  "material_head_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
+  "base_sha": "5190f5cbbb957983a4bc949952b0bfa084c71761",
   "evidence": [
     {
-      "evidence_id": "EVID-B-1037",
-      "kind": "behavioral",
-      "path": "server/whatsappIntentWebhook.issue1037.test.ts",
-      "sha256": "78bdc2b4af3ad24068e9583390448b358a86c93a7b8f3e49a379259f8b8de724",
-      "subject_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+      "evidence_id": "EVID-Q-1043",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
+      "sha256": "f82315850b423b15ab1c8f3b2c85b547bb586a8d172be6c243b393f96606b283",
+      "subject_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions Agent-first gate #6040 / Vitest exact-head suite",
+      "producer": "Agent-first gate #6073 exact-head verification manifest plus exact-head test inventory",
       "status": "passed"
     },
     {
-      "evidence_id": "EVID-Q-1037",
-      "kind": "quantitative",
-      "path": "server/whatsappIntentWebhook.issue1037.test.ts",
-      "sha256": "78bdc2b4af3ad24068e9583390448b358a86c93a7b8f3e49a379259f8b8de724",
-      "subject_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
+      "evidence_id": "EVID-B-1043",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
+      "sha256": "f82315850b423b15ab1c8f3b2c85b547bb586a8d172be6c243b393f96606b283",
+      "subject_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
       "freshness_policy": "exact-material-head",
-      "producer": "Vitest assertions for original countable quantity, resolved grams, and single-call counts on exact material head",
+      "producer": "Agent-first gate #6073 and WhatsApp context TiDB gate #2946",
       "status": "passed"
     }
   ]
