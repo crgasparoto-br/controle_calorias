@@ -1,0 +1,50 @@
+Issue #1047 exact-head delivery evidence
+repository=crgasparoto-br/controle_calorias
+issue=1047
+pull_request=1048
+base_ref=develop
+head_ref=fix/1047-countable-food-registration
+base_sha=91750c9176febf868e47b9131a4d894d643bf2b5
+material_head_sha=a038de432105c632e9a9545cefceecbd9bf1c343
+merge_preview_sha=e14cb4224a01b6ce57a59df5f37b0c21cc29d6b1
+
+Issue-local changed paths (91750c9..a038de4):
+- docs/design-docs/whatsapp-countable-measure-passthrough.md
+- server/countableFoodQuantity.issue1047.test.ts
+- server/countableFoodQuantity.ts
+- server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts
+- server/modules/whatsapp/foodClarificationContract.ts
+- server/modules/whatsapp/quantityUnitVocabulary.test.ts
+- server/modules/whatsapp/quantityUnitVocabulary.ts
+- server/whatsappIntentWebhook.issue1037.test.ts
+- server/whatsappIntentWebhook.ts
+
+Exact-head CI observations for material_head_sha a038de432105c632e9a9545cefceecbd9bf1c343:
+- GitHub Actions run 33909080220, workflow "Agent-first gate": completed/success.
+  - Merge preview integration: TypeScript integration check=success; Test merge preview=success.
+  - Exact-head Agent-first job: TypeScript check=success; Tests=success; Architecture check=success; Documentation check=success; Build=success; Agent check=success; CI gate docs check=success; exact-head verification manifest=success; exact-head repository bundle=success.
+  - Database integrity check was skipped by workflow policy; the explicit skipped-status step succeeded.
+- GitHub Actions run 33909080212, workflow "WhatsApp context TiDB gate": completed/success.
+  - TiDB schema setup and canonical food signal verification=success.
+  - Referential integrity=success.
+  - Pending operation insert id regression=success.
+  - Quick edit meal update regression=success.
+  - Persistent context regression=success.
+
+Discriminant exact-head code/test observations (same product tree, revalidated by exact-head CI):
+- server/whatsappIntentWebhook.ts resolves the canonical route before the countable gate; canonical safe non-food responses skip the countable gate.
+- server/whatsappIntentWebhook.ts sends countable ready+resolved registrationText directly to the nutrition passthrough before any contextual LLM reclassification when executeWhatsappTextIntent returns null.
+- server/whatsappIntentWebhook.issue1037.test.ts covers "1 banana nanica" -> "80 g de banana nanica" and asserts executeWhatsappLlmIntent is not called even when mocked to return clarification if invoked.
+- The same production-wrapper test covers multi-item "1 banana nanica, 2 ovos cozidos" -> "80 g de banana nanica, 100 g de ovos cozidos" and asserts no contextual LLM call.
+- The same test covers "quantas calorias tem 1 banana nanica?" and "1 banana nanica tem muita caloria?" as questions: the countable gate is not called and the contextual question route remains active.
+- The same test covers an unknown countable food and verifies a food-specific clarification path without contextual LLM fallback.
+- server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts verifies that when one segment is resolved and another is pending, registrationSegments preserve the resolved segment while clarification targets the pending segment.
+- server/countableFoodQuantity.issue1047.test.ts verifies canonical count words (duas=2, três=3, dez=10) and verifies both "1 banana nanica" and "uma banana nanica" resolve to canonical 80 g without an operational verb.
+- server/modules/whatsapp/quantityUnitVocabulary.ts is the shared source for COUNT_WORD_VALUES / COUNTABLE_QUANTITY_PATTERN / parseCountableQuantity.
+- server/countableFoodQuantity.ts and server/modules/whatsapp/foodClarificationContract.ts reuse that shared count vocabulary instead of maintaining competing count-word maps.
+- docs/design-docs/whatsapp-countable-measure-passthrough.md documents that a positive ready countable resolution is deterministic registration evidence, preserves question precedence, and does not require an operational verb.
+
+Exact-head identity reconciliation:
+- Remote material head is a038de432105c632e9a9545cefceecbd9bf1c343.
+- Remote material tree is dbcbf970894673c2e0e8285896a435f05aa765e5, identical to the previously validated functional candidate tree.
+- Exact-head CI was re-executed after the SHA-only history drift and completed green on a038de432105c632e9a9545cefceecbd9bf1c343; no product-tree change was introduced by the reconciliation commits.
