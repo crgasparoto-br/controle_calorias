@@ -4,7 +4,7 @@ A branch `main` deve exigir o status check abaixo antes de merge:
 
 - Required status check: `Agent-first gate`
 
-Esse nome deve bater com o job `Agent-first gate` definido em `.github/workflows/agent-check.yml`.
+Esse nome deve bater com o job `Agent-first gate` definido em `.github/workflows/agent-check.yml`. Para PRs, o job obrigatório depende de `Merge preview integration`; assim, a proteção continua exigindo um único status nominal, mas a cadeia só fica verde após validar o merge preview e depois o `head_sha` exato da PR.
 
 ## Regras operacionais
 

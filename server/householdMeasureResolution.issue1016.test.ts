@@ -321,7 +321,7 @@ describe("resolveHouseholdMeasure (#1016)", () => {
     }));
   });
 
-  it("não conta a mesma URL normalizada duas vezes para fabricar base multi-fonte", async () => {
+  it("não conta a mesma URL normalizada duas vezes para fabricar base multi-fonte, mas permite estimativa contextual da fonte única válida", async () => {
     const runtime = baseRuntime();
     const first = reference({ grams: 20 });
     const duplicate = reference({
@@ -346,7 +346,11 @@ describe("resolveHouseholdMeasure (#1016)", () => {
       unit: "fatia",
     }, runtime as any);
 
-    expect(result).toBeNull();
+    expect(result).toEqual(expect.objectContaining({
+      kind: "contextual_estimate",
+      grams: 20,
+      referenceCount: 1,
+    }));
   });
 
   it("não fabrica média quando referências compatíveis divergem materialmente", async () => {

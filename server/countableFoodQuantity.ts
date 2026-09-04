@@ -31,7 +31,7 @@ export type CountableFoodResolvedMeasure = {
   segmentIndex: number;
   request: CountableFoodQuantityRequest;
   resolution: HouseholdMeasureResolution | {
-    kind: "canonical_static_portion";
+    kind: "canonical_portion";
     grams: number;
   };
 };
@@ -186,7 +186,7 @@ export async function prepareCountableFoodRegistrationResolved(
         resolutions.push({
           segmentIndex,
           request: bare,
-          resolution: { kind: "canonical_static_portion", grams: safeBare.grams },
+          resolution: { kind: "canonical_portion", grams: safeBare.grams },
         });
       }
       continue;
@@ -202,7 +202,7 @@ export async function prepareCountableFoodRegistrationResolved(
       resolutions.push({
         segmentIndex,
         request,
-        resolution: { kind: "canonical_static_portion", grams: safe.grams },
+        resolution: { kind: "canonical_portion", grams: safe.grams },
       });
       continue;
     }

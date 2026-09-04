@@ -5,7 +5,8 @@ import {
   buildWhatsAppRecoverableErrorReplyMessage,
 } from "../replyMessages";
 import { composeWhatsAppMealActionReply, composeWhatsAppMealActionReplies } from "../mealActionReplyComposer";
-import { listMeals, updateMeal } from "../../meals/service";
+import { listMeals, updateMeal, updateMealWithHouseholdMeasureLearning } from "../../meals/service";
+import { buildUserLearnedHouseholdMeasurePreference } from "../../../householdMeasureResolutionPersistence";
 import type { MealItemInput } from "../../meals/schemas";
 import {
   createPendingMealItemSelection,
@@ -105,6 +106,54 @@ async function updateMealItems(userId: number, meal: MutableMealRecord) {
     occurredAt: new Date(meal.occurredAt).toISOString(),
     notes: meal.notes,
     items: meal.items,
+  });
+}
+
+function buildHouseholdMeasureLearningRelation(input: {
+  userId: number;
+  item: MealItemInput;
+  correctedQuantity: number;
+  correctedUnit: string;
+}) {
+  const originalQuantity = Number(input.item.quantity);
+  const originalUnit = input.item.unit?.trim();
+  if (!Number.isFinite(originalQuantity) || originalQuantity <= 0 || !originalUnit) return null;
+  const relation = {
+    userId: input.userId,
+    foodName: input.item.foodName,
+    brand: input.item.brand,
+    originalQuantity,
+    originalUnit,
+    correctedQuantity: input.correctedQuantity,
+    correctedUnit: input.correctedUnit,
+  };
+  return buildUserLearnedHouseholdMeasurePreference(relation) ? relation : null;
+}
+
+async function updateMealItemsWithOptionalLearning(input: {
+  userId: number;
+  meal: MutableMealRecord;
+  originalItem: MealItemInput;
+  correctedQuantity: number;
+  correctedUnit: string;
+}) {
+  const updateInput = {
+    mealId: input.meal.id,
+    mealLabel: input.meal.mealLabel,
+    occurredAt: new Date(input.meal.occurredAt).toISOString(),
+    notes: input.meal.notes,
+    items: input.meal.items,
+  };
+  const relation = buildHouseholdMeasureLearningRelation({
+    userId: input.userId,
+    item: input.originalItem,
+    correctedQuantity: input.correctedQuantity,
+    correctedUnit: input.correctedUnit,
+  });
+  if (!relation) return updateMeal(input.userId, updateInput);
+  return updateMealWithHouseholdMeasureLearning(input.userId, updateInput, {
+    expectedOriginalItem: input.originalItem,
+    relation,
   });
 }
 
@@ -209,15 +258,17 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
   }
 
   const target = targets[0];
+  const originalItem = toMealItemInput(target.item);
   const nextItems = latestMeal.items.map((item, index) => index === target.index
     ? scaleMealItemQuantity(toMealItemInput(item), correction.nextQuantity, correction.nextUnit)
     : item);
-  const updatedMeal = await updateMeal(userId, {
-    mealId: latestMeal.id,
-    mealLabel: latestMeal.mealLabel,
-    occurredAt: new Date(latestMeal.occurredAt).toISOString(),
-    notes: latestMeal.notes,
-    items: nextItems as MealItemInput[],
+  const mutableMeal = { ...latestMeal, items: nextItems as MealItemInput[] } as MutableMealRecord;
+  const updatedMeal = await updateMealItemsWithOptionalLearning({
+    userId,
+    meal: mutableMeal,
+    originalItem,
+    correctedQuantity: correction.nextQuantity,
+    correctedUnit: correction.nextUnit,
   });
   const previous = correction.previousQuantity && correction.previousUnit
     ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
@@ -293,10 +344,19 @@ async function updateLatestMealItemGrams(input: {
     } satisfies WhatsappIntentResult;
   }
 
+  const originalItem = toMealItemInput(target.item);
   const previousGrams = Number(target.item.estimatedGrams || 0);
   const nextGrams = Math.max(input.resolveNextGrams(previousGrams), MIN_FOOD_GRAMS);
   target.meal.items = target.meal.items.map((item, index) => index === target.index ? scaleMealItem(toMealItemInput(item), nextGrams) : item);
-  const updatedMeal = await updateMealItems(input.userId, target.meal);
+  const updatedMeal = input.selectionAction.kind === "grams_absolute"
+    ? await updateMealItemsWithOptionalLearning({
+        userId: input.userId,
+        meal: target.meal,
+        originalItem,
+        correctedQuantity: nextGrams,
+        correctedUnit: "g",
+      })
+    : await updateMealItems(input.userId, target.meal);
   return {
     handled: true,
     action: "meal_item_grams_adjusted",

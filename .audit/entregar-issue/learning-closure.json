@@ -1,51 +1,17 @@
 {
   "schema_version": 1,
-  "classification": "systemic-escape",
+  "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:f23c3323-ec85-487b-8ff6-c8e8e79e1dd0",
-    "finding_ids": ["A-001"],
-    "audit_report_sha256": "4b5feb58fc8bf0f62a51c2843c78998a8de63aa02ab3658727eb9e63b92de88f"
+    "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+    "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
+    "finding_ids": [
+      "A-004"
+    ]
   },
   "generalized_learning": {
-    "escape_class": "delivery-risk-family-propagation-gap",
-    "generalized_failure_pattern": "A producer can validate only a canonical subset of risk families while the attack matrix or inherited controls declare an additional material family, producing a handoff that appears saturated locally but is rejected by a stricter consumer preflight.",
-    "plausible_wrong_implementation": "Build saturation from a fixed family allowlist and ignore an extended family that is already present in active controls, then mark the packet ready because canonical families alone are green.",
-    "trigger_signals": [
-      "attack matrix declares a risk family outside the canonical baseline",
-      "active inherited control names a family absent from saturation",
-      "producer and consumer handoff validators derive material families differently"
-    ],
-    "risk_families": ["structural-contract"],
-    "reusable_control": "RISK-FAMILY-PROPAGATION-001",
-    "prevention_rule": "The producer-side saturation gate must validate the union of canonical families, attack-matrix families and active inherited-control families; every material family must have an explicit saturated entry.",
-    "detection_rule": "Before handoff publication, replay a consumer-equivalent preflight against the exact packet and require producer/consumer agreement on family applicability.",
-    "transfer_cases": [
-      {
-        "surface": "matrix-extension",
-        "scenario": "An attack matrix introduces an extended visual-effect family while the saturation artifact contains only baseline families.",
-        "status": "passed"
-      },
-      {
-        "surface": "inherited-control-extension",
-        "scenario": "An active inherited control preserves an extended family that a regenerated saturation artifact would otherwise omit.",
-        "status": "passed"
-      }
-    ],
-    "promotion_status": "promoted"
+    "promotion_status": "not-required",
+    "reason": "The rejection exposed a local resolver branch ordering defect specific to same-rank exact_product evidence. The issue-level prevention and regression controls close the escape without evidence of a generalized controller or Skill defect."
   },
-  "skill_changes": [
-    {
-      "role": "prevention",
-      "status": "passed",
-      "change": "Risk saturation validation now requires every family declared by the attack matrix or active inherited controls, including extended fallback families.",
-      "validation": "Generic regression proves omission is rejected and explicit saturation is accepted."
-    },
-    {
-      "role": "detection",
-      "status": "passed",
-      "change": "The delivery procedure records consumer-preflight parity as a terminal control for risk-family propagation.",
-      "validation": "The exact consumer preflight reproduced the escaped failure before packet remediation."
-    }
-  ]
+  "skill_changes": []
 }

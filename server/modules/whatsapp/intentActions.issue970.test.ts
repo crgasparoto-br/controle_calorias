@@ -22,6 +22,8 @@ vi.mock("../../nutritionEngine", () => ({
 
 vi.mock("../../householdMeasureResolution", () => ({
   resolveHouseholdMeasure: resolveHouseholdMeasureMock,
+  isApproximateHouseholdMeasureResolutionKind: (kind: string) =>
+    kind === "usual_average" || kind === "contextual_estimate" || kind === "user_learned",
 }));
 
 vi.mock("../meals/service", () => ({

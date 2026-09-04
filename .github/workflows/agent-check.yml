@@ -11,8 +11,51 @@ permissions:
   contents: read
 
 jobs:
+  merge-preview-integration:
+    name: Merge preview integration
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+
+    steps:
+      - name: Checkout merge preview
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript integration check
+        run: pnpm check
+
+      - name: Test merge preview
+        env:
+          NODE_ENV: test
+        run: |
+          for shard_number in $(seq 1 24); do
+            shard="${shard_number}/24"
+            echo "Running merge-preview Vitest shard ${shard}"
+            pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1
+          done
+
   agent-check:
     name: Agent-first gate
+    needs: merge-preview-integration
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -21,10 +64,17 @@ jobs:
       VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
+      - name: Require merge-preview integration
+        if: github.event_name == 'pull_request' && needs.merge-preview-integration.result != 'success'
+        run: |
+          echo "Merge preview integration did not succeed: ${{ needs.merge-preview-integration.result }}"
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.VERIFICATION_HEAD_SHA }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -127,12 +177,14 @@ jobs:
       - name: Create exact-head verification manifest
         run: |
           mkdir -p /tmp/agent-first-verification
+          CHECKOUT_SHA="$(git rev-parse HEAD)"
           cat > /tmp/agent-first-verification/manifest.json <<EOF
           {
             "schemaVersion": 2,
             "repository": "${GITHUB_REPOSITORY}",
             "headSha": "${VERIFICATION_HEAD_SHA}",
-            "checkoutSha": "${GITHUB_SHA}",
+            "checkoutSha": "${CHECKOUT_SHA}",
+            "eventSha": "${GITHUB_SHA}",
             "runId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
@@ -140,7 +192,7 @@ jobs:
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
-          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head");'
+          node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head"); if (value.checkoutSha !== value.headSha) throw new Error(`exact-head gate executed ${value.checkoutSha} instead of ${value.headSha}`);'
           cat /tmp/agent-first-verification/manifest.json
 
       - name: Upload exact-head verification manifest

@@ -20,7 +20,7 @@
 
 Status check obrigatório:
 
-- [ ] `Agent-first gate` passou em PR contra `main` ou `develop`
+- [ ] `Merge preview integration` concluiu com sucesso e `Agent-first gate` passou no `head_sha` exato da PR contra `main` ou `develop`
 
 Comandos relevantes:
 
