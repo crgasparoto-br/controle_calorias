@@ -46,6 +46,10 @@ const noteItems: ProfessionalNoteHistoryItem[] = [
   },
 ];
 
+function valueOf(element: HTMLElement) {
+  return (element as HTMLTextAreaElement).value;
+}
+
 describe("ProfessionalRecordHistory", () => {
   it("creates a real compact excerpt instead of exposing the entire long text in the selector", () => {
     const longText = `Começo ${"conteúdo ".repeat(40)}fim integral`;
@@ -67,12 +71,12 @@ describe("ProfessionalRecordHistory", () => {
       </ProfessionalGuidanceHistoryLayout>
     );
 
-    expect(screen.getByText("Histórico de orientações")).toBeInTheDocument();
-    expect(screen.getByText("Enviada")).toBeInTheDocument();
-    expect(screen.getByText("Paginação preservada")).toBeInTheDocument();
+    expect(screen.getByText("Histórico de orientações")).toBeTruthy();
+    expect(screen.getByText("Enviada")).toBeTruthy();
+    expect(screen.getByText("Paginação preservada")).toBeTruthy();
     expect(
       screen.queryByText(guidanceItems[0].content, { exact: true })
-    ).not.toBeInTheDocument();
+    ).toBeNull();
 
     const draft = screen.getByRole("textbox", {
       name: "Rascunho da nova orientação",
@@ -84,28 +88,29 @@ describe("ProfessionalRecordHistory", () => {
     });
     await user.click(viewButtons[0]);
 
-    expect(
-      screen.getByRole("region", { name: "Orientação histórica selecionada" })
-    ).toHaveTextContent(guidanceItems[0].content);
-    expect(screen.getByText("Visível ao paciente")).toBeInTheDocument();
-    expect(draft).toHaveValue("Rascunho mantido + complemento");
+    const firstDetail = screen.getByRole("region", {
+      name: "Orientação histórica selecionada",
+    });
+    expect(firstDetail.textContent).toContain(guidanceItems[0].content);
+    expect(screen.getByText("Visível ao paciente")).toBeTruthy();
+    expect(valueOf(draft)).toBe("Rascunho mantido + complemento");
 
     await user.click(viewButtons[1]);
     const secondDetail = screen.getByRole("region", {
       name: "Orientação histórica selecionada",
     });
-    expect(secondDetail).toHaveTextContent(guidanceItems[1].content);
-    expect(within(secondDetail).getByText("Autoria não informada")).toBeInTheDocument();
-    expect(within(secondDetail).getByText("Não informado")).toBeInTheDocument();
-    expect(draft).toHaveValue("Rascunho mantido + complemento");
+    expect(secondDetail.textContent).toContain(guidanceItems[1].content);
+    expect(within(secondDetail).getByText("Autoria não informada")).toBeTruthy();
+    expect(within(secondDetail).getByText("Não informado")).toBeTruthy();
+    expect(valueOf(draft)).toBe("Rascunho mantido + complemento");
 
     await user.click(
       screen.getByRole("button", { name: "Fechar visualização" })
     );
     expect(
       screen.queryByRole("region", { name: "Orientação histórica selecionada" })
-    ).not.toBeInTheDocument();
-    expect(draft).toHaveValue("Rascunho mantido + complemento");
+    ).toBeNull();
+    expect(valueOf(draft)).toBe("Rascunho mantido + complemento");
   });
 
   it("clears a selected guidance when the authorized payload no longer contains it", async () => {
@@ -121,7 +126,7 @@ describe("ProfessionalRecordHistory", () => {
     );
     expect(
       screen.getByRole("region", { name: "Orientação histórica selecionada" })
-    ).toBeInTheDocument();
+    ).toBeTruthy();
 
     view.rerender(
       <ProfessionalGuidanceHistoryLayout items={[]}>
@@ -131,8 +136,8 @@ describe("ProfessionalRecordHistory", () => {
 
     expect(
       screen.queryByRole("region", { name: "Orientação histórica selecionada" })
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("Nenhuma orientação registrada.")).toBeInTheDocument();
+    ).toBeNull();
+    expect(screen.getByText("Nenhuma orientação registrada.")).toBeTruthy();
   });
 
   it("keeps historical notes read-only, private and independent from the new-note draft", async () => {
@@ -143,8 +148,8 @@ describe("ProfessionalRecordHistory", () => {
       </ProfessionalNotesHistoryLayout>
     );
 
-    expect(screen.getByText("Histórico de anotações")).toBeInTheDocument();
-    expect(screen.queryByText(noteItems[0].content, { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("Histórico de anotações")).toBeTruthy();
+    expect(screen.queryByText(noteItems[0].content, { exact: true })).toBeNull();
 
     const draft = screen.getByRole("textbox", {
       name: "Rascunho da nova anotação",
@@ -157,11 +162,11 @@ describe("ProfessionalRecordHistory", () => {
     const detail = screen.getByRole("region", {
       name: "Anotação histórica selecionada",
     });
-    expect(detail).toHaveTextContent(noteItems[0].content);
-    expect(detail).toHaveTextContent(
+    expect(detail.textContent).toContain(noteItems[0].content);
+    expect(detail.textContent).toContain(
       "Conteúdo privado · visível somente ao profissional"
     );
     expect(detail.querySelector("textarea, input")).toBeNull();
-    expect(draft).toHaveValue("Observação em edição preservada");
+    expect(valueOf(draft)).toBe("Observação em edição preservada");
   });
 });
