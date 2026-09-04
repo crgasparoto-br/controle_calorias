@@ -40,6 +40,14 @@ Campos da primeira versão:
 
 `professionalGuidances` contém conteúdo destinado ao paciente. Cada registro possui autor, paciente, versão, visibilidade e estado de entrega. Uma correção cria uma nova versão e pode referenciar a orientação anterior por `supersedesGuidanceId`.
 
+As abas **Orientações** e **Anotações** usam o próprio payload paginado de `professionalRecord.get` para a consulta histórica; selecionar um registro não dispara query por item nem altera a paginação. O painel lateral é apenas um seletor compacto e apresenta resumo suficiente para identificar o registro. **Visualizar orientação** e **Visualizar anotação** abrem o conteúdo completo, somente para leitura, em uma área dedicada de largura confortável fora da coluna lateral estreita.
+
+A seleção histórica é estado transitório de interface e não faz parte do snapshot de rascunho. Abrir, trocar ou fechar um item preserva integralmente a nova orientação ou anotação em edição. Se o item selecionado deixar de existir no payload autorizado — por troca de página, revalidação ou revogação — o detalhe é removido sem reutilizar conteúdo anterior. Fallbacks de metadados permanecem **Autoria não informada** e **Não informado**.
+
+No histórico de orientações, o resumo mantém título, versão, autor, data, estado de entrega e trecho do conteúdo; o detalhe preserva conteúdo integral, metadados e visibilidade destinada ao paciente. No histórico de anotações, o resumo mantém autor, data e trecho; o detalhe identifica explicitamente que o conteúdo é privado e visível somente ao profissional. Nenhum detalhe histórico oferece campo editável ou ação de salvamento.
+
+Em `active`, consulta histórica e criação permanecem disponíveis. Em `paused`, o histórico continua consultável e os formulários de novas intervenções seguem bloqueados. Em `ended`, as rotas de Orientações e Anotações continuam indisponíveis e o contrato history-only não volta a expor esses registros. Autorização revogada prevalece sobre qualquer estado operacional e remove o contexto carregado.
+
 ## Máquina de estados
 
 As transições são validadas pelo serviço canônico de acompanhamento:
