@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -91,11 +91,12 @@ describe("ProfessionalRecordHistory", () => {
     expect(draft).toHaveValue("Rascunho mantido + complemento");
 
     await user.click(viewButtons[1]);
-    expect(
-      screen.getByRole("region", { name: "Orientação histórica selecionada" })
-    ).toHaveTextContent(guidanceItems[1].content);
-    expect(screen.getByText("Autoria não informada")).toBeInTheDocument();
-    expect(screen.getByText("Não informado")).toBeInTheDocument();
+    const secondDetail = screen.getByRole("region", {
+      name: "Orientação histórica selecionada",
+    });
+    expect(secondDetail).toHaveTextContent(guidanceItems[1].content);
+    expect(within(secondDetail).getByText("Autoria não informada")).toBeInTheDocument();
+    expect(within(secondDetail).getByText("Não informado")).toBeInTheDocument();
     expect(draft).toHaveValue("Rascunho mantido + complemento");
 
     await user.click(
