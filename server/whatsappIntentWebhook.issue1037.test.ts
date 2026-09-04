@@ -272,6 +272,121 @@ describe("issue #1037 — passthrough de medidas contáveis no WhatsApp", () => 
     expect(deferred?.domainLinks).toEqual([{ waterLogId: 91 }]);
   });
 
+  describe("issue #1047 — decisão final do gate contável", () => {
+    it("não deixa o classificador contextual rebaixar 1 banana nanica para ambiguidade", async () => {
+      mocks.countableGate.mockResolvedValue({
+        kind: "ready",
+        registrationText: "80 g de banana nanica",
+        resolutions: [{
+          segmentIndex: 0,
+          request: {
+            segment: "1 banana nanica",
+            foodName: "banana nanica",
+            count: 1,
+            requestedUnit: "un",
+          },
+          resolution: { kind: "canonical_portion", grams: 80 },
+        }],
+      });
+      mocks.executeTextIntent.mockResolvedValue(null);
+      mocks.executeLlmIntent.mockResolvedValue({
+        handled: true,
+        action: "clarification_needed",
+        reply: "resposta genérica que não deve ser usada",
+        eventType: "whatsapp.llm_intent.clarification_needed",
+        detail: "ambiguous",
+      });
+
+      const req = createRequest("1 banana nanica", "wamid-1047-banana");
+      const res = createResponse();
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+      expect(mocks.countableGate).toHaveBeenCalledTimes(1);
+      expect(mocks.executeTextIntent).toHaveBeenCalledWith(42, expect.objectContaining({
+        text: "80 g de banana nanica",
+      }));
+      expect(mocks.executeLlmIntent).not.toHaveBeenCalled();
+      expect(mocks.handleBaseWebhook).toHaveBeenCalledTimes(1);
+      const forwardedReq = mocks.handleBaseWebhook.mock.calls[0][0];
+      expect(forwardedReq.body.entry[0].changes[0].value.messages[0].text.body).toBe("80 g de banana nanica");
+    });
+
+    it("preserva o passthrough de vários itens resolvidos sem uma segunda decisão de intenção", async () => {
+      mocks.countableGate.mockResolvedValue({
+        kind: "ready",
+        registrationText: "80 g de banana nanica, 100 g de ovos cozidos",
+        resolutions: [
+          {
+            segmentIndex: 0,
+            request: { segment: "1 banana nanica", foodName: "banana nanica", count: 1, requestedUnit: "un" },
+            resolution: { kind: "canonical_portion", grams: 80 },
+          },
+          {
+            segmentIndex: 1,
+            request: { segment: "2 ovos cozidos", foodName: "ovos cozidos", count: 2, requestedUnit: "un" },
+            resolution: { kind: "canonical_portion", grams: 100 },
+          },
+        ],
+      });
+      mocks.executeTextIntent.mockResolvedValue(null);
+
+      const req = createRequest("1 banana nanica, 2 ovos cozidos", "wamid-1047-multi");
+      const res = createResponse();
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+      expect(mocks.executeLlmIntent).not.toHaveBeenCalled();
+      expect(mocks.handleBaseWebhook).toHaveBeenCalledTimes(1);
+      const forwardedReq = mocks.handleBaseWebhook.mock.calls[0][0];
+      expect(forwardedReq.body.entry[0].changes[0].value.messages[0].text.body)
+        .toBe("80 g de banana nanica, 100 g de ovos cozidos");
+    });
+
+    it.each([
+      "quantas calorias tem 1 banana nanica?",
+      "1 banana nanica tem muita caloria?",
+    ])("mantém pergunta nutricional fora do gate contável: %s", async text => {
+      mocks.executeTextIntent.mockResolvedValue(null);
+      mocks.executeLlmIntent.mockResolvedValue({
+        handled: true,
+        action: "clarification_needed",
+        reply: "consulta preservada",
+        eventType: "whatsapp.llm_intent.query",
+        detail: "Pergunta nutricional encaminhada ao classificador contextual.",
+      });
+
+      const req = createRequest(text, `wamid-1047-question-${text.length}`);
+      const res = createResponse();
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+      expect(mocks.countableGate).not.toHaveBeenCalled();
+      expect(mocks.executeLlmIntent).toHaveBeenCalledTimes(1);
+      expect(mocks.handleBaseWebhook).not.toHaveBeenCalled();
+    });
+
+    it("mantém alimento desconhecido em esclarecimento específico sem menu genérico", async () => {
+      mocks.countableGate.mockResolvedValue({
+        kind: "clarification",
+        result: {
+          handled: true,
+          action: "food_clarification_requested",
+          reply: "Não consegui resolver a porção desse alimento. Informe o peso em g.",
+          eventType: "whatsapp.food_clarification.requested",
+          detail: "Quantidade alimentar não resolvida.",
+        },
+      });
+
+      const req = createRequest("1 alimento totalmente inexistente xyz", "wamid-1047-unknown");
+      const res = createResponse();
+      await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+      expect(mocks.executeLlmIntent).not.toHaveBeenCalled();
+      expect(mocks.sendLogicalReply).toHaveBeenCalledWith(expect.objectContaining({
+        replyText: expect.stringContaining("porção desse alimento"),
+      }));
+      expect(mocks.handleBaseWebhook).not.toHaveBeenCalled();
+    });
+  });
+
   it("mantém o preflight de consumidores diretos de executeWhatsappTextIntent", () => {
     const source = readFileSync(new URL("./modules/whatsapp/intentActions.ts", import.meta.url), "utf8");
     expect(source).toContain("prepareWhatsappCountableFoodRegistration");
