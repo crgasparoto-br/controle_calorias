@@ -150,3 +150,18 @@ A regressão da aba `/professional/patients/:patientId/assessment` deve usar pel
 - Os cenários mínimos são: nenhum registro, um registro, várias versões, mais de 20 versões com paginação, versão com campos opcionais vazios, acompanhamento `paused`, acompanhamento `ended` e revogação da autorização.
 - `paused` mantém o histórico consultável, mas não habilita salvamento de nova avaliação. `ended` continua redirecionando a rota de Avaliação para Histórico e `professionalRecord.get` continua retornando `latestAssessment: null` e `assessmentHistory: []`.
 - A revogação continua removendo o contexto e o cache individual; uma comparação já aberta não pode permanecer renderizada depois que o acesso deixa de ser válido.
+
+## Histórico de orientações e anotações — issue #1040
+
+A regressão de `/professional/patients/:patientId/guidance` e `/professional/patients/:patientId/notes` deve provar que o histórico usa exclusivamente a página já carregada por `professionalRecord.get`. Abrir, trocar e fechar **Visualizar orientação** ou **Visualizar anotação** não pode criar consulta tRPC por item, alterar a página atual nem limpar o rascunho do novo registro.
+
+- Validar nenhum item, um item, vários itens e mais de 20 itens com paginação preservada.
+- O seletor de orientações mostra título, versão, autor, data, estado de entrega e trecho compacto; o detalhe mostra o conteúdo integral, os mesmos metadados e a visibilidade para o paciente.
+- O seletor de anotações mostra autor, data e trecho de duas ou três linhas; o detalhe mostra o conteúdo integral e identifica explicitamente **Conteúdo privado · visível somente ao profissional**.
+- Conteúdo muito longo não pode aparecer integralmente no seletor; somente o detalhe selecionado usa o texto completo. Metadados ausentes usam **Autoria não informada** e **Não informado**.
+- O detalhe histórico é somente leitura e não oferece input, textarea, botão de salvar ou edição. A criação continua exclusivamente no formulário atual.
+- Preencher título/conteúdo da nova orientação ou uma nova anotação, abrir um histórico, trocar de item e fechar deve preservar exatamente o rascunho.
+- Em `paused`, os históricos continuam consultáveis e os controles de criação permanecem bloqueados. Em `ended`, as rotas continuam indisponíveis e somente Mensagens/Histórico são montados; guidances e notes não reaparecem via contrato history-only.
+- Ao remover o item selecionado do payload autorizado, inclusive por revogação, troca de página ou revalidação, o detalhe deve desaparecer sem manter dados antigos na tela.
+- A evidência responsiva deve cobrir pelo menos 1440 × 900 e 1366 × 768 para Orientações e 390 × 844/390 × 1200 para Anotações, confirmando seletor compacto, formulário utilizável, detalhe dedicado de leitura e ausência de overflow horizontal.
+- O teste de integração deve observar a contagem de chamadas de `professionalRecord.get` antes e depois da seleção histórica; a ação local não pode incrementar essa contagem. A mudança de página continua sendo a única ação do histórico que solicita outra página ao backend.
