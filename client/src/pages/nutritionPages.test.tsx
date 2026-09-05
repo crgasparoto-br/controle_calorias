@@ -1054,14 +1054,14 @@ describe("nutrition pages", () => {
     expect(html).toContain("/api/whatsapp/webhook");
   });
 
-  it("renderiza a página administrativa com o campo editável do token do WhatsApp", async () => {
+  it("renderiza a página administrativa com a credencial editável do WhatsApp", async () => {
     const { default: AdminPage } = await import("./AdminPage");
     const html = renderToString(React.createElement(AdminPage));
 
-    expect(html).toContain("Credenciais do WhatsApp");
-    expect(html).toContain("Token de acesso do WhatsApp");
-    expect(html).toContain("Salvar token");
-    expect(html).toContain("Painel admin");
+    expect(html).toContain("Credencial do WhatsApp");
+    expect(html).toContain("Chave de acesso do WhatsApp");
+    expect(html).toContain("Salvar credencial");
+    expect(html).toContain("Painel administrativo");
     expect(html).toContain("EAAcmt••••1234");
   });
 });

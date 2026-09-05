@@ -173,32 +173,32 @@ function estimatedTrialFirstChargeDate(audience: "individual" | "professional") 
 
 function trialEligibilityMessage(reason: string | undefined) {
   if (reason === "trial_already_used") {
-    return "O período de avaliação já foi utilizado por esta conta. Você ainda pode contratar o plano por cartão sem trial.";
+    return "O período de avaliação já foi utilizado por esta conta. Você ainda pode contratar o plano por cartão sem um novo período de avaliação.";
   }
   if (reason === "transition_history") {
-    return "Esta conta já passou por uma transição comercial, que substitui um novo período de avaliação. Você ainda pode contratar o plano por cartão sem trial.";
+    return "Esta conta já passou por uma transição comercial, que substitui um novo período de avaliação. Você ainda pode contratar o plano por cartão normalmente.";
   }
-  return "A elegibilidade para um novo período de avaliação não pôde ser confirmada. Você ainda pode contratar o plano por cartão sem trial.";
+  return "Não foi possível confirmar a disponibilidade de um novo período de avaliação. Você ainda pode contratar o plano por cartão normalmente.";
 }
 
 function checkoutReturnMessage() {
   if (typeof window === "undefined") return null;
   if (window.location.pathname.endsWith("/return/success")) {
     return {
-      title: "Retorno do pagamento recebido",
-      text: "A contratação continua pendente até a confirmação financeira autoritativa. Atualizaremos esta tela assim que o backend receber a confirmação.",
+      title: "Pagamento enviado para confirmação",
+      text: "A contratação continua aguardando a confirmação do pagamento. Esta tela será atualizada assim que a confirmação for recebida.",
     };
   }
   if (window.location.pathname.endsWith("/return/cancel")) {
     return {
-      title: "Checkout interrompido",
-      text: "Nenhum acesso foi ativado por este retorno. Você pode revisar a oferta e tentar novamente.",
+      title: "Pagamento interrompido",
+      text: "Nenhum acesso foi ativado. Você pode revisar a contratação e tentar novamente.",
     };
   }
   if (window.location.pathname.endsWith("/return/expired")) {
     return {
       title: "Tentativa expirada",
-      text: "A tentativa expirou sem ativar acesso. Inicie uma nova tentativa quando estiver pronto.",
+      text: "A tentativa expirou sem ativar o plano. Inicie uma nova contratação quando quiser continuar.",
     };
   }
   return null;
@@ -285,9 +285,9 @@ export default function BillingPage() {
       if (result.status === "activated" || result.status === "already_active") {
         toast.success("Situação de acesso atualizada.");
       } else if (result.status === "blocked") {
-        toast.info("A ativação ainda aguarda uma origem válida de acesso.");
+        toast.info("A ativação ainda aguarda a confirmação do plano ou da forma de acesso.");
       } else {
-        toast.info("A situação comercial foi reavaliada.");
+        toast.info("Situação do acesso atualizada.");
       }
       await utils.billing.webOverview.invalidate();
     },
@@ -309,7 +309,7 @@ export default function BillingPage() {
         return;
       }
       toast.info(
-        "Autorização Pix criada. A assinatura continuará pendente até a confirmação financeira."
+        "Autorização Pix criada. Seu plano será ativado quando o pagamento for confirmado."
       );
     },
     onError: (error, variables) => {
@@ -408,7 +408,7 @@ export default function BillingPage() {
     history,
     actions,
   } = overview.data;
-  const accessLabel = ACCESS_LABELS[access.reason] ?? "Origem de acesso válida";
+  const accessLabel = ACCESS_LABELS[access.reason] ?? "Acesso válido";
   const accessTransitionDays = transitionDays(access.validFrom, access.validUntil);
   const ownRenewalUnderCoverage =
     sponsoredCoverage &&
@@ -468,9 +468,9 @@ export default function BillingPage() {
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6 pb-12">
         <PageIntro
-          eyebrow="Comercial e elegibilidade"
+          eyebrow="Plano, pagamento e acesso"
           title="Plano e acesso"
-          description="Entenda de onde vem seu acesso, acompanhe a situação canônica da assinatura, compare as ofertas disponíveis e gerencie a renovação sem depender do retorno do navegador para confirmar pagamentos."
+          description="Veja como seu acesso está liberado, acompanhe sua assinatura, compare os planos disponíveis e gerencie pagamentos e renovação."
         />
 
         {returnMessage ? (
@@ -496,8 +496,8 @@ export default function BillingPage() {
                 Situação atual
               </CardTitle>
               <CardDescription>
-                Cobertura, assinatura, trial, transição e liberação administrativa
-                permanecem origens separadas no backend.
+                Seu acesso pode vir de uma assinatura, de um período de avaliação, da cobertura
+                de um profissional ou de uma liberação administrativa.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -508,7 +508,7 @@ export default function BillingPage() {
                 <span className="text-sm font-medium">{accessLabel}</span>
               </div>
               <dl className="grid gap-4 sm:grid-cols-2">
-                <Detail label="Origem efetiva" value={accessLabel} />
+                <Detail label="Como seu acesso está liberado" value={accessLabel} />
                 <Detail
                   label="Vigência"
                   value={
@@ -523,10 +523,9 @@ export default function BillingPage() {
               </dl>
               {access.entitlements.length ? (
                 <div className="rounded-xl border p-4">
-                  <h3 className="font-medium">Recursos liberados nesta origem</h3>
+                  <h3 className="font-medium">Recursos disponíveis no seu acesso</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    A lista abaixo reflete somente os recursos devolvidos pelo backend para a
-                    origem de acesso efetiva.
+                    A lista abaixo mostra os recursos que você pode usar neste momento.
                   </p>
                   <EntitlementMatrix
                     className="mt-4"
@@ -543,16 +542,16 @@ export default function BillingPage() {
                     ? "Transição de 7 dias após a perda da cobertura profissional."
                     : accessTransitionDays === 30
                       ? "Transição comercial de 30 dias para usuário existente."
-                      : "Período de transição definido pelo backend."}{" "}
+                      : "Período de transição em andamento."}{" "}
                   O acesso segue válido até <strong>{formatDate(access.validUntil)}</strong>. Ao
-                  final, a origem de acesso será reavaliada; nenhum trial adicional é presumido.
+                  final, a situação do acesso será atualizada; um novo período de avaliação não é iniciado automaticamente.
                 </Notice>
               ) : null}
               {access.reason === "read_only_access" ? (
                 <Notice>
-                  O período de transição terminou. O backend preserva leitura, exportação e
-                  gestão da conta, enquanto novos registros e demais recursos pagos ficam
-                  bloqueados até existir uma nova origem válida de acesso.
+                  O período de transição terminou. Você ainda pode consultar e exportar seus dados
+                  e gerenciar a conta. Novos registros e outros recursos pagos ficam bloqueados até
+                  que exista uma nova forma válida de acesso.
                 </Notice>
               ) : null}
               {sponsoredCoverage ? (
@@ -566,19 +565,19 @@ export default function BillingPage() {
                 <Notice>
                   {ownRenewalUnderCoverage.status === "requested" ||
                   ownRenewalUnderCoverage.status === "pending"
-                    ? "A cobertura profissional está sincronizando o cancelamento da próxima renovação da sua assinatura individual. O período individual já pago permanece válido até o vencimento."
+                    ? "A cobertura profissional está processando o cancelamento da próxima renovação da sua assinatura individual. O período individual já pago permanece válido até o vencimento."
                     : ownRenewalUnderCoverage.status === "confirmed"
-                      ? "A próxima renovação da sua assinatura individual foi cancelada após a confirmação da cobertura profissional. Se quiser manter a renovação individual, use a ação explícita abaixo quando o método permitir."
-                      : "Sua escolha de manter a renovação individual foi registrada; a cobertura profissional continua sendo a origem principal enquanto estiver válida."}
+                      ? "A próxima renovação da sua assinatura individual foi cancelada após a confirmação da cobertura profissional. Se quiser manter a renovação individual, use a ação abaixo quando ela estiver disponível."
+                      : "Sua escolha de manter a renovação individual foi registrada; a cobertura profissional continua sendo a forma principal de acesso enquanto estiver válida."}
                   {ownRenewalUnderCoverage.requiresNewPixAuthorization
-                    ? " Para Pix Automático, manter a renovação exige uma nova autorização segura; a tela não simula uma reativação local."
+                    ? " Para Pix Automático, manter a renovação exige uma nova autorização."
                     : ""}
                 </Notice>
               ) : null}
               {!access.sourceAvailable ? (
                 <div role="alert" className="rounded-xl border p-4 text-sm">
-                  A fonte comercial está temporariamente indisponível. Nenhuma
-                  liberação adicional será presumida por esta tela.
+                  Não foi possível confirmar as informações comerciais agora. Nenhum acesso
+                  adicional será liberado até que a situação seja atualizada.
                 </div>
               ) : null}
             </CardContent>
@@ -593,8 +592,8 @@ export default function BillingPage() {
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
               <p>
-                O retorno do navegador nunca ativa um plano. Somente a confirmação
-                financeira processada pelo backend altera seu acesso.
+                Voltar para esta tela após o pagamento não confirma sozinho a contratação.
+                Seu acesso é atualizado somente quando o pagamento é confirmado.
               </p>
               {!access.allowed ? (
                 <Button
@@ -671,16 +670,16 @@ export default function BillingPage() {
                       ? ` Primeira cobrança prevista para ${formatDate(lifecycle.firstChargeAt)}.`
                       : ""}
                     {lifecycle.trialCapacityLimit != null
-                      ? ` Durante o trial, a capacidade profissional é de ${lifecycle.trialCapacityLimit} pacientes.`
+                      ? ` Durante esse período, a capacidade profissional é de ${lifecycle.trialCapacityLimit} pacientes.`
                       : ""}
                   </Notice>
                 ) : null}
                 {actions.canActivateProfessionalTrialNow && lifecycle ? (
                   <Notice>
                     <p>
-                      Você pode antecipar o fim do trial. A versão, o ciclo e o preço atuais
-                      serão preservados; a capacidade integral só será liberada depois da
-                      confirmação financeira autoritativa.
+                      Você pode encerrar o período de avaliação antecipadamente. A versão, o ciclo
+                      e o preço atuais serão preservados; a capacidade integral será liberada depois
+                      que o pagamento for confirmado.
                     </p>
                     <Button
                       className="mt-3"
@@ -708,10 +707,10 @@ export default function BillingPage() {
                 ) : null}
                 {lifecycle?.state === "suspended" ? (
                   <Notice alert>
-                    Assinatura suspensa. Quando aplicável, a janela de recuperação de 30 dias
-                    termina em <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>. Funções de
-                    leitura e gestão preservadas pelo backend continuam disponíveis; recursos
-                    pagos permanecem bloqueados até recuperação confirmada.
+                    Assinatura suspensa. Quando aplicável, o prazo de recuperação de 30 dias
+                    termina em <strong>{formatDate(lifecycle.recoveryEndsAt)}</strong>. Algumas
+                    funções de consulta e gestão continuam disponíveis; os recursos pagos ficam
+                    bloqueados até a regularização ser confirmada.
                   </Notice>
                 ) : null}
                 {actions.canRegularize &&
@@ -728,21 +727,22 @@ export default function BillingPage() {
                         : "Regularizar cobrança"}
                     </Button>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      A ação abre a cobrança já existente no ambiente seguro do Asaas. O acesso
-                      só muda após confirmação financeira autoritativa.
+                      A ação abre a cobrança já existente no ambiente seguro de pagamento. Seu
+                      acesso será atualizado após a confirmação do pagamento.
                     </p>
                   </div>
                 ) : null}
                 {lifecycle?.state === "expired" ? (
                   <Notice>
-                    Esta assinatura encerrou. Uma nova contratação usa somente as ofertas
-                    efetivas retornadas pelo backend; pagamento tardio não promete reativação.
+                    Esta assinatura encerrou. Para voltar a ter acesso, escolha um dos planos
+                    disponíveis abaixo. Um pagamento feito após o encerramento não reativa
+                    automaticamente a assinatura.
                   </Notice>
                 ) : null}
                 {lifecycle?.reconciliationRequired ? (
                   <Notice alert>
-                    Há uma confirmação financeira em conciliação. Nenhum callback ou retorno
-                    do navegador será usado para liberar acesso enquanto o backend não resolver o estado.
+                    Estamos confirmando um pagamento. O acesso será atualizado assim que essa
+                    confirmação for concluída; não é necessário repetir o pagamento.
                   </Notice>
                 ) : null}
 
@@ -779,8 +779,8 @@ export default function BillingPage() {
                 {subscription.cancelAtPeriodEnd &&
                 management?.requiresNewPixAuthorizationForReactivation ? (
                   <Notice>
-                    A renovação Pix Automático cancelada exige uma nova autorização; ela não é
-                    simulada como uma reativação local.
+                    Para voltar a renovar com Pix Automático, você precisará fazer uma nova
+                    autorização do Pix.
                   </Notice>
                 ) : null}
               </div>
@@ -800,8 +800,8 @@ export default function BillingPage() {
                 Histórico da assinatura
               </CardTitle>
               <CardDescription>
-                Eventos comerciais sanitizados. Identificadores do provider e dados sensíveis
-                não são exibidos.
+                Aqui você acompanha as principais alterações da sua assinatura. Dados sensíveis
+                de pagamento não são exibidos.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -827,8 +827,8 @@ export default function BillingPage() {
                 Capacidade profissional
               </CardTitle>
               <CardDescription>
-                Seu uso pessoal não consome uma vaga de paciente. A situação abaixo vem do
-                mesmo contrato de capacidade usado pelo backend.
+                Seu uso pessoal não consome uma vaga de paciente. A capacidade abaixo mostra o
+                limite e a ocupação atuais da sua carteira.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -875,18 +875,18 @@ export default function BillingPage() {
                       ) : null}
                       {professionalCapacity.excess > 0 ? (
                         <p className="mt-2">
-                          As alternativas são redução natural da carteira, upgrade para oferta
-                          compatível ou contato administrativo/comercial. Uma extensão só é
-                          apresentada quando confirmada pelo backend.
+                          As alternativas são reduzir naturalmente a carteira, mudar para um plano
+                          com maior capacidade ou falar com o atendimento administrativo/comercial.
+                          Uma extensão só aparece aqui depois de aprovada.
                         </p>
                       ) : null}
                     </Notice>
                   ) : null}
                   {professionalCapacity.warningMilestones.length ? (
                     <div className="rounded-xl border p-4">
-                      <h3 className="font-medium">Marcos da capacidade temporária</h3>
+                      <h3 className="font-medium">Datas importantes da capacidade temporária</h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Os mesmos marcos canônicos usados nas comunicações são mostrados aqui.
+                        Acompanhe abaixo as principais datas desse período.
                       </p>
                       <ol className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {professionalCapacity.warningMilestones.map(milestone => (
@@ -896,7 +896,7 @@ export default function BillingPage() {
                             </span>
                             <span className="block text-muted-foreground">
                               {formatDate(milestone.dueAt)} ·{" "}
-                              {milestone.reached ? "marco atingido" : "marco futuro"}
+                              {milestone.reached ? "data atingida" : "data futura"}
                             </span>
                           </li>
                         ))}
@@ -905,15 +905,16 @@ export default function BillingPage() {
                   ) : null}
                   {professionalCapacity.commercialAnalysisRequired ? (
                     <Notice alert>
-                      Nenhum plano público atual comporta toda a carteira. O caso está em
-                      análise administrativa/comercial. Isso não cria automaticamente um plano,
-                      não altera preço e não remove pacientes.
+                      Nenhum plano disponível atualmente comporta toda a carteira. O caso está em
+                      análise administrativa/comercial. A análise não altera automaticamente o plano,
+                      o preço ou os pacientes da carteira.
                     </Notice>
                   ) : null}
                 </>
               ) : (
                 <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-                  A capacidade ainda está sendo reconciliada pelo backend. Nenhum limite temporário será inferido pela interface e novas inclusões não devem ser liberadas por esta ausência de dados.
+                  Não foi possível confirmar a capacidade da sua carteira agora. Até a atualização,
+                  novas inclusões ficam temporariamente indisponíveis.
                 </div>
               )}
             </CardContent>
@@ -926,9 +927,9 @@ export default function BillingPage() {
               Compare os planos disponíveis
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Preços, ciclos, capacidade e meios de pagamento abaixo vêm do catálogo
-              efetivo do backend. Planos profissionais incluem recursos pessoais e
-              profissionais na mesma assinatura; Plus difere pela capacidade retornada.
+              Os planos abaixo mostram os preços, formas de pagamento e limites disponíveis para
+              sua conta. Planos profissionais incluem recursos pessoais e profissionais na mesma
+              assinatura; a capacidade varia conforme o plano escolhido.
             </p>
           </div>
 
@@ -986,7 +987,7 @@ export default function BillingPage() {
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-              Não há ofertas efetivas disponíveis para contratação neste momento.
+              Não há planos disponíveis para contratação neste momento.
             </div>
           )}
         </section>
@@ -997,7 +998,7 @@ export default function BillingPage() {
               <CardTitle>Confirmar contratação</CardTitle>
               <CardDescription>
                 Revise plano, versão, ciclo, valor, recursos e forma de pagamento antes de seguir
-                para o ambiente seguro do provedor.
+                para o ambiente seguro de pagamento.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1077,14 +1078,15 @@ export default function BillingPage() {
                     <span className="text-sm">
                       <strong>Solicitar período de avaliação.</strong>{" "}
                       {selectedPlan.audience === "professional"
-                        ? "O trial profissional dura 14 dias e começa com capacidade de 5 pacientes."
-                        : "O trial individual dura 7 dias."}{" "}
-                      Se o cadastro do cartão e o início do trial forem concluídos hoje, a primeira
-                      cobrança é estimada para {estimatedTrialFirstChargeDate(selectedPlan.audience)};
-                      o backend/provider confirmará a data efetiva. Você pode cancelar a próxima
-                      renovação durante o trial antes da primeira cobrança sem cobrança do plano.
-                      Se houver cupom, o desconto começa na primeira cobrança efetiva. A elegibilidade
-                      final também depende da identidade e do cartão verificados no ambiente seguro.
+                        ? "O período de avaliação profissional dura 14 dias e começa com capacidade de 5 pacientes."
+                        : "O período de avaliação individual dura 7 dias."}{" "}
+                      Se o cadastro do cartão e o início do período de avaliação forem concluídos hoje,
+                      a primeira cobrança é estimada para {estimatedTrialFirstChargeDate(selectedPlan.audience)}.
+                      A data exata será confirmada ao concluir o cadastro do pagamento. Você pode cancelar
+                      a próxima renovação durante o período de avaliação, antes da primeira cobrança, sem
+                      cobrança do plano. Se houver cupom, o desconto começa na primeira cobrança aplicável.
+                      A disponibilidade final do período de avaliação também depende da validação dos dados
+                      informados no ambiente seguro de pagamento.
                     </span>
                   </label>
                 ) : (
@@ -1102,9 +1104,9 @@ export default function BillingPage() {
                     className="mt-1"
                   />
                   <span className="text-sm">
-                    <strong>Confirmo a contratação paga sem trial.</strong> O Pix Automático
-                    não inicia período de avaliação. A autorização do Pix, sozinha, também não
-                    ativa o plano; a confirmação financeira ainda precisa chegar ao backend.
+                    <strong>Confirmo a contratação paga sem período de avaliação.</strong> O Pix Automático
+                    não inicia período de avaliação. A autorização do Pix, sozinha, também não ativa o plano;
+                    o acesso será liberado após a confirmação do pagamento.
                   </span>
                 </label>
               )}
@@ -1177,8 +1179,8 @@ export default function BillingPage() {
                 <div className="rounded-xl border p-4" role="status" aria-live="polite">
                   <p className="font-medium">Autorização Pix iniciada</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Use o código abaixo no fluxo compatível do seu banco. Seu plano permanece
-                    pendente até confirmação financeira.
+                    Use o código abaixo no aplicativo do seu banco. Seu plano será ativado após a
+                    confirmação do pagamento.
                   </p>
                   <code className="mt-3 block break-all rounded bg-muted p-3 text-xs">
                     {checkout.data.flow.qrCodePayload}
@@ -1208,9 +1210,9 @@ export default function BillingPage() {
         <div className="flex items-start gap-3 rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
           <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            A tela não presume ativação por callback, não oferece boleto ou Pix manual e
-            não cria preços, capacidades ou meios de pagamento fora do catálogo retornado
-            pelo backend.
+            O plano só é ativado após a confirmação do pagamento. As opções mostradas nesta página
+            são as disponíveis para sua conta neste momento. Boleto e Pix manual não estão disponíveis
+            nesta contratação.
           </p>
         </div>
       </div>

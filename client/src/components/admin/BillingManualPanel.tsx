@@ -13,7 +13,7 @@ const accessReasons = [
   "Liberação administrativa",
   "Cobertura profissional",
   "Assinatura ativa",
-  "Trial ativo",
+  "Período de avaliação ativo",
   "Período de transição",
   "Somente leitura",
   "Acesso aberto",
@@ -29,8 +29,8 @@ const quickReference = [
   ["Reprocessar WhatsApp ou e-mail", "Comercial"],
   ["Acompanhar receita, custos e cobertura", "Governança"],
   ["Conceder franquia temporária", "Governança"],
-  ["Investigar possível abuso ou registrar legal hold", "Governança"],
-  ["Controlar coortes, gates, pausas e rollback", "Rollout"],
+  ["Investigar possível abuso ou registrar retenção legal", "Governança"],
+  ["Controlar grupos, decisões de avanço, pausas e reversões", "Implantação"],
 ];
 
 export default function BillingManualPanel() {
@@ -45,7 +45,7 @@ export default function BillingManualPanel() {
                 Manual de utilização
               </CardTitle>
               <CardDescription>
-                Consulte aqui como operar planos, acessos, catálogo, campanhas, governança e rollout.
+                Consulte aqui como operar planos, acessos, catálogo, campanhas, governança e implantação gradual.
                 Este conteúdo acompanha as funcionalidades disponibilizadas nesta tela.
               </CardDescription>
             </div>
@@ -56,17 +56,17 @@ export default function BillingManualPanel() {
           <div className="rounded-xl border bg-muted/20 p-4">
             <p className="font-medium">Regra principal</p>
             <p className="mt-1 text-muted-foreground">
-              Liberações administrativas, franquias temporárias e controles de rollout não criam
+              Liberações administrativas, franquias temporárias e controles de implantação não criam
               cobrança nem assinatura. Use cada função somente para a finalidade indicada no manual.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {[
               ["Visão geral", "Acompanhar situação comercial e receita estimada."],
-              ["Acessos", "Consultar elegibilidade e administrar exceções."],
-              ["Comercial", "Gerenciar catálogo, cupons e comunicações."],
+              ["Acessos", "Consultar a forma de acesso e administrar exceções."],
+              ["Comercial", "Gerenciar planos, cupons e comunicações."],
               ["Governança", "Analisar economia, uso e exceções operacionais."],
-              ["Rollout", "Controlar implantação comercial progressiva."],
+              ["Implantação", "Controlar a aplicação gradual das regras comerciais."],
             ].map(([title, description]) => (
               <div key={title} className="rounded-xl border p-3">
                 <p className="font-medium">{title}</p>
@@ -79,36 +79,36 @@ export default function BillingManualPanel() {
 
       <ManualSection title="1. Visão geral" summary="Indicadores de contratos, planos e receita recorrente.">
         <p>
-          A aba <strong>Visão geral</strong> é consultiva. No topo da página também aparecem os KPIs de
-          assinaturas ativas, inadimplentes, usuários sem origem comercial válida e liberações
+          A aba <strong>Visão geral</strong> é consultiva. No topo da página também aparecem os indicadores de
+          assinaturas ativas, inadimplentes, usuários sem acesso comercial válido e liberações
           administrativas ativas.
         </p>
         <div className="space-y-2">
           <h4 className="font-medium">Distribuição por plano e ciclo</h4>
           <p className="text-muted-foreground">
-            Para cada versão de plano, confira nome, versão comercial, ciclo, moeda, estado do catálogo,
-            assinaturas por status, beneficiários cobertos e capacidade ocupada.
+            Para cada versão de plano, confira nome, versão comercial, ciclo, moeda, disponibilidade para
+            contratação, assinaturas por situação, beneficiários cobertos e capacidade ocupada.
           </p>
         </div>
         <div className="space-y-2">
           <h4 className="font-medium">Receita recorrente estimada</h4>
           <p className="text-muted-foreground">
             O valor é um indicador operacional separado por moeda. Ele apoia o acompanhamento
-            administrativo e não substitui a conciliação financeira.
+            administrativo e não substitui o fechamento e a conferência financeira.
           </p>
         </div>
       </ManualSection>
 
-      <ManualSection title="2. Acessos" summary="Pesquisa de usuários, origem do acesso e liberações administrativas." open>
+      <ManualSection title="2. Acessos" summary="Pesquisa de usuários, forma de acesso e liberações administrativas." open>
         <div className="space-y-2">
           <h4 className="font-medium">Localizar um usuário</h4>
           <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
             <li>Pesquise por nome, e-mail ou telefone.</li>
-            <li>Se necessário, filtre pela origem do acesso.</li>
+            <li>Se necessário, filtre pela forma de acesso.</li>
             <li>Selecione o usuário para consultar sua situação e o histórico de liberações.</li>
           </ol>
           <p className="text-muted-foreground">
-            Origens disponíveis: {accessReasons.join(", ")}.
+            Formas de acesso disponíveis: {accessReasons.join(", ")}.
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export default function BillingManualPanel() {
         </div>
       </ManualSection>
 
-      <ManualSection title="3. Comercial" summary="Catálogo, versões, cupons, campanhas e entregas.">
+      <ManualSection title="3. Comercial" summary="Planos, versões, cupons, campanhas e entregas.">
         <div className="space-y-2">
           <h4 className="font-medium">Criar produto</h4>
           <p className="text-muted-foreground">
@@ -181,11 +181,11 @@ export default function BillingManualPanel() {
           <h4 className="font-medium">Campanhas e entregas</h4>
           <p className="text-muted-foreground">
             Use os filtros para localizar comunicações por campanha, versão, categoria, público, evento,
-            marco, canal e status. Cada item mantém separadas a central interna, e-mail, WhatsApp,
-            tentativas, retries e correlação com o fato original.
+            etapa, canal e situação. Cada item mantém separadas a central interna, e-mail, WhatsApp,
+            tentativas de envio, reprocessamentos e a referência do registro original.
           </p>
           <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-            <li><strong>Retry WhatsApp / Retry e-mail:</strong> exige motivo auditável.</li>
+            <li><strong>Reprocessar WhatsApp / Reprocessar e-mail:</strong> exige motivo registrado.</li>
             <li><strong>Pausar campanha:</strong> interrompe novas tentativas sem apagar o histórico.</li>
             <li><strong>Retomar campanha:</strong> volta a permitir novas entregas.</li>
             <li><strong>Reconhecer falha:</strong> atribui uma falha definitiva a um responsável administrativo.</li>
@@ -197,9 +197,9 @@ export default function BillingManualPanel() {
         <div className="space-y-2">
           <h4 className="font-medium">Economia e governança de uso</h4>
           <p className="text-muted-foreground">
-            A visão econômica apresenta competência, receita, descontos, refunds, impostos, receita líquida,
-            custo variável, índices, custo financeiro e cobertura. É uma visão gerencial e não substitui
-            escrituração contábil ou conciliação financeira.
+            A visão econômica apresenta competência, receita, descontos, reembolsos, estornos, impostos,
+            receita líquida, custo variável, índices, custo financeiro e cobertura. É uma visão gerencial e
+            não substitui escrituração contábil nem a conferência financeira.
           </p>
         </div>
 
@@ -230,53 +230,53 @@ export default function BillingManualPanel() {
         </div>
 
         <div className="space-y-2">
-          <h4 className="font-medium">Retenção e legal hold</h4>
+          <h4 className="font-medium">Retenção legal</h4>
           <p className="text-muted-foreground">
-            Legal hold impede a eliminação somente do escopo documentado. A administração pode registrar,
-            consultar e revogar holds, além de reprocessar retenção quando necessário. A revogação preserva
-            o histórico.
+            A retenção legal impede a eliminação somente dos dados associados ao usuário e ao motivo
+            documentados. A administração pode registrar, consultar e revogar retenções, além de reprocessar
+            a rotina de retenção quando necessário. A revogação preserva o histórico.
           </p>
         </div>
       </ManualSection>
 
-      <ManualSection title="5. Rollout" summary="Coortes, pausa, retomada, rollback, gates e incidentes.">
+      <ManualSection title="5. Implantação" summary="Grupos, pausa, retomada, reversões, decisões de avanço e incidentes.">
         <p className="text-muted-foreground">
-          O rollout é uma área operacional sensível e sua progressão é sempre manual. Nenhuma ação desta
-          aba cria cobrança ou assinatura.
+          A implantação gradual é uma área operacional sensível e sua progressão é sempre manual. Nenhuma
+          ação desta aba cria cobrança ou assinatura.
         </p>
 
         <div className="space-y-2">
-          <h4 className="font-medium">Congelar coorte</h4>
+          <h4 className="font-medium">Definir grupo da etapa</h4>
           <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
-            <li>Selecione a fase e o percentual.</li>
-            <li>Informe chave do snapshot, versão da regra e critério determinístico.</li>
-            <li>Informe os IDs candidatos e o motivo.</li>
-            <li>Clique em <strong>Congelar snapshot</strong>.</li>
+            <li>Selecione a etapa e o percentual.</li>
+            <li>Informe o identificador do grupo, a versão da regra e o critério de seleção.</li>
+            <li>Informe os IDs dos usuários candidatos e o motivo.</li>
+            <li>Clique em <strong>Registrar grupo</strong>.</li>
           </ol>
         </div>
 
         <div className="space-y-2">
-          <h4 className="font-medium">Pausar, retomar e registrar rollback</h4>
+          <h4 className="font-medium">Pausar, retomar e registrar reversão</h4>
           <p className="text-muted-foreground">
-            Pausa exige justificativa. Retomada e rollback exigem confirmação reforçada do administrador.
-            Essas ações preservam cobranças, assinaturas, estornos, cancelamentos, capacidade e demais fatos
-            legítimos já registrados.
+            A pausa exige justificativa. Retomada e reversão exigem confirmação reforçada do administrador.
+            Essas ações preservam cobranças, assinaturas, estornos, cancelamentos, capacidade e demais
+            registros legítimos já existentes.
           </p>
         </div>
 
         <div className="space-y-2">
-          <h4 className="font-medium">Gate manual da etapa</h4>
+          <h4 className="font-medium">Decisão manual de avanço</h4>
           <p className="text-muted-foreground">
             Registre a decisão de manter, avançar ou reprovar a etapa, identificando responsáveis de Produto,
-            Técnico, Billing, Suporte e administrador autorizador, além das métricas, evidências e motivo da
-            decisão.
+            Técnico, Financeiro/comercial, Suporte e administrador autorizador, além das métricas, evidências
+            e motivo da decisão.
           </p>
         </div>
 
         <div className="space-y-2">
           <h4 className="font-medium">Incidentes</h4>
           <p className="text-muted-foreground">
-            Registre tipo, severidade, causa e impacto. Incidentes relevantes podem impedir o avanço da fase
+            Registre tipo, severidade, causa e impacto. Incidentes relevantes podem impedir o avanço da etapa
             até a avaliação apropriada.
           </p>
         </div>
@@ -312,7 +312,7 @@ export default function BillingManualPanel() {
 
       <div className="rounded-xl border border-dashed p-4 text-sm leading-6 text-muted-foreground">
         Sempre registre motivos claros e específicos. Evite usar liberações, franquias, cupons ou controles
-        de rollout para simular pagamento, assinatura, cancelamento ou conciliação financeira.
+        de implantação para simular pagamento, assinatura, cancelamento ou conferência financeira.
       </div>
     </section>
   );

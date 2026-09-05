@@ -51,14 +51,14 @@ export default function BillingNotificationCenter() {
             Avisos sobre plano e acesso
           </h2>
           <CardDescription>
-            Este histórico é a fonte permanente das comunicações comerciais e financeiras da
-            sua conta. Ler um aviso não conclui a ação comercial correspondente.
+            Aqui você acompanha os principais avisos comerciais e financeiros da sua conta.
+            Marcar um aviso como lido não conclui a ação indicada nele.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {notifications.isLoading ? (
             <div role="status" aria-live="polite" className="rounded-xl border p-4 text-sm text-muted-foreground">
-              Carregando avisos do backend...
+              Carregando avisos...
             </div>
           ) : notifications.isError ? (
             <div role="alert" className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -98,8 +98,7 @@ export default function BillingNotificationCenter() {
                           <div>
                             <h3 className="font-semibold">{notification.title}</h3>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {notification.campaign} · {notification.campaignVersion} ·{" "}
-                              {formatDateTime(notification.effectiveAt)}
+                              {notification.campaign} · {formatDateTime(notification.effectiveAt)}
                             </p>
                           </div>
                         </div>
@@ -134,7 +133,7 @@ export default function BillingNotificationCenter() {
                         <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm" role="status">
                           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                           <p>
-                            O envio externo por {DELIVERY_LABELS[notification.deliveryChannel ?? ""] ?? "outro canal"} não foi confirmado. Este aviso continua disponível aqui e não precisa ser recriado.
+                            O envio por {DELIVERY_LABELS[notification.deliveryChannel ?? ""] ?? "outro canal"} não foi confirmado. Este aviso continua disponível aqui.
                           </p>
                         </div>
                       ) : null}
