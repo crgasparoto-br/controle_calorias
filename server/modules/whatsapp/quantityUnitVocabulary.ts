@@ -26,6 +26,38 @@ export const UNIT_WORDS = {
   porcoesPlain: "porcoes?|porcao",
 } as const;
 
+export const COUNT_WORD_VALUES = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+  sete: 7,
+  oito: 8,
+  nove: 9,
+  dez: 10,
+} as const;
+
+export const COUNT_WORD_PATTERN = "um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez";
+export const COUNTABLE_QUANTITY_PATTERN = `(?:\\d+(?:[,.]\\d+)?|${COUNT_WORD_PATTERN})`;
+
+export function parseCountableQuantity(value: string) {
+  const numeric = value.trim().replace(",", ".");
+  if (/^\d+(?:\.\d+)?$/.test(numeric)) {
+    const parsed = Number(numeric);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase() as keyof typeof COUNT_WORD_VALUES;
+  return COUNT_WORD_VALUES[normalized] ?? null;
+}
+
 export type UnitWordKey = keyof typeof UNIT_WORDS;
 
 export function joinUnitWords(keys: readonly UnitWordKey[]) {

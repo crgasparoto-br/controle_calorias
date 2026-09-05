@@ -35,6 +35,7 @@ import {
 } from "./db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "./repositories/whatsappPendingOperationRepository";
 import { resolveWhatsAppPrecedenceGate } from "./modules/whatsapp/messageRouter";
+import { evaluateWhatsappIntentRoute } from "./modules/whatsapp/intentRouter";
 import {
   collapseWhitespace,
   extractWhatsAppWebhookMessages,
@@ -996,7 +997,8 @@ async function tryHandleTextIntent(
     // e entrega o texto já reescrito ao executeWhatsappTextIntent. Assim o
     // preflight interno dos consumidores diretos continua existindo, mas não
     // reexecuta a resolução neste caminho porque passa a receber gramas.
-    const countableGate = canonicalFoodAddition
+    const canonicalRoute = evaluateWhatsappIntentRoute({ text: textForIntent });
+    const countableGate = canonicalFoodAddition || canonicalRoute.action === "safe_non_food_response"
       ? null
       : await prepareWhatsappCountableFoodRegistration({
           userId,
@@ -1039,6 +1041,20 @@ async function tryHandleTextIntent(
       userId,
       { text: textForNutrition, receivedAt: occurredAt, userTimezone }
     );
+
+    // Uma resolução contável positiva já estabelece a intenção alimentar.
+    // O classificador contextual não pode rebaixar essa decisão determinística
+    // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
+    if (!result && hasCountableResolution && countableGate?.kind === "ready") {
+      if (countableResolutionPrefix) {
+        setWhatsAppDeferredLogicalReply(req, message.id, {
+          prefixBlocks: [countableResolutionPrefix],
+          domainLinks: [],
+        });
+      }
+      return { passthroughText: countableGate.registrationText };
+    }
+
     if (!result && shouldTryContextualLlmIntent(textForIntent)) {
       const llmResult = await executeWhatsappLlmIntent(userId, {
         text: textForIntent,
@@ -1099,16 +1115,6 @@ async function tryHandleTextIntent(
           passthroughText: fallbackGate.registrationText,
           intentHint: nutritionFallback.intentHint,
         };
-      }
-
-      if (hasCountableResolution && countableGate?.kind === "ready") {
-        if (countableResolutionPrefix) {
-          setWhatsAppDeferredLogicalReply(req, message.id, {
-            prefixBlocks: [countableResolutionPrefix],
-            domainLinks: [],
-          });
-        }
-        return { passthroughText: countableGate.registrationText };
       }
 
       const unknownFoodReply = buildUnknownFoodReply(text);

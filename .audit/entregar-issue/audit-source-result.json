@@ -1,24 +1,20 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "status": "rejected",
+  "rejection_id": "audit-rejection:ae5a0adf-a1a0-43c2-9c62-0ba88cafec17",
+  "head_sha": "a1d2625ae3196a3d79531f54da06994a9960e218",
   "mode": "independent",
-  "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
-  "head_sha": "eaa46ed7026586c798c51835a5ca49ee88ab5b2b",
-  "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue_number": 1043,
-  "pull_request_number": 1044,
+  "status": "rejected",
   "findings": [
     {
-      "id": "A-004",
-      "severity": "high",
+      "id": "A-002",
+      "title": "Item normativo desaparece da closure critica",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "requirement": "Duas ou mais referências verificadas materialmente conflitantes não podem ser reduzidas arbitrariamente à primeira referência disponível; devem seguir para clarificação.",
-      "summary": "O caminho exact_product selecionava exact[0] antes de verificar conflito material entre duas fontes independentes do mesmo produto."
+      "remediation_mode": "systemic-remediation",
+      "category": "delivery-not-saturated",
+      "reason": "control-propagation-gap"
     }
   ],
   "recommendations": []

@@ -9,15 +9,10 @@ import {
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
 import { findTacoFood } from "./tacoLookup";
-
-const WORD_COUNTS: Record<string, number> = {
-  um: 1,
-  uma: 1,
-  dois: 2,
-  duas: 2,
-  tres: 3,
-  três: 3,
-};
+import {
+  COUNTABLE_QUANTITY_PATTERN,
+  parseCountableQuantity,
+} from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
 export type CountableFoodQuantityRequest = {
@@ -44,13 +39,13 @@ function splitCountableFoodTextSegments(text: string) {
 }
 
 function parseBareCount(segment: string): CountableFoodQuantityRequest | null {
-  const match = segment.trim().match(/^(\d+(?:[,.]\d+)?|um|uma|dois|duas|tres|três)\s+(.+)$/iu);
+  const match = segment.trim().match(
+    new RegExp(`^(${COUNTABLE_QUANTITY_PATTERN})\\s+(.+)$`, "iu"),
+  );
   if (!match) return null;
-  const count = /^\d/u.test(match[1])
-    ? Number(match[1].replace(",", "."))
-    : WORD_COUNTS[match[1].toLowerCase()];
+  const count = parseCountableQuantity(match[1]);
   const foodName = match[2].trim();
-  if (!Number.isFinite(count) || count <= 0 || !foodName) return null;
+  if (!count || !foodName) return null;
   return { segment: segment.trim(), foodName, count, requestedUnit: "un" };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinUnitWords } from "./quantityUnitVocabulary";
+import { COUNTABLE_QUANTITY_PATTERN, joinUnitWords, parseCountableQuantity } from "./quantityUnitVocabulary";
 
 describe("joinUnitWords", () => {
   it("reconstrói o padrão original do mealCommandParser.ts", () => {
@@ -74,5 +74,27 @@ describe("joinUnitWords", () => {
   it("reconstrói o padrão original do parseQuantity do intentInterpreter.ts", () => {
     expect(joinUnitWords(["gramas", "quilosOnly", "mililitrosOnly", "litrosOnly", "fatias", "xicarasAccented", "copos", "unidades"]))
       .toBe("g|gr|gramas?|kg|ml|l|fatias?|x[ií]caras?|copos?|un|unidades?");
+  });
+});
+
+
+describe("vocabulário canônico de contagem", () => {
+  it.each([
+    ["1", 1],
+    ["1,5", 1.5],
+    ["um", 1],
+    ["uma", 1],
+    ["dois", 2],
+    ["duas", 2],
+    ["tres", 3],
+    ["três", 3],
+    ["dez", 10],
+  ])("normaliza %s para %s", (input, expected) => {
+    expect(parseCountableQuantity(input)).toBe(expected);
+  });
+
+  it("expõe um único padrão reutilizável para números e palavras", () => {
+    const pattern = new RegExp(`^${COUNTABLE_QUANTITY_PATTERN}$`, "iu");
+    expect(["1", "uma", "duas", "três", "dez"].every(value => pattern.test(value))).toBe(true);
   });
 });
