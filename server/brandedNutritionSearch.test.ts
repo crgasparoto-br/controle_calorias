@@ -99,6 +99,69 @@ describe("branded nutrition evidence consistency", () => {
     await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml")).resolves.toBeNull();
   });
 
+  it("mantém macros distintos para variantes diferentes da mesma marca", async () => {
+    const premiumEvidence = "2 fatias (50 g): 125 kcal, 3,9 g proteínas, 24 g carboidratos e 1,5 g gorduras.";
+    installExecution(providerResult({
+      matchedProductName: "Pão de Forma Panco Premium",
+      brandName: "Panco",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      calories: 125,
+      protein: 3.9,
+      carbs: 24,
+      fat: 1.5,
+      sourceUrl: "https://panco.example/premium",
+      evidence: premiumEvidence,
+    }), {
+      url: "https://panco.example/premium",
+      title: "Pão de Forma Panco Premium",
+      supportingText: [premiumEvidence],
+    });
+    const premium = await findBrandedNutritionByWebSearch("Pão de Forma Panco Premium 50g");
+
+    const integralEvidence = "2 fatias (50 g): 137 kcal, 5,5 g proteínas, 21 g carboidratos e 1,7 g gorduras.";
+    installExecution(providerResult({
+      matchedProductName: "Pão de Forma Panco Integral",
+      brandName: "Panco",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      calories: 137,
+      protein: 5.5,
+      carbs: 21,
+      fat: 1.7,
+      sourceUrl: "https://panco.example/integral",
+      evidence: integralEvidence,
+    }), {
+      url: "https://panco.example/integral",
+      title: "Pão de Forma Panco Integral",
+      supportingText: [integralEvidence],
+    });
+    const integral = await findBrandedNutritionByWebSearch("Pão de Forma Panco Integral 50g");
+
+    expect(premium).toEqual(expect.objectContaining({
+      brandName: "Panco",
+      calories: 125,
+      protein: 3.9,
+      variants: ["Pão de Forma Panco Premium"],
+    }));
+    expect(integral).toEqual(expect.objectContaining({
+      brandName: "Panco",
+      calories: 137,
+      protein: 5.5,
+      variants: ["Pão de Forma Panco Integral"],
+    }));
+    expect(premium?.calories).not.toBe(integral?.calories);
+  });
+
+  it("rejects a different product variant from the same brand", async () => {
+    installExecution(providerResult({
+      matchedProductName: "Cerveja Zero Marca Aurora Tradicional 330 ml",
+    }));
+
+    await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora Original 330 ml"))
+      .resolves.toBeNull();
+  });
+
   it("rejects grounding from another brand even when structured fields are coherent", async () => {
     installExecution(providerResult(), {
       url: "https://fabricante.example/marca-eclipse/cerveja-zero-330ml",
@@ -106,5 +169,76 @@ describe("branded nutrition evidence consistency", () => {
       supportingText: ["Marca Eclipse Cerveja Zero 330 ml: 100 kcal, 1 g proteínas, 8 g carboidratos e 0 g gorduras."],
     });
     await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml")).resolves.toBeNull();
+  });
+
+  it("reutiliza resultado persistido sem chamar o provider", async () => {
+    const cached = {
+      slug: "web-nutrition-panco-premium",
+      name: "Pão de Forma Panco Premium",
+      aliases: ["Panco Premium"],
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      calories: 125,
+      protein: 3.9,
+      carbs: 24,
+      fat: 1.5,
+      brandName: "Panco",
+      productVariant: "premium",
+      variants: ["Pão de Forma Panco Premium"],
+      sourceUrls: ["https://panco.example/premium"],
+      sourceEvidence: "2 fatias (50 g): 125 kcal.",
+      sourceVerifiedAt: new Date("2026-09-05T12:00:00.000Z"),
+      sourceConfidence: 0.95,
+      isBrandedProduct: true,
+    };
+    const findByIdentity = vi.fn(async () => cached);
+    const runtime = {
+      resolveCapabilityConfig: resolveCapabilityConfigMock,
+      executeResolvedCapability: executeResolvedCapabilityMock,
+      persistence: { findByIdentity, save: vi.fn() },
+    };
+
+    const result = await findBrandedNutritionByWebSearch("Pão de Forma Panco Premium 50g", runtime);
+
+    expect(result).toBe(cached);
+    expect(findByIdentity).toHaveBeenCalledWith("Pão de Forma Panco Premium 50g");
+    expect(executeResolvedCapabilityMock).not.toHaveBeenCalled();
+  });
+
+  it("salva somente o resultado validado com fonte e evidência", async () => {
+    installExecution(providerResult({
+      matchedProductName: "Pão de Forma Panco Premium",
+      brandName: "Panco",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      calories: 125,
+      protein: 3.9,
+      carbs: 24,
+      fat: 1.5,
+      sourceUrl: "https://panco.example/premium",
+      evidence: "2 fatias (50 g): 125 kcal, 3,9 g proteínas, 24 g carboidratos e 1,5 g gorduras.",
+    }), {
+      url: "https://panco.example/premium",
+      title: "Pão de Forma Panco Premium",
+      supportingText: ["2 fatias (50 g): 125 kcal, 3,9 g proteínas, 24 g carboidratos e 1,5 g gorduras."],
+    });
+    const save = vi.fn(async (_foodName: string, food: unknown) => food);
+    const runtime = {
+      resolveCapabilityConfig: resolveCapabilityConfigMock,
+      executeResolvedCapability: executeResolvedCapabilityMock,
+      persistence: { findByIdentity: vi.fn(async () => null), save },
+    };
+
+    await findBrandedNutritionByWebSearch("Pão de Forma Panco Premium 50g", runtime);
+
+    expect(save).toHaveBeenCalledWith(
+      "Pão de Forma Panco Premium 50g",
+      expect.objectContaining({
+        brandName: "Panco",
+        productVariant: "premium",
+        sourceUrls: ["https://panco.example/premium"],
+        sourceEvidence: expect.stringContaining("125 kcal"),
+      }),
+    );
   });
 });

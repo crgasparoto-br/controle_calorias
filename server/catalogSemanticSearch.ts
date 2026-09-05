@@ -6,6 +6,7 @@ import {
   resetEmbeddingCache as resetEmbeddingCacheCore,
 } from "./catalogSemanticSearchCore";
 import { findBrandedNutritionByWebSearch } from "./brandedNutritionSearch";
+import { getDefaultNutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
@@ -14,6 +15,7 @@ type SemanticSearchOptions = { searchSpecificProduct?: boolean; skipNutritionSea
 const brandedNutritionRuntime = {
   resolveCapabilityConfig,
   executeResolvedCapability,
+  persistence: getDefaultNutritionResearchPersistence(),
 };
 
 export async function findPackagedSnackByWebSearch(
@@ -31,13 +33,7 @@ export async function findCatalogFoodSemantic(
   options: SemanticSearchOptions = {},
 ): Promise<CatalogFood | null> {
   if (options.searchSpecificProduct && !options.skipNutritionSearch) {
-    const specific = await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
-    if (specific) return specific;
-
-    return findCatalogFoodSemanticCore(foodName, {
-      searchSpecificProduct: false,
-      skipNutritionSearch: true,
-    });
+    return findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
   }
 
   return findCatalogFoodSemanticCore(foodName, options);

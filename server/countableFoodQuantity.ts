@@ -1,4 +1,5 @@
 import { findCatalogFood } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "./householdMeasureResolution";
 import {
@@ -18,6 +19,7 @@ const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 export type CountableFoodQuantityRequest = {
   segment: string;
   foodName: string;
+  brand: string | null;
   count: number;
   requestedUnit: string;
 };
@@ -46,7 +48,7 @@ function parseBareCount(segment: string): CountableFoodQuantityRequest | null {
   const count = parseCountableQuantity(match[1]);
   const foodName = match[2].trim();
   if (!count || !foodName) return null;
-  return { segment: segment.trim(), foodName, count, requestedUnit: "un" };
+  return { segment: segment.trim(), foodName, brand: detectKnownBrand(foodName), count, requestedUnit: "un" };
 }
 
 export function parseCountableFoodQuantitySegment(
@@ -60,6 +62,7 @@ export function parseCountableFoodQuantitySegment(
     return {
       segment: segment.trim(),
       foodName: parsed.foodName,
+      brand: detectKnownBrand(parsed.foodName),
       count: parsed.quantity,
       requestedUnit: unit,
     };
@@ -122,6 +125,7 @@ export function resolveSafeCountableCatalogGrams(
   const request: CountableFoodQuantityRequest = {
     segment: foodName,
     foodName,
+    brand: detectKnownBrand(foodName),
     count,
     requestedUnit,
   };
@@ -205,6 +209,7 @@ export async function prepareCountableFoodRegistrationResolved(
     const resolved = await resolveHouseholdMeasure({
       userId,
       foodName: request.foodName,
+      brand: request.brand,
       quantity: request.count,
       unit: request.requestedUnit,
     });

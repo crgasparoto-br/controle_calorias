@@ -4,6 +4,7 @@ import {
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
 } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildCoffeeWithExplicitSugarItem,
   normalizeSweetenedCoffeeDraftItems,
@@ -16,8 +17,10 @@ import {
   applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
+  buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
+  isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
 import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
@@ -32,6 +35,7 @@ import {
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
+  CatalogFood,
   LlmItem,
   MealDraftItem,
   MealProcessingInput,
@@ -126,6 +130,13 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
+export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: string): LlmItem {
+  if (item.brand || !sourceText?.trim()) return item;
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
+  return sourceBrand ? { ...item, brand: sourceBrand } : item;
+}
+
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
@@ -164,38 +175,55 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
   return matchingSegments.length === 1 ? matchingSegments[0] : item.foodName;
 }
 
+function catalogMatchesExplicitBrand(item: LlmItem, catalog: CatalogFood) {
+  if (!item.brand) return true;
+  const requestedBrand = normalizeForMatching(item.brand).trim();
+  const candidateBrand = normalizeForMatching(catalog.brandName ?? "").trim();
+  return Boolean(requestedBrand && candidateBrand && requestedBrand === candidateBrand);
+}
+
+function isCatalogFoodNameIdentityMatch(catalog: CatalogFood, semanticSource: string) {
+  const normalizedSource = normalizeForMatching(semanticSource).trim();
+  if (!normalizedSource) return false;
+
+  return [catalog.name, ...catalog.aliases].some(
+    candidate => normalizeForMatching(candidate).trim() === normalizedSource,
+  );
+}
+
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
-  let genericFallback: ReturnType<typeof findCatalogFood>;
-
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
-    return catalog;
+    if (!catalogMatchesExplicitBrand(item, catalog)) continue;
+    return { catalog, isExactMatch: true };
   }
 
   for (const [index, candidate] of candidates.entries()) {
+    if (item.brand && index > 0) break;
     const catalog = await findCatalogFoodSemantic(candidate, {
       searchSpecificProduct: Boolean(item.brand) && index === 0,
       skipNutritionSearch: index > 0,
     }) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
-    return catalog;
+    if (!catalogMatchesExplicitBrand(item, catalog)) continue;
+    return { catalog, isExactMatch: isCatalogFoodNameIdentityMatch(catalog, semanticSource) };
   }
 
-  return genericFallback;
+  return { catalog: undefined, isExactMatch: false };
 }
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
+
+function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
+  if (!food?.isBrandedProduct) return false;
+  if (!food.researchIdentityKey) return true;
+
+  return isResearchVerifiedCatalogFood(food);
+}
+
 
 async function buildItemsFromInference(
   items: LlmItem[],
@@ -206,23 +234,37 @@ async function buildItemsFromInference(
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
-    const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
+    const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
+    const { catalog, isExactMatch } = await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
-    if (catalog && !options.preferInferredNutrition) {
-      results.push(buildItemFromCatalog(catalog, normalizedItem));
-    } else if (!hasUsableNutrition(normalizedItem)) {
+    const canUseCatalog = Boolean(
+      catalog
+      && (isExactMatch || resolvedItem.brand || hasUsableNutrition(resolvedItem))
+      && (
+        !options.preferInferredNutrition
+        || isVerifiedBrandedCatalogFood(catalog)
+        || (!catalog.isBrandedProduct && !options.nutritionLabelRead)
+      )
+    );
+    if (canUseCatalog && catalog) {
+      results.push(buildItemFromCatalog(catalog, resolvedItem));
+    } else if (!hasUsableNutrition(resolvedItem)) {
+      if (resolvedItem.brand && !catalog) {
+        results.push(buildUnresolvedBrandedNutritionItem(resolvedItem));
+        continue;
+      }
       const fallbackItem = sourceFoodName
-        ? { ...normalizedItem, foodName: sourceFoodName }
-        : normalizedItem;
+        ? { ...resolvedItem, foodName: sourceFoodName }
+        : resolvedItem;
       const result = buildEstimatedNutritionFallbackItem(fallbackItem, catalog);
       if (!catalog && isGenericNutritionFallbackItem(result)) {
         observeFallback?.("generic_nutrition_fallback");
       }
       results.push(result);
     } else {
-      results.push(buildHybridItem(normalizedItem));
+      results.push(buildHybridItem(resolvedItem));
     }
   }
   return results;
@@ -327,6 +369,21 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
   return null;
 }
 
+function reasoningMentionsNutritionLabel(reasoning?: string) {
+  if (!reasoning) return false;
+
+  const normalized = reasoning
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
+  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
+  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
+
+  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
+}
+
 function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
   if (!sourceText.trim()) return items;
 
@@ -340,21 +397,6 @@ function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: str
       foodName: formatFoodNameTitleCase(sourceFoodName),
     };
   });
-}
-
-function reasoningMentionsNutritionLabel(reasoning?: string) {
-  if (!reasoning) return false;
-
-  const normalized = reasoning
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
-  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
-  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
-
-  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
 }
 
 function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
@@ -436,10 +478,8 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
-          preferInferredNutrition: Boolean(
-            input.imageUrl
-            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(confirmedExtraction.reasoning))
-          ),
+          preferInferredNutrition: Boolean(input.imageUrl),
+          nutritionLabelRead: reasoningMentionsNutritionLabel(confirmedExtraction.reasoning),
           sourceText,
         },
         reason => fallbackReasons.observe(reason),

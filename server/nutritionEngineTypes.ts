@@ -8,8 +8,15 @@ export type CatalogFood = {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
   brandName?: string | null;
+  productVariant?: string | null;
   variants?: string[];
+  researchIdentityKey?: string | null;
+  sourceUrls?: string[];
+  sourceEvidence?: string | null;
+  sourceVerifiedAt?: Date | null;
+  sourceConfidence?: number | null;
   isBrandedProduct?: boolean;
 };
 
@@ -140,6 +147,8 @@ export type ExplicitQuantity = {
 
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
+  /** Indica que o modelo relatou ter lido valores de uma tabela/rótulo nutricional na imagem. */
+  nutritionLabelRead?: boolean;
   /** Texto/transcrição original usado para montar candidatos de busca mais específicos. */
   sourceText?: string;
 };

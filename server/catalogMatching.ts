@@ -1,30 +1,10 @@
 import { getCatalogCache } from "./catalogRuntime";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { detectKnownBrand } from "./foodBrandDetection";
 import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
-const KNOWN_BRANDS = [
-  "Nestlé",
-  "Nestle",
-  "Panco",
-  "Wickbold",
-  "Coca-Cola",
-  "Coca Cola",
-  "Molico",
-  "Polenghi",
-  "Danone",
-  "Italac",
-  "Piracanjuba",
-  "Growth",
-  "Catupiry",
-  "Elma Chips",
-  "Elma",
-  "Bauducco",
-  "Vigor",
-  "Tirolez",
-  "Qualy",
-];
 const CRITICAL_VARIATION_TERMS = [
   "zero lactose",
   "sem lactose",
@@ -95,11 +75,6 @@ const MATCHING_STOP_WORDS = new Set([
   "litro",
   "litros",
 ]);
-
-export function detectKnownBrand(value: string) {
-  const normalized = normalizeForMatching(value);
-  return KNOWN_BRANDS.find(brand => normalizedTokenIncludes(normalized, brand)) ?? null;
-}
 
 export function normalizeBrandName(value: string | null | undefined) {
   const cleaned = cleanFoodName(value ?? "");

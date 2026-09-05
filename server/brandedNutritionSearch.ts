@@ -4,6 +4,8 @@ import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { extractCommercialVariant, isCommercialProductIdentityCompatible } from "./commercialProductIdentity";
+import type { NutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
@@ -28,6 +30,7 @@ type CommercialMeasure = { kind: "mass" | "volume"; value: number };
 export type BrandedNutritionSearchRuntime = {
   resolveCapabilityConfig: typeof resolveCapabilityConfig;
   executeResolvedCapability: typeof executeResolvedCapability;
+  persistence?: NutritionResearchPersistence;
 };
 
 const defaultBrandedNutritionRuntime: BrandedNutritionSearchRuntime = {
@@ -122,6 +125,14 @@ function measuresContainAll(expected: CommercialMeasure[], actual: CommercialMea
 }
 
 function structuredIdentityIsCompatible(foodName: string, result: SearchedNutritionResult) {
+  if (!isCommercialProductIdentityCompatible({
+    foodName,
+    matchedProductName: result.matchedProductName,
+    brandName: result.brandName,
+    servingLabel: result.servingLabel,
+    gramsPerServing: result.gramsPerServing,
+  })) return false;
+
   const expectedBrandTokens = brandTokens(result.brandName);
   if (!expectedBrandTokens.length || !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
 
@@ -235,6 +246,12 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
     aliases: [foodName, result.matchedProductName.trim(), `fonte: ${sourceUrl}`],
+    productVariant: extractCommercialVariant(result.matchedProductName),
+    variants: [result.matchedProductName.trim()],
+    sourceUrls: [sourceUrl],
+    sourceEvidence: result.evidence.trim(),
+    sourceVerifiedAt: new Date(),
+    sourceConfidence: result.confidence,
     servingLabel: result.servingLabel.trim(),
     gramsPerServing: result.gramsPerServing,
     calories: result.calories,
@@ -250,6 +267,9 @@ export async function findBrandedNutritionByWebSearch(
   foodName: string,
   runtime: BrandedNutritionSearchRuntime = defaultBrandedNutritionRuntime,
 ): Promise<CatalogFood | null> {
+  const cached = await runtime.persistence?.findByIdentity(foodName);
+  if (cached) return cached;
+
   const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) return null;
   try {
@@ -290,7 +310,14 @@ export async function findBrandedNutritionByWebSearch(
         return { parsed: parseProviderOutput(response.outputText), webSearch: response.webSearch };
       },
     );
-    return toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch);
+    const candidate = toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch);
+    if (!candidate) return null;
+    if (!runtime.persistence) return candidate;
+    try {
+      return await runtime.persistence.save(foodName, candidate) ?? candidate;
+    } catch {
+      return candidate;
+    }
   } catch {
     return null;
   }

@@ -1,5 +1,6 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { detectKnownBrand, findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
+import { findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildPortionText,
   cleanFoodName,
@@ -56,6 +57,19 @@ export function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+export function isResearchVerifiedCatalogFood(food: CatalogFood | undefined) {
+  return Boolean(
+    food?.sourceUrls?.length
+    && food.sourceEvidence?.trim()
+    && food.sourceVerifiedAt
+  );
+}
+
+function preserveLeadingQuantity(sourceName: string, productName: string) {
+  const quantityMatch = sourceName.trim().match(/^(\d+(?:[,.]\d+)?)\s+/);
+  return quantityMatch ? `${quantityMatch[1]} ${productName}` : productName;
+}
+
 function formatRecognizedProductIdentity(foodName: string, brand: string | null) {
   const formattedFoodName = formatFoodNameTitleCase(foodName);
   if (!brand) return formattedFoodName;
@@ -88,8 +102,12 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   const brand = inferItemBrand(food, llmItem.foodName, llmItem.brand);
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
+  const recognizedProductName = food.isBrandedProduct && food.name && isResearchVerifiedCatalogFood(food)
+    ? preserveLeadingQuantity(llmItem.foodName, food.name)
+    : llmItem.foodName;
+
   return {
-    foodName: formatRecognizedProductIdentity(llmItem.foodName, brand),
+    foodName: formatRecognizedProductIdentity(recognizedProductName, brand),
     canonicalName: formatFoodNameTitleCase(food.name),
     brand,
     portionText,
@@ -136,6 +154,24 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
     confidence: clampConfidence(llmItem.confidence),
     source: "hybrid",
     classification: llmItem.foodClassification ?? null,
+  };
+}
+
+export function buildUnresolvedBrandedNutritionItem(llmItem: LlmItem): MealDraftItem {
+  const item = buildHybridItem({
+    ...llmItem,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+  });
+
+  return {
+    ...item,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: Math.min(item.confidence, 0.3),
+    source: "heuristic",
   };
 }
 

@@ -21,6 +21,7 @@ vi.mock("./catalogRuntime", async () => {
   const { FOOD_CATALOG_REFERENCE } = await import("./foodCatalogReference");
   return {
     getCatalogCache: () => FOOD_CATALOG_REFERENCE,
+    refreshCatalogCache: async () => undefined,
   };
 });
 

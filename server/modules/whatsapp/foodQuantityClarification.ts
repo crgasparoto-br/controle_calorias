@@ -118,6 +118,7 @@ export type ConfirmedTextMealPendingItem = {
   segmentIndex: number;
   segment: string;
   foodName: string;
+  brand?: string | null;
   count: number;
   requestedUnit: string;
 };
