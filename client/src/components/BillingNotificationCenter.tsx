@@ -98,8 +98,7 @@ export default function BillingNotificationCenter() {
                           <div>
                             <h3 className="font-semibold">{notification.title}</h3>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {notification.campaign} · {notification.campaignVersion} ·{" "}
-                              {formatDateTime(notification.effectiveAt)}
+                              {notification.campaign} · {formatDateTime(notification.effectiveAt)}
                             </p>
                           </div>
                         </div>
