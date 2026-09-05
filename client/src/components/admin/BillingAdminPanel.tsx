@@ -23,11 +23,11 @@ import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const ACCESS_REASON_OPTIONS = [
-  { value: "all", label: "Todas as origens" },
+  { value: "all", label: "Todas as formas de acesso" },
   { value: "admin_override", label: "Liberação administrativa" },
   { value: "sponsored_by_professional", label: "Cobertura profissional" },
   { value: "active_subscription", label: "Assinatura ativa" },
-  { value: "active_trial", label: "Trial ativo" },
+  { value: "active_trial", label: "Período de avaliação ativo" },
   { value: "transition_access", label: "Período de transição" },
   { value: "read_only_access", label: "Somente leitura" },
   { value: "free_access", label: "Acesso aberto" },
@@ -137,7 +137,7 @@ export default function BillingAdminPanel() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UsersRound className="h-5 w-5" />
-              Usuários e origem do acesso
+              Usuários e forma de acesso
             </CardTitle>
             <CardDescription>
               Pesquise por nome, e-mail ou telefone e confira por que o acesso está liberado ou bloqueado.
@@ -161,7 +161,7 @@ export default function BillingAdminPanel() {
                 onChange={event =>
                   setAccessReason(event.target.value as "all" | AccessReason)
                 }
-                aria-label="Filtrar pela origem do acesso"
+                aria-label="Filtrar pela forma de acesso"
               >
                 {ACCESS_REASON_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
