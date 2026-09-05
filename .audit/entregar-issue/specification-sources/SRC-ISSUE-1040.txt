@@ -1,0 +1,190 @@
+## Objetivo
+Melhorar a experiência de consulta dos registros antigos nas abas **Orientações** e **Anotações** de `/professional/patients/:patientId`, tornando o histórico mais fácil de localizar, percorrer e ler sem sobrecarregar a coluna lateral.
+
+Base de implementação: `develop`.
+
+`specification_version: 2`
+
+## Contexto
+As duas abas já preservam registros anteriores e usam paginação independente no workspace profissional.
+
+Na implementação atual:
+- **Orientações** mostra em uma coluna lateral chamada `Orientações registradas` o título, versão, conteúdo completo, autor e data de cada item;
+- **Anotações** mostra em uma coluna lateral chamada `Anotações anteriores` o conteúdo completo, autor e data de cada item;
+- ambas usam uma área com altura máxima e `overflow-y-auto`, além de paginação com limite de 20 registros;
+- os controles `Anterior` e `Próxima` só aparecem quando existe mais de uma página.
+
+O conteúdo está acessível, mas a experiência degrada quando existem muitos registros ou textos longos: a coluna lateral passa a concentrar blocos extensos, exige scroll interno e não oferece uma ação explícita para abrir um registro em uma área de leitura maior.
+
+O contrato atual de `professionalRecord.get` já retorna, para cada orientação da página, `id`, `version`, `title`, `content`, `visibility`, `deliveryStatus`, `authorName`, `supersedesGuidanceId` e `createdAt`; para cada anotação, já retorna `id`, `content`, `createdAt`, `updatedAt` e `authorName`. Portanto, esta melhoria não exige uma consulta individual por card para obter o conteúdo completo atualmente disponível.
+
+A aba **Metas** já adota uma apresentação histórica mais estruturada, com identificação clara do histórico, versão, autoria, vigência e conteúdo organizado. A solução desta issue deve manter coerência conceitual com esse padrão sem necessariamente reutilizar exatamente o mesmo componente.
+
+## Escopo
+- Reorganizar o histórico das abas **Orientações** e **Anotações** para favorecer descoberta e leitura.
+- Substituir cards laterais excessivamente longos por resumos compactos.
+- Adicionar ação explícita para visualizar o conteúdo completo de um registro.
+- Preservar o formulário/rascunho de nova orientação ou nova anotação enquanto o usuário consulta registros antigos.
+- Reutilizar o payload paginado atual de orientações e anotações como fonte do conteúdo histórico já disponível, evitando consulta individual por item sem necessidade.
+- Manter paginação para volumes maiores de registros.
+- Preservar regras atuais de autorização, privacidade, versionamento, acompanhamento e entrega.
+
+## Fora de escopo
+- Alterar a issue #1039 ou o comportamento de comparação das Avaliações.
+- Alterar o histórico de Metas, Mensagens, Relatórios ou a Linha do tempo profissional.
+- Permitir edição silenciosa de orientações já registradas.
+- Permitir edição de anotações antigas.
+- Alterar regras de visibilidade das anotações privadas.
+- Alterar regras de entrega de orientações ao paciente.
+- Alterar o modelo de dados sem necessidade técnica comprovada.
+- Criar endpoint/consulta por item apenas para reler conteúdo que já está presente no payload paginado atual.
+- Tornar Orientações ou Anotações novamente acessíveis quando o acompanhamento estiver `ended`; deve permanecer o contrato canônico em que somente Mensagens e Histórico ficam disponíveis.
+
+## Requisitos funcionais
+
+### 1. Padrão de histórico
+Nas duas abas, apresentar uma área explicitamente identificada como histórico:
+
+- **Histórico de orientações**;
+- **Histórico de anotações**.
+
+O histórico deve funcionar como mecanismo de seleção e consulta, e não como área principal para exibir vários textos completos simultaneamente.
+
+### 2. Histórico de orientações
+Cada orientação listada deve apresentar de forma compacta, no mínimo:
+- título;
+- versão;
+- data;
+- autor/profissional;
+- estado de entrega derivado do `deliveryStatus` já disponível no contrato atual, com rótulo legível para o usuário;
+- trecho inicial do conteúdo, limitado visualmente;
+- ação **Visualizar orientação**.
+
+Ao selecionar **Visualizar orientação**:
+- mostrar o conteúdo completo em área de leitura com largura adequada;
+- preservar título, versão, autoria, data e estado de entrega;
+- manter o registro em modo somente leitura;
+- não apresentar ação que sobrescreva silenciosamente a orientação histórica.
+
+`visibility` e `supersedesGuidanceId` já existem no contrato atual e devem permanecer preservados pelo fluxo. Se a interface apresentar a relação de supersessão, ela deve usar os dados já disponíveis sem criar nova regra de versionamento ou consulta N+1 apenas para enriquecer o card.
+
+### 3. Histórico de anotações
+Cada anotação listada deve apresentar de forma compacta, no mínimo:
+- data;
+- autor/profissional;
+- trecho inicial de 2 a 3 linhas ou truncamento visual equivalente;
+- ação **Visualizar anotação**.
+
+Ao selecionar **Visualizar anotação**:
+- mostrar o conteúdo completo em área de leitura adequada;
+- manter o registro em modo somente leitura;
+- preservar a indicação de que se trata de conteúdo privado do profissional.
+
+### 4. Relação com o formulário de novo registro
+A consulta de registros antigos não deve substituir nem limpar o formulário de:
+- **Nova orientação ao paciente**;
+- **Nova anotação privada**.
+
+Abrir, trocar ou fechar uma orientação/anotação histórica deve preservar qualquer rascunho já digitado.
+
+A proteção existente contra perda de alterações não salvas deve continuar funcionando.
+
+### 5. Layout desktop
+Em desktop, priorizar uma composição que permita:
+- histórico compacto como seletor;
+- área principal de criação do novo registro;
+- visualização do item histórico selecionado em espaço de leitura confortável.
+
+Não é necessário adotar comparação lado a lado campo a campo como na Avaliação. Para Orientações e Anotações, a prioridade é leitura clara do registro selecionado.
+
+A implementação pode usar painel, drawer, área expansível ou composição equivalente desde que:
+- o conteúdo completo não permaneça comprimido em uma coluna lateral estreita;
+- o rascunho do novo registro permaneça preservado;
+- abrir e fechar o histórico seja uma ação explícita.
+
+### 6. Layout responsivo
+Em viewport estreito:
+- evitar colunas comprimidas;
+- permitir visualizar o registro histórico em layout vertical;
+- manter legível o conteúdo longo;
+- manter acessível a ação para voltar/fechar a visualização e retornar ao novo registro.
+
+### 7. Paginação
+Manter a paginação independente já existente para Orientações e Anotações.
+
+Os controles `Anterior` e `Próxima` podem continuar ocultos quando houver apenas uma página, desde que cada registro visível possua ação explícita de visualização.
+
+Ao trocar de aba e retornar, preservar o comportamento atual de manter a página associada ao mesmo `authorizationId`/`patientId`.
+
+### 8. Autorização e estados do acompanhamento
+- `active`: histórico consultável e novo registro habilitado conforme regras atuais.
+- `paused`: históricos de Orientações e Anotações permanecem consultáveis nas respectivas abas, enquanto novas intervenções permanecem bloqueadas.
+- `ended`: as rotas de Orientações e Anotações não devem montar seus históricos nem formulários; permanece o redirecionamento canônico para Histórico e o payload `professionalRecord.get` history-only sem `guidances`/`notes`.
+- autorização revogada: conteúdo previamente carregado deve ser limpo conforme o contrato atual de contexto/cache e não pode permanecer visível.
+
+## Estados e casos de borda
+- Sem registros: mostrar estado vazio claro e sem ação de visualização.
+- Um único registro: permitir consulta completa sem depender de paginação.
+- Conteúdo muito longo: não deixar o card de seleção crescer indefinidamente; o conteúdo integral deve ficar na visualização dedicada.
+- Campos de autoria/data ausentes: usar o fallback visual já adotado no workspace, como `Autoria não informada` / `Não informado`.
+- Acompanhamento pausado: manter consulta histórica disponível e bloquear novas intervenções conforme regra atual.
+- Acompanhamento encerrado: Orientações e Anotações permanecem indisponíveis como rotas individuais; somente a Linha do tempo profissional e Mensagens seguem consultáveis conforme contrato canônico.
+- Autorização revogada: manter o comportamento atual de bloqueio e limpeza de contexto sensível.
+
+## Critérios de aceite
+- [ ] As abas exibem títulos claros **Histórico de orientações** e **Histórico de anotações**.
+- [ ] Registros históricos são apresentados de forma compacta, sem exibir vários textos longos completos simultaneamente na coluna lateral.
+- [ ] Cada orientação possui ação explícita **Visualizar orientação** e mostra estado de entrega legível a partir do `deliveryStatus` já retornado pelo backend.
+- [ ] Cada anotação possui ação explícita **Visualizar anotação**.
+- [ ] O conteúdo completo do registro selecionado pode ser lido em área adequada e somente leitura.
+- [ ] A visualização histórica usa o próprio item do payload paginado atual e não dispara uma consulta individual por card para reler conteúdo já disponível.
+- [ ] A visualização histórica não oferece ação para sobrescrever registros anteriores.
+- [ ] O rascunho de nova orientação é preservado ao abrir, trocar e fechar registros históricos.
+- [ ] O rascunho de nova anotação é preservado ao abrir, trocar e fechar registros históricos.
+- [ ] Conteúdos longos permanecem utilizáveis em desktop e mobile.
+- [ ] A paginação continua funcionando quando houver mais registros do que o limite atual por página.
+- [ ] Um registro pode ser consultado normalmente mesmo quando há apenas uma página e os controles de paginação estão ocultos.
+- [ ] As regras de privacidade das anotações e de entrega/visibilidade das orientações permanecem inalteradas.
+- [ ] Em `paused`, os históricos continuam consultáveis sem habilitar nova intervenção.
+- [ ] Em `ended`, Orientações e Anotações continuam indisponíveis e o fluxo permanece restrito a Histórico/Mensagens conforme contrato atual.
+- [ ] Após revogação, conteúdo histórico previamente carregado não permanece renderizado.
+
+## Testes esperados
+- Testes de componente/rota para 0, 1, vários e mais de 20 registros em cada aba.
+- Teste com conteúdo longo garantindo truncamento no seletor e leitura integral na visualização.
+- Teste de orientação mostrando `deliveryStatus` com rótulo legível usando o payload já carregado.
+- Teste que detecte consulta individual/N+1 ao abrir registros cujo conteúdo já está no payload paginado.
+- Teste de abertura, troca e fechamento da visualização preservando o rascunho da nova orientação.
+- Teste de abertura, troca e fechamento da visualização preservando o rascunho da nova anotação.
+- Teste garantindo ausência de controles editáveis/salvamento no registro histórico.
+- Teste responsivo representativo para desktop e mobile.
+- Teste de acompanhamento pausado garantindo consulta histórica sem habilitar nova intervenção.
+- Teste de acompanhamento encerrado garantindo redirecionamento e ausência de orientações/anotações no contrato history-only.
+- Teste de revogação garantindo remoção do conteúdo histórico já carregado.
+
+## Invariantes estruturais
+- `must_behave`: selecionar orientação ou anotação deve abrir o conteúdo integral já retornado para aquele item sem alterar o rascunho do novo registro.
+- `must_not_behave`: orientação histórica não pode ser sobrescrita silenciosamente e anotação histórica não pode se tornar editável.
+- `must_reuse`: usar os itens paginados de `professionalRecord.get` como fonte do conteúdo histórico já disponível para Orientações e Anotações.
+- `must_not_depend_on`: abrir um item histórico não pode depender de uma consulta adicional apenas para recuperar `content`, autoria, data ou `deliveryStatus` que já estão no payload.
+- `must_be_single_source`: privacidade de anotações, visibilidade/entrega de orientações e estado do acompanhamento continuam governados pelos contratos canônicos existentes; a camada visual não cria regras paralelas.
+- `forbidden_implementation`: criar `fetch`/query por item ao clicar em **Visualizar** pode funcionar no caminho feliz, mas viola o contrato de reuso e pode introduzir N+1; o controle discriminante deve contar chamadas e provar que a abertura usa o payload já carregado.
+- `forbidden_implementation`: manter Orientações/Anotações acessíveis em `ended` pode aparentar preservar histórico, mas viola o contrato de navegação e backend; o controle é testar acesso direto às duas rotas e o payload history-only.
+
+## Impacto na documentação
+- Atualizar `docs/design-docs/professional-record-cycle.md` para registrar o padrão de histórico compacto + visualização dedicada de Orientações e Anotações, preservando privacidade, entrega, versionamento e paginação.
+- Atualizar `docs/testing/professional-workspace-routing.md` com regressões para truncamento/conteúdo integral, preservação de rascunho, paginação, responsividade, `paused`, `ended` e revogação.
+- Não alterar a regra documentada de que anotações são privadas e orientações são destinadas ao paciente.
+
+## Referências de implementação atual
+Arquivos principais:
+- `client/src/pages/professional/ProfessionalPatientWorkspace.tsx`
+  - `GuidanceSection`
+  - `NotesSection`
+  - `RecordCollectionPagination`
+- `server/modules/professionals/schemas.ts`
+- `server/modules/professionals/recordService.ts`
+- `client/src/components/ProfessionalOfficialGoalCard.tsx` como referência conceitual de histórico estruturado.
+
+Relacionada, mas fora do escopo desta issue:
+- #1039 — melhoria de consulta e comparação do histórico de avaliações profissionais.

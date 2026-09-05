@@ -15,6 +15,36 @@ import { toast } from "sonner";
 
 const FOOD_CATALOG_PAGE_SIZE = 25;
 
+const USER_ROLE_LABELS: Record<string, string> = {
+  admin: "Administrador",
+  user: "Usuário",
+  professional: "Profissional",
+};
+
+const LOG_STATUS_LABELS: Record<string, string> = {
+  success: "Concluído",
+  warning: "Atenção",
+  error: "Não concluído",
+};
+
+const LOG_ORIGIN_LABELS: Record<string, string> = {
+  web: "Aplicativo web",
+  whatsapp: "WhatsApp",
+  admin: "Administração",
+};
+
+const LOG_EVENT_LABELS: Record<string, string> = {
+  "whatsapp.access_token_updated": "Credencial do WhatsApp atualizada",
+  "whatsapp.connection_updated": "Vínculo do WhatsApp atualizado",
+  "whatsapp.idempotency.duplicate_detected": "Mensagem duplicada identificada",
+  "whatsapp.goal_history_unavailable": "Histórico de metas indisponível",
+  "quick_edit.token_invalid": "Link de edição rápida inválido",
+  "quick_edit.public_error_sanitized": "Falha tratada na edição rápida",
+  "meal.inference_fallback": "Análise de refeição concluída por alternativa",
+  "ai.inference_call": "Análise por inteligência artificial",
+  "foods.import_job_executed": "Importação da base alimentar",
+};
+
 type FoodCatalogItem = {
   id: number;
   scope: string;
@@ -99,7 +129,7 @@ export default function AdminPage() {
 
   const updateWhatsappToken = trpc.nutrition.admin.updateWhatsappToken.useMutation({
     onSuccess: async () => {
-      toast.success("Token do WhatsApp atualizado com sucesso.");
+      toast.success("Credencial do WhatsApp atualizada com sucesso.");
       setAccessToken("");
       await Promise.all([
         utils.nutrition.admin.overview.invalidate(),
@@ -108,7 +138,7 @@ export default function AdminPage() {
       ]);
     },
     onError: error => {
-      toast.error(error.message || "Não foi possível atualizar o token do WhatsApp agora.");
+      toast.error(error.message || "Não foi possível atualizar a credencial do WhatsApp agora.");
     },
   });
 
@@ -123,7 +153,7 @@ export default function AdminPage() {
     },
   }) ?? {
     isPending: false,
-    mutate: () => toast.error("A rotina de carga de alimentos não está disponível neste contexto."),
+    mutate: () => toast.error("A importação de alimentos não está disponível agora."),
   };
 
   async function handleRunCsvImport() {
@@ -165,13 +195,13 @@ export default function AdminPage() {
         <PageIntro
           eyebrow="Operação e segurança"
           title="Administração da plataforma"
-          description="Acompanhe o uso do sistema, revise perfis cadastrados, consulte a base alimentar e atualize a credencial do WhatsApp quando houver troca de token."
+          description="Acompanhe o uso do sistema, revise perfis cadastrados, consulte a base alimentar e atualize a credencial do WhatsApp quando ela precisar ser substituída."
           stats={(
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <IntroStat label="Usuários" value={formatCountPtBr(admin.data?.usage.usersCount ?? 0)} supporting="perfis conhecidos pela aplicação" />
               <IntroStat label="Refeições confirmadas" value={formatCountPtBr(admin.data?.usage.mealsCount ?? 0)} supporting="registros consolidados no sistema" />
-              <IntroStat label="WhatsApp" value={tokenStatus?.configured ? "Configurado" : "Pendente"} supporting={tokenStatus?.source === "database" ? "credencial salva no painel" : tokenStatus?.source === "environment" ? "credencial vinda das configurações do servidor" : "nenhuma credencial ativa"} />
-              <IntroStat label="Logs registrados" value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)} supporting={`${formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} análises pendentes`} />
+              <IntroStat label="WhatsApp" value={tokenStatus?.configured ? "Configurado" : "Pendente"} supporting={tokenStatus?.source === "database" ? "credencial salva no painel" : tokenStatus?.source === "environment" ? "credencial definida nas configurações do servidor" : "nenhuma credencial ativa"} />
+              <IntroStat label="Eventos operacionais" value={formatCountPtBr(admin.data?.usage.logsCount ?? 0)} supporting={`${formatCountPtBr(admin.data?.usage.pendingInferences ?? 0)} análises pendentes`} />
             </div>
           )}
         />
@@ -186,23 +216,23 @@ export default function AdminPage() {
             <div className="grid gap-6 xl:grid-cols-[1fr,1fr]">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" />Credenciais do WhatsApp</CardTitle>
-                  <CardDescription>Atualize o token de acesso usado pelo WhatsApp. O valor salvo fica protegido e aparece apenas mascarado nesta tela.</CardDescription>
+                  <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" />Credencial do WhatsApp</CardTitle>
+                  <CardDescription>Atualize a chave de acesso usada pelo WhatsApp. O valor salvo fica protegido e aparece apenas de forma mascarada nesta tela.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-3">
                     <StatusPill label="Configuração" value={tokenStatus?.configured ? "Configurado" : "Pendente"} tone={tokenStatus?.configured ? "success" : "warning"} />
-                    <StatusPill label="Origem ativa" value={tokenStatus?.source === "database" ? "Painel admin" : tokenStatus?.source === "environment" ? "Servidor" : "Não configurado"} tone={tokenStatus?.source === "database" ? "success" : tokenStatus?.source === "environment" ? "neutral" : "warning"} />
-                    <StatusPill label="Token mascarado" value={tokenStatus?.maskedValue || "Ainda não salvo"} tone="neutral" mono />
+                    <StatusPill label="Origem da credencial" value={tokenStatus?.source === "database" ? "Painel administrativo" : tokenStatus?.source === "environment" ? "Configuração do servidor" : "Não configurada"} tone={tokenStatus?.source === "database" ? "success" : tokenStatus?.source === "environment" ? "neutral" : "warning"} />
+                    <StatusPill label="Credencial protegida" value={tokenStatus?.maskedValue || "Ainda não salva"} tone="neutral" mono />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="admin-whatsapp-access-token">Token de acesso do WhatsApp</Label>
-                    <Input id="admin-whatsapp-access-token" type="password" autoComplete="off" value={accessToken} onChange={event => setAccessToken(event.target.value)} placeholder="Cole aqui o novo token de acesso" />
-                    <p className="text-sm leading-6 text-muted-foreground">Salve um novo token quando a credencial atual expirar, for revogada ou precisar ser substituída.</p>
+                    <Label htmlFor="admin-whatsapp-access-token">Chave de acesso do WhatsApp</Label>
+                    <Input id="admin-whatsapp-access-token" type="password" autoComplete="off" value={accessToken} onChange={event => setAccessToken(event.target.value)} placeholder="Cole aqui a nova chave de acesso" />
+                    <p className="text-sm leading-6 text-muted-foreground">Salve uma nova chave quando a credencial atual expirar, for revogada ou precisar ser substituída.</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-muted/20 p-4">
-                    <div className="space-y-1 text-sm text-muted-foreground"><p className="font-medium text-foreground">Atualização segura da credencial</p><p>Use este campo apenas quando você gerar um novo token na Meta. Depois de salvar, as mensagens passam a usar a nova credencial.</p></div>
-                    <Button className="gap-2" disabled={!canSaveToken} onClick={() => updateWhatsappToken.mutate({ accessToken })}><Save className="h-4 w-4" />{updateWhatsappToken.isPending ? "Salvando..." : "Salvar token"}</Button>
+                    <div className="space-y-1 text-sm text-muted-foreground"><p className="font-medium text-foreground">Atualização segura da credencial</p><p>Use este campo apenas quando você gerar uma nova chave de acesso na Meta. Depois de salvar, as mensagens passam a usar a nova credencial.</p></div>
+                    <Button className="gap-2" disabled={!canSaveToken} onClick={() => updateWhatsappToken.mutate({ accessToken })}><Save className="h-4 w-4" />{updateWhatsappToken.isPending ? "Salvando..." : "Salvar credencial"}</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -210,15 +240,15 @@ export default function AdminPage() {
               <Card className="border-0 shadow-sm">
                 <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" />Usuários e perfis</CardTitle><CardDescription>Lista resumida dos perfis cadastrados para acompanhamento administrativo.</CardDescription></CardHeader>
                 <CardContent className="space-y-3">
-                  {admin.data?.users.map(user => (<div key={user.id} className="rounded-2xl border bg-muted/20 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium tracking-tight">{user.name || "Usuário sem nome"}</p><p className="text-sm text-muted-foreground">{user.email || user.openId}</p></div><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge></div><p className="mt-3 text-xs text-muted-foreground">Último acesso: {new Date(user.lastSignedIn).toLocaleString("pt-BR")}</p></div>))}
+                  {admin.data?.users.map(user => (<div key={user.id} className="rounded-2xl border bg-muted/20 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium tracking-tight">{user.name || "Usuário sem nome"}</p><p className="text-sm text-muted-foreground">{user.email || `Identificador: ${user.openId}`}</p></div><Badge variant={user.role === "admin" ? "default" : "secondary"}>{roleLabel(user.role)}</Badge></div><p className="mt-3 text-xs text-muted-foreground">Último acesso: {new Date(user.lastSignedIn).toLocaleString("pt-BR")}</p></div>))}
                 </CardContent>
               </Card>
             </div>
 
             <Card className="border-0 shadow-sm">
-              <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" />Histórico de análises e mensagens</CardTitle><CardDescription>Acompanhe eventos recentes que ajudam a verificar se registros e respostas estão acontecendo como esperado.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" />Atividades recentes do sistema</CardTitle><CardDescription>Acompanhe eventos recentes para verificar se registros, análises e mensagens estão funcionando como esperado.</CardDescription></CardHeader>
               <CardContent className="space-y-3">
-                {admin.data?.recentInferenceLogs.length ? admin.data.recentInferenceLogs.map(log => (<div key={log.id} className="rounded-2xl border bg-background p-4 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium tracking-tight">{log.eventType}</p><p className="text-sm text-muted-foreground">{log.detail}</p></div><Badge className={log.status === "error" ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : log.status === "warning" ? "bg-amber-100 text-amber-700 hover:bg-amber-100" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"}>{log.status}</Badge></div><p className="mt-3 text-xs text-muted-foreground">{log.origin} · {new Date(log.createdAt).toLocaleString("pt-BR")}</p></div>)) : (<div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">Ainda não há registros administrativos disponíveis. Eles aparecerão conforme o app for usado.</div>)}
+                {admin.data?.recentInferenceLogs.length ? admin.data.recentInferenceLogs.map(log => (<div key={log.id} className="rounded-2xl border bg-background p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="font-medium tracking-tight">{logEventLabel(log.eventType)}</p><LogDetail detail={log.detail} /></div><Badge className={log.status === "error" ? "bg-rose-100 text-rose-700 hover:bg-rose-100" : log.status === "warning" ? "bg-amber-100 text-amber-700 hover:bg-amber-100" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"}>{LOG_STATUS_LABELS[log.status] ?? "Registrado"}</Badge></div><p className="mt-3 text-xs text-muted-foreground">{LOG_ORIGIN_LABELS[log.origin] ?? "Sistema"} · {new Date(log.createdAt).toLocaleString("pt-BR")}</p></div>)) : (<div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">Ainda não há atividades administrativas disponíveis. Elas aparecerão conforme o sistema for usado.</div>)}
               </CardContent>
             </Card>
           </TabsContent>
@@ -226,23 +256,23 @@ export default function AdminPage() {
           <TabsContent value="foods" className="space-y-6">
             <div className="grid gap-3 md:grid-cols-3">
               <IntroStat label="Itens carregados" value={formatCountPtBr(foodCatalogItems.length)} supporting="resultado atual da consulta" />
-              <IntroStat label="Globais" value={formatCountPtBr(globalFoodCount)} supporting="itens compartilhados pelo sistema" />
-              <IntroStat label="Personalizados/inativos" value={`${formatCountPtBr(customFoodCount)} / ${formatCountPtBr(inactiveFoodCount)}`} supporting="usuário / status não ativo" />
+              <IntroStat label="Compartilhados" value={formatCountPtBr(globalFoodCount)} supporting="itens disponíveis para todos os usuários" />
+              <IntroStat label="Personalizados / indisponíveis" value={`${formatCountPtBr(customFoodCount)} / ${formatCountPtBr(inactiveFoodCount)}`} supporting="itens do usuário / itens não disponíveis" />
             </div>
 
             <Card className="border-0 shadow-sm">
-              <CardHeader><CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-primary" />Cargas e atualizações da base alimentar</CardTitle><CardDescription>Execute o seed curado ou importe arquivos CSV TACO/TBCA selecionados do seu computador. A importação é idempotente por fonte, versão e código do alimento.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-primary" />Atualização da base alimentar</CardTitle><CardDescription>Carregue a base inicial ou importe arquivos CSV das fontes TACO e TBCA. A mesma fonte, versão e código podem ser processados novamente sem duplicar os registros.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr),minmax(0,1.2fr)]">
-                  <div className="space-y-3 rounded-2xl border bg-muted/20 p-4"><div className="space-y-1"><p className="font-medium tracking-tight">Seed curado Brasil</p><p className="text-sm leading-6 text-muted-foreground">Executa a base comum inicial versionada no repositório.</p></div><Button className="gap-2" disabled={runFoodImportJob.isPending} onClick={() => runFoodImportJob.mutate({ job: "seed_common_br" })}><PlayCircle className="h-4 w-4" />{runFoodImportJob.isPending ? "Executando..." : "Executar seed comum"}</Button></div>
-                  <div className="space-y-4 rounded-2xl border bg-muted/20 p-4"><div className="grid gap-3 lg:grid-cols-[180px,1fr,220px]"><div className="space-y-2"><Label htmlFor="admin-food-import-job">Tipo</Label><select id="admin-food-import-job" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={foodImportJob} onChange={event => setFoodImportJob(event.target.value as FoodImportJob)}><option value="import_taco">TACO CSV</option><option value="import_tbca">TBCA CSV</option></select></div><div className="space-y-2"><Label htmlFor="admin-food-import-file">Arquivo CSV</Label><Input id="admin-food-import-file" type="file" accept=".csv,text/csv" onChange={event => setFoodImportFile(event.target.files?.[0] ?? null)} /></div><div className="space-y-2"><Label htmlFor="admin-food-import-version">Versão da fonte</Label><Input id="admin-food-import-version" value={foodImportSourceVersion} onChange={event => setFoodImportSourceVersion(event.target.value)} placeholder="ex.: 2026-07" /></div></div><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{foodImportFile ? `Selecionado: ${foodImportFile.name}` : "Escolha o arquivo local para enviar e processar no servidor."}</p><Button variant="outline" className="gap-2" disabled={runFoodImportJob.isPending || !foodImportFile} onClick={handleRunCsvImport}><Upload className="h-4 w-4" />{runFoodImportJob.isPending ? "Importando..." : "Importar CSV"}</Button></div></div>
+                  <div className="space-y-3 rounded-2xl border bg-muted/20 p-4"><div className="space-y-1"><p className="font-medium tracking-tight">Base inicial do Brasil</p><p className="text-sm leading-6 text-muted-foreground">Carrega o conjunto inicial de alimentos brasileiros mantido pelo sistema.</p></div><Button className="gap-2" disabled={runFoodImportJob.isPending} onClick={() => runFoodImportJob.mutate({ job: "seed_common_br" })}><PlayCircle className="h-4 w-4" />{runFoodImportJob.isPending ? "Carregando..." : "Carregar base inicial"}</Button></div>
+                  <div className="space-y-4 rounded-2xl border bg-muted/20 p-4"><div className="grid gap-3 lg:grid-cols-[180px,1fr,220px]"><div className="space-y-2"><Label htmlFor="admin-food-import-job">Fonte</Label><select id="admin-food-import-job" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={foodImportJob} onChange={event => setFoodImportJob(event.target.value as FoodImportJob)}><option value="import_taco">TACO</option><option value="import_tbca">TBCA</option></select></div><div className="space-y-2"><Label htmlFor="admin-food-import-file">Arquivo CSV</Label><Input id="admin-food-import-file" type="file" accept=".csv,text/csv" onChange={event => setFoodImportFile(event.target.files?.[0] ?? null)} /></div><div className="space-y-2"><Label htmlFor="admin-food-import-version">Versão da fonte</Label><Input id="admin-food-import-version" value={foodImportSourceVersion} onChange={event => setFoodImportSourceVersion(event.target.value)} placeholder="ex.: 2026-07" /></div></div><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{foodImportFile ? `Selecionado: ${foodImportFile.name}` : "Escolha o arquivo que deseja importar."}</p><Button variant="outline" className="gap-2" disabled={runFoodImportJob.isPending || !foodImportFile} onClick={handleRunCsvImport}><Upload className="h-4 w-4" />{runFoodImportJob.isPending ? "Importando..." : "Importar arquivo"}</Button></div></div>
                 </div>
                 {foodImportReport ? <FoodImportReportSummary report={foodImportReport} /> : null}
               </CardContent>
             </Card>
 
             <Card className="border-0 shadow-sm">
-              <CardHeader><CardTitle className="flex items-center gap-2"><Database className="h-5 w-5 text-primary" />Base de alimentos usada pelo sistema</CardTitle><CardDescription>Consulte alimentos globais, personalizados e registros inativos usados nas buscas nutricionais. A consulta carrega até 500 itens e exibe 25 por página; use o filtro para localizar marcas, nomes, categorias ou alimentos específicos.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Database className="h-5 w-5 text-primary" />Base de alimentos usada pelo sistema</CardTitle><CardDescription>Consulte alimentos compartilhados, personalizados e indisponíveis usados nas buscas nutricionais. A consulta carrega até 500 itens e exibe 25 por página; use o filtro para localizar marcas, nomes, categorias ou alimentos específicos.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={foodCatalogQuery} onChange={event => setFoodCatalogQuery(event.target.value)} placeholder="Buscar na base: arroz, requeijão, catupiry, zero lactose..." /></div>
                 {foodCatalog.isLoading ? (<div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">Carregando base de alimentos...</div>) : foodCatalog.isError ? (<div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm leading-6 text-destructive">{foodCatalog.error?.message || "Não foi possível consultar a base de alimentos agora."}</div>) : foodCatalogItems.length ? (<div className="space-y-4"><FoodCatalogTable foods={paginatedFoodCatalogItems} /><div className="flex flex-col gap-3 rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><p>Exibindo {formatCountPtBr(foodCatalogPageStart)}-{formatCountPtBr(foodCatalogPageEnd)} de {formatCountPtBr(foodCatalogItems.length)} itens carregados.</p><div className="flex items-center gap-2"><Button variant="outline" size="sm" className="gap-2" disabled={foodCatalogPage <= 1} onClick={() => setFoodCatalogPage(page => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" />Anterior</Button><span className="min-w-[120px] text-center font-medium text-foreground">Página {foodCatalogPage} de {foodCatalogTotalPages}</span><Button variant="outline" size="sm" className="gap-2" disabled={foodCatalogPage >= foodCatalogTotalPages} onClick={() => setFoodCatalogPage(page => Math.min(foodCatalogTotalPages, page + 1))}>Próxima<ChevronRight className="h-4 w-4" /></Button></div></div></div>) : (<div className="rounded-2xl border border-dashed bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">Nenhum alimento encontrado nesta consulta. Tente buscar por outro nome, marca ou categoria.</div>)}
@@ -266,19 +296,43 @@ function StatusPill({ label, value, tone, mono = false }: { label: string; value
 
 function FoodImportReportSummary({ report }: { report: FoodImportReport }) {
   return (
-    <div className="rounded-2xl border bg-background p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium tracking-tight">Última execução: {report.sourceSlug}@{report.sourceVersion}</p><p className="text-sm text-muted-foreground">{formatCountPtBr(report.inserted)} inseridos · {formatCountPtBr(report.updated)} atualizados · {formatCountPtBr(report.ignored)} ignorados · {formatCountPtBr(report.aliasesInserted)} aliases · {formatCountPtBr(report.portionsInserted)} porções</p></div><Badge variant={report.errors.length ? "secondary" : "outline"}>{report.errors.length ? "Com alertas" : "Concluído"}</Badge></div>{report.possibleDuplicates.length ? <p className="mt-3 text-sm text-amber-700">{formatCountPtBr(report.possibleDuplicates.length)} possíveis duplicidades encontradas para revisão de curadoria.</p> : null}{report.errors.length ? <div className="mt-3 rounded-xl bg-destructive/5 p-3 text-sm text-destructive"><p className="font-medium">Erros/itens ignorados</p><ul className="mt-2 list-disc space-y-1 pl-5">{report.errors.slice(0, 5).map((error, index) => (<li key={`${error.sourceFoodCode ?? error.name ?? "erro"}-${index}`}>{error.sourceFoodCode || error.name || "Item"}: {error.reason}</li>))}</ul>{report.errors.length > 5 ? <p className="mt-2">Há mais erros no relatório completo do job.</p> : null}</div> : null}</div>
+    <div className="rounded-2xl border bg-background p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium tracking-tight">Fonte {report.sourceSlug.toUpperCase()} · versão {report.sourceVersion}</p><p className="text-sm text-muted-foreground">{formatCountPtBr(report.inserted)} inseridos · {formatCountPtBr(report.updated)} atualizados · {formatCountPtBr(report.ignored)} ignorados · {formatCountPtBr(report.aliasesInserted)} nomes alternativos · {formatCountPtBr(report.portionsInserted)} porções</p></div><Badge variant={report.errors.length ? "secondary" : "outline"}>{report.errors.length ? "Com alertas" : "Concluído"}</Badge></div>{report.possibleDuplicates.length ? <p className="mt-3 text-sm text-amber-700">{formatCountPtBr(report.possibleDuplicates.length)} possíveis duplicidades encontradas para revisão.</p> : null}{report.errors.length ? <div className="mt-3 rounded-xl bg-destructive/5 p-3 text-sm text-destructive"><p className="font-medium">Erros ou itens ignorados</p><ul className="mt-2 list-disc space-y-1 pl-5">{report.errors.slice(0, 5).map((error, index) => (<li key={`${error.sourceFoodCode ?? error.name ?? "erro"}-${index}`}>{error.sourceFoodCode || error.name || "Item"}: {error.reason}</li>))}</ul>{report.errors.length > 5 ? <p className="mt-2">Há mais erros no relatório completo do processamento.</p> : null}</div> : null}</div>
   );
 }
 
 function FoodCatalogTable({ foods }: { foods: FoodCatalogItem[] }) {
   return (
-    <div className="rounded-2xl border bg-background"><Table><TableHeader><TableRow><TableHead className="min-w-[260px]">Alimento</TableHead><TableHead>Origem</TableHead><TableHead>Status</TableHead><TableHead>Nutrientes / 100g</TableHead><TableHead>Uso</TableHead><TableHead className="text-right">ID</TableHead></TableRow></TableHeader><TableBody>{foods.map(food => (<TableRow key={food.id}><TableCell className="whitespace-normal align-top"><div className="space-y-2"><p className="font-medium leading-snug text-foreground">{food.name}</p><div className="flex flex-wrap gap-1.5">{food.brandName ? <Badge variant="secondary">{food.brandName}</Badge> : null}{food.category ? <Badge variant="outline">{food.category}</Badge> : null}</div></div></TableCell><TableCell className="max-w-[240px] whitespace-normal align-top text-sm text-muted-foreground"><p className="font-medium text-foreground">{food.source?.name || food.source?.slug || "personalizada/manual"}</p>{food.source?.foodCode ? <p className="text-xs">Código: {food.source.foodCode}</p> : null}{food.source?.version ? <p className="text-xs">Versão: {food.source.version}</p> : null}</TableCell><TableCell className="align-top"><div className="flex flex-wrap gap-1.5"><Badge variant={food.scope === "global" ? "default" : "secondary"}>{food.scope === "global" ? "Global" : "Usuário"}</Badge><Badge variant={food.status === "active" ? "outline" : "secondary"}>{formatFoodStatus(food.status)}</Badge></div></TableCell><TableCell className="align-top text-sm"><p>{formatNutritionValue(food.nutrientsPer100g.caloriesKcal)} kcal</p><p className="text-xs text-muted-foreground">P {formatNutritionValue(food.nutrientsPer100g.proteinGrams)}g · C {formatNutritionValue(food.nutrientsPer100g.carbsGrams)}g · G {formatNutritionValue(food.nutrientsPer100g.fatGrams)}g</p><p className="text-xs text-muted-foreground">Fibra {formatNullableNutritionValue(food.nutrientsPer100g.fiberGrams)}g · Sódio {formatNullableNutritionValue(food.nutrientsPer100g.sodiumMg)}mg</p></TableCell><TableCell className="align-top text-sm text-muted-foreground"><p>{food.userSignals.usageCount ? `${formatCountPtBr(food.userSignals.usageCount)} usos` : "sem uso recente"}</p>{food.userSignals.favorite ? <p className="text-xs text-foreground">Favorito</p> : null}{food.userSignals.lastUsedAt ? <p className="text-xs">Último: {new Date(food.userSignals.lastUsedAt).toLocaleDateString("pt-BR")}</p> : null}</TableCell><TableCell className="text-right align-top font-mono text-xs text-muted-foreground">#{food.id}</TableCell></TableRow>))}</TableBody></Table></div>
+    <div className="rounded-2xl border bg-background"><Table><TableHeader><TableRow><TableHead className="min-w-[260px]">Alimento</TableHead><TableHead>Origem</TableHead><TableHead>Situação</TableHead><TableHead>Nutrientes / 100g</TableHead><TableHead>Uso</TableHead><TableHead className="text-right">ID</TableHead></TableRow></TableHeader><TableBody>{foods.map(food => (<TableRow key={food.id}><TableCell className="whitespace-normal align-top"><div className="space-y-2"><p className="font-medium leading-snug text-foreground">{food.name}</p><div className="flex flex-wrap gap-1.5">{food.brandName ? <Badge variant="secondary">{food.brandName}</Badge> : null}{food.category ? <Badge variant="outline">{food.category}</Badge> : null}</div></div></TableCell><TableCell className="max-w-[240px] whitespace-normal align-top text-sm text-muted-foreground"><p className="font-medium text-foreground">{food.source?.name || food.source?.slug || "Cadastro manual"}</p>{food.source?.foodCode ? <p className="text-xs">Código: {food.source.foodCode}</p> : null}{food.source?.version ? <p className="text-xs">Versão: {food.source.version}</p> : null}</TableCell><TableCell className="align-top"><div className="flex flex-wrap gap-1.5"><Badge variant={food.scope === "global" ? "default" : "secondary"}>{food.scope === "global" ? "Compartilhado" : "Personalizado"}</Badge><Badge variant={food.status === "active" ? "outline" : "secondary"}>{formatFoodStatus(food.status)}</Badge></div></TableCell><TableCell className="align-top text-sm"><p>{formatNutritionValue(food.nutrientsPer100g.caloriesKcal)} kcal</p><p className="text-xs text-muted-foreground">P {formatNutritionValue(food.nutrientsPer100g.proteinGrams)}g · C {formatNutritionValue(food.nutrientsPer100g.carbsGrams)}g · G {formatNutritionValue(food.nutrientsPer100g.fatGrams)}g</p><p className="text-xs text-muted-foreground">Fibra {formatNullableNutritionValue(food.nutrientsPer100g.fiberGrams)}g · Sódio {formatNullableNutritionValue(food.nutrientsPer100g.sodiumMg)}mg</p></TableCell><TableCell className="align-top text-sm text-muted-foreground"><p>{food.userSignals.usageCount ? `${formatCountPtBr(food.userSignals.usageCount)} usos` : "Sem uso recente"}</p>{food.userSignals.favorite ? <p className="text-xs text-foreground">Favorito</p> : null}{food.userSignals.lastUsedAt ? <p className="text-xs">Último uso: {new Date(food.userSignals.lastUsedAt).toLocaleDateString("pt-BR")}</p> : null}</TableCell><TableCell className="text-right align-top font-mono text-xs text-muted-foreground">#{food.id}</TableCell></TableRow>))}</TableBody></Table></div>
   );
 }
 
+function LogDetail({ detail }: { detail: string }) {
+  const trimmed = detail.trim();
+  const isTechnicalPayload = trimmed.startsWith("{") || trimmed.startsWith("[");
+  if (!isTechnicalPayload) return <p className="text-sm text-muted-foreground">{detail}</p>;
+  return <details className="mt-1 text-sm text-muted-foreground"><summary className="cursor-pointer font-medium text-foreground">Ver detalhes técnicos</summary><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-muted/40 p-3 text-xs">{detail}</pre></details>;
+}
+
+function roleLabel(role: string) {
+  return USER_ROLE_LABELS[role] ?? "Usuário";
+}
+
+function logEventLabel(eventType: string) {
+  const exact = LOG_EVENT_LABELS[eventType];
+  if (exact) return exact;
+  if (eventType.startsWith("whatsapp.")) return "Evento do WhatsApp";
+  if (eventType.startsWith("quick_edit.")) return "Edição rápida";
+  if (eventType.startsWith("ai.") || eventType.includes("inference")) return "Análise por inteligência artificial";
+  if (eventType.startsWith("meal.")) return "Registro de refeição";
+  if (eventType.startsWith("water.")) return "Registro de água";
+  if (eventType.startsWith("exercise.")) return "Registro de exercício";
+  if (eventType.startsWith("foods.")) return "Base alimentar";
+  return "Evento do sistema";
+}
+
 function formatFoodStatus(status: FoodCatalogItem["status"]) {
-  if (status === "active") return "Ativo";
-  if (status === "deprecated") return "Inativo";
+  if (status === "active") return "Disponível";
+  if (status === "deprecated") return "Indisponível";
   return "Mesclado";
 }
 

@@ -1,0 +1,7 @@
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 12.358s
+
+OK
+READY: skill permanent assets are free of obvious issue-number coupling
+FOCUSED_AND_GENERICITY_EXIT_CODE:0

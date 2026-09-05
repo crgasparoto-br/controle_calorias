@@ -1,26 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
-  "base_sha": "5190f5cbbb957983a4bc949952b0bfa084c71761",
+  "material_head_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
+  "base_sha": "df0bc684029806191cbd3f5cd6db6b03ecc935cb",
   "evidence": [
     {
-      "evidence_id": "EVID-Q-1043",
+      "evidence_id": "EVID-1047-COUNTABLE",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
-      "sha256": "f82315850b423b15ab1c8f3b2c85b547bb586a8d172be6c243b393f96606b283",
-      "subject_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
+      "path": ".audit/entregar-issue/evidence/issue1047-exact-head-evidence.txt",
+      "sha256": "65236813a9fd381a4abbbdc2ff9c57d335b9180f6d736a15f526d28f0c1b1a50",
+      "subject_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
       "freshness_policy": "exact-material-head",
-      "producer": "Agent-first gate #6073 exact-head verification manifest plus exact-head test inventory",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-B-1043",
-      "kind": "behavioral",
-      "path": ".audit/entregar-issue/evidence/issue1043-exact-head-evidence.txt",
-      "sha256": "f82315850b423b15ab1c8f3b2c85b547bb586a8d172be6c243b393f96606b283",
-      "subject_sha": "1ff3813d91535c3dffdb75260d41a5a36e89a1fe",
-      "freshness_policy": "exact-material-head",
-      "producer": "Agent-first gate #6073 and WhatsApp context TiDB gate #2946",
+      "producer": "entregar-issue exact-head CI and regression evidence",
       "status": "passed"
     }
   ]

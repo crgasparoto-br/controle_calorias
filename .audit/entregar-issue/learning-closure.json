@@ -1,17 +1,1 @@
-{
-  "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
-    "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff",
-    "finding_ids": [
-      "A-004"
-    ]
-  },
-  "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The rejection exposed a local resolver branch ordering defect specific to same-rank exact_product evidence. The issue-level prevention and regression controls close the escape without evidence of a generalized controller or Skill defect."
-  },
-  "skill_changes": []
-}
+{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"learning-closure","compression":"gzip","encoded_size":1648,"encoded_sha256":"0762a830fb03f5e83e14741605d7145ed325e639f200eee3355edf1e67e537fd","decoded_size":3065,"decoded_sha256":"e5d5818b6cf66509178e5c5b32a5af0059e0618f7efdd2850ffa17ab421fadd6","parts":[{"path":"learning-closure.parts/part-000.b64","size":1648,"sha256":"0762a830fb03f5e83e14741605d7145ed325e639f200eee3355edf1e67e537fd"}]}

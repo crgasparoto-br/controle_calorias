@@ -1,0 +1,4 @@
+BLOCK: canonical specification candidates missing from closure: ['efd58d1c33b9d8ec3fc0dfc445f4e0fcedb66f003084306c1944c6a079ac34fa']
+BLOCK: requirement closure obligation count differs from canonical specification candidate count
+BLOCK: source SRC-ISSUE-1047 candidate_count differs from canonical extraction
+EXIT_CODE:2

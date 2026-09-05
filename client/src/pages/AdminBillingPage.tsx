@@ -28,7 +28,7 @@ const AREA_TABS: Array<{ value: BillingAdminArea; label: string }> = [
   { value: "access", label: "Acessos" },
   { value: "commercial", label: "Comercial" },
   { value: "governance", label: "Governança" },
-  { value: "rollout", label: "Rollout" },
+  { value: "rollout", label: "Implantação" },
   { value: "manual", label: "Manual" },
 ];
 
@@ -55,9 +55,9 @@ function BillingAdminKpis() {
         supporting="assinaturas com pagamento pendente"
       />
       <Kpi
-        label="Sem origem comercial válida"
+        label="Sem acesso comercial válido"
         value={formatMetric(analytics.data?.usersWithoutCommercialAccess, state)}
-        supporting="usuários sem acesso comercial vigente"
+        supporting="usuários sem uma forma de acesso comercial vigente"
       />
       <Kpi
         label="Liberações administrativas ativas"
@@ -88,7 +88,7 @@ export default function AdminBillingPage() {
         <PageIntro
           eyebrow="Administração comercial"
           title="Planos, assinaturas e acesso"
-          description="Acompanhe a situação comercial, gerencie acessos, catálogo, campanhas e controles de rollout. Liberações administrativas não criam cobrança nem assinatura."
+          description="Acompanhe a situação comercial, gerencie acessos, planos, campanhas, governança e a implantação gradual das regras comerciais. Liberações administrativas não criam cobrança nem assinatura."
           actions={
             <Button variant="outline" onClick={() => setLocation("/admin")}>
               <Settings className="h-4 w-4" />
