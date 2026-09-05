@@ -1,5 +1,6 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { detectKnownBrand, findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
+import { findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildPortionText,
   cleanFoodName,

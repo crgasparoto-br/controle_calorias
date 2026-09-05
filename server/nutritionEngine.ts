@@ -4,6 +4,7 @@ import {
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
 } from "./catalogMatching";
+import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildCoffeeWithExplicitSugarItem,
   normalizeSweetenedCoffeeDraftItems,
@@ -126,6 +127,13 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
+export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: string): LlmItem {
+  if (item.brand || !sourceText?.trim()) return item;
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
+  return sourceBrand ? { ...item, brand: sourceBrand } : item;
+}
+
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
@@ -206,23 +214,24 @@ async function buildItemsFromInference(
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
-    const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
+    const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
+    const catalog = await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
     if (catalog && !options.preferInferredNutrition) {
-      results.push(buildItemFromCatalog(catalog, normalizedItem));
-    } else if (!hasUsableNutrition(normalizedItem)) {
+      results.push(buildItemFromCatalog(catalog, resolvedItem));
+    } else if (!hasUsableNutrition(resolvedItem)) {
       const fallbackItem = sourceFoodName
-        ? { ...normalizedItem, foodName: sourceFoodName }
-        : normalizedItem;
+        ? { ...resolvedItem, foodName: sourceFoodName }
+        : resolvedItem;
       const result = buildEstimatedNutritionFallbackItem(fallbackItem, catalog);
       if (!catalog && isGenericNutritionFallbackItem(result)) {
         observeFallback?.("generic_nutrition_fallback");
       }
       results.push(result);
     } else {
-      results.push(buildHybridItem(normalizedItem));
+      results.push(buildHybridItem(resolvedItem));
     }
   }
   return results;

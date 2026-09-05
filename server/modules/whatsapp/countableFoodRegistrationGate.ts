@@ -43,6 +43,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       segmentIndex: item.segmentIndex,
       segment: item.segment,
       foodName: item.foodName,
+      brand: item.brand,
       count: item.count,
       requestedUnit: item.requestedUnit,
     })),
