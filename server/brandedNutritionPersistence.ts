@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { refreshCatalogCache } from "./catalogRuntime";
-import { getDb } from "./db";
 import type { CatalogFood } from "./nutritionEngineTypes";
 import {
   createDrizzleFoodCatalogRepository,
@@ -229,11 +228,22 @@ export function createNutritionResearchPersistence(
 
 let defaultPersistence: NutritionResearchPersistence | null = null;
 
+async function getDefaultDb() {
+  try {
+    const databaseModule = await import("./db");
+    if (typeof databaseModule.getDb !== "function") return null;
+    return await databaseModule.getDb();
+  } catch (error) {
+    console.warn("[NutritionResearch] database provider unavailable", error);
+    return null;
+  }
+}
+
 export function getDefaultNutritionResearchPersistence() {
   if (!defaultPersistence) {
     defaultPersistence = createNutritionResearchPersistence({
       repository: createDrizzleFoodCatalogRepository({
-        getDb,
+        getDb: getDefaultDb,
         onWarning: (scope, error) =>
           console.warn(`[NutritionResearch] ${scope}`, error),
       }),
