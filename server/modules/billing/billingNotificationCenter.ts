@@ -86,7 +86,7 @@ function commercialTransitionPresentation(
       title: "Seu período de transição começou",
       whatOccurred: `Seu acesso de transição foi registrado por 30 dias corridos e termina${endText}.`,
       expectedAction: "Conheça as opções disponíveis em Plano e acesso antes do encerramento do período.",
-      consequence: "A transição não cria assinatura nem cobrança automática; depois do prazo, o acesso seguirá somente as origens válidas confirmadas pelo backend.",
+      consequence: "A transição não cria assinatura nem cobrança automática. Depois do prazo, o acesso continuará apenas se houver uma assinatura, cobertura profissional ou outra forma válida de acesso.",
       support,
       actionHref: manage,
     };
@@ -97,7 +97,7 @@ function commercialTransitionPresentation(
       title: "Seu período de transição terminou",
       whatOccurred: `O período comercial de 30 dias chegou ao fim${endText}.`,
       expectedAction: "Consulte Plano e acesso para contratar uma opção quando quiser continuar com recursos pagos.",
-      consequence: "O encerramento preserva seus dados e não cria cobrança, assinatura ou checkout automaticamente.",
+      consequence: "O encerramento preserva seus dados e não cria cobrança nem inicia uma nova contratação automaticamente.",
       support,
       actionHref: manage,
     };
@@ -131,7 +131,7 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Período de avaliação",
         title: "Seu período de avaliação começou",
-        whatOccurred: "O período de avaliação foi registrado pelo backend.",
+        whatOccurred: "Seu período de avaliação foi iniciado.",
         expectedAction: "Confira a data final e os termos da primeira cobrança em Plano e acesso.",
         consequence: "Sem cancelamento antes do término aplicável, a continuidade segue os termos do plano contratado.",
         support,
@@ -141,7 +141,7 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Período de avaliação",
         title: "Seu período de avaliação está perto do fim",
-        whatOccurred: "O backend identificou a proximidade do encerramento do trial.",
+        whatOccurred: "Seu período de avaliação está próximo do fim.",
         expectedAction: "Revise sua assinatura antes da primeira cobrança se não quiser continuar.",
         consequence: "Se nenhuma ação for tomada, a cobrança seguirá os termos vigentes do contrato.",
         support,
@@ -151,9 +151,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Contratação",
         title: "Contratação aguardando confirmação",
-        whatOccurred: "A tentativa foi registrada, mas ainda depende de confirmação financeira autoritativa.",
-        expectedAction: "Aguarde a atualização do backend antes de repetir ou trocar a contratação.",
-        consequence: "O retorno do navegador, sozinho, não libera acesso nem confirma pagamento.",
+        whatOccurred: "A contratação foi iniciada, mas o pagamento ainda está aguardando confirmação.",
+        expectedAction: "Aguarde a atualização desta tela antes de tentar novamente.",
+        consequence: "O acesso só é liberado após a confirmação do pagamento.",
         support,
         actionHref: manage,
       };
@@ -161,9 +161,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Contratação",
         title: "Contratação confirmada",
-        whatOccurred: "A confirmação financeira foi recebida e processada pelo backend.",
+        whatOccurred: "O pagamento foi confirmado e a contratação foi concluída.",
         expectedAction: null,
-        consequence: "O acesso e a vigência passam a seguir o contrato confirmado.",
+        consequence: "O acesso e a vigência passam a seguir o plano contratado.",
         support,
         actionHref: null,
       };
@@ -171,8 +171,8 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Contratação",
         title: "Contratação não confirmada",
-        whatOccurred: "O backend recebeu uma recusa para a tentativa de contratação.",
-        expectedAction: "Revise a oferta e inicie uma nova tentativa somente quando estiver pronto.",
+        whatOccurred: "O pagamento não foi aprovado para esta tentativa de contratação.",
+        expectedAction: "Revise o plano e inicie uma nova tentativa quando quiser continuar.",
         consequence: "Nenhum acesso pago é ativado por uma tentativa recusada.",
         support,
         actionHref: manage,
@@ -181,9 +181,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Contratação",
         title: "Tentativa de contratação expirada",
-        whatOccurred: "A tentativa terminou sem confirmação financeira.",
+        whatOccurred: "A tentativa terminou sem confirmação do pagamento.",
         expectedAction: "Inicie uma nova contratação se ainda quiser o plano.",
-        consequence: "A tentativa expirada não ativa acesso nem gera promessa de cobrança futura.",
+        consequence: "A tentativa expirada não ativa acesso nem gera cobrança futura automaticamente.",
         support,
         actionHref: manage,
       };
@@ -191,9 +191,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Renovação",
         title: "Renovação confirmada",
-        whatOccurred: "O backend confirmou a renovação da assinatura para o novo período.",
+        whatOccurred: "A renovação da assinatura foi confirmada para o novo período.",
         expectedAction: null,
-        consequence: "A vigência e os recursos seguem o período renovado confirmado.",
+        consequence: "A vigência e os recursos seguem o período renovado.",
         support,
         actionHref: null,
       };
@@ -205,9 +205,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Regularização financeira",
         title: "Pagamento pendente",
-        whatOccurred: "O backend confirmou uma pendência financeira na assinatura.",
-        expectedAction: "Regularize a cobrança pelo fluxo seguro disponível em Plano e acesso.",
-        consequence: "A carência é temporária; sem regularização, a assinatura pode ser suspensa conforme a data exibida pelo backend.",
+        whatOccurred: "Há um pagamento pendente na assinatura.",
+        expectedAction: "Regularize a cobrança pela opção disponível em Plano e acesso.",
+        consequence: "A carência é temporária; sem regularização, a assinatura pode ser suspensa conforme a data exibida em Plano e acesso.",
         support,
         actionHref: manage,
       };
@@ -216,8 +216,8 @@ export function presentBillingFactAsNotification(input: {
         campaign: "Recuperação de assinatura",
         title: "Assinatura suspensa",
         whatOccurred: "A assinatura entrou no período de recuperação após a carência financeira.",
-        expectedAction: "Use somente a ação de recuperação disponibilizada pelo backend quando ela estiver habilitada.",
-        consequence: "Recursos pagos permanecem bloqueados; leitura, exportação e gestão continuam conforme a política de recuperação.",
+        expectedAction: "Use a ação de regularização em Plano e acesso quando ela estiver disponível.",
+        consequence: "Recursos pagos permanecem bloqueados; leitura, exportação e gestão continuam disponíveis conforme as regras de recuperação.",
         support,
         actionHref: manage,
       };
@@ -225,9 +225,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Recuperação de assinatura",
         title: "Assinatura recuperada",
-        whatOccurred: "A recuperação financeira foi confirmada pelo backend.",
+        whatOccurred: "O pagamento de regularização foi confirmado.",
         expectedAction: null,
-        consequence: "A vigência e os recursos voltam a seguir o estado confirmado da assinatura.",
+        consequence: "A vigência e os recursos voltam a seguir a assinatura ativa.",
         support,
         actionHref: null,
       };
@@ -235,9 +235,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Encerramento de assinatura",
         title: "Assinatura encerrada",
-        whatOccurred: "O ciclo de recuperação terminou sem uma origem comercial válida para manter a assinatura.",
+        whatOccurred: "O período de recuperação terminou e a assinatura foi encerrada.",
         expectedAction: "Faça uma nova contratação se quiser voltar aos recursos pagos.",
-        consequence: "Os dados da conta são preservados; novos registros pagos permanecem bloqueados até nova origem válida.",
+        consequence: "Os dados da conta são preservados; novos registros e demais recursos pagos permanecem bloqueados até uma nova contratação ou outra forma válida de acesso.",
         support,
         actionHref: manage,
       };
@@ -245,8 +245,8 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Renovação",
         title: "Cancelamento da renovação solicitado",
-        whatOccurred: "O backend registrou que a próxima renovação não deve continuar automaticamente.",
-        expectedAction: "Se mudar de ideia, use Reativar renovação somente quando essa ação estiver disponível para o método atual.",
+        whatOccurred: "Sua próxima renovação foi marcada para não continuar automaticamente.",
+        expectedAction: "Se mudar de ideia, use Reativar renovação quando essa ação estiver disponível para sua forma de pagamento.",
         consequence: "A vigência já paga continua até o fim do período confirmado.",
         support,
         actionHref: manage,
@@ -255,9 +255,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Renovação",
         title: "Renovação reativada",
-        whatOccurred: "O backend confirmou a reativação da próxima renovação.",
+        whatOccurred: "Sua próxima renovação foi reativada.",
         expectedAction: null,
-        consequence: "Plano, versão e preço permanecem os do contrato vigente até nova alteração autoritativa.",
+        consequence: "Plano, versão e preço permanecem os mesmos até uma nova alteração da assinatura.",
         support,
         actionHref: null,
       };
@@ -265,20 +265,20 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Renovação",
         title: "Cancelamento efetivado",
-        whatOccurred: "O cancelamento chegou à data efetiva registrada pelo backend.",
+        whatOccurred: "O cancelamento entrou em vigor na data prevista.",
         expectedAction: "Faça uma nova contratação se quiser retomar um plano pago.",
-        consequence: "Nenhuma renovação será presumida a partir deste aviso.",
+        consequence: "A assinatura não será renovada automaticamente a partir deste aviso.",
         support,
         actionHref: manage,
       };
     case "late_payment_reconciliation_required":
     case "financial_reconciliation_required":
       return {
-        campaign: "Conciliação financeira",
-        title: "Confirmação financeira em análise",
-        whatOccurred: "O backend detectou uma confirmação que precisa ser conciliada antes de alterar o acesso.",
-        expectedAction: "Aguarde a conciliação; evite repetir pagamentos ou criar outra tentativa incompatível.",
-        consequence: "O sistema não libera acesso nem altera contrato enquanto a confirmação não for autoritativa.",
+        campaign: "Pagamento em análise",
+        title: "Confirmação de pagamento em análise",
+        whatOccurred: "Recebemos uma confirmação de pagamento que ainda está sendo verificada.",
+        expectedAction: "Aguarde a conclusão da verificação e evite repetir o pagamento.",
+        consequence: "O acesso será atualizado quando a confirmação do pagamento for concluída.",
         support,
         actionHref: manage,
       };
@@ -286,8 +286,8 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Encerramento de assinatura",
         title: "Assinatura encerrada administrativamente",
-        whatOccurred: "O backend registrou um encerramento administrativo da assinatura.",
-        expectedAction: "Consulte Plano e acesso para verificar as origens de acesso ainda válidas e o próximo passo disponível.",
+        whatOccurred: "A assinatura foi encerrada por uma ação administrativa.",
+        expectedAction: "Consulte Plano e acesso para verificar se você ainda possui acesso e quais opções estão disponíveis.",
         consequence: "O aviso não remove dados da conta e não cria uma nova contratação automaticamente.",
         support,
         actionHref: manage,
@@ -297,7 +297,7 @@ export function presentBillingFactAsNotification(input: {
         campaign: "Capacidade profissional",
         title: "Capacidade temporária iniciada",
         whatOccurred: `Sua carteira ficou acima do limite contratado${capacityText(payload) ? `: ${capacityText(payload)}` : "."}`,
-        expectedAction: "Reduza a carteira por encerramentos naturais, faça upgrade para uma oferta suficiente ou acompanhe uma análise administrativa.",
+        expectedAction: "Reduza a carteira por encerramentos naturais, mude para um plano com capacidade suficiente ou acompanhe a análise administrativa.",
         consequence: "Pacientes existentes são preservados, mas novas inclusões e reativações ficam bloqueadas enquanto a ocupação estiver acima do limite.",
         support,
         actionHref: manage,
@@ -307,7 +307,7 @@ export function presentBillingFactAsNotification(input: {
         campaign: "Capacidade profissional",
         title: capacityMilestone(payload),
         whatOccurred: `O prazo temporário continua em andamento${capacityText(payload) ? `: ${capacityText(payload)}` : "."}`,
-        expectedAction: "Regularize a capacidade por redução natural, upgrade compatível ou atendimento administrativo antes do prazo final.",
+        expectedAction: "Regularize a capacidade por redução natural da carteira, mudança para um plano compatível ou atendimento administrativo antes do prazo final.",
         consequence: "O vencimento não remove pacientes, mas mantém bloqueadas novas inclusões e reativações.",
         support,
         actionHref: manage,
@@ -318,7 +318,7 @@ export function presentBillingFactAsNotification(input: {
         title: "Extensão temporária confirmada",
         whatOccurred: `Uma extensão administrativa foi confirmada${capacityText(payload) ? `: ${capacityText(payload)}` : "."}`,
         expectedAction: "Use o novo prazo para regularizar a carteira; extensões adicionais dependem de nova decisão administrativa.",
-        consequence: "A extensão não cria novo plano e não amplia silenciosamente a capacidade comercial contratada.",
+        consequence: "A extensão não altera o plano nem a capacidade contratada.",
         support,
         actionHref: manage,
       };
@@ -327,7 +327,7 @@ export function presentBillingFactAsNotification(input: {
         campaign: "Capacidade profissional",
         title: "Capacidade temporária vencida",
         whatOccurred: `O prazo terminou sem a carteira voltar ao limite${capacityText(payload) ? `: ${capacityText(payload)}` : "."}`,
-        expectedAction: "Aguarde ou acompanhe a análise administrativa/comercial e considere upgrade quando houver oferta suficiente.",
+        expectedAction: "Acompanhe a análise administrativa/comercial e considere mudar para um plano com capacidade suficiente quando houver uma opção disponível.",
         consequence: "Pacientes e dados são preservados, mas novas inclusões e reativações continuam bloqueadas.",
         support,
         actionHref: manage,
@@ -343,10 +343,10 @@ export function presentBillingFactAsNotification(input: {
           ? "Carteira encaminhada para análise comercial"
           : "Capacidade excedida em análise administrativa",
         whatOccurred: abovePublicRange
-          ? "Sua carteira excede a maior capacidade pública atualmente disponível e o caso foi encaminhado para análise administrativa/comercial."
-          : "O excesso de capacidade gerou uma pendência administrativa persistente para acompanhamento.",
+          ? "Sua carteira excede a maior capacidade disponível atualmente e o caso foi encaminhado para análise administrativa/comercial."
+          : "O excesso de capacidade gerou uma pendência administrativa para acompanhamento.",
         expectedAction: "Acompanhe o prazo temporário e as alternativas exibidas em Plano e acesso. Nenhum novo plano será criado automaticamente.",
-        consequence: "A análise não remove pacientes nem altera preço ou plano sem decisão comercial explícita.",
+        consequence: "A análise não remove pacientes nem altera preço ou plano sem uma decisão comercial.",
         support,
         actionHref: manage,
       };
@@ -355,9 +355,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Capacidade profissional",
         title: "Capacidade regularizada",
-        whatOccurred: "O backend confirmou que a ocupação voltou a uma faixa compatível com a capacidade vigente.",
+        whatOccurred: "A ocupação voltou a ficar dentro da capacidade disponível.",
         expectedAction: null,
-        consequence: "O limite contratado volta a reger novas inclusões e reativações conforme a disponibilidade atual.",
+        consequence: "O limite contratado volta a definir novas inclusões e reativações conforme a disponibilidade atual.",
         support,
         actionHref: null,
       };
@@ -365,10 +365,10 @@ export function presentBillingFactAsNotification(input: {
     case "professional_coverage_individual_renewal_pending":
       return {
         campaign: "Cobertura profissional e renovação individual",
-        title: "Renovação individual em sincronização",
-        whatOccurred: "Após a cobertura profissional ser confirmada, o sistema iniciou a sincronização da próxima renovação da sua assinatura individual.",
+        title: "Renovação individual em processamento",
+        whatOccurred: "Após a cobertura profissional ser confirmada, o cancelamento da próxima renovação da sua assinatura individual começou a ser processado.",
         expectedAction: "Se quiser manter ou reativar a renovação individual, use a ação de renovação da sua própria assinatura quando ela estiver disponível.",
-        consequence: "O período individual já pago permanece válido até o vencimento; a cobertura profissional é a origem principal durante a sobreposição.",
+        consequence: "O período individual já pago permanece válido até o vencimento; a cobertura profissional é a principal forma de acesso durante esse período.",
         support,
         actionHref: manage,
       };
@@ -376,9 +376,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Cobertura profissional e renovação individual",
         title: "Próxima renovação individual cancelada",
-        whatOccurred: "O backend confirmou o cancelamento da próxima renovação individual após o início da cobertura profissional.",
-        expectedAction: "Você pode reativar explicitamente sua renovação individual se quiser mantê-la, quando o método atual permitir.",
-        consequence: "A cobertura do profissional continua sendo a origem principal enquanto estiver válida.",
+        whatOccurred: "O cancelamento da próxima renovação individual foi confirmado após o início da cobertura profissional.",
+        expectedAction: "Você pode reativar sua renovação individual se quiser mantê-la, quando sua forma de pagamento permitir.",
+        consequence: "A cobertura do profissional continua sendo a principal forma de acesso enquanto estiver válida.",
         support,
         actionHref: manage,
       };
@@ -386,9 +386,9 @@ export function presentBillingFactAsNotification(input: {
       return {
         campaign: "Cobertura profissional e renovação individual",
         title: "Opção de manter renovação individual registrada",
-        whatOccurred: "Sua escolha explícita de manter a renovação individual foi registrada.",
+        whatOccurred: "Sua escolha de manter a renovação individual foi registrada.",
         expectedAction: null,
-        consequence: "Cobertura profissional e assinatura individual continuam origens separadas e obedecem à precedência de acesso do backend.",
+        consequence: "A cobertura profissional continua sendo a principal forma de acesso enquanto estiver válida; sua assinatura individual mantém a renovação conforme sua escolha.",
         support,
         actionHref: null,
       };
