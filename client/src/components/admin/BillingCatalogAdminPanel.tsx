@@ -21,6 +21,7 @@ import {
   initialVersion,
   ProductDialog,
   splitCsv,
+  splitResources,
   VersionDialog,
   type CouponForm,
   type ProductForm,
@@ -231,8 +232,8 @@ export default function BillingCatalogAdminPanel() {
           {flow === "version" ? <VersionDialog form={version} setForm={setVersion} pending={createVersion.isPending} mutationError={flowError ?? undefined} onSubmit={() => {
             const unitAmount = Math.round(Number(version.price.replace(",", ".")) * 100);
             const capacityLimit = version.capacity.trim() ? Number(version.capacity) : null;
-            if (!version.productCode.trim() || !version.name.trim() || !Number.isInteger(unitAmount) || unitAmount <= 0 || (capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit <= 0)) || !splitCsv(version.resources).length || version.reason.trim().length < 3) return;
-            createVersion.mutate({ productCode: version.productCode.trim(), name: version.name.trim(), description: null, billingCycle: version.cycle, currency: "BRL", unitAmount, capacityLimit, entitlements: splitCsv(version.resources), coveredBeneficiaryEntitlements: splitCsv(version.beneficiaryResources), commercialPaymentMethods: ["credit_card", "pix_automatic"], effectiveFrom: new Date(), effectiveUntil: null, sortOrder: 1000, reason: version.reason.trim(), provenance: { origin: "admin_manual" } });
+            if (!version.productCode.trim() || !version.name.trim() || !Number.isInteger(unitAmount) || unitAmount <= 0 || (capacityLimit !== null && (!Number.isInteger(capacityLimit) || capacityLimit <= 0)) || !splitResources(version.resources).length || version.reason.trim().length < 3) return;
+            createVersion.mutate({ productCode: version.productCode.trim(), name: version.name.trim(), description: null, billingCycle: version.cycle, currency: "BRL", unitAmount, capacityLimit, entitlements: splitResources(version.resources), coveredBeneficiaryEntitlements: splitResources(version.beneficiaryResources), commercialPaymentMethods: ["credit_card", "pix_automatic"], effectiveFrom: new Date(), effectiveUntil: null, sortOrder: 1000, reason: version.reason.trim(), provenance: { origin: "admin_manual" } });
           }} /> : null}
           {flow === "coupon" ? <CouponDialog form={coupon} setForm={setCoupon} pending={createCoupon.isPending} mutationError={flowError ?? undefined} onSubmit={() => {
             const percent = Number(coupon.percent); const cycles = splitCsv(coupon.cycles).filter(value => value === "monthly" || value === "yearly") as ("monthly" | "yearly")[]; const duration = cycles.includes("yearly") ? 1 : Number(coupon.duration);
@@ -243,7 +244,7 @@ export default function BillingCatalogAdminPanel() {
       </Dialog>
 
       <AlertDialog open={sensitive !== null} onOpenChange={open => { if (!open) setSensitive(null); }}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{copy?.title}</AlertDialogTitle><AlertDialogDescription>{copy?.description}</AlertDialogDescription></AlertDialogHeader><div className="rounded-xl bg-muted/30 p-3 text-sm text-muted-foreground">Motivo informado: <span className="font-medium text-foreground">{sensitive?.reason}</span></div><AlertDialogFooter><AlertDialogCancel disabled={pendingSensitive}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={pendingSensitive} className={copy?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined} onClick={confirmSensitive}>{copy?.label}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{copy?.title}</AlertDialogTitle><AlertDialogDescription>{copy?.description}</AlertDialogHeader><div className="rounded-xl bg-muted/30 p-3 text-sm text-muted-foreground">Motivo informado: <span className="font-medium text-foreground">{sensitive?.reason}</span></div><AlertDialogFooter><AlertDialogCancel disabled={pendingSensitive}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={pendingSensitive} className={copy?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined} onClick={confirmSensitive}>{copy?.label}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </section>
   );
