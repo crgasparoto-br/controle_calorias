@@ -293,6 +293,11 @@ describe("BillingPage accessibility and responsive contract", () => {
     });
     expect(checkoutButton.className).toContain("w-full");
     expect(checkoutButton.className).toContain("sm:w-auto");
+
+    expect(screen.queryByText(/\bbackend\b/i)).toBeNull();
+    expect(screen.queryByText(/\bprovider\b/i)).toBeNull();
+    expect(screen.queryByText(/\bcallback\b/i)).toBeNull();
+    expect(screen.queryByText(/\btrial\b/i)).toBeNull();
   });
 
   it("does not offer a known-ineligible trial and submits card checkout as paid", async () => {
@@ -399,16 +404,16 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(screen.queryByText("stale-pix-payload")).toBeNull();
   });
 
-  it("renders notification campaign, version, date, situation and distinct read action", async () => {
+  it("renders notification campaign, date, situation and distinct read action", async () => {
     notificationsData = [
       {
         notificationId: "fact-1",
         campaign: "Regularização financeira",
         campaignVersion: "v1",
         title: "Pagamento pendente",
-        whatOccurred: "O backend confirmou uma pendência financeira na assinatura.",
+        whatOccurred: "Há um pagamento pendente na assinatura.",
         effectiveAt: new Date("2026-08-22T08:00:00.000Z"),
-        expectedAction: "Regularize a cobrança pelo fluxo seguro disponível em Plano e acesso.",
+        expectedAction: "Regularize a cobrança pela opção disponível em Plano e acesso.",
         consequence: "Sem regularização, a assinatura pode ser suspensa.",
         support: "Use o canal oficial de suporte do aplicativo.",
         actionHref: "/billing",
@@ -426,9 +431,10 @@ describe("BillingPage accessibility and responsive contract", () => {
 
     const article = screen.getByRole("article", { name: "Pagamento pendente" });
     expect(within(article).getByText("Regularização financeira", { exact: false })).toBeTruthy();
-    expect(within(article).getByText("v1", { exact: false })).toBeTruthy();
+    expect(within(article).queryByText("v1", { exact: false })).toBeNull();
     expect(within(article).getByText("Ação ou acompanhamento pendente")).toBeTruthy();
-    expect(within(article).getByText(/envio externo por WhatsApp não foi confirmado/i)).toBeTruthy();
+    expect(within(article).getByText(/envio por WhatsApp não foi confirmado/i)).toBeTruthy();
+    expect(within(article).queryByText(/\bbackend\b/i)).toBeNull();
 
     fireEvent.click(
       within(article).getByRole("button", { name: "Marcar como lido: Pagamento pendente" })
@@ -464,7 +470,7 @@ describe("BillingPage accessibility and responsive contract", () => {
       },
     });
     render(<BillingPage />);
-    expect(screen.getByText(/leitura, exportação e gestão da conta/i)).toBeTruthy();
+    expect(screen.getByText(/consultar e exportar seus dados/i)).toBeTruthy();
   });
 
   it("shows the thirty-day existing-user transition without replacing it with a trial", async () => {
@@ -486,7 +492,7 @@ describe("BillingPage accessibility and responsive contract", () => {
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
     expect(screen.getByText(/Transição comercial de 30 dias para usuário existente/i)).toBeTruthy();
-    expect(screen.getByText(/nenhum trial adicional é presumido/i)).toBeTruthy();
+    expect(screen.getByText(/um novo período de avaliação não é iniciado automaticamente/i)).toBeTruthy();
     expect(screen.queryByRole("checkbox", { name: /Solicitar período de avaliação/i })).toBeNull();
   });
 
@@ -531,7 +537,7 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(screen.getByText(/carência de 7 dias preserva o acesso/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Regularizar cobrança" }));
     expect(mutateRegularize).toHaveBeenCalledWith({ subscriptionId: "subscription-1" });
-    expect(screen.getByText(/O acesso só muda após confirmação financeira autoritativa/i)).toBeTruthy();
+    expect(screen.getByText(/Seu acesso será atualizado após a confirmação do pagamento/i)).toBeTruthy();
   });
 
   it("shows capacity horizon, canonical milestones and commercial analysis without threatening patient removal", async () => {
@@ -588,7 +594,7 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(screen.getByText(/Período inicial confirmado de 90 dias/i)).toBeTruthy();
     expect(screen.getByText("60 dias antes")).toBeTruthy();
     expect(screen.getByText("7 dias antes")).toBeTruthy();
-    expect(screen.getByText(/Nenhum plano público atual comporta toda a carteira/i)).toBeTruthy();
+    expect(screen.getByText(/Nenhum plano disponível atualmente comporta toda a carteira/i)).toBeTruthy();
     expect(screen.getByText(/pacientes existentes, vínculos e dados não são removidos automaticamente/i)).toBeTruthy();
   });
 
@@ -700,11 +706,11 @@ describe("BillingPage accessibility and responsive contract", () => {
 
     expect(screen.getByText("Capacidade profissional")).toBeTruthy();
     expect(
-      screen.getByText(/Nenhum limite temporário será inferido pela interface/i)
+      screen.getByText(/Não foi possível confirmar a capacidade da sua carteira agora/i)
     ).toBeTruthy();
   });
 
-  it("renders the backend coupon rejection reason instead of a generic failure", async () => {
+  it("renders the coupon rejection reason instead of a generic failure", async () => {
     couponData = { eligible: false, reason: "total_limit_reached" };
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
@@ -714,13 +720,13 @@ describe("BillingPage accessibility and responsive contract", () => {
     expect(screen.getByRole("alert").textContent).toContain("esgotou o limite total");
   });
 
-  it("announces a checkout callback as pending instead of confirming access", async () => {
+  it("announces a payment return as pending instead of confirming access", async () => {
     window.history.replaceState({}, "", "/billing/return/success");
     const { default: BillingPage } = await import("./BillingPage");
     render(<BillingPage />);
 
     const statuses = screen.getAllByRole("status");
-    expect(statuses.some(status => status.textContent?.includes("Retorno do pagamento recebido"))).toBe(true);
-    expect(statuses.some(status => status.textContent?.includes("continua pendente"))).toBe(true);
+    expect(statuses.some(status => status.textContent?.includes("Pagamento enviado para confirmação"))).toBe(true);
+    expect(statuses.some(status => status.textContent?.includes("aguardando a confirmação do pagamento"))).toBe(true);
   });
 });
