@@ -1,14 +1,29 @@
 {
   "schema_version": 1,
-  "head_sha": "a038de432105c632e9a9545cefceecbd9bf1c343",
+  "head_sha": "538458047ca91e0a74db295adb4125ac4c77a652",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-012-01",
+        "NEG-038-01",
+        "NEG-044-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "revoked-context-clearing",
+          "reason": "This obligation exposes the authorization contract on the revoked-context-clearing surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-012-01",
+            "NEG-038-01",
+            "NEG-044-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "tenant-isolation",
@@ -29,18 +44,40 @@
     {
       "family": "reference-liveness",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix. Exact-head negative controls and sibling cases passed for every declared material surface.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-1047-026-01",
-        "NEG-REQ-1047-074-02"
+        "NEG-003-01",
+        "NEG-005-01",
+        "NEG-010-01",
+        "NEG-015-01",
+        "NEG-016-01",
+        "NEG-018-01",
+        "NEG-035-01",
+        "NEG-038-02",
+        "NEG-042-01",
+        "NEG-044-02",
+        "NEG-050-01",
+        "NEG-055-01",
+        "NEG-059-01"
       ],
       "dimensions": [
         {
-          "surface": "shared-reference-validity",
-          "reason": "The requirement can regress at the shared-reference-validity boundary of the WhatsApp text flow. Exact-head control evidence is recorded in the current attack matrix.",
+          "surface": "authorized-payload-liveness",
+          "reason": "This obligation exposes the reference-liveness contract on the authorized-payload-liveness surface and requires a discriminant check beyond the normal happy path.",
           "control_ids": [
-            "NEG-REQ-1047-026-01",
-            "NEG-REQ-1047-074-02"
+            "NEG-003-01",
+            "NEG-005-01",
+            "NEG-010-01",
+            "NEG-015-01",
+            "NEG-016-01",
+            "NEG-018-01",
+            "NEG-035-01",
+            "NEG-038-02",
+            "NEG-042-01",
+            "NEG-044-02",
+            "NEG-050-01",
+            "NEG-055-01",
+            "NEG-059-01"
           ],
           "status": "passed"
         }
@@ -50,31 +87,30 @@
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix. Exact-head negative controls and sibling cases passed for every declared material surface.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-1047-036-01",
-        "NEG-REQ-1047-043-01",
-        "NEG-REQ-1047-056-01",
-        "NEG-REQ-1047-065-02",
-        "NEG-REQ-1047-070-01"
+        "NEG-005-03",
+        "NEG-010-03",
+        "NEG-015-02",
+        "NEG-032-01",
+        "NEG-042-02",
+        "NEG-050-02",
+        "NEG-060-01",
+        "NEG-071-01"
       ],
       "dimensions": [
         {
-          "surface": "reporting-availability-window",
-          "reason": "A report can label a requested window complete even when retention or source availability makes only a suffix of that window observable. Exact-head control evidence is recorded in the current attack matrix.",
+          "surface": "history-availability-consistency",
+          "reason": "This obligation exposes the temporal-consistency contract on the history-availability-consistency surface and requires a discriminant check beyond the normal happy path.",
           "control_ids": [
-            "NEG-REQ-1047-056-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "routing-transition-consistency",
-          "reason": "The requirement can regress at the routing-transition-consistency boundary of the WhatsApp text flow. Exact-head control evidence is recorded in the current attack matrix.",
-          "control_ids": [
-            "NEG-REQ-1047-036-01",
-            "NEG-REQ-1047-043-01",
-            "NEG-REQ-1047-065-02",
-            "NEG-REQ-1047-070-01"
+            "NEG-005-03",
+            "NEG-010-03",
+            "NEG-015-02",
+            "NEG-032-01",
+            "NEG-042-02",
+            "NEG-050-02",
+            "NEG-060-01",
+            "NEG-071-01"
           ],
           "status": "passed"
         }
@@ -83,11 +119,22 @@
     },
     {
       "family": "temporal-destination",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-005-04"
+      ],
+      "dimensions": [
+        {
+          "surface": "lifecycle-route-availability",
+          "reason": "This obligation exposes the temporal-destination contract on the lifecycle-route-availability surface and requires a discriminant check beyond the normal happy path.",
+          "control_ids": [
+            "NEG-005-04"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "concurrency-atomicity",
@@ -99,36 +146,11 @@
     },
     {
       "family": "idempotency",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix. Exact-head negative controls and sibling cases passed for every declared material surface.",
-      "control_ids": [
-        "NEG-REQ-1047-012-01",
-        "NEG-REQ-1047-015-01",
-        "NEG-REQ-1047-017-01",
-        "NEG-REQ-1047-053-01",
-        "NEG-REQ-1047-061-01",
-        "NEG-REQ-1047-063-01",
-        "NEG-REQ-1047-065-01",
-        "NEG-REQ-1047-074-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "duplicate-processing",
-          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once. Exact-head control evidence is recorded in the current attack matrix.",
-          "control_ids": [
-            "NEG-REQ-1047-012-01",
-            "NEG-REQ-1047-015-01",
-            "NEG-REQ-1047-017-01",
-            "NEG-REQ-1047-053-01",
-            "NEG-REQ-1047-061-01",
-            "NEG-REQ-1047-063-01",
-            "NEG-REQ-1047-065-01",
-            "NEG-REQ-1047-074-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "rollback",
@@ -149,67 +171,27 @@
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix. Exact-head negative controls and sibling cases passed for every declared material surface.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-1047-015-02",
-        "NEG-REQ-1047-026-02",
-        "NEG-REQ-1047-032-01",
-        "NEG-REQ-1047-033-01",
-        "NEG-REQ-1047-037-01",
-        "NEG-REQ-1047-038-01",
-        "NEG-REQ-1047-038-02",
-        "NEG-REQ-1047-040-01",
-        "NEG-REQ-1047-050-01",
-        "NEG-REQ-1047-059-01",
-        "NEG-REQ-1047-063-02",
-        "NEG-REQ-1047-069-01",
-        "NEG-REQ-1047-072-01",
-        "NEG-REQ-1047-073-01",
-        "NEG-REQ-1047-074-03",
-        "NEG-REQ-1047-076-01"
+        "NEG-005-02",
+        "NEG-010-02",
+        "NEG-073-01"
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path. Exact-head control evidence is recorded in the current attack matrix.",
+          "surface": "implementation-contract-shape",
+          "reason": "This obligation exposes the structural-contract contract on the implementation-contract-shape surface and requires a discriminant check beyond the normal happy path.",
           "control_ids": [
-            "NEG-REQ-1047-076-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "canonical-routing-structure",
-          "reason": "The requirement can regress at the canonical-routing-structure boundary of the WhatsApp text flow. Exact-head control evidence is recorded in the current attack matrix.",
-          "control_ids": [
-            "NEG-REQ-1047-015-02",
-            "NEG-REQ-1047-026-02",
-            "NEG-REQ-1047-032-01",
-            "NEG-REQ-1047-033-01",
-            "NEG-REQ-1047-037-01",
-            "NEG-REQ-1047-040-01",
-            "NEG-REQ-1047-050-01",
-            "NEG-REQ-1047-059-01",
-            "NEG-REQ-1047-063-02",
-            "NEG-REQ-1047-069-01",
-            "NEG-REQ-1047-072-01",
-            "NEG-REQ-1047-073-01",
-            "NEG-REQ-1047-074-03"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "canonical-source-consistency",
-          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition. Exact-head control evidence is recorded in the current attack matrix.",
-          "control_ids": [
-            "NEG-REQ-1047-038-01"
+            "NEG-005-02",
+            "NEG-010-02"
           ],
           "status": "passed"
         },
         {
           "surface": "relational-semantic-integrity",
-          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation. Exact-head control evidence is recorded in the current attack matrix.",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
           "control_ids": [
-            "NEG-REQ-1047-038-02"
+            "NEG-073-01"
           ],
           "status": "passed"
         }
@@ -219,16 +201,18 @@
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix. Exact-head negative controls and sibling cases passed for every declared material surface.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-REQ-1047-005-01"
+        "NEG-076-01",
+        "NEG-077-01"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "The requirement can regress at the canonical-claims boundary of the WhatsApp text flow. Exact-head control evidence is recorded in the current attack matrix.",
+          "reason": "This obligation exposes the documentation contract on the canonical-claims surface and requires a discriminant check beyond the normal happy path.",
           "control_ids": [
-            "NEG-REQ-1047-005-01"
+            "NEG-076-01",
+            "NEG-077-01"
           ],
           "status": "passed"
         }

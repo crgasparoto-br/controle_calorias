@@ -115,7 +115,10 @@ capture "summary-mobile-390x844" "390,844" "$BASE_URL"
 capture "assessment-desktop-1440x900" "1440,900" "$ASSESSMENT_URL"
 capture "assessment-comparison-desktop-1440x900" "1440,900" "$ASSESSMENT_COMPARISON_URL"
 capture "assessment-comparison-mobile-390x1200" "390,1200" "$ASSESSMENT_COMPARISON_URL"
+capture "guidance-desktop-1440x900" "1440,900" "$GUIDANCE_URL"
 capture "guidance-notebook-1366x768" "1366,768" "$GUIDANCE_URL"
+capture "guidance-mobile-390x1200" "390,1200" "$GUIDANCE_URL"
+capture "notes-desktop-1440x900" "1440,900" "$NOTES_URL"
 capture "notes-mobile-390x1200" "390,1200" "$NOTES_URL"
 capture "history-desktop-1366x768" "1366,768" "$HISTORY_URL"
 capture "reports-desktop-1440x900" "1440,900" "$REPORTS_URL"
@@ -221,13 +224,16 @@ assert_dom \
   "guidance" \
   "$GUIDANCE_URL" \
   "Nova orientação ao paciente" \
-  "Orientações registradas" \
+  "Histórico de orientações" \
+  "Visualizar orientação" \
+  "Enviada" \
   "Nutricionista de validação"
 assert_dom \
   "notes" \
   "$NOTES_URL" \
   "Nova anotação privada" \
-  "Anotações anteriores" \
+  "Histórico de anotações" \
+  "Visualizar anotação" \
   "Paciente relatou boa adesão"
 assert_dom \
   "history" \
@@ -374,7 +380,7 @@ scenarios=summary,assessment,assessment-comparison-open-desktop,assessment-compa
 viewports=1440x900,1366x768,1024x768,390x844,390x1200
 source=actual ProfessionalAreaPage, ProfessionalLayout, ProfessionalPatientWorkspace and ProfessionalReportsWorkspace with deterministic auth and tRPC transport fixtures
 interaction=canonical patient deep links, opening an assessment comparison through the real Visualizar avaliação button, internal workspace composition, individual report and AI context, goal exception creation and active-to-paused transition
-assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment history with explicit visualization action, open assessment comparison side-by-side on desktop and vertical on mobile with read-only history, editable current draft, visible close action and no horizontal overflow, active and paused official goal layout with labeled exception controls and complete mutation blocking, guidance and private note separation, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
+assertions=patient identity, summarized last activity and internal areas, operational alert, versioned assessment history with explicit visualization action, open assessment comparison side-by-side on desktop and vertical on mobile with read-only history, editable current draft, visible close action and no horizontal overflow, active and paused official goal layout with labeled exception controls and complete mutation blocking, compact guidance and private note history selectors with explicit visualization actions, stable history pagination, individual report patient and period context with AI panel, paused restrictions, ended history routing, loading and recoverable error states, real Chromium back and forward navigation preserving cancelled drafts and discarding accepted drafts, contained horizontal subnavigation, mobile subnav scrolling and no page-level horizontal overflow
 MANIFEST
 
 ls -lh "$OUTPUT_DIR"

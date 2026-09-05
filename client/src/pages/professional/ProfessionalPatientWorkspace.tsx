@@ -8,6 +8,10 @@ import ProfessionalReportsWorkspace from "@/components/ProfessionalReportsWorksp
 import { useProfessionalWorkspace } from "@/components/ProfessionalLayout";
 import ProfessionalAssessmentComparison from "@/components/professional/ProfessionalAssessmentComparison";
 import {
+  ProfessionalGuidanceHistoryLayout,
+  ProfessionalNotesHistoryLayout,
+} from "@/components/professional/ProfessionalRecordHistory";
+import {
   ProfessionalAsyncState,
   ProfessionalLoadingState,
   ProfessionalPage,
@@ -702,46 +706,19 @@ function GuidanceSection({
   title: string;
 }) {
   return (
-    <ProfessionalSplitLayout
-      aside={
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Orientações registradas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
-              {record.guidances.length ? (
-                record.guidances.map((item: any) => (
-                  <article key={item.id} className="rounded-xl border p-3">
-                    <p className="break-words font-medium">
-                      {item.title} · v{item.version}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm">
-                      {item.content}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {item.authorName} · {formatDate(item.createdAt)}
-                    </p>
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma orientação registrada.
-                </p>
-              )}
-            </div>
-            <RecordCollectionPagination
-              label="orientações"
-              page={page}
-              total={recordCollectionTotal({
-                total: record.pagination?.totals?.guidances,
-                visibleCount: record.guidances.length,
-                page,
-              })}
-              onPageChange={onPageChange}
-            />
-          </CardContent>
-        </Card>
+    <ProfessionalGuidanceHistoryLayout
+      items={record.guidances}
+      pagination={
+        <RecordCollectionPagination
+          label="orientações"
+          page={page}
+          total={recordCollectionTotal({
+            total: record.pagination?.totals?.guidances,
+            visibleCount: record.guidances.length,
+            page,
+          })}
+          onPageChange={onPageChange}
+        />
       }
     >
       <Card>
@@ -800,7 +777,7 @@ function GuidanceSection({
           </Button>
         </CardContent>
       </Card>
-    </ProfessionalSplitLayout>
+    </ProfessionalGuidanceHistoryLayout>
   );
 }
 
@@ -829,44 +806,19 @@ function NotesSection({
   record: any;
 }) {
   return (
-    <ProfessionalSplitLayout
-      aside={
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Anotações anteriores</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid max-h-[55vh] gap-3 overflow-y-auto">
-              {record.notes.length ? (
-                record.notes.map((item: any) => (
-                  <article key={item.id} className="rounded-xl border p-3">
-                    <p className="whitespace-pre-wrap break-words text-sm">
-                      {item.content}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {item.authorName ?? "Autoria não informada"} ·{" "}
-                      {formatDate(item.createdAt)}
-                    </p>
-                  </article>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma anotação.
-                </p>
-              )}
-            </div>
-            <RecordCollectionPagination
-              label="anotações"
-              page={page}
-              total={recordCollectionTotal({
-                total: record.pagination?.totals?.notes,
-                visibleCount: record.notes.length,
-                page,
-              })}
-              onPageChange={onPageChange}
-            />
-          </CardContent>
-        </Card>
+    <ProfessionalNotesHistoryLayout
+      items={record.notes}
+      pagination={
+        <RecordCollectionPagination
+          label="anotações"
+          page={page}
+          total={recordCollectionTotal({
+            total: record.pagination?.totals?.notes,
+            visibleCount: record.notes.length,
+            page,
+          })}
+          onPageChange={onPageChange}
+        />
       }
     >
       <Card>
@@ -906,7 +858,7 @@ function NotesSection({
           </Button>
         </CardContent>
       </Card>
-    </ProfessionalSplitLayout>
+    </ProfessionalNotesHistoryLayout>
   );
 }
 
