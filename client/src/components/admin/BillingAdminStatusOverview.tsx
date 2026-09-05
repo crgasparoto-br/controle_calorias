@@ -18,6 +18,12 @@ const STATUS_LABELS: Record<string, string> = {
   expired: "Expiradas",
 };
 
+const CYCLE_LABELS: Record<string, string> = {
+  monthly: "Mensal",
+  yearly: "Anual",
+  custom: "Personalizado",
+};
+
 const STATUS_ORDER = [
   "pending",
   "active",
@@ -87,11 +93,11 @@ export default function BillingAdminStatusOverview() {
                     <div className="min-w-0">
                       <h3 className="font-medium">{plan.planName}</h3>
                       <p className="mt-1 break-words text-sm text-muted-foreground">
-                        {plan.versionCode} · {plan.billingCycle} · {plan.currency}
+                        {plan.versionCode} · {CYCLE_LABELS[plan.billingCycle] ?? plan.billingCycle} · {plan.currency}
                       </p>
                     </div>
                     <Badge variant={plan.active ? "default" : "secondary"}>
-                      {plan.active ? "Catálogo ativo" : "Catálogo inativo"}
+                      {plan.active ? "Disponível para contratação" : "Indisponível para contratação"}
                     </Badge>
                   </div>
 
@@ -159,7 +165,7 @@ export default function BillingAdminStatusOverview() {
             </div>
           )}
           <p className="text-xs leading-5 text-muted-foreground">
-            Estes indicadores apoiam a operação e não substituem conciliação financeira.
+            Estes indicadores apoiam a operação e não substituem o fechamento e a conferência financeira.
           </p>
         </CardContent>
       </Card>
