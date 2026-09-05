@@ -8,7 +8,7 @@ if (!url || !outputPath) throw new Error("usage: node check-billing-admin-browse
 const browser = await openBrowserHarness();
 const { call, close, evaluate, pressKey, click, focus, setValue, navigate, runtimeEvents, sessionId } = browser;
 
-const readState = () => evaluate(`(() => { const text=document.body?.innerText??''; return { title:text.includes('Planos, assinaturas e acesso'), overview:text.includes('Distribuição por plano e ciclo'), access:text.includes('Usuários e origem do acesso'), catalog:text.includes('Catálogo e versões'), campaigns:text.includes('Campanhas e entregas'), economics:text.includes('Economia por identidade comercial'), rollout:text.includes('Rollout comercial'), overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, tabs:Array.from(document.querySelectorAll('[role="tab"]')).map(el=>({text:(el.textContent||'').trim(),selected:el.getAttribute('aria-selected')})), queries:globalThis.__billingQueryCalls??{}, mutations:globalThis.__billingMutationCalls??{} }; })()`);
+const readState = () => evaluate(`(() => { const text=document.body?.innerText??''; return { title:text.includes('Planos, assinaturas e acesso'), overview:text.includes('Distribuição por plano e ciclo'), access:text.includes('Usuários e forma de acesso'), catalog:text.includes('Planos e versões'), campaigns:text.includes('Campanhas e entregas'), economics:text.includes('Economia por identidade comercial'), rollout:text.includes('Implantação comercial gradual'), overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, tabs:Array.from(document.querySelectorAll('[role="tab"]')).map(el=>({text:(el.textContent||'').trim(),selected:el.getAttribute('aria-selected')})), queries:globalThis.__billingQueryCalls??{}, mutations:globalThis.__billingMutationCalls??{} }; })()`);
 const waitFor = async (predicate, label) => {
   let value;
   for (let attempt = 0; attempt < 120; attempt += 1) { value = await readState(); if (value && predicate(value)) return value; await delay(100); }
@@ -20,7 +20,7 @@ const inactiveQueryPaths = [
   "usageGovernance.analytics", "usageGovernance.adminOverview", "usageGovernance.adminEconomicRows",
   "usageGovernance.consumptionChargingAuthorizations", "billing.adminRolloutOverview",
 ];
-const expectedTabs = ["Visão geral", "Acessos", "Comercial", "Governança", "Rollout", "Manual"];
+const expectedTabs = ["Visão geral", "Acessos", "Comercial", "Governança", "Implantação", "Manual"];
 
 try {
   const viewportEvidence = [];
@@ -74,15 +74,15 @@ try {
   const closeFocus = await evaluate(`(() => ({ dialogOpen:Boolean(document.querySelector('[role="dialog"]')), activeText:(document.activeElement?.textContent||document.activeElement?.getAttribute('aria-label')||'').trim() }))()`);
   if (closeFocus.dialogOpen || !closeFocus.activeText.includes("Novo produto")) throw new Error(`creation dialog focus restoration failed: ${JSON.stringify(closeFocus)}`);
 
-  await setValue("campaign-reason", "retry audit evidence");
-  const retryIdentity = await evaluate(`(() => { const button=Array.from(document.querySelectorAll('button')).find(el=>el.textContent?.includes('Retry WhatsApp')); if(!button)return {ok:false}; button.click(); button.click(); const attempts=globalThis.__billingRetryAttempts??[]; return {ok:true,attempts,sameRequestId:attempts.length===2&&attempts[0].requestId===attempts[1].requestId}; })()`);
+  await setValue("campaign-reason", "evidência de reprocessamento");
+  const retryIdentity = await evaluate(`(() => { const button=Array.from(document.querySelectorAll('button')).find(el=>el.textContent?.includes('Reprocessar WhatsApp')); if(!button)return {ok:false}; button.click(); button.click(); const attempts=globalThis.__billingRetryAttempts??[]; return {ok:true,attempts,sameRequestId:attempts.length===2&&attempts[0].requestId===attempts[1].requestId}; })()`);
   if (!retryIdentity?.sameRequestId) throw new Error(`retry identity was not stable: ${JSON.stringify(retryIdentity)}`);
 
   await click("Governança");
   const governanceState = await waitFor(state => (state.queries["usageGovernance.analytics"] ?? 0) > 0 && (state.queries["usageGovernance.adminOverview"] ?? 0) > 0, "governance tab");
   if (governanceState.catalog || governanceState.campaigns) throw new Error("Comercial remained mounted after activating Governança");
-  await click("Rollout");
-  const rolloutState = await waitFor(state => state.rollout && (state.queries["billing.adminRolloutOverview"] ?? 0) > 0, "rollout tab");
+  await click("Implantação");
+  const rolloutState = await waitFor(state => state.rollout && (state.queries["billing.adminRolloutOverview"] ?? 0) > 0, "implantation tab");
 
   await click("Visão geral"); await waitFor(state => state.overview, "overview return");
   await evaluate("document.body.tabIndex=-1; document.body.focus();");
