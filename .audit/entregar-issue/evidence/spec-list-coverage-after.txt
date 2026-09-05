@@ -1,0 +1,5 @@
+SPEC-LIST-COVERAGE-001 remediation
+READY: canonical specification coverage is complete
+canonical_candidates=77 closure_obligations=77 missing=0
+line_200_obligation= [{'id': 'OBL-077', 'candidate_key': 'efd58d1c33b9d8ec3fc0dfc445f4e0fcedb66f003084306c1944c6a079ac34fa', 'source_id': 'SRC-ISSUE-1047', 'source_sha256': 'c1803f3f732d504e4a651573a34fc33bcdbd2f64a06efb710672539162115b6f', 'source_line': 200, 'source_text': 'Não depender da confiança variável do LLM para entradas determinísticas como `1 banana nanica`.', 'flags': ['negative', 'dependency-independence'], 'disposition': 'covered', 'requirement_ids': ['REQ-1047-019'], 'inventory_ids': [], 'assertion_ids': [], 'scope_decision': None, 'rationale': 'Covered by the deterministic ready-countable routing regression and the systemic specification-list coverage remediation.'}]
+EXIT_CODE:0

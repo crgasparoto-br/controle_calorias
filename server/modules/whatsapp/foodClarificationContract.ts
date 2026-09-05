@@ -11,6 +11,10 @@ import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsapp
 import { findTacoFood } from "../../tacoLookup";
 import { evaluateWhatsappIntentRoute } from "./intentRouter";
 import {
+  COUNTABLE_QUANTITY_PATTERN,
+  parseCountableQuantity,
+} from "./quantityUnitVocabulary";
+import {
   isStandaloneWhatsappCommandWord,
   normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
@@ -69,21 +73,6 @@ export type CountedFoodRequest = {
   count: number;
 };
 
-const COUNT_WORDS: Record<string, number> = {
-  um: 1,
-  uma: 1,
-  dois: 2,
-  duas: 2,
-  tres: 3,
-  quatro: 4,
-  cinco: 5,
-  seis: 6,
-  sete: 7,
-  oito: 8,
-  nove: 9,
-  dez: 10,
-};
-
 const SAFE_TYPO_REPLACEMENTS: Record<string, string> = {
   natual: "natural",
   iorgute: "iogurte",
@@ -128,9 +117,7 @@ function normalizeFoodIdentity(value: string) {
 }
 
 function parseCount(value: string) {
-  const normalized = normalizeStandaloneWhatsappCommand(value);
-  if (/^\d+$/.test(normalized)) return Number(normalized);
-  return COUNT_WORDS[normalized] ?? null;
+  return parseCountableQuantity(normalizeStandaloneWhatsappCommand(value));
 }
 
 export function parseCountedFoodRequest(text?: string | null): CountedFoodRequest | null {
@@ -139,7 +126,7 @@ export function parseCountedFoodRequest(text?: string | null): CountedFoodReques
   if (extractExplicitQuantities(originalText).length > 0) return null;
 
   const cleaned = cleanFoodName(originalText);
-  const match = cleaned.match(/^(\d+|um|uma|dois|duas|tres|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez)\s+(.+)$/i);
+  const match = cleaned.match(new RegExp(`^(${COUNTABLE_QUANTITY_PATTERN})\\s+(.+)$`, "iu"));
   if (!match) return null;
 
   const count = parseCount(match[1]);

@@ -1,0 +1,211 @@
+# Issue #1047 — [Bug] Registro com quantidade + alimento cai indevidamente em esclarecimento no WhatsApp
+
+specification_version: 2
+
+## Objetivo
+
+Corrigir a regressão do registro alimentar textual no WhatsApp em que uma mensagem que já contém evidência suficiente de inclusão de alimento, como `1 banana nanica`, é desviada para o fluxo genérico **“Preciso de uma informação”** em vez de seguir diretamente para resolução da porção, inferência nutricional e revisão/registro da refeição.
+
+Usar `develop` como branch base.
+
+### Comportamento esperado
+
+`1 banana nanica` deve ser interpretado como **registro alimentar** sem perguntar qual é a intenção. O sistema já possui quantidade e alimento identificável; deve resolver a unidade/porção canônica quando possível e encaminhar o alimento ao pipeline nutricional canônico.
+
+Se houver dúvida posterior sobre identidade, porção ou gramatura, a pergunta deve ser **específica dessa dúvida alimentar**, nunca uma nova pergunta genérica sobre o que o usuário deseja fazer.
+
+## Contrato de produto já existente
+
+Esta correção não cria uma nova regra de UX. O comportamento já está documentado em `docs/design-docs/whatsapp-food-registration-clarification.md`: uma nova refeição completa como `200 g de frango` ou `1 banana` **não precisa conter verbo operacional** para seguir o pipeline alimentar.
+
+A varredura documentada em `docs/runbooks/whatsapp-ai-regression-sweep-722.md` também registra como casos positivos automatizados entradas como `1 banana prata`, `1 maca fuji`, `uma maca` e `2 ovos cozido`.
+
+A regressão atual, portanto, viola um contrato que já existia e reaparece após as mudanças recentes do roteamento/medidas contáveis, inclusive a #1037.
+
+## Causa identificada na `develop`
+
+### 1. O resolvedor contável já consegue reconhecer o caso
+
+`server/countableFoodQuantity.ts` possui `parseBareCount()` e trata uma entrada no formato `quantidade + alimento`, sem unidade explícita, como contagem em `un`.
+
+Para `1 banana nanica`, o catálogo contém `banana nanica` como alias de Banana e uma porção canônica de `1 unidade`. Assim, `prepareWhatsappCountableFoodRegistration()` pode produzir um resultado `kind: "ready"` com texto quantitativamente resolvido para gramas.
+
+### 2. O webhook ainda chama o classificador contextual usando o texto original
+
+Em `server/whatsappIntentWebhook.ts`, após o `countableGate`:
+
+- `textForNutrition` passa a usar `countableGate.registrationText`;
+- porém a decisão `shouldTryContextualLlmIntent(...)` continua sendo feita sobre `textForIntent`, isto é, o texto original;
+- `hasExplicitFoodQuantity()` só considera “quantidade explícita” quando existe **número + unidade reconhecida**;
+- por isso `1 banana nanica` não é considerado registro explícito nessa decisão e ainda segue para `executeWhatsappLlmIntent()`;
+- se o LLM responder com `ambiguous`/`unknown` + `requiresConfirmation`, essa resposta de esclarecimento vence antes do bloco que encaminharia uma resolução contável já pronta ao pipeline nutricional.
+
+Resultado: a camada de medida já sabe que se trata de um alimento contável e já conseguiu resolvê-lo, mas uma segunda camada volta a perguntar qual era a intenção.
+
+### 3. O prompt do classificador contradiz o contrato canônico
+
+`server/modules/whatsapp/intentInterpreter.ts` instrui atualmente o classificador a usar `add_foods_to_meal` somente quando houver consumo realizado ou ordem explícita de registro (`comi`, `adicionar`, `registrar`, etc.).
+
+Isso conflita diretamente com o contrato documentado de que `1 banana` não exige verbo operacional.
+
+### 4. O fallback legado repete a mesma lacuna
+
+`server/modules/whatsapp/llmIntentActionsLegacy.ts` usa `hasLikelyMealRegistrationSignal()`, que também reconhece quantidade como sinal de registro apenas quando há número seguido de unidade (`g`, `ml`, `fatia`, `unidade` etc.). Uma contagem implícita como `1 banana nanica` não é protegida por esse fallback.
+
+### 5. Testes do simulador não protegem integralmente a rota real de produção
+
+`shared/measurementUnits.ts` contém normalizações específicas como `1 banana prata -> 1 un banana prata`, e `server/modules/whatsapp/foodTypoRouting.test.ts` valida esses casos através de `simulateWhatsappInbound()`.
+
+O webhook textual de produção possui fronteiras e critérios próprios e não está protegido pelo mesmo teste para `1 banana nanica`. Isso permite que o simulador fique verde enquanto a rota real retorna esclarecimento genérico.
+
+## Escopo
+
+- Corrigir o roteamento de mensagens alimentares no formato `quantidade + alimento` sem unidade explícita.
+- Fazer a resolução positiva do `countableGate` atuar como evidência determinística suficiente de registro alimentar, sem permitir que um classificador contextual posterior reverta essa decisão para esclarecimento genérico.
+- Alinhar as regras de registro alimentar usadas pelo webhook, interpretador estruturado e fallback nutricional para evitar decisões contraditórias.
+- Cobrir numericamente, por extenso, singular/plural, aliases/variações de alimento e mensagens com mais de um item.
+- Corrigir a lacuna de paridade entre os testes do simulador e a rota textual real do webhook.
+
+## Fora de escopo
+
+- Alterar calorias/macronutrientes dos alimentos.
+- Inventar novos pesos de porções ou substituir `prepareWhatsappCountableFoodRegistration()`/`prepareCountableFoodRegistrationResolved()` como fonte canônica de medida.
+- Redesenhar toda a conversa do WhatsApp.
+- Recalcular refeições históricas.
+- Fazer o LLM persistir alimentos diretamente.
+
+## Requisitos funcionais
+
+1. **Resolução contável pronta é sinal de registro**
+   - Quando `prepareWhatsappCountableFoodRegistration()` retornar `kind: "ready"` com ao menos uma resolução alimentar válida, o fluxo não deve chamar um classificador contextual capaz de converter essa entrada em esclarecimento genérico.
+   - O `registrationText` já resolvido deve seguir para o pipeline nutricional pelo passthrough/text override canônico existente.
+
+2. **Quantidade + alimento não exige verbo operacional**
+   - Entradas como `1 banana nanica`, `2 ovos cozidos`, `1 pão francês` e `1 iogurte natural` devem seguir como registro quando o domínio conseguir reconhecer/resolver o alimento.
+   - A implementação não pode depender de uma lista hardcoded específica de nomes como `banana prata`.
+
+3. **Quantidade por extenso**
+   - Quantidades por extenso suportadas pelo produto devem ter a mesma semântica das numéricas (`uma banana`, `duas bananas`, `três ovos`).
+   - Eliminar a divergência atual em que alguns módulos reconhecem mais palavras numéricas do que `parseBareCount()`; reutilizar um vocabulário canônico em vez de listas concorrentes.
+
+4. **Mensagens com múltiplos itens**
+   - Uma entrada como `1 banana nanica, 2 ovos cozidos` deve poder resolver cada segmento e seguir ao pipeline de refeição sem pedir qual é a intenção.
+   - Se apenas um segmento realmente necessitar de esclarecimento de medida/identidade, a pergunta deve apontar para esse segmento, preservando os demais.
+
+5. **Perguntas continuam sendo perguntas**
+   - `quantas calorias tem 1 banana nanica?`, `1 banana nanica tem muita caloria?` e outras construções explicitamente consultivas não podem ser transformadas em registro somente porque contêm quantidade e alimento.
+   - Preservar a precedência do fluxo de perguntas/consulta existente.
+
+6. **Correções e operações existentes continuam com precedência**
+   - Comandos de substituir, corrigir, excluir, ajustar quantidade, hidratação, peso e adição explícita a refeição existente devem manter seus handlers atuais.
+
+7. **Falha específica, não ambiguidade genérica**
+   - Depois que a intenção de registro estiver estabelecida, falha de catálogo, identidade ou gramatura deve produzir fallback/clarificação alimentar específica.
+   - Não retornar `WHATSAPP_GENERIC_CLARIFICATION_MESSAGE` para uma entrada cuja estrutura e/ou resolução de domínio já demonstre intenção de registrar alimento.
+
+8. **Fonte única para o sinal de registro alimentar**
+   - Evitar manter regras equivalentes e divergentes em `hasExplicitFoodQuantity`, `hasLikelyMealRegistrationSignal`, prompt do `intentInterpreter` e normalizações pontuais.
+   - Reutilizar um helper/contrato canônico de “evidência suficiente de registro alimentar” ou garantir equivalência por uma única fronteira testável.
+
+## Cenários obrigatórios de regressão
+
+### Caso reportado
+
+`1 banana nanica`
+
+Esperado:
+
+- não exibir `Preciso de uma informação`;
+- não perguntar se o usuário quer registrar/corrigir/consultar;
+- reconhecer `banana nanica` pelo catálogo/alias já existente;
+- usar a resolução canônica de unidade/gramatura quando disponível;
+- encaminhar ao pipeline nutricional/revisão da refeição.
+
+### Mesmo padrão com outros alimentos
+
+- `2 ovos cozidos`
+- `1 pão francês`
+- `1 iogurte natural`
+- `1 maçã fuji`
+
+Todos devem seguir o fluxo alimentar quando reconhecidos/resolvidos, sem depender de hardcode por alimento.
+
+### Quantidade por extenso
+
+- `uma banana nanica`
+- `duas bananas`
+- `três ovos cozidos`
+
+Devem ter o mesmo resultado semântico das formas numéricas equivalentes.
+
+### Múltiplos itens sem unidade explícita
+
+`1 banana nanica, 2 ovos cozidos`
+
+Não deve cair no esclarecimento genérico.
+
+### Controles que não podem virar registro
+
+- `quantas calorias tem 1 banana nanica?`
+- `1 banana nanica tem muita caloria?`
+- `troque banana por maçã`
+- `remova a banana do café da manhã`
+
+Cada um deve permanecer no fluxo consultivo/correção/exclusão correspondente.
+
+### Alimento não resolvido
+
+`1 <alimento realmente desconhecido>`
+
+A estrutura indica tentativa de registro. Se o alimento não puder ser identificado, retornar mensagem específica de alimento não encontrado/solicitação de detalhe, não o menu genérico de intenção.
+
+## Critérios de aceite
+
+- [ ] `1 banana nanica` atravessa `handleWhatsAppWebhookWithTextIntent` sem produzir `clarification_needed` genérico.
+- [ ] Quando o `countableGate` retorna `ready` com resolução, `executeWhatsappLlmIntent` não é chamado apenas para redescobrir a intenção daquele mesmo registro.
+- [ ] O texto quantitativamente resolvido chega ao webhook/pipeline nutricional pelo passthrough existente.
+- [ ] O caso não depende de adicionar `banana nanica` a uma regex/lista específica de alimentos.
+- [ ] `1 banana prata`, `1 banana nanica`, `1 pão francês`, `2 ovos cozidos` e pelo menos um alimento adicional do catálogo passam pelo mesmo mecanismo genérico.
+- [ ] Quantidades por extenso possuem cobertura e não divergem entre roteador, resolvedor contável e classificador.
+- [ ] Entrada com múltiplos itens contáveis sem unidade explícita é coberta.
+- [ ] Perguntas contendo quantidade + alimento continuam sem persistência de refeição.
+- [ ] Correção/exclusão/ajuste preservam a precedência existente.
+- [ ] Alimento desconhecido recebe erro/clarificação alimentar específica, não `WHATSAPP_GENERIC_CLARIFICATION_MESSAGE`.
+- [ ] Existe teste da rota de produção `handleWhatsAppWebhookWithTextIntent -> webhook nutricional`, e não apenas de `simulateWhatsappInbound()`.
+- [ ] O teste de produção simula um LLM que retornaria `ambiguous`/`clarification_needed` e comprova que ele não consegue sobrescrever uma resolução alimentar determinística já concluída.
+- [ ] Testes do simulador e do webhook real usam uma matriz compartilhada ou equivalente para impedir nova divergência de comportamento.
+- [ ] TypeScript, testes relevantes, architecture check e docs check permanecem aprovados.
+
+## Testes mínimos
+
+- Teste unitário do detector/contrato canônico de registro por contagem implícita.
+- Teste de `prepareWhatsappCountableFoodRegistration()` com `1 banana nanica` comprovando `kind: "ready"` e resolução canônica.
+- Teste do webhook textual de produção com `1 banana nanica`, mockando `executeWhatsappLlmIntent()` para retornar esclarecimento caso seja indevidamente chamado; a expectativa deve ser **zero chamadas** ao LLM para decidir a intenção após resolução determinística.
+- Testes parametrizados com alimentos diferentes para impedir correção hardcoded.
+- Testes de controle consultivo/correção/exclusão.
+- Teste de paridade entre a rota do simulador e a rota textual de produção para a matriz principal.
+
+## Invariantes
+
+### must_behave
+
+- Evidência alimentar determinística já resolvida não pode ser rebaixada para ambiguidade por uma etapa posterior.
+- Quantidade contável sem unidade explícita é interpretada como unidade quando o domínio possui uma porção/medida compatível e segura.
+- Perguntas explícitas mantêm precedência sobre o heurístico de registro.
+
+### must_not_behave
+
+- Não perguntar novamente qual é a intenção depois que o domínio já reconheceu e resolveu o alimento.
+- Não corrigir o caso adicionando apenas `banana nanica` a `normalizeKnownFoodTypos()` ou outra lista específica.
+- Não depender da confiança variável do LLM para entradas determinísticas como `1 banana nanica`.
+
+### must_reuse
+
+- Reutilizar `prepareWhatsappCountableFoodRegistration()` / `prepareCountableFoodRegistrationResolved()`.
+- Reutilizar catálogo e aliases existentes para identidade alimentar.
+- Reutilizar o passthrough/text override atual do webhook para o texto resolvido.
+
+## Riscos e pontos de atenção
+
+- O fluxo possui hoje mais de uma definição de “quantidade explícita” e mais de uma camada capaz de decidir a intenção; uma correção localizada só no prompt pode deixar a regressão reaparecer quando o modelo/configuração mudar.
+- O simulador aplica normalizações que não equivalem integralmente à rota textual real, então a regressão deve ser protegida no entrypoint produtivo.
