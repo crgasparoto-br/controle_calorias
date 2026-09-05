@@ -89,8 +89,12 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   const brand = inferItemBrand(food, llmItem.foodName, llmItem.brand);
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
+  const recognizedProductName = food.isBrandedProduct && food.name
+    ? food.name
+    : llmItem.foodName;
+
   return {
-    foodName: formatRecognizedProductIdentity(llmItem.foodName, brand),
+    foodName: formatRecognizedProductIdentity(recognizedProductName, brand),
     canonicalName: formatFoodNameTitleCase(food.name),
     brand,
     portionText,

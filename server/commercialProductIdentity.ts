@@ -30,7 +30,9 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "embalado",
   "embalada",
   "embalagem",
-  "em",
+  "falta",
+  "fatia",
+  "fatias",
   "g",
   "gr",
   "grama",
@@ -46,6 +48,8 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "porcao",
   "produto",
   "sabor",
+  "colher",
+  "colheres",
   "unidade",
   "unidades",
   "wafer",
@@ -146,6 +150,37 @@ function measuresMatch(
         Math.abs(actual.value - expected.value) <= 0.05
     )
   );
+}
+
+export function isPersistedProductIdentityCompatible(input: {
+  foodName: string;
+  matchedProductName: string;
+  brandName: string | null;
+  servingLabel: string;
+  gramsPerServing: number;
+}) {
+  const requestedTokens = extractCommercialTokens(input.foodName);
+  const candidateIdentity = `${input.matchedProductName} ${input.brandName ?? ""}`;
+  const candidateTokens = new Set(extractCommercialTokens(candidateIdentity));
+  const candidateCompact = normalizeCommercialText(candidateIdentity).replace(/[^a-z0-9]/g, "");
+  const requestedCompact = requestedTokens.join("");
+
+  if (!requestedTokens.every(token => candidateTokens.has(token) || candidateCompact.includes(token))) {
+    return Boolean(requestedCompact && candidateCompact.includes(requestedCompact));
+  }
+
+  const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
+  const candidateVariants = new Set(extractCommercialTokens(input.matchedProductName).filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
+  if ([...requestedVariants].some(token => !candidateVariants.has(token))) return false;
+
+  const requestedMeasures = extractCommercialMeasures(input.foodName);
+  if (!requestedMeasures.length) return true;
+
+  const candidateMeasures = extractCommercialMeasures(`${input.matchedProductName} ${input.servingLabel}`);
+  if (!candidateMeasures.length) {
+    candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
+  }
+  return measuresMatch(requestedMeasures, candidateMeasures);
 }
 
 export function isCommercialProductIdentityCompatible(input: {

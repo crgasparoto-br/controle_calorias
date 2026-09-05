@@ -42,6 +42,11 @@ export type FoodCatalogUpdateInput = Omit<
   "slug" | "aliases" | "isUserCreated" | "createdByUserId"
 >;
 
+export type NutritionResearchCandidateQuery = {
+  brandName?: string | null;
+  limit?: number;
+};
+
 export type NutritionResearchUpsertInput = {
   researchIdentityKey: string;
   slug: string;
@@ -66,6 +71,7 @@ export type NutritionResearchUpsertInput = {
 export type FoodCatalogRepository = {
   findAll(): Promise<FoodCatalogRow[]>;
   findResearchedByIdentity?(researchIdentityKey: string): Promise<FoodCatalogRow | null>;
+  findResearchedCandidates?(query: NutritionResearchCandidateQuery): Promise<FoodCatalogRow[]>;
   upsertResearchedNutrition?(input: NutritionResearchUpsertInput): Promise<number>;
   findActiveForUser?(userId: number): Promise<FoodCatalogRow[]>;
   findForResolution?(userId: number): Promise<FoodCatalogRow[]>;
@@ -127,6 +133,21 @@ export function createDrizzleFoodCatalogRepository(deps: {
         ))
         .limit(1);
       return row ?? null;
+    },
+
+    async findResearchedCandidates(query) {
+      const db = await deps.getDb();
+      if (!db) return [];
+      const conditions = [
+        eq(foodCatalog.dataSource, "web_nutrition"),
+        eq(foodCatalog.status, "active"),
+        query.brandName ? eq(foodCatalog.brandName, query.brandName) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+      return await db
+        .select()
+        .from(foodCatalog)
+        .where(and(...conditions))
+        .limit(Math.min(Math.max(query.limit ?? 50, 1), 100));
     },
 
     async upsertResearchedNutrition(input) {

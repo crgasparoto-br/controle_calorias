@@ -8,7 +8,11 @@ import {
   type FoodCatalogRow,
   type NutritionResearchUpsertInput,
 } from "./repositories/foodCatalogRepository";
-import { extractCommercialVariant } from "./commercialProductIdentity";
+import { detectKnownBrand } from "./foodBrandDetection";
+import {
+  extractCommercialVariant,
+  isPersistedProductIdentityCompatible,
+} from "./commercialProductIdentity";
 
 const RESEARCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -88,6 +92,37 @@ function isFresh(row: FoodCatalogRow, now: Date) {
   );
 }
 
+function matchesRequestedIdentity(foodName: string, row: FoodCatalogRow) {
+  return isPersistedProductIdentityCompatible({
+    foodName,
+    matchedProductName: row.name,
+    brandName: row.brandName,
+    servingLabel: row.servingLabel,
+    gramsPerServing: row.gramsPerServing,
+  });
+}
+
+function candidateScore(foodName: string, row: FoodCatalogRow) {
+  const requested = foodName.toLocaleLowerCase("pt-BR");
+  const candidate =
+    `${row.name} ${row.brandName ?? ""} ${row.productVariant ?? ""}`.toLocaleLowerCase(
+      "pt-BR"
+    );
+  const requestedTokens = requested
+    .split(/\s+/)
+    .filter(token => token.length >= 3);
+  const overlap = requestedTokens.filter(token =>
+    candidate.includes(token)
+  ).length;
+  const variantBonus =
+    row.productVariant &&
+    requested.includes(row.productVariant.toLocaleLowerCase("pt-BR"))
+      ? 10
+      : 0;
+  const freshness = row.sourceVerifiedAt?.getTime() ?? 0;
+  return overlap + variantBonus + freshness / 1_000_000_000_000;
+}
+
 export function createNutritionResearchPersistence(
   deps: NutritionResearchPersistenceDeps
 ): NutritionResearchPersistence {
@@ -97,10 +132,34 @@ export function createNutritionResearchPersistence(
   return {
     async findByIdentity(foodName) {
       const identityKey = buildNutritionResearchIdentityKey(foodName);
-      const candidate =
+      const exact =
         await deps.repository.findResearchedByIdentity?.(identityKey);
-      if (!candidate || !isFresh(candidate, now())) return null;
-      return rowToCatalogFood(candidate);
+      if (
+        exact &&
+        isFresh(exact, now()) &&
+        matchesRequestedIdentity(foodName, exact)
+      ) {
+        return rowToCatalogFood(exact);
+      }
+
+      const brandName = detectKnownBrand(foodName);
+      if (!brandName) return null;
+      const candidates =
+        (await deps.repository.findResearchedCandidates?.({
+          brandName,
+          limit: 50,
+        })) ?? [];
+      const match = candidates
+        .filter(
+          candidate =>
+            isFresh(candidate, now()) &&
+            matchesRequestedIdentity(foodName, candidate)
+        )
+        .sort(
+          (left, right) =>
+            candidateScore(foodName, right) - candidateScore(foodName, left)
+        )[0];
+      return match ? rowToCatalogFood(match) : null;
     },
 
     async save(foodName, food) {

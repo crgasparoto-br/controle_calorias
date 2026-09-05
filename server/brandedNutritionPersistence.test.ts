@@ -82,6 +82,7 @@ function repository(overrides: Partial<FoodCatalogRepository> = {}) {
     findAll: vi.fn(async () => []),
     findResearchedByIdentity: vi.fn(async () => null),
     upsertResearchedNutrition: vi.fn(async () => 10),
+    findResearchedCandidates: vi.fn(async () => []),
     findFavoriteIdsByUserId: vi.fn(async () => new Set<number>()),
     upsertFavorite: vi.fn(async () => undefined),
     deleteFavorite: vi.fn(async () => undefined),
@@ -134,6 +135,49 @@ describe("brandedNutritionPersistence", () => {
 
     await expect(
       persistence.findByIdentity("2 fatias de pão de forma Panco Premium 50 g")
+    ).resolves.toBeNull();
+  });
+
+  it("reutiliza candidato equivalente mesmo com ordem textual diferente", async () => {
+    const stored = row();
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async () => null),
+      findResearchedCandidates: vi.fn(async () => [stored]),
+    });
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    const result = await persistence.findByIdentity(
+      "Panco Premium pão de forma 50 g"
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        brandName: "Panco",
+        productVariant: "premium",
+        calories: 125,
+      })
+    );
+    expect(repo.findResearchedCandidates).toHaveBeenCalledWith({
+      brandName: "Panco",
+      limit: 50,
+    });
+  });
+
+  it("não reutiliza candidato de variante divergente", async () => {
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async () => null),
+      findResearchedCandidates: vi.fn(async () => [row()]),
+    });
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.findByIdentity("Panco Integral pão de forma 50 g")
     ).resolves.toBeNull();
   });
 

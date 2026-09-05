@@ -452,8 +452,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         inferenceItems,
         {
           preferInferredNutrition: Boolean(
-            input.imageUrl
-            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(confirmedExtraction.reasoning))
+            input.imageUrl && reasoningMentionsNutritionLabel(confirmedExtraction.reasoning)
           ),
           sourceText,
         },
