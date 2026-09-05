@@ -207,6 +207,15 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
 
+function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
+  return Boolean(
+    food?.isBrandedProduct
+    && food.sourceUrls?.length
+    && food.sourceEvidence?.trim()
+    && food.sourceVerifiedAt
+  );
+}
+
 async function buildItemsFromInference(
   items: LlmItem[],
   options: BuildItemsOptions = {},
@@ -221,7 +230,11 @@ async function buildItemsFromInference(
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
-    if (catalog && !options.preferInferredNutrition) {
+    const canUseCatalog = Boolean(
+      catalog
+      && (!options.preferInferredNutrition || isVerifiedBrandedCatalogFood(catalog))
+    );
+    if (canUseCatalog && catalog) {
       results.push(buildItemFromCatalog(catalog, resolvedItem));
     } else if (!hasUsableNutrition(resolvedItem)) {
       if (resolvedItem.brand && !catalog) {
@@ -357,21 +370,6 @@ function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: str
   });
 }
 
-function reasoningMentionsNutritionLabel(reasoning?: string) {
-  if (!reasoning) return false;
-
-  const normalized = reasoning
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
-  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
-  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
-
-  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
-}
-
 function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
   return Boolean(sourceText && extraction && extraction.items.length === 0);
 }
@@ -451,9 +449,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
-          preferInferredNutrition: Boolean(
-            input.imageUrl && reasoningMentionsNutritionLabel(confirmedExtraction.reasoning)
-          ),
+          preferInferredNutrition: Boolean(input.imageUrl),
           sourceText,
         },
         reason => fallbackReasons.observe(reason),

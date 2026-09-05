@@ -42,6 +42,7 @@ const cachedFood = {
   variants: ["Pão de Forma Panco Premium"],
   sourceUrls: ["https://panco.example/premium"],
   sourceEvidence: "2 fatias (50 g): 125 kcal.",
+  sourceVerifiedAt: new Date(),
   sourceConfidence: 0.95,
   isBrandedProduct: true,
 };
