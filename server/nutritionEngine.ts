@@ -17,6 +17,7 @@ import {
   applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
+  buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
 } from "./mealItemBuilders";
@@ -33,6 +34,7 @@ import {
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
+  CatalogFood,
   LlmItem,
   MealDraftItem,
   MealProcessingInput,
@@ -172,35 +174,35 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
   return matchingSegments.length === 1 ? matchingSegments[0] : item.foodName;
 }
 
+function catalogMatchesExplicitBrand(item: LlmItem, catalog: CatalogFood) {
+  if (!item.brand) return true;
+  const requestedBrand = normalizeForMatching(item.brand).trim();
+  const candidateBrand = normalizeForMatching(catalog.brandName ?? "").trim();
+  return Boolean(requestedBrand && candidateBrand && requestedBrand === candidateBrand);
+}
+
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
-  let genericFallback: ReturnType<typeof findCatalogFood>;
-
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
+    if (!catalogMatchesExplicitBrand(item, catalog)) continue;
     return catalog;
   }
 
   for (const [index, candidate] of candidates.entries()) {
+    if (item.brand && index > 0) break;
     const catalog = await findCatalogFoodSemantic(candidate, {
       searchSpecificProduct: Boolean(item.brand) && index === 0,
       skipNutritionSearch: index > 0,
     }) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
+    if (!catalogMatchesExplicitBrand(item, catalog)) continue;
     return catalog;
   }
 
-  return genericFallback;
+  return undefined;
 }
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
@@ -222,6 +224,10 @@ async function buildItemsFromInference(
     if (catalog && !options.preferInferredNutrition) {
       results.push(buildItemFromCatalog(catalog, resolvedItem));
     } else if (!hasUsableNutrition(resolvedItem)) {
+      if (resolvedItem.brand && !catalog) {
+        results.push(buildUnresolvedBrandedNutritionItem(resolvedItem));
+        continue;
+      }
       const fallbackItem = sourceFoodName
         ? { ...resolvedItem, foodName: sourceFoodName }
         : resolvedItem;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recoverExplicitBrandFromSource } from "./nutritionEngine";
+import { buildUnresolvedBrandedNutritionItem } from "./mealItemBuilders";
 
 const baseItem = {
   foodName: "pão de forma",
@@ -43,5 +44,29 @@ describe("issue #1051 — recuperação de marca a partir da origem", () => {
         "2 fatias de pão de forma artesanal"
       )
     ).toEqual(expect.objectContaining({ brand: null }));
+  });
+
+  it("preserva produto de marca sem atribuir macros genéricos quando a busca falha", () => {
+    const item = buildUnresolvedBrandedNutritionItem({
+      ...baseItem,
+      foodName: "pão de forma",
+      brand: "Panco",
+      portionText: "2 fatias",
+      estimatedGrams: 50,
+      servings: 1,
+    });
+
+    expect(item).toEqual(
+      expect.objectContaining({
+        foodName: "Pão de Forma Panco",
+        brand: "Panco",
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        source: "heuristic",
+      })
+    );
+    expect(item.confidence).toBeLessThanOrEqual(0.3);
   });
 });

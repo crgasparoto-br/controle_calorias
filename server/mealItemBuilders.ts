@@ -140,6 +140,24 @@ export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
   };
 }
 
+export function buildUnresolvedBrandedNutritionItem(llmItem: LlmItem): MealDraftItem {
+  const item = buildHybridItem({
+    ...llmItem,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+  });
+
+  return {
+    ...item,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: Math.min(item.confidence, 0.3),
+    source: "heuristic",
+  };
+}
+
 export function hasUsableNutrition(item: LlmItem) {
   return item.estimatedCalories > 0
     || item.estimatedMacros.protein > 0

@@ -4,6 +4,7 @@ import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { isCommercialProductIdentityCompatible } from "./commercialProductIdentity";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
@@ -122,6 +123,14 @@ function measuresContainAll(expected: CommercialMeasure[], actual: CommercialMea
 }
 
 function structuredIdentityIsCompatible(foodName: string, result: SearchedNutritionResult) {
+  if (!isCommercialProductIdentityCompatible({
+    foodName,
+    matchedProductName: result.matchedProductName,
+    brandName: result.brandName,
+    servingLabel: result.servingLabel,
+    gramsPerServing: result.gramsPerServing,
+  })) return false;
+
   const expectedBrandTokens = brandTokens(result.brandName);
   if (!expectedBrandTokens.length || !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
 
@@ -235,6 +244,7 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
     aliases: [foodName, result.matchedProductName.trim(), `fonte: ${sourceUrl}`],
+    variants: [result.matchedProductName.trim()],
     servingLabel: result.servingLabel.trim(),
     gramsPerServing: result.gramsPerServing,
     calories: result.calories,

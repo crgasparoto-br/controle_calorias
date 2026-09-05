@@ -31,13 +31,7 @@ export async function findCatalogFoodSemantic(
   options: SemanticSearchOptions = {},
 ): Promise<CatalogFood | null> {
   if (options.searchSpecificProduct && !options.skipNutritionSearch) {
-    const specific = await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
-    if (specific) return specific;
-
-    return findCatalogFoodSemanticCore(foodName, {
-      searchSpecificProduct: false,
-      skipNutritionSearch: true,
-    });
+    return findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
   }
 
   return findCatalogFoodSemanticCore(foodName, options);
