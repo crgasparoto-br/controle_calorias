@@ -33,6 +33,7 @@ describe("issue #1047 — integração real do countable gate", () => {
         request: {
           segment: item.segment,
           foodName: item.foodName,
+          brand: null,
           count: item.count,
           requestedUnit: "un",
         },
