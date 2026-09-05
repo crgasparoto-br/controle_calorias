@@ -212,6 +212,19 @@ describe("brandedNutritionPersistence", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("não grava variante específica para uma consulta genérica", async () => {
+    const repo = repository();
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.save("Panco pão de forma", food())
+    ).resolves.toBeNull();
+    expect(repo.upsertResearchedNutrition).not.toHaveBeenCalled();
+  });
+
   it("não grava resultado sem fonte ou evidência", async () => {
     const repo = repository();
     const persistence = createNutritionResearchPersistence({

@@ -171,7 +171,11 @@ export function isPersistedProductIdentityCompatible(input: {
 
   const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
   const candidateVariants = new Set(extractCommercialTokens(input.matchedProductName).filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
-  if ([...requestedVariants].some(token => !candidateVariants.has(token))) return false;
+  if (requestedVariants.size === 0 && candidateVariants.size > 0) return false;
+  if (
+    [...requestedVariants].some(token => !candidateVariants.has(token))
+    || [...candidateVariants].some(token => !requestedVariants.has(token))
+  ) return false;
 
   const requestedMeasures = extractCommercialMeasures(input.foodName);
   if (!requestedMeasures.length) return true;

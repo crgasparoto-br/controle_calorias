@@ -166,7 +166,15 @@ export function createNutritionResearchPersistence(
       const sourceUrls = food.sourceUrls ?? [];
       const sourceEvidence = food.sourceEvidence?.trim();
       const sourceVerifiedAt = food.sourceVerifiedAt ?? now();
+      const identityCompatible = isPersistedProductIdentityCompatible({
+        foodName,
+        matchedProductName: food.name,
+        brandName: food.brandName ?? null,
+        servingLabel: food.servingLabel,
+        gramsPerServing: food.gramsPerServing,
+      });
       if (
+        !identityCompatible ||
         !food.brandName ||
         !sourceUrls.length ||
         !sourceEvidence ||
