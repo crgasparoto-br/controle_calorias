@@ -57,6 +57,14 @@ export function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+export function isResearchVerifiedCatalogFood(food: CatalogFood | undefined) {
+  return Boolean(
+    food?.sourceUrls?.length
+    && food.sourceEvidence?.trim()
+    && food.sourceVerifiedAt
+  );
+}
+
 function preserveLeadingQuantity(sourceName: string, productName: string) {
   const quantityMatch = sourceName.trim().match(/^(\d+(?:[,.]\d+)?)\s+/);
   return quantityMatch ? `${quantityMatch[1]} ${productName}` : productName;
@@ -94,7 +102,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   const brand = inferItemBrand(food, llmItem.foodName, llmItem.brand);
   const usedGenericForMentionedBrand = Boolean(brand && !food.brandName);
 
-  const recognizedProductName = food.isBrandedProduct && food.name
+  const recognizedProductName = food.isBrandedProduct && food.name && isResearchVerifiedCatalogFood(food)
     ? preserveLeadingQuantity(llmItem.foodName, food.name)
     : llmItem.foodName;
 

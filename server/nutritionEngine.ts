@@ -20,6 +20,7 @@ import {
   buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
+  isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
 import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
@@ -181,6 +182,15 @@ function catalogMatchesExplicitBrand(item: LlmItem, catalog: CatalogFood) {
   return Boolean(requestedBrand && candidateBrand && requestedBrand === candidateBrand);
 }
 
+function isCatalogFoodNameIdentityMatch(catalog: CatalogFood, semanticSource: string) {
+  const normalizedSource = normalizeForMatching(semanticSource).trim();
+  if (!normalizedSource) return false;
+
+  return [catalog.name, ...catalog.aliases].some(
+    candidate => normalizeForMatching(candidate).trim() === normalizedSource,
+  );
+}
+
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
@@ -188,7 +198,7 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
     if (!catalogMatchesExplicitBrand(item, catalog)) continue;
-    return catalog;
+    return { catalog, isExactMatch: true };
   }
 
   for (const [index, candidate] of candidates.entries()) {
@@ -199,22 +209,21 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
     }) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
     if (!catalogMatchesExplicitBrand(item, catalog)) continue;
-    return catalog;
+    return { catalog, isExactMatch: isCatalogFoodNameIdentityMatch(catalog, semanticSource) };
   }
 
-  return undefined;
+  return { catalog: undefined, isExactMatch: false };
 }
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
 
 function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
-  return Boolean(
-    food?.isBrandedProduct
-    && food.sourceUrls?.length
-    && food.sourceEvidence?.trim()
-    && food.sourceVerifiedAt
-  );
+  if (!food?.isBrandedProduct) return false;
+  if (!food.researchIdentityKey) return true;
+
+  return isResearchVerifiedCatalogFood(food);
 }
+
 
 async function buildItemsFromInference(
   items: LlmItem[],
@@ -226,13 +235,18 @@ async function buildItemsFromInference(
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
     const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
-    const catalog = await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+    const { catalog, isExactMatch } = await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
     const canUseCatalog = Boolean(
       catalog
-      && (!options.preferInferredNutrition || isVerifiedBrandedCatalogFood(catalog))
+      && (isExactMatch || resolvedItem.brand || hasUsableNutrition(resolvedItem))
+      && (
+        !options.preferInferredNutrition
+        || isVerifiedBrandedCatalogFood(catalog)
+        || (!catalog.isBrandedProduct && !options.nutritionLabelRead)
+      )
     );
     if (canUseCatalog && catalog) {
       results.push(buildItemFromCatalog(catalog, resolvedItem));
@@ -355,6 +369,21 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
   return null;
 }
 
+function reasoningMentionsNutritionLabel(reasoning?: string) {
+  if (!reasoning) return false;
+
+  const normalized = reasoning
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
+  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
+  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
+
+  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
+}
+
 function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
   if (!sourceText.trim()) return items;
 
@@ -450,6 +479,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         inferenceItems,
         {
           preferInferredNutrition: Boolean(input.imageUrl),
+          nutritionLabelRead: reasoningMentionsNutritionLabel(confirmedExtraction.reasoning),
           sourceText,
         },
         reason => fallbackReasons.observe(reason),

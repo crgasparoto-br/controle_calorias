@@ -147,6 +147,8 @@ export type ExplicitQuantity = {
 
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
+  /** Indica que o modelo relatou ter lido valores de uma tabela/rótulo nutricional na imagem. */
+  nutritionLabelRead?: boolean;
   /** Texto/transcrição original usado para montar candidatos de busca mais específicos. */
   sourceText?: string;
 };
