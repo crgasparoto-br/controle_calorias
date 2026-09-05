@@ -36,6 +36,54 @@ type Sensitive = { kind: "publish" | "deactivate-version" | "deactivate-coupon";
 
 const money = (minor: number, code = "BRL") => new Intl.NumberFormat("pt-BR", { style: "currency", currency: code }).format(minor / 100);
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Rascunho",
+  active: "Ativa",
+  inactive: "Inativa",
+  retired: "Encerrada",
+};
+
+const COUPON_STATE_LABELS: Record<string, string> = {
+  active: "Ativo",
+  inactive: "Inativo",
+  expired: "Expirado",
+};
+
+const CYCLE_LABELS: Record<string, string> = {
+  monthly: "Mensal",
+  yearly: "Anual",
+  custom: "Personalizado",
+};
+
+const RESOURCE_LABELS: Record<string, string> = {
+  system_access: "Acesso ao sistema",
+  web_access: "Acesso pela web",
+  whatsapp_access: "Registro pelo WhatsApp",
+  meal_text: "Refeições por texto",
+  meal_image: "Refeições por imagem",
+  meal_audio: "Refeições por áudio",
+  ai_assistance: "Assistência por IA",
+  nutrition_goals: "Metas nutricionais",
+  reports: "Relatórios",
+  weight_tracking: "Acompanhamento de peso",
+  water_tracking: "Acompanhamento de água",
+  exercise_tracking: "Acompanhamento de exercícios",
+  health_integrations: "Integrações de saúde",
+  professional_dashboard: "Painel profissional",
+  professional_portfolio: "Carteira de pacientes",
+  professional_record: "Prontuário profissional",
+  professional_goals: "Metas dos pacientes",
+  professional_operational_alerts: "Alertas operacionais",
+  professional_messages: "Mensagens profissionais",
+  professional_reports: "Relatórios profissionais",
+  professional_ai_assistance: "Assistência por IA profissional",
+  professional_settings: "Configurações profissionais",
+};
+
+function resourceLabel(value: string) {
+  return RESOURCE_LABELS[value] ?? value;
+}
+
 function actionCopy(action: Sensitive | null) {
   if (!action) return null;
   if (action.kind === "publish") return { title: `Publicar versão ${action.code}?`, description: "A versão ficará disponível para novas contratações. Contratos existentes não serão alterados.", label: "Publicar versão", destructive: false };
@@ -144,19 +192,19 @@ export default function BillingCatalogAdminPanel() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Layers3 className="h-5 w-5" />Catálogo e versões</CardTitle><CardDescription>Versões contratadas permanecem preservadas; mudanças comerciais usam nova versão e publicação explícita.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Layers3 className="h-5 w-5" />Planos e versões</CardTitle><CardDescription>Versões já contratadas são preservadas. Mudanças de preço, capacidade ou recursos devem ser feitas em uma nova versão.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
             <Field label="Motivo para publicar, encerrar ou desativar" id="catalog-action-reason" value={actionReason} onChange={setActionReason} textarea error={actionReason.length > 0 && actionReason.trim().length < 3 ? "Informe um motivo com pelo menos 3 caracteres." : null} />
             <div className="grid gap-3 md:grid-cols-2">
               {versions.data?.map(item => <article key={item.id} className="rounded-xl border p-4">
-                <div className="flex items-start justify-between gap-2"><div><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.productCode} · {item.versionCode}</p></div><Badge variant={item.status === "active" ? "default" : "secondary"}>{item.status}</Badge></div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge variant="outline">{item.billingCycle}</Badge><Badge variant="outline">{money(item.unitAmount, item.currency)}</Badge>{item.capacityLimit ? <Badge variant="outline">cap. {item.capacityLimit}</Badge> : null}</div>
-                <p className="mt-3 text-xs leading-5 text-muted-foreground">Recursos incluídos: {item.entitlements.join(", ")}</p>
+                <div className="flex items-start justify-between gap-2"><div><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">Produto {item.productCode} · versão {item.versionCode}</p></div><Badge variant={item.status === "active" ? "default" : "secondary"}>{STATUS_LABELS[item.status] ?? item.status}</Badge></div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge variant="outline">{CYCLE_LABELS[item.billingCycle] ?? item.billingCycle}</Badge><Badge variant="outline">{money(item.unitAmount, item.currency)}</Badge>{item.capacityLimit ? <Badge variant="outline">Capacidade: {item.capacityLimit}</Badge> : null}</div>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">Recursos incluídos: {item.entitlements.map(resourceLabel).join(", ")}</p>
                 <div className="mt-3 flex flex-wrap gap-2">{item.status === "draft" ? <Button size="sm" onClick={() => askSensitive("publish", item.versionCode)}>Publicar</Button> : null}{item.status === "active" ? <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => askSensitive("deactivate-version", item.versionCode)}>Encerrar</Button> : null}</div>
               </article>)}
             </div>
-            {versions.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carregando catálogo e versões...</p> : null}
-            {versions.isError ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar o catálogo administrativo.</p> : null}
+            {versions.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carregando planos e versões...</p> : null}
+            {versions.isError ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar os planos e versões.</p> : null}
             {!versions.isLoading && !versions.isError && !versions.data?.length ? <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma versão cadastrada.</p> : null}
           </CardContent>
         </Card>
@@ -164,7 +212,7 @@ export default function BillingCatalogAdminPanel() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><TicketPercent className="h-5 w-5" />Cupons</CardTitle><CardDescription>Consulte as revisões e desative novos usos quando necessário.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {coupons.data?.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-medium">{item.code}</p><p className="text-xs text-muted-foreground">rev. {item.revision} · {item.discountType === "percentage" ? `${item.discountValue}%` : item.discountValue} · {item.durationCharges} cobrança(s)</p></div><div className="flex items-center gap-2"><Badge variant={item.state === "active" ? "default" : "secondary"}>{item.state}</Badge>{item.state === "active" ? <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => askSensitive("deactivate-coupon", item.code)}>Desativar</Button> : null}</div></div>)}
+            {coupons.data?.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-medium">{item.code}</p><p className="text-xs text-muted-foreground">Revisão {item.revision} · {item.discountType === "percentage" ? `${item.discountValue}%` : item.discountValue} · {item.durationCharges} cobrança(s)</p></div><div className="flex items-center gap-2"><Badge variant={item.state === "active" ? "default" : "secondary"}>{COUPON_STATE_LABELS[item.state] ?? item.state}</Badge>{item.state === "active" ? <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => askSensitive("deactivate-coupon", item.code)}>Desativar</Button> : null}</div></div>)}
             {coupons.isLoading ? <p role="status" className="text-sm text-muted-foreground">Carregando cupons...</p> : null}
             {coupons.isError ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar os cupons.</p> : null}
             {!coupons.isLoading && !coupons.isError && !coupons.data?.length ? <p className="text-sm text-muted-foreground">Nenhum cupom cadastrado.</p> : null}
