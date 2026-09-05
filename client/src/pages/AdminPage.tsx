@@ -24,7 +24,7 @@ const USER_ROLE_LABELS: Record<string, string> = {
 const LOG_STATUS_LABELS: Record<string, string> = {
   success: "Concluído",
   warning: "Atenção",
-  error: "Falhou",
+  error: "Não concluído",
 };
 
 const LOG_ORIGIN_LABELS: Record<string, string> = {
