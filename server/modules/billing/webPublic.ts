@@ -101,19 +101,19 @@ function publicBillingError(error: unknown): TRPCError {
     billing_payment_method_not_available: "Este meio de pagamento não está disponível para o plano selecionado.",
     billing_payment_method_not_allowed: "Este meio de pagamento não está disponível para o plano selecionado.",
     billing_subscription_not_found: "A assinatura não foi localizada para esta conta.",
-    billing_professional_trial_required: "A ativação antecipada está disponível somente durante um trial profissional ativo.",
+    billing_professional_trial_required: "A ativação antecipada está disponível somente durante um período de avaliação profissional ativo.",
     billing_early_conversion_payer_required: "Somente o pagador desta assinatura pode antecipar a ativação.",
-    billing_professional_trial_first_charge_missing: "Não foi possível confirmar a data financeira deste trial.",
-    asaas_credit_card_trial_subscription_required: "A ativação antecipada exige um trial profissional iniciado por cartão.",
-    pix_automatic_requires_trial_waiver: "O Pix Automático inicia uma contratação paga e exige confirmação de que o trial não será utilizado.",
+    billing_professional_trial_first_charge_missing: "Não foi possível confirmar a data da primeira cobrança deste período de avaliação.",
+    asaas_credit_card_trial_subscription_required: "A ativação antecipada exige um período de avaliação profissional iniciado por cartão.",
+    pix_automatic_requires_trial_waiver: "O Pix Automático inicia uma contratação paga e exige confirmação de que o período de avaliação não será utilizado.",
     billing_trial_registered_card_required: "Para iniciar o período de avaliação, conclua primeiro o cadastro do cartão no ambiente seguro de pagamento.",
     billing_contract_trial_already_used: "O período de avaliação já foi utilizado e não está disponível para esta contratação.",
     billing_contract_trial_identity_conflict: "Não foi possível confirmar a elegibilidade para um novo período de avaliação.",
     asaas_pix_reactivation_requires_new_authorization: "Esta renovação por Pix Automático exige uma nova autorização. Inicie uma nova autorização quando essa ação estiver disponível.",
     asaas_reactivation_not_supported: "A reativação não está disponível para este meio de pagamento.",
     asaas_regularization_not_available: "Não há uma ação de regularização disponível para o estado atual desta assinatura.",
-    asaas_regularization_reference_missing: "A cobrança ainda não possui referência financeira suficiente para uma regularização segura.",
-    asaas_regularization_invoice_not_available: "Não foi localizada uma cobrança vencida ou pendente com fatura segura disponível. Tente novamente após a próxima atualização financeira.",
+    asaas_regularization_reference_missing: "Ainda não há informações suficientes sobre a cobrança para iniciar uma regularização segura.",
+    asaas_regularization_invoice_not_available: "Não foi localizada uma cobrança vencida ou pendente disponível para regularização. Tente novamente após a próxima atualização.",
     asaas_not_configured: "A contratação está temporariamente indisponível. Tente novamente mais tarde.",
   };
   if (code.startsWith("billing_coupon_")) {
@@ -126,7 +126,7 @@ function publicBillingError(error: unknown): TRPCError {
     code: code in messages ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
     message:
       messages[code] ??
-      "Não foi possível concluir a operação comercial com segurança. Nenhuma ativação foi presumida.",
+      "Não foi possível concluir a operação. Nenhuma alteração foi feita no seu acesso.",
   });
 }
 
@@ -267,7 +267,7 @@ export async function startBillingWebCheckout(input: {
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Confirme a contratação paga sem trial para usar Pix Automático.",
+      message: "Confirme a contratação paga sem período de avaliação para usar Pix Automático.",
     });
   }
 
@@ -288,7 +288,7 @@ export async function startBillingWebCheckout(input: {
       throw new TRPCError({
         code: "CONFLICT",
         message:
-          "Já existe outra tentativa de contratação em andamento para esta conta. Conclua ou aguarde o encerramento da tentativa atual antes de trocar plano, método ou cupom.",
+          "Já existe outra tentativa de contratação em andamento para esta conta. Conclua ou aguarde o encerramento da tentativa atual antes de trocar plano, forma de pagamento ou cupom.",
       });
     }
     canonicalContractKey = attempt.contractKey;
@@ -341,7 +341,7 @@ export async function regularizeBillingWebSubscription(input: {
       flow,
       pendingAuthoritativeConfirmation: true as const,
       message:
-        "A cobrança existente será aberta no ambiente seguro do Asaas. O acesso só muda depois da confirmação financeira autoritativa.",
+        "A cobrança será aberta no ambiente seguro de pagamento. Seu acesso será atualizado após a confirmação do pagamento.",
     };
   } catch (error) {
     throw publicBillingError(error);
@@ -361,7 +361,7 @@ export async function cancelBillingWebSubscription(input: {
     return {
       status: "pending" as const,
       message:
-        "O cancelamento da renovação foi solicitado. A vigência atual permanece até a data informada pelo backend.",
+        "O cancelamento da renovação foi solicitado. Seu acesso atual permanece válido até o fim do período já contratado.",
     };
   } catch (error) {
     throw publicBillingError(error);
@@ -381,7 +381,7 @@ export async function reactivateBillingWebSubscription(input: {
     return {
       status: "pending" as const,
       message:
-        "A reativação da renovação foi solicitada. O plano, a versão e a data vigente permanecem inalterados até a confirmação do backend.",
+        "A reativação da renovação foi solicitada. O plano, a versão e a data atual permanecem inalterados até a confirmação da reativação.",
     };
   } catch (error) {
     throw publicBillingError(error);
@@ -439,7 +439,7 @@ export async function activateProfessionalTrialNow(input: {
     return {
       ...result,
       message:
-        "A ativação antecipada foi solicitada. O limite integral de pacientes será liberado somente após confirmação financeira autoritativa.",
+        "A ativação antecipada foi solicitada. A capacidade integral de pacientes será liberada após a confirmação do pagamento.",
     };
   } catch (error) {
     throw publicBillingError(error);
