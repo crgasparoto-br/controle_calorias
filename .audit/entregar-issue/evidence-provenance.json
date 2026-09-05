@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "material_head_sha": "a038de432105c632e9a9545cefceecbd9bf1c343",
-  "base_sha": "91750c9176febf868e47b9131a4d894d643bf2b5",
+  "material_head_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
+  "base_sha": "df0bc684029806191cbd3f5cd6db6b03ecc935cb",
   "evidence": [
     {
       "evidence_id": "EVID-1047-COUNTABLE",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/evidence/issue1047-exact-head-evidence.txt",
-      "sha256": "c9197421f94423f9bba3018740cb107414956cadbcad491b3b9ec1eba1222e15",
-      "subject_sha": "a038de432105c632e9a9545cefceecbd9bf1c343",
+      "sha256": "65236813a9fd381a4abbbdc2ff9c57d335b9180f6d736a15f526d28f0c1b1a50",
+      "subject_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head CI and regression evidence",
       "status": "passed"

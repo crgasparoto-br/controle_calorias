@@ -4,47 +4,55 @@ issue=1047
 pull_request=1048
 base_ref=develop
 head_ref=fix/1047-countable-food-registration
-base_sha=91750c9176febf868e47b9131a4d894d643bf2b5
-material_head_sha=a038de432105c632e9a9545cefceecbd9bf1c343
-merge_preview_sha=e14cb4224a01b6ce57a59df5f37b0c21cc29d6b1
+base_sha=df0bc684029806191cbd3f5cd6db6b03ecc935cb
+material_head_sha=31f6306bdba848e28d2bce1467e05f97c003334e
+merge_preview_sha=4a1f033697d08dd7063a2df34f0d6f26501c3868
 
-Issue-local changed paths (91750c9..a038de4):
+Issue-local/current-PR changed paths (df0bc68..31f6306):
+- .audit/entregar-issue/evidence-provenance.json
+- .audit/entregar-issue/evidence/issue1047-exact-head-evidence.txt
+- .audit/entregar-issue/inherited-controls.json
+- .audit/entregar-issue/inherited-controls.parts/part-000.b64
+- .audit/entregar-issue/requirement-closure.parts/part-002.b64
+- .audit/entregar-issue/requirement-closure.parts/part-003.b64
+- .audit/entregar-issue/specification-sources/SRC-ISSUE-1047.txt
 - docs/design-docs/whatsapp-countable-measure-passthrough.md
 - server/countableFoodQuantity.issue1047.test.ts
 - server/countableFoodQuantity.ts
 - server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts
+- server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts
+- server/modules/whatsapp/countableFoodRegistrationParity.simulator.test.ts
 - server/modules/whatsapp/foodClarificationContract.ts
 - server/modules/whatsapp/quantityUnitVocabulary.test.ts
 - server/modules/whatsapp/quantityUnitVocabulary.ts
+- server/modules/whatsapp/testFixtures/countableFoodRegistrationParityCases.ts
 - server/whatsappIntentWebhook.issue1037.test.ts
+- server/whatsappIntentWebhook.issue1047.parity.test.ts
 - server/whatsappIntentWebhook.ts
 
-Exact-head CI observations for material_head_sha a038de432105c632e9a9545cefceecbd9bf1c343:
-- GitHub Actions run 33909080220, workflow "Agent-first gate": completed/success.
+Exact-head CI observations for material_head_sha 31f6306bdba848e28d2bce1467e05f97c003334e:
+- GitHub Actions run 33934512799, workflow "Agent-first gate": completed/success.
   - Merge preview integration: TypeScript integration check=success; Test merge preview=success.
   - Exact-head Agent-first job: TypeScript check=success; Tests=success; Architecture check=success; Documentation check=success; Build=success; Agent check=success; CI gate docs check=success; exact-head verification manifest=success; exact-head repository bundle=success.
   - Database integrity check was skipped by workflow policy; the explicit skipped-status step succeeded.
-- GitHub Actions run 33909080212, workflow "WhatsApp context TiDB gate": completed/success.
-  - TiDB schema setup and canonical food signal verification=success.
-  - Referential integrity=success.
-  - Pending operation insert id regression=success.
-  - Quick edit meal update regression=success.
-  - Persistent context regression=success.
+- GitHub Actions run 33934512820, workflow "WhatsApp context TiDB gate": completed/success.
+  - Current repository schema applied successfully; canonical food signal tables verified.
+  - Referential integrity=success; pending-operation regression=success; quick-edit regression=success; persistent-context regression=success.
 
-Discriminant exact-head code/test observations (same product tree, revalidated by exact-head CI):
+Discriminant exact-head code/test observations (same candidate 31f6306bdba848e28d2bce1467e05f97c003334e validated by exact-head CI):
 - server/whatsappIntentWebhook.ts resolves the canonical route before the countable gate; canonical safe non-food responses skip the countable gate.
-- server/whatsappIntentWebhook.ts sends countable ready+resolved registrationText directly to the nutrition passthrough before any contextual LLM reclassification when executeWhatsappTextIntent returns null.
+- A countable ready+resolved registrationText is sent directly to the nutrition passthrough before contextual LLM reclassification.
 - server/whatsappIntentWebhook.issue1037.test.ts covers "1 banana nanica" -> "80 g de banana nanica" and asserts executeWhatsappLlmIntent is not called even when mocked to return clarification if invoked.
-- The same production-wrapper test covers multi-item "1 banana nanica, 2 ovos cozidos" -> "80 g de banana nanica, 100 g de ovos cozidos" and asserts no contextual LLM call.
-- The same test covers "quantas calorias tem 1 banana nanica?" and "1 banana nanica tem muita caloria?" as questions: the countable gate is not called and the contextual question route remains active.
-- The same test covers an unknown countable food and verifies a food-specific clarification path without contextual LLM fallback.
-- server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts verifies that when one segment is resolved and another is pending, registrationSegments preserve the resolved segment while clarification targets the pending segment.
-- server/countableFoodQuantity.issue1047.test.ts verifies canonical count words (duas=2, três=3, dez=10) and verifies both "1 banana nanica" and "uma banana nanica" resolve to canonical 80 g without an operational verb.
-- server/modules/whatsapp/quantityUnitVocabulary.ts is the shared source for COUNT_WORD_VALUES / COUNTABLE_QUANTITY_PATTERN / parseCountableQuantity.
-- server/countableFoodQuantity.ts and server/modules/whatsapp/foodClarificationContract.ts reuse that shared count vocabulary instead of maintaining competing count-word maps.
-- docs/design-docs/whatsapp-countable-measure-passthrough.md documents that a positive ready countable resolution is deterministic registration evidence, preserves question precedence, and does not require an operational verb.
+- The production-wrapper tests cover multi-item "1 banana nanica, 2 ovos cozidos" and explicit nutritional questions without downgrading question precedence.
+- server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts exercises the canonical countable gate against the issue-1047 boundary.
+- server/modules/whatsapp/countableFoodRegistrationParity.simulator.test.ts and server/whatsappIntentWebhook.issue1047.parity.test.ts share the issue-1047 parity matrix across simulator and production wrapper.
+- server/modules/whatsapp/testFixtures/countableFoodRegistrationParityCases.ts centralizes the parity cases.
+- Unknown countable food remains on food-specific clarification without generic contextual-intent fallback.
+- server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts verifies that a resolved segment is preserved while another segment is pending clarification.
+- server/countableFoodQuantity.issue1047.test.ts verifies canonical count words and numeric/written forms without an operational verb.
+- server/modules/whatsapp/quantityUnitVocabulary.ts remains the shared source for count-word parsing.
+- docs/design-docs/whatsapp-countable-measure-passthrough.md documents deterministic ready-countable registration and question precedence.
 
-Exact-head identity reconciliation:
-- Remote material head is a038de432105c632e9a9545cefceecbd9bf1c343.
-- Remote material tree is dbcbf970894673c2e0e8285896a435f05aa765e5, identical to the previously validated functional candidate tree.
-- Exact-head CI was re-executed after the SHA-only history drift and completed green on a038de432105c632e9a9545cefceecbd9bf1c343; no product-tree change was introduced by the reconciliation commits.
+Handoff remediation observation:
+- Independent audit rejection audit-rejection:2f674b89-d5b6-47cf-96f2-6ae9835d4457 found only delivery readiness: the generic handoff certificate had been replaced by an inherited develop certificate for issue #1040/PR #1046 during the develop merge.
+- No product source change is part of this remediation; this package rebinds the terminal handoff to issue #1047/PR #1048 on exact material head 31f6306bdba848e28d2bce1467e05f97c003334e.
