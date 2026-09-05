@@ -49,6 +49,10 @@ describe("billing notification center", () => {
     expect(visible).not.toContain("evt-secret");
     expect(visible).not.toContain("sub-secret");
     expect(visible).not.toContain("past_due_notice_day_5");
+    expect(visible.toLowerCase()).not.toContain("backend");
+    expect(visible.toLowerCase()).not.toContain("provider");
+    expect(visible.toLowerCase()).not.toContain("callback");
+    expect(visible.toLowerCase()).not.toContain("trial");
   });
 
   it("presents transition milestones without implying automatic billing", () => {
@@ -87,11 +91,11 @@ describe("billing notification center", () => {
     expect(notification?.whatOccurred).toContain("capacidade contratada de 30 pacientes");
     expect(notification?.whatOccurred).toContain("ocupação atual de 45");
     expect(notification?.expectedAction).toContain("redução natural");
-    expect(notification?.expectedAction).toContain("upgrade");
+    expect(notification?.expectedAction).toContain("mudança para um plano compatível");
     expect(notification?.expectedAction).toContain("administrativo");
   });
 
-  it("explains when the portfolio exceeds every public plan without promising an automatic product", () => {
+  it("explains when the portfolio exceeds every available plan without promising an automatic product", () => {
     const notification = presentBillingFactAsNotification({
       factType: "professional_capacity_admin_alert_opened",
       payloadJson: {
@@ -101,7 +105,7 @@ describe("billing notification center", () => {
     });
 
     expect(notification?.title).toBe("Carteira encaminhada para análise comercial");
-    expect(notification?.whatOccurred).toContain("maior capacidade pública");
+    expect(notification?.whatOccurred).toContain("maior capacidade disponível atualmente");
     expect(notification?.expectedAction).toContain("Nenhum novo plano será criado automaticamente");
   });
 
