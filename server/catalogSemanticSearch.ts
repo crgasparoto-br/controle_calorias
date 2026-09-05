@@ -6,6 +6,7 @@ import {
   resetEmbeddingCache as resetEmbeddingCacheCore,
 } from "./catalogSemanticSearchCore";
 import { findBrandedNutritionByWebSearch } from "./brandedNutritionSearch";
+import { getDefaultNutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
@@ -14,6 +15,7 @@ type SemanticSearchOptions = { searchSpecificProduct?: boolean; skipNutritionSea
 const brandedNutritionRuntime = {
   resolveCapabilityConfig,
   executeResolvedCapability,
+  persistence: getDefaultNutritionResearchPersistence(),
 };
 
 export async function findPackagedSnackByWebSearch(

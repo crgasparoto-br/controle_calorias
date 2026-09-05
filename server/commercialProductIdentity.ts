@@ -78,6 +78,12 @@ const COMMERCIAL_VARIANT_TOKENS = new Set([
   "trufado",
   "trufada",
   "zero",
+  "aveia",
+  "familia",
+  "junior",
+  "leite",
+  "multigraos",
+  "queijo",
 ]);
 
 function normalizeCommercialText(value: string) {
@@ -101,6 +107,12 @@ function extractCommercialTokens(value: string) {
         !COMMERCIAL_GENERIC_TOKENS.has(token) &&
         !/^\d+$/.test(token)
     );
+}
+
+export function extractCommercialVariant(value: string): string | null {
+  const variantTokens = extractCommercialTokens(value)
+    .filter(token => COMMERCIAL_VARIANT_TOKENS.has(token));
+  return variantTokens.length ? variantTokens.join(" ") : null;
 }
 
 function extractCommercialMeasures(value: string): CommercialMeasure[] {

@@ -330,6 +330,13 @@
       "when": 1787893200000,
       "tag": "0048_billing_consumption_charge_state_machine",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1788625361192,
+      "tag": "0049_nutrition_research_persistence",
+      "breakpoints": true
     }
   ]
 }

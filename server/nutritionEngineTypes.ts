@@ -8,8 +8,15 @@ export type CatalogFood = {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
   brandName?: string | null;
+  productVariant?: string | null;
   variants?: string[];
+  researchIdentityKey?: string | null;
+  sourceUrls?: string[];
+  sourceEvidence?: string | null;
+  sourceVerifiedAt?: Date | null;
+  sourceConfidence?: number | null;
   isBrandedProduct?: boolean;
 };
 
