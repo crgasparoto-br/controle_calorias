@@ -16,7 +16,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foods` | `foods` | 21 | Baixa |
 | `foodAliases` | `food_aliases` | 6 | Baixa |
 | `foodPortions` | `food_portions` | 12 | Baixa |
-| `foodCatalog` | `foodCatalog` | 28 | Requer atenção |
+| `foodCatalog` | `foodCatalog` | 34 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
 | `userBadges` | `userBadges` | 6 | Requer atenção |
@@ -176,7 +176,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `food_sources` | `name`, `source_url`, `notes` |
 | `foods` | `name`, `normalized_name`, `brand_name`, `nutrients_json` |
 | `food_portions` | `label`, `normalized_label` |
-| `foodCatalog` | `name`, `brandName`, `servingLabel` |
+| `foodCatalog` | `name`, `brandName`, `servingLabel`, `sourceUrls` |
 | `userBadges` | `metadataJson` |
 | `portions` | `label` |
 | `recipes` | `name` |
