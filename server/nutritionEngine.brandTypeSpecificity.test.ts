@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createTextResponseMock = vi.fn();
 const findCatalogFoodSemanticMock = vi.fn();
@@ -13,7 +13,6 @@ vi.mock("./_core/ai/providerResolver", () => ({
     createTextResponse: (request: unknown) => createTextResponseMock(request),
   }),
 }));
-
 
 vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: findCatalogFoodSemanticMock,
@@ -78,7 +77,7 @@ describe("nutritionEngine brand and type specificity", () => {
     }));
   });
 
-  it("preserva marca e qualificador textual quando precisa cair em fallback menos especifico", async () => {
+  it("bloqueia fallback hibrido de marca quando a referencia comercial especifica nao foi comprovada", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_requeijao_generic",
       outputText: JSON.stringify({
@@ -111,24 +110,23 @@ describe("nutritionEngine brand and type specificity", () => {
       raw: { mocked: true },
     });
 
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
+    const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+
+    await expect(processMealInput({
       text: "61g requeijão catupiry light",
       occurredAt: "2026-07-08T07:00:00-03:00",
       timeZone: "America/Sao_Paulo",
+    })).rejects.toMatchObject({
+      name: MealInferenceError.name,
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        brand: "Catupiry",
+        clarificationReason: "commercial_identity_unverified",
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+        }),
+      }),
     });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Requeijão Catupiry Light",
-      canonicalName: "Requeijão Catupiry",
-      brand: "Catupiry",
-      calories: 110,
-      protein: 5,
-      carbs: 3,
-      fat: 8,
-      source: "hybrid",
-    }));
   });
 
   it("mantem registro simples sem complemento funcionando", async () => {
