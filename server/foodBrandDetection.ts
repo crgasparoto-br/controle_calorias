@@ -24,6 +24,7 @@ const KNOWN_BRANDS = [
   "Tirolez",
   "Qualy",
   "Schweppes",
+  "Sprite",
 ];
 
 export function detectKnownBrand(value: string) {
