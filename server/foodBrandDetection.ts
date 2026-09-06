@@ -23,6 +23,7 @@ const KNOWN_BRANDS = [
   "Vigor",
   "Tirolez",
   "Qualy",
+  "Schweppes",
 ];
 
 export function detectKnownBrand(value: string) {
