@@ -4,16 +4,11 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
-const findCatalogFoodSemanticMock = vi.fn();
 
 vi.mock("../../db", () => ({
   getUserNutritionGoal: getUserNutritionGoalMock,
   getDb: vi.fn(),
   logPersistenceWarning: vi.fn(),
-}));
-
-vi.mock("../../catalogSemanticSearch", () => ({
-  findCatalogFoodSemantic: findCatalogFoodSemanticMock,
 }));
 
 vi.mock("../meals/service", () => ({
@@ -47,46 +42,9 @@ describe("executeWhatsappTextIntent multiple food additions", () => {
     updateMealMock.mockReset();
     createWaterLogMock.mockReset();
     getUserNutritionGoalMock.mockReset();
-    findCatalogFoodSemanticMock.mockReset();
-    findCatalogFoodSemanticMock.mockImplementation(async (query: string) => {
-      const normalized = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      if (normalized.includes("amendoim japones") && normalized.includes("elma chips")) {
-        return {
-          slug: "amendoim-japones-elma-chips-test",
-          name: "Amendoim Japonês Elma Chips",
-          aliases: ["amendoim japonês Elma Chips"],
-          servingLabel: "30 g",
-          gramsPerServing: 30,
-          calories: 150,
-          protein: 5,
-          carbs: 10,
-          fat: 10,
-          brandName: "Elma Chips",
-          isUltraProcessed: true,
-          isBrandedProduct: true,
-        };
-      }
-      if (normalized.includes("cerveja") && normalized.includes("budweiser")) {
-        return {
-          slug: "cerveja-budweiser-test",
-          name: "Cerveja Budweiser",
-          aliases: ["cerveja Budweiser"],
-          servingLabel: "330 ml",
-          gramsPerServing: 330,
-          calories: 135,
-          protein: 1,
-          carbs: 11,
-          fat: 0,
-          brandName: "Budweiser",
-          isUltraProcessed: true,
-          isBrandedProduct: true,
-        };
-      }
-      return undefined;
-    });
   });
 
-  it("adiciona dois itens distintos com marcas ao jantar de ontem quando ambos têm referência específica", async () => {
+  it("não altera a refeição quando um item de marca não tem referência nutricional específica", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 16,
@@ -102,38 +60,18 @@ describe("executeWhatsappTextIntent multiple food additions", () => {
       ...input,
     }));
 
-    const result = await executeWhatsappTextIntent(42, {
+    await expect(executeWhatsappTextIntent(42, {
       text: "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",
       receivedAt: new Date("2026-06-04T15:00:00.000Z"),
+    })).rejects.toMatchObject({
+      name: "MealInferenceError",
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        brand: "Elma Chips",
+        clarificationReason: "brand_variant_unresolved",
+      }),
     });
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 16,
-      mealLabel: "Jantar",
-      items: [
-        riceItem,
-        expect.objectContaining({
-          foodName: "amendoim japonês Elma Chips",
-          canonicalName: expect.any(String),
-          portionText: "300 g",
-          estimatedGrams: 300,
-          source: "catalog",
-        }),
-        expect.objectContaining({
-          foodName: "cerveja Budweiser",
-          canonicalName: expect.any(String),
-          portionText: "330 ml",
-          estimatedGrams: 330,
-          source: "catalog",
-        }),
-      ],
-    }));
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "meal_item_added",
-      eventType: "whatsapp.intent.meal_item_added",
-      reply: expect.stringContaining("300 g de amendoim japonês Elma Chips"),
-    }));
-    expect(result?.reply).toContain("330 ml de cerveja Budweiser");
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 });
