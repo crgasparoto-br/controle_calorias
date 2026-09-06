@@ -7,7 +7,7 @@ Converter entradas de refeição em rascunhos revisáveis e, após confirmação
 ## Contrato de alto nível
 
 ```text
-entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> refeição persistida
+entrada multimodal -> contrato semântico canônico -> resolução de identidade/nutrição -> revisão/clarificação -> confirmação -> refeição persistida
 ```
 
 ## Diretrizes
@@ -20,29 +20,50 @@ entrada multimodal -> rascunho de inferência -> revisão -> confirmação -> re
 - Fotos sem alimento ou bebida consumível identificado com segurança devem gerar falha controlada e pedir nova mídia ou descrição textual; o sistema não deve criar itens de fallback nem registrar refeição automaticamente.
 - Em fotos de embalagem, rótulo, etiqueta ou balança, texto legível com nome do produto deve ser tratado como identidade principal do alimento (por exemplo, "pão de cenoura"), sem converter ingredientes do rótulo em itens separados.
 - Quando peso líquido, porção declarada ou etiqueta de balança estiver visível, a inferência deve usar esse valor como porção estimada quando compatível com o item identificado.
-- Alimentos consumíveis reconhecidos com segurança, mas sem tabela nutricional, correspondência exata de catálogo ou macros confiáveis, podem usar fallback nutricional estimado para evitar rascunhos com calorias e macronutrientes zerados.
+- Alimentos consumíveis **sem marca/variante explícita** reconhecidos com segurança, mas sem tabela nutricional, correspondência exata de catálogo ou macros confiáveis, podem usar fallback nutricional estimado. Produto com marca ou variante explícita não pode usar esse fallback para fechar a composição nutricional comercial.
 - Presença de embalagem transparente, brilho ou reflexo não é evidência suficiente para classificar automaticamente como água; água só deve ser sugerida com evidência explícita.
 - Em entradas textuais com quantidade explícita, o texto original do segmento alimentar deve ser usado como candidato de busca nutricional antes do nome canônico retornado pela IA. Isso preserva e prioriza marca, linha, versão e tipo/qualificador, por exemplo `requeijão catupiry light`, `leite piracanjuba zero lactose` ou `iogurte grego light danone`.
-- A busca nutricional deve preferir a referência mais específica disponível: alimento + marca + tipo/qualificador, depois alimento + marca, depois alimento + tipo/qualificador e somente então alimento genérico. Quando houver fallback menos específico, o nome original completo deve continuar preservado para exibição, auditoria e comandos posteriores.
-- Para imagem sem texto-fonte, o motor recompõe a identidade exibida a partir de `foodName` + `brand` estruturada, sem duplicar a marca quando ela já estiver no nome. Os candidatos locais usam primeiro produto + marca + variante + porção; depois de miss local, produtos com marca fazem uma única tentativa canônica de `NUTRITION_SEARCH` antes de embedding/fallback.
+- A busca nutricional deve preferir a referência mais específica disponível. Para alimento genérico, referências menos específicas podem continuar sendo usadas como estimativa transparente. Para produto com marca/variante explícita, uma referência menos específica não autoriza composição nutricional: catálogo/pesquisa precisa comprovar a mesma identidade comercial ou o fluxo entra em clarificação.
+- Para imagem sem texto-fonte, o motor recompõe a identidade exibida a partir de `foodName` + `brand` estruturada, sem duplicar a marca quando ela já estiver no nome. Os candidatos locais usam primeiro produto + marca + variante + porção; depois de miss local, produtos com marca fazem uma tentativa canônica de `NUTRITION_SEARCH`. Miss ou incompatibilidade não cai em macros genéricos de marca.
 - A pesquisa específica não é restrita a chocolates ou biscoitos: qualquer alimento ou bebida industrializada com marca estruturada pode usar o mesmo contrato. A aceitação continua fail-closed para incompatibilidade de produto, marca, variante ou medida, inclusive entre versões regulares, `Zero`, `Light` e equivalentes.
+- Imagem com variante explícita e tabela nutricional legível pode usar os macros lidos do próprio rótulo como fonte `nutrition_label`; sem variante legível, a imagem não pode escolher silenciosamente uma variante da marca.
 - O cleanup de nomes com recipientes deve distinguir a posição semântica do recipiente: `bolo de pote` não é objeto, enquanto `pote`, `pote vazio` e equivalentes flexionados/plurais continuam sendo ruído.
 - Em `recipiente + de/com + conteúdo`, alimento conhecido é evidência positiva, mas homônimos genéricos como `água`, `óleo`, `pasta`, `creme`, `gel`, `líquido` e `fluido` não podem neutralizar contexto inequivocamente não alimentar (`água sanitária`, `óleo de motor`, `pasta de dente`, por exemplo).
 - A fronteira é de mundo aberto: preparações culinárias ausentes do catálogo continuam revisáveis. A decisão não pode usar ausência em allowlist alimentar nem ausência em denylist de objetos como evidência semântica; descarte exige evidência negativa afirmativa por família/contexto, e regressões devem incluir positivos e negativos inéditos fora das frases codificadas em produção.
+
+## Contrato semântico canônico (#1051)
+
+`processMealInput` retorna `CanonicalMealProcessingResult`, que exige `semanticContract` para toda nova execução. `MealProcessingResult.semanticContract` permanece opcional apenas para compatibilidade de leitura com snapshots históricos criados antes da #1051.
+
+O contrato é construído depois da resolução nutricional e antes de qualquer mutação do chamador. Ele contém:
+
+- `originalText`, `normalizedText`, `inputType` e intenção;
+- por item: nome comercial, categoria, marca, variante, quantidade, unidade, porção e gramas estimados;
+- confiança separada de identidade, quantidade e fonte;
+- evidência por campo com `origin`, `confidence` e `verified`;
+- composição nutricional com URLs/evidência/data quando disponíveis;
+- alternativas plausíveis, `needsClarification` e motivo estruturado;
+- `barcode: null` enquanto o pipeline não possuir leitura estruturada e confiável desse campo — ausência não é preenchida por inferência.
+
+As origens atualmente normalizadas são `text`, `transcription`, `vision`, `catalog`, `web_research`, `nutrition_label`, `ai_estimate`, `heuristic` e `unavailable`. Texto, transcrição e imagem compartilham o mesmo resolvedor; `inputType` registra a origem sem duplicar regra de identidade ou nutrição.
+
+Quando o contrato contém `brand_variant_unresolved` ou `commercial_identity_unverified`, `processMealInput` lança `food_identity_clarification_required` antes de retornar um rascunho mutável. O erro leva o próprio `semanticContract`, identidade, marca, alternativas e razão estruturada. No registro confirmado do WhatsApp, `confirmedMealRegistration` transforma esse erro em `details_needed` antes de `createDraft`/`confirmMeal`; `mealIntentDecisionInteraction` reutiliza a continuação persistente de detalhes existente para guardar o texto original antes da pergunta ao usuário. Não existe fila paralela específica da #1051.
 
 ## Compatibilidade semântica de variantes
 
 - Todo candidato final deve passar pelo mesmo guard semântico, independentemente de vir do catálogo estático ou persistido, alias pessoal, TACO, busca semântica, busca web ou fluxo do WhatsApp.
 - O nome canônico tem precedência sobre aliases. Um alias genérico não pode neutralizar qualificadores críticos do nome canônico.
 - Variantes contraditórias não são equivalentes: `com açúcar`, `adoçado`, `sem açúcar`, `zero`, `diet`, `puro`, `com leite`, `com mel`, `com creme` e `com leite condensado` devem permanecer semanticamente distintas. Para bebidas, o qualificador explícito do segmento original também governa a validação de candidatos TACO quando a IA simplificar o nome inferido.
-- O fallback heurístico de bebida zero deve ser ativado por evidência positiva de que a descrição tem uma bebida como núcleo (família de bebida ou marca gaseificada em contexto compatível). Termos como `refrigerante`, `tônica`, `soda`, `cola` ou `guaraná` usados apenas como sabor, tipo, ingrediente ou referência dentro de outro alimento não podem ser suficientes; a regra não deve depender de uma blacklist fechada de alimentos sólidos.
+- Para produtos com marca, `isPersistedProductIdentityCompatible` também governa candidatos locais/persistidos no resolvedor principal. Uma consulta genérica da marca não aceita uma variante específica só porque a marca coincide.
+- Quando a marca estiver explícita e a variante não estiver, o cache do catálogo pode ser usado somente para listar alternativas plausíveis da mesma família/mesma marca; essas alternativas não são automaticamente promovidas a escolha nutricional.
+- O fallback heurístico de bebida zero deve ser ativado por evidência positiva de que a descrição tem uma bebida como núcleo (família de bebida ou marca gaseificada em contexto compatível). Termos como `refrigerante`, `tônica`, `soda`, `cola` ou `guaraná` usados apenas como sabor, tipo, ingrediente ou referência dentro de outro alimento não podem ser suficientes; a regra não deve depender de uma blacklist fechada de alimentos sólidos. Se houver marca/variante explícita pendente, a política comercial fail-closed prevalece sobre o fallback heurístico.
 - Referências qualificadas como `Café sem açúcar` não podem ser usadas para `café`, `café com açúcar` ou qualquer preparação com complemento calórico.
 - Fuzzy matching e aliases aprendidos não podem remover, inverter ou inventar qualificadores nutricionais.
 - Quantidades e unidades de porção, como `1 xícara`, participam do cálculo, mas não impedem a identificação lexical do alimento.
 
 ## Política de estimativas transparentes
 
-A ausência de um valor exato não deve transformar a clarificação ao usuário no primeiro fallback quando o domínio possui base suficiente para produzir uma estimativa útil e defensável.
+A ausência de um valor exato não deve transformar a clarificação ao usuário no primeiro fallback quando o domínio possui base suficiente para produzir uma estimativa útil e defensável. Essa política aplica-se a alimentos genéricos e à resolução de **quantidade**; ela não autoriza preencher composição nutricional de produto com marca/variante sem evidência comercial compatível.
 
 Para quantidade/medida caseira, a precedência é:
 
@@ -106,7 +127,6 @@ Açúcar estimado: 5 g (média operacional). Você pode ajustar depois pelo What
 - Antes de alterar cálculo nutricional, adicionar teste de regressão.
 - Antes de alterar prompts ou parsing de IA, revisar `docs/PRIVACY_LGPD.md`.
 
-
 ## Execução por capacidade de refeição (#922)
 
 `extractWithAi` seleciona `MEAL_TEXT` sem imagem e `MEAL_VISION` com imagem. Ambas usam `executeResolvedCapability`, propagam `AbortSignal`, preservam o schema real e aplicam Zod após qualquer tentativa primária ou fallback. A fronteira `_core/ai/domainTextResponse.ts` remove respostas `raw` dos SDKs antes de entregar dados ao domínio.
@@ -115,13 +135,13 @@ A classificação NOVA permanece no objeto `foodClassification` da mesma respost
 
 ## Pesquisa nutricional e embedding por capacidade (#923)
 
-`findPackagedSnackByWebSearch` (`server/catalogSemanticSearch.ts`) é a fronteira histórica, agora reutilizada para pesquisa específica de produtos industrializados com marca. Ela resolve `NUTRITION_SEARCH` via `resolveCapabilityConfig` e executa através de `executeResolvedCapability`, com a ferramenta `{ type: "web_search" }` oferecida ao provider e Structured Output estrito no schema de resultado. Se `policy.state` for `disabled` ou `invalid`, ou o primário não puder ser resolvido, a função retorna `null` imediatamente, sem chamar rede — o chamador degrada para o fallback nutricional canônico/local já existente.
+`findPackagedSnackByWebSearch` (`server/catalogSemanticSearch.ts`) é a fronteira histórica, agora reutilizada para pesquisa específica de produtos industrializados com marca. Ela resolve `NUTRITION_SEARCH` via `resolveCapabilityConfig` e executa através de `executeResolvedCapability`, com a ferramenta `{ type: "web_search" }` oferecida ao provider e Structured Output estrito no schema de resultado. Se `policy.state` for `disabled` ou `invalid`, ou o primário não puder ser resolvido, a função retorna `null` imediatamente, sem chamar rede. Para produto genérico, o chamador pode seguir para estimativa canônica; para produto com marca/variante explícita, `null` mantém identidade pendente e conduz a clarificação, em vez de autorizar macros genéricos ou estimativa da LLM.
 
-- Fonte insuficiente: o prompt instrui o provider a retornar `found=false` quando houver dúvida sobre SKU, sabor, peso ou marca. `parseSearchedNutritionResult` exige `webSearch.executed=true`, `evidence` não vazia e fonte vinculada pelo provider. OpenAI pode validar a URL citada diretamente; Gemini pode fornecer URI opaca de redirecionamento, então o adapter normaliza `groundingSupports` e associa os segmentos sustentados aos respectivos `groundingChunks`. Uma URL escrita pelo modelo que não aparece nas citações não é confiável; quando a URI é opaca, a evidência precisa estar ligada ao chunk pelo grounding. O texto livre de uma chamada adicional de recuperação nunca é convertido em `supportingText`: somente segmentos ligados nativamente a `url_citation` ou `groundingSupports` estabelecem procedência. URLs sem esse vínculo permanecem insuficientes e degradam para o fallback canônico.
+- Fonte insuficiente: o prompt instrui o provider a retornar `found=false` quando houver dúvida sobre SKU, sabor, peso ou marca. `parseSearchedNutritionResult` exige `webSearch.executed=true`, `evidence` não vazia e fonte vinculada pelo provider. OpenAI pode validar a URL citada diretamente; Gemini pode fornecer URI opaca de redirecionamento, então o adapter normaliza `groundingSupports` e associa os segmentos sustentados aos respectivos `groundingChunks`. Uma URL escrita pelo modelo que não aparece nas citações não é confiável; quando a URI é opaca, a evidência precisa estar ligada ao chunk pelo grounding. O texto livre de uma chamada adicional de recuperação nunca é convertido em `supportingText`: somente segmentos ligados nativamente a `url_citation` ou `groundingSupports` estabelecem procedência. URLs sem esse vínculo permanecem insuficientes e degradam para o comportamento fail-closed aplicável à identidade.
 - Identidade comercial: antes de aceitar o candidato, a busca compara termos significativos, qualificadores e medidas nas duas direções. Termo de sabor/SKU ou medida presente apenas no candidato torna a entrada genérica ambígua e retorna `null`; portanto `Trento` não pode selecionar silenciosamente `Trento Chocolate Branco Dark 32 g`. O texto consultado só vira alias depois da validação. Divergência ou informação comercial não identificada retorna `null` mesmo com confiança alta e fonte válida; o guard semântico compartilhado ainda é aplicado em seguida.
-
+- O resolvedor principal reaplica compatibilidade comercial a candidatos locais/persistidos e não aceita uma variante específica para consulta genérica de marca. Candidatos da mesma marca podem ser expostos apenas como alternativas de clarificação.
 - Compatibilidade Gemini: `QUESTION` pode usar Gemini 2.5 com Google Search. `NUTRITION_SEARCH` combina Google Search e Structured Output na mesma chamada e, por isso, requer modelo Gemini 3 explicitamente configurado. `gemini-2.5-flash` é recusado pelo resolvedor antes da rede; a #927 preservou OpenAI como default por falta de comparação live suficiente.
-- JSON inválido ou payload estruturalmente inválido é rejeitado dentro da callback entregue a `executeResolvedCapability`, portanto segue a taxonomia operacional comum e pode consumir retry/fallback único quando explicitamente habilitado. Já `found=false`, confiança insuficiente, fonte ausente/não citada, evidência vazia ou identidade comercial incompatível são resultados funcionais processados depois do executor: retornam `null` e degradam diretamente para o caminho canônico, sem nova consulta externa. Exceções finais são capturadas e também viram `null` para não derrubar o chamador.
-- `null` em qualquer um desses casos faz o chamador (`findCatalogFoodSemantic`) seguir para o próximo candidato/fallback canônico do motor nutricional, sem inventar dado e sem bloquear a inferência de refeição.
+- JSON inválido ou payload estruturalmente inválido é rejeitado dentro da callback entregue a `executeResolvedCapability`, portanto segue a taxonomia operacional comum e pode consumir retry/fallback único quando explicitamente habilitado. Já `found=false`, confiança insuficiente, fonte ausente/não citada, evidência vazia ou identidade comercial incompatível são resultados funcionais processados depois do executor: retornam `null` e degradam diretamente para a política do resolvedor, sem nova consulta externa.
+- Para identidade comercial explícita, `null` ou miss após a tentativa segura não inventa dado nem libera `hybrid`: o contrato semântico marca a pendência e o motor exige clarificação antes de mutação. Para alimento sem marca/variante, os fallbacks transparentes existentes continuam disponíveis.
 
 A busca semântica de catálogo usa a capacidade `EMBEDDING` (default OpenAI `text-embedding-3-small`) para gerar o vetor da consulta e comparar por similaridade de cosseno com o catálogo pré-embebido. O cache registra o provider/modelo efetivamente usado pelo executor; se a consulta vier de outro modelo efetivo, o cache é invalidado e a chamada degrada para a busca textual/canônica, sem comparar espaços vetoriais diferentes. Quando `EMBEDDING` está `disabled`/`invalid`, a busca semântica é pulada sem chamar rede — mesma política de "nunca substituir geração de texto por embeddings ausentes" coberta em `catalogSemanticSearch.test.ts`.
