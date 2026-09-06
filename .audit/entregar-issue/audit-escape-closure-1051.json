@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-HANDOFF-TARGET-BINDING-001",
+      "escape_class": "delivery-target-binding-gap",
+      "source_audit": {
+        "rejection_id": "audit-rejection:7fde32be-cde4-424a-8750-79bf802330f5",
+        "finding_id": "A-001",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "b120d5f9986f8c16d83123cf80376bfabd342b4fc4ea8b7e41972a5a450c52c2"
+      },
+      "plausible_wrong_implementation": "Treat an inherited handoff certificate as current merely because it exists and its internal hashes are valid, without binding it to the current issue and pull request.",
+      "literal_case": {
+        "status": "passed",
+        "observed": "The inherited foreign-target package is excluded and a new package is generated for the current target on material head 8ec5341f0ac1aa56a6284048dc0c9665cee5a988.",
+        "evidence": "delivery-target-binding classification plus rebuilt current-target artifacts"
+      },
+      "sibling_cases": [
+        {
+          "id": "same-target-stale-head",
+          "status": "passed",
+          "evidence": "Terminal handoff rules require exact material-head binding and reject stale candidate SHAs."
+        },
+        {
+          "id": "foreign-target-modified-package",
+          "status": "passed",
+          "evidence": "Delivery target binding rules classify a modified foreign package as foreign-target and forbid reuse."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Existing delivery-target-binding preflight is applied before building the new package."
+      },
+      "detection_change": {
+        "evidence": "Existing terminal handoff and independent preflight compare subject repository/issue/PR/base/head before release."
+      },
+      "revalidated_head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+      "status": "passed"
+    }
+  ]
+}

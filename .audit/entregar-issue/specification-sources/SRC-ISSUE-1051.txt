@@ -1,0 +1,157 @@
+## Contexto
+
+O sistema recebe solicitações de inclusão de alimentos por texto, áudio/transcrição e imagem, mas os três caminhos ainda podem produzir interpretações diferentes para a mesma intenção. A LLM ajuda a compreender a linguagem, porém a aplicação continua dependente de tratamentos específicos para variações de quantidade, unidade, marca, variante, erro de digitação, apelido pessoal, rótulo e tabela nutricional.
+
+Há também risco de divergência entre identidade e nutrição: a interface pode preservar o nome informado pelo usuário enquanto a referência nutricional usada é genérica ou de outra marca/variante. O caso de `2 fatias de pão de forma Panco` evidenciou esse problema: a marca deve permanecer como parte da identidade, a variante precisa ser resolvida e a pesquisa deve utilizar uma fonte específica, sem substituir Panco por Wickbold ou por pão genérico.
+
+O repositório já possui componentes que devem ser integrados, e não duplicados: extração multimodal, histórico estruturado por `inputType`, aliases pessoais, aprendizado de medidas, pesquisa web de produtos com marca, feedback loop, fila de revisão, métricas de qualidade e planejador de autoaperfeiçoamento.
+
+## Objetivo
+
+Tornar a inclusão de alimentos **multimodal, adaptável e progressivamente inteligente**, usando a LLM para compreender variações de linguagem e imagem, memória para recuperar decisões confirmadas e catálogo/pesquisa para comprovar a identidade nutricional. O sistema deve aprender com confirmações e correções sem promover automaticamente um erro isolado a regra global.
+
+## Escopo funcional
+
+### 1. Contrato semântico único
+
+Criar ou consolidar um contrato intermediário comum aos canais de texto, voz e imagem, contendo pelo menos:
+
+- texto original e forma normalizada;
+- tipo de entrada e evidência por campo;
+- intenção e itens alimentares;
+- tipo/categoria do alimento;
+- marca;
+- nome comercial;
+- variante/linha/sabor/versão;
+- código de barras quando disponível;
+- quantidade, unidade e porção textual;
+- gramas estimados e origem da estimativa;
+- confiança por identidade, quantidade e fonte;
+- alternativas plausíveis e motivo da ambiguidade;
+- `needsClarification` e motivo estruturado.
+
+A transcrição de áudio deve convergir para o mesmo contrato usado por texto. A imagem deve usar visão/OCR para preservar marca, variante, código de barras, porção e tabela nutricional quando visíveis. A origem de cada campo deve ser rastreável: texto, transcrição, OCR, visão, catálogo, memória ou pesquisa web.
+
+### 2. Resolução unificada de identidade e nutrição
+
+Todos os fluxos de inclusão devem utilizar a mesma resolução para identidade, porção, calorias, macronutrientes e procedência. Isso inclui registro de refeição, adição de alimento, texto livre, áudio, imagem e respostas de clarificação.
+
+A resolução deve seguir precedência por especificidade: código de barras e produto/variante exatos; catálogo local exato; referência persistida válida; pesquisa web específica; média usual somente quando não houver marca/variante explícita; e clarificação quando não houver evidência suficiente.
+
+Uma referência nutricional exata deve carregar, no mesmo resultado, identidade comercial, porção, gramas, calorias, proteínas, carboidratos, gorduras, fonte, evidência textual, data de verificação e estado de validade. Não deve haver uma pesquisa independente para gramas e outra para macros que possam escolher produtos diferentes.
+
+### 3. Marcas, variantes e ambiguidade
+
+A extração de marca não pode depender apenas de uma lista fixa de marcas conhecidas. Deve combinar parser, LLM, catálogo, aliases e correspondência semântica. A marca e a variante devem continuar presentes mesmo quando também forem projetadas para campos estruturados.
+
+Quando existirem várias variantes plausíveis, o sistema deve perguntar ao usuário. Quando houver provável erro de transcrição ou digitação, como `banco` em uma expressão que pode significar `branco` ou `Panco`, o sistema pode sugerir alternativas, mas não deve corrigir silenciosamente uma identidade nutricional ambígua.
+
+Quando marca ou variante estiver explícita e não houver referência exata, o sistema não deve usar fallback genérico de forma silenciosa. Deve pesquisar novamente, pedir variante, pedir peso/rótulo ou retornar pendência explicável.
+
+### 4. Memória individual e aprendizado controlado
+
+Evoluir aliases pessoais e medidas aprendidas para uma memória persistente, isolada por usuário e vinculada à identidade completa do alimento. A memória deve suportar marca, variante, contexto, confiança, origem, data de criação, último uso, validade e revogação.
+
+Confirmações e correções explícitas podem gerar aprendizado individual. Exemplos: `quando digo pão do treino, quero dizer Panco Premium`; seleção explícita de uma variante; e correção `2 fatias = 50 g` para um produto específico.
+
+O feedback deve gerar eventos de aprendizado e sinais para a fila de revisão. Uma única ocorrência nunca deve promover uma regra global. Candidatos globais devem exigir agregação, ausência de conflito, replay, testes positivos e negativos, revisão e promoção gradual.
+
+### 5. Observabilidade e métricas
+
+A decisão deve continuar registrada no histórico multimodal existente, incluindo versão de parser/prompt/modelo, identidade extraída, fonte nutricional, estratégia, confiança, status, pendência, correção posterior e permissão de aprendizado.
+
+Usar ou ampliar as métricas existentes de reconhecimento de marca, fonte nutricional específica, estimativa, ambiguidade, correção posterior, fallback seguro e rastreabilidade. Devem ser identificadas, no mínimo, perda de marca, contaminação entre marcas/variantes, divergência nutricional, pesquisa sem evidência, falha de transcrição/OCR e clarificações repetidas.
+
+### 6. Higiene técnica após a implementação
+
+Depois que a implementação estiver verde, realizar uma inspeção restrita aos arquivos e consumidores tocados para localizar:
+
+- duplicidade criada ou tornada desnecessária pela unificação dos fluxos;
+- helpers, branches, imports, tipos e adapters sem consumidores;
+- código de fallback substituído pelo resolvedor único;
+- testes que cobrem comportamento removido ou foram duplicados por novos testes mais fortes;
+- fixtures e mocks obsoletos;
+- temporários e documentação divergente.
+
+A limpeza deve preservar comportamento e ser aplicada somente quando a obsolescência for comprovada por consumidores, imports, execução ou cobertura. Refatorações amplas e remoções especulativas ficam fora do escopo.
+
+## Critérios de aceite
+
+- [ ] A mesma solicitação semântica produz o mesmo contrato intermediário em texto, áudio/transcrição e imagem.
+- [ ] O contrato mantém texto original, origem dos campos, marca, variante, quantidade, unidade, confiança e ambiguidade.
+- [ ] `2 fatias de pão de forma Panco` não é convertido silenciosamente em Wickbold ou pão genérico.
+- [ ] `2 fatias de pão de forma Panco Premium`, `Pão de Leite`, `Integral` e `Zero` mantêm referências independentes.
+- [ ] Quando `Panco` sem variante retornar múltiplos produtos plausíveis, o sistema solicita seleção em vez de escolher arbitrariamente.
+- [ ] Um produto de marca só recebe macros exatos quando a fonte comprovar a mesma marca, variante e porção.
+- [ ] Fonte sem evidência numérica, porção incompatível ou marca divergente é rejeitada.
+- [ ] Pesquisa indisponível não resulta em macro genérico apresentado como exato; o sistema mantém pendência ou sinaliza estimativa de forma explícita.
+- [ ] O fluxo de registro confirmado e o fluxo de inclusão contável utilizam a mesma resolução e não divergem por executarem preflights diferentes.
+- [ ] A memória pessoal funciona após reinício do processo, permanece isolada por usuário e não altera regras globais.
+- [ ] Correções e confirmações geram eventos de aprendizado vinculados ao histórico original.
+- [ ] Nenhum feedback individual é promovido automaticamente a conhecimento global.
+- [ ] Padrões recorrentes geram candidatos de revisão e fixtures de regressão, incluindo casos positivos, negativos e multi-turn.
+- [ ] Texto, áudio e imagem têm cobertura de testes de identidade, confiança, evidência, clarificação e fallback seguro.
+- [ ] As métricas de qualidade conseguem separar reconhecimento de marca, fonte específica, estimativa, ambiguidade, correção posterior e rastreabilidade.
+- [ ] A limpeza técnica pós-implementação registra achados e classifica cada item como `safe-fix`, recomendação, alto risco ou falso positivo.
+- [ ] A suíte focada, type-check/lint/build aplicáveis e testes de regressão passam; qualquer falha restante é registrada com causa e escopo.
+
+## Cenários mínimos de regressão
+
+1. `2 fatias de pão de forma Panco`.
+2. `2 fatias de pão de forma banco`.
+3. `duas fatias daquele pão Panco` por áudio transcrito.
+4. Foto de embalagem Panco com marca, variante e tabela nutricional legíveis.
+5. Foto de pão sem embalagem, sem evidência de marca.
+6. `2 fatias de pão integral Wickbold`.
+7. `2 fatias de pão de forma` sem marca.
+8. Marca certa com variante errada na fonte.
+9. Fonte certa sem evidência numérica.
+10. Pesquisa indisponível ou timeout.
+11. Correção posterior do usuário após uma decisão persistida.
+12. Alias pessoal de um usuário que não deve funcionar para outro.
+13. Dois produtos da mesma marca com a mesma porção e macros diferentes.
+14. Mensagem com vários alimentos, misturando itens exatos, genéricos e ambíguos.
+15. Texto, áudio e imagem descrevendo o mesmo produto.
+
+## Fora de escopo
+
+- Fine-tuning imediato da LLM antes de existir dataset confiável e replayável.
+- Aprendizado global automático a partir de uma única mensagem ou confirmação.
+- Substituição da validação de fonte por confiança declarada pela LLM.
+- Cadastro de uma média única para toda uma marca.
+- Refatoração ampla não relacionada aos arquivos e consumidores afetados.
+- Criação de workflows de CI ou uso de credenciais reais para provar a mudança.
+
+## Implementação sugerida
+
+1. Consolidar o contrato de identidade e proveniência.
+2. Unificar os pontos de entrada no resolvedor comum.
+3. Integrar memória pessoal e aprendizado de medidas ao contrato completo.
+4. Bloquear fallback genérico para identidades de marca/variante.
+5. Persistir referência nutricional e evidência com validade.
+6. Integrar feedback, review queue, métricas e geração de fixtures.
+7. Executar validação focada e, somente depois, higiene técnica.
+8. Reportar mudanças, testes, riscos, itens removidos e itens deliberadamente preservados.
+
+## Referências de implementação
+
+- `server/mealAiExtraction.ts`
+- `server/modules/whatsapp/messageHistory.ts`
+- `server/modules/whatsapp/confirmedMealRegistration.ts`
+- `server/modules/whatsapp/countableFoodRegistrationGate.ts`
+- `server/brandedNutritionSearch.ts`
+- `server/catalogSemanticSearch.ts`
+- `server/modules/whatsapp/personalFoodAliasStore.ts`
+- `server/householdMeasureResolutionPersistence.ts`
+- `server/modules/whatsapp/feedbackLoop.ts`
+- `server/modules/whatsapp/reviewQueue.ts`
+- `server/modules/whatsapp/selfImprovementPlanner.ts`
+- `server/modules/whatsapp/qualityMetrics.ts`
+
+## Relação com issues existentes
+
+Esta issue integra e operacionaliza capacidades relacionadas a resolução nutricional, pesquisa por marca, feedback, governança de aprendizado, histórico e medidas caseiras. Deve reutilizar os contratos já existentes e evitar criar uma segunda implementação paralela. As issues relacionadas devem ser consultadas durante o readiness gate para evitar duplicação e preservar os controles já validados.
+
+## Definição de pronto
+
+A issue só pode ser considerada concluída quando a implementação estiver localmente validada, os critérios de aceite estiverem cobertos, a documentação afetada estiver atualizada, a higiene técnica tiver sido avaliada e o working tree estiver limpo. Não fazer merge nem fechar a issue automaticamente; entregar o SHA candidato e a lista de validações para auditoria independente.

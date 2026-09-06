@@ -1,20 +1,27 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:ae5a0adf-a1a0-43c2-9c62-0ba88cafec17",
-  "head_sha": "a1d2625ae3196a3d79531f54da06994a9960e218",
-  "mode": "independent",
   "status": "rejected",
+  "rejection_id": "audit-rejection:7fde32be-cde4-424a-8750-79bf802330f5",
+  "head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+  "identity": {
+    "head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+    "repository": "crgasparoto-br/controle_calorias",
+    "pull_request": 1052,
+    "issue": 1051
+  },
   "findings": [
     {
-      "id": "A-002",
-      "title": "Item normativo desaparece da closure critica",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "remediation_mode": "systemic-remediation",
-      "category": "delivery-not-saturated",
-      "reason": "control-propagation-gap"
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "reason": "handoff-not-produced",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "summary": "The handoff-ready package on PR #1052 was inherited unchanged from develop and belonged to issue #1047 / PR #1048."
     }
   ],
   "recommendations": []

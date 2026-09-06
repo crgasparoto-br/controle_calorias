@@ -1,70 +1,145 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
   "requirements": [
     {
-      "requirement_id": "REQ-CONFLICT-001",
+      "requirement_id": "REQ-1051-COUNTABLE-PARITY",
       "positive_evidence": [
-        "Merge commit 888b879fcafab222db2fc7e8d6ea1901f6958916 has parents from the prior PR head and develop d9dda8f4c5ed0643c32847418dd05e8ccb0624a6; GitHub reports mergeable=true."
+        "server/modules/whatsapp/confirmedMealRegistration.ts uses the asynchronous canonical countable-food gate before gram clarification.",
+        "server/countableFoodQuantity.issue1051.test.ts preserves brand context through the countable quantity contract."
       ],
       "primary_negative_control": {
-        "id": "CTRL-001",
+        "id": "NC-COUNTABLE",
         "status": "passed",
-        "procedure": "Compare the final PR head to develop and verify that the merge base is develop and behind_by is zero.",
-        "expected": "The branch contains develop and no unresolved merge conflict remains.",
-        "observed": "Compare d9dda8f4c5ed0643c32847418dd05e8ccb0624a6..888b879fcafab222db2fc7e8d6ea1901f6958916 reports ahead with develop as merge base and only two changed files."
+        "procedure": "Send a branded countable-food request that previously could bypass the async household-measure lookup.",
+        "expected": "Confirmed registration traverses the same async gate and preserves brand context instead of silently falling back.",
+        "observed": "server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts and confirmedMealRegistration.test.ts cover the shared gate path."
       },
       "regression_evidence": [
-        "GitHub raw PR metadata reports mergeable=true after the merge commit."
+        "server/modules/whatsapp/confirmedMealRegistration.test.ts",
+        "server/countableFoodQuantity.issue1051.test.ts"
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-002",
+      "requirement_id": "REQ-1051-EVIDENCE",
       "positive_evidence": [
-        "billing-admin-browser-driver.mjs returns result?.value, and check-billing-admin-browser-evidence.mjs ignores an undefined polling sample before evaluating the predicate."
+        "server/brandedNutritionPersistence.ts refuses persistence without sourceUrls/sourceEvidence and checks commercial identity before saving.",
+        "drizzle/0049_nutrition_research_persistence.sql persists source URLs, evidence, verification time and confidence."
       ],
       "primary_negative_control": {
-        "id": "CTRL-002",
+        "id": "NC-EVIDENCE",
         "status": "passed",
-        "procedure": "Inject the transient condition conceptually by evaluating the guard with an undefined sample before a valid object.",
-        "expected": "The undefined sample is skipped instead of dereferenced, while later valid state may satisfy the predicate and timeout behavior remains intact.",
-        "observed": "The final source uses return result?.value and if (value && predicate(value)) before returning from the polling loop."
+        "procedure": "Attempt to persist or accept a branded result with missing numeric/source evidence, incompatible portion, or divergent brand.",
+        "expected": "The result is rejected and cannot become a reusable exact branded catalog entry.",
+        "observed": "server/brandedNutritionPersistence.test.ts and server/brandedNutritionSearch.test.ts cover missing evidence and incompatible identity cases."
       },
       "regression_evidence": [
-        "The polling loop remains capped at 120 attempts and still throws condition-not-reached after exhaustion."
+        "server/brandedNutritionPersistence.test.ts",
+        "server/brandedNutritionSearch.test.ts"
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-003",
+      "requirement_id": "REQ-1051-GENERIC-SAFETY",
       "positive_evidence": [
-        "Final compare against develop contains only scripts/billing-admin-browser-driver.mjs and scripts/check-billing-admin-browser-evidence.mjs, with one-line changes in each."
+        "The persistence guard compares the original foodName with the matched commercial product before save."
       ],
       "primary_negative_control": {
-        "id": "CTRL-003",
+        "id": "NC-GENERIC",
         "status": "passed",
-        "procedure": "Compare the final material head against develop and reject any .audit path or unrelated product path in the PR delta.",
-        "expected": "Only the two CI/browser evidence scripts differ from develop.",
-        "observed": "GitHub compare reports exactly two files and additions=1/deletions=1 in each relevant file."
+        "procedure": "Use a generic branded request such as Panco without enough variant identity while the researched result is a specific variant.",
+        "expected": "The specific variant is not persisted as the identity for the generic request.",
+        "observed": "The PR records and focused regression cover non-persistence of a specific variant for a generic query."
       },
       "regression_evidence": [
-        "No client, docs, workflow, fixture, or .audit path is part of the material PR diff against develop."
+        "server/brandedNutritionPersistence.test.ts"
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-004",
+      "requirement_id": "REQ-1051-IDENTITY",
       "positive_evidence": [
-        "The previous result-only handoff is not reused as terminal evidence after material merge 888b879fcafab222db2fc7e8d6ea1901f6958916; a fresh current-target package is generated."
+        "server/commercialProductIdentity.ts and server/brandedNutritionSearch.ts enforce commercial identity compatibility before accepting branded nutrition.",
+        "server/nutritionEngine.issue1051.test.ts covers Panco identity and rejects silent generic substitution."
       ],
       "primary_negative_control": {
-        "id": "CTRL-004",
+        "id": "NC-IDENTITY",
         "status": "passed",
-        "procedure": "Verify that the new certificate material_head_sha equals the post-conflict material head and that it is published only in a direct result-only child.",
-        "expected": "The handoff certifies the new material SHA rather than the stale pre-conflict SHA.",
-        "observed": "Package generation is bound to material head 888b879fcafab222db2fc7e8d6ea1901f6958916 and base d9dda8f4c5ed0643c32847418dd05e8ccb0624a6."
+        "procedure": "Exercise a branded request against a candidate from a different brand/variant or generic catalog entry.",
+        "expected": "The candidate is rejected and no generic macros are presented as exact branded nutrition.",
+        "observed": "Issue #1051 regression tests and commercial identity guards reject brand/variant mismatch and preserve the full persisted variant name."
       },
       "regression_evidence": [
-        "The result-only child allowlist contains only .audit/entregar-issue paths."
+        "server/catalogSemanticSearch.issue1051.test.ts",
+        "server/nutritionEngine.brandTypeSpecificity.test.ts"
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-MULTIMODAL-REUSE",
+      "positive_evidence": [
+        "server/nutritionEngine.multimodalCache.issue1051.test.ts exercises transcription and image processing against the persisted branded catalog path.",
+        "server/mealItemBuilders.ts preserves the complete persisted commercial variant in the final item."
+      ],
+      "primary_negative_control": {
+        "id": "NC-MULTIMODAL",
+        "status": "passed",
+        "procedure": "Provide the same branded product through text/transcription and image while a different variant is available in cache.",
+        "expected": "All channels reject the divergent variant and reuse only a commercially compatible persisted product.",
+        "observed": "Multimodal cache tests cover voice/transcription and image reuse plus variant mismatch."
+      },
+      "regression_evidence": [
+        "server/nutritionEngine.multimodalCache.issue1051.test.ts"
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-PROCESS",
+      "positive_evidence": [
+        "PR #1052 remains open, unmerged, base develop, head feat/1051-adaptive-food-input."
+      ],
+      "primary_negative_control": {
+        "id": "NC-PROCESS",
+        "status": "passed",
+        "procedure": "Observe whether remediation merges or closes the PR while rebuilding the handoff.",
+        "expected": "No merge or issue close is performed; only result/evidence artifacts may be published after validation.",
+        "observed": "Fresh remote PR metadata is re-read before and after handoff publication."
+      },
+      "regression_evidence": [
+        "PR metadata at material head shows state=open, merged=false, base=develop."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-RESOLUTION",
+      "positive_evidence": [
+        "server/brandedNutritionPersistence.ts checks exact persisted identity first, then fresh same-brand candidates, while web research remains the fallback when no safe cache match exists.",
+        "Persisted research records have a 30-day TTL and are rejected when expired."
+      ],
+      "primary_negative_control": {
+        "id": "NC-RESOLUTION",
+        "status": "passed",
+        "procedure": "Present an expired persisted record or same-brand candidate whose commercial identity does not match the request.",
+        "expected": "The cache candidate is not reused; resolution must continue to a safer source/clarification path.",
+        "observed": "server/brandedNutritionPersistence.test.ts covers TTL expiration, variant mismatch, and no-provider-call reuse for a valid fresh exact entry."
+      },
+      "regression_evidence": [
+        "server/brandedNutritionPersistence.test.ts",
+        "server/nutritionEngine.multimodalCache.issue1051.test.ts"
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-VALIDATION-HYGIENE",
+      "positive_evidence": [
+        "Material head exact-SHA remote workflows include Agent-first gate run 33987760318 success and architecture/persistence gates success.",
+        "docs/generated/db-schema.md was regenerated after schema expansion."
+      ],
+      "primary_negative_control": {
+        "id": "NC-HYGIENE",
+        "status": "passed",
+        "procedure": "Check the PR delta for a parallel cache, duplicate commercial identity guard, or undocumented schema column count.",
+        "expected": "No parallel persistence path remains in the slice and the generated schema documentation reflects the six new research fields.",
+        "observed": "PR delta centralizes commercial identity checks and updates generated DB schema documentation."
+      },
+      "regression_evidence": [
+        "remote Agent-first gate run 33987760318 completed/success on material head",
+        "remote WhatsApp context TiDB gate run 33987760303 completed/success on material head"
       ]
     }
   ]

@@ -1,0 +1,35 @@
+## Resumo
+
+Implementa a primeira entrega integrada da issue #1051 para preservar identidade comercial de alimentos, pesquisar e persistir nutrição específica por produto/variante e reutilizar o resultado em texto, transcrição de voz e imagem.
+
+Part of #1051
+
+> A issue é um épico incremental. Este PR entrega os contratos de identidade, pesquisa específica, persistência/reuso e integração multimodal; memória pessoal, feedback/review queue, promoção controlada de aprendizado global e métricas completas permanecem como etapas posteriores da mesma issue.
+
+## Principais mudanças
+
+- preserva marca, produto, variante, porção, fonte, evidência e confiança;
+- rejeita substituição silenciosa por produto genérico ou variante diferente;
+- persiste resultados web validados com TTL de 30 dias e reuso idempotente;
+- consulta primeiro a chave exata e depois candidatos da mesma marca com ranking seguro;
+- evita persistir uma variante específica para uma solicitação genérica;
+- mantém texto, transcrição de voz e imagem no mesmo resolvedor de catálogo;
+- preserva o nome completo da variante no item final;
+- impede macros genéricos quando produto de marca não tem evidência específica;
+- remove somente duplicidade/alias comprovadamente obsoletos no recorte.
+
+## Validações
+
+Aprovados no HEAD `bb7def61`:
+
+- `pnpm check`;
+- `pnpm architecture:check`;
+- `git diff origin/develop...HEAD --check`;
+- suíte focada: 12 arquivos e 97 testes;
+- regressão adversarial de não persistência de variante em consulta genérica: aprovada.
+
+A suíte completa foi executada e terminou com 4.089 testes aprovados e 62 falhas em 20 arquivos. As falhas restantes estão concentradas em testes de capabilities/providers e em cenários amplos do motor/WhatsApp que já não pertencem ao recorte de pesquisa de catálogo; não houve falha na suíte focada do PR. Elas ficam registradas como bloqueio do gate global, não são ocultadas pelo PR.
+
+## Merge
+
+Não executar merge automático. O PR deve ser revisado contra `develop` e somente então mergeado com confirmação explícita.

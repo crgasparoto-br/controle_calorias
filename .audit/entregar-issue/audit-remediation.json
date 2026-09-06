@@ -1,1 +1,42 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-remediation","compression":"gzip","encoded_size":1300,"encoded_sha256":"9cd4e3b26b2468b1f461f67b06e34d66a5b527d226a2d8b63ed2eb867482fd0b","decoded_size":2321,"decoded_sha256":"02555db1b9762dca8413e1138f771eb8e2af4fe592d0ae91afe541c8fe79a2ac","parts":[{"path":"audit-remediation.parts/part-000.b64","size":1300,"sha256":"9cd4e3b26b2468b1f461f67b06e34d66a5b527d226a2d8b63ed2eb867482fd0b"}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:7fde32be-cde4-424a-8750-79bf802330f5",
+    "audit_report_sha256": "b120d5f9986f8c16d83123cf80376bfabd342b4fc4ea8b7e41972a5a450c52c2",
+    "audited_head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988"
+  },
+  "candidate_head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "artifact-rebuild",
+      "changed_files": [
+        ".audit/entregar-issue/specification-snapshot.json",
+        ".audit/entregar-issue/requirement-closure.json",
+        ".audit/entregar-issue/standard-evidence.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "Inherited foreign-target certificate is not reused; package is rebuilt for issue 1051 / PR 1052 on material head 8ec5341f0ac1aa56a6284048dc0c9665cee5a988."
+      ],
+      "validations": [
+        "validate_specification_coverage.py",
+        "validate_standard_evidence.py",
+        "validate_audit_remediation.py",
+        "validate_handoff_readiness.py",
+        "build_handoff_certificate.py"
+      ]
+    }
+  ],
+  "status": "closed"
+}
