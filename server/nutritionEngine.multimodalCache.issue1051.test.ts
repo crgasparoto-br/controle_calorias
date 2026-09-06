@@ -98,13 +98,22 @@ describe("issue #1051 — reuso multimodal do cache persistido", () => {
         protein: 3.9,
       })
     );
+    expect(result.semanticContract).toEqual(expect.objectContaining({
+      inputType: "audio_transcript",
+      needsClarification: false,
+    }));
+    expect(result.semanticContract.items[0]).toEqual(expect.objectContaining({
+      brand: "Panco",
+      productVariant: "premium",
+      needsClarification: false,
+    }));
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      expect.stringContaining("Panco"),
+      expect.stringContaining("Premium"),
       expect.objectContaining({ searchSpecificProduct: true })
     );
   });
 
-  it("usa o mesmo produto persistido para uma imagem com contexto textual", async () => {
+  it("recupera Premium da origem visual mesmo quando a extração perde a variante", async () => {
     const result = await processMealInput({
       text: "Panco Premium, 2 fatias",
       imageUrl: "data:image/jpeg;base64,aW1hZ2Vt",
@@ -117,8 +126,18 @@ describe("issue #1051 — reuso multimodal do cache persistido", () => {
         calories: 125,
       })
     );
+    expect(result.semanticContract).toEqual(expect.objectContaining({
+      inputType: "multimodal",
+      originalText: "Panco Premium, 2 fatias",
+      needsClarification: false,
+    }));
+    expect(result.semanticContract.items[0]).toEqual(expect.objectContaining({
+      brand: "Panco",
+      productVariant: "premium",
+      needsClarification: false,
+    }));
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      expect.stringContaining("Panco"),
+      expect.stringContaining("Premium"),
       expect.objectContaining({ searchSpecificProduct: true })
     );
   });
