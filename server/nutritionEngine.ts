@@ -150,6 +150,24 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
+function findExplicitBrandedVariantIdentity(item: LlmItem, sourceText?: string) {
+  const brand = item.brand?.trim();
+  const source = sourceText?.trim();
+  if (!brand || !source) return null;
+
+  const normalizedBrand = normalizeForMatching(brand).trim();
+  if (!normalizedBrand) return null;
+
+  const brandSegments = splitSourceFoodSegments(source)
+    .filter(segment => normalizeForMatching(segment).includes(` ${normalizedBrand} `));
+  if (brandSegments.length !== 1) return null;
+
+  const variant = extractCommercialVariant(brandSegments[0]);
+  if (!variant) return null;
+
+  return `${item.foodName} ${brand} ${variant}`.trim();
+}
+
 export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: string): LlmItem {
   if (item.brand || !sourceText?.trim()) return item;
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
@@ -160,6 +178,7 @@ export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: strin
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
   const normalizedFoodName = normalizeForMatching(item.foodName);
   const normalizedBrand = normalizeForMatching(item.brand ?? "").trim();
   const commercialIdentity = normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
@@ -167,6 +186,7 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
     : item.foodName;
 
   addCatalogCandidate(candidates, sourceFoodName);
+  addCatalogCandidate(candidates, explicitBrandedVariantIdentity);
   if (item.brand) {
     addCatalogCandidate(candidates, `${commercialIdentity} ${item.portionText}`);
     addCatalogCandidate(candidates, commercialIdentity);
@@ -187,6 +207,9 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
 function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: string) {
   const explicitSource = findSourceFoodSegmentForInferenceItem(item, sourceText);
   if (explicitSource) return explicitSource;
+
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
+  if (explicitBrandedVariantIdentity) return explicitBrandedVariantIdentity;
 
   const source = sourceText?.trim();
   if (!source) return item.foodName;
