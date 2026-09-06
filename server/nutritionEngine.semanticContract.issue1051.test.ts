@@ -9,11 +9,15 @@ vi.mock("./mealAiExtraction", () => ({
   extractWithAi: (...args: unknown[]) => extractWithAiMock(...args),
 }));
 
-vi.mock("./catalogMatching", () => ({
-  findCatalogFood: (...args: unknown[]) => findCatalogFoodMock(...args),
-  isCatalogFoodSemanticallyCompatible: () => true,
-  sourceMentionsFood: () => true,
-}));
+vi.mock("./catalogMatching", async importOriginal => {
+  const actual = await importOriginal<typeof import("./catalogMatching")>();
+  return {
+    ...actual,
+    findCatalogFood: (...args: unknown[]) => findCatalogFoodMock(...args),
+    isCatalogFoodSemanticallyCompatible: () => true,
+    sourceMentionsFood: () => true,
+  };
+});
 
 vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: (...args: unknown[]) => findCatalogFoodSemanticMock(...args),
