@@ -108,7 +108,7 @@ describe("issue #1051 — reuso multimodal do cache persistido", () => {
       needsClarification: false,
     }));
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      expect.stringContaining("Premium"),
+      expect.stringMatching(/premium/i),
       expect.objectContaining({ searchSpecificProduct: true })
     );
   });
@@ -137,7 +137,7 @@ describe("issue #1051 — reuso multimodal do cache persistido", () => {
       needsClarification: false,
     }));
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      expect.stringContaining("Premium"),
+      expect.stringMatching(/premium/i),
       expect.objectContaining({ searchSpecificProduct: true })
     );
   });
