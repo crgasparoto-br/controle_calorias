@@ -42,6 +42,49 @@ export type FoodClassificationEstimate = {
   isPlainWater?: boolean | null;
 };
 
+export type MealSemanticInputType =
+  | "text"
+  | "audio_transcript"
+  | "image"
+  | "multimodal";
+
+export type MealSemanticEvidenceOrigin =
+  | "text"
+  | "transcription"
+  | "vision"
+  | "catalog"
+  | "web_research"
+  | "nutrition_label"
+  | "ai_estimate"
+  | "heuristic"
+  | "unavailable";
+
+export type MealSemanticClarificationCode =
+  | "brand_variant_unresolved"
+  | "commercial_identity_unverified";
+
+export type MealSemanticAlternative = {
+  name: string;
+  brand: string | null;
+  productVariant: string | null;
+  servingLabel: string;
+  gramsPerServing: number;
+};
+
+export type MealItemResolutionMetadata = {
+  productVariant?: string | null;
+  nutritionOrigin: MealSemanticEvidenceOrigin;
+  nutritionVerified: boolean;
+  sourceUrls?: string[];
+  sourceEvidence?: string | null;
+  sourceVerifiedAt?: Date | null;
+  sourceConfidence?: number | null;
+  ambiguity?: {
+    reason: MealSemanticClarificationCode;
+    alternatives: MealSemanticAlternative[];
+  } | null;
+};
+
 export type MealDraftItem = {
   foodId?: number;
   foodCatalogId?: number | null;
@@ -62,6 +105,12 @@ export type MealDraftItem = {
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
   classification?: FoodClassificationEstimate | null;
+  /**
+   * Metadados do resolvedor canônico. O campo é opcional para manter leitura de
+   * registros históricos, mas processMealInput sempre o projeta no contrato
+   * semântico retornado para novas inclusões.
+   */
+  resolution?: MealItemResolutionMetadata;
 };
 
 /**
@@ -95,6 +144,71 @@ export type MealProcessingInput = {
   intentHint?: IntentHint | null;
 };
 
+export type MealSemanticFieldEvidence<T> = {
+  value: T;
+  origin: MealSemanticEvidenceOrigin;
+  confidence: number;
+  verified: boolean;
+};
+
+export type MealSemanticItem = {
+  itemIndex: number;
+  originalText: string;
+  normalizedText: string;
+  commercialName: string;
+  category: FoodProcessingLevelEstimate | null;
+  brand: string | null;
+  productVariant: string | null;
+  barcode: string | null;
+  quantity: number;
+  unit: string;
+  portionText: string;
+  estimatedGrams: number;
+  confidence: {
+    identity: number;
+    quantity: number;
+    source: number;
+  };
+  evidence: {
+    identity: MealSemanticFieldEvidence<string>;
+    brand: MealSemanticFieldEvidence<string | null>;
+    variant: MealSemanticFieldEvidence<string | null>;
+    quantity: MealSemanticFieldEvidence<number>;
+    estimatedGrams: MealSemanticFieldEvidence<number>;
+    nutrition: MealSemanticFieldEvidence<{
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      sourceUrls: string[];
+      sourceEvidence: string | null;
+      sourceVerifiedAt: string | null;
+    }>;
+  };
+  alternatives: MealSemanticAlternative[];
+  needsClarification: boolean;
+  clarificationReason: {
+    code: MealSemanticClarificationCode;
+    message: string;
+  } | null;
+};
+
+export type MealSemanticContract = {
+  version: 1;
+  originalText: string;
+  normalizedText: string;
+  inputType: MealSemanticInputType;
+  intent: string;
+  items: MealSemanticItem[];
+  needsClarification: boolean;
+  clarifications: Array<{
+    itemIndex: number;
+    code: MealSemanticClarificationCode;
+    message: string;
+    alternatives: MealSemanticAlternative[];
+  }>;
+};
+
 export type MealProcessingResult = {
   detectedMealLabel: string;
   sourceText: string;
@@ -111,6 +225,15 @@ export type MealProcessingResult = {
     carbs: number;
     fat: number;
   };
+  /**
+   * Presente em toda nova execução de processMealInput. É opcional no tipo-base
+   * somente para compatibilidade com snapshots persistidos anteriores à #1051.
+   */
+  semanticContract?: MealSemanticContract;
+};
+
+export type CanonicalMealProcessingResult = MealProcessingResult & {
+  semanticContract: MealSemanticContract;
 };
 
 export type LlmItem = {
