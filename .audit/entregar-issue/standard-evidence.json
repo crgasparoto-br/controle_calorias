@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+  "head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
   "requirements": [
     {
       "requirement_id": "REQ-1051-BRANDED-CLARIFICATION",
@@ -13,10 +13,10 @@
         "status": "passed",
         "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
         "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
+        "observed": "Exact-head Agent-first run 34152426338 completed/success for 9debe298b21cb975a0b3c09ea6f45b1842219bbc; merge preview integration and all applicable TiDB gates completed/success."
       },
       "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
+        "Agent-first workflow run 34152426338 completed/success on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; merge preview integration also completed/success."
       ]
     },
     {
@@ -29,123 +29,13 @@
         "status": "passed",
         "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
         "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
+        "observed": "Exact-head Agent-first run 34152426338 completed/success for 9debe298b21cb975a0b3c09ea6f45b1842219bbc; merge preview integration and all applicable TiDB gates completed/success."
       },
       "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
+        "Agent-first workflow run 34152426338 completed/success on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; merge preview integration also completed/success."
       ]
     },
     {
       "requirement_id": "REQ-1051-EVIDENCE",
       "positive_evidence": [
-        "A complete branded source with matching product/portion and labeled kcal, protein, carbohydrate and fat values is accepted and persists only source-derived evidence."
-      ],
-      "primary_negative_control": {
-        "id": "NC-EVIDENCE-SOURCE-ONLY-NUMERICS",
-        "status": "passed",
-        "procedure": "Provide a source with correct commercial identity but no numeric nutrition values while the provider summary contains every expected number; repeat with only partial source numerics.",
-        "expected": "Both candidates are rejected because model-produced result.evidence cannot supply or complete source nutrition numbers.",
-        "observed": "brandedNutritionSearch exact-head regressions passed in Agent-first run 34145993974; sourceNutritionEvidenceText excludes result.evidence and partial/no-number grounding returns null."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-GENERIC-SAFETY",
-      "positive_evidence": [
-        "Generic fallback remains available only for genuinely generic foods, not unresolved branded identities."
-      ],
-      "primary_negative_control": {
-        "id": "NC-GENERIC-SAFETY",
-        "status": "passed",
-        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
-        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-IDENTITY",
-      "positive_evidence": [
-        "Commercial identity and variant are preserved and incompatible candidates are rejected."
-      ],
-      "primary_negative_control": {
-        "id": "NC-IDENTITY",
-        "status": "passed",
-        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
-        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-PROCESS",
-      "positive_evidence": [
-        "PR remains open against develop, current head is exact and no merge/close operation is performed."
-      ],
-      "primary_negative_control": {
-        "id": "NC-PROCESS",
-        "status": "passed",
-        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
-        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-RESOLUTION",
-      "positive_evidence": [
-        "Resolution uses the shared specificity precedence and coherent identity/nutrition source."
-      ],
-      "primary_negative_control": {
-        "id": "NC-RESOLUTION",
-        "status": "passed",
-        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
-        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
-        "observed": "Exact-head Agent-first run 34145993974 completed/success for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration and all applicable TiDB gates completed/success."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-SEMANTIC-CONTRACT",
-      "positive_evidence": [
-        "The semantic contract now resolves provenance independently for identity, brand, variant, quantity and grams, and supports text, transcription, OCR, vision, memory and downstream nutrition origins."
-      ],
-      "primary_negative_control": {
-        "id": "NC-SEMANTIC-MIXED-FIELD-PROVENANCE",
-        "status": "passed",
-        "procedure": "Build mixed image+text and image+transcription inputs where identity and quantity are supplied by different modalities, then inspect each MealSemanticFieldEvidence origin separately.",
-        "expected": "Image presence does not relabel typed/transcribed quantity or other fields as vision; each field preserves the modality or downstream source that actually supports it.",
-        "observed": "nutritionEngine.semanticContract issue-1051 mixed-modality regressions passed in Agent-first run 34145993974; field origins remain distinct and OCR/memory origins are representable."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    },
-    {
-      "requirement_id": "REQ-1051-VALIDATION-HYGIENE",
-      "positive_evidence": [
-        "Agent-first run 34145993974 passed TypeScript, full Vitest, Architecture, Documentation, Build, Agent check, CI gate docs, exact-head manifest and repository bundle for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b."
-      ],
-      "primary_negative_control": {
-        "id": "NC-VALIDATION-LEGACY-STATIC-GUARD",
-        "status": "passed",
-        "procedure": "Run the legacy issue-923 security-boundary test against the new verified-source implementation rather than weakening production source validation.",
-        "expected": "The static guard asserts verifiedSource/source-derived evidence semantics and does not require the removed result.evidence trust path.",
-        "observed": "Merge preview Test merge preview and Agent-first Tests both passed on 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b after the guard was aligned in commit 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b."
-      },
-      "regression_evidence": [
-        "Agent-first workflow run 34145993974 completed/success on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; merge preview integration also completed/success."
-      ]
-    }
-  ]
-}
+        "A complete branded source is accepted only when commercial identity, serving size and labeledØØ[Ü›İZ[‹ØØ\˜›ÚY˜]KÙ˜]˜[Y\È\™H[™\[™[Hİ\ÜYHÛİ\˜ÙKY\š]™Y]šY[˜ÙKˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËQU’QSÑKPÓÓ•VPSTÑT•’S‘È‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ•\ÙHÛÛ\]Hœ˜[™YØØ[ÛXXÜ›ÜÈÚ\™HØ\˜›ÚY˜]H\ÈHÈ[™›İšY\ˆÜ˜[\Ô\”Ù\š[™È\È[ÛÈK]HÛİ\˜ÙH™]™\ˆİ]\ÈHHÈÙ\š[™ÎÈ[ˆ™\X]Ú]HØ[YH˜[Y\È\È[ˆ^XÚ]Ü°éğèÛÎˆHÈİ][Y[ˆ‹ˆ™^XİYˆ•HXXÜ›ËXÛÛ\Ú[ÛˆØ[™Y]H\È™Z™XİY™XØ]\ÙH]šY[Ü˜[\ÈØ[››İ›İ™HÙ\š[™ÈÚ^™KÚ[HH^XÚ]\Ù\š[™ÈÚX›[™È\ÈXØÙ\Yˆ‹ˆ›ØœÙ\™Yˆ’\ÜİYKLLLHÙ\š[™ËY]šY[˜ÙH™YÜ™\ÜÚ[ÛœÈ\ÜÙY[ˆ^XİZXYYÙ[Yš\œİ[ˆÍMLŒÌÎÛˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈÛİ\˜ÙTİ\ÜÔÙ\š[™È™Z™XİÈ]šY[XY˜XÙ[YX\İ\™\È[™XØÙ\È^XÚ]Ù\š[™ÈÛÛ^ˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKQÑS‘T’PËTĞQ‘UH‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆ‘Ù[™\šXÈ˜[˜XÚÈ™[XZ[œÈ]˜Z[X›HÛ›H›ÜˆÙ[Z[™[HÙ[™\šXÈ›ÛÙË›İ[œ™\ÛÛ™Yœ˜[™YY[]Y\Ëˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËQÑS‘T’PËTĞQ‘UH‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ‘^\˜Ú\ÙHHÛÜœ™\ÜÛ™[™ÈÜ›Û™Ë\]Üˆ˜[˜XÚÈÛÛ™][ÛˆÛˆH^XİX]\šX[XYˆ‹ˆ™^XİYˆ•H[œØY™KÙ]™\™Ù[]\È™Z™XİYÜˆÛ\šYšYYÚ[HHØY™HÚX›[™È™Z]š[Üˆ™[XZ[œÈ]˜Z[X›Kˆ‹ˆ›ØœÙ\™Yˆ‘^XİZXYYÙ[Yš\œİ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈ›ÜˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[™[\XØX›HQˆØ]\ÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKRQS•UH‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆÛÛ[Y\˜ÚX[Y[]H[™˜\šX[\™H™\Ù\™Y[™[˜ÛÛ\]X›HØ[™Y]\È\™H™Z™XİYˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËRQS•UH‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ‘^\˜Ú\ÙHHÛÜœ™\ÜÛ™[™ÈÜ›Û™Ë\]Üˆ˜[˜XÚÈÛÛ™][ÛˆÛˆH^XİX]\šX[XYˆ‹ˆ™^XİYˆ•H[œØY™KÙ]™\™Ù[]\È™Z™XİYÜˆÛ\šYšYYÚ[HHØY™HÚX›[™È™Z]š[Üˆ™[XZ[œÈ]˜Z[X›Kˆ‹ˆ›ØœÙ\™Yˆ‘^XİZXYYÙ[Yš\œİ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈ›ÜˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[™[\XØX›HQˆØ]\ÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKT“ĞÑTÔÈ‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆ”ˆ™[XZ[œÈÜ[ˆYØZ[œİ]™[Üİ\œ™[XY\È^Xİ[™›ÈY\™ÙKØÛÜÙHÜ\˜][Ûˆ\È\™›Ü›YYˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËT“ĞÑTÔÈ‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ‘^\˜Ú\ÙHHÛÜœ™\ÜÛ™[™ÈÜ›Û™Ë\]Üˆ˜[˜XÚÈÛÛ™][ÛˆÛˆH^XİX]\šX[XYˆ‹ˆ™^XİYˆ•H[œØY™KÙ]™\™Ù[]\È™Z™XİYÜˆÛ\šYšYYÚ[HHØY™HÚX›[™È™Z]š[Üˆ™[XZ[œÈ]˜Z[X›Kˆ‹ˆ›ØœÙ\™Yˆ‘^XİZXYYÙ[Yš\œİ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈ›ÜˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[™[\XØX›HQˆØ]\ÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKT‘TÓÓUSÓˆ‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆ”™\ÛÛ][Ûˆ\Ù\ÈHÚ\™YÜXÚYšXÚ]H™XÙY[˜ÙH[™ÛÚ\™[Y[]KÛ]š][ÛˆÛİ\˜ÙKˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËT‘TÓÓUSÓˆ‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ‘^\˜Ú\ÙHHÛÜœ™\ÜÛ™[™ÈÜ›Û™Ë\]Üˆ˜[˜XÚÈÛÛ™][ÛˆÛˆH^XİX]\šX[XYˆ‹ˆ™^XİYˆ•H[œØY™KÙ]™\™Ù[]\È™Z™XİYÜˆÛ\šYšYYÚ[HHØY™HÚX›[™È™Z]š[Üˆ™[XZ[œÈ]˜Z[X›Kˆ‹ˆ›ØœÙ\™Yˆ‘^XİZXYYÙ[Yš\œİ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈ›ÜˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[™[\XØX›HQˆØ]\ÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKTÑSPS•PËPÓÓ•PÕ‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆ•HÙ[X[XÈÛÛ˜Xİ›İÈ™\ÛÛ™\È›İ™[˜[˜ÙH[™\[™[H›ÜˆY[]Kœ˜[™˜\šX[]X[]H[™Ü˜[\Ë[™İ\ÜÈ^˜[œØÜš\[Û‹ĞÔ‹š\Ú[Û‹Y[[ÜH[™İÛœİ™X[H]š][ÛˆÜšYÚ[œËˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËTÑSPS•PËSRVQQ’QST“Õ‘SSÑH‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™HˆZ[Z^Y[XYÙJİ^[™[XYÙJİ˜[œØÜš\[Ûˆ[œ]ÈÚ\™HY[]H[™]X[]H\™Hİ\YYHY™™\™[[Ù[]Y\Ë[ˆ[œÜXİXXÚYX[Ù[X[XÑšY[]šY[˜ÙHÜšYÚ[ˆÙ\\˜][Kˆ‹ˆ™^XİYˆ’[XYÙH™\Ù[˜ÙHÙ\È›İ™[X™[\Yİ˜[œØÜšX™Y]X[]HÜˆİ\ˆšY[È\Èš\Ú[ÛÈXXÚšY[™\Ù\™\ÈH[Ù[]HÜˆİÛœİ™X[HÛİ\˜ÙH]XİX[Hİ\ÜÈ]ˆ‹ˆ›ØœÙ\™Yˆ›]š][Û‘[™Ú[™KœÙ[X[XĞÛÛ˜Xİ\ÜİYKLLLHZ^Y[[Ù[]H™YÜ™\ÜÚ[ÛœÈ\ÜÙY[ˆYÙ[Yš\œİ[ˆÍMLŒÌÎÈšY[ÜšYÚ[œÈ™[XZ[ˆ\İ[˜İ[™ĞÔ‹ÛY[[ÜHÜšYÚ[œÈ\™H™\™\Ù[X›Kˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆKˆÂˆœ™\]Z\™[Y[ÚYˆ”‘TKLLLKUSQUSÓ‹RQÒQS‘H‹ˆœÜÚ]]™WÙ]šY[˜ÙHˆÂˆYÙ[Yš\œİ[ˆÍMLŒÌÎ\ÜÙY\TØÜš\[š]\İ\˜Ú]Xİ\™KØİ[Y[][Û‹Z[YÙ[ÚXÚËÒHØ]HØÜË^XİZXYX[šY™\İ[™™\ÜÚ]ÜH[™H›ÜˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜Ëˆ‚ˆKˆœš[X\WÛ™YØ]]™WØÛÛ›ÛˆÂˆšYˆ“ËUSQUSÓ‹SQĞPÖKTÕUPËQÕPT‘‹ˆœİ]\Èˆœ\ÜÙY‹ˆœ›ØÙY\™Hˆ”[ˆHYØXŞH\ÜİYKNLŒÈÙXİ\š]KX›İ[™\H\İYØZ[œİH™]È™\šYšYY\Ûİ\˜ÙH[\[Y[][Ûˆ˜]\ˆ[ˆÙXZÙ[š[™È›ÙXİ[ÛˆÛİ\˜ÙH˜[Y][Û‹ˆ‹ˆ™^XİYˆ•Hİ]XÈİX\™\ÜÙ\È™\šYšYYÛİ\˜ÙKÜÛİ\˜ÙKY\š]™Y]šY[˜ÙHÙ[X[XÜÈ[™Ù\È›İ™\]Z\™HH™[[İ™Y™\İ[™]šY[˜ÙH\İ]ˆ‹ˆ›ØœÙ\™Yˆ“Y\™ÙH™]šY]È\İY\™ÙH™]šY]È[™YÙ[Yš\œİ\İÈ›İ\ÜÙYÛˆYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÈY\ˆHİX\™Ø\È[YÛ™Y[ˆÛÛ[Z]YX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜Ëˆ‚ˆKˆœ™YÜ™\ÜÚ[Û—Ù]šY[˜ÙHˆÂˆYÙ[Yš\œİÛÜšÙ›İÈ[ˆÍMLŒÌÎÛÛ\]YÜİXØÙ\ÜÈÛˆ^XİX]\šX[XYYX™LNŒŒXØMÍXLŒØÌYXM™XŒNŒŒNX˜˜ÎÈY\™ÙH™]šY]È[YÜ˜][Ûˆ[ÛÈÛÛ\]YÜİXØÙ\ÜËˆ‚ˆBˆBˆBŸB

@@ -2,11 +2,11 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:47bc978b-bbc5-43b4-8f8e-4188eab97d7b",
-  "head_sha": "312054202664a6fb36da2c2f922160306b464d32",
+  "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
+  "head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27",
   "identity": {
-    "head_sha": "312054202664a6fb36da2c2f922160306b464d32",
-    "material_head_sha": "25f8025bff10c31cba27daeb7c5183b4b687e600",
+    "head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27",
+    "material_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1051,
     "pull_request_number": 1052
@@ -18,21 +18,9 @@
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "source-evidence-integrity",
-      "summary": "Web nutrition verification can accept numeric claims supplied by model-produced result.evidence when the cited source itself lacks complete numeric nutrition evidence.",
-      "reason": "model-summary-can-complete-source-numerics",
-      "recovery_scope": "material-remediation",
-      "requires_refreeze": true
-    },
-    {
-      "id": "A-002",
-      "disposition": "blocking",
-      "status": "open",
-      "actionable": true,
-      "remediation_mode": "targeted-remediation",
-      "category": "multimodal-provenance-integrity",
-      "summary": "Mixed multimodal input collapses field provenance to one input origin, so typed or transcribed fields can be mislabeled as vision and OCR/memory origins are not representable.",
-      "reason": "field-provenance-collapsed-by-input",
+      "category": "serving-evidence-integrity",
+      "summary": "A branded source can falsely prove gramsPerServing when a nutrient amount in the source happens to equal the provider-declared serving size.",
+      "reason": "macro-measure-can-masquerade-as-serving-evidence",
       "recovery_scope": "material-remediation",
       "requires_refreeze": true
     }

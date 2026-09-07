@@ -14,8 +14,8 @@
       "plausible_wrong_implementation": "Treat an inherited handoff certificate as current merely because it exists and internal hashes are valid.",
       "literal_case": {
         "status": "passed",
-        "observed": "Revalidated on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; Agent-first run 34145993974 is terminal success and no ancestral SHA is asserted as current.",
-        "evidence": "Exact-head Agent-first run 34145993974, current PR identity and final post-write-refreeze evidence."
+        "observed": "Revalidated on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; Agent-first run 34152426338 is terminal success and no ancestral SHA is asserted as current.",
+        "evidence": "Exact-head Agent-first run 34152426338, current PR identity and final post-write-refreeze evidence."
       },
       "sibling_cases": [
         {
@@ -35,7 +35,7 @@
       "detection_change": {
         "evidence": "classify_handoff_recovery.py and validate_terminal_handoff.py detect stale parent/path/head identity."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     },
     {
@@ -51,8 +51,8 @@
       "plausible_wrong_implementation": "Preserve a brand label while accepting generic or heuristic macros when exact commercial identity is ambiguous.",
       "literal_case": {
         "status": "passed",
-        "observed": "Revalidated on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; Agent-first run 34145993974 is terminal success and no ancestral SHA is asserted as current.",
-        "evidence": "Exact-head Agent-first run 34145993974, current PR identity and final post-write-refreeze evidence."
+        "observed": "Revalidated on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; Agent-first run 34152426338 is terminal success and no ancestral SHA is asserted as current.",
+        "evidence": "Exact-head Agent-first run 34152426338, current PR identity and final post-write-refreeze evidence."
       },
       "sibling_cases": [
         {
@@ -72,7 +72,7 @@
       "detection_change": {
         "evidence": "classify_handoff_recovery.py and validate_terminal_handoff.py detect stale parent/path/head identity."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     },
     {
@@ -88,8 +88,8 @@
       "plausible_wrong_implementation": "Allow text, transcription and image to lose variant or provenance before canonical nutrition resolution.",
       "literal_case": {
         "status": "passed",
-        "observed": "Revalidated on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; Agent-first run 34145993974 is terminal success and no ancestral SHA is asserted as current.",
-        "evidence": "Exact-head Agent-first run 34145993974, current PR identity and final post-write-refreeze evidence."
+        "observed": "Revalidated on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; Agent-first run 34152426338 is terminal succcess and no ancestral SHA is asserted as current.",
+        "evidence": "Exact-head Agent-first run 34152426338, current PR identity and final post-write-refreeze evidence."
       },
       "sibling_cases": [
         {
@@ -109,7 +109,7 @@
       "detection_change": {
         "evidence": "classify_handoff_recovery.py and validate_terminal_handoff.py detect stale parent/path/head identity."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     },
     {
@@ -126,8 +126,8 @@
       "plausible_wrong_implementation": "Keep a previously valid terminal certificate after a later material commit and treat green CI as sufficient without refreezing.",
       "literal_case": {
         "status": "passed",
-        "observed": "Revalidated on exact material head 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b; Agent-first run 34145993974 is terminal success and no ancestral SHA is asserted as current.",
-        "evidence": "Exact-head Agent-first run 34145993974, current PR identity and final post-write-refreeze evidence."
+        "observed": "Revalidated on exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc; Agent-first run 34152426338 is terminal success and no ancestral SHA is asserted as current.",
+        "evidence": "Exact-head Agent-first run 34152426338, current PR identity and final post-write-refreeze evidence."
       },
       "sibling_cases": [
         {
@@ -147,7 +147,7 @@
       "detection_change": {
         "evidence": "classify_handoff_recovery.py and validate_terminal_handoff.py detect stale parent/path/head identity."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     },
     {
@@ -164,7 +164,7 @@
       "plausible_wrong_implementation": "Concatenate model-produced structured evidence with retrieved source snippets before checking nutrition numbers, allowing the model summary to supply values absent from the source.",
       "literal_case": {
         "status": "passed",
-        "observed": "On 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b, a source with correct product identity but no numeric nutrition evidence is rejected even when result.evidence contains the full expected macro set.",
+        "observed": "On 9debe298b21cb975a0b3c09ea6f45b1842219bbc, a source with correct product identity but no numeric nutrition evidence is rejected even when result.evidence contains the full expected macro set.",
         "evidence": "server/brandedNutritionSearch.test.ts exact-head negative regression; Agent-first Tests success."
       },
       "sibling_cases": [
@@ -196,7 +196,7 @@
       "detection_change": {
         "evidence": "brandedNutritionSearch adversarial tests plus issue923 security-boundary static guard cover the trusted-source-only rule."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     },
     {
@@ -213,7 +213,7 @@
       "plausible_wrong_implementation": "Choose one origin for the whole multimodal request (for example image-first) and reuse it for every extracted field even when quantity, brand or variant came from another modality.",
       "literal_case": {
         "status": "passed",
-        "observed": "On 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b, mixed image+typed input preserves field-specific origins; image presence no longer relabels typed quantity as vision.",
+        "observed": "On 9debe298b21cb975a0b3c09ea6f45b1842219bbc, mixed image+typed input preserves field-specific origins; image presence no longer relabels typed quantity as vision.",
         "evidence": "server/nutritionEngine.semanticContract.issue1051.test.ts mixed-modality regressions; Agent-first Tests success."
       },
       "sibling_cases": [
@@ -238,7 +238,45 @@
       "detection_change": {
         "evidence": "Exact-head mixed multimodal tests assert origin fields instead of comparing only resolved values."
       },
-      "revalidated_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-SERVING-EVIDENCE-MACRO-COLLISION-1051-001",
+      "escape_class": "nutrition-serving-evidence-collision",
+      "source_audit": {
+        "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
+        "finding_id": "A-001",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115"
+      },
+      "plausible_wrong_implementation": "Accept any mass or volume token in source nutrition text as proof of serving size, allowing a nutrient amount equal to gramsPerServing to validate a serving the source never stated.",
+      "literal_case": {
+        "status": "passed",
+        "observed": "On exact material head 9debe298b21cb975a0b3c09ea6f45b1842219bbc, a source with complete macros and 5 g carbohydrate but no serving-size statement is rejected when gramsPerServing=5; Agent-first run 34152426338 completed successfully.",
+        "evidence": "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts exercises the literal collision through the public branded nutrition search path."
+      },
+      "sibling_cases": [
+        {
+          "id": "sibling-explicit-serving-same-numerics",
+          "status": "passed",
+          "evidence": "The same Kcal/macros are accepted when supportingText explicitly states Porção 5 g, proving the serving independently from the 5 g carbohydrate value."
+        },
+        {
+          "id": "sibling-commercial-package-title",
+          "status": "passed",
+          "evidence": "Existing branded nutrition regressions continue accepting explicit commercial package sizes such as 330 ml in a source title while preserving labeled numeric nutrition grounding."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "sourceSupportsServing now separates serving proof from numericEvidenceSupportsResult, filters nutrient-adjacent measures, and requires serving/package context in supporting text."
+      },
+      "detection_change": {
+        "evidence": "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts adds paired reject/accept controls for the macro-value collision."
+      },
+      "revalidated_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
       "status": "passed"
     }
   ]

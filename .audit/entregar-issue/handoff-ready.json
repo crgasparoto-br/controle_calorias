@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-07T17:33:49.928423+00:00",
+  "created_at": "2026-09-07T19:09:19.722201+00:00",
   "identity": {
-    "head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
-    "material_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+    "head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
+    "material_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
     "base_sha": "6d2319885d545d3dfd75d566589e70b008e91039",
-    "merge_preview_sha": "7acad407b4e2152c797d8a8adcfc2d8e24c72354",
-    "material_merge_preview_sha": "7acad407b4e2152c797d8a8adcfc2d8e24c72354"
+    "merge_preview_sha": "a44f9f5a7ce1f92422aec50cae5eea968d84cfe7",
+    "material_merge_preview_sha": "a44f9f5a7ce1f92422aec50cae5eea968d84cfe7"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
@@ -21,73 +21,13 @@
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "6d2319885d545d3dfd75d566589e70b008e91039",
-    "material_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+    "work_item_start_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27",
+    "material_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
     "issue_changed_paths": [
-      ".audit/entregar-issue/audit-escape-closure-1051.json",
-      ".audit/entregar-issue/audit-remediation.json",
-      ".audit/entregar-issue/audit-source-result.json",
-      ".audit/entregar-issue/handoff-ready.json",
-      ".audit/entregar-issue/learning-closure.json",
-      ".audit/entregar-issue/requirement-closure.json",
-      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
-      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
-      ".audit/entregar-issue/requirement-closure.parts/part-002.b64",
-      ".audit/entregar-issue/requirement-closure.parts/part-003.b64",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1051.txt",
-      ".audit/entregar-issue/specification-sources/SRC-PR-1052.txt",
-      ".audit/entregar-issue/standard-evidence.json",
-      "docs/design-docs/nutrition-engine.md",
-      "docs/generated/db-schema.md",
-      "docs/product-specs/meal-registration.md",
-      "drizzle/0049_nutrition_research_persistence.sql",
-      "drizzle/meta/0049_snapshot.json",
-      "drizzle/meta/_journal.json",
-      "drizzle/schema.ts",
-      "server/brandedNutritionPersistence.test.ts",
-      "server/brandedNutritionPersistence.ts",
-      "server/brandedNutritionSearch.test.ts",
-      "server/brandedNutritionSearch.ts",
-      "server/brandedSnackNutrition.test.ts",
-      "server/catalogMatching.ts",
-      "server/catalogRuntime.ts",
-      "server/catalogSemanticSearch.issue1051.test.ts",
-      "server/catalogSemanticSearch.ts",
-      "server/catalogSemanticSearchCore.ts",
-      "server/commercialProductIdentity.ts",
-      "server/countableFoodQuantity.issue1047.test.ts",
-      "server/countableFoodQuantity.issue1051.test.ts",
-      "server/countableFoodQuantity.ts",
-      "server/foodBrandDetection.ts",
-      "server/issue923SmokeWorkflowSecurity.test.ts",
-      "server/mealAiExtraction.test.ts",
-      "server/mealAiExtraction.ts",
-      "server/mealItemBuilders.ts",
-      "server/mealItemCleanup.ts",
-      "server/mealSemanticContract.ts",
-      "server/modules/whatsapp/confirmedMealRegistration.identityClarification.issue1051.test.ts",
-      "server/modules/whatsapp/confirmedMealRegistration.test.ts",
-      "server/modules/whatsapp/confirmedMealRegistration.ts",
-      "server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts",
-      "server/modules/whatsapp/countableFoodRegistrationGate.ts",
-      "server/modules/whatsapp/foodQuantityClarification.ts",
-      "server/modules/whatsapp/intentActions.multipleItems.test.ts",
-      "server/nutritionEngine.brand.test.ts",
-      "server/nutritionEngine.brandTypeSpecificity.test.ts",
-      "server/nutritionEngine.issue1051.test.ts",
-      "server/nutritionEngine.issue987.test.ts",
-      "server/nutritionEngine.multimodalCache.issue1051.test.ts",
-      "server/nutritionEngine.semanticContract.issue1051.test.ts",
-      "server/nutritionEngine.test.ts",
-      "server/nutritionEngine.ts",
-      "server/nutritionEngine.zeroBeverageFallback.test.ts",
-      "server/nutritionEngine.zeroBeverageTacoCompatibility.test.ts",
-      "server/nutritionEngineTypes.ts",
-      "server/repositories/foodCatalogRepository.ts",
-      "server/repositories/usageGovernanceSchema.test.ts"
+      "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts",
+      "server/brandedNutritionSearch.ts"
     ],
-    "issue_delta_sha256": "d56e829724b1cc4f978397b0d83d1315ef2fd91313f52f5d5ad73ef856612244"
+    "issue_delta_sha256": "31eebe7d367ead6fe8a8ddd61ab82f1af8880a506644822e5564c4a0ea612f37"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -101,7 +41,6 @@
       ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
       ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-PR-1052.txt",
       ".audit/entregar-issue/standard-evidence.json"
     ]
   },
@@ -171,9 +110,9 @@
     },
     "standard_evidence": {
       "name": "standard-evidence.json",
-      "sha256": "38ea20245fe723213df87512189e2166d7a67b6a903d7dcf89f09f3b109ca9cd",
-      "logical_sha256": "38ea20245fe723213df87512189e2166d7a67b6a903d7dcf89f09f3b109ca9cd",
-      "logical_size": 9595,
+      "sha256": "a23dac1d8aa71aeb781f9a0e10d7b377cde4322da015e03241e648b4b5b0a4ce",
+      "logical_sha256": "a23dac1d8aa71aeb781f9a0e10d7b377cde4322da015e03241e648b4b5b0a4ce",
+      "logical_size": 9713,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -181,9 +120,9 @@
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure-1051.json",
-      "sha256": "e6a361f9ec8f6ca9eb6f7d08061b26e16bab005fb5ab86b8cfadf2e5a90a0918",
-      "logical_sha256": "e6a361f9ec8f6ca9eb6f7d08061b26e16bab005fb5ab86b8cfadf2e5a90a0918",
-      "logical_size": 11671,
+      "sha256": "35d450cb6b8b61f30bbaa2ee29bc1740ed31eccc9de7318f8760bce65a14819c",
+      "logical_sha256": "35d450cb6b8b61f30bbaa2ee29bc1740ed31eccc9de7318f8760bce65a14819c",
+      "logical_size": 13974,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -191,9 +130,9 @@
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "4b3065860a0c0302b9873463e386ccaaab060374ace985a33f273997563025b1",
-      "logical_sha256": "4b3065860a0c0302b9873463e386ccaaab060374ace985a33f273997563025b1",
-      "logical_size": 799,
+      "sha256": "8c0afa0fb605955c38f2cd419b36b66548423ded82919eac92a9594da16c76f5",
+      "logical_sha256": "8c0afa0fb605955c38f2cd419b36b66548423ded82919eac92a9594da16c76f5",
+      "logical_size": 783,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -201,9 +140,9 @@
     },
     "audit_remediation": {
       "name": "audit-remediation.json",
-      "sha256": "78480071eda8429a77307bbcff5a9b1bf1ccaaadc88fcba485c308f794cd7e8a",
-      "logical_sha256": "78480071eda8429a77307bbcff5a9b1bf1ccaaadc88fcba485c308f794cd7e8a",
-      "logical_size": 2815,
+      "sha256": "91ba1423ef9371a2a21e3bf0c5b2348cac17364c05b564f7c35d460a64d20e99",
+      "logical_sha256": "91ba1423ef9371a2a21e3bf0c5b2348cac17364c05b564f7c35d460a64d20e99",
+      "logical_size": 1936,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -211,14 +150,14 @@
     },
     "audit_source_result": {
       "name": "audit-source-result.json",
-      "sha256": "25b96120f28f584c3f4e5090ccfd05ac962a6942bfba5b3585ac6c85a16b2646",
-      "logical_sha256": "25b96120f28f584c3f4e5090ccfd05ac962a6942bfba5b3585ac6c85a16b2646",
-      "logical_size": 1622,
+      "sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115",
+      "logical_sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115",
+      "logical_size": 1051,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     }
   },
-  "previous_independent_rejection": true
+  "previous_indepent_rejection": true
 }

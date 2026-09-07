@@ -3,11 +3,11 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:47bc978b-bbc5-43b4-8f8e-4188eab97d7b",
-    "audit_report_sha256": "25b96120f28f584c3f4e5090ccfd05ac962a6942bfba5b3585ac6c85a16b2646",
-    "audited_head_sha": "312054202664a6fb36da2c2f922160306b464d32"
+    "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
+    "audit_report_sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115",
+    "audited_head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27"
   },
-  "candidate_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+  "candidate_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -18,40 +18,16 @@
       "closure_kind": "material-remediation",
       "changed_files": [
         "server/brandedNutritionSearch.ts",
-        "server/brandedNutritionSearch.test.ts",
-        "server/issue923SmokeWorkflowSecurity.test.ts",
-        "docs/design-docs/nutrition-engine.md"
+        "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts"
       ],
       "evidence": [
-        "findVerifiedSource now validates numeric nutrition claims only against source title/supportingText; model-produced result.evidence is excluded from proof and persisted evidence comes from the accepted source.",
-        "Negative regressions cover no source numerics, partial source numerics, coincidental unrelated numbers and source-derived persistence."
+        "Serving proof is now evaluated separately from macro proof: supportingText measures must carry serving/package context and nutrient-labeled measures are excluded; source titles may still prove an explicit commercial package size.",
+        "A discriminant regression rejects complete nutrition evidence where 5 g of carbohydrate merely equals gramsPerServing=5 without any source serving statement; the sibling case with an explicit Porção: 5 g statement remains accepted."
       ],
       "validations": [
-        "Agent-first run 34145993974: Tests=success on 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
-        "Agent-first run 34145993974: TypeScript/Architecture/Documentation/Build/Agent/CI-gate-docs=success",
-        "Merge preview integration run 34145993974: TypeScript integration and Test merge preview=success"
-      ]
-    },
-    {
-      "source_kind": "finding",
-      "source_id": "A-002",
-      "remediation_mode": "targeted-remediation",
-      "status": "fixed",
-      "closure_kind": "material-remediation",
-      "changed_files": [
-        "server/mealSemanticContract.ts",
-        "server/nutritionEngineTypes.ts",
-        "server/nutritionEngine.semanticContract.issue1051.test.ts",
-        "docs/design-docs/nutrition-engine.md"
-      ],
-      "evidence": [
-        "Meal semantic provenance is resolved per field instead of reusing one image-first input origin, and the origin vocabulary now includes OCR and memory.",
-        "Mixed image+text and image+transcription regressions assert distinct origins for identity/brand/variant/quantity/grams."
-      ],
-      "validations": [
-        "Agent-first run 34145993974: Tests=success on 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
-        "Agent-first run 34145993974: TypeScript/Architecture/Documentation/Build/Agent/CI-gate-docs=success",
-        "All applicable TiDB workflows for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b=success; AI provider live smoke=skipped/non-applicable"
+        "Agent-first run 34152426338: exact-head TypeScript, Tests, Architecture, Documentation, Build, Agent check and CI gate docs=success on 9debe298b21cb975a0b3c09ea6f45b1842219bbc",
+        "Merge preview integration run 34152426338: TypeScript integration and all 24 Vitest shards=success",
+        "Onboarding 34152426444, WhatsApp 34152426250, Billing 34152426354 and Professional 34152426273 TiDB gates=success on 9debe298b21cb975a0b3c09ea6f45b1842219bbc; AI provider live smoke 34152426470=skipped/non-applicable"
       ]
     }
   ],
