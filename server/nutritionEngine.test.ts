@@ -350,7 +350,8 @@ describe("nutritionEngine.processMealInput", () => {
       outputText: JSON.stringify({
         mealLabel: "Lanche",
         confidence: 0.89,
-        reasoning: "Valores extraídos da tabela nutricional visível no rótulo.",
+        reasoning:
+          "Valores extraídos da tabela nutricional visível no rótulo. NUTRITION_LABEL_EVIDENCE: serving=100g; kcal=400; protein_g=20; carbs_g=60; fat_g=10.",
         items: [
           {
             foodName: "banana",
