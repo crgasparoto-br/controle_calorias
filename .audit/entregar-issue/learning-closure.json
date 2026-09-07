@@ -3,14 +3,16 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-audit-rejection",
-    "rejection_id": "audit-rejection:7fde32be-cde4-424a-8750-79bf802330f5",
-    "audit_report_sha256": "b120d5f9986f8c16d83123cf80376bfabd342b4fc4ea8b7e41972a5a450c52c2",
+    "rejection_id": "audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787",
+    "audit_report_sha256": "c8b749a807d1fbdc154ab3d66b4125a074437b5dc6856228a92a1d8c7212b191",
     "finding_ids": [
-      "A-001"
+      "A-002",
+      "A-003"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The failure is a delivery-package binding error already governed by existing generic target-binding and terminal-handoff controls; no product or reusable skill rule change is required."
-  }
+    "reason": "The rejection exposed implementation gaps in the current branded nutrition and multimodal semantic-contract slice; existing delivery controls already require fail-closed evidence, cumulative rejection closure and exact-head revalidation, so no new global Skill rule is needed."
+  },
+  "skill_changes": []
 }

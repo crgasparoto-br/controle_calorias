@@ -1,35 +1,59 @@
 ## Resumo
 
-Implementa a primeira entrega integrada da issue #1051 para preservar identidade comercial de alimentos, pesquisar e persistir nutrição específica por produto/variante e reutilizar o resultado em texto, transcrição de voz e imagem.
+Implementa a entrega integrada da issue #1051 para preservar identidade comercial de alimentos, resolver marca/variante com evidência específica e manter o mesmo contrato semântico entre texto, transcrição de voz e imagem.
 
 Part of #1051
 
-> A issue é um épico incremental. Este PR entrega os contratos de identidade, pesquisa específica, persistência/reuso e integração multimodal; memória pessoal, feedback/review queue, promoção controlada de aprendizado global e métricas completas permanecem como etapas posteriores da mesma issue.
+> A issue continua incremental. Este PR cobre identidade comercial, pesquisa/persistência específica, contrato semântico multimodal, clarificação estruturada e bloqueio de fallback genérico para marca/variante explícita. Memória pessoal completa, feedback/review queue, promoção controlada de aprendizado global e métricas completas permanecem como etapas posteriores da issue.
 
 ## Principais mudanças
 
-- preserva marca, produto, variante, porção, fonte, evidência e confiança;
-- rejeita substituição silenciosa por produto genérico ou variante diferente;
-- persiste resultados web validados com TTL de 30 dias e reuso idempotente;
-- consulta primeiro a chave exata e depois candidatos da mesma marca com ranking seguro;
-- evita persistir uma variante específica para uma solicitação genérica;
-- mantém texto, transcrição de voz e imagem no mesmo resolvedor de catálogo;
-- preserva o nome completo da variante no item final;
-- impede macros genéricos quando produto de marca não tem evidência específica;
-- remove somente duplicidade/alias comprovadamente obsoletos no recorte.
+- consolida contrato semântico intermediário para texto, áudio/transcrição e imagem, com origem/evidência por campo, confiança, alternativas e `needsClarification` estruturado;
+- preserva marca, produto, variante, porção, fonte, evidência e confiança durante a resolução;
+- recupera variante explícita do contexto multimodal quando a extração simplificada perde o qualificador comercial;
+- exige esclarecimento quando `Panco` sem variante possui alternativas plausíveis, em vez de escolher arbitrariamente;
+- impede macros genéricos ou heurísticos quando há marca/variante explícita sem evidência exata;
+- exige compatibilidade de marca, variante e porção para aceitar catálogo, referência persistida ou pesquisa específica;
+- encaminha texto, transcrição de voz, imagem, registro confirmado e adição de alimentos ao resolvedor compartilhado;
+- preserva o nome completo da variante no item final e mantém referências independentes por produto/variante;
+- mantém fallback genérico apenas para alimentos realmente genéricos, sem identidade comercial explícita;
+- documenta a política fail-closed e o contrato semântico no recorte do motor nutricional.
 
-## Validações
+## Regressões adversariais cobertas
 
-Aprovados no HEAD `bb7def61`:
+- `Panco` genérico com alternativas Premium/Integral -> clarificação estruturada e zero macros até seleção;
+- `Panco Premium` exato -> aceita apenas fonte compatível;
+- imagem `Panco Premium, 2 fatias` cuja extração perde `Premium` -> recupera a variante da origem e resolve o produto correto;
+- texto, áudio/transcrição e imagem -> paridade de identidade no contrato semântico;
+- provider/pesquisa indisponível para produto de marca -> fail-closed, sem macro genérico apresentado como exato;
+- fonte de outra marca, variante incompatível ou sem evidência numérica -> rejeitada;
+- registro confirmado e adição multi-item -> nenhuma mutação quando a identidade de marca permanece ambígua;
+- bebidas zero genéricas continuam usando fallback seguro; bebidas zero de marca reconhecida exigem referência específica.
 
-- `pnpm check`;
-- `pnpm architecture:check`;
-- `git diff origin/develop...HEAD --check`;
-- suíte focada: 12 arquivos e 97 testes;
-- regressão adversarial de não persistência de variante em consulta genérica: aprovada.
+## Validação final
 
-A suíte completa foi executada e terminou com 4.089 testes aprovados e 62 falhas em 20 arquivos. As falhas restantes estão concentradas em testes de capabilities/providers e em cenários amplos do motor/WhatsApp que já não pertencem ao recorte de pesquisa de catálogo; não houve falha na suíte focada do PR. Elas ficam registradas como bloqueio do gate global, não são ocultadas pelo PR.
+Material head certificado: `1538188c3a99e8177a624c545fc004224ea168e2`.
+
+No exact head acima:
+
+- Agent-first gate: sucesso;
+- TypeScript: sucesso;
+- suíte completa Vitest: sucesso;
+- Architecture check: sucesso;
+- Documentation check: sucesso;
+- Build: sucesso;
+- Agent check: sucesso;
+- CI gate docs check: sucesso;
+- Onboarding activation TiDB gate: sucesso;
+- WhatsApp context TiDB gate: sucesso;
+- Billing persistence TiDB gate: sucesso;
+- Professional persistence TiDB gate: sucesso;
+- AI provider live smoke: skipped/não aplicável neste run.
+
+## Auditoria anterior
+
+Os bloqueios A-002 e A-003 da rejeição independente `audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787` foram tratados no material head acima com fail-closed para identidade comercial ambígua, contrato semântico multimodal unificado e regressões irmãs nos fluxos de registro/adicionamento.
 
 ## Merge
 
-Não executar merge automático. O PR deve ser revisado contra `develop` e somente então mergeado com confirmação explícita.
+Não executar merge automático. A PR permanece aberta contra `develop` e deve seguir para auditoria independente do handoff terminal.

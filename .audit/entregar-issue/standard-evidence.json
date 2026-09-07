@@ -1,90 +1,111 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+  "head_sha": "1538188c3a99e8177a624c545fc004224ea168e2",
   "requirements": [
+    {
+      "requirement_id": "REQ-1051-BRANDED-CLARIFICATION",
+      "positive_evidence": [
+        "Generic Panco with plausible Premium/Integral alternatives produces food_identity_clarification_required with structured alternatives/reason instead of selecting arbitrarily."
+      ],
+      "primary_negative_control": {
+        "id": "NC-BRANDED-CLARIFICATION",
+        "status": "passed",
+        "procedure": "Resolve an explicit brand without a unique proven variant while generic/heuristic nutrition remains technically available.",
+        "expected": "Return structured clarification/pending identity and perform no meal mutation; never present generic macros as exact branded nutrition.",
+        "observed": "Exact-head semantic contract, confirmed registration, multiple-item and branded-zero regressions all pass fail-closed behavior."
+      },
+      "regression_evidence": [
+        "server/nutritionEngine.semanticContract.issue1051.test.ts",
+        "server/modules/whatsapp/confirmedMealRegistration.identityClarification.issue1051.test.ts",
+        "server/modules/whatsapp/intentActions.multipleItems.test.ts",
+        "server/nutritionEngine.zeroBeverageFallback.test.ts"
+      ]
+    },
     {
       "requirement_id": "REQ-1051-COUNTABLE-PARITY",
       "positive_evidence": [
-        "server/modules/whatsapp/confirmedMealRegistration.ts uses the asynchronous canonical countable-food gate before gram clarification.",
-        "server/countableFoodQuantity.issue1051.test.ts preserves brand context through the countable quantity contract."
+        "Confirmed registration and addition/countable flows use the canonical nutrition resolution gates and now propagate structured branded-identity clarification before mutation."
       ],
       "primary_negative_control": {
         "id": "NC-COUNTABLE",
         "status": "passed",
         "procedure": "Send a branded countable-food request that previously could bypass the async household-measure lookup.",
         "expected": "Confirmed registration traverses the same async gate and preserves brand context instead of silently falling back.",
-        "observed": "server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts and confirmedMealRegistration.test.ts cover the shared gate path."
+        "observed": "Ambiguous branded input is rejected before updateMeal/confirmation mutation in exact-head confirmed-registration and multiple-item regressions."
       },
       "regression_evidence": [
-        "server/modules/whatsapp/confirmedMealRegistration.test.ts",
+        "server/modules/whatsapp/confirmedMealRegistration.identityClarification.issue1051.test.ts",
+        "server/modules/whatsapp/intentActions.multipleItems.test.ts",
         "server/countableFoodQuantity.issue1051.test.ts"
       ]
     },
     {
       "requirement_id": "REQ-1051-EVIDENCE",
       "positive_evidence": [
-        "server/brandedNutritionPersistence.ts refuses persistence without sourceUrls/sourceEvidence and checks commercial identity before saving.",
-        "drizzle/0049_nutrition_research_persistence.sql persists source URLs, evidence, verification time and confidence."
+        "Exact branded nutrition is accepted only when commercial identity/source evidence is compatible; unresolved branded inputs are clarified rather than receiving generic macros.",
+        "Persisted branded research retains source URLs/evidence, verification date/confidence and variant identity."
       ],
       "primary_negative_control": {
         "id": "NC-EVIDENCE",
         "status": "passed",
         "procedure": "Attempt to persist or accept a branded result with missing numeric/source evidence, incompatible portion, or divergent brand.",
         "expected": "The result is rejected and cannot become a reusable exact branded catalog entry.",
-        "observed": "server/brandedNutritionPersistence.test.ts and server/brandedNutritionSearch.test.ts cover missing evidence and incompatible identity cases."
+        "observed": "Wrong brand/variant, missing numeric evidence and unavailable specific source cases are rejected/clarified by exact-head tests; branded zero fallback tests also fail closed."
       },
       "regression_evidence": [
+        "server/brandedNutritionSearch.test.ts",
         "server/brandedNutritionPersistence.test.ts",
-        "server/brandedNutritionSearch.test.ts"
+        "server/nutritionEngine.zeroBeverageFallback.test.ts"
       ]
     },
     {
       "requirement_id": "REQ-1051-GENERIC-SAFETY",
       "positive_evidence": [
-        "The persistence guard compares the original foodName with the matched commercial product before save."
+        "Unbranded/genuinely generic foods retain generic fallback behavior while recognized branded identity is routed to specific evidence or clarification."
       ],
       "primary_negative_control": {
         "id": "NC-GENERIC",
         "status": "passed",
         "procedure": "Use a generic branded request such as Panco without enough variant identity while the researched result is a specific variant.",
         "expected": "The specific variant is not persisted as the identity for the generic request.",
-        "observed": "The PR records and focused regression cover non-persistence of a specific variant for a generic query."
+        "observed": "Exact-head zero-beverage regressions distinguish generic zero drinks from Schweppes/Sprite branded zero requests."
       },
       "regression_evidence": [
-        "server/brandedNutritionPersistence.test.ts"
+        "server/nutritionEngine.zeroBeverageFallback.test.ts",
+        "server/nutritionEngine.zeroBeverageTacoCompatibility.test.ts"
       ]
     },
     {
       "requirement_id": "REQ-1051-IDENTITY",
       "positive_evidence": [
-        "server/commercialProductIdentity.ts and server/brandedNutritionSearch.ts enforce commercial identity compatibility before accepting branded nutrition.",
-        "server/nutritionEngine.issue1051.test.ts covers Panco identity and rejects silent generic substitution."
+        "server/nutritionEngine.ts requires compatible branded identity and returns structured clarification when explicit brand/variant cannot be proven.",
+        "server/mealItemCleanup.ts zeros/unverifies branded heuristic fallbacks instead of presenting them as exact."
       ],
       "primary_negative_control": {
         "id": "NC-IDENTITY",
         "status": "passed",
         "procedure": "Exercise a branded request against a candidate from a different brand/variant or generic catalog entry.",
         "expected": "The candidate is rejected and no generic macros are presented as exact branded nutrition.",
-        "observed": "Issue #1051 regression tests and commercial identity guards reject brand/variant mismatch and preserve the full persisted variant name."
+        "observed": "Generic Panco ambiguity, incompatible branded candidates and provider-unavailable branded cases pass fail-closed exact-head regressions in Agent-first run 34070606101."
       },
       "regression_evidence": [
-        "server/catalogSemanticSearch.issue1051.test.ts",
+        "server/nutritionEngine.semanticContract.issue1051.test.ts",
+        "server/nutritionEngine.brand.test.ts",
         "server/nutritionEngine.brandTypeSpecificity.test.ts"
       ]
     },
     {
       "requirement_id": "REQ-1051-MULTIMODAL-REUSE",
       "positive_evidence": [
-        "server/nutritionEngine.multimodalCache.issue1051.test.ts exercises transcription and image processing against the persisted branded catalog path.",
-        "server/mealItemBuilders.ts preserves the complete persisted commercial variant in the final item."
+        "server/nutritionEngine.multimodalCache.issue1051.test.ts proves exact Panco Premium reuse for transcription and image, including recovery of Premium from image source context when extraction drops the variant."
       ],
       "primary_negative_control": {
         "id": "NC-MULTIMODAL",
         "status": "passed",
         "procedure": "Provide the same branded product through text/transcription and image while a different variant is available in cache.",
         "expected": "All channels reject the divergent variant and reuse only a commercially compatible persisted product.",
-        "observed": "Multimodal cache tests cover voice/transcription and image reuse plus variant mismatch."
+        "observed": "Image extraction that loses the variant cannot silently collapse to generic Panco; the resolver recovers the explicit variant from origin before compatible lookup."
       },
       "regression_evidence": [
         "server/nutritionEngine.multimodalCache.issue1051.test.ts"
@@ -93,53 +114,73 @@
     {
       "requirement_id": "REQ-1051-PROCESS",
       "positive_evidence": [
-        "PR #1052 remains open, unmerged, base develop, head feat/1051-adaptive-food-input."
+        "PR #1052 is open, unmerged, mergeable, base develop, and current material head is 1538188c3a99e8177a624c545fc004224ea168e2."
       ],
       "primary_negative_control": {
         "id": "NC-PROCESS",
         "status": "passed",
         "procedure": "Observe whether remediation merges or closes the PR while rebuilding the handoff.",
         "expected": "No merge or issue close is performed; only result/evidence artifacts may be published after validation.",
-        "observed": "Fresh remote PR metadata is re-read before and after handoff publication."
+        "observed": "Fresh PR metadata was read after the final material CI; no merge/close operation was executed."
       },
       "regression_evidence": [
-        "PR metadata at material head shows state=open, merged=false, base=develop."
+        "PR #1052 metadata: state=open, merged=false, base=develop, head=1538188c3a99e8177a624c545fc004224ea168e2"
       ]
     },
     {
       "requirement_id": "REQ-1051-RESOLUTION",
       "positive_evidence": [
-        "server/brandedNutritionPersistence.ts checks exact persisted identity first, then fresh same-brand candidates, while web research remains the fallback when no safe cache match exists.",
-        "Persisted research records have a 30-day TTL and are rejected when expired."
+        "Resolution retains exact catalog/persisted/web specificity rules and now enriches branded variant identity from source text before falling back to clarification.",
+        "Generic branded identity with multiple plausible same-brand variants remains unresolved until user selection."
       ],
       "primary_negative_control": {
         "id": "NC-RESOLUTION",
         "status": "passed",
         "procedure": "Present an expired persisted record or same-brand candidate whose commercial identity does not match the request.",
         "expected": "The cache candidate is not reused; resolution must continue to a safer source/clarification path.",
-        "observed": "server/brandedNutritionPersistence.test.ts covers TTL expiration, variant mismatch, and no-provider-call reuse for a valid fresh exact entry."
+        "observed": "Expired/mismatched cache entries, generic branded requests and image extraction losing variant are discriminated by exact-head persistence/semantic/multimodal tests."
       },
       "regression_evidence": [
         "server/brandedNutritionPersistence.test.ts",
+        "server/nutritionEngine.semanticContract.issue1051.test.ts",
+        "server/nutritionEngine.multimodalCache.issue1051.test.ts"
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-SEMANTIC-CONTRACT",
+      "positive_evidence": [
+        "server/nutritionEngineTypes.ts defines the semantic contract/evidence/clarification types and server/mealSemanticContract.ts builds one contract at the canonical nutrition boundary.",
+        "server/nutritionEngine.semanticContract.issue1051.test.ts proves semantic identity parity for text, transcription and image."
+      ],
+      "primary_negative_control": {
+        "id": "NC-SEMANTIC-CONTRACT",
+        "status": "passed",
+        "procedure": "Feed equivalent branded requests through text, transcription and image, including an image extraction that loses the explicit variant.",
+        "expected": "The contract keeps a compatible commercial identity, field provenance/ambiguity and does not silently lose or invent the variant.",
+        "observed": "Exact-head semantic-contract and multimodal-cache tests preserve Panco Premium identity and recover the image variant from source context."
+      },
+      "regression_evidence": [
+        "server/nutritionEngine.semanticContract.issue1051.test.ts",
         "server/nutritionEngine.multimodalCache.issue1051.test.ts"
       ]
     },
     {
       "requirement_id": "REQ-1051-VALIDATION-HYGIENE",
       "positive_evidence": [
-        "Material head exact-SHA remote workflows include Agent-first gate run 33987760318 success and architecture/persistence gates success.",
-        "docs/generated/db-schema.md was regenerated after schema expansion."
+        "Agent-first run 34070606101 passed TypeScript, full Tests, Architecture, Documentation, Build, Agent check and CI docs check on exact material head 1538188c3a99e8177a624c545fc004224ea168e2.",
+        "Onboarding, WhatsApp context, Billing persistence and Professional persistence TiDB gates all completed success on the same exact head."
       ],
       "primary_negative_control": {
         "id": "NC-HYGIENE",
         "status": "passed",
         "procedure": "Check the PR delta for a parallel cache, duplicate commercial identity guard, or undocumented schema column count.",
         "expected": "No parallel persistence path remains in the slice and the generated schema documentation reflects the six new research fields.",
-        "observed": "PR delta centralizes commercial identity checks and updates generated DB schema documentation."
+        "observed": "The stale branded-zero compatibility expectation was corrected to the fail-closed policy, after which the exact-head full suite and all applicable remote gates completed successfully."
       },
       "regression_evidence": [
-        "remote Agent-first gate run 33987760318 completed/success on material head",
-        "remote WhatsApp context TiDB gate run 33987760303 completed/success on material head"
+        "Agent-first workflow run 34070606101 completed/success",
+        "TiDB workflow runs 34070606047, 34070606049, 34070606099 and 34070606061 completed/success",
+        "AI provider live smoke 34070606067 skipped/non-applicable"
       ]
     }
   ]

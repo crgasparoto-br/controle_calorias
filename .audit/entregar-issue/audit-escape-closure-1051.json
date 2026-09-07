@@ -15,7 +15,7 @@
       "plausible_wrong_implementation": "Treat an inherited handoff certificate as current merely because it exists and its internal hashes are valid, without binding it to the current issue and pull request.",
       "literal_case": {
         "status": "passed",
-        "observed": "The inherited foreign-target package is excluded and a new package is generated for the current target on material head 8ec5341f0ac1aa56a6284048dc0c9665cee5a988.",
+        "observed": "Current package reconstruction preserves rejection lineage and does not reuse the stale 8ec material-head certificate as the terminal certificate for 1538188c3a99e8177a624c545fc004224ea168e2.",
         "evidence": "delivery-target-binding classification plus rebuilt current-target artifacts"
       },
       "sibling_cases": [
@@ -36,7 +36,161 @@
       "detection_change": {
         "evidence": "Existing terminal handoff and independent preflight compare subject repository/issue/PR/base/head before release."
       },
-      "revalidated_head_sha": "8ec5341f0ac1aa56a6284048dc0c9665cee5a988",
+      "revalidated_head_sha": "1538188c3a99e8177a624c545fc004224ea168e2",
+      "status": "passed",
+      "required_attack_dimensions": [
+        {
+          "risk_family": "delivery-identity",
+          "surface": "handoff-target-binding",
+          "dimension": "current-target-exact-head"
+        }
+      ],
+      "trigger_terms": [
+        "handoff",
+        "target binding",
+        "stale certificate"
+      ],
+      "required_risk_families": [
+        "delivery-identity"
+      ]
+    },
+    {
+      "escape_id": "ESC-BRANDED-IDENTITY-FAIL-CLOSED-001",
+      "escape_class": "branded-identity-generic-fallback",
+      "source_audit": {
+        "head_sha": "53d5b2379ba6815575a8b20aa38cca4873872d24",
+        "rejection_id": "audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787",
+        "finding_id": "A-002",
+        "finding_ids": [
+          "A-002"
+        ],
+        "audit_report_sha256": "c8b749a807d1fbdc154ab3d66b4125a074437b5dc6856228a92a1d8c7212b191"
+      },
+      "plausible_wrong_implementation": "Preserve the user-facing brand label while accepting generic or heuristic macros when the exact commercial variant is ambiguous or unproved.",
+      "literal_case": {
+        "procedure": "Resolve generic Panco when multiple same-brand variants are plausible.",
+        "status": "passed",
+        "observed": "Exact-head regressions return food_identity_clarification_required with structured alternatives and do not expose generic macros as exact branded nutrition.",
+        "evidence": "server/nutritionEngine.semanticContract.issue1051.test.ts on Agent-first run 34070606101"
+      },
+      "sibling_cases": [
+        {
+          "id": "branded-zero-provider-unavailable",
+          "surface": "provider-fallback",
+          "dimension": "recognized-brand-without-specific-source",
+          "status": "passed",
+          "evidence": "server/nutritionEngine.zeroBeverageFallback.test.ts and zeroBeverageTacoCompatibility.test.ts pass on exact-head Agent-first run 34070606101."
+        },
+        {
+          "id": "ambiguous-brand-no-mutation",
+          "surface": "whatsapp-registration",
+          "dimension": "mutation-before-clarification",
+          "status": "passed",
+          "evidence": "confirmedMealRegistration.identityClarification.issue1051.test.ts and intentActions.multipleItems.test.ts pass in exact-head full suite."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "semantic-identity",
+          "surface": "nutrition-resolution",
+          "dimension": "explicit-brand-no-generic-fallback"
+        },
+        {
+          "risk_family": "mutation-safety",
+          "surface": "meal-registration",
+          "dimension": "ambiguity-before-mutation"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "server/nutritionEngine.ts + server/mealItemCleanup.ts",
+        "evidence": "Unresolved explicit branded identity now fails closed before branded macros can be treated as exact."
+      },
+      "detection_change": {
+        "skill_or_gate": "exact-head regression suite",
+        "control_id": "NC-BRANDED-CLARIFICATION",
+        "evidence": "Panco ambiguity, unavailable provider, branded zero beverage and no-mutation sibling cases execute in the exact-head full suite."
+      },
+      "trigger_terms": [
+        "explicit brand",
+        "multiple variants",
+        "generic fallback",
+        "provider unavailable"
+      ],
+      "required_risk_families": [
+        "semantic-identity",
+        "mutation-safety"
+      ],
+      "revalidated_head_sha": "1538188c3a99e8177a624c545fc004224ea168e2",
+      "status": "passed"
+    },
+    {
+      "escape_id": "ESC-MULTIMODAL-SEMANTIC-CONTRACT-001",
+      "escape_class": "multimodal-semantic-identity-divergence",
+      "source_audit": {
+        "head_sha": "53d5b2379ba6815575a8b20aa38cca4873872d24",
+        "rejection_id": "audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787",
+        "finding_id": "A-003",
+        "finding_ids": [
+          "A-003"
+        ],
+        "audit_report_sha256": "c8b749a807d1fbdc154ab3d66b4125a074437b5dc6856228a92a1d8c7212b191"
+      },
+      "plausible_wrong_implementation": "Let each modality emit enough fields for immediate success while losing variant, provenance, ambiguity or clarification metadata before canonical nutrition resolution.",
+      "literal_case": {
+        "procedure": "Describe the same exact Panco Premium product through text, transcription and image.",
+        "status": "passed",
+        "observed": "Exact-head semantic-contract regressions preserve the same commercial identity and structured provenance across the three modalities.",
+        "evidence": "server/nutritionEngine.semanticContract.issue1051.test.ts on Agent-first run 34070606101"
+      },
+      "sibling_cases": [
+        {
+          "id": "image-extraction-loses-variant",
+          "surface": "image-extraction",
+          "dimension": "variant-recovery-from-origin",
+          "status": "passed",
+          "evidence": "server/nutritionEngine.multimodalCache.issue1051.test.ts recovers Premium from source context when simplified extraction omits it."
+        },
+        {
+          "id": "generic-brand-keeps-ambiguity",
+          "surface": "semantic-contract",
+          "dimension": "alternatives-and-clarification-reason",
+          "status": "passed",
+          "evidence": "Generic Panco retains same-brand alternatives and structured clarification instead of inventing a variant."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "multimodal-semantic-contract",
+          "dimension": "semantic-identity-propagation"
+        },
+        {
+          "risk_family": "provenance",
+          "surface": "source-to-contract",
+          "dimension": "variant-origin-retention"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "server/mealSemanticContract.ts + server/nutritionEngineTypes.ts + server/nutritionEngine.ts",
+        "evidence": "One contract builder now binds identity, provenance, confidence, alternatives and clarification metadata at the canonical engine boundary."
+      },
+      "detection_change": {
+        "skill_or_gate": "exact-head regression suite",
+        "control_id": "NC-SEMANTIC-CONTRACT-PARITY",
+        "evidence": "Text/audio/image parity plus lost-variant image recovery are executed in the full exact-head suite."
+      },
+      "trigger_terms": [
+        "multimodal",
+        "text audio image",
+        "provenance",
+        "semantic contract",
+        "variant lost"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "provenance"
+      ],
+      "revalidated_head_sha": "1538188c3a99e8177a624c545fc004224ea168e2",
       "status": "passed"
     }
   ]
