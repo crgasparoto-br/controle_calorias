@@ -260,13 +260,18 @@ function sourceSupportsServing(
   source: AiWebSearchResult["sources"][number],
   result: SearchedNutritionResult,
 ) {
-  const measures = [
-    // A bare measure in a source title usually denotes package/net weight, not serving size.
-    // Require explicit serving context in titles just as we do for supporting snippets.
-    ...extractServingCandidateMeasures(source.title ?? ""),
-    ...(source.supportingText ?? []).flatMap(text => extractServingCandidateMeasures(text)),
-  ];
-  return measures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));
+  const sourceTexts = [source.title ?? "", ...(source.supportingText ?? [])];
+  const explicitServingMeasures = sourceTexts.flatMap(text => extractServingCandidateMeasures(text));
+  if (explicitServingMeasures.length) {
+    return explicitServingMeasures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));
+  }
+
+  // Some first-party/product snippets state nutrition for the whole commercial unit
+  // without a separate "serving" label (for example "330 ml: 100 kcal...").
+  // Accept that bare measure only when the source has no conflicting explicit serving.
+  // Nutrient-labeled measures remain excluded by extractServingCandidateMeasures.
+  const bareMeasures = sourceTexts.flatMap(text => extractServingCandidateMeasures(text, true));
+  return bareMeasures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));
 }
 
 type VerifiedNutritionSource = {
