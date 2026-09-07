@@ -51,13 +51,27 @@ export type MealSemanticInputType =
 export type MealSemanticEvidenceOrigin =
   | "text"
   | "transcription"
+  | "ocr"
   | "vision"
+  | "memory"
   | "catalog"
   | "web_research"
   | "nutrition_label"
   | "ai_estimate"
   | "heuristic"
   | "unavailable";
+
+export type MealSemanticInputEvidenceField =
+  | "identity"
+  | "brand"
+  | "variant"
+  | "quantity"
+  | "estimatedGrams";
+
+export type MealSemanticInputEvidenceOrigin = Extract<
+  MealSemanticEvidenceOrigin,
+  "text" | "transcription" | "ocr" | "vision" | "memory" | "unavailable"
+>;
 
 export type MealSemanticClarificationCode =
   | "brand_variant_unresolved"
@@ -136,6 +150,15 @@ export type MealProcessingInput = {
   transcript?: string;
   imageUrl?: string;
   audioUrl?: string;
+  /**
+   * Proveniência opcional já conhecida pelo produtor para campos específicos.
+   * Ex.: OCR estruturado ou memória pessoal resolvida antes do motor nutricional.
+   * Quando ausente, o contrato infere a origem por campo a partir das entradas
+   * efetivamente compatíveis, sem colapsar toda entrada multimodal em uma origem.
+   */
+  semanticEvidenceOrigins?: Partial<
+    Record<MealSemanticInputEvidenceField, MealSemanticInputEvidenceOrigin>
+  >;
   habits?: HabitSnapshot[];
   occurredAt?: Date | string | number;
   timeZone?: string;

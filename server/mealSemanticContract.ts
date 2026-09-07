@@ -1,5 +1,9 @@
 import { extractCommercialVariant } from "./commercialProductIdentity";
-import { normalizeForMatching } from "./mealTextParsing";
+import {
+  extractExplicitQuantities,
+  normalizeForMatching,
+  normalizeUnit,
+} from "./mealTextParsing";
 import type {
   CanonicalMealProcessingResult,
   MealDraftItem,
@@ -7,6 +11,7 @@ import type {
   MealSemanticClarificationCode,
   MealSemanticContract,
   MealSemanticEvidenceOrigin,
+  MealSemanticInputEvidenceField,
   MealSemanticInputType,
   MealSemanticItem,
 } from "./nutritionEngineTypes";
@@ -21,10 +26,106 @@ function resolveInputType(input: MealProcessingInput): MealSemanticInputType {
   return "text";
 }
 
-function resolveInputEvidenceOrigin(input: MealProcessingInput): MealSemanticEvidenceOrigin {
-  if (input.imageUrl) return "vision";
-  if (input.transcript?.trim() || input.audioUrl) return "transcription";
-  if (input.text?.trim()) return "text";
+function hintedFieldOrigin(
+  input: MealProcessingInput,
+  field: MealSemanticInputEvidenceField,
+) {
+  return input.semanticEvidenceOrigins?.[field] ?? null;
+}
+
+function sourceContainsValue(source: string | undefined, value: string | null | undefined) {
+  const normalizedValue = normalizeForMatching(value ?? "").trim();
+  if (!source?.trim() || !normalizedValue) return false;
+
+  const normalizedSource = normalizeForMatching(source);
+  if (normalizedSource.includes(` ${normalizedValue} `)) return true;
+
+  const meaningfulTokens = normalizedValue
+    .split(/\s+/)
+    .filter(token => token.length >= 3);
+  return meaningfulTokens.length > 0
+    && meaningfulTokens.every(token => normalizedSource.includes(` ${token} `));
+}
+
+function resolveIdentityFieldOrigin(input: {
+  processingInput: MealProcessingInput;
+  field: Extract<MealSemanticInputEvidenceField, "identity" | "brand" | "variant">;
+  value: string | null;
+  nutritionOrigin: MealSemanticEvidenceOrigin;
+  nutritionVerified: boolean;
+  preferOcrForImage: boolean;
+}): MealSemanticEvidenceOrigin {
+  const hint = hintedFieldOrigin(input.processingInput, input.field);
+  if (hint) return hint;
+  if (sourceContainsValue(input.processingInput.text, input.value)) return "text";
+  if (sourceContainsValue(input.processingInput.transcript, input.value)) return "transcription";
+  if (input.nutritionOrigin === "nutrition_label" && input.processingInput.imageUrl) return "ocr";
+  if (
+    input.nutritionVerified
+    && (input.nutritionOrigin === "catalog" || input.nutritionOrigin === "web_research")
+  ) {
+    return input.nutritionOrigin;
+  }
+  if (input.processingInput.imageUrl) {
+    return input.preferOcrForImage ? "ocr" : "vision";
+  }
+  if (input.processingInput.transcript?.trim() || input.processingInput.audioUrl) return "transcription";
+  if (input.processingInput.text?.trim()) return "text";
+  return "unavailable";
+}
+
+function quantitiesMatchSource(source: string | undefined, item: MealDraftItem) {
+  if (!source?.trim()) return false;
+  const itemUnit = normalizeUnit(item.unit);
+  return extractExplicitQuantities(source).some(candidate =>
+    Math.abs(candidate.quantity - item.quantity) <= 0.0001
+    && normalizeUnit(candidate.unit) === itemUnit
+  );
+}
+
+function resolveQuantityOrigin(
+  processingInput: MealProcessingInput,
+  item: MealDraftItem,
+): MealSemanticEvidenceOrigin {
+  const hint = hintedFieldOrigin(processingInput, "quantity");
+  if (hint) return hint;
+  if (quantitiesMatchSource(processingInput.text, item)) return "text";
+  if (quantitiesMatchSource(processingInput.transcript, item)) return "transcription";
+  if (processingInput.imageUrl) return "vision";
+  if (processingInput.transcript?.trim() || processingInput.audioUrl) return "transcription";
+  if (processingInput.text?.trim()) return "text";
+  return "unavailable";
+}
+
+function sourceContainsEstimatedGrams(source: string | undefined, estimatedGrams: number) {
+  if (!source?.trim() || estimatedGrams <= 0) return false;
+  return extractExplicitQuantities(source).some(candidate =>
+    candidate.estimatedGrams != null
+    && Math.abs(candidate.estimatedGrams - estimatedGrams) <= 0.05
+  );
+}
+
+function resolveEstimatedGramsOrigin(input: {
+  processingInput: MealProcessingInput;
+  item: MealDraftItem;
+  nutritionOrigin: MealSemanticEvidenceOrigin;
+}): MealSemanticEvidenceOrigin {
+  const hint = hintedFieldOrigin(input.processingInput, "estimatedGrams");
+  if (hint) return hint;
+  if (sourceContainsEstimatedGrams(input.processingInput.text, input.item.estimatedGrams)) return "text";
+  if (sourceContainsEstimatedGrams(input.processingInput.transcript, input.item.estimatedGrams)) return "transcription";
+  if (
+    input.nutritionOrigin === "catalog"
+    || input.nutritionOrigin === "web_research"
+    || input.nutritionOrigin === "nutrition_label"
+    || input.nutritionOrigin === "ai_estimate"
+    || input.nutritionOrigin === "heuristic"
+  ) {
+    return input.nutritionOrigin;
+  }
+  if (input.processingInput.imageUrl) return "vision";
+  if (input.processingInput.transcript?.trim() || input.processingInput.audioUrl) return "transcription";
+  if (input.processingInput.text?.trim()) return "text";
   return "unavailable";
 }
 
@@ -53,17 +154,48 @@ function buildSemanticItem(
   item: MealDraftItem,
   itemIndex: number,
   originalText: string,
-  inputOrigin: MealSemanticEvidenceOrigin,
+  processingInput: MealProcessingInput,
 ): MealSemanticItem {
   const resolution = item.resolution;
   const nutritionOrigin = resolution?.nutritionOrigin
     ?? (item.source === "catalog" ? "catalog" : item.source === "hybrid" ? "ai_estimate" : "heuristic");
   const nutritionVerified = resolution?.nutritionVerified ?? item.source === "catalog";
-  const identityOrigin = nutritionVerified && ["catalog", "web_research"].includes(nutritionOrigin)
-    ? nutritionOrigin
-    : inputOrigin;
   const productVariant = resolution?.productVariant
     ?? extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  const identityOrigin = resolveIdentityFieldOrigin({
+    processingInput,
+    field: "identity",
+    value: item.foodName,
+    nutritionOrigin,
+    nutritionVerified,
+    preferOcrForImage: Boolean(item.brand || productVariant),
+  });
+  const brandOrigin = item.brand
+    ? resolveIdentityFieldOrigin({
+        processingInput,
+        field: "brand",
+        value: item.brand,
+        nutritionOrigin,
+        nutritionVerified,
+        preferOcrForImage: true,
+      })
+    : "unavailable";
+  const variantOrigin = productVariant
+    ? resolveIdentityFieldOrigin({
+        processingInput,
+        field: "variant",
+        value: productVariant,
+        nutritionOrigin,
+        nutritionVerified,
+        preferOcrForImage: true,
+      })
+    : "unavailable";
+  const quantityOrigin = resolveQuantityOrigin(processingInput, item);
+  const estimatedGramsOrigin = resolveEstimatedGramsOrigin({
+    processingInput,
+    item,
+    nutritionOrigin,
+  });
   const ambiguity = resolution?.ambiguity ?? null;
   const identityConfidence = clampEvidenceConfidence(item.confidence);
   const sourceConfidence = clampEvidenceConfidence(
@@ -103,27 +235,25 @@ function buildSemanticItem(
       },
       brand: {
         value: item.brand?.trim() || null,
-        origin: item.brand ? identityOrigin : "unavailable",
+        origin: brandOrigin,
         confidence: item.brand ? identityConfidence : 0.05,
         verified: Boolean(item.brand),
       },
       variant: {
         value: productVariant,
-        origin: productVariant ? identityOrigin : "unavailable",
+        origin: variantOrigin,
         confidence: productVariant ? identityConfidence : 0.05,
         verified: Boolean(productVariant),
       },
       quantity: {
         value: item.quantity,
-        origin: inputOrigin,
+        origin: quantityOrigin,
         confidence: quantityConfidence,
         verified: item.quantity > 0,
       },
       estimatedGrams: {
         value: item.estimatedGrams,
-        origin: nutritionOrigin === "catalog" || nutritionOrigin === "web_research"
-          ? nutritionOrigin
-          : inputOrigin,
+        origin: estimatedGramsOrigin,
         confidence: quantityConfidence,
         verified: item.estimatedGrams > 0,
       },
@@ -155,9 +285,8 @@ export function buildMealSemanticContract(input: {
   sourceText: string;
   items: MealDraftItem[];
 }): MealSemanticContract {
-  const inputOrigin = resolveInputEvidenceOrigin(input.processingInput);
   const items = input.items.map((item, itemIndex) =>
-    buildSemanticItem(item, itemIndex, input.sourceText, inputOrigin)
+    buildSemanticItem(item, itemIndex, input.sourceText, input.processingInput)
   );
   const clarifications = items
     .filter((item): item is MealSemanticItem & { clarificationReason: NonNullable<MealSemanticItem["clarificationReason"]> } => Boolean(item.clarificationReason))

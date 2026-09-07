@@ -164,16 +164,62 @@ function normalizeHttpUrl(value: string | undefined) {
   }
 }
 
-function allNumbers(value: string) {
-  return [...normalizeText(value).matchAll(/\b\d+(?:[,.]\d+)?\b/g)]
-    .map(match => Number(match[0].replace(",", ".")))
-    .filter(Number.isFinite);
+function labeledNutritionValues(
+  value: string,
+  labelPattern: string,
+  unitPattern: string,
+) {
+  const normalized = normalizeText(value);
+  const values: number[] = [];
+  const patterns = [
+    new RegExp(`\\b(\\d+(?:[,.]\\d+)?)\\s*(?:${unitPattern})\\s*(?:de\\s+)?(?:${labelPattern})\\b`, "g"),
+    new RegExp(`\\b(?:${labelPattern})\\b\\s*[:=\\-]?\\s*(\\d+(?:[,.]\\d+)?)\\s*(?:${unitPattern})?\\b`, "g"),
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const parsed = Number(match[1].replace(",", "."));
+      if (Number.isFinite(parsed)) values.push(parsed);
+    }
+  }
+  return values;
+}
+
+function hasLabeledNutritionValue(
+  text: string,
+  expected: number,
+  labelPattern: string,
+  unitPattern: string,
+) {
+  return labeledNutritionValues(text, labelPattern, unitPattern)
+    .some(actual => approximatelyEqual(actual, expected));
+}
+
+function hasLabeledCalories(text: string, expected: number) {
+  const normalized = normalizeText(text);
+  const values: number[] = [];
+  const patterns = [
+    /\b(\d+(?:[,.]\d+)?)\s*(?:kcal|calorias?)\b/g,
+    /\b(?:kcal|calorias?)\b\s*[:=\-]?\s*(\d+(?:[,.]\d+)?)\b/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const parsed = Number(match[1].replace(",", "."));
+      if (Number.isFinite(parsed)) values.push(parsed);
+    }
+  }
+  return values.some(actual => approximatelyEqual(actual, expected));
 }
 
 function numericEvidenceSupportsResult(text: string, result: SearchedNutritionResult) {
-  const values = allNumbers(text);
-  return [result.gramsPerServing, result.calories, result.protein, result.carbs, result.fat]
-    .every(expected => values.some(actual => approximatelyEqual(actual, expected)));
+  const servingMeasures = extractMeasures(text);
+  const servingSupported = servingMeasures.some(measure =>
+    approximatelyEqual(measure.value, result.gramsPerServing)
+  );
+  return servingSupported
+    && hasLabeledCalories(text, result.calories)
+    && hasLabeledNutritionValue(text, result.protein, "proteinas?|protein", "g")
+    && hasLabeledNutritionValue(text, result.carbs, "carboidratos?|carbs?", "g")
+    && hasLabeledNutritionValue(text, result.fat, "gorduras?(?:\\s+totais?)?|fat", "g");
 }
 
 function sourceSupportsCommercialIdentity(
@@ -191,11 +237,23 @@ function sourceSupportsCommercialIdentity(
   return discriminants.length === 0 || discriminants.some(token => textContainsAllTokens(sourceText, [token]));
 }
 
+type VerifiedNutritionSource = {
+  url: string;
+  evidence: string;
+};
+
+function sourceNutritionEvidenceText(source: AiWebSearchResult["sources"][number]) {
+  return [source.title ?? "", ...(source.supportingText ?? [])]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function findVerifiedSource(
   webSearch: AiWebSearchResult | undefined,
   foodName: string,
   result: SearchedNutritionResult,
-) {
+): VerifiedNutritionSource | null {
   if (!webSearch?.executed || !Array.isArray(webSearch.sources) || !webSearch.sources.length) return null;
   const requested = normalizeHttpUrl(result.sourceUrl);
   const ordered = [...webSearch.sources].sort((left, right) => {
@@ -207,10 +265,14 @@ function findVerifiedSource(
   for (const source of ordered) {
     const normalizedUrl = normalizeHttpUrl(source.url);
     if (!normalizedUrl) continue;
-    const evidenceText = [result.evidence, ...(source.supportingText ?? [])].join(" ");
+    // Only source-derived text may prove the numeric nutrition claim. The
+    // provider's structured `result.evidence` is a model-produced summary and
+    // must never be allowed to supply missing calories/macros/portion values.
+    const evidenceText = sourceNutritionEvidenceText(source);
+    if (!evidenceText) continue;
     if (!numericEvidenceSupportsResult(evidenceText, result)) continue;
     if (!sourceSupportsCommercialIdentity(source, foodName, result)) continue;
-    return source.url.trim();
+    return { url: source.url.trim(), evidence: evidenceText };
   }
   return null;
 }
@@ -240,16 +302,16 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
   if (!result.found || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) return null;
   if (result.gramsPerServing <= 0 || [result.calories, result.protein, result.carbs, result.fat].some(value => value < 0)) return null;
   if (!structuredIdentityIsCompatible(foodName, result)) return null;
-  const sourceUrl = findVerifiedSource(webSearch, foodName, result);
-  if (!sourceUrl || !result.evidence.trim()) return null;
+  const verifiedSource = findVerifiedSource(webSearch, foodName, result);
+  if (!verifiedSource) return null;
   return {
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
-    aliases: [foodName, result.matchedProductName.trim(), `fonte: ${sourceUrl}`],
+    aliases: [foodName, result.matchedProductName.trim(), `fonte: ${verifiedSource.url}`],
     productVariant: extractCommercialVariant(result.matchedProductName),
     variants: [result.matchedProductName.trim()],
-    sourceUrls: [sourceUrl],
-    sourceEvidence: result.evidence.trim(),
+    sourceUrls: [verifiedSource.url],
+    sourceEvidence: verifiedSource.evidence,
     sourceVerifiedAt: new Date(),
     sourceConfidence: result.confidence,
     servingLabel: result.servingLabel.trim(),

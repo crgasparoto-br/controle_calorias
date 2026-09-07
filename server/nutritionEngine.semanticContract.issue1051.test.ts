@@ -32,6 +32,7 @@ vi.mock("./tacoLookup", () => ({
 }));
 
 const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
+const { buildMealSemanticContract } = await import("./mealSemanticContract");
 
 const baseClassification = {
   processingLevel: "processed" as const,
@@ -329,5 +330,79 @@ describe("issue #1051 — contrato semântico e fail-closed de marca", () => {
       nutritionVerified: true,
       needsClarification: false,
     }));
+  });
+
+  it("mantém procedência por campo quando texto, transcrição e imagem participam da mesma entrada", async () => {
+    findCatalogFoodSemanticMock.mockResolvedValue(premium);
+    getCatalogCacheMock.mockReturnValue([premium, integral]);
+    extractWithAiMock.mockResolvedValue(extraction({ foodName: "Pão de Forma Panco Premium" }));
+
+    const result = await processMealInput({
+      text: "2 fatias",
+      transcript: "Pão de Forma Panco Premium",
+      imageUrl: "data:image/jpeg;base64,aW1hZ2Vt",
+    });
+
+    expect(result.semanticContract.inputType).toBe("multimodal");
+    expect(result.semanticContract.items[0].evidence).toMatchObject({
+      identity: { origin: "transcription" },
+      brand: { origin: "transcription" },
+      variant: { origin: "transcription" },
+      quantity: { origin: "text" },
+      estimatedGrams: { origin: "web_research" },
+      nutrition: { origin: "web_research", verified: true },
+    });
+  });
+
+  it("representa OCR e memória quando o produtor já conhece a origem específica de cada campo", () => {
+    const contract = buildMealSemanticContract({
+      processingInput: {
+        imageUrl: "data:image/jpeg;base64,aW1hZ2Vt",
+        semanticEvidenceOrigins: {
+          identity: "ocr",
+          brand: "memory",
+          variant: "memory",
+          quantity: "ocr",
+          estimatedGrams: "memory",
+        },
+      },
+      sourceText: "",
+      items: [{
+        foodName: "Pão de Forma Panco Premium",
+        canonicalName: "Pão de Forma Panco Premium",
+        brand: "Panco",
+        quantity: 2,
+        unit: "fatia",
+        portionText: "2 fatias",
+        servings: 1,
+        estimatedGrams: 50,
+        calories: 125,
+        protein: 3.9,
+        carbs: 24,
+        fat: 1.5,
+        confidence: 0.94,
+        source: "hybrid",
+        classification: baseClassification,
+        resolution: {
+          productVariant: "premium",
+          nutritionOrigin: "ai_estimate",
+          nutritionVerified: false,
+          sourceUrls: [],
+          sourceEvidence: null,
+          sourceVerifiedAt: null,
+          sourceConfidence: 0.7,
+          ambiguity: null,
+        },
+      }],
+    });
+
+    expect(contract.items[0].evidence).toMatchObject({
+      identity: { origin: "ocr" },
+      brand: { origin: "memory" },
+      variant: { origin: "memory" },
+      quantity: { origin: "ocr" },
+      estimatedGrams: { origin: "memory" },
+      nutrition: { origin: "ai_estimate" },
+    });
   });
 });

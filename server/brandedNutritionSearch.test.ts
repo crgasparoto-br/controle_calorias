@@ -171,6 +171,58 @@ describe("branded nutrition evidence consistency", () => {
     await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml")).resolves.toBeNull();
   });
 
+  it("rejects source without numeric nutrition evidence even when the model summary contains every number", async () => {
+    installExecution(providerResult({
+      evidence: "330 ml: 100 kcal, 1 g proteínas, 8 g carboidratos e 0 g gorduras.",
+    }), {
+      title: "Cerveja Zero Marca Aurora 330 ml",
+      supportingText: ["Marca Aurora Cerveja Zero 330 ml. Consulte a tabela nutricional no site."],
+    });
+
+    await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml"))
+      .resolves.toBeNull();
+  });
+
+  it("rejects partially grounded nutrition when the model summary fills the missing macros", async () => {
+    installExecution(providerResult({
+      evidence: "330 ml: 100 kcal, 1 g proteínas, 8 g carboidratos e 0 g gorduras.",
+    }), {
+      title: "Cerveja Zero Marca Aurora 330 ml",
+      supportingText: ["Marca Aurora Cerveja Zero 330 ml: 100 kcal e 8 g de carboidratos."],
+    });
+
+    await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml"))
+      .resolves.toBeNull();
+  });
+
+  it("rejects unrelated source numbers that merely coincide with the requested macros", async () => {
+    installExecution(providerResult(), {
+      title: "Cerveja Zero Marca Aurora 330 ml",
+      supportingText: ["Marca Aurora Cerveja Zero 330 ml. Página com 100 acessos, 1 item, 8 avaliações e 0 comentários."],
+    });
+
+    await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml"))
+      .resolves.toBeNull();
+  });
+
+  it("persists the source-derived evidence instead of the model-produced summary", async () => {
+    const sourceEvidence = "Marca Aurora Cerveja Zero 330 ml: 100 kcal, 1 g proteínas, 8 g carboidratos e 0 g gorduras.";
+    installExecution(providerResult({
+      evidence: "Resumo do modelo com os mesmos valores, mas não usado como comprovação.",
+    }), {
+      title: "Cerveja Zero Marca Aurora 330 ml",
+      supportingText: [sourceEvidence],
+    });
+
+    const result = await findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml");
+
+    expect(result).toEqual(expect.objectContaining({
+      sourceEvidence: expect.stringContaining(sourceEvidence),
+      sourceUrls: ["https://fabricante.example/marca-aurora/cerveja-zero-330ml"],
+    }));
+    expect(result?.sourceEvidence).not.toContain("Resumo do modelo");
+  });
+
   it("reutiliza resultado persistido sem chamar o provider", async () => {
     const cached = {
       slug: "web-nutrition-panco-premium",
