@@ -261,7 +261,9 @@ function sourceSupportsServing(
   result: SearchedNutritionResult,
 ) {
   const measures = [
-    ...extractServingCandidateMeasures(source.title ?? "", true),
+    // A bare measure in a source title usually denotes package/net weight, not serving size.
+    // Require explicit serving context in titles just as we do for supporting snippets.
+    ...extractServingCandidateMeasures(source.title ?? ""),
     ...(source.supportingText ?? []).flatMap(text => extractServingCandidateMeasures(text)),
   ];
   return measures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));

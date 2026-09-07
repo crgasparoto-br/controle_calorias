@@ -39,7 +39,11 @@ function providerResult(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function installExecution(outputText: string, supportingText: string[]) {
+function installExecution(
+  outputText: string,
+  supportingText: string[],
+  title = "Pão de Forma Panco Premium",
+) {
   createTextResponseMock.mockResolvedValue({
     id: "resp-serving-evidence",
     outputText,
@@ -47,7 +51,7 @@ function installExecution(outputText: string, supportingText: string[]) {
       executed: true,
       sources: [{
         url: "https://panco.example/premium-5g",
-        title: "Pão de Forma Panco Premium",
+        title,
         supportingText,
       }],
     },
@@ -98,6 +102,53 @@ describe("issue 1051 contextual serving evidence", () => {
         gramsPerServing: 5,
         calories: 20,
         carbs: 5,
+      }));
+  });
+
+  it("rejects package weight in the source title as proof of a larger serving", async () => {
+    installExecution(
+      providerResult({
+        matchedProductName: "Pão de Forma Panco Premium 500 g",
+        servingLabel: "1 porção (500 g)",
+        gramsPerServing: 500,
+        calories: 120,
+        protein: 4,
+        carbs: 22,
+        fat: 2,
+      }),
+      [
+        "Porção: 50 g. Pão de Forma Panco Premium: 120 kcal, 4 g proteínas, 22 g carboidratos e 2 g gorduras.",
+      ],
+      "Pão de Forma Panco Premium 500 g",
+    );
+
+    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium"))
+      .resolves.toBeNull();
+  });
+
+  it("accepts the serving stated in source evidence even when the title carries package weight", async () => {
+    installExecution(
+      providerResult({
+        matchedProductName: "Pão de Forma Panco Premium 500 g",
+        servingLabel: "1 porção (50 g)",
+        gramsPerServing: 50,
+        calories: 120,
+        protein: 4,
+        carbs: 22,
+        fat: 2,
+      }),
+      [
+        "Porção: 50 g. Pão de Forma Panco Premium: 120 kcal, 4 g proteínas, 22 g carboidratos e 2 g gorduras.",
+      ],
+      "Pão de Forma Panco Premium 500 g",
+    );
+
+    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium"))
+      .resolves.toEqual(expect.objectContaining({
+        brandName: "Panco",
+        gramsPerServing: 50,
+        calories: 120,
+        carbs: 22,
       }));
   });
 });
