@@ -21,11 +21,11 @@
       "kind": "other-text",
       "path": "specification-sources/SRC-PR-1052.txt",
       "locator": "/mnt/data/cc1052-recert/.audit/entregar-issue/specification-sources/SRC-PR-1052.txt",
-      "sha256": "a05eb25c70f86176e6019d26d94b59cdc03e568e376c6c53d94062be6701b096",
+      "sha256": "ead23da162490800407e441184b10f264d177644042ad9c7ea4fc4b1d0db2d2f",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 61
+      "line_count": 64
     }
   ]
 }

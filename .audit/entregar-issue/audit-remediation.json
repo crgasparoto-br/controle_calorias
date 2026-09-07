@@ -1,1 +1,59 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","source":{"rejection_id":"audit-rejection:9b7d348c-680c-4bbd-99a5-8b30306be4af","audit_report_sha256":"04cd707c20f752b21488e8d6b86d8732cd0feca700af3e8700b5c552df8d3ca7","audited_head_sha":"25f8025bff10c31cba27daeb7c5183b4b687e600"},"candidate_head_sha":"25f8025bff10c31cba27daeb7c5183b4b687e600","remediation_mode":"targeted-remediation","items":[{"source_kind":"finding","source_id":"A-001","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"post-write-refreeze","changed_files":[],"evidence":["Fresh remote identity confirms 25f8025bff10c31cba27daeb7c5183b4b687e600 as the material head and classify_handoff_recovery enforces post-write-refreeze.","Exact-head Agent-first and all applicable TiDB workflows are terminal success; only the live provider smoke is skipped/non-applicable."],"validations":["classify_handoff_recovery.py => post-write-refreeze","Agent-first run 34123839906 completed/success","TiDB runs 34123839991, 34123839984, 34123839959 and 34123839951 completed/success"]}],"status":"closed"}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:47bc978b-bbc5-43b4-8f8e-4188eab97d7b",
+    "audit_report_sha256": "25b96120f28f584c3f4e5090ccfd05ac962a6942bfba5b3585ac6c85a16b2646",
+    "audited_head_sha": "312054202664a6fb36da2c2f922160306b464d32"
+  },
+  "candidate_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "material-remediation",
+      "changed_files": [
+        "server/brandedNutritionSearch.ts",
+        "server/brandedNutritionSearch.test.ts",
+        "server/issue923SmokeWorkflowSecurity.test.ts",
+        "docs/design-docs/nutrition-engine.md"
+      ],
+      "evidence": [
+        "findVerifiedSource now validates numeric nutrition claims only against source title/supportingText; model-produced result.evidence is excluded from proof and persisted evidence comes from the accepted source.",
+        "Negative regressions cover no source numerics, partial source numerics, coincidental unrelated numbers and source-derived persistence."
+      ],
+      "validations": [
+        "Agent-first run 34145993974: Tests=success on 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+        "Agent-first run 34145993974: TypeScript/Architecture/Documentation/Build/Agent/CI-gate-docs=success",
+        "Merge preview integration run 34145993974: TypeScript integration and Test merge preview=success"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "material-remediation",
+      "changed_files": [
+        "server/mealSemanticContract.ts",
+        "server/nutritionEngineTypes.ts",
+        "server/nutritionEngine.semanticContract.issue1051.test.ts",
+        "docs/design-docs/nutrition-engine.md"
+      ],
+      "evidence": [
+        "Meal semantic provenance is resolved per field instead of reusing one image-first input origin, and the origin vocabulary now includes OCR and memory.",
+        "Mixed image+text and image+transcription regressions assert distinct origins for identity/brand/variant/quantity/grams."
+      ],
+      "validations": [
+        "Agent-first run 34145993974: Tests=success on 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+        "Agent-first run 34145993974: TypeScript/Architecture/Documentation/Build/Agent/CI-gate-docs=success",
+        "All applicable TiDB workflows for 7d1fccfe57c2a9b1350d92d6009a33a67138fa4b=success; AI provider live smoke=skipped/non-applicable"
+      ]
+    }
+  ],
+  "status": "closed"
+}

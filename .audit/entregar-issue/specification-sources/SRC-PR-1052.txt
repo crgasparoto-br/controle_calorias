@@ -32,7 +32,7 @@ Part of #1051
 
 ## Validação final
 
-Material head certificado: `25f8025bff10c31cba27daeb7c5183b4b687e600`.
+Material head certificado: `7d1fccfe57c2a9b1350d92d6009a33a67138fa4b`.
 
 No exact head acima:
 
@@ -44,6 +44,7 @@ No exact head acima:
 - Build: sucesso;
 - Agent check: sucesso;
 - CI gate docs check: sucesso;
+- Merge preview integration: sucesso;
 - Onboarding activation TiDB gate: sucesso;
 - WhatsApp context TiDB gate: sucesso;
 - Billing persistence TiDB gate: sucesso;
@@ -52,9 +53,11 @@ No exact head acima:
 
 ## Auditoria anterior
 
-Os bloqueios A-002 e A-003 da rejeição independente `audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787` foram tratados no material head acima com fail-closed para identidade comercial ambígua, contrato semântico multimodal unificado e regressões irmãs nos fluxos de registro/adicionamento.
+Os bloqueios A-002 e A-003 da rejeição independente `audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787` permanecem fechados no material head atual.
 
-A rejeição independente `audit-rejection:9b7d348c-680c-4bbd-99a5-8b30306be4af` identificou apenas handoff/freeze stale após commits materiais posteriores ao certificado anterior. A recuperação exigida é `post-write-refreeze`, sem alteração funcional adicional.
+A rejeição `audit-rejection:9b7d348c-680c-4bbd-99a5-8b30306be4af` por handoff/freeze stale foi encerrada com post-write-refreeze.
+
+Os bloqueios A-001 e A-002 da rejeição independente `audit-rejection:47bc978b-bbc5-43b4-8f8e-4188eab97d7b` foram tratados no material head atual: a comprovação numérica agora usa exclusivamente evidência derivada da fonte, e o contrato multimodal preserva procedência por campo em vez de colapsar toda a entrada para uma origem comum.
 
 ## Merge
 
