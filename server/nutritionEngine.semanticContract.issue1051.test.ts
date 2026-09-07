@@ -171,10 +171,11 @@ describe("issue #1051 — contrato semântico e fail-closed de marca", () => {
     });
   });
 
-  it("aceita macros da imagem sem catálogo somente quando variante e tabela nutricional estão explícitas", async () => {
+  it("aceita macros da imagem sem catálogo somente com evidência numérica coerente da tabela", async () => {
+    const evidence = "NUTRITION_LABEL_EVIDENCE: serving=1 fatia; kcal=62.5; protein_g=1.95; carbs_g=12; fat_g=0.75";
     extractWithAiMock.mockResolvedValue(extraction({
       foodName: "Pão de Forma Panco Premium",
-      reasoning: "A tabela nutricional legível da embalagem informa os valores usados.",
+      reasoning: `Tabela nutricional legível. ${evidence}.`,
     }));
 
     const result = await processMealInput({
@@ -198,10 +199,87 @@ describe("issue #1051 — contrato semântico e fail-closed de marca", () => {
             nutrition: expect.objectContaining({
               origin: "nutrition_label",
               verified: true,
+              value: expect.objectContaining({
+                sourceEvidence: evidence,
+              }),
             }),
           }),
         }),
       ],
+    });
+  });
+
+  it("não promove mera menção à tabela nutricional sem evidência numérica", async () => {
+    extractWithAiMock.mockResolvedValue(extraction({
+      foodName: "Pão de Forma Panco Premium",
+      reasoning: "A tabela nutricional legível da embalagem informa os valores usados.",
+    }));
+
+    let captured: unknown;
+    try {
+      await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
+    } catch (error) {
+      captured = error;
+    }
+
+    expect(captured).toBeInstanceOf(MealInferenceError);
+    expect(captured).toMatchObject({
+      code: "food_identity_clarification_required",
+      context: {
+        brand: "Panco",
+        clarificationReason: "commercial_identity_unverified",
+        semanticContract: {
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  origin: "heuristic",
+                  verified: false,
+                  value: expect.objectContaining({
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fat: 0,
+                  }),
+                }),
+              }),
+            }),
+          ],
+        },
+      },
+    });
+  });
+
+  it("rejeita evidência numérica da tabela quando os valores divergem dos macros extraídos", async () => {
+    extractWithAiMock.mockResolvedValue(extraction({
+      foodName: "Pão de Forma Panco Premium",
+      reasoning: "NUTRITION_LABEL_EVIDENCE: serving=2 fatias; kcal=180; protein_g=3.9; carbs_g=24; fat_g=1.5",
+    }));
+
+    let captured: unknown;
+    try {
+      await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
+    } catch (error) {
+      captured = error;
+    }
+
+    expect(captured).toBeInstanceOf(MealInferenceError);
+    expect(captured).toMatchObject({
+      code: "food_identity_clarification_required",
+      context: {
+        clarificationReason: "commercial_identity_unverified",
+        semanticContract: {
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({ origin: "heuristic", verified: false }),
+              }),
+            }),
+          ],
+        },
+      },
     });
   });
 

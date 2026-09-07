@@ -270,8 +270,12 @@ export type ExplicitQuantity = {
 
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
-  /** Indica que o modelo relatou ter lido valores de uma tabela/rótulo nutricional na imagem. */
-  nutritionLabelRead?: boolean;
+  /**
+   * Evidência textual estruturada emitida pelo extrator visual. O motor só a
+   * promove a `nutrition_label` quando a porção-base e os quatro valores
+   * numéricos forem parseáveis e coerentes com os macros do item.
+   */
+  nutritionLabelEvidenceText?: string | null;
   /** Texto/transcrição original usado para montar candidatos de busca mais específicos. */
   sourceText?: string;
 };

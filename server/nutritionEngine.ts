@@ -37,6 +37,7 @@ import {
   getQuantityExpressionClarification,
   normalizeForMatching,
   normalizeLlmItem,
+  normalizeUnit,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
@@ -394,6 +395,101 @@ function unresolvedBrandedResolution(input: {
   };
 }
 
+type ParsedNutritionLabelEvidence = {
+  servingQuantity: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  raw: string;
+};
+
+const NUTRITION_LABEL_EVIDENCE_PATTERN = /NUTRITION_LABEL_EVIDENCE:\s*serving=(\d+(?:[.,]\d+)?)\s*([^;]+?)\s*;\s*kcal=(\d+(?:[.,]\d+)?)\s*;\s*protein_g=(\d+(?:[.,]\d+)?)\s*;\s*carbs_g=(\d+(?:[.,]\d+)?)\s*;\s*fat_g=(\d+(?:[.,]\d+)?)(?=\s*(?:[.;]|$))/iu;
+
+function parseEvidenceDecimal(value: string) {
+  return Number(value.replace(",", "."));
+}
+
+function parseNutritionLabelEvidence(value?: string | null): ParsedNutritionLabelEvidence | null {
+  const match = value?.match(NUTRITION_LABEL_EVIDENCE_PATTERN);
+  if (!match) return null;
+
+  const servingQuantity = parseEvidenceDecimal(match[1]);
+  const calories = parseEvidenceDecimal(match[3]);
+  const protein = parseEvidenceDecimal(match[4]);
+  const carbs = parseEvidenceDecimal(match[5]);
+  const fat = parseEvidenceDecimal(match[6]);
+  const servingUnit = match[2].trim();
+  const numericValues = [servingQuantity, calories, protein, carbs, fat];
+
+  if (!servingUnit || numericValues.some(number => !Number.isFinite(number) || number < 0)) return null;
+  if (servingQuantity <= 0) return null;
+
+  return {
+    servingQuantity,
+    servingUnit,
+    calories,
+    protein,
+    carbs,
+    fat,
+    raw: match[0].trim(),
+  };
+}
+
+function nutritionValueMatches(actual: number, expected: number, kind: "calories" | "macro") {
+  if (!Number.isFinite(actual) || !Number.isFinite(expected)) return false;
+  const absoluteTolerance = kind === "calories" ? 1 : 0.15;
+  const relativeTolerance = Math.abs(expected) * 0.02;
+  return Math.abs(actual - expected) <= Math.max(absoluteTolerance, relativeTolerance);
+}
+
+function resolveNutritionLabelScale(item: LlmItem, evidence: ParsedNutritionLabelEvidence) {
+  const itemQuantity = Number(item.quantity);
+  const itemUnit = normalizeUnit(item.unit ?? "");
+  const servingUnit = normalizeUnit(evidence.servingUnit);
+
+  if (
+    Number.isFinite(itemQuantity)
+    && itemQuantity > 0
+    && itemUnit
+    && servingUnit
+    && itemUnit === servingUnit
+  ) {
+    return itemQuantity / evidence.servingQuantity;
+  }
+
+  if (
+    servingUnit === "g"
+    && Number.isFinite(item.estimatedGrams)
+    && item.estimatedGrams > 0
+  ) {
+    return item.estimatedGrams / evidence.servingQuantity;
+  }
+
+  return null;
+}
+
+function verifyNutritionLabelEvidence(item: LlmItem, evidenceText?: string | null) {
+  const evidence = parseNutritionLabelEvidence(evidenceText);
+  if (!evidence) return null;
+
+  const scale = resolveNutritionLabelScale(item, evidence);
+  if (!scale || !Number.isFinite(scale) || scale <= 0) return null;
+
+  const expectedCalories = evidence.calories * scale;
+  const expectedProtein = evidence.protein * scale;
+  const expectedCarbs = evidence.carbs * scale;
+  const expectedFat = evidence.fat * scale;
+
+  if (!nutritionValueMatches(item.estimatedCalories, expectedCalories, "calories")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.protein, expectedProtein, "macro")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.carbs, expectedCarbs, "macro")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.fat, expectedFat, "macro")) return null;
+
+  return evidence;
+}
+
 async function buildItemsFromInference(
   items: LlmItem[],
   options: BuildItemsOptions = {},
@@ -406,6 +502,9 @@ async function buildItemsFromInference(
     const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
     const { catalog, isExactMatch, alternatives, semanticSource } =
       await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+    const verifiedNutritionLabelEvidence = options.preferInferredNutrition
+      ? verifyNutritionLabelEvidence(resolvedItem, options.nutritionLabelEvidenceText)
+      : null;
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
@@ -415,7 +514,7 @@ async function buildItemsFromInference(
       && (
         !options.preferInferredNutrition
         || isVerifiedBrandedCatalogFood(catalog)
-        || (!catalog.isBrandedProduct && !options.nutritionLabelRead)
+        || (!catalog.isBrandedProduct && !verifiedNutritionLabelEvidence)
       )
     );
     if (canUseCatalog && catalog) {
@@ -430,9 +529,8 @@ async function buildItemsFromInference(
     const canUseVerifiedNutritionLabel = Boolean(
       resolvedItem.brand
       && options.preferInferredNutrition
-      && options.nutritionLabelRead
+      && verifiedNutritionLabelEvidence
       && requestedVariant
-      && hasUsableNutrition(resolvedItem)
     );
 
     if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
@@ -443,7 +541,7 @@ async function buildItemsFromInference(
       continue;
     }
 
-    if (canUseVerifiedNutritionLabel) {
+    if (canUseVerifiedNutritionLabel && verifiedNutritionLabelEvidence) {
       results.push({
         ...buildHybridItem(resolvedItem),
         resolution: {
@@ -451,7 +549,7 @@ async function buildItemsFromInference(
           nutritionOrigin: "nutrition_label",
           nutritionVerified: true,
           sourceUrls: [],
-          sourceEvidence: "Tabela nutricional legível identificada no conteúdo visual.",
+          sourceEvidence: verifiedNutritionLabelEvidence.raw,
           sourceVerifiedAt: null,
           sourceConfidence: resolvedItem.confidence,
           ambiguity: null,
@@ -599,21 +697,6 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
   return null;
 }
 
-function reasoningMentionsNutritionLabel(reasoning?: string) {
-  if (!reasoning) return false;
-
-  const normalized = reasoning
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
-  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
-  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
-
-  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
-}
-
 function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
   if (!sourceText.trim()) return items;
 
@@ -709,7 +792,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
         inferenceItems,
         {
           preferInferredNutrition: Boolean(input.imageUrl),
-          nutritionLabelRead: reasoningMentionsNutritionLabel(confirmedExtraction.reasoning),
+          nutritionLabelEvidenceText: input.imageUrl ? confirmedExtraction.reasoning : null,
           sourceText,
         },
         reason => fallbackReasons.observe(reason),

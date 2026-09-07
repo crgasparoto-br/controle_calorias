@@ -75,7 +75,7 @@ describe("meal extraction capabilities", () => {
     expect(geminiCreateTextResponse).not.toHaveBeenCalled();
   });
 
-  it("requires an independent plain-water signal in the structured extraction contract", async () => {
+  it("requires independent water and numeric nutrition-label evidence signals in the visual extraction contract", async () => {
     process.env.AI_MEAL_VISION_PROVIDER = "gemini";
     process.env.AI_MEAL_VISION_MODEL = "gemini-meal-vision";
     geminiCreateTextResponse.mockResolvedValue({ id: "g-water", outputText: JSON.stringify(validExtraction()), raw: {} });
@@ -87,6 +87,8 @@ describe("meal extraction capabilities", () => {
     expect(itemSchema.properties.foodClassification.properties.isPlainWater).toEqual({ type: "boolean" });
     expect(itemSchema.properties.foodClassification.required).toContain("isPlainWater");
     expect(JSON.stringify(request.input)).toContain("foodClassification.isPlainWater");
+    expect(JSON.stringify(request.input)).toContain("NUTRITION_LABEL_EVIDENCE");
+    expect(JSON.stringify(request.input)).toContain("serving=<quantidade> <unidade>");
   });
 
   it("binds MEAL_VISION independently to Gemini and preserves inline image input", async () => {
