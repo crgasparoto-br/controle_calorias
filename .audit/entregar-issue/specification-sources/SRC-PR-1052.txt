@@ -32,7 +32,7 @@ Part of #1051
 
 ## Validação final
 
-Material head certificado: `1538188c3a99e8177a624c545fc004224ea168e2`.
+Material head certificado: `25f8025bff10c31cba27daeb7c5183b4b687e600`.
 
 No exact head acima:
 
@@ -53,6 +53,8 @@ No exact head acima:
 ## Auditoria anterior
 
 Os bloqueios A-002 e A-003 da rejeição independente `audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787` foram tratados no material head acima com fail-closed para identidade comercial ambígua, contrato semântico multimodal unificado e regressões irmãs nos fluxos de registro/adicionamento.
+
+A rejeição independente `audit-rejection:9b7d348c-680c-4bbd-99a5-8b30306be4af` identificou apenas handoff/freeze stale após commits materiais posteriores ao certificado anterior. A recuperação exigida é `post-write-refreeze`, sem alteração funcional adicional.
 
 ## Merge
 
