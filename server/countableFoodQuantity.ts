@@ -12,6 +12,7 @@ import type { CatalogFood } from "./nutritionEngineTypes";
 import { findTacoFood } from "./tacoLookup";
 import {
   MealInferenceError,
+  processMealInput,
   resolveCommercialFoodIdentity,
 } from "./nutritionEngine";
 import {
@@ -43,6 +44,11 @@ export type CountableFoodPendingItem = CountableFoodQuantityRequest & {
     message: string;
     context: NonNullable<MealInferenceError["context"]>;
   };
+};
+
+type CanonicalCommercialIdentityPreflight = {
+  brand: string | null;
+  identityClarification?: CountableFoodPendingItem["identityClarification"];
 };
 
 function splitCountableFoodTextSegments(text: string) {
@@ -147,6 +153,32 @@ export function resolveSafeCountableCatalogGrams(
   return grams && food ? { food, grams } : null;
 }
 
+async function recoverCanonicalCommercialIdentity(
+  request: CountableFoodQuantityRequest,
+): Promise<CanonicalCommercialIdentityPreflight> {
+  if (request.brand) return { brand: request.brand };
+
+  try {
+    const processed = await processMealInput({ text: request.segment });
+    if (processed.items.length !== 1) return { brand: null };
+    return { brand: processed.items[0].brand?.trim() || null };
+  } catch (error) {
+    if (
+      !(error instanceof MealInferenceError) ||
+      !error.context?.clarificationReason
+    )
+      return { brand: null };
+
+    return {
+      brand: error.context.brand?.trim() || null,
+      identityClarification: {
+        message: error.message,
+        context: error.context,
+      },
+    };
+  }
+}
+
 export function prepareCountableFoodRegistration(registrationText: string) {
   const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
@@ -221,12 +253,26 @@ export async function prepareCountableFoodRegistrationResolved(
       continue;
     }
 
+    const canonicalIdentity = await recoverCanonicalCommercialIdentity(request);
+    const resolvedRequest = canonicalIdentity.brand && !request.brand
+      ? { ...request, brand: canonicalIdentity.brand }
+      : request;
+
+    if (canonicalIdentity.identityClarification) {
+      pendingItems.push({
+        ...resolvedRequest,
+        segmentIndex,
+        identityClarification: canonicalIdentity.identityClarification,
+      });
+      continue;
+    }
+
     let commercialFood: CatalogFood | undefined;
-    if (request.brand) {
+    if (resolvedRequest.brand) {
       try {
         commercialFood = await resolveCommercialFoodIdentity(
-          request.foodName,
-          request.brand
+          resolvedRequest.foodName,
+          resolvedRequest.brand
         );
       } catch (error) {
         if (
@@ -235,7 +281,7 @@ export async function prepareCountableFoodRegistrationResolved(
         )
           throw error;
         pendingItems.push({
-          ...request,
+          ...resolvedRequest,
           segmentIndex,
           identityClarification: {
             message: error.message,
@@ -247,19 +293,19 @@ export async function prepareCountableFoodRegistrationResolved(
     }
     const resolved = await resolveHouseholdMeasure({
       userId,
-      foodName: request.foodName,
-      brand: request.brand,
-      quantity: request.count,
-      unit: request.requestedUnit,
+      foodName: resolvedRequest.foodName,
+      brand: resolvedRequest.brand,
+      quantity: resolvedRequest.count,
+      unit: resolvedRequest.requestedUnit,
       ...(commercialFood ? { commercialFood } : {}),
     });
     if (resolved) {
-      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${request.foodName}`;
-      resolutions.push({ segmentIndex, request, resolution: resolved });
+      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
+      resolutions.push({ segmentIndex, request: resolvedRequest, resolution: resolved });
       continue;
     }
 
-    pendingItems.push({ ...request, segmentIndex });
+    pendingItems.push({ ...resolvedRequest, segmentIndex });
   }
 
   return {
