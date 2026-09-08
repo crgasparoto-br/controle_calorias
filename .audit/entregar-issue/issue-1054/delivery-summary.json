@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 1054,
+  "pull_request": 1055,
+  "base_ref": "develop",
+  "head_ref": "fix/1054-countable-commercial-identity",
+  "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "profile": "critical",
+  "profile_reason": "Continuação textual preserva resultados e claim da pendência exata; controles de replay, ausência de gravação parcial e usuário diferente. Sem UI web nova, o sinal design-interface do plano inicial era inferência por palavra, inaplicável ao diff efetivo.",
+  "local_full_suite": {
+    "status": "limited-environment",
+    "passed": 4185,
+    "failed": 3,
+    "note": "Rodada anterior aos últimos3testes; falhas de timeout também reproduzidas na base intacta. Suite focal atual47pass. Agent:check inicial interrompido por aprovação automática ao tentar graph.facebook.com; alternativa offline bloqueou conexões externas. CI material executou todos gates e passou."
+  },
+  "hygiene": {
+    "status": "no-change",
+    "reason": "Nenhuma marca literal/porção fixa adicionada no código; resolvedor de identidade canônico compartilhado, snapshots evitam recálculo, diff limitado ao fluxo e documentação. Sem dependências novas ou schema."
+  },
+  "tests_required": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "public_contract": "docs/product-specs/meal-registration.md permanece válido sem alteração; códigos existentes e política fail-closed preservados.",
+  "ci_runs": [
+    34229570333,
+    34229570448
+  ]
+}

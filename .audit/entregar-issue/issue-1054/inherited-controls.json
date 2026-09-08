@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "source_audits": [],
+  "controls": [],
+  "retired_controls": [],
+  "unresolved_controls": [],
+  "rationale": "Nova issue1054, sem rejeição independente nesta entrega; artefatos da base pertencem a outro target e não são certificados atuais."
+}

@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-CONTINUATION-NEG-5"
+      ],
+      "dimensions": [
+        {
+          "surface": "pending-user-binding",
+          "reason": "Preservar resultados irmãos e persistir somente após resolver o lote completo. Reprocessar irmãos na retomada poderia trocar sua identidade; confirmar antes da resposta criaria refeição parcial.",
+          "control_ids": [
+            "R-CONTINUATION-NEG-5"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-GENERIC-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "generic-resolution",
+          "reason": "Preservar medidas de alimentos sem marca. Exigir identidade comercial também para alimentos sem marca bloquearia fallback legítimo.",
+          "control_ids": [
+            "R-GENERIC-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-CONTINUATION-NEG-3",
+        "R-OFFLINE-NEG-2",
+        "R-PRECEDENCE-NEG-2",
+        "R-WEIGHT-NEG-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "clarification-order",
+          "reason": "Pedir peso somente após comprovar a identidade sem relação física segura. Converter todos pendingItems em peso perderia a causa semântica.",
+          "control_ids": [
+            "R-CONTINUATION-NEG-3",
+            "R-OFFLINE-NEG-2",
+            "R-PRECEDENCE-NEG-2",
+            "R-WEIGHT-NEG-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-CANONICAL-NEG-1",
+        "R-CONTINUATION-NEG-1",
+        "R-INTEGRATION-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "R-CANONICAL-NEG-1",
+            "R-CONTINUATION-NEG-1",
+            "R-INTEGRATION-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-CONTINUATION-NEG-4"
+      ],
+      "dimensions": [
+        {
+          "surface": "meal-commit",
+          "reason": "Preservar resultados irmãos e persistir somente após resolver o lote completo. Reprocessar irmãos na retomada poderia trocar sua identidade; confirmar antes da resposta criaria refeição parcial.",
+          "control_ids": [
+            "R-CONTINUATION-NEG-4"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-CANONICAL-NEG-2",
+        "R-CONTINUATION-NEG-2",
+        "R-DOCS-NEG-2",
+        "R-PORTION-NEG-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-contract",
+          "reason": "Usar porção comprovada da identidade compatível. Fixar50g por marca ou aceitar primeiro candidato ignoraria evidência e variante.",
+          "control_ids": [
+            "R-CONTINUATION-NEG-2",
+            "R-DOCS-NEG-2",
+            "R-PORTION-NEG-2"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "R-CANONICAL-NEG-2"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Controles primários e variações listados na matriz executam os estados de clarificação, retomada, fontes incompatíveis e claims documentais no candidato atual.",
+      "control_ids": [
+        "R-DOCS-NEG-3",
+        "R-READY-NEG-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Reproduzir e corrigir a regressão em PRcontra develop com evidência auditável. Liberar auditoria com certificado de outro alvo não identifica o candidato da issue1054.",
+          "control_ids": [
+            "R-DOCS-NEG-3",
+            "R-READY-NEG-1"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

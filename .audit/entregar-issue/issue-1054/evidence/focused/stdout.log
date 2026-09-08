@@ -1,0 +1,19 @@
+
+ RUN  v2.1.9 /workspace/scratch/311c34b7437d/repo
+
+ ✓ server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts (23 tests) 2412ms
+   ✓ #1054 — resolvedor real e precedência comercial > pergunta variante primeiro e reutiliza os códigos/alternativas do contrato nutricional 305ms
+   ✓ #1054 — resolvedor real e precedência comercial > analisa o exemplo de produção sem persistência parcial e retoma uma única vez com irmãos estáveis 556ms
+ ✓ server/nutritionEngine.semanticContract.issue1051.test.ts (7 tests) 67ms
+ ✓ server/modules/whatsapp/foodQuantityClarification.test.ts (3 tests) 331ms
+ ✓ server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts (2 tests) 9ms
+ ✓ server/modules/whatsapp/confirmedMealRegistration.identityClarification.issue1051.test.ts (1 test) 6ms
+ ✓ server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts (4 tests) 45ms
+ ✓ server/countableFoodQuantity.issue1047.test.ts (6 tests) 77ms
+ ✓ server/countableFoodQuantity.issue1051.test.ts (1 test) 216ms
+
+ Test Files  8 passed (8)
+      Tests  47 passed (47)
+   Start at  10:03:24
+   Duration  25.82s (transform 2.28s, setup 142ms, collect 17.73s, tests 3.16s, environment 2ms, prepare 988ms)
+

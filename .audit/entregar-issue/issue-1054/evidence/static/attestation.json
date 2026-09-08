@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "issue1054-static",
+  "command": "node_modules/.bin/tsc --noEmit && node --import tsx scripts/check-architecture.ts && node --import tsx scripts/generate-db-schema-doc.ts --check && node --import tsx scripts/generate-trpc-routes-doc.ts --check && node --import tsx scripts/check-docs-freshness.ts && git diff --check && node_modules/.bin/pnpm build",
+  "cwd": "/workspace/scratch/311c34b7437d/repo",
+  "exit_code": 0,
+  "started_at": "2026-09-08T13:03:24.890379Z",
+  "finished_at": "2026-09-08T13:03:49.008245Z",
+  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "stdout_sha256": "532dbb46f88bd13776a2d895a7381ec18004eef077902d1d3fc5a6e754655b00",
+  "stderr_sha256": "a207ed788046f744c670cdf2f6ba92ef116b66981ede68141f70ba8f7454253a",
+  "stdout_path": "/workspace/scratch/311c34b7437d/current-audit/evidence/static/stdout.log",
+  "stderr_path": "/workspace/scratch/311c34b7437d/current-audit/evidence/static/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}
