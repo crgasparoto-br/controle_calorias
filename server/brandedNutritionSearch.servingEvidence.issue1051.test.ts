@@ -106,6 +106,8 @@ describe("issue 1051 contextual serving evidence", () => {
   });
 
   it("rejects package weight in the source title as proof of a larger serving", async () => {
+    // Keep the requested and structured measures compatible so rejection tests
+    // source evidence rather than the earlier commercial-identity guard.
     installExecution(
       providerResult({
         matchedProductName: "Pão de Forma Panco Premium 500 g",
@@ -122,14 +124,16 @@ describe("issue 1051 contextual serving evidence", () => {
       "Pão de Forma Panco Premium 500 g",
     );
 
-    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium"))
+    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium 500 g"))
       .resolves.toBeNull();
   });
 
   it("accepts the serving stated in source evidence even when the title carries package weight", async () => {
+    // Package weight belongs to the source title; the requested portion and
+    // structured serving must agree before source evidence can be evaluated.
     installExecution(
       providerResult({
-        matchedProductName: "Pão de Forma Panco Premium 500 g",
+        matchedProductName: "Pão de Forma Panco Premium",
         servingLabel: "1 porção (50 g)",
         gramsPerServing: 50,
         calories: 120,
@@ -143,7 +147,7 @@ describe("issue 1051 contextual serving evidence", () => {
       "Pão de Forma Panco Premium 500 g",
     );
 
-    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium"))
+    await expect(findBrandedNutritionByWebSearch("Pão de Forma Panco Premium 50 g"))
       .resolves.toEqual(expect.objectContaining({
         brandName: "Panco",
         gramsPerServing: 50,
