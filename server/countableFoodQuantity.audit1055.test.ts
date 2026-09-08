@@ -36,6 +36,7 @@ import {
   prepareCountableFoodRegistrationResolved,
 } from "./countableFoodQuantity";
 import { detectKnownBrand } from "./foodBrandDetection";
+import { inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
 
 const now = new Date("2026-09-08T12:00:00Z");
 
@@ -258,6 +259,23 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
     expect(result.pendingItems).toHaveLength(1);
     expect(result.pendingItems[0].brand).toBeNull();
     expect(result.pendingItems[0].identityClarification).toBeUndefined();
+  });
+
+  it("não promove outro componente alimentar a marca em preparação composta", () => {
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Leite",
+      aliases: ["Leite"],
+      brandName: "",
+      isBrandedProduct: false,
+      servingLabel: "100 ml",
+      gramsPerServing: 100,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
+
+    expect(inferUnresolvedCommercialIdentityHint("café com leite")).toBeNull();
   });
 
   it("não altera o caminho de uma marca já reconhecida pela fonte existente", async () => {

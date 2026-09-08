@@ -91,6 +91,8 @@ const COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES = new Set([
   "sem",
 ]);
 
+const CULINARY_COMPOSITION_CONNECTORS = new Set(["com", "sem"]);
+
 const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "artesanal",
   "artesanais",
@@ -163,11 +165,16 @@ export function inferUnresolvedCommercialIdentityHint(
   if (!remainderTokens.length) return null;
 
   const normalizedRemainder = remainderTokens.map(token => normalizeText(token));
-  const firstRemainderToken = normalizedRemainder[0];
-  if (COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)) return null;
-
   const remainderText = remainderTokens.join(" ");
   const productVariant = extractCommercialVariant(remainderText);
+  const firstRemainderToken = normalizedRemainder[0];
+  if (
+    !productVariant
+    && (
+      COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)
+      || normalizedRemainder.some(token => CULINARY_COMPOSITION_CONNECTORS.has(token))
+    )
+  ) return null;
   const variantTokens = new Set(normalizedWords(productVariant ?? ""));
   const brandTokens = remainderTokens.filter((token, index) => {
     const normalized = normalizedRemainder[index];
