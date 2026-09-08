@@ -2,26 +2,26 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
-  "head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27",
+  "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
+  "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
   "identity": {
-    "head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27",
-    "material_head_sha": "7d1fccfe57c2a9b1350d92d6009a33a67138fa4b",
+    "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
+    "material_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1051,
     "pull_request_number": 1052
   },
   "findings": [
     {
-      "id": "A-001",
+      "id": "AUD-1052-HANDOFF-STALE-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "serving-evidence-integrity",
-      "summary": "A branded source can falsely prove gramsPerServing when a nutrient amount in the source happens to equal the provider-declared serving size.",
-      "reason": "macro-measure-can-masquerade-as-serving-evidence",
-      "recovery_scope": "material-remediation",
+      "category": "delivery-handoff-identity",
+      "summary": "The terminal handoff certifies an ancestral material head even though later material commits moved the PR head.",
+      "reason": "handoff-stale",
+      "recovery_scope": "post-write-refreeze",
       "requires_refreeze": true
     }
   ],

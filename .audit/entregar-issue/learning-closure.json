@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-audit-rejection",
-    "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
-    "audit_report_sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115",
+    "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
+    "audit_report_sha256": "ee67cbb32f033852daef30eb46998a293ef23e2f2cc0d42029b85e09fb33b331",
     "finding_ids": [
-      "A-001"
+      "AUD-1052-HANDOFF-STALE-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The finding is a local implementation defect in source serving-size validation. Existing delivery and product contracts already require source-grounded, discriminant evidence for the same commercial identity and portion; the product predicate and regression suite were strengthened without adding a new global Skill rule."
+    "reason": "The rejection is a delivery-state failure already covered by the existing post-write-refreeze and terminal-handoff guards. The remediation applies those existing controls to the current material head; no new global Skill rule is required."
   },
   "skill_changes": []
 }

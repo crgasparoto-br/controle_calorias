@@ -3,31 +3,35 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:6f4ec62a-c920-4cc6-b1d8-941eaed38cb6",
-    "audit_report_sha256": "7d334d7ab41a402869adb9e87b0982626a56344fa568b5bee807d9dc640e7115",
-    "audited_head_sha": "3cea0fa3afe922a14cc8f953751c3c7cc6655d27"
+    "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
+    "audit_report_sha256": "ee67cbb32f033852daef30eb46998a293ef23e2f2cc0d42029b85e09fb33b331",
+    "audited_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac"
   },
-  "candidate_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
+  "candidate_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "AUD-1052-HANDOFF-STALE-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "material-remediation",
+      "closure_kind": "post-write-refreeze",
       "changed_files": [
-        "server/brandedNutritionSearch.ts",
-        "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts"
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure-1051.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/standard-evidence.json",
+        ".audit/entregar-issue/handoff-ready.json"
       ],
       "evidence": [
-        "Serving proof is now evaluated separately from macro proof: supportingText measures must carry serving/package context and nutrient-labeled measures are excluded; source titles may still prove an explicit commercial package size.",
-        "A discriminant regression rejects complete nutrition evidence where 5 g of carbohydrate merely equals gramsPerServing=5 without any source serving statement; the sibling case with an explicit Porção: 5 g statement remains accepted."
+        "Fresh PR identity fixes ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac as the new material candidate; the stale certificate for 9debe298b21cb975a0b3c09ea6f45b1842219bbc is not reused as terminal evidence.",
+        "The canonical handoff recovery classifier preserves the independent-audit floor recovery_scope=post-write-refreeze and requires a new freeze/handoff on the current material head."
       ],
       "validations": [
-        "Agent-first run 34152426338: exact-head TypeScript, Tests, Architecture, Documentation, Build, Agent check and CI gate docs=success on 9debe298b21cb975a0b3c09ea6f45b1842219bbc",
-        "Merge preview integration run 34152426338: TypeScript integration and all 24 Vitest shards=success",
-        "Onboarding 34152426444, WhatsApp 34152426250, Billing 34152426354 and Professional 34152426273 TiDB gates=success on 9debe298b21cb975a0b3c09ea6f45b1842219bbc; AI provider live smoke 34152426470=skipped/non-applicable"
+        "Agent-first run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac, covering TypeScript, full Vitest, Architecture, Documentation, Build, Agent check and CI gate docs.",
+        "Billing 34173557521, Onboarding 34173557524, WhatsApp 34173557480 and Professional 34173557501 TiDB gates completed/success on ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; AI provider live smoke 34173557481 was skipped/non-applicable.",
+        "classify_handoff_recovery.py returned recovery_scope=post-write-refreeze with auditor_requires_refreeze=true for the fresh remote identity."
       ]
     }
   ],
