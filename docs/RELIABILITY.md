@@ -214,6 +214,10 @@ Durante incidente, filtrar `ai.inference_call` por capacidade, resultado, provid
 
 Testes de regressão devem provar que a operação recebe provider/modelo corretos através da fronteira normalizada, que `raw` não chega ao resultado funcional, que uma tentativa produz uma chamada outbound e que falha do sink não altera a inferência.
 
+## Continuação de medidas contáveis com marca
+
+A identidade comercial é resolvida antes de pedir gramatura. A ausência de pesquisa ou evidência específica preserva a pendência canônica de identidade; não libera macros genéricos. A continuação textual preserva os resultados dos itens já resolvidos e a data/timezone originais. A resposta só reivindica a pendência exata esperada, evitando que replay de uma pergunta antiga consuma outra operação. Falha ao criar a pendência bloqueia o registro sem persistência parcial. Ver contrato e regressões em [medidas contáveis no WhatsApp](design-docs/whatsapp-countable-measure-passthrough.md).
+
 ## Guardrails de billing
 
 - `BILLING_ACCESS_MODE` permanece `open_access` até aprovação explícita da migração comercial; em `enforced`, indisponibilidade da fonte falha fechada.

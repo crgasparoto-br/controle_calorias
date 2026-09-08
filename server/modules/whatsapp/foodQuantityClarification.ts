@@ -19,6 +19,7 @@ import {
 } from "./foodClarificationContract";
 import type { FoodAdditionIntent, WhatsappIntentResult } from "./intent/types";
 import type { MixedMealItemIncrementPlan } from "./mixedMealItemIncrementPlanTypes";
+import type { ResolvedRegistrationSegment } from "./countableFoodRegistrationGate";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
@@ -133,6 +134,7 @@ export type ConfirmedTextMealQuantityContext = {
   receivedAt: string;
   inboundMessageId?: string | null;
   userTimezone: string;
+  resolvedSegments?: ResolvedRegistrationSegment[];
 };
 
 export type FoodAdditionQuantityContext = {
@@ -454,6 +456,7 @@ export function createFoodQuantityClarificationService(
       userTimezone: string;
       messageId?: string | null;
       instructionText?: string;
+      resolvedSegments?: ResolvedRegistrationSegment[];
     }) =>
       createQuantityClarification({
         userId: input.userId,
@@ -471,6 +474,7 @@ export function createFoodQuantityClarificationService(
           receivedAt: (input.receivedAt ?? new Date()).toISOString(),
           inboundMessageId: input.messageId ?? null,
           userTimezone: input.userTimezone,
+          resolvedSegments: input.resolvedSegments,
         },
         instructionText: input.instructionText
           ?? `Não encontrei uma porção contável segura para ${input.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g. Não vou assumir 100 g.`,

@@ -15,6 +15,20 @@ Garantir que medidas contáveis resolvidas antes da inferência nutricional, com
 7. Em mensagens `água + alimento`, a hidratação é registrada uma única vez e apenas o fragmento alimentar passa pelo gate de medida contável. O texto alimentar reescrito é o payload encaminhado ao pipeline nutricional e a resposta final permanece uma única resposta lógica composta.
 8. Comandos canônicos de adição a uma refeição, como `Adicionar 2 fatias de mussarela ao café da manhã`, continuam sob responsabilidade do fluxo de adição existente e não são desviados para um segundo pipeline nutricional.
 
+## Identidade comercial antes da gramatura
+
+Para medidas com marca explícita, a precedência é **identidade → variante → porção → peso**. O preflight reutiliza `resolveCommercialFoodIdentity` do motor nutricional, com as mesmas verificações de produto, marca, variante, evidência e alternativas. Um único resultado incompatível não autoriza conversão. Não há gramatura fixa por marca nem política de confiança específica do gate.
+
+`pendingItems.identityClarification` transporta o contexto canônico: `brand_variant_unresolved` pergunta pela variante e `commercial_identity_unverified` pede comprovação da identidade informada. Indisponibilidade de pesquisa mantém essa pendência; não autoriza alimento genérico ou pergunta antecipada de peso. Somente uma identidade comprovada sem porção específica verificável pode seguir para peso/volume.
+
+Depois de aceitar a identidade, `resolveHouseholdMeasure` usa a porção do produto ou pesquisa uma relação física exata da mesma identidade. Referências de outra variante ou médias de outro produto não substituem essa porção.
+
+Na clarificação, a pendência existente de detalhes alimentares preserva segmentos, índice do item pendente, causa semântica, data/timezone da refeição e resultados nutricionais dos itens já resolvidos. A resposta complementa somente o item pendente. A retomada processa separadamente os itens restantes e reutiliza os resultados preservados, mesmo que o catálogo mude. Nenhum rascunho ou item de refeição é persistido parcialmente; a gravação ocorre após resolver todos os itens e reivindicar a pendência exata uma única vez.
+
+O contrato público de [registro de refeições](../product-specs/meal-registration.md) permanece válido: a mudança corrige a precedência do preflight e reutiliza sua taxonomia.
+
+A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts`, com resolvedor real, doubles apenas nas integrações externas, variantes/marcas incompatíveis, pesquisa indisponível e retomada multi-item sem persistência parcial ou duplicada.
+
 ## Quantidades implícitas sem verbo operacional
 
 O vocabulário de contagem por extenso é compartilhado entre o resolvedor contável e o contrato de clarificação (`um/uma`, `dois/duas`, `três` até `dez`). Entradas diretas como `1 banana nanica`, `uma banana nanica`, `duas bananas` e `três ovos cozidos` são sinais de registro quando o domínio consegue resolver a identidade e a porção; não é necessário acrescentar `registrar`, `adicionar` ou outro verbo operacional.

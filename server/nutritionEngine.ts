@@ -323,22 +323,44 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
   const alternatives = item.brand
     ? findBrandedCatalogAlternatives(semanticSource, item.brand)
     : [];
+  if (!extractCommercialVariant(semanticSource) && alternatives.length > 1) {
+    return {
+      catalog: undefined,
+      isExactMatch: false,
+      alternatives,
+      semanticSource,
+    };
+  }
 
   for (const candidate of candidates) {
-    const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
-    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource)) continue;
+    const catalog =
+      findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
+    if (
+      !catalog ||
+      !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)
+    )
+      continue;
+    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource))
+      continue;
+    if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
     return { catalog, isExactMatch: true, alternatives, semanticSource };
   }
 
   for (const [index, candidate] of candidates.entries()) {
     if (item.brand && index > 0) break;
-    const catalog = await findCatalogFoodSemantic(candidate, {
-      searchSpecificProduct: Boolean(item.brand) && index === 0,
-      skipNutritionSearch: index > 0,
-    }) ?? undefined;
-    if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource)) continue;
+    const catalog =
+      (await findCatalogFoodSemantic(candidate, {
+        searchSpecificProduct: Boolean(item.brand) && index === 0,
+        skipNutritionSearch: index > 0,
+      }).catch(() => null)) ?? undefined;
+    if (
+      !catalog ||
+      !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)
+    )
+      continue;
+    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource))
+      continue;
+    if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
     return {
       catalog,
       isExactMatch: isCatalogFoodNameIdentityMatch(catalog, semanticSource),
@@ -393,6 +415,49 @@ function unresolvedBrandedResolution(input: {
       alternatives: [...input.alternatives],
     },
   };
+}
+
+/** The countable preflight uses the same identity, evidence and ambiguity policy as nutrition. */
+export async function resolveCommercialFoodIdentity(
+  foodName: string,
+  brand: string
+) {
+  const item: LlmItem = {
+    foodName,
+    brand,
+    quantity: 1,
+    unit: "un",
+    portionText: "",
+    servings: 1,
+    estimatedGrams: 0,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+    confidence: 0.5,
+  };
+  const found = await findMostSpecificCatalogForInferenceItem(item, {});
+  if (found.catalog && isVerifiedBrandedCatalogFood(found.catalog))
+    return found.catalog;
+  const unresolved = {
+    ...buildUnresolvedBrandedNutritionItem(item),
+    resolution: unresolvedBrandedResolution(found),
+  };
+  const semanticContract = buildMealSemanticContract({
+    processingInput: { text: foodName },
+    sourceText: foodName,
+    items: [unresolved],
+  });
+  const clarification = semanticContract.clarifications[0];
+  throw new MealInferenceError(clarification.message, {
+    code: "food_identity_clarification_required",
+    context: {
+      originalText: foodName,
+      foodName,
+      brand,
+      clarificationReason: clarification.code,
+      alternatives: clarification.alternatives,
+      semanticContract,
+    },
+  });
 }
 
 type ParsedNutritionLabelEvidence = {

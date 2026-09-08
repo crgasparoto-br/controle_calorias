@@ -380,6 +380,7 @@ async function persistResolvedConfirmedTextMeal(
       registrationSegments,
       pendingItems: context.pendingItems,
       currentPendingIndex: nextPendingIndex,
+      resolvedSegments: context.resolvedSegments,
       occurredAt: new Date(context.occurredAt),
       receivedAt: new Date(),
       userTimezone: context.userTimezone,
@@ -396,6 +397,7 @@ async function persistResolvedConfirmedTextMeal(
     occurredAt: new Date(context.occurredAt),
     userTimezone: context.userTimezone,
     skipCountablePreflight: true,
+    resolvedSegments: context.resolvedSegments,
   });
   if (outcome.status === "registered" || outcome.status === "clarification_requested") {
     return outcome.result;

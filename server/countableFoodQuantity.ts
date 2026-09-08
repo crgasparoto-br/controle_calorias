@@ -11,6 +11,10 @@ import {
 import type { CatalogFood } from "./nutritionEngineTypes";
 import { findTacoFood } from "./tacoLookup";
 import {
+  MealInferenceError,
+  resolveCommercialFoodIdentity,
+} from "./nutritionEngine";
+import {
   COUNTABLE_QUANTITY_PATTERN,
   parseCountableQuantity,
 } from "./modules/whatsapp/quantityUnitVocabulary";
@@ -30,6 +34,14 @@ export type CountableFoodResolvedMeasure = {
   resolution: HouseholdMeasureResolution | {
     kind: "canonical_portion";
     grams: number;
+  };
+};
+
+export type CountableFoodPendingItem = CountableFoodQuantityRequest & {
+  segmentIndex: number;
+  identityClarification?: {
+    message: string;
+    context: NonNullable<MealInferenceError["context"]>;
   };
 };
 
@@ -79,6 +91,7 @@ export function getSafeCatalogCountableGrams(
   food: CatalogFood | null | undefined,
   request: CountableFoodQuantityRequest,
 ) {
+  if (request.brand) return null;
   if (!food || !food.servingLabel || !food.gramsPerServing) return null;
   const serving = parseQuantityUnitFromPortionText(food.servingLabel);
   if (!serving || !serving.quantity || !serving.unit) return null;
@@ -168,13 +181,15 @@ export function prepareCountableFoodRegistration(registrationText: string) {
 export async function prepareCountableFoodRegistrationResolved(
   userId: number,
   registrationText: string,
+  resolvedSegmentIndexes: number[] = []
 ) {
   const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const rewrittenSegments = [...registrationSegments];
-  const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
+  const pendingItems: CountableFoodPendingItem[] = [];
   const resolutions: CountableFoodResolvedMeasure[] = [];
 
   for (const [segmentIndex, segment] of registrationSegments.entries()) {
+    if (resolvedSegmentIndexes.includes(segmentIndex)) continue;
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) {
       const bare = parseBareCount(segment);
@@ -206,12 +221,37 @@ export async function prepareCountableFoodRegistrationResolved(
       continue;
     }
 
+    let commercialFood: CatalogFood | undefined;
+    if (request.brand) {
+      try {
+        commercialFood = await resolveCommercialFoodIdentity(
+          request.foodName,
+          request.brand
+        );
+      } catch (error) {
+        if (
+          !(error instanceof MealInferenceError) ||
+          !error.context?.clarificationReason
+        )
+          throw error;
+        pendingItems.push({
+          ...request,
+          segmentIndex,
+          identityClarification: {
+            message: error.message,
+            context: error.context,
+          },
+        });
+        continue;
+      }
+    }
     const resolved = await resolveHouseholdMeasure({
       userId,
       foodName: request.foodName,
       brand: request.brand,
       quantity: request.count,
       unit: request.requestedUnit,
+      ...(commercialFood ? { commercialFood } : {}),
     });
     if (resolved) {
       rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${request.foodName}`;

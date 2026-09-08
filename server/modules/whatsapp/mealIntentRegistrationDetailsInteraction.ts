@@ -6,10 +6,12 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
-import { isCompleteWhatsappCommand } from "./foodClarificationContract";
+import { isCompleteWhatsappCommand, parseFoodClarificationQuantityReply } from "./foodClarificationContract";
+import { splitFoodTextSegments } from "../../mealTextParsing";
 import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQuantityClarification";
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
+import type { CountableRegistrationContinuation } from "./countableFoodRegistrationGate";
 
 export const PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE =
   "meal_intent_registration_details";
@@ -34,6 +36,7 @@ export type PendingMealIntentRegistrationDetails = {
   prompt: string;
   attempts: number;
   actions: Array<{ id: string; label: string; effect: string }>;
+  countableContext?: CountableRegistrationContinuation;
 };
 
 function normalizeRegistrationDetailsText(value: string) {
@@ -82,6 +85,7 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
   prompt: string;
   attempts?: number;
   receivedAt?: Date;
+  countableContext?: CountableRegistrationContinuation;
 }) {
   const registrationText = (input.registrationText ?? input.originalText).trim();
   if (isSugarQuantityPrompt({ registrationText, prompt: input.prompt })) {
@@ -118,6 +122,9 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
     prompt: input.prompt.trim(),
     attempts: input.attempts ?? 1,
     actions: [...MEAL_INTENT_REGISTRATION_DETAILS_ACTIONS],
+    ...(input.countableContext
+      ? { countableContext: input.countableContext }
+      : {}),
   };
   const created = await repository.createPendingOperation({
     userId: input.userId,
@@ -143,6 +150,13 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
       interactionClassification: "open",
       interactionComponent: "text",
       interactionLifecycle: "created",
+      ...(input.countableContext
+        ? {
+            clarificationReason:
+              input.countableContext.clarification.clarificationReason,
+            alternatives: input.countableContext.clarification.alternatives,
+          }
+        : {}),
     },
   };
 }
@@ -191,6 +205,12 @@ async function recreateAfterSafeFailure(input: {
     prompt: input.prompt,
     attempts: input.target.attempts + 1,
     receivedAt: input.receivedAt,
+    countableContext: input.target.countableContext
+      ? {
+          ...input.target.countableContext,
+          registrationSegments: input.registrationText.split("\n"),
+        }
+      : undefined,
   });
 }
 
@@ -204,11 +224,24 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
   const target = input.pendingOperation.target;
   const action = parseDetailsAction(input.text);
   if (!isPendingMealIntentRegistrationDetails(target) || !action) return null;
+  if (input.pendingOperation.userId !== input.userId) return null;
+  if (target.countableContext && action !== "cancel") {
+    const details = input.text?.trim() ?? "";
+    if (splitFoodTextSegments(details).length !== 1 || parseFoodClarificationQuantityReply(details)) {
+      return {
+        handled: true as const, action: "clarification_needed" as const,
+        reply: target.prompt,
+        eventType: "whatsapp.meal_intent_decision.invalid_identity_details",
+        detail: "Resposta não identifica uma única variante; pendência preservada sem efeito.",
+      };
+    }
+  }
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
     PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE,
     action,
     input.receivedAt,
+    input.pendingOperation.id
   );
   if (claim.status !== "claimed") return null;
 
@@ -224,13 +257,29 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
   }
 
   const details = input.text?.trim() ?? "";
-  const registrationText = combineRegistrationText(target.registrationText, details);
+  const context = target.countableContext;
+  const registrationSegments = context
+    ? [...context.registrationSegments]
+    : null;
+  if (context && registrationSegments) {
+    // Apply the answer only to the unresolved identity, retaining quantity and siblings.
+    registrationSegments[context.itemIndex] =
+      `${registrationSegments[context.itemIndex]} ${details}`;
+  }
+  const registrationText =
+    registrationSegments?.join("\n") ??
+    combineRegistrationText(target.registrationText, details);
   const outcome = await executeConfirmedWhatsAppMealRegistration({
     userId: input.userId,
     registrationText,
     originalText: target.originalText,
-    occurredAt: input.receivedAt ?? new Date(),
-    userTimezone: input.userTimezone || DEFAULT_APP_TIME_ZONE,
+    occurredAt: context
+      ? new Date(context.occurredAt)
+      : (input.receivedAt ?? new Date()),
+    userTimezone:
+      context?.userTimezone || input.userTimezone || DEFAULT_APP_TIME_ZONE,
+    resolvedSegments: context?.resolvedSegments,
+    inboundMessageId: target.inboundMessageId,
   });
 
   if (outcome.status === "clarification_requested") return outcome.result;
