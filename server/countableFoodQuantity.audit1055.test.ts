@@ -97,6 +97,16 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
     const brand = "Seven Boys";
     const product = reference(brand);
     expect(detectKnownBrand(`pão de forma ${brand}`)).toBeNull();
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Pão de forma",
+      aliases: ["Pão de forma"],
+      brandName: "",
+      isBrandedProduct: false,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
     boundary.extraction.mockResolvedValue(extractionFor(brand));
     boundary.search.mockResolvedValue(product);
 
@@ -124,6 +134,16 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
   it("mantém fail-closed quando a pesquisa falha antes de comprovar a identidade", async () => {
     const brand = "Seven Boys";
     expect(detectKnownBrand(`pão de forma ${brand}`)).toBeNull();
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Pão de forma",
+      aliases: ["Pão de forma"],
+      brandName: "",
+      isBrandedProduct: false,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
     boundary.extraction.mockResolvedValue(extractionFor(brand));
     boundary.search.mockRejectedValue(new Error("search unavailable"));
 

@@ -238,21 +238,6 @@ export async function prepareCountableFoodRegistrationResolved(
       continue;
     }
 
-    const safe = resolveSafeCountableCatalogGrams(
-      request.foodName,
-      request.count,
-      request.requestedUnit,
-    );
-    if (safe) {
-      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${request.foodName}`;
-      resolutions.push({
-        segmentIndex,
-        request,
-        resolution: { kind: "canonical_portion", grams: safe.grams },
-      });
-      continue;
-    }
-
     const canonicalIdentity = await recoverCanonicalCommercialIdentity(request);
     const resolvedRequest = canonicalIdentity.brand && !request.brand
       ? { ...request, brand: canonicalIdentity.brand }
@@ -263,6 +248,21 @@ export async function prepareCountableFoodRegistrationResolved(
         ...resolvedRequest,
         segmentIndex,
         identityClarification: canonicalIdentity.identityClarification,
+      });
+      continue;
+    }
+
+    const safe = resolveSafeCountableCatalogGrams(
+      resolvedRequest.foodName,
+      resolvedRequest.count,
+      resolvedRequest.requestedUnit,
+    );
+    if (safe) {
+      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${resolvedRequest.foodName}`;
+      resolutions.push({
+        segmentIndex,
+        request: resolvedRequest,
+        resolution: { kind: "canonical_portion", grams: safe.grams },
       });
       continue;
     }
