@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+    "audit_report_sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5",
+    "finding_ids": [
+      "P1-explicit-brand-detection-gap"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The delivery Skill already requires canonical-path, precedence and sibling negative controls. The escape was local to this candidate because the alternate-brand fixture used a brand already inside the same static allowlist. Repository-level discriminant controls close the gap without a new global Skill rule."
+  },
+  "skill_changes": []
+}

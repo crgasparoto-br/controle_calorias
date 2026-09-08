@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+    "audit_report_sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5",
+    "audited_head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950"
+  },
+  "candidate_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "P1-explicit-brand-detection-gap",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "targeted-code-remediation",
+      "changed_files": [
+        "server/countableFoodQuantity.ts",
+        "server/countableFoodQuantity.audit1055.test.ts"
+      ],
+      "evidence": [
+        "recoverCanonicalCommercialIdentity now executes before safe generic catalog grams for unresolved brand signals.",
+        "Seven Boys outside KNOWN_BRANDS is tested while a valid generic bread reference is available."
+      ],
+      "validations": [
+        "Agent-first run 34247182583 completed/success on exact material head 427c89068615246fd86f6c0e82f49ae454175bb2.",
+        "WhatsApp TiDB run 34247182590 completed/success on exact material head 427c89068615246fd86f6c0e82f49ae454175bb2.",
+        "R-CANONICAL-NEG-4 and R-OFFLINE-NEG-3 passed."
+      ]
+    }
+  ],
+  "status": "closed"
+}

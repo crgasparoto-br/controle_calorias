@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+  "head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+  "identity": {
+    "head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+    "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1054,
+    "pull_request_number": 1055
+  },
+  "findings": [
+    {
+      "id": "P1-explicit-brand-detection-gap",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "canonical-commercial-identity",
+      "severity": "P1",
+      "summary": "Explicit brand outside KNOWN_BRANDS bypassed commercial identity protection in the countable gate.",
+      "reason": "explicit-brand-detection-gap",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
+      "recommendation": "Activate canonical commercial identity policy for explicit identity without depending on the static allowlist and add a non-allowlisted brand control."
+    }
+  ],
+  "recommendations": []
+}

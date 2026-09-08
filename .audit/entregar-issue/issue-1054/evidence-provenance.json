@@ -1,35 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
   "evidence": [
     {
-      "evidence_id": "focused",
+      "evidence_id": "remediation",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/issue-1054/evidence/focused/stdout.log",
-      "sha256": "b26897f2c3db4fdf62781625e520e600204364aee3d4c927e61e3cab9b2b74cb",
-      "subject_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+      "path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "sha256": "b1e2ad850317ae8ab121ba1c893c62040b12e67f274c2fbb310d61fdf6ccaa84",
+      "subject_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
       "freshness_policy": "exact-material-head",
-      "producer": "run_attested_gate.py and GitHub Actions34229570448",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "static",
-      "kind": "structural",
-      "path": ".audit/entregar-issue/issue-1054/evidence/static/stdout.log",
-      "sha256": "532dbb46f88bd13776a2d895a7381ec18004eef077902d1d3fc5a6e754655b00",
-      "subject_sha": "ca12a99c878950230f24d797c399f593c51621ed",
-      "freshness_policy": "exact-material-head",
-      "producer": "run_attested_gate.py and GitHub Actions34229570448",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "ci",
-      "kind": "structural",
-      "path": ".audit/entregar-issue/issue-1054/evidence/ci.json",
-      "sha256": "1316cd3a0b3d1153c972cca8758e422f5ffa46ac14e3b7164ad1681166717321",
-      "subject_sha": "ca12a99c878950230f24d797c399f593c51621ed",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions run34229570448 API jobs/steps",
+      "producer": "GitHub Actions exact-head runs 34247182583/34247182590 plus discriminant current-source assertions",
       "status": "passed"
     }
   ]

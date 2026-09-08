@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
   "families": [
     {
       "family": "authorization",
@@ -64,7 +64,8 @@
         "R-CONTINUATION-NEG-3",
         "R-OFFLINE-NEG-2",
         "R-PRECEDENCE-NEG-2",
-        "R-WEIGHT-NEG-2"
+        "R-WEIGHT-NEG-2",
+        "R-OFFLINE-NEG-3"
       ],
       "dimensions": [
         {
@@ -74,7 +75,8 @@
             "R-CONTINUATION-NEG-3",
             "R-OFFLINE-NEG-2",
             "R-PRECEDENCE-NEG-2",
-            "R-WEIGHT-NEG-2"
+            "R-WEIGHT-NEG-2",
+            "R-OFFLINE-NEG-3"
           ],
           "status": "passed"
         }
@@ -155,7 +157,8 @@
         "R-CANONICAL-NEG-2",
         "R-CONTINUATION-NEG-2",
         "R-DOCS-NEG-2",
-        "R-PORTION-NEG-2"
+        "R-PORTION-NEG-2",
+        "R-CANONICAL-NEG-4"
       ],
       "dimensions": [
         {
@@ -164,7 +167,8 @@
           "control_ids": [
             "R-CONTINUATION-NEG-2",
             "R-DOCS-NEG-2",
-            "R-PORTION-NEG-2"
+            "R-PORTION-NEG-2",
+            "R-CANONICAL-NEG-4"
           ],
           "status": "passed"
         },

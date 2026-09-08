@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-08T13:37:48.180527+00:00",
+  "created_at": "2026-09-08T16:31:44.519735+00:00",
   "identity": {
-    "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
-    "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+    "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+    "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
     "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
-    "merge_preview_sha": null,
-    "material_merge_preview_sha": null
+    "merge_preview_sha": "302312bf353c2c3b57d5164bcae68c943a45bf95",
+    "material_merge_preview_sha": "302312bf353c2c3b57d5164bcae68c943a45bf95"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
@@ -22,11 +22,12 @@
   "scope": {
     "schema_version": 1,
     "work_item_start_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
-    "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+    "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
     "issue_changed_paths": [
       "docs/RELIABILITY.md",
       "docs/design-docs/whatsapp-countable-measure-passthrough.md",
       "docs/product-specs/whatsapp-flow.md",
+      "server/countableFoodQuantity.audit1055.test.ts",
       "server/countableFoodQuantity.issue1051.test.ts",
       "server/countableFoodQuantity.ts",
       "server/householdMeasureResolution.ts",
@@ -39,32 +40,29 @@
       "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts",
       "server/nutritionEngine.ts"
     ],
-    "issue_delta_sha256": "4e90c2cd9283028051494377327c877e284bee5d128501506c21236302bec0f8"
+    "issue_delta_sha256": "0246709137aec29413d138e4141148540f51ed32d6a3e3668badb7a65ecf40e3"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
       ".audit/entregar-issue/handoff-ready.json",
-      ".audit/entregar-issue/issue-1054/delivery-summary.json",
+      ".audit/entregar-issue/issue-1054/audit-escape-closure.json",
+      ".audit/entregar-issue/issue-1054/audit-remediation.json",
+      ".audit/entregar-issue/issue-1054/audit-source-result.json",
       ".audit/entregar-issue/issue-1054/evidence-provenance.json",
-      ".audit/entregar-issue/issue-1054/evidence/ci.json",
-      ".audit/entregar-issue/issue-1054/evidence/focused/attestation.json",
-      ".audit/entregar-issue/issue-1054/evidence/focused/stderr.log",
-      ".audit/entregar-issue/issue-1054/evidence/focused/stdout.log",
-      ".audit/entregar-issue/issue-1054/evidence/static/attestation.json",
-      ".audit/entregar-issue/issue-1054/evidence/static/stderr.log",
-      ".audit/entregar-issue/issue-1054/evidence/static/stdout.log",
+      ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
       ".audit/entregar-issue/issue-1054/inherited-controls.json",
+      ".audit/entregar-issue/issue-1054/learning-closure.json",
       ".audit/entregar-issue/issue-1054/requirement-attack-matrix.json",
+      ".audit/entregar-issue/issue-1054/requirement-attack-matrix.parts/part-000.b64",
       ".audit/entregar-issue/issue-1054/requirement-closure.json",
       ".audit/entregar-issue/issue-1054/risk-saturation.json",
-      ".audit/entregar-issue/issue-1054/specification-snapshot.json",
-      ".audit/entregar-issue/issue-1054/specification-sources/SRC-ISSUE.txt"
+      ".audit/entregar-issue/issue-1054/specification-snapshot.json"
     ]
   },
   "contract_version": "2026-08-20.3",
   "evidence_profile": "critical",
-  "remediation_mode": null,
+  "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
     "skill_sha256": "0dde7774782e6f3d3d12c03635ad35ca3e9ada0faa6c4c9d23573b34ee6f92d2"
@@ -111,19 +109,31 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "f41730b0519c3edeeaf45c6678a6527bd480e6ce1dc774a2dd416542040737d8",
-      "logical_sha256": "f41730b0519c3edeeaf45c6678a6527bd480e6ce1dc774a2dd416542040737d8",
-      "logical_size": 113183,
+      "sha256": "c6a8e50f1cc6f1b09ecfb490e87e0d02b1189bd2a2fc1f63dad457e600135461",
+      "logical_sha256": "de98708ffc1c242ca974a7a6b5a460e259145800c8864c4559f5655d3f5bdae4",
+      "logical_size": 118500,
       "artifact_transport": {
-        "format": "plain-json",
-        "version": 1
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 16756,
+        "decoded_size": 118500,
+        "decoded_sha256": "de98708ffc1c242ca974a7a6b5a460e259145800c8864c4559f5655d3f5bdae4",
+        "encoded_sha256": "749c03168df275f0d5d1620116531af54b551802ffb8469dec3749f08ed644b7",
+        "parts": [
+          {
+            "path": "requirement-attack-matrix.parts/part-000.b64",
+            "size": 16756,
+            "sha256": "749c03168df275f0d5d1620116531af54b551802ffb8469dec3749f08ed644b7"
+          }
+        ]
       }
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "0f6509177d7d481341932027339b5ea908c0c321ae7f1bea9e7e8b165751cfc9",
-      "logical_sha256": "0f6509177d7d481341932027339b5ea908c0c321ae7f1bea9e7e8b165751cfc9",
-      "logical_size": 7234,
+      "sha256": "5787e09ff5eb7fae9c62cca88cd35d444db61cc793f704ff1da1b3a9fda23afb",
+      "logical_sha256": "5787e09ff5eb7fae9c62cca88cd35d444db61cc793f704ff1da1b3a9fda23afb",
+      "logical_size": 7354,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -131,9 +141,9 @@
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "c17e1ba5e86013bd3c2fbd119fcef4992e5b699e6569f8fba8a3f943689af8ef",
-      "logical_sha256": "c17e1ba5e86013bd3c2fbd119fcef4992e5b699e6569f8fba8a3f943689af8ef",
-      "logical_size": 333,
+      "sha256": "6a1599ef692719d2b10014bab02e928b7787defc9ce83521cf92c82cd85e9e89",
+      "logical_sha256": "6a1599ef692719d2b10014bab02e928b7787defc9ce83521cf92c82cd85e9e89",
+      "logical_size": 2445,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -141,14 +151,54 @@
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "39b4ff64c070b10771a191bb449fbe6a5b71daf44c821f412cef10e9aa58bb27",
-      "logical_sha256": "39b4ff64c070b10771a191bb449fbe6a5b71daf44c821f412cef10e9aa58bb27",
-      "logical_size": 1429,
+      "sha256": "5caf69a006a04c200fe663cef018005872fe630f2c7e0cb40d74c93b65acb410",
+      "logical_sha256": "5caf69a006a04c200fe663cef018005872fe630f2c7e0cb40d74c93b65acb410",
+      "logical_size": 680,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "d38d432b1c046b04cdd02fa6897b2267b3eb0d96b761e1a9903ca9b052b2ab39",
+      "logical_sha256": "d38d432b1c046b04cdd02fa6897b2267b3eb0d96b761e1a9903ca9b052b2ab39",
+      "logical_size": 3163,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "f6a78a14b4718f759e9545d7b2ed7176b6d754e07810ecc7ac1f07b18c306a1b",
+      "logical_sha256": "f6a78a14b4718f759e9545d7b2ed7176b6d754e07810ecc7ac1f07b18c306a1b",
+      "logical_size": 797,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "6e6c9b4cd2357fec741b183cace2e2b5fde66eb29fd13712b96170815a8f2ce0",
+      "logical_sha256": "6e6c9b4cd2357fec741b183cace2e2b5fde66eb29fd13712b96170815a8f2ce0",
+      "logical_size": 1469,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5",
+      "logical_sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5",
+      "logical_size": 1219,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     }
   },
-  "previous_independent_rejection": false
+  "previous_independent_rejection": true
 }

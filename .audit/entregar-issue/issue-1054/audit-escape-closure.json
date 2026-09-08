@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-1055-EXPLICIT-IDENTITY-ALLOWLIST",
+      "escape_class": "explicit-identity-signal-lost-behind-static-recognizer",
+      "source_audit": {
+        "head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+        "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+        "finding_id": "P1-explicit-brand-detection-gap",
+        "finding_ids": [
+          "P1-explicit-brand-detection-gap"
+        ],
+        "audit_report_sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5"
+      },
+      "plausible_wrong_implementation": "Protect commercial identity only when a static known-brand recognizer succeeds, allowing new explicit brands to be treated as unbranded and reach a generic fallback.",
+      "literal_case": {
+        "procedure": "Use Seven Boys outside KNOWN_BRANDS while a generic bread portion is available and execute the real countable preflight.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+        "observed": "Exact-head 427c89068615246fd86f6c0e82f49ae454175bb2: Seven Boys is recovered before generic portion and resolves only against branded verified evidence."
+      },
+      "sibling_cases": [
+        {
+          "id": "unknown-brand-provider-failure",
+          "surface": "clarification-order",
+          "dimension": "provider-failure-before-identity",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json"
+        },
+        {
+          "id": "known-brand-regression",
+          "surface": "canonical-contract",
+          "dimension": "recognized-brand-existing-path",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-contract",
+          "dimension": "unknown-explicit-brand"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "clarification-order",
+          "dimension": "unknown-brand-provider-failure"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "server/countableFoodQuantity.ts canonical identity preflight before generic portion",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json"
+      },
+      "detection_change": {
+        "skill_or_gate": "current requirement attack matrix and exact-head Vitest",
+        "control_id": "R-CANONICAL-NEG-4,R-OFFLINE-NEG-3",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json"
+      },
+      "trigger_terms": [
+        "explicit identity",
+        "static recognizer",
+        "allowlist",
+        "generic fallback",
+        "new brand"
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "revalidated_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "status": "passed"
+    }
+  ]
+}

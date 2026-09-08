@@ -1,9 +1,50 @@
 {
   "schema_version": 1,
-  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
-  "source_audits": [],
-  "controls": [],
+  "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+      "audited_head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+      "finding_ids": [
+        "P1-explicit-brand-detection-gap"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "AUD1055-UNKNOWN-BRAND-CANONICAL-PREFLIGHT",
+      "status": "passed",
+      "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "subject_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "evidence_sha256": "b1e2ad850317ae8ab121ba1c893c62040b12e67f274c2fbb310d61fdf6ccaa84",
+      "procedure": "Execute an explicit brand outside KNOWN_BRANDS while a usable generic reference exists.",
+      "expected": "Canonical commercial identity precedes generic portion.",
+      "observed": "Seven Boys resolves only through verified branded evidence; the generic portion does not win.",
+      "attack_control_id": "R-CANONICAL-NEG-4",
+      "risk_family": "structural-contract",
+      "surface": "canonical-contract",
+      "dimension": "unknown-explicit-brand"
+    },
+    {
+      "id": "AUD1055-UNKNOWN-BRAND-FAIL-CLOSED",
+      "status": "passed",
+      "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "subject_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "evidence_sha256": "b1e2ad850317ae8ab121ba1c893c62040b12e67f274c2fbb310d61fdf6ccaa84",
+      "procedure": "Fail commercial search for an unknown explicit brand while generic portion remains available.",
+      "expected": "Identity remains pending; no generic portion or weight fallback.",
+      "observed": "Seven Boys returns brand_variant_unresolved without measure-search.",
+      "attack_control_id": "R-OFFLINE-NEG-3",
+      "risk_family": "temporal-consistency",
+      "surface": "clarification-order",
+      "dimension": "unknown-brand-provider-failure"
+    }
+  ],
   "retired_controls": [],
   "unresolved_controls": [],
-  "rationale": "Nova issue1054, sem rejeição independente nesta entrega; artefatos da base pertencem a outro target e não são certificados atuais."
+  "rationale": "Independent rejection showed that the alternate-brand test still used an allowlisted brand. These controls preserve the missing class with a truly unknown explicit brand and provider failure."
 }
