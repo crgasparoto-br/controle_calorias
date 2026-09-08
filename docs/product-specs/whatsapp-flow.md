@@ -73,7 +73,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O horário da mensagem deve permanecer como metadado para exibição, ordenação, auditoria e interpretação temporal, mas não deve ser usado sozinho como chave de identidade ou agrupamento da refeição.
 - Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
 - Quando o usuário informar nome específico de produto, marca, linha, versão ou tipo/qualificador em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
-- Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. A ordem de preferência é: alimento + marca + tipo, alimento + marca, alimento + tipo e, por último, alimento genérico quando não houver match mais específico confiável.
+- Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. Produto com marca/variante explícita exige referência comercial compatível e comprovada; ausência ou ambiguidade mantém a clarificação canônica de identidade. A busca por alimento + tipo e o fallback genérico só se aplicam quando não existe identidade comercial pendente, conforme o contrato de registro de refeição.
 
 ## Entradas suportadas
 
@@ -120,8 +120,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Imagem ou áudio enviado após uma refeição compatível no mesmo dia não cria novo bloco apenas porque chegou em outro horário; o conteúdo deve ser consolidado ou associado à refeição lógica segura.
 - Imagem persistida e áudio transcrito enriquecem a mesma mensagem inbound capturada pelo webhook, mantendo uma única chave idempotente e sem duplicar turno, resposta ou registro de domínio.
 - Exclusão por alimento, como `Excluir o chocolate`, busca candidatos no contexto lógico do dia/refeição e pede confirmação quando houver ambiguidade.
-- Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição mesmo quando a referência nutricional/canônica usada internamente for genérica.
-- Marca e tipo/qualificador informados no texto influenciam o match nutricional antes do fallback para alimento genérico.
+- Nome específico informado pelo usuário, como produto, marca ou tipo/qualificador, é preservado na exibição. Preservar o nome não autoriza usar composição genérica para marca/variante sem evidência comercial compatível.
+- Marca e tipo/qualificador informados no texto influenciam o match nutricional; identidade comercial pendente bloqueia fallback para alimento genérico e pede esclarecimento antes de gramatura ou mutação.
 
 ## Invariantes finais da epic #779
 
