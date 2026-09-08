@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
   "source_audits": [
     {
       "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
@@ -8,17 +8,24 @@
       "finding_ids": [
         "P1-explicit-brand-detection-gap"
       ]
+    },
+    {
+      "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
+      "audited_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "finding_ids": [
+        "P1"
+      ]
     }
   ],
   "controls": [
     {
       "id": "AUD1055-UNKNOWN-BRAND-CANONICAL-PREFLIGHT",
       "status": "passed",
-      "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
-      "subject_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
       "control_type": "test",
       "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "evidence_sha256": "b1e2ad850317ae8ab121ba1c893c62040b12e67f274c2fbb310d61fdf6ccaa84",
+      "evidence_sha256": "5314113c6e92492d43d3eceb85492657052fa3a57754d4938676db2f04ad8e27",
       "procedure": "Execute an explicit brand outside KNOWN_BRANDS while a usable generic reference exists.",
       "expected": "Canonical commercial identity precedes generic portion.",
       "observed": "Seven Boys resolves only through verified branded evidence; the generic portion does not win.",
@@ -30,11 +37,11 @@
     {
       "id": "AUD1055-UNKNOWN-BRAND-FAIL-CLOSED",
       "status": "passed",
-      "head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
-      "subject_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
       "control_type": "test",
       "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "evidence_sha256": "b1e2ad850317ae8ab121ba1c893c62040b12e67f274c2fbb310d61fdf6ccaa84",
+      "evidence_sha256": "5314113c6e92492d43d3eceb85492657052fa3a57754d4938676db2f04ad8e27",
       "procedure": "Fail commercial search for an unknown explicit brand while generic portion remains available.",
       "expected": "Identity remains pending; no generic portion or weight fallback.",
       "observed": "Seven Boys returns brand_variant_unresolved without measure-search.",
@@ -42,9 +49,21 @@
       "risk_family": "temporal-consistency",
       "surface": "clarification-order",
       "dimension": "unknown-brand-provider-failure"
+    },
+    {
+      "id": "AUD1055-HANDOFF-SCOPE-EXACT",
+      "status": "passed",
+      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "control_type": "procedure",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
+      "evidence_sha256": "525835d1ee5503645e6aac7fdd4e354c3db70d5f8c09d34363e3c025a7ce27f3",
+      "procedure": "Derive certificate scope from git diff --name-only between the immutable work_item_start_sha and the refrozen material head, with no curated path filtering.",
+      "expected": "The rebuilt scope equals the complete immutable work-item delta and its digest is generated from that exact normalized set.",
+      "observed": "The refrozen material head has 37 changed paths from the work-item start SHA; the builder input is taken directly from that exact Git compare."
     }
   ],
   "retired_controls": [],
   "unresolved_controls": [],
-  "rationale": "Independent rejection showed that the alternate-brand test still used an allowlisted brand. These controls preserve the missing class with a truly unknown explicit brand and provider failure."
+  "rationale": "Independent rejection showed that the alternate-brand test still used an allowlisted brand. These controls preserve the missing class with a truly unknown explicit brand and provider failure. The latest independent rejection is closed by exact Git-derived handoff scope reconstruction on the refrozen exact-head candidate."
 }

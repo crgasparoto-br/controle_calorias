@@ -18,7 +18,7 @@
         "procedure": "Use Seven Boys outside KNOWN_BRANDS while a generic bread portion is available and execute the real countable preflight.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-        "observed": "Exact-head 427c89068615246fd86f6c0e82f49ae454175bb2: Seven Boys is recovered before generic portion and resolves only against branded verified evidence."
+        "observed": "Exact-head 827e3bb1f96656d95c1f4d8e372477ae111b4539: Seven Boys is recovered before generic portion and resolves only against branded verified evidence."
       },
       "sibling_cases": [
         {
@@ -68,7 +68,76 @@
         "structural-contract",
         "temporal-consistency"
       ],
-      "revalidated_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "revalidated_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1055-HANDOFF-SCOPE-DELTA",
+      "escape_class": "handoff-scope-omits-paths-from-work-item-delta",
+      "source_audit": {
+        "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+        "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
+        "finding_id": "P1",
+        "finding_ids": [
+          "P1"
+        ],
+        "audit_report_sha256": "ac2667cd69b01d64ee171cb19a8467bbb6203458a2eb02cb0f164367313facd2"
+      },
+      "plausible_wrong_implementation": "Build the handoff scope from a curated product-file list and omit audit/result files already committed before the refrozen material head, so issue_delta_sha256 describes only a subset of the immutable work-item delta.",
+      "literal_case": {
+        "procedure": "Compute git diff --name-only from the immutable work-item start SHA to the refrozen material head and require the rebuilt certificate to contain exactly that normalized set.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
+        "observed": "Exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539 has 37 paths in the immutable work-item delta; the recovery builder input is derived directly from that Git compare."
+      },
+      "sibling_cases": [
+        {
+          "id": "stale-top-level-specification-snapshot",
+          "surface": "canonical-contract",
+          "dimension": "contract-source",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
+        },
+        {
+          "id": "workflow-head-result-only-parent",
+          "surface": "canonical-contract",
+          "dimension": "workflow-head",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-contract",
+          "dimension": "contract-source"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-contract",
+          "dimension": "workflow-head"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "The recovery refreezes the exact current head and derives issue_changed_paths directly from Git while synchronizing the canonical top-level specification snapshot.",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "Existing structural-contract source/head controls plus delivery target binding and terminal handoff validators detect scope/identity divergence before publication.",
+        "control_id": "R-DOCS-NEG-2",
+        "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
+      },
+      "trigger_terms": [
+        "issue_changed_paths",
+        "work_item_start_sha",
+        "material_head_sha",
+        "issue_delta_sha256",
+        "target binding"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
       "status": "passed"
     }
   ]

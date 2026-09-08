@@ -3,18 +3,18 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 1054,
   "pull_request": 1055,
-  "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "material_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
   "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
-  "merge_preview_sha": "302312bf353c2c3b57d5164bcae68c943a45bf95",
+  "merge_preview_sha": "16cb5f6800cd2ad10eebfb0ab4ffae6ce8de533a",
   "ci": {
     "agent_first": {
-      "run_id": 34247182583,
+      "run_id": 34256075062,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "427c89068615246fd86f6c0e82f49ae454175bb2",
+      "exact_head": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
       "passed_steps": [
         "TypeScript check",
-        "Tests (full Vitest suite in 24 sequential shards)",
+        "Tests",
         "Architecture check",
         "Documentation check",
         "Build",
@@ -25,13 +25,13 @@
       ]
     },
     "whatsapp_tidb": {
-      "run_id": 34247182590,
+      "run_id": 34256075206,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "427c89068615246fd86f6c0e82f49ae454175bb2"
+      "exact_head": "827e3bb1f96656d95c1f4d8e372477ae111b4539"
     },
     "merge_preview": {
-      "sha": "302312bf353c2c3b57d5164bcae68c943a45bf95",
+      "sha": "16cb5f6800cd2ad10eebfb0ab4ffae6ce8de533a",
       "status": "success",
       "passed_steps": [
         "TypeScript integration check",
@@ -46,7 +46,7 @@
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
       "precondition": "detectKnownBrand returns null and a generic Pão de forma 2-fatias/50-g reference is simultaneously available",
-      "observed": "canonical processMealInput recovers brand Seven Boys before generic grams; branded verified 50-g reference is used; measure search is not called"
+      "observed": "The exact-head full test suite passed the canonical recovery case where Seven Boys is resolved before generic grams and only verified branded evidence can win."
     },
     {
       "id": "unknown-brand-provider-unavailable",
@@ -54,17 +54,17 @@
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
       "precondition": "generic bread reference remains available and commercial search rejects",
-      "observed": "no resolution; brand Seven Boys is preserved; clarificationReason=brand_variant_unresolved; measure search is not called"
+      "observed": "The exact-head full test suite passed the fail-closed case that preserves Seven Boys and brand_variant_unresolved without falling back to a generic measure."
     },
     {
       "id": "known-brand-regression",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Panco",
-      "observed": "existing known-brand route is preserved and canonical extraction recovery is not called"
+      "observed": "The exact-head full test suite passed the existing Panco known-brand path."
     }
   ],
   "implementation_path": "prepareCountableFoodRegistrationResolved -> recoverCanonicalCommercialIdentity -> processMealInput canonical semantic contract -> safe generic catalog grams -> resolveCommercialFoodIdentity -> resolveHouseholdMeasure",
   "assertion": "For parsed countable requests, explicit commercial identity recovery/clarification precedes generic portion fallback even when the brand is outside KNOWN_BRANDS.",
-  "database_note": "Agent-first database-integrity step was skipped because DATABASE_URL was unavailable; the dedicated WhatsApp TiDB gate passed. The remediation changes no schema or persistence contract."
+  "database_note": "Agent-first database-integrity step was skipped because DATABASE_URL was unavailable; the dedicated WhatsApp TiDB gate passed on the exact head. The handoff remediation changes no product schema or persistence behavior."
 }

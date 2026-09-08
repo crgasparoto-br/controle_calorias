@@ -3,31 +3,38 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
-    "audit_report_sha256": "bcc8056cd81cfd0d91039cb6b9e510c2aeb0550edcbd51b0d0aa2e8b8624cad5",
-    "audited_head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950"
+    "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
+    "audit_report_sha256": "ac2667cd69b01d64ee171cb19a8467bbb6203458a2eb02cb0f164367313facd2",
+    "audited_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539"
   },
-  "candidate_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+  "candidate_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "P1-explicit-brand-detection-gap",
+      "source_id": "P1",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "targeted-code-remediation",
+      "closure_kind": "targeted-handoff-remediation",
       "changed_files": [
-        "server/countableFoodQuantity.ts",
-        "server/countableFoodQuantity.audit1055.test.ts"
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/specification-snapshot.json",
+        ".audit/entregar-issue/issue-1054/audit-source-result.json",
+        ".audit/entregar-issue/issue-1054/audit-remediation.json",
+        ".audit/entregar-issue/issue-1054/audit-escape-closure.json",
+        ".audit/entregar-issue/issue-1054/learning-closure.json",
+        ".audit/entregar-issue/issue-1054/inherited-controls.json",
+        ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
       ],
       "evidence": [
-        "recoverCanonicalCommercialIdentity now executes before safe generic catalog grams for unresolved brand signals.",
-        "Seven Boys outside KNOWN_BRANDS is tested while a valid generic bread reference is available."
+        "The refrozen current head has 37 paths in the immutable work-item delta and the rebuilt certificate receives that exact Git-derived list.",
+        "The canonical top-level specification snapshot is synchronized to issue 1054.",
+        ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
       ],
       "validations": [
-        "Agent-first run 34247182583 completed/success on exact material head 427c89068615246fd86f6c0e82f49ae454175bb2.",
-        "WhatsApp TiDB run 34247182590 completed/success on exact material head 427c89068615246fd86f6c0e82f49ae454175bb2.",
-        "R-CANONICAL-NEG-4 and R-OFFLINE-NEG-3 passed."
+        "Agent-first run 34256075062 completed/success on exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539.",
+        "WhatsApp TiDB run 34256075206 completed/success on exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539.",
+        "The rebuilt scope is derived from the immutable Git compare rather than a curated subset."
       ]
     }
   ],

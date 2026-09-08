@@ -2,29 +2,29 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
-  "head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+  "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
+  "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
   "identity": {
-    "head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
-    "material_head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+    "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+    "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1054,
     "pull_request_number": 1055
   },
   "findings": [
     {
-      "id": "P1-explicit-brand-detection-gap",
+      "id": "P1",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "canonical-commercial-identity",
+      "category": "delivery-handoff-scope",
       "severity": "P1",
-      "summary": "Explicit brand outside KNOWN_BRANDS bypassed commercial identity protection in the countable gate.",
-      "reason": "explicit-brand-detection-gap",
-      "recovery_scope": "post-write-refreeze",
-      "requires_refreeze": true,
-      "recommendation": "Activate canonical commercial identity policy for explicit identity without depending on the static allowlist and add a non-allowlisted brand control."
+      "summary": "The handoff certificate declared only 15 issue_changed_paths while the immutable work-item delta contains 31 paths.",
+      "reason": "handoff-scope-mismatch",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "recommendation": "Rebuild the handoff from the exact immutable work-item delta and publish a new result-only child without changing product behavior."
     }
   ],
   "recommendations": []
