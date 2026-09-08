@@ -3,19 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createTextResponseMock = vi.fn();
 const findCatalogFoodSemanticMock = vi.fn();
 
-type ZeroBeverageCase = [text: string, foodName: string, brand?: string];
+type ZeroBeverageCase = [text: string, foodName: string];
+type BrandedZeroBeverageCase = [text: string, foodName: string, brand: string];
 
-const ZERO_BEVERAGE_CASES: ZeroBeverageCase[] = [
+const GENERIC_ZERO_BEVERAGE_CASES: ZeroBeverageCase[] = [
   ["350 ml Água Tônica Zero Açúcar", "Água Tônica Zero Açúcar"],
-  ["350 ml Schweppes Tônica Zero", "Schweppes Tônica Zero", "Schweppes"],
-  ["350 ml Schweppes Água Tônica Sem Açúcar", "Schweppes Água Tônica Sem Açúcar", "Schweppes"],
   ["350 ml Refrigerante Diet", "Refrigerante Diet"],
   ["350 ml REFRIGERANTE ZERO", "REFRIGERANTE ZERO"],
   ["350 ml ZERO AÇÚCAR ÁGUA TÔNICA", "ZERO AÇÚCAR ÁGUA TÔNICA"],
-  ["350 ml Sprite Zero", "Sprite Zero"],
-  ["350 ml Schweppes Citrus Zero", "Schweppes Citrus Zero", "Schweppes"],
   ["350 ml Soda Limão Zero", "Soda Limão Zero"],
+];
+
+const BRANDED_ZERO_BEVERAGE_CASES: BrandedZeroBeverageCase[] = [
+  ["350 ml Schweppes Tônica Zero", "Schweppes Tônica Zero", "Schweppes"],
+  ["350 ml Schweppes Água Tônica Sem Açúcar", "Schweppes Água Tônica Sem Açúcar", "Schweppes"],
+  ["350 ml Schweppes Citrus Zero", "Schweppes Citrus Zero", "Schweppes"],
   ["350 ml Schweppes Zero Tônica", "Schweppes Zero Tônica", "Schweppes"],
+  ["350 ml Sprite Zero", "Sprite Zero", "Sprite"],
 ];
 
 vi.mock("./_core/aiProvider", () => ({
@@ -78,6 +82,19 @@ function mockZeroNutritionExtraction(foodName: string, brand?: string) {
   });
 }
 
+async function expectBrandedIdentityClarification(text: string, brand: string) {
+  const { processMealInput } = await import("./nutritionEngine");
+  await expect(processMealInput({
+    text,
+    occurredAt: "2026-08-02T16:00:00-03:00",
+    timeZone: "America/Sao_Paulo",
+  })).rejects.toMatchObject({
+    name: "MealInferenceError",
+    code: "food_identity_clarification_required",
+    context: expect.objectContaining({ brand }),
+  });
+}
+
 describe("nutritionEngine zero beverage fallback", () => {
   beforeEach(() => {
     createTextResponseMock.mockReset();
@@ -85,8 +102,8 @@ describe("nutritionEngine zero beverage fallback", () => {
     findCatalogFoodSemanticMock.mockResolvedValue(undefined);
   });
 
-  it.each(ZERO_BEVERAGE_CASES)("zera o fallback de bebida explicitamente zero: %s", async (text, foodName, brand) => {
-    mockZeroNutritionExtraction(foodName, brand);
+  it.each(GENERIC_ZERO_BEVERAGE_CASES)("zera o fallback genérico de bebida explicitamente zero: %s", async (text, foodName) => {
+    mockZeroNutritionExtraction(foodName);
 
     const { processMealInput } = await import("./nutritionEngine");
     const result = await processMealInput({
@@ -105,11 +122,12 @@ describe("nutritionEngine zero beverage fallback", () => {
       fat: 0,
       source: "heuristic",
     }));
-    if (brand) {
-      expect(result.items[0].foodName).toContain(brand);
-      expect(result.items[0].brand).toBe(brand);
-    }
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
+
+  it.each(BRANDED_ZERO_BEVERAGE_CASES)("exige referência nutricional específica para bebida zero de marca: %s", async (text, foodName, brand) => {
+    mockZeroNutritionExtraction(foodName, brand);
+    await expectBrandedIdentityClarification(text, brand);
   });
 
   it("prioriza referência nutricional específica antes da heurística zero", async () => {
@@ -200,27 +218,12 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.items[0].source).toBe("heuristic");
   });
 
-  it("mantém a bebida zero zerada quando a IA fica indisponível e preserva a descrição comercial", async () => {
+  it.each([
+    ["350 ml Schweppes Água Tônica Zero Açúcar", "Schweppes"],
+    ["350 ml Sprite Zero", "Sprite"],
+  ])("falha fechada para bebida zero de marca quando a IA fica indisponível: %s", async (text, brand) => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
-
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      text: "350 ml Schweppes Água Tônica Zero Açúcar",
-      occurredAt: "2026-08-02T16:00:00-03:00",
-      timeZone: "America/Sao_Paulo",
-    });
-
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Schweppes Água Tônica Zero Açúcar",
-      quantity: 350,
-      unit: "ml",
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      source: "heuristic",
-    }));
-    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+    await expectBrandedIdentityClarification(text, brand);
   });
 
   it("preserva quantidade pós-nome separada por vírgula quando a IA fica indisponível", async () => {
@@ -261,8 +264,6 @@ describe("nutritionEngine zero beverage fallback", () => {
     "5 g Chiclete sabor refrigerante zero açúcar",
     "100 g Gelatina sabor tônica zero açúcar",
     "30 g Bala de refri zero açúcar",
-    "60 g Schweppes Picolé Zero",
-    "60 g Sprite Picolé Zero",
     "30 g Refrigerante em pó zero açúcar",
     "30 g Tônica em pó zero açúcar",
     "Refrigerante em pó zero açúcar",
@@ -270,7 +271,7 @@ describe("nutritionEngine zero beverage fallback", () => {
     "60 ml Picolé de refrigerante zero açúcar",
     "30 ml Refrigerante em pó zero açúcar",
     "30 ml Cola de sapateiro zero açúcar",
-  ])("não zera alimento sólido que contém termo também usado por bebida: %s", async text => {
+  ])("não zera alimento sólido genérico que contém termo também usado por bebida: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const { processMealInput } = await import("./nutritionEngine");
@@ -283,6 +284,14 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].calories).toBeGreaterThan(0);
     expect(result.totals.calories).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["60 g Schweppes Picolé Zero", "Schweppes"],
+    ["60 g Sprite Picolé Zero", "Sprite"],
+  ])("não estima macros de alimento sólido de marca sem referência específica: %s", async (text, brand) => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+    await expectBrandedIdentityClarification(text, brand);
   });
 
   it.each([
@@ -309,7 +318,7 @@ describe("nutritionEngine zero beverage fallback", () => {
     "350 ml Soda de limão zero",
     "350 ml Soda italiana zero açúcar",
     "350 ml Refrigerante Guaraná Jesus Zero",
-  ])("zera variação natural de bebida explicitamente zero sem depender de whitelist de sabor ou marca: %s", async text => {
+  ])("zera variação genérica de bebida explicitamente zero sem depender de whitelist de sabor: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const { processMealInput } = await import("./nutritionEngine");
@@ -333,43 +342,21 @@ describe("nutritionEngine zero beverage fallback", () => {
   });
 
   it.each([
-    "350 ml Sprite Zero",
-    "350 ml Schweppes Citrus Zero",
-  ])("mantém bebida gaseificada equivalente zerada quando a IA fica indisponível: %s", async text => {
+    ["350 ml Sprite Zero", "Sprite"],
+    ["350 ml Schweppes Citrus Zero", "Schweppes"],
+  ])("não usa heurística zero como nutrição exata de bebida de marca sem provider: %s", async (text, brand) => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
-
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      text,
-      occurredAt: "2026-08-02T16:00:00-03:00",
-      timeZone: "America/Sao_Paulo",
-    });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      quantity: 350,
-      unit: "ml",
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-      source: "heuristic",
-    }));
-    expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+    await expectBrandedIdentityClarification(text, brand);
   });
 
-
   it.each([
-    "Sprite Zero",
-    "Schweppes Tônica Zero",
-    "Schweppes Citrus Zero",
     "ZERO AÇÚCAR ÁGUA TÔNICA",
     "Refrigerante Diet",
     "Refrigerante Guaraná Jesus Zero",
     "Refrigerante de guaraná zero",
     "Soda de limão zero",
     "Soda italiana zero açúcar",
-  ])("reconhece núcleo positivo de bebida zero mesmo sem quantidade explícita: %s", async text => {
+  ])("reconhece núcleo positivo de bebida zero genérica mesmo sem quantidade explícita: %s", async text => {
     createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
 
     const { processMealInput } = await import("./nutritionEngine");
@@ -390,21 +377,17 @@ describe("nutritionEngine zero beverage fallback", () => {
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   });
 
-  it("propaga os valores corrigidos para item e total na resposta do WhatsApp", async () => {
+  it.each([
+    ["Sprite Zero", "Sprite"],
+    ["Schweppes Tônica Zero", "Schweppes"],
+    ["Schweppes Citrus Zero", "Schweppes"],
+  ])("exige identidade nutricional específica de bebida de marca mesmo sem quantidade explícita: %s", async (text, brand) => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+    await expectBrandedIdentityClarification(text, brand);
+  });
+
+  it("não produz resumo nutricional exato para Schweppes sem fonte específica", async () => {
     mockZeroNutritionExtraction("Schweppes Tônica Zero", "Schweppes");
-
-    const { processMealInput } = await import("./nutritionEngine");
-    const { buildWhatsAppMealReplyMessage } = await import("./modules/whatsapp/replyMessages");
-    const result = await processMealInput({
-      text: "350 ml Schweppes Tônica Zero",
-      occurredAt: "2026-08-02T16:00:00-03:00",
-      timeZone: "America/Sao_Paulo",
-    });
-    const reply = buildWhatsAppMealReplyMessage(result);
-
-    expect(reply).toContain("Schweppes Tônica Zero");
-    expect(reply).toContain("0 kcal | P 0 g | C 0 g | G 0 g");
-    expect(reply).toContain("*Total da refeição:*");
-    expect(reply).toContain("*0 kcal | P 0 g | C 0 g | G 0 g*");
+    await expectBrandedIdentityClarification("350 ml Schweppes Tônica Zero", "Schweppes");
   });
 });

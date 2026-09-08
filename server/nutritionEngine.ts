@@ -4,6 +4,12 @@ import {
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
 } from "./catalogMatching";
+import { getCatalogCache } from "./catalogRuntime";
+import {
+  extractCommercialVariant,
+  isPersistedProductIdentityCompatible,
+} from "./commercialProductIdentity";
+import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildCoffeeWithExplicitSugarItem,
   normalizeSweetenedCoffeeDraftItems,
@@ -16,11 +22,14 @@ import {
   applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
+  buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
+  isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
 import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
+import { buildMealSemanticContract } from "./mealSemanticContract";
 import {
   extractExplicitQuantities,
   extractExplicitQuantityFoodSegments,
@@ -28,18 +37,26 @@ import {
   getQuantityExpressionClarification,
   normalizeForMatching,
   normalizeLlmItem,
+  normalizeUnit,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
   BuildItemsOptions,
+  CanonicalMealProcessingResult,
+  CatalogFood,
   LlmItem,
   MealDraftItem,
+  MealItemResolutionMetadata,
   MealProcessingInput,
   MealProcessingResult,
+  MealSemanticAlternative,
+  MealSemanticClarificationCode,
+  MealSemanticContract,
 } from "./nutritionEngineTypes";
 
 export type {
   BuildItemsOptions,
+  CanonicalMealProcessingResult,
   CatalogFood,
   ExplicitQuantity,
   HabitSnapshot,
@@ -48,6 +65,8 @@ export type {
   MealDraftItem,
   MealProcessingInput,
   MealProcessingResult,
+  MealSemanticAlternative,
+  MealSemanticContract,
   ParsedFoodText,
 } from "./nutritionEngineTypes";
 
@@ -55,12 +74,18 @@ export { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
 export type MealInferenceErrorCode =
   | "food_component_quantity_required"
+  | "food_identity_clarification_required"
   | "meal_inference_unavailable";
 
 export type MealInferenceErrorContext = {
   component?: string;
   originalText?: string;
   acceptedUnits?: string[];
+  foodName?: string;
+  brand?: string | null;
+  clarificationReason?: MealSemanticClarificationCode;
+  alternatives?: MealSemanticAlternative[];
+  semanticContract?: MealSemanticContract;
 };
 
 export class MealInferenceError extends Error {
@@ -126,9 +151,35 @@ function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: strin
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
+function findExplicitBrandedVariantIdentity(item: LlmItem, sourceText?: string) {
+  const brand = item.brand?.trim();
+  const source = sourceText?.trim();
+  if (!brand || !source) return null;
+
+  const normalizedBrand = normalizeForMatching(brand).trim();
+  if (!normalizedBrand) return null;
+
+  const brandSegments = splitSourceFoodSegments(source)
+    .filter(segment => normalizeForMatching(segment).includes(` ${normalizedBrand} `));
+  if (brandSegments.length !== 1) return null;
+
+  const variant = extractCommercialVariant(brandSegments[0]);
+  if (!variant) return null;
+
+  return `${item.foodName} ${brand} ${variant}`.trim();
+}
+
+export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: string): LlmItem {
+  if (item.brand || !sourceText?.trim()) return item;
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
+  return sourceBrand ? { ...item, brand: sourceBrand } : item;
+}
+
 function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
   const normalizedFoodName = normalizeForMatching(item.foodName);
   const normalizedBrand = normalizeForMatching(item.brand ?? "").trim();
   const commercialIdentity = normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
@@ -136,6 +187,7 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
     : item.foodName;
 
   addCatalogCandidate(candidates, sourceFoodName);
+  addCatalogCandidate(candidates, explicitBrandedVariantIdentity);
   if (item.brand) {
     addCatalogCandidate(candidates, `${commercialIdentity} ${item.portionText}`);
     addCatalogCandidate(candidates, commercialIdentity);
@@ -157,6 +209,9 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
   const explicitSource = findSourceFoodSegmentForInferenceItem(item, sourceText);
   if (explicitSource) return explicitSource;
 
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
+  if (explicitBrandedVariantIdentity) return explicitBrandedVariantIdentity;
+
   const source = sourceText?.trim();
   if (!source) return item.foodName;
   const matchingSegments = splitSourceFoodSegments(source)
@@ -164,38 +219,276 @@ function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: strin
   return matchingSegments.length === 1 ? matchingSegments[0] : item.foodName;
 }
 
+function catalogMatchesExplicitBrand(item: LlmItem, catalog: CatalogFood) {
+  if (!item.brand) return true;
+  const requestedBrand = normalizeForMatching(item.brand).trim();
+  const candidateBrand = normalizeForMatching(catalog.brandName ?? "").trim();
+  return Boolean(requestedBrand && candidateBrand && requestedBrand === candidateBrand);
+}
+
+function catalogMatchesCommercialIdentity(
+  item: LlmItem,
+  catalog: CatalogFood,
+  semanticSource: string,
+) {
+  if (!catalogMatchesExplicitBrand(item, catalog)) return false;
+  if (!item.brand) return true;
+  return isPersistedProductIdentityCompatible({
+    foodName: semanticSource,
+    matchedProductName: catalog.name,
+    brandName: catalog.brandName ?? null,
+    servingLabel: catalog.servingLabel,
+    gramsPerServing: catalog.gramsPerServing,
+  });
+}
+
+function isCatalogFoodNameIdentityMatch(catalog: CatalogFood, semanticSource: string) {
+  const normalizedSource = normalizeForMatching(semanticSource).trim();
+  if (!normalizedSource) return false;
+
+  return [catalog.name, ...catalog.aliases].some(
+    candidate => normalizeForMatching(candidate).trim() === normalizedSource,
+  );
+}
+
+const ALTERNATIVE_IDENTITY_STOP_WORDS = new Set([
+  "com", "das", "de", "do", "dos", "em", "fatia", "fatias", "g", "grama", "gramas",
+  "kg", "l", "ml", "porcao", "porcoes", "unidade", "unidades",
+]);
+
+function significantIdentityTokens(value: string, brandName: string) {
+  const brandTokens = new Set(
+    normalizeForMatching(brandName).trim().split(/\s+/).filter(Boolean),
+  );
+  return normalizeForMatching(value)
+    .trim()
+    .split(/\s+/)
+    .map(token => token.replace(/[^a-z0-9]/g, ""))
+    .filter(token =>
+      token.length >= 3
+      && !brandTokens.has(token)
+      && !ALTERNATIVE_IDENTITY_STOP_WORDS.has(token)
+      && !/^\d+$/.test(token)
+    );
+}
+
+function toSemanticAlternative(food: CatalogFood): MealSemanticAlternative {
+  return {
+    name: food.name,
+    brand: food.brandName?.trim() || null,
+    productVariant: food.productVariant ?? extractCommercialVariant(food.name),
+    servingLabel: food.servingLabel,
+    gramsPerServing: food.gramsPerServing,
+  };
+}
+
+function findBrandedCatalogAlternatives(
+  semanticSource: string,
+  brandName: string | null | undefined,
+) {
+  const brand = brandName?.trim();
+  if (!brand) return [];
+  const normalizedBrand = normalizeForMatching(brand).trim();
+  const requestTokens = significantIdentityTokens(semanticSource, brand);
+  const requestedVariant = extractCommercialVariant(semanticSource);
+  const seen = new Set<string>();
+
+  return (getCatalogCache() as CatalogFood[])
+    .filter(food => {
+      if (!food.isBrandedProduct && !food.brandName) return false;
+      if (normalizeForMatching(food.brandName ?? "").trim() !== normalizedBrand) return false;
+      const searchable = normalizeForMatching([
+        food.name,
+        ...food.aliases,
+        ...(food.variants ?? []),
+      ].join(" "));
+      if (!requestTokens.every(token => searchable.includes(token))) return false;
+      const candidateVariant = food.productVariant ?? extractCommercialVariant(food.name);
+      if (requestedVariant && candidateVariant && candidateVariant !== requestedVariant) return false;
+      return true;
+    })
+    .map(toSemanticAlternative)
+    .filter(candidate => {
+      const key = normalizeForMatching(`${candidate.name}|${candidate.servingLabel}`).trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
   const candidates = buildCatalogSearchCandidates(item, options.sourceText);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
-  let genericFallback: ReturnType<typeof findCatalogFood>;
+  const alternatives = item.brand
+    ? findBrandedCatalogAlternatives(semanticSource, item.brand)
+    : [];
 
   for (const candidate of candidates) {
     const catalog = findCatalogFood(candidate) ?? findTacoFood(candidate) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
-    return catalog;
+    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource)) continue;
+    return { catalog, isExactMatch: true, alternatives, semanticSource };
   }
 
   for (const [index, candidate] of candidates.entries()) {
+    if (item.brand && index > 0) break;
     const catalog = await findCatalogFoodSemantic(candidate, {
       searchSpecificProduct: Boolean(item.brand) && index === 0,
       skipNutritionSearch: index > 0,
     }) ?? undefined;
     if (!catalog || !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)) continue;
-    if (item.brand && !catalog.brandName) {
-      genericFallback ??= catalog;
-      continue;
-    }
-    return catalog;
+    if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource)) continue;
+    return {
+      catalog,
+      isExactMatch: isCatalogFoodNameIdentityMatch(catalog, semanticSource),
+      alternatives,
+      semanticSource,
+    };
   }
 
-  return genericFallback;
+  return { catalog: undefined, isExactMatch: false, alternatives, semanticSource };
 }
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
+
+function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
+  if (!food?.isBrandedProduct) return false;
+  if (!food.researchIdentityKey) return true;
+
+  return isResearchVerifiedCatalogFood(food);
+}
+
+function catalogResolution(food: CatalogFood): MealItemResolutionMetadata {
+  const researched = isResearchVerifiedCatalogFood(food);
+  return {
+    productVariant: food.productVariant ?? extractCommercialVariant(food.name),
+    nutritionOrigin: researched ? "web_research" : "catalog",
+    nutritionVerified: food.isBrandedProduct ? isVerifiedBrandedCatalogFood(food) : true,
+    sourceUrls: [...(food.sourceUrls ?? [])],
+    sourceEvidence: food.sourceEvidence ?? null,
+    sourceVerifiedAt: food.sourceVerifiedAt ?? null,
+    sourceConfidence: food.sourceConfidence ?? null,
+    ambiguity: null,
+  };
+}
+
+function unresolvedBrandedResolution(input: {
+  semanticSource: string;
+  alternatives: MealSemanticAlternative[];
+}): MealItemResolutionMetadata {
+  const requestedVariant = extractCommercialVariant(input.semanticSource);
+  return {
+    productVariant: requestedVariant,
+    nutritionOrigin: "heuristic",
+    nutritionVerified: false,
+    sourceUrls: [],
+    sourceEvidence: null,
+    sourceVerifiedAt: null,
+    sourceConfidence: 0,
+    ambiguity: {
+      reason: requestedVariant
+        ? "commercial_identity_unverified"
+        : "brand_variant_unresolved",
+      alternatives: [...input.alternatives],
+    },
+  };
+}
+
+type ParsedNutritionLabelEvidence = {
+  servingQuantity: number;
+  servingUnit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  raw: string;
+};
+
+const NUTRITION_LABEL_EVIDENCE_PATTERN = /NUTRITION_LABEL_EVIDENCE:\s*serving=(\d+(?:[.,]\d+)?)\s*([^;]+?)\s*;\s*kcal=(\d+(?:[.,]\d+)?)\s*;\s*protein_g=(\d+(?:[.,]\d+)?)\s*;\s*carbs_g=(\d+(?:[.,]\d+)?)\s*;\s*fat_g=(\d+(?:[.,]\d+)?)(?=\s*(?:[.;]|$))/iu;
+
+function parseEvidenceDecimal(value: string) {
+  return Number(value.replace(",", "."));
+}
+
+function parseNutritionLabelEvidence(value?: string | null): ParsedNutritionLabelEvidence | null {
+  const match = value?.match(NUTRITION_LABEL_EVIDENCE_PATTERN);
+  if (!match) return null;
+
+  const servingQuantity = parseEvidenceDecimal(match[1]);
+  const calories = parseEvidenceDecimal(match[3]);
+  const protein = parseEvidenceDecimal(match[4]);
+  const carbs = parseEvidenceDecimal(match[5]);
+  const fat = parseEvidenceDecimal(match[6]);
+  const servingUnit = match[2].trim();
+  const numericValues = [servingQuantity, calories, protein, carbs, fat];
+
+  if (!servingUnit || numericValues.some(number => !Number.isFinite(number) || number < 0)) return null;
+  if (servingQuantity <= 0) return null;
+
+  return {
+    servingQuantity,
+    servingUnit,
+    calories,
+    protein,
+    carbs,
+    fat,
+    raw: match[0].trim(),
+  };
+}
+
+function nutritionValueMatches(actual: number, expected: number, kind: "calories" | "macro") {
+  if (!Number.isFinite(actual) || !Number.isFinite(expected)) return false;
+  const absoluteTolerance = kind === "calories" ? 1 : 0.15;
+  const relativeTolerance = Math.abs(expected) * 0.02;
+  return Math.abs(actual - expected) <= Math.max(absoluteTolerance, relativeTolerance);
+}
+
+function resolveNutritionLabelScale(item: LlmItem, evidence: ParsedNutritionLabelEvidence) {
+  const itemQuantity = Number(item.quantity);
+  const itemUnit = normalizeUnit(item.unit ?? "");
+  const servingUnit = normalizeUnit(evidence.servingUnit);
+
+  if (
+    Number.isFinite(itemQuantity)
+    && itemQuantity > 0
+    && itemUnit
+    && servingUnit
+    && itemUnit === servingUnit
+  ) {
+    return itemQuantity / evidence.servingQuantity;
+  }
+
+  if (
+    servingUnit === "g"
+    && Number.isFinite(item.estimatedGrams)
+    && item.estimatedGrams > 0
+  ) {
+    return item.estimatedGrams / evidence.servingQuantity;
+  }
+
+  return null;
+}
+
+function verifyNutritionLabelEvidence(item: LlmItem, evidenceText?: string | null) {
+  const evidence = parseNutritionLabelEvidence(evidenceText);
+  if (!evidence) return null;
+
+  const scale = resolveNutritionLabelScale(item, evidence);
+  if (!scale || !Number.isFinite(scale) || scale <= 0) return null;
+
+  const expectedCalories = evidence.calories * scale;
+  const expectedProtein = evidence.protein * scale;
+  const expectedCarbs = evidence.carbs * scale;
+  const expectedFat = evidence.fat * scale;
+
+  if (!nutritionValueMatches(item.estimatedCalories, expectedCalories, "calories")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.protein, expectedProtein, "macro")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.carbs, expectedCarbs, "macro")) return null;
+  if (!nutritionValueMatches(item.estimatedMacros.fat, expectedFat, "macro")) return null;
+
+  return evidence;
+}
 
 async function buildItemsFromInference(
   items: LlmItem[],
@@ -206,23 +499,100 @@ async function buildItemsFromInference(
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
-    const catalog = await findMostSpecificCatalogForInferenceItem(normalizedItem, options);
+    const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
+    const { catalog, isExactMatch, alternatives, semanticSource } =
+      await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+    const verifiedNutritionLabelEvidence = options.preferInferredNutrition
+      ? verifyNutritionLabelEvidence(resolvedItem, options.nutritionLabelEvidenceText)
+      : null;
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
-    if (catalog && !options.preferInferredNutrition) {
-      results.push(buildItemFromCatalog(catalog, normalizedItem));
-    } else if (!hasUsableNutrition(normalizedItem)) {
+    const canUseCatalog = Boolean(
+      catalog
+      && (isExactMatch || resolvedItem.brand || hasUsableNutrition(resolvedItem))
+      && (
+        !options.preferInferredNutrition
+        || isVerifiedBrandedCatalogFood(catalog)
+        || (!catalog.isBrandedProduct && !verifiedNutritionLabelEvidence)
+      )
+    );
+    if (canUseCatalog && catalog) {
+      results.push({
+        ...buildItemFromCatalog(catalog, resolvedItem),
+        resolution: catalogResolution(catalog),
+      });
+      continue;
+    }
+
+    const requestedVariant = extractCommercialVariant(semanticSource);
+    const canUseVerifiedNutritionLabel = Boolean(
+      resolvedItem.brand
+      && options.preferInferredNutrition
+      && verifiedNutritionLabelEvidence
+      && requestedVariant
+    );
+
+    if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
+      results.push({
+        ...buildUnresolvedBrandedNutritionItem(resolvedItem),
+        resolution: unresolvedBrandedResolution({ semanticSource, alternatives }),
+      });
+      continue;
+    }
+
+    if (canUseVerifiedNutritionLabel && verifiedNutritionLabelEvidence) {
+      results.push({
+        ...buildHybridItem(resolvedItem),
+        resolution: {
+          productVariant: requestedVariant,
+          nutritionOrigin: "nutrition_label",
+          nutritionVerified: true,
+          sourceUrls: [],
+          sourceEvidence: verifiedNutritionLabelEvidence.raw,
+          sourceVerifiedAt: null,
+          sourceConfidence: resolvedItem.confidence,
+          ambiguity: null,
+        },
+      });
+      continue;
+    }
+
+    if (!hasUsableNutrition(resolvedItem)) {
       const fallbackItem = sourceFoodName
-        ? { ...normalizedItem, foodName: sourceFoodName }
-        : normalizedItem;
+        ? { ...resolvedItem, foodName: sourceFoodName }
+        : resolvedItem;
       const result = buildEstimatedNutritionFallbackItem(fallbackItem, catalog);
       if (!catalog && isGenericNutritionFallbackItem(result)) {
         observeFallback?.("generic_nutrition_fallback");
       }
-      results.push(result);
+      results.push({
+        ...result,
+        resolution: {
+          productVariant: extractCommercialVariant(fallbackItem.foodName),
+          nutritionOrigin: "heuristic",
+          nutritionVerified: false,
+          sourceUrls: [],
+          sourceEvidence: null,
+          sourceVerifiedAt: null,
+          sourceConfidence: result.confidence,
+          ambiguity: null,
+        },
+      });
     } else {
-      results.push(buildHybridItem(normalizedItem));
+      results.push({
+        ...buildHybridItem(resolvedItem),
+        resolution: {
+          productVariant: extractCommercialVariant(resolvedItem.foodName),
+          nutritionOrigin: "ai_estimate",
+          nutritionVerified: false,
+          sourceUrls: [],
+          sourceEvidence: null,
+          sourceVerifiedAt: null,
+          sourceConfidence: resolvedItem.confidence,
+          ambiguity: null,
+        },
+      });
     }
   }
   return results;
@@ -342,21 +712,6 @@ function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: str
   });
 }
 
-function reasoningMentionsNutritionLabel(reasoning?: string) {
-  if (!reasoning) return false;
-
-  const normalized = reasoning
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  const nutritionLabel = "tabela nutricional|informacao nutricional|informacoes nutricionais|rotulo nutricional|nutrition label";
-  if (new RegExp(`\\b(sem|nao|não|ausente|indisponivel|ilegivel|ilegível)\\b[^.]{0,60}\\b(${nutritionLabel})\\b`).test(normalized)) return false;
-  if (new RegExp(`\\b(${nutritionLabel})\\b[^.]{0,60}\\b(nao|não|ausente|indisponivel|ilegivel|ilegível)\\b`).test(normalized)) return false;
-
-  return new RegExp(`\\b(${nutritionLabel})\\b`, "i").test(normalized);
-}
-
 function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
   return Boolean(sourceText && extraction && extraction.items.length === 0);
 }
@@ -375,7 +730,7 @@ function createFallbackReasonCollector() {
   };
 }
 
-export async function processMealInput(input: MealProcessingInput): Promise<MealProcessingResult> {
+export async function processMealInput(input: MealProcessingInput): Promise<CanonicalMealProcessingResult> {
   const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
   const quantityClarification = getQuantityExpressionClarification(sourceText);
   if (quantityClarification) throw new MealInferenceError(quantityClarification);
@@ -436,10 +791,8 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
       rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
-          preferInferredNutrition: Boolean(
-            input.imageUrl
-            && (extractExplicitQuantities(sourceText).length || reasoningMentionsNutritionLabel(confirmedExtraction.reasoning))
-          ),
+          preferInferredNutrition: Boolean(input.imageUrl),
+          nutritionLabelEvidenceText: input.imageUrl ? confirmedExtraction.reasoning : null,
           sourceText,
         },
         reason => fallbackReasons.observe(reason),
@@ -468,6 +821,28 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
         : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
       : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
+  const semanticContract = buildMealSemanticContract({
+    processingInput: input,
+    sourceText,
+    items,
+  });
+  if (semanticContract.needsClarification) {
+    const clarification = semanticContract.clarifications[0];
+    const semanticItem = semanticContract.items[clarification.itemIndex];
+    fallbackReasons.flush();
+    throw new MealInferenceError(clarification.message, {
+      code: "food_identity_clarification_required",
+      context: {
+        originalText: sourceText,
+        foodName: semanticItem?.commercialName,
+        brand: semanticItem?.brand ?? null,
+        clarificationReason: clarification.code,
+        alternatives: [...clarification.alternatives],
+        semanticContract,
+      },
+    });
+  }
+
   fallbackReasons.flush();
   return {
     detectedMealLabel,
@@ -480,6 +855,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Meal
     reasoning,
     items,
     totals,
+    semanticContract,
   };
 }
 

@@ -13,7 +13,6 @@ vi.mock("./_core/ai/providerResolver", () => ({
   }),
 }));
 
-
 vi.mock("./catalogSemanticSearch", () => ({
   findCatalogFoodSemantic: vi.fn(async () => null),
 }));
@@ -59,20 +58,36 @@ describe("nutritionEngine branded catalog selection", () => {
     }));
   });
 
-  it("usa generico como aproximacao quando a marca nao existe no catalogo", async () => {
+  it("nao usa generico como aproximacao quando a marca nao existe no catalogo", async () => {
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      text: "iogurte Danone natural 170g",
-    });
 
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      canonicalName: "Iogurte Natural Integral",
-      brand: "Danone",
-      portionText: "170 g",
-      source: "heuristic",
-    }));
-    expect(result.items[0].confidence).toBeLessThanOrEqual(0.62);
+    await expect(processMealInput({
+      text: "iogurte Danone natural 170g",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        brand: "Danone",
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              brand: "Danone",
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  verified: false,
+                  value: expect.objectContaining({
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fat: 0,
+                  }),
+                }),
+              }),
+            }),
+          ],
+        }),
+      }),
+    });
   });
 
   it("mantem fluxo generico para alimento sem marca", async () => {
@@ -90,7 +105,7 @@ describe("nutritionEngine branded catalog selection", () => {
     }));
   });
 
-  it("propaga marca nova extraida pela IA em campo estruturado", async () => {
+  it("propaga marca nova extraida pela IA sem aceitar macros nao comprovados", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_structured_brand_growth",
       outputText: JSON.stringify({
@@ -117,22 +132,31 @@ describe("nutritionEngine branded catalog selection", () => {
     });
 
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      text: "18g whey proten doce de leite Growth",
-    });
 
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Whey Proten Doce de Leite Growth",
-      canonicalName: "Whey Proten Doce de Leite Growth",
-      brand: "Growth",
-      quantity: 18,
-      unit: "g",
-      portionText: "18 g",
-      estimatedGrams: 18,
-      calories: 72,
-      source: "hybrid",
-    }));
+    await expect(processMealInput({
+      text: "18g whey proten doce de leite Growth",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: "Whey Proten Doce de Leite Growth",
+        brand: "Growth",
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              commercialName: "Whey Proten Doce de Leite Growth",
+              brand: "Growth",
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  verified: false,
+                  value: expect.objectContaining({ calories: 0 }),
+                }),
+              }),
+            }),
+          ],
+        }),
+      }),
+    });
   });
 
   it("nao inventa marca quando a IA retorna brand nulo", async () => {
@@ -177,21 +201,38 @@ describe("nutritionEngine branded catalog selection", () => {
     }));
   });
 
-  it("preserva marca conhecida no fallback heuristico quando o provider esta indisponivel", async () => {
+  it("preserva marca conhecida no fallback heuristico sem atribuir macros genericos", async () => {
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({
-      text: "18g whey proten doce de leite Growth",
-    });
 
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Whey Proten Doce de Leite Growth",
-      brand: "Growth",
-      quantity: 18,
-      unit: "g",
-      portionText: "18 g",
-      estimatedGrams: 18,
-      source: "heuristic",
-    }));
+    await expect(processMealInput({
+      text: "18g whey proten doce de leite Growth",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: "Whey Proten Doce de Leite Growth",
+        brand: "Growth",
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              brand: "Growth",
+              estimatedGrams: 18,
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  origin: "heuristic",
+                  verified: false,
+                  value: expect.objectContaining({
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fat: 0,
+                  }),
+                }),
+              }),
+            }),
+          ],
+        }),
+      }),
+    });
   });
 });

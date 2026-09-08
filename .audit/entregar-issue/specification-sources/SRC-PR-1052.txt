@@ -1,0 +1,64 @@
+## Resumo
+
+Implementa a entrega integrada da issue #1051 para preservar identidade comercial de alimentos, resolver marca/variante com evidência específica e manter o mesmo contrato semântico entre texto, transcrição de voz e imagem.
+
+Part of #1051
+
+> A issue continua incremental. Este PR cobre identidade comercial, pesquisa/persistência específica, contrato semântico multimodal, clarificação estruturada e bloqueio de fallback genérico para marca/variante explícita. Memória pessoal completa, feedback/review queue, promoção controlada de aprendizado global e métricas completas permanecem como etapas posteriores da issue.
+
+## Principais mudanças
+
+- consolida contrato semântico intermediário para texto, áudio/transcrição e imagem, com origem/evidência por campo, confiança, alternativas e `needsClarification` estruturado;
+- preserva marca, produto, variante, porção, fonte, evidência e confiança durante a resolução;
+- recupera variante explícita do contexto multimodal quando a extração simplificada perde o qualificador comercial;
+- exige esclarecimento quando `Panco` sem variante possui alternativas plausíveis, em vez de escolher arbitrariamente;
+- impede macros genéricos ou heurísticos quando há marca/variante explícita sem evidência exata;
+- exige compatibilidade de marca, variante e porção para aceitar catálogo, referência persistida ou pesquisa específica;
+- encaminha texto, transcrição de voz, imagem, registro confirmado e adição de alimentos ao resolvedor compartilhado;
+- preserva o nome completo da variante no item final e mantém referências independentes por produto/variante;
+- mantém fallback genérico apenas para alimentos realmente genéricos, sem identidade comercial explícita;
+- documenta a política fail-closed e o contrato semântico no recorte do motor nutricional.
+
+## Regressões adversariais cobertas
+
+- `Panco` genérico com alternativas Premium/Integral -> clarificação estruturada e zero macros até seleção;
+- `Panco Premium` exato -> aceita apenas fonte compatível;
+- imagem `Panco Premium, 2 fatias` cuja extração perde `Premium` -> recupera a variante da origem e resolve o produto correto;
+- texto, áudio/transcrição e imagem -> paridade de identidade no contrato semântico;
+- provider/pesquisa indisponível para produto de marca -> fail-closed, sem macro genérico apresentado como exato;
+- fonte de outra marca, variante incompatível ou sem evidência numérica -> rejeitada;
+- registro confirmado e adição multi-item -> nenhuma mutação quando a identidade de marca permanece ambígua;
+- bebidas zero genéricas continuam usando fallback seguro; bebidas zero de marca reconhecida exigem referência específica.
+
+## Validação final
+
+Material head certificado: `7d1fccfe57c2a9b1350d92d6009a33a67138fa4b`.
+
+No exact head acima:
+
+- Agent-first gate: sucesso;
+- TypeScript: sucesso;
+- suíte completa Vitest: sucesso;
+- Architecture check: sucesso;
+- Documentation check: sucesso;
+- Build: sucesso;
+- Agent check: sucesso;
+- CI gate docs check: sucesso;
+- Merge preview integration: sucesso;
+- Onboarding activation TiDB gate: sucesso;
+- WhatsApp context TiDB gate: sucesso;
+- Billing persistence TiDB gate: sucesso;
+- Professional persistence TiDB gate: sucesso;
+- AI provider live smoke: skipped/não aplicável neste run.
+
+## Auditoria anterior
+
+Os bloqueios A-002 e A-003 da rejeição independente `audit-rejection:b7191cb6-64b0-477c-a853-3db726a6d787` permanecem fechados no material head atual.
+
+A rejeição `audit-rejection:9b7d348c-680c-4bbd-99a5-8b30306be4af` por handoff/freeze stale foi encerrada com post-write-refreeze.
+
+Os bloqueios A-001 e A-002 da rejeição independente `audit-rejection:47bc978b-bbc5-43b4-8f8e-4188eab97d7b` foram tratados no material head atual: a comprovação numérica agora usa exclusivamente evidência derivada da fonte, e o contrato multimodal preserva procedência por campo em vez de colapsar toda a entrada para uma origem comum.
+
+## Merge
+
+Não executar merge automático. A PR permanece aberta contra `develop` e deve seguir para auditoria independente do handoff terminal.

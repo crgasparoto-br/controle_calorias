@@ -74,6 +74,43 @@ describe("issue #899 orchestration regressions", () => {
     expect(result.result.data).toEqual(expect.objectContaining({ mealId: 89901 }));
   });
 
+  it("usa o gate contável assíncrono antes de solicitar peso", async () => {
+    const prepareCountableFoodRegistration = vi.fn(async () => ({
+      kind: "clarification" as const,
+      result: {
+        handled: true,
+        action: "clarification_needed",
+        reply: "Informe o peso do item.",
+        eventType: "whatsapp.food_clarification.requested",
+        detail: "fixture",
+        data: {},
+      } as any,
+    }));
+    const processMeal = vi.fn(async (input: { text?: string | null }) => processed(input.text ?? ""));
+    const service = createConfirmedMealRegistrationService({
+      prepareCountableFoodRegistration,
+      processMeal,
+      getHabits: vi.fn(async () => []),
+    });
+
+    const result = await service({
+      userId: 899,
+      registrationText: "2 fatias de pão de forma Panco",
+      originalText: "2 fatias de pão de forma Panco",
+      occurredAt: new Date("2026-07-24T10:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result.status).toBe("clarification_requested");
+    expect(prepareCountableFoodRegistration).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 899,
+      text: "2 fatias de pão de forma Panco",
+      originalText: "2 fatias de pão de forma Panco",
+      userTimezone: "America/Sao_Paulo",
+    }));
+    expect(processMeal).not.toHaveBeenCalled();
+  });
+
   it("distingue falta de dado, falha recuperável e falha após mutação possível", async () => {
     const detailsService = createConfirmedMealRegistrationService({
       processMeal: vi.fn(async () => {

@@ -32,6 +32,10 @@ function parseAliases(value: string | null) {
   }
 }
 
+function parseSourceUrls(value: string | null) {
+  return parseAliases(value);
+}
+
 export function getCatalogCache() {
   return catalogCache;
 }
@@ -65,6 +69,13 @@ export async function refreshCatalogCache() {
       isVegetable: Boolean(row.isVegetable),
       isUltraProcessed: Boolean(row.isUltraProcessed),
       brandName: row.brandName,
+      productVariant: row.productVariant,
+      variants: row.productVariant ? [row.productVariant] : [],
+      researchIdentityKey: row.researchIdentityKey,
+      sourceUrls: parseSourceUrls(row.sourceUrls),
+      sourceEvidence: row.sourceEvidence,
+      sourceVerifiedAt: row.sourceVerifiedAt,
+      sourceConfidence: row.sourceConfidence,
       isBrandedProduct: row.foodType === "branded",
     }));
 

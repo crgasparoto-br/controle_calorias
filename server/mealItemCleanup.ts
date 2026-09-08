@@ -1,4 +1,5 @@
 import { calculateMealTotals } from "../shared/mealTotals";
+import { extractCommercialVariant } from "./commercialProductIdentity";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
@@ -55,6 +56,34 @@ function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallb
   }
 }
 
+function failClosedBrandedHeuristic(item: MealDraftItem): MealDraftItem {
+  if (item.source !== "heuristic" || !item.brand?.trim()) return item;
+  const productVariant = extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  return {
+    ...item,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: Math.min(item.confidence, 0.3),
+    resolution: {
+      productVariant,
+      nutritionOrigin: "heuristic",
+      nutritionVerified: false,
+      sourceUrls: [],
+      sourceEvidence: null,
+      sourceVerifiedAt: null,
+      sourceConfidence: 0,
+      ambiguity: {
+        reason: productVariant
+          ? "commercial_identity_unverified"
+          : "brand_variant_unresolved",
+        alternatives: [],
+      },
+    },
+  };
+}
+
 export function fallbackFromText(sourceText: string, observer?: NutritionFallbackObserver): MealDraftItem[] {
   const parts = coalesceTrailingQuantityParts(splitFoodTextSegments(sourceText))
     .filter(value => value && !isConversationalOnlyText(value));
@@ -64,7 +93,9 @@ export function fallbackFromText(sourceText: string, observer?: NutritionFallbac
   }
 
   return parts.map(value => {
-    const item = buildHeuristicItem(normalizeKnownFoodText(value));
+    const item = failClosedBrandedHeuristic(
+      buildHeuristicItem(normalizeKnownFoodText(value)),
+    );
     observeHeuristicFallback(item, observer);
     return item;
   });

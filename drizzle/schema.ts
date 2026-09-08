@@ -159,6 +159,7 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   aliases: text("aliases"),
   brandId: int("brandId").references(() => foodBrands.id, { onDelete: "set null" }),
   brandName: varchar("brandName", { length: 255 }),
+  productVariant: varchar("productVariant", { length: 255 }),
   foodType: mysqlEnum("foodType", ["generic", "branded"]).default("generic").notNull(),
   barcode: varchar("barcode", { length: 64 }),
   dataSource: varchar("dataSource", { length: 80 }).default("manual").notNull(),
@@ -181,6 +182,11 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   ]),
   classificationSource: varchar("classificationSource", { length: 40 }),
   classificationConfidence: double("classificationConfidence"),
+  researchIdentityKey: varchar("researchIdentityKey", { length: 255 }),
+  sourceUrls: text("sourceUrls"),
+  sourceEvidence: text("sourceEvidence"),
+  sourceVerifiedAt: timestamp("sourceVerifiedAt"),
+  sourceConfidence: double("sourceConfidence"),
   isUserCreated: int("isUserCreated").default(0).notNull(),
   createdByUserId: int("createdByUserId").references(() => users.id, { onDelete: "set null" }),
   status: mysqlEnum("status", ["active", "deprecated"]).default("active").notNull(),
@@ -192,6 +198,7 @@ export const foodCatalog = mysqlTable("foodCatalog", {
   foodTypeIdx: index("foodCatalog_foodType_idx").on(table.foodType),
   statusIdx: index("foodCatalog_status_idx").on(table.status),
   barcodeUnique: uniqueIndex("foodCatalog_barcode_unique").on(table.barcode),
+  researchIdentityUnique: uniqueIndex("foodCatalog_research_identity_unique").on(table.researchIdentityKey),
 }));
 
 export const foodFavorites = mysqlTable("foodFavorites", {

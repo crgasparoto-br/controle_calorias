@@ -1,20 +1,28 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "rejection_id": "audit-rejection:ae5a0adf-a1a0-43c2-9c62-0ba88cafec17",
-  "head_sha": "a1d2625ae3196a3d79531f54da06994a9960e218",
-  "mode": "independent",
   "status": "rejected",
+  "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
+  "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
+  "identity": {
+    "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
+    "material_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1051,
+    "pull_request_number": 1052
+  },
   "findings": [
     {
-      "id": "A-002",
-      "title": "Item normativo desaparece da closure critica",
+      "id": "AUD-1052-HANDOFF-STALE-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "remediation_mode": "systemic-remediation",
-      "category": "delivery-not-saturated",
-      "reason": "control-propagation-gap"
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-handoff-identity",
+      "summary": "The terminal handoff certifies an ancestral material head even though later material commits moved the PR head.",
+      "reason": "handoff-stale",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true
     }
   ],
   "recommendations": []

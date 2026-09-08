@@ -64,6 +64,51 @@ function brandedBeverage(overrides: Partial<CatalogFood> & Pick<CatalogFood, "sl
   };
 }
 
+async function expectBrandedIdentityClarification(input: {
+  foodName: string;
+  brand: string;
+  expectedName: string;
+  estimatedCalories?: number;
+  estimatedMacros?: { protein: number; carbs: number; fat: number };
+}) {
+  createTextResponseMock.mockResolvedValue(visionResponse([{
+    foodName: input.foodName,
+    brand: input.brand,
+    ...(input.estimatedCalories === undefined ? {} : { estimatedCalories: input.estimatedCalories }),
+    ...(input.estimatedMacros ? { estimatedMacros: input.estimatedMacros } : {}),
+  }]));
+
+  const { processMealInput } = await import("./nutritionEngine");
+  await expect(processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" }))
+    .rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: input.expectedName,
+        brand: input.brand,
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          items: [
+            expect.objectContaining({
+              commercialName: input.expectedName,
+              brand: input.brand,
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  verified: false,
+                  value: expect.objectContaining({
+                    calories: 0,
+                    protein: 0,
+                    carbs: 0,
+                    fat: 0,
+                  }),
+                }),
+              }),
+            }),
+          ],
+        }),
+      }),
+    });
+}
+
 describe("issue #987 — identidade comercial no MEAL_VISION", () => {
   beforeEach(() => {
     catalogFixtures = [];
@@ -102,35 +147,24 @@ describe("issue #987 — identidade comercial no MEAL_VISION", () => {
     ["Cerveja Original", "Heineken", "Cerveja Original Heineken"],
     ["Cerveja Original", "Antarctica", "Cerveja Original Antarctica"],
     ["Cerveja Weissbier", "Paulaner", "Cerveja Weissbier Paulaner"],
-  ])("preserva produto e variante visíveis: %s / %s", async (foodName, brand, expectedName) => {
-    createTextResponseMock.mockResolvedValue(visionResponse([{
+  ])("preserva produto e variante visíveis sem aceitar macros não comprovados: %s / %s", async (foodName, brand, expectedName) => {
+    await expectBrandedIdentityClarification({
       foodName,
       brand,
+      expectedName,
       estimatedCalories: 130,
       estimatedMacros: { protein: 1, carbs: 10, fat: 0 },
-    }]));
-
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
-
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: expectedName,
-      brand,
-    }));
+    });
   });
 
-  it("não duplica a marca quando ela também veio incorporada em foodName", async () => {
-    createTextResponseMock.mockResolvedValue(visionResponse([{
+  it("não duplica a marca na identidade pendente quando ela também veio incorporada em foodName", async () => {
+    await expectBrandedIdentityClarification({
       foodName: "Cerveja Stella Artois",
       brand: "Stella Artois",
+      expectedName: "Cerveja Stella Artois",
       estimatedCalories: 135,
       estimatedMacros: { protein: 1, carbs: 10, fat: 0 },
-    }]));
-
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
-
-    expect(result.items[0].foodName).toBe("Cerveja Stella Artois");
+    });
   });
 
   it("tenta NUTRITION_SEARCH específico uma vez antes do fallback local", async () => {
@@ -162,28 +196,16 @@ describe("issue #987 — identidade comercial no MEAL_VISION", () => {
     }));
   });
 
-  it("preserva identidade e marca origem heurística quando nenhuma fonte é confiável", async () => {
-    createTextResponseMock.mockResolvedValue(visionResponse([{
+  it("preserva identidade e marca em pendência quando nenhuma fonte é confiável", async () => {
+    await expectBrandedIdentityClarification({
       foodName: "Bebida Light",
       brand: "Marca Inédita",
-    }]));
+      expectedName: "Bebida Light Marca Inédita",
+    });
 
-    const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
-
-    expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: "Bebida Light Marca Inédita",
-      brand: "Marca Inédita",
-      source: "heuristic",
-      confidence: expect.any(Number),
-    }));
-    expect(result.items[0].confidence).toBeLessThanOrEqual(0.62);
     expect(findCatalogFoodSemanticMock.mock.calls.filter(([, options]) => (
       (options as { skipNutritionSearch?: boolean }).skipNutritionSearch === false
     ))).toHaveLength(1);
-    expect(findCatalogFoodSemanticMock.mock.calls.slice(1).every(([, options]) => (
-      (options as { skipNutritionSearch?: boolean }).skipNutritionSearch === true
-    ))).toBe(true);
   });
 
   it("não inventa marca para rótulo visualmente ambíguo", async () => {

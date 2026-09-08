@@ -9,8 +9,7 @@ import {
   buildWhatsAppMealReplyMessage,
 } from "./replyMessages";
 import type { WhatsappIntentResult } from "./intent/types";
-import { prepareCountableFoodRegistration } from "../../countableFoodQuantity";
-import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
+import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -26,6 +25,7 @@ type ConfirmedMealRegistrationDependencies = {
   confirmMeal: typeof dbRuntime.confirmPendingMeal;
   consolidateMeal: typeof consolidationRuntime.consolidateWhatsAppMealAfterSave;
   getGoalProgress: typeof goalProgressRuntime.getWhatsAppMealGoalProgress;
+  prepareCountableFoodRegistration: typeof prepareWhatsappCountableFoodRegistration;
 };
 
 const defaultDependencies: ConfirmedMealRegistrationDependencies = {
@@ -38,6 +38,7 @@ const defaultDependencies: ConfirmedMealRegistrationDependencies = {
     consolidationRuntime.consolidateWhatsAppMealAfterSave(deps, meal, timeZone),
   getGoalProgress: (userId, occurredAt, timeZone) =>
     goalProgressRuntime.getWhatsAppMealGoalProgress(userId, occurredAt, timeZone),
+  prepareCountableFoodRegistration: input => prepareWhatsappCountableFoodRegistration(input),
 };
 
 function safeClarificationPrompt(error: unknown) {
@@ -50,8 +51,6 @@ function safeClarificationPrompt(error: unknown) {
   return "Não consegui interpretar todos os dados da refeição. Informe somente o detalhe que ficou faltando, como quantidade, peso, volume ou marca.";
 }
 
-
-export const prepareCountableRegistration = prepareCountableFoodRegistration;
 
 export function createConfirmedMealRegistrationService(
   overrides: Partial<ConfirmedMealRegistrationDependencies> = {},
@@ -72,25 +71,18 @@ export function createConfirmedMealRegistrationService(
     try {
       let registrationText = input.registrationText;
       if (!input.skipCountablePreflight) {
-        const prepared = prepareCountableRegistration(input.registrationText);
-        registrationText = prepared.registrationText;
-        const firstPending = prepared.pendingItems[0];
-        if (firstPending) {
-          const clarification = await requestWhatsappConfirmedTextMealQuantityClarification({
-            userId: input.userId,
-            foodName: firstPending.foodName,
-            originalText: input.originalText,
-            registrationSegments: prepared.registrationSegments,
-            pendingItems: prepared.pendingItems,
-            currentPendingIndex: 0,
-            occurredAt: input.occurredAt,
-            receivedAt: new Date(),
-            userTimezone: input.userTimezone,
-            messageId: input.inboundMessageId,
-            instructionText: `Para registrar ${firstPending.segment} sem assumir 100 g, informe somente o peso ou volume correspondente, por exemplo 20 g.`,
-          });
-          return { status: "clarification_requested", result: clarification };
+        const prepared = await deps.prepareCountableFoodRegistration({
+          userId: input.userId,
+          text: input.registrationText,
+          originalText: input.originalText,
+          inboundMessageId: input.inboundMessageId,
+          receivedAt: input.occurredAt,
+          userTimezone: input.userTimezone,
+        });
+        if (prepared.kind === "clarification") {
+          return { status: "clarification_requested", result: prepared.result };
         }
+        registrationText = prepared.registrationText;
       }
 
       const processed = await deps.processMeal({
