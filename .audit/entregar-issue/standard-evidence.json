@@ -1,70 +1,151 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "888b879fcafab222db2fc7e8d6ea1901f6958916",
+  "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
   "requirements": [
     {
-      "requirement_id": "REQ-CONFLICT-001",
+      "requirement_id": "REQ-1051-BRANDED-CLARIFICATION",
       "positive_evidence": [
-        "Merge commit 888b879fcafab222db2fc7e8d6ea1901f6958916 has parents from the prior PR head and develop d9dda8f4c5ed0643c32847418dd05e8ccb0624a6; GitHub reports mergeable=true."
+        "Ambiguous explicit brand/variant returns structured clarification before any meal mutation."
       ],
       "primary_negative_control": {
-        "id": "CTRL-001",
+        "id": "NC-BRANDED-CLARIFICATION",
         "status": "passed",
-        "procedure": "Compare the final PR head to develop and verify that the merge base is develop and behind_by is zero.",
-        "expected": "The branch contains develop and no unresolved merge conflict remains.",
-        "observed": "Compare d9dda8f4c5ed0643c32847418dd05e8ccb0624a6..888b879fcafab222db2fc7e8d6ea1901f6958916 reports ahead with develop as merge base and only two changed files."
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
       },
       "regression_evidence": [
-        "GitHub raw PR metadata reports mergeable=true after the merge commit."
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-002",
+      "requirement_id": "REQ-1051-COUNTABLE-PARITY",
       "positive_evidence": [
-        "billing-admin-browser-driver.mjs returns result?.value, and check-billing-admin-browser-evidence.mjs ignores an undefined polling sample before evaluating the predicate."
+        "Confirmed registration and multi-item/countable paths use the shared nutrition-resolution gate."
       ],
       "primary_negative_control": {
-        "id": "CTRL-002",
+        "id": "NC-COUNTABLE-PARITY",
         "status": "passed",
-        "procedure": "Inject the transient condition conceptually by evaluating the guard with an undefined sample before a valid object.",
-        "expected": "The undefined sample is skipped instead of dereferenced, while later valid state may satisfy the predicate and timeout behavior remains intact.",
-        "observed": "The final source uses return result?.value and if (value && predicate(value)) before returning from the polling loop."
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
       },
       "regression_evidence": [
-        "The polling loop remains capped at 120 attempts and still throws condition-not-reached after exhaustion."
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-003",
+      "requirement_id": "REQ-1051-EVIDENCE",
       "positive_evidence": [
-        "Final compare against develop contains only scripts/billing-admin-browser-driver.mjs and scripts/check-billing-admin-browser-evidence.mjs, with one-line changes in each."
+        "A branded source is accepted only when commercial identity, requested/structured serving and labeled kcal/protein/carbohydrate/fat evidence agree; source-derived evidence is persisted without model-summary substitution.",
+        "The exact-head serving-evidence regressions accept an explicit source serving while keeping package title weight distinct from requested serving."
       ],
       "primary_negative_control": {
-        "id": "CTRL-003",
+        "id": "NC-EVIDENCE-SOURCE-ONLY-NUMERICS",
         "status": "passed",
-        "procedure": "Compare the final material head against develop and reject any .audit path or unrelated product path in the PR delta.",
-        "expected": "Only the two CI/browser evidence scripts differ from develop.",
-        "observed": "GitHub compare reports exactly two files and additions=1/deletions=1 in each relevant file."
+        "procedure": "Exercise three discriminants on the exact material head: a nutrient mass numerically equal to gramsPerServing without serving context; package weight in a source title used as proof of a different requested serving; and the sibling case with an explicit serving statement.",
+        "expected": "Macro mass and package weight cannot masquerade as serving proof; only the sibling with compatible requested/structured serving and explicit source serving context is accepted.",
+        "observed": "server/brandedNutritionSearch.servingEvidence.issue1051.test.ts and the full Vitest suite passed in exact-head Agent-first run 34173557538 on ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; the negative collisions return null and the explicit-serving sibling is accepted."
       },
       "regression_evidence": [
-        "No client, docs, workflow, fixture, or .audit path is part of the material PR diff against develop."
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
       ]
     },
     {
-      "requirement_id": "REQ-CONFLICT-004",
+      "requirement_id": "REQ-1051-GENERIC-SAFETY",
       "positive_evidence": [
-        "The previous result-only handoff is not reused as terminal evidence after material merge 888b879fcafab222db2fc7e8d6ea1901f6958916; a fresh current-target package is generated."
+        "Generic fallback remains available only for genuinely generic foods, not unresolved branded identities."
       ],
       "primary_negative_control": {
-        "id": "CTRL-004",
+        "id": "NC-GENERIC-SAFETY",
         "status": "passed",
-        "procedure": "Verify that the new certificate material_head_sha equals the post-conflict material head and that it is published only in a direct result-only child.",
-        "expected": "The handoff certifies the new material SHA rather than the stale pre-conflict SHA.",
-        "observed": "Package generation is bound to material head 888b879fcafab222db2fc7e8d6ea1901f6958916 and base d9dda8f4c5ed0643c32847418dd05e8ccb0624a6."
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
       },
       "regression_evidence": [
-        "The result-only child allowlist contains only .audit/entregar-issue paths."
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-IDENTITY",
+      "positive_evidence": [
+        "Commercial identity and variant are preserved and incompatible candidates are rejected."
+      ],
+      "primary_negative_control": {
+        "id": "NC-IDENTITY",
+        "status": "passed",
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
+      },
+      "regression_evidence": [
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-PROCESS",
+      "positive_evidence": [
+        "PR remains open against develop, current head is exact and no merge/close operation is performed."
+      ],
+      "primary_negative_control": {
+        "id": "NC-PROCESS",
+        "status": "passed",
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
+      },
+      "regression_evidence": [
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-RESOLUTION",
+      "positive_evidence": [
+        "Resolution uses the shared specificity precedence and coherent identity/nutrition source."
+      ],
+      "primary_negative_control": {
+        "id": "NC-RESOLUTION",
+        "status": "passed",
+        "procedure": "Exercise the corresponding wrong-path or fallback condition on the exact material head.",
+        "expected": "The unsafe/divergent path is rejected or clarified while the safe sibling behavior remains available.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
+      },
+      "regression_evidence": [
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-SEMANTIC-CONTRACT",
+      "positive_evidence": [
+        "The semantic contract now resolves provenance independently for identity, brand, variant, quantity and grams, and supports text, transcription, OCR, vision, memory and downstream nutrition origins."
+      ],
+      "primary_negative_control": {
+        "id": "NC-SEMANTIC-MIXED-FIELD-PROVENANCE",
+        "status": "passed",
+        "procedure": "Build mixed image+text and image+transcription inputs where identity and quantity are supplied by different modalities, then inspect each MealSemanticFieldEvidence origin separately.",
+        "expected": "Image presence does not relabel typed/transcribed quantity or other fields as vision; each field preserves the modality or downstream source that actually supports it.",
+        "observed": "Exact-head Agent-first run 34173557538 completed/success for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates completed/success."
+      },
+      "regression_evidence": [
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
+      ]
+    },
+    {
+      "requirement_id": "REQ-1051-VALIDATION-HYGIENE",
+      "positive_evidence": [
+        "Agent-first run 34173557538 passed TypeScript, full Vitest, Architecture, Documentation, Build, Agent check, CI gate docs and produced the exact-head repository bundle for ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac."
+      ],
+      "primary_negative_control": {
+        "id": "NC-VALIDATION-LEGACY-STATIC-GUARD",
+        "status": "passed",
+        "procedure": "Run the legacy issue-923 security-boundary test against the new verified-source implementation rather than weakening production source validation.",
+        "expected": "The static guard asserts verifiedSource/source-derived evidence semantics and does not require the removed result.evidence trust path.",
+        "observed": "Agent-first run 34173557538 is terminal success on ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; the legacy security-boundary guard and current serving-evidence regressions both remain green."
+      },
+      "regression_evidence": [
+        "Agent-first workflow run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; all applicable TiDB gates are terminal success."
       ]
     }
   ]

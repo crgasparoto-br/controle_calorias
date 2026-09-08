@@ -4,6 +4,8 @@ import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { extractCommercialVariant, isCommercialProductIdentityCompatible } from "./commercialProductIdentity";
+import type { NutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
@@ -28,6 +30,7 @@ type CommercialMeasure = { kind: "mass" | "volume"; value: number };
 export type BrandedNutritionSearchRuntime = {
   resolveCapabilityConfig: typeof resolveCapabilityConfig;
   executeResolvedCapability: typeof executeResolvedCapability;
+  persistence?: NutritionResearchPersistence;
 };
 
 const defaultBrandedNutritionRuntime: BrandedNutritionSearchRuntime = {
@@ -65,6 +68,10 @@ const GENERIC_IDENTITY_TOKENS = new Set([
 ]);
 
 const BRAND_NOISE_TOKENS = new Set(["marca", "brand", "company", "companhia", "ltda", "sa"]);
+const NUTRIENT_MEASURE_LABEL_PATTERN = "(?:proteinas?|protein|carboidratos?(?:\\s+totais?)?|carbs?|gorduras?(?:\\s+(?:totais?|saturadas?|trans))?|fat|fibras?|fiber|acucares?(?:\\s+(?:totais?|adicionados?))?|sugars?|sodio|sodium|sal|salt)";
+const NUTRIENT_BEFORE_MEASURE_PATTERN = new RegExp(`${NUTRIENT_MEASURE_LABEL_PATTERN}\\s*[:=\\-]?\\s*$`);
+const NUTRIENT_AFTER_MEASURE_PATTERN = new RegExp(`^\\s*(?:de\\s+)?${NUTRIENT_MEASURE_LABEL_PATTERN}\\b`);
+const SERVING_MEASURE_CONTEXT_PATTERN = /(?:porcao|porcoes|serving|servings|tamanho\s+da\s+porcao|dose|doses|fatia|fatias|garrafa|garrafas|lata|latas|unidade|unidades|colher|colheres|scoop|scoops|copo|copos|pacote|pacotes|barra|barras|frasco|frascos|embalagem|embalagens|peso\s+liquido|conteudo\s+liquido)/;
 
 function normalizeText(value: string) {
   return value
@@ -93,19 +100,39 @@ function textContainsAllTokens(text: string, tokens: string[]) {
   return tokens.every(token => normalized.includes(` ${token} `) || normalized.includes(token));
 }
 
+function toCommercialMeasure(amountText: string, unit: string): CommercialMeasure | null {
+  const amount = Number(amountText.replace(",", "."));
+  if (!Number.isFinite(amount)) return null;
+  switch (unit) {
+    case "kg": return { kind: "mass", value: amount * 1000 };
+    case "mg": return { kind: "mass", value: amount / 1000 };
+    case "g": return { kind: "mass", value: amount };
+    case "l": return { kind: "volume", value: amount * 1000 };
+    default: return { kind: "volume", value: amount };
+  }
+}
+
 function extractMeasures(value: string): CommercialMeasure[] {
   const normalized = normalizeText(value);
   const measures: CommercialMeasure[] = [];
   for (const match of normalized.matchAll(/\b(\d+(?:[,.]\d+)?)\s*(kg|mg|ml|g|l)\b/g)) {
-    const amount = Number(match[1].replace(",", "."));
-    if (!Number.isFinite(amount)) continue;
-    switch (match[2]) {
-      case "kg": measures.push({ kind: "mass", value: amount * 1000 }); break;
-      case "mg": measures.push({ kind: "mass", value: amount / 1000 }); break;
-      case "g": measures.push({ kind: "mass", value: amount }); break;
-      case "l": measures.push({ kind: "volume", value: amount * 1000 }); break;
-      default: measures.push({ kind: "volume", value: amount });
-    }
+    const measure = toCommercialMeasure(match[1], match[2]);
+    if (measure) measures.push(measure);
+  }
+  return measures;
+}
+
+function extractServingCandidateMeasures(value: string, allowBareMeasure = false): CommercialMeasure[] {
+  const normalized = normalizeText(value);
+  const measures: CommercialMeasure[] = [];
+  for (const match of normalized.matchAll(/\b(\d+(?:[,.]\d+)?)\s*(kg|mg|ml|g|l)\b/g)) {
+    const index = match.index ?? 0;
+    const before = normalized.slice(Math.max(0, index - 48), index);
+    const after = normalized.slice(index + match[0].length, index + match[0].length + 48);
+    if (NUTRIENT_BEFORE_MEASURE_PATTERN.test(before) || NUTRIENT_AFTER_MEASURE_PATTERN.test(after)) continue;
+    if (!allowBareMeasure && !SERVING_MEASURE_CONTEXT_PATTERN.test(`${before} ${after}`)) continue;
+    const measure = toCommercialMeasure(match[1], match[2]);
+    if (measure) measures.push(measure);
   }
   return measures;
 }
@@ -122,6 +149,14 @@ function measuresContainAll(expected: CommercialMeasure[], actual: CommercialMea
 }
 
 function structuredIdentityIsCompatible(foodName: string, result: SearchedNutritionResult) {
+  if (!isCommercialProductIdentityCompatible({
+    foodName,
+    matchedProductName: result.matchedProductName,
+    brandName: result.brandName,
+    servingLabel: result.servingLabel,
+    gramsPerServing: result.gramsPerServing,
+  })) return false;
+
   const expectedBrandTokens = brandTokens(result.brandName);
   if (!expectedBrandTokens.length || !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
 
@@ -153,16 +188,57 @@ function normalizeHttpUrl(value: string | undefined) {
   }
 }
 
-function allNumbers(value: string) {
-  return [...normalizeText(value).matchAll(/\b\d+(?:[,.]\d+)?\b/g)]
-    .map(match => Number(match[0].replace(",", ".")))
-    .filter(Number.isFinite);
+function labeledNutritionValues(
+  value: string,
+  labelPattern: string,
+  unitPattern: string,
+) {
+  const normalized = normalizeText(value);
+  const values: number[] = [];
+  const patterns = [
+    new RegExp(`\\b(\\d+(?:[,.]\\d+)?)\\s*(?:${unitPattern})\\s*(?:de\\s+)?(?:${labelPattern})\\b`, "g"),
+    new RegExp(`\\b(?:${labelPattern})\\b\\s*[:=\\-]?\\s*(\\d+(?:[,.]\\d+)?)\\s*(?:${unitPattern})?\\b`, "g"),
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const parsed = Number(match[1].replace(",", "."));
+      if (Number.isFinite(parsed)) values.push(parsed);
+    }
+  }
+  return values;
+}
+
+function hasLabeledNutritionValue(
+  text: string,
+  expected: number,
+  labelPattern: string,
+  unitPattern: string,
+) {
+  return labeledNutritionValues(text, labelPattern, unitPattern)
+    .some(actual => approximatelyEqual(actual, expected));
+}
+
+function hasLabeledCalories(text: string, expected: number) {
+  const normalized = normalizeText(text);
+  const values: number[] = [];
+  const patterns = [
+    /\b(\d+(?:[,.]\d+)?)\s*(?:kcal|calorias?)\b/g,
+    /\b(?:kcal|calorias?)\b\s*[:=\-]?\s*(\d+(?:[,.]\d+)?)\b/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const parsed = Number(match[1].replace(",", "."));
+      if (Number.isFinite(parsed)) values.push(parsed);
+    }
+  }
+  return values.some(actual => approximatelyEqual(actual, expected));
 }
 
 function numericEvidenceSupportsResult(text: string, result: SearchedNutritionResult) {
-  const values = allNumbers(text);
-  return [result.gramsPerServing, result.calories, result.protein, result.carbs, result.fat]
-    .every(expected => values.some(actual => approximatelyEqual(actual, expected)));
+  return hasLabeledCalories(text, result.calories)
+    && hasLabeledNutritionValue(text, result.protein, "proteinas?|protein", "g")
+    && hasLabeledNutritionValue(text, result.carbs, "carboidratos?|carbs?", "g")
+    && hasLabeledNutritionValue(text, result.fat, "gorduras?(?:\\s+totais?)?|fat", "g");
 }
 
 function sourceSupportsCommercialIdentity(
@@ -180,11 +256,41 @@ function sourceSupportsCommercialIdentity(
   return discriminants.length === 0 || discriminants.some(token => textContainsAllTokens(sourceText, [token]));
 }
 
+function sourceSupportsServing(
+  source: AiWebSearchResult["sources"][number],
+  result: SearchedNutritionResult,
+) {
+  const sourceTexts = [source.title ?? "", ...(source.supportingText ?? [])];
+  const explicitServingMeasures = sourceTexts.flatMap(text => extractServingCandidateMeasures(text));
+  if (explicitServingMeasures.length) {
+    return explicitServingMeasures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));
+  }
+
+  // Some first-party/product snippets state nutrition for the whole commercial unit
+  // without a separate "serving" label (for example "330 ml: 100 kcal...").
+  // Accept that bare measure only when the source has no conflicting explicit serving.
+  // Nutrient-labeled measures remain excluded by extractServingCandidateMeasures.
+  const bareMeasures = sourceTexts.flatMap(text => extractServingCandidateMeasures(text, true));
+  return bareMeasures.some(measure => approximatelyEqual(measure.value, result.gramsPerServing));
+}
+
+type VerifiedNutritionSource = {
+  url: string;
+  evidence: string;
+};
+
+function sourceNutritionEvidenceText(source: AiWebSearchResult["sources"][number]) {
+  return [source.title ?? "", ...(source.supportingText ?? [])]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function findVerifiedSource(
   webSearch: AiWebSearchResult | undefined,
   foodName: string,
   result: SearchedNutritionResult,
-) {
+): VerifiedNutritionSource | null {
   if (!webSearch?.executed || !Array.isArray(webSearch.sources) || !webSearch.sources.length) return null;
   const requested = normalizeHttpUrl(result.sourceUrl);
   const ordered = [...webSearch.sources].sort((left, right) => {
@@ -196,10 +302,15 @@ function findVerifiedSource(
   for (const source of ordered) {
     const normalizedUrl = normalizeHttpUrl(source.url);
     if (!normalizedUrl) continue;
-    const evidenceText = [result.evidence, ...(source.supportingText ?? [])].join(" ");
+    // Only source-derived text may prove the numeric nutrition claim. The
+    // provider's structured `result.evidence` is a model-produced summary and
+    // must never be allowed to supply missing calories/macros/portion values.
+    const evidenceText = sourceNutritionEvidenceText(source);
+    if (!evidenceText) continue;
+    if (!sourceSupportsServing(source, result)) continue;
     if (!numericEvidenceSupportsResult(evidenceText, result)) continue;
     if (!sourceSupportsCommercialIdentity(source, foodName, result)) continue;
-    return source.url.trim();
+    return { url: source.url.trim(), evidence: evidenceText };
   }
   return null;
 }
@@ -229,12 +340,18 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
   if (!result.found || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) return null;
   if (result.gramsPerServing <= 0 || [result.calories, result.protein, result.carbs, result.fat].some(value => value < 0)) return null;
   if (!structuredIdentityIsCompatible(foodName, result)) return null;
-  const sourceUrl = findVerifiedSource(webSearch, foodName, result);
-  if (!sourceUrl || !result.evidence.trim()) return null;
+  const verifiedSource = findVerifiedSource(webSearch, foodName, result);
+  if (!verifiedSource) return null;
   return {
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
-    aliases: [foodName, result.matchedProductName.trim(), `fonte: ${sourceUrl}`],
+    aliases: [foodName, result.matchedProductName.trim(), `fonte: ${verifiedSource.url}`],
+    productVariant: extractCommercialVariant(result.matchedProductName),
+    variants: [result.matchedProductName.trim()],
+    sourceUrls: [verifiedSource.url],
+    sourceEvidence: verifiedSource.evidence,
+    sourceVerifiedAt: new Date(),
+    sourceConfidence: result.confidence,
     servingLabel: result.servingLabel.trim(),
     gramsPerServing: result.gramsPerServing,
     calories: result.calories,
@@ -250,6 +367,9 @@ export async function findBrandedNutritionByWebSearch(
   foodName: string,
   runtime: BrandedNutritionSearchRuntime = defaultBrandedNutritionRuntime,
 ): Promise<CatalogFood | null> {
+  const cached = await runtime.persistence?.findByIdentity(foodName);
+  if (cached) return cached;
+
   const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) return null;
   try {
@@ -290,7 +410,14 @@ export async function findBrandedNutritionByWebSearch(
         return { parsed: parseProviderOutput(response.outputText), webSearch: response.webSearch };
       },
     );
-    return toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch);
+    const candidate = toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch);
+    if (!candidate) return null;
+    if (!runtime.persistence) return candidate;
+    try {
+      return await runtime.persistence.save(foodName, candidate) ?? candidate;
+    } catch {
+      return candidate;
+    }
   } catch {
     return null;
   }

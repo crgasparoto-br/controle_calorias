@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AiProvider } from "../../aiProvider";
 import type { ResolvedCapabilityConfig } from "../configResolver";
 import {
@@ -67,6 +67,12 @@ function config(overrides: Partial<ResolvedCapabilityConfig> = {}): ResolvedCapa
 }
 
 describe("resolved capability executor", () => {
+  beforeAll(async () => {
+    // Load the usage boundary before the attempt timer starts: this suite tests
+    // attribution and provider execution, not Vitest's cold module transform.
+    await import("../../../modules/usageGovernance/providerAttemptUsage");
+  });
+
   afterEach(() => setAiUsageGate(null));
 
   it("blocks configured provider execution without attribution and propagates request scope into the gate", async () => {

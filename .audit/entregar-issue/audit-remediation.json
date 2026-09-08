@@ -1,1 +1,39 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-remediation","compression":"gzip","encoded_size":1300,"encoded_sha256":"9cd4e3b26b2468b1f461f67b06e34d66a5b527d226a2d8b63ed2eb867482fd0b","decoded_size":2321,"decoded_sha256":"02555db1b9762dca8413e1138f771eb8e2af4fe592d0ae91afe541c8fe79a2ac","parts":[{"path":"audit-remediation.parts/part-000.b64","size":1300,"sha256":"9cd4e3b26b2468b1f461f67b06e34d66a5b527d226a2d8b63ed2eb867482fd0b"}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
+    "audit_report_sha256": "ee67cbb32f033852daef30eb46998a293ef23e2f2cc0d42029b85e09fb33b331",
+    "audited_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac"
+  },
+  "candidate_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1052-HANDOFF-STALE-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "post-write-refreeze",
+      "changed_files": [
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure-1051.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/standard-evidence.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "Fresh PR identity fixes ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac as the new material candidate; the stale certificate for 9debe298b21cb975a0b3c09ea6f45b1842219bbc is not reused as terminal evidence.",
+        "The canonical handoff recovery classifier preserves the independent-audit floor recovery_scope=post-write-refreeze and requires a new freeze/handoff on the current material head."
+      ],
+      "validations": [
+        "Agent-first run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac, covering TypeScript, full Vitest, Architecture, Documentation, Build, Agent check and CI gate docs.",
+        "Billing 34173557521, Onboarding 34173557524, WhatsApp 34173557480 and Professional 34173557501 TiDB gates completed/success on ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; AI provider live smoke 34173557481 was skipped/non-applicable.",
+        "classify_handoff_recovery.py returned recovery_scope=post-write-refreeze with auditor_requires_refreeze=true for the fresh remote identity."
+      ]
+    }
+  ],
+  "status": "closed"
+}

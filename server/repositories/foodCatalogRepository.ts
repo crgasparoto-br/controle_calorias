@@ -11,6 +11,7 @@ export type FoodCatalogInsertInput = {
   name: string;
   aliases: string;
   brandName: string | null;
+  productVariant?: string | null;
   foodType: "generic" | "branded";
   dataSource: string;
   servingLabel: string;
@@ -27,8 +28,13 @@ export type FoodCatalogInsertInput = {
   processingLevel?: FoodCatalogRow["processingLevel"];
   classificationSource?: string | null;
   classificationConfidence?: number | null;
+  researchIdentityKey?: string | null;
+  sourceUrls?: string | null;
+  sourceEvidence?: string | null;
+  sourceVerifiedAt?: Date | null;
+  sourceConfidence?: number | null;
   isUserCreated: number;
-  createdByUserId: number;
+  createdByUserId: number | null;
 };
 
 export type FoodCatalogUpdateInput = Omit<
@@ -36,8 +42,37 @@ export type FoodCatalogUpdateInput = Omit<
   "slug" | "aliases" | "isUserCreated" | "createdByUserId"
 >;
 
+export type NutritionResearchCandidateQuery = {
+  brandName?: string | null;
+  limit?: number;
+};
+
+export type NutritionResearchUpsertInput = {
+  researchIdentityKey: string;
+  slug: string;
+  name: string;
+  aliases: string;
+  brandName: string;
+  productVariant: string | null;
+  servingLabel: string;
+  servingUnit: string;
+  gramsPerServing: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+  sourceUrls: string;
+  sourceEvidence: string;
+  sourceVerifiedAt: Date;
+  sourceConfidence: number;
+};
+
 export type FoodCatalogRepository = {
   findAll(): Promise<FoodCatalogRow[]>;
+  findResearchedByIdentity?(researchIdentityKey: string): Promise<FoodCatalogRow | null>;
+  findResearchedCandidates?(query: NutritionResearchCandidateQuery): Promise<FoodCatalogRow[]>;
+  upsertResearchedNutrition?(input: NutritionResearchUpsertInput): Promise<number>;
   findActiveForUser?(userId: number): Promise<FoodCatalogRow[]>;
   findForResolution?(userId: number): Promise<FoodCatalogRow[]>;
   findByIdsForUser?(userId: number, ids: number[]): Promise<FoodCatalogRow[]>;
@@ -83,6 +118,101 @@ export function createDrizzleFoodCatalogRepository(deps: {
       const db = await deps.getDb();
       if (!db) return [];
       return await db.select().from(foodCatalog);
+    },
+
+    async findResearchedByIdentity(researchIdentityKey) {
+      const db = await deps.getDb();
+      if (!db) return null;
+      const [row] = await db
+        .select()
+        .from(foodCatalog)
+        .where(and(
+          eq(foodCatalog.researchIdentityKey, researchIdentityKey),
+          eq(foodCatalog.dataSource, "web_nutrition"),
+          eq(foodCatalog.status, "active"),
+        ))
+        .limit(1);
+      return row ?? null;
+    },
+
+    async findResearchedCandidates(query) {
+      const db = await deps.getDb();
+      if (!db) return [];
+      const conditions = [
+        eq(foodCatalog.dataSource, "web_nutrition"),
+        eq(foodCatalog.status, "active"),
+        query.brandName ? eq(foodCatalog.brandName, query.brandName) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+      return await db
+        .select()
+        .from(foodCatalog)
+        .where(and(...conditions))
+        .limit(Math.min(Math.max(query.limit ?? 50, 1), 100));
+    },
+
+    async upsertResearchedNutrition(input) {
+      const db = await deps.getDb();
+      if (!db) return 0;
+      const values = {
+        slug: input.slug,
+        name: input.name,
+        aliases: input.aliases,
+        brandName: input.brandName,
+        productVariant: input.productVariant,
+        foodType: "branded" as const,
+        dataSource: "web_nutrition",
+        servingLabel: input.servingLabel,
+        servingUnit: input.servingUnit,
+        gramsPerServing: input.gramsPerServing,
+        calories: input.calories,
+        protein: input.protein,
+        carbs: input.carbs,
+        fat: input.fat,
+        fiber: input.fiber ?? null,
+        isFruit: 0,
+        isVegetable: 0,
+        isUltraProcessed: 1,
+        researchIdentityKey: input.researchIdentityKey,
+        sourceUrls: input.sourceUrls,
+        sourceEvidence: input.sourceEvidence,
+        sourceVerifiedAt: input.sourceVerifiedAt,
+        sourceConfidence: input.sourceConfidence,
+        isUserCreated: 0,
+        createdByUserId: null,
+        status: "active" as const,
+      };
+      await db
+        .insert(foodCatalog)
+        .values(values)
+        .onDuplicateKeyUpdate({
+          set: {
+            name: values.name,
+            aliases: values.aliases,
+            brandName: values.brandName,
+            productVariant: values.productVariant,
+            servingLabel: values.servingLabel,
+            servingUnit: values.servingUnit,
+            gramsPerServing: values.gramsPerServing,
+            calories: values.calories,
+            protein: values.protein,
+            carbs: values.carbs,
+            fat: values.fat,
+            fiber: values.fiber,
+            sourceUrls: values.sourceUrls,
+            sourceEvidence: values.sourceEvidence,
+            sourceVerifiedAt: values.sourceVerifiedAt,
+            sourceConfidence: values.sourceConfidence,
+            dataSource: values.dataSource,
+            status: values.status,
+            updatedAt: new Date(),
+          },
+        });
+      const [row] = await db
+        .select({ id: foodCatalog.id })
+        .from(foodCatalog)
+        .where(eq(foodCatalog.researchIdentityKey, input.researchIdentityKey))
+        .limit(1);
+      return row?.id ?? 0;
     },
 
     async findActiveForUser(userId) {

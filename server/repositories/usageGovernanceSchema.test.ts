@@ -18,7 +18,10 @@ describe("usage governance canonical Drizzle installation",()=>{
 
   it("journals 0043-0048 and installs draft as the canonical default",()=>{
     const journal=JSON.parse(read("drizzle/meta/_journal.json")) as {entries:Array<{tag:string}>};
-    expect(journal.entries.slice(-6).map(e=>e.tag)).toEqual([
+    const tags=journal.entries.map(e=>e.tag);
+    const startIndex=tags.indexOf("0043_billing_usage_economics_governance");
+    expect(startIndex,"0043_billing_usage_economics_governance not journaled").toBeGreaterThanOrEqual(0);
+    expect(tags.slice(startIndex,startIndex+6)).toEqual([
       "0043_billing_usage_economics_governance","0044_billing_usage_charge_revoke_reason","0045_billing_usage_cost_reconciliation",
       "0046_billing_usage_provider_dispatch_state","0047_usage_governance_audit_closure","0048_billing_consumption_charge_state_machine",
     ]);

@@ -13,7 +13,17 @@ describe("issue #1047 — quantidade implícita no registro alimentar", () => {
     expect(parseCountableFoodQuantitySegment(text)).toEqual(expect.objectContaining({
       count,
       foodName,
+      brand: null,
       requestedUnit: "un",
+    }));
+  });
+
+  it("preserva a marca explícita no contrato de quantidade contável", () => {
+    expect(parseCountableFoodQuantitySegment("2 fatias de pão de forma Panco")).toEqual(expect.objectContaining({
+      count: 2,
+      foodName: "pão de forma Panco",
+      brand: "Panco",
+      requestedUnit: "fatia",
     }));
   });
 

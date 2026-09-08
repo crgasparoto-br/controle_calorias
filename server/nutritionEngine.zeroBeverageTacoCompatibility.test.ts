@@ -65,7 +65,6 @@ describe("nutritionEngine zero beverage compatibility with real TACO fallback", 
   it.each([
     ["350 ml Água Tônica Zero Açúcar", "Água Tônica", "Água Tônica Zero Açúcar"],
     ["350 ml Refrigerante Diet", "Refrigerante", "Refrigerante Diet"],
-    ["350 ml Schweppes Tônica Zero", "Tônica", "Schweppes Tônica Zero"],
   ])("não deixa TACO regular remover qualificador zero: %s", async (text, aiFoodName, expectedFoodName) => {
     const { findTacoFood } = await import("./tacoLookup");
     const regularTacoCandidate = findTacoFood(aiFoodName);
@@ -97,7 +96,6 @@ describe("nutritionEngine zero beverage compatibility with real TACO fallback", 
   it.each([
     ["Água Tônica Zero Açúcar", "Água Tônica", "Água Tônica Zero Açúcar"],
     ["Refrigerante Diet", "Refrigerante", "Refrigerante Diet"],
-    ["Schweppes Tônica Zero", "Tônica", "Schweppes Tônica Zero"],
   ])("preserva qualificador zero quando a IA simplifica nome sem quantidade explícita: %s", async (text, aiFoodName, expectedFoodName) => {
     const { findTacoFood } = await import("./tacoLookup");
     const regularTacoCandidate = findTacoFood(aiFoodName);
@@ -124,6 +122,24 @@ describe("nutritionEngine zero beverage compatibility with real TACO fallback", 
       source: "heuristic",
     }));
     expect(result.totals).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  });
+
+  it.each([
+    ["350 ml Schweppes Tônica Zero", "Tônica"],
+    ["Schweppes Tônica Zero", "Tônica"],
+  ])("exige esclarecimento para bebida zero de marca reconhecida no texto: %s", async (text, aiFoodName) => {
+    mockSimplifiedZeroNutritionExtraction(aiFoodName);
+
+    const { processMealInput } = await import("./nutritionEngine");
+    await expect(processMealInput({
+      text,
+      occurredAt: "2026-08-02T16:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    })).rejects.toMatchObject({
+      name: "MealInferenceError",
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({ brand: "Schweppes" }),
+    });
   });
 });
 

@@ -44,7 +44,7 @@ describe("executeWhatsappTextIntent multiple food additions", () => {
     getUserNutritionGoalMock.mockReset();
   });
 
-  it("adiciona dois itens distintos com marcas ao jantar de ontem", async () => {
+  it("não altera a refeição quando um item de marca não tem referência nutricional específica", async () => {
     listMealsMock.mockResolvedValue([
       {
         id: 16,
@@ -60,36 +60,18 @@ describe("executeWhatsappTextIntent multiple food additions", () => {
       ...input,
     }));
 
-    const result = await executeWhatsappTextIntent(42, {
+    await expect(executeWhatsappTextIntent(42, {
       text: "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",
       receivedAt: new Date("2026-06-04T15:00:00.000Z"),
+    })).rejects.toMatchObject({
+      name: "MealInferenceError",
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        brand: "Elma Chips",
+        clarificationReason: "brand_variant_unresolved",
+      }),
     });
 
-    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealId: 16,
-      mealLabel: "Jantar",
-      items: [
-        riceItem,
-        expect.objectContaining({
-          foodName: "amendoim japonês Elma Chips",
-          canonicalName: expect.any(String),
-          portionText: "300 g",
-          estimatedGrams: 300,
-        }),
-        expect.objectContaining({
-          foodName: "cerveja Budweiser",
-          canonicalName: expect.any(String),
-          portionText: "330 ml",
-          estimatedGrams: 330,
-        }),
-      ],
-    }));
-    expect(result).toEqual(expect.objectContaining({
-      handled: true,
-      action: "meal_item_added",
-      eventType: "whatsapp.intent.meal_item_added",
-      reply: expect.stringContaining("300 g de amendoim japonês Elma Chips"),
-    }));
-    expect(result?.reply).toContain("330 ml de cerveja Budweiser");
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 });
