@@ -131,7 +131,7 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
     expect(boundary.measureSearch).not.toHaveBeenCalled();
   });
 
-  it("mantém fail-closed quando a pesquisa falha antes de comprovar a identidade", async () => {
+  it("mantém fail-closed quando a pesquisa comercial falha após recuperar a marca", async () => {
     const brand = "Seven Boys";
     expect(detectKnownBrand(`pão de forma ${brand}`)).toBeNull();
     boundary.catalog = [{
@@ -164,6 +164,100 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
       },
     });
     expect(boundary.measureSearch).not.toHaveBeenCalled();
+  });
+
+  it.each(["Seven Boys", "Pullman"])(
+    "mantém %s como identidade pendente quando a extração canônica fica indisponível",
+    async brand => {
+      expect(detectKnownBrand(`pão de forma ${brand}`)).toBeNull();
+      boundary.catalog = [{
+        ...reference(""),
+        name: "Pão de forma",
+        aliases: ["Pão de forma"],
+        brandName: "",
+        isBrandedProduct: false,
+        researchIdentityKey: undefined,
+        sourceUrls: [],
+        sourceEvidence: null,
+      }];
+      boundary.extraction.mockRejectedValue(new Error("extraction unavailable"));
+      boundary.search.mockRejectedValue(new Error("search unavailable"));
+
+      const result = await prepareCountableFoodRegistrationResolved(
+        105503,
+        `2 fatias de pão de forma ${brand}`
+      );
+
+      expect(result.resolutions).toEqual([]);
+      expect(result.pendingItems).toHaveLength(1);
+      expect(result.pendingItems[0]).toMatchObject({
+        brand,
+        identityClarification: {
+          context: {
+            brand,
+            clarificationReason: "brand_variant_unresolved",
+          },
+        },
+      });
+      expect(boundary.search).not.toHaveBeenCalled();
+      expect(boundary.measureSearch).not.toHaveBeenCalled();
+    }
+  );
+
+  it("mantém qualificador comercial explícito pendente quando a extração falha", async () => {
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Pão de forma",
+      aliases: ["Pão de forma"],
+      brandName: "",
+      isBrandedProduct: false,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
+    boundary.extraction.mockRejectedValue(new Error("extraction unavailable"));
+
+    const result = await prepareCountableFoodRegistrationResolved(
+      105504,
+      "2 fatias de pão de forma integral"
+    );
+
+    expect(result.resolutions).toEqual([]);
+    expect(result.pendingItems).toHaveLength(1);
+    expect(result.pendingItems[0]).toMatchObject({
+      brand: null,
+      identityClarification: {
+        context: {
+          brand: null,
+          clarificationReason: "commercial_identity_unverified",
+        },
+      },
+    });
+    expect(boundary.measureSearch).not.toHaveBeenCalled();
+  });
+
+  it("não promove complemento culinário genérico a marca quando a extração falha", async () => {
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Pão de forma",
+      aliases: ["Pão de forma"],
+      brandName: "",
+      isBrandedProduct: false,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
+    boundary.extraction.mockRejectedValue(new Error("extraction unavailable"));
+
+    const result = await prepareCountableFoodRegistrationResolved(
+      105505,
+      "2 fatias de pão de forma com manteiga"
+    );
+
+    expect(result.resolutions).toEqual([]);
+    expect(result.pendingItems).toHaveLength(1);
+    expect(result.pendingItems[0].brand).toBeNull();
+    expect(result.pendingItems[0].identityClarification).toBeUndefined();
   });
 
   it("não altera o caminho de uma marca já reconhecida pela fonte existente", async () => {

@@ -1,5 +1,6 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { extractCommercialVariant } from "./commercialProductIdentity";
+import { inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
@@ -57,10 +58,21 @@ function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallb
 }
 
 function failClosedBrandedHeuristic(item: MealDraftItem): MealDraftItem {
-  if (item.source !== "heuristic" || !item.brand?.trim()) return item;
-  const productVariant = extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  if (item.source !== "heuristic" || item.resolution?.ambiguity) return item;
+
+  const fallbackHint = item.brand?.trim()
+    ? {
+        brand: item.brand,
+        productVariant: extractCommercialVariant(`${item.foodName} ${item.canonicalName}`),
+      }
+    : inferUnresolvedCommercialIdentityHint(item.foodName);
+  if (!fallbackHint) return item;
+
+  const brand = item.brand?.trim() || fallbackHint.brand;
+  const productVariant = fallbackHint.productVariant;
   return {
     ...item,
+    brand,
     calories: 0,
     protein: 0,
     carbs: 0,

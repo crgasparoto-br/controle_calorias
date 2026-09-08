@@ -1,5 +1,6 @@
 import { getCatalogCache } from "./catalogRuntime";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
+import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
 import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
@@ -75,6 +76,114 @@ const MATCHING_STOP_WORDS = new Set([
   "litro",
   "litros",
 ]);
+
+const COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES = new Set([
+  "a",
+  "ao",
+  "aos",
+  "as",
+  "com",
+  "da",
+  "das",
+  "de",
+  "do",
+  "dos",
+  "sem",
+]);
+
+const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
+  "artesanal",
+  "artesanais",
+  "assada",
+  "assado",
+  "caseira",
+  "caseiro",
+  "cozida",
+  "cozido",
+  "fatiada",
+  "fatiado",
+  "fresca",
+  "fresco",
+  "torrada",
+  "torrado",
+]);
+
+type UnresolvedCommercialIdentityHint = {
+  brand: string | null;
+  productVariant: string | null;
+};
+
+function normalizedWords(value: string) {
+  return normalizeText(value)
+    .replace(/-/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function findTokenSequence(haystack: string[], needle: string[]) {
+  if (!needle.length || needle.length > haystack.length) return -1;
+  for (let start = 0; start <= haystack.length - needle.length; start++) {
+    if (needle.every((token, offset) => haystack[start + offset] === token)) {
+      return start;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Preserves an explicit commercial identity signal when the AI extractor is
+ * unavailable. It only derives a hint from tokens left outside an exact
+ * unbranded catalog identity; generic culinary complements remain outside this
+ * heuristic so they can continue through the normal measure fallback.
+ */
+export function inferUnresolvedCommercialIdentityHint(
+  foodName: string,
+): UnresolvedCommercialIdentityHint | null {
+  const originalTokens = cleanFoodName(foodName).split(/\s+/).filter(Boolean);
+  const sourceTokens = originalTokens.map(token => normalizeText(token));
+  if (!sourceTokens.length) return null;
+
+  let bestMatch: { start: number; length: number } | null = null;
+  for (const food of getCatalogCache() as CatalogFood[]) {
+    if (food.isBrandedProduct || food.brandName?.trim()) continue;
+    for (const candidate of [food.name, ...food.aliases]) {
+      const candidateTokens = normalizedWords(candidate);
+      const start = findTokenSequence(sourceTokens, candidateTokens);
+      if (start < 0) continue;
+      if (!bestMatch || candidateTokens.length > bestMatch.length) {
+        bestMatch = { start, length: candidateTokens.length };
+      }
+    }
+  }
+  if (!bestMatch) return null;
+
+  const remainderTokens = originalTokens.filter((_, index) =>
+    index < bestMatch!.start || index >= bestMatch!.start + bestMatch!.length
+  );
+  if (!remainderTokens.length) return null;
+
+  const normalizedRemainder = remainderTokens.map(token => normalizeText(token));
+  const firstRemainderToken = normalizedRemainder[0];
+  if (COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)) return null;
+
+  const remainderText = remainderTokens.join(" ");
+  const productVariant = extractCommercialVariant(remainderText);
+  const variantTokens = new Set(normalizedWords(productVariant ?? ""));
+  const brandTokens = remainderTokens.filter((token, index) => {
+    const normalized = normalizedRemainder[index];
+    return normalized
+      && normalized !== "marca"
+      && !variantTokens.has(normalized)
+      && !MATCHING_STOP_WORDS.has(normalized)
+      && !NON_BRAND_PRODUCT_DESCRIPTORS.has(normalized);
+  });
+  const brand = brandTokens.length
+    ? formatFoodNameTitleCase(brandTokens.join(" "))
+    : null;
+
+  if (!brand && !productVariant) return null;
+  return { brand, productVariant };
+}
 
 export function normalizeBrandName(value: string | null | undefined) {
   const cleaned = cleanFoodName(value ?? "");
