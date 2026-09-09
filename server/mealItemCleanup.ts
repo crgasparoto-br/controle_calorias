@@ -1,5 +1,6 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { extractCommercialVariant } from "./commercialProductIdentity";
+import { inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
 import { normalizeKnownFoodText } from "./foodTextNormalization";
 import { buildHeuristicItem } from "./mealItemBuilders";
 import { normalizeForMatching, normalizeText, QUANTITY_UNIT_PATTERN, splitFoodTextSegments } from "./mealTextParsing";
@@ -25,6 +26,8 @@ const CONVERSATIONAL_ONLY_TERMS = new Set([
   "valeu",
   "teste",
 ]);
+
+const GENERIC_ZERO_COMMERCIAL_VARIANTS = new Set(["zero", "diet"]);
 
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
 
@@ -56,11 +59,49 @@ function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallb
   }
 }
 
+function inferStandaloneCommercialVariant(item: MealDraftItem) {
+  const normalizedFoodName = normalizeText(item.foodName).replace(/-/g, " ");
+  // "com" normalmente descreve composição/preparo (ex.: café com leite), não
+  // uma variante comercial autônoma. Esse caso deve permanecer no fallback
+  // nutricional normal em vez de gerar uma identidade comercial artificial.
+  if (/\bcom\b/.test(normalizedFoodName)) return null;
+
+  const productVariant = extractCommercialVariant(item.foodName);
+  if (!productVariant) return null;
+
+  const normalizedVariants = normalizeText(productVariant)
+    .split(/\s+/)
+    .filter(Boolean);
+  // Zero/diet em alimento genérico (inclusive acompanhado de sabor, como
+  // "soda de limão zero") não comprova identidade comercial. Marcas explícitas
+  // usam o caminho fail-closed acima e não dependem deste fallback autônomo.
+  if (normalizedVariants.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))) {
+    return null;
+  }
+
+  return productVariant;
+}
+
 function failClosedBrandedHeuristic(item: MealDraftItem): MealDraftItem {
-  if (item.source !== "heuristic" || !item.brand?.trim()) return item;
-  const productVariant = extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  if (item.source !== "heuristic" || item.resolution?.ambiguity) return item;
+
+  const fallbackHint = item.brand?.trim()
+    ? {
+        brand: item.brand,
+        productVariant: extractCommercialVariant(`${item.foodName} ${item.canonicalName}`),
+      }
+    : inferUnresolvedCommercialIdentityHint(item.foodName)
+      ?? (() => {
+        const productVariant = inferStandaloneCommercialVariant(item);
+        return productVariant ? { brand: null, productVariant } : null;
+      })();
+  if (!fallbackHint) return item;
+
+  const brand = item.brand?.trim() || fallbackHint.brand;
+  const productVariant = fallbackHint.productVariant;
   return {
     ...item,
+    brand,
     calories: 0,
     protein: 0,
     carbs: 0,

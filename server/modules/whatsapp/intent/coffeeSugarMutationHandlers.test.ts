@@ -42,7 +42,7 @@ vi.mock("../../../nutritionEngine", () => {
     }
   }
 
-  return {
+  return { resolveCommercialFoodIdentity: vi.fn(),
     MealInferenceError,
     processMealInput: mocks.processMealInput,
   };

@@ -17,7 +17,7 @@ vi.mock("./mealActionReplyComposer", () => ({
   composeWhatsAppMealActionReplies: composeWhatsAppMealActionRepliesMock,
 }));
 vi.mock("../../db", () => ({ getHabitSnapshots: vi.fn() }));
-vi.mock("../../nutritionEngine", () => ({ processMealInput: vi.fn() }));
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(), processMealInput: vi.fn() }));
 vi.mock("./foodQuantityClarification", () => ({
   requestWhatsappLatestFoodCorrectionQuantity: vi.fn(),
 }));

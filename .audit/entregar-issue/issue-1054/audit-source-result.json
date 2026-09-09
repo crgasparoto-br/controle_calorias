@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:pr-1055-handoff-shard-hash-mismatch",
+  "head_sha": "ead4cca89cb1fdbf6cf31e38e53a832b0dba3692",
+  "identity": {
+    "head_sha": "ead4cca89cb1fdbf6cf31e38e53a832b0dba3692",
+    "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1054,
+    "pull_request_number": 1055
+  },
+  "findings": [
+    {
+      "id": "A-001",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-handoff-shard-integrity",
+      "severity": "P1",
+      "summary": "The published result-only handoff cannot be consumed because one base64 shard does not match the SHA-256 declared by the handoff transport manifest.",
+      "reason": "handoff-artifact-integrity-mismatch",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false,
+      "recommendation": "Regenerate the handoff certificate from the already-closed material-head artifacts, use validated transport bytes, prevalidate a sibling result-only child, and replace only the stale result-only ref in the existing PR."
+    }
+  ],
+  "recommendations": []
+}

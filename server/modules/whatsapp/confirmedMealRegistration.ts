@@ -9,7 +9,11 @@ import {
   buildWhatsAppMealReplyMessage,
 } from "./replyMessages";
 import type { WhatsappIntentResult } from "./intent/types";
-import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
+import {
+  prepareWhatsappCountableFoodRegistration,
+  type ResolvedRegistrationSegment,
+} from "./countableFoodRegistrationGate";
+import { splitFoodTextSegments } from "../../mealTextParsing";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -65,11 +69,13 @@ export function createConfirmedMealRegistrationService(
     userTimezone: string;
     inboundMessageId?: string | null;
     skipCountablePreflight?: boolean;
+    resolvedSegments?: ResolvedRegistrationSegment[];
   }): Promise<ConfirmedMealRegistrationOutcome> {
     let mutationMayHaveStarted = false;
 
     try {
       let registrationText = input.registrationText;
+      let resolvedSegments = input.resolvedSegments;
       if (!input.skipCountablePreflight) {
         const prepared = await deps.prepareCountableFoodRegistration({
           userId: input.userId,
@@ -78,19 +84,45 @@ export function createConfirmedMealRegistrationService(
           inboundMessageId: input.inboundMessageId,
           receivedAt: input.occurredAt,
           userTimezone: input.userTimezone,
+          resolvedSegments: input.resolvedSegments,
         });
         if (prepared.kind === "clarification") {
           return { status: "clarification_requested", result: prepared.result };
         }
         registrationText = prepared.registrationText;
+        resolvedSegments = prepared.resolvedSegments ?? resolvedSegments;
       }
 
-      const processed = await deps.processMeal({
+      const processingInput = {
         text: registrationText,
         habits: await deps.getHabits(input.userId),
         occurredAt: input.occurredAt,
         timeZone: input.userTimezone,
-      });
+      };
+      let processed: MealProcessingResult;
+      if (resolvedSegments?.length) {
+        const parts: MealProcessingResult[] = [];
+        for (const [segmentIndex, text] of splitFoodTextSegments(
+          registrationText
+        ).entries()) {
+          const saved = resolvedSegments.find(
+            item => item.segmentIndex === segmentIndex
+          );
+          parts.push(
+            saved?.processed ??
+              (await deps.processMeal({ ...processingInput, text }))
+          );
+        }
+        const items = parts.flatMap(part => part.items);
+        processed = {
+          ...parts[0],
+          sourceText: input.originalText,
+          items,
+          totals: calculateMealTotals(items),
+        };
+      } else {
+        processed = await deps.processMeal(processingInput);
+      }
 
       const draft = deps.createDraft(input.userId, "whatsapp", processed, []);
       mutationMayHaveStarted = true;

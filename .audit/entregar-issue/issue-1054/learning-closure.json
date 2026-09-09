@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:pr-1055-handoff-shard-hash-mismatch",
+    "audit_report_sha256": "d92378201b69c727ae2897b6ffda685de5ec47f55735b2d38ce7753f5e1e7c8a",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed entregar-issue controls already require audit_artifact_io.py integrity checks, prepublication terminal simulation, and sibling result-only recovery. This rejection came from an invalid application of those existing controls to the prior handoff package, so the cycle closes the concrete transport defect without adding a repository- or issue-specific global rule."
+  },
+  "skill_changes": []
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
+      "audited_head_sha": "ebd6e2a16d61cb76189d43dbf95cfead9d624950",
+      "finding_ids": [
+        "P1-explicit-brand-detection-gap"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
+      "audited_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "finding_ids": [
+        "P1"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:545a1951-b41a-442a-8cea-75a7ec18a97a",
+      "audited_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "finding_ids": [
+        "A-001"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "AUD1055-UNKNOWN-BRAND-CANONICAL-PREFLIGHT",
+      "status": "passed",
+      "head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "evidence_sha256": "b7189302b4034640c51a98638b98b47260830418cab46ce02f92bf99c175a37a",
+      "procedure": "Execute an explicit brand outside KNOWN_BRANDS while a usable generic reference exists.",
+      "expected": "Canonical commercial identity precedes generic portion.",
+      "observed": "Exact-head #6183 passes Seven Boys canonical preflight before generic portion, plus explicit integral variant preservation and generic-composition regression guards.",
+      "attack_control_id": "R-CANONICAL-NEG-4",
+      "risk_family": "structural-contract",
+      "surface": "canonical-contract",
+      "dimension": "unknown-explicit-brand"
+    },
+    {
+      "id": "AUD1055-UNKNOWN-BRAND-FAIL-CLOSED",
+      "status": "passed",
+      "head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "evidence_sha256": "b7189302b4034640c51a98638b98b47260830418cab46ce02f92bf99c175a37a",
+      "procedure": "Fail commercial search for an unknown explicit brand while generic portion remains available.",
+      "expected": "Identity remains pending; no generic portion or weight fallback.",
+      "observed": "Exact-head #6183 preserves brand_variant_unresolved for unavailable unknown-brand resolution and does not fall through to generic portion/measure search.",
+      "attack_control_id": "R-OFFLINE-NEG-3",
+      "risk_family": "temporal-consistency",
+      "surface": "clarification-order",
+      "dimension": "unknown-brand-provider-failure"
+    },
+    {
+      "id": "AUD1055-HANDOFF-SCOPE-EXACT",
+      "status": "passed",
+      "head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "control_type": "procedure",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
+      "evidence_sha256": "fba3ee3a4c87487e3c619ae75de296e7c451dec309cceb02eaaf7321e1d77bf1",
+      "procedure": "Derive certificate scope from git diff --name-only between the immutable work_item_start_sha and the refrozen material head, with no curated path filtering.",
+      "expected": "The rebuilt scope equals the complete immutable work-item delta and its digest is generated from that exact normalized set.",
+      "observed": "The refrozen material head has 92 changed paths from the immutable work-item start SHA; builder input is derived from that exact normalized Git compare."
+    },
+    {
+      "id": "AUD1055-POST-WRITE-REFREEZE",
+      "status": "passed",
+      "head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "control_type": "procedure",
+      "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
+      "evidence_sha256": "fba3ee3a4c87487e3c619ae75de296e7c451dec309cceb02eaaf7321e1d77bf1",
+      "procedure": "Detect any material write after a previously published result-only handoff and require a full post-write refreeze before audit release.",
+      "expected": "A stale certificate cannot certify a later code/test/documentation head; recovery must be post-write-refreeze and the next published child must have the current material head as direct parent.",
+      "observed": "The stale package was classified post-write-refreeze for code, test and documentation siblings; material candidate acfa6053 is now frozen only after current Agent-first and TiDB gates are green."
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": [],
+  "rationale": "Cumulative independent-audit controls are revalidated on acfa6053. The latest rejection adds a terminal-handoff lifecycle control: any material write after a published result-only child forces post-write-refreeze before a new independent audit."
+}

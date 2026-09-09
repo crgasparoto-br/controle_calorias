@@ -7,7 +7,7 @@ const requestLatestFoodCorrectionQuantityMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 vi.mock("../../db", () => ({

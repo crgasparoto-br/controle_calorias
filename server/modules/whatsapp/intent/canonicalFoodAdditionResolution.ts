@@ -1,11 +1,17 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
+import { inferUnresolvedCommercialIdentityHint } from "../../../catalogMatching";
+import { recoverCanonicalCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
 import { isCoffeeOrTeaBeverage } from "../../../foodSemanticCompatibility";
 import {
   isApproximateHouseholdMeasureResolutionKind,
   resolveHouseholdMeasure,
   type HouseholdMeasureResolution,
 } from "../../../householdMeasureResolution";
-import { processMealInput } from "../../../nutritionEngine";
+import {
+  MealInferenceError,
+  processMealInput,
+  resolveCommercialFoodIdentity,
+} from "../../../nutritionEngine";
 import type { MealItemInput } from "../../meals/schemas";
 import type { FoodAdditionIntent } from "./types";
 import { buildUnsweetenedCoffeeItem, toMealItemInputs } from "./mealItemHelpers";
@@ -27,6 +33,14 @@ export type CanonicalFoodAdditionItem = MealItemInput & {
 export type CanonicalFoodAdditionResolution =
   | { kind: "items"; items: CanonicalFoodAdditionItem[] }
   | {
+      kind: "identity_clarification";
+      itemIndex: number;
+      item: FoodAdditionIntent["items"][number];
+      resolvedItems: CanonicalFoodAdditionItem[];
+      message: string;
+      context: NonNullable<MealInferenceError["context"]>;
+    }
+  | {
       kind: "quantity_clarification";
       itemIndex: number;
       item: FoodAdditionIntent["items"][number];
@@ -35,11 +49,13 @@ export type CanonicalFoodAdditionResolution =
 
 type ResolverRuntime = {
   processMealInput: typeof processMealInput;
+  resolveCommercialFoodIdentity: typeof resolveCommercialFoodIdentity;
   resolveHouseholdMeasure: typeof resolveHouseholdMeasure;
 };
 
 const defaultRuntime: ResolverRuntime = {
   processMealInput,
+  resolveCommercialFoodIdentity,
   resolveHouseholdMeasure,
 };
 
@@ -63,8 +79,11 @@ function isExplicitlyUnsweetenedCoffee(value: string) {
     && /\bsem\s+(?:adicao\s+de\s+)?acucar\b/.test(normalized);
 }
 
-function buildFoodIdentity(item: FoodAdditionIntent["items"][number]) {
-  const brand = item.brand?.trim();
+function buildFoodIdentity(
+  item: FoodAdditionIntent["items"][number],
+  brandOverride?: string | null,
+) {
+  const brand = brandOverride?.trim() || item.brand?.trim();
   if (!brand) return item.foodName.trim();
   const normalizedFood = item.foodName.toLowerCase();
   return normalizedFood.includes(brand.toLowerCase())
@@ -108,12 +127,14 @@ export async function resolveCanonicalFoodAdditionItems(
     addition: FoodAdditionIntent;
     occurredAt: Date;
     timeZone: string;
+    resolvedItems?: CanonicalFoodAdditionItem[];
   },
   runtime: ResolverRuntime = defaultRuntime,
 ): Promise<CanonicalFoodAdditionResolution> {
-  const resolvedItems: CanonicalFoodAdditionItem[] = [];
+  const resolvedItems: CanonicalFoodAdditionItem[] = [...(input.resolvedItems ?? [])];
 
   for (const [itemIndex, item] of input.addition.items.entries()) {
+    if (itemIndex < resolvedItems.length) continue;
     const normalizedUnit = normalizeMeasurementUnit(item.unit);
     const originalFoodText = buildOriginalFoodText(item, normalizedUnit);
     const beverage = isCoffeeOrTeaBeverage(item.foodName);
@@ -132,6 +153,7 @@ export async function resolveCanonicalFoodAdditionItems(
     let processingText = originalFoodText;
     let quantityResolution: FoodAdditionQuantityResolution | undefined;
     let householdMeasure: HouseholdMeasureResolution | null = null;
+    let resolvedBrand = item.brand?.trim() || null;
 
     if (isMassOrVolume(normalizedUnit)) {
       quantityResolution = {
@@ -142,17 +164,66 @@ export async function resolveCanonicalFoodAdditionItems(
         referenceCount: 0,
       };
     } else if (!beverage) {
+      const commercialHint = inferUnresolvedCommercialIdentityHint(item.foodName);
+      if (resolvedBrand || commercialHint) {
+        const identity = await recoverCanonicalCommercialIdentity(
+          {
+            segment: originalFoodText,
+            foodName: item.foodName,
+            brand: resolvedBrand,
+          },
+          { processMealInput: runtime.processMealInput },
+        );
+        resolvedBrand = identity.brand ?? resolvedBrand;
+        if (identity.identityClarification) {
+          return {
+            kind: "identity_clarification",
+            itemIndex,
+            item,
+            resolvedItems,
+            message: identity.identityClarification.message,
+            context: identity.identityClarification.context,
+          };
+        }
+      }
+
+      let commercialFood: Awaited<ReturnType<typeof resolveCommercialFoodIdentity>> | undefined;
+      if (resolvedBrand) {
+        try {
+          commercialFood = await runtime.resolveCommercialFoodIdentity(
+            item.foodName,
+            resolvedBrand,
+          );
+        } catch (error) {
+          if (
+            error instanceof MealInferenceError
+            && error.code === "food_identity_clarification_required"
+            && error.context?.clarificationReason
+          ) {
+            return {
+              kind: "identity_clarification",
+              itemIndex,
+              item,
+              resolvedItems,
+              message: error.message,
+              context: error.context,
+            };
+          }
+          throw error;
+        }
+      }
       householdMeasure = await runtime.resolveHouseholdMeasure({
         userId: input.userId,
         foodName: item.foodName,
-        brand: item.brand,
+        brand: resolvedBrand,
         quantity: item.quantity,
         unit: normalizedUnit,
+        ...(commercialFood ? { commercialFood } : {}),
       });
       if (!householdMeasure) {
         return { kind: "quantity_clarification", itemIndex, item, resolvedItems };
       }
-      processingText = `${householdMeasure.grams} g de ${buildFoodIdentity(item)}`;
+      processingText = `${householdMeasure.grams} g de ${buildFoodIdentity(item, resolvedBrand)}`;
       quantityResolution = {
         kind: householdMeasure.kind,
         grams: householdMeasure.grams,
@@ -176,7 +247,7 @@ export async function resolveCanonicalFoodAdditionItems(
       ? {
           ...resolved,
           foodName: item.foodName.trim(),
-          brand: item.brand ?? resolved.brand ?? null,
+          brand: resolvedBrand ?? resolved.brand ?? null,
           quantity: item.quantity,
           unit: normalizedUnit,
           portionText: buildPortionText(item, normalizedUnit, householdMeasure),
@@ -186,7 +257,7 @@ export async function resolveCanonicalFoodAdditionItems(
       : {
           ...resolved,
           foodName: item.foodName.trim(),
-          brand: item.brand ?? resolved.brand ?? null,
+          brand: resolvedBrand ?? resolved.brand ?? null,
           quantityResolution,
         };
     resolvedItems.push(finalItem);

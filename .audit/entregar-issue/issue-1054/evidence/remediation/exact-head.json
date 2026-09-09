@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue": 1054,
+  "pull_request": 1055,
+  "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+  "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
+  "merge_preview_sha": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
+  "ci": {
+    "agent_first": {
+      "run_id": 34353999869,
+      "run_number": 6183,
+      "job_id": 102477294676,
+      "status": "completed",
+      "conclusion": "success",
+      "exact_head": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "verification_artifact_id": 10105790124,
+      "repository_bundle_artifact_id": 10105792760,
+      "passed_steps": [
+        "TypeScript check",
+        "Tests (24 sequential single-worker shards)",
+        "Architecture check",
+        "Documentation check",
+        "Build",
+        "Agent check",
+        "CI gate docs check",
+        "Create exact-head verification manifest",
+        "Create exact-head repository bundle"
+      ]
+    },
+    "whatsapp_tidb": {
+      "run_id": 34353999913,
+      "run_number": 3020,
+      "job_id": 102473939911,
+      "status": "completed",
+      "conclusion": "success",
+      "merge_preview_head": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
+      "passed_steps": [
+        "Apply current repository schema",
+        "Verify canonical food signal tables",
+        "Validate referential integrity",
+        "Run pending operation insert id regression",
+        "Run quick edit meal update regression",
+        "Run persistent context regression"
+      ],
+      "database_integrity": "passed on TiDB v8.5.1"
+    },
+    "merge_preview": {
+      "sha": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
+      "status": "success",
+      "agent_first_job_id": 102473939581,
+      "passed_steps": [
+        "TypeScript integration check",
+        "Test merge preview"
+      ]
+    }
+  },
+  "discriminant_controls": [
+    {
+      "id": "unknown-brand-with-generic-reference",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma Seven Boys",
+      "precondition": "explicit brand is outside KNOWN_BRANDS while a safe generic bread reference exists",
+      "observed": "The exact-head full suite on acfa6053 completed all 24 shards successfully; this regression requires canonical commercial identity recovery before generic grams."
+    },
+    {
+      "id": "unknown-brand-provider-unavailable",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma Seven Boys",
+      "precondition": "commercial extraction/search unavailable while generic bread remains available",
+      "observed": "The exact-head full suite passed; brand_variant_unresolved remains fail-closed and generic portion/weight cannot win first."
+    },
+    {
+      "id": "explicit-commercial-variant-extraction-unavailable",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma integral",
+      "observed": "The exact-head full suite passed; commercial_identity_unverified remains ahead of a weight clarification."
+    },
+    {
+      "id": "known-brand-regression",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma Panco",
+      "observed": "The exact-head full suite passed the recognized-brand path together with the unknown-brand recovery controls."
+    },
+    {
+      "id": "canonical-addition-resolution",
+      "status": "passed",
+      "test": "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts",
+      "observed": "The exact-head full suite passed the canonical food-addition commercial identity integration added after the previous handoff."
+    },
+    {
+      "id": "multi-item-continuation-stability",
+      "status": "passed",
+      "test": "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts",
+      "observed": "The exact-head full suite passed the post-clarification continuation path introduced after the previous handoff."
+    }
+  ],
+  "implementation_path": "commercial identity preflight -> canonical identity/variant -> product-specific portion -> weight clarification -> continuation/persistence",
+  "assertion": "The current material candidate was fully revalidated after all post-handoff material writes; commercial identity/variant still precedes generic portion/weight and TiDB persistence regressions are green.",
+  "verification_manifest_path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head-verification.json",
+  "verification_manifest_sha256": "cd477d06330299cff41c726679cb3327926189315af33aa4b26423137ba55aa3",
+  "local_runtime_note": "A local focused rerun was not used as evidence because this isolated runtime could not resolve registry.npmjs.org to download pnpm. Official exact-head GitHub Actions evidence is authoritative and green."
+}

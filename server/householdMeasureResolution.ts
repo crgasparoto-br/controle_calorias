@@ -11,7 +11,12 @@ import {
   type PersistedHouseholdMeasureKind,
   type PersistedHouseholdMeasureResolution,
 } from "./householdMeasureResolutionStore";
-import { parseQuantityUnitFromPortionText } from "./mealTextParsing";
+import {
+  extractExplicitQuantities,
+  parseQuantityUnitFromPortionText,
+} from "./mealTextParsing";
+import type { CatalogFood } from "./nutritionEngineTypes";
+import { isPersistedProductIdentityCompatible } from "./commercialProductIdentity";
 import { normalizeMeasurementUnit } from "../shared/measurementUnits";
 import {
   convertFoodPortionToGrams,
@@ -96,6 +101,8 @@ export type HouseholdMeasureResolutionInput = {
   brand?: string | null;
   quantity: number;
   unit: string;
+  /** Identity already accepted by the canonical nutrition resolver. */
+  commercialFood?: CatalogFood;
 };
 
 type CatalogSearchResult = Awaited<ReturnType<typeof searchGlobalFoodCatalog>>[number];
@@ -438,6 +445,17 @@ function referenceFoodIdentityIsSupported(
     .join(" ");
 
   if (reference.referenceKind === "exact_product") {
+    if (
+      input.commercialFood &&
+      !isPersistedProductIdentityCompatible({
+        foodName: input.commercialFood.name,
+        matchedProductName: reference.matchedFoodName,
+        brandName: reference.brandName,
+        servingLabel: `${reference.measureQuantity} ${reference.measureUnit}`,
+        gramsPerServing: reference.grams,
+      })
+    )
+      return false;
     const requested = requestedIdentity(input);
     if (!isFoodIdentitySemanticallyCompatible(requested, [identity])) return false;
     if (!isFoodIdentitySemanticallyCompatible(requested, [sourceText])) return false;
@@ -583,6 +601,7 @@ function buildSearchResolution(
     };
   }
 
+  if (input.commercialFood) return null;
   const usual = uniqueReferencesBySource(
     verified.filter(reference => reference.referenceKind === "same_food_type"),
   );
@@ -731,6 +750,52 @@ export async function resolveHouseholdMeasure(
   if (["mg", "g", "kg", "ml", "l"].includes(normalizedUnit)) return null;
 
   const normalizedInput = { ...input, unit: normalizedUnit };
+  if (input.commercialFood) {
+    const food = input.commercialFood;
+    const labelQuantities = extractExplicitQuantities(food.servingLabel);
+    const measures = labelQuantities.filter(
+      item => normalizeCountableUnit(item.unit) === normalizedUnit
+    );
+    const masses = labelQuantities.filter(item =>
+      ["mg", "g", "kg"].includes(item.unit)
+    );
+    const serving =
+      measures.length === 1 &&
+      masses.every(
+        item =>
+          item.estimatedGrams !== undefined &&
+          Math.abs(item.estimatedGrams - food.gramsPerServing) <= 0.05
+      )
+        ? measures[0]
+        : null;
+    if (
+      serving?.quantity &&
+      serving.unit &&
+      normalizeCountableUnit(serving.unit) === normalizedUnit &&
+      Number.isFinite(food.gramsPerServing) &&
+      food.gramsPerServing > 0
+    ) {
+      return {
+        kind: food.researchIdentityKey
+          ? "researched_exact"
+          : "canonical_portion",
+        grams: Number(
+          ((food.gramsPerServing * input.quantity) / serving.quantity).toFixed(
+            2
+          )
+        ),
+        requestedQuantity: input.quantity,
+        requestedUnit: normalizedUnit,
+        evidence:
+          food.sourceEvidence ??
+          `${food.servingLabel} = ${food.gramsPerServing} g`,
+        sourceUrls: [...(food.sourceUrls ?? [])],
+        referenceCount: 1,
+      };
+    }
+    // Do not reuse an older generic/approximate measure for a verified commercial identity.
+    return searchVerifiedMeasure(normalizedInput, runtime);
+  }
   const stored = await resolveStoredPortion(normalizedInput, runtime);
   if (stored) return stored;
 

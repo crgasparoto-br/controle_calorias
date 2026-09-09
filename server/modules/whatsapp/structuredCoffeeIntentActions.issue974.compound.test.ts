@@ -9,7 +9,7 @@ vi.mock("./intentValidation", () => ({ validateWhatsappRuntimeIntentForPersisten
 vi.mock("../meals/service", () => ({ listMeals: vi.fn(async () => []), createManualMeal: createMealMock, updateMeal: vi.fn() }));
 vi.mock("../../db", () => ({ getDb: vi.fn(), getHabitSnapshots: vi.fn(async () => []), logPersistenceWarning: vi.fn() }));
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({ createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => ({ getActivePendingOperation: vi.fn() })) }));
-vi.mock("../../nutritionEngine", () => ({ MealInferenceError: class extends Error {}, processMealInput: processMock }));
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(), MealInferenceError: class extends Error {}, processMealInput: processMock }));
 vi.mock("./foodQuantityClarification", () => ({ requestWhatsappCaloricComplementQuantityClarification: vi.fn() }));
 vi.mock("./mealActionReplyComposer", () => ({ composeWhatsAppMealActionReply: vi.fn(async () => "ok") }));
 vi.mock("./userMeasurementReplyContext", () => ({ getWhatsAppUserTimeZone: vi.fn(async () => "America/Sao_Paulo") }));

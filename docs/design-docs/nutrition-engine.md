@@ -87,7 +87,7 @@ Regras:
 - medidas vagas como `porção`, `pedaço`, `pacote` e `punhado` não são promovidas automaticamente a `contextual_estimate` por uma referência isolada;
 - duas ou mais referências verificadas que divirjam materialmente obrigam clarificação; não é permitido escolher uma delas arbitrariamente;
 - uma referência explícita da mesma marca/variante tem precedência sobre média de categoria;
-- quando uma referência de alimento genérico compatível for usada para estimar **quantidade** de um produto de marca, isso não autoriza substituir a composição nutricional específica do produto;
+- uma referência de alimento genérico compatível pode estimar **quantidade** somente quando não houver identidade comercial explícita pendente; para produto com marca/variante explícita, a medida deve ser comprovada para a mesma identidade comercial antes de qualquer média ou fallback de categoria;
 - gramatura estimada e composição nutricional são decisões separadas e devem ter compatibilidade semântica independente;
 - toda estimativa utilizada deve manter procedência suficiente para distinguir valor exato/canônico, medida exata pesquisada, referência pessoal aprendida, média usual, estimativa contextual e fallback nutricional;
 - resoluções pesquisadas reutilizáveis são persistidas com validade temporal; registro expirado volta a ser miss e pode ser verificado novamente;

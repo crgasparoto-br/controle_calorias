@@ -1,0 +1,2454 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "1da781d047e5ea21705c184ab7d9915ce778334bb434484354d03fca9c82f8ed"
+  },
+  "primary_issue_source_id": "SRC-ISSUE",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "e6f808ad002ff08b61fdde3e091ce610bd10edfe2ecdd21202378187c3adb4a8",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 3,
+      "source_text": "Foi identificado em produção um comportamento incorreto no WhatsApp após a implementação da issue #1051 / PR #1052.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": {
+        "decision_source_id": "SRC-ISSUE",
+        "decision_source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+        "decision_locator": "SRC-ISSUE:L3",
+        "target_issue": null,
+        "parent_issue_must_remain_open": false
+      },
+      "rationale": "Trecho descritivo do incidente/implementação anterior na seção Contexto ou Relação com trabalhos anteriores; não instrui reproduzir a resposta incorreta como comportamento desejado."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "58de16ae392c92edc5cfc5ec282466fab396a492b90d99c7cbac4d26e73993cf",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 5,
+      "source_text": "Mensagem enviada pelo usuário:",
+      "flags": [],
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": {
+        "decision_source_id": "SRC-ISSUE",
+        "decision_source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+        "decision_locator": "SRC-ISSUE:L5",
+        "target_issue": null,
+        "parent_issue_must_remain_open": false
+      },
+      "rationale": "Trecho descritivo do incidente/implementação anterior na seção Contexto ou Relação com trabalhos anteriores; não instrui reproduzir a resposta incorreta como comportamento desejado."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "6cf3715b43a04de0894a7e448513c678323de472ec1530e228e9f6dc4c899e64",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 16,
+      "source_text": "Não encontrei uma gramatura verificável nem uma média usual segura para 2 fatias de pão de forma panco. Informe somente o peso ou volume correspondente, por exemplo 20 g.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": {
+        "decision_source_id": "SRC-ISSUE",
+        "decision_source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+        "decision_locator": "SRC-ISSUE:L16",
+        "target_issue": null,
+        "parent_issue_must_remain_open": false
+      },
+      "rationale": "Trecho descritivo do incidente/implementação anterior na seção Contexto ou Relação com trabalhos anteriores; não instrui reproduzir a resposta incorreta como comportamento desejado."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "ff666f2dfe30b61d217a7400d4f4bc994fb9a6a1e97c917ad53683e14834b42d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 19,
+      "source_text": "Esse comportamento contraria o objetivo da #1051. Para alimento com marca explícita, o sistema não deve transformar uma falha de resolução de identidade/variante em uma solicitação imediata de peso ao usuário.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-004"
+      ],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "1d08ad775807897dc2578a07e0ac4e4356ca656d87dc5ab197d757161bd56a83",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 21,
+      "source_text": "A PR #1052 já preserva `Panco` no fluxo contável e cobre o encaminhamento ao resolvedor, porém o teste específico de `2 fatias de pão de forma Panco` mocka `resolveHouseholdMeasure()` retornando artificialmente `50 g`. Assim, o teste comprova propagação de marca/quantidade/unidade, mas não comprova que o resolvedor real consegue resolver ou clarificar corretamente esse caso.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-REAL-TEST"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Exercitar implementações reais no cenário crítico."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "88d8d363ae2574ba0381450ebffafe1e1be05c48cf637d7cb6d8af61a9b3960d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 23,
+      "source_text": "Além disso, `prepareWhatsappCountableFoodRegistration()` ainda possui um fallback genérico de clarificação por peso quando `prepareCountableFoodRegistrationResolved()` devolve `pendingItems`. Esse fallback pode ocorrer antes da clarificação correta de marca/variante.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "b2e72d865ab12a5e362ce5f9e675c939ac197fb5e59e9b970c6c47a82c123dd9",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 27,
+      "source_text": "Corrigir a regressão para que alimentos contáveis com marca explícita, especialmente casos como `2 fatias de pão de forma Panco`, passem pelo fluxo completo de resolução de identidade, variante, porção e fonte nutricional antes de qualquer pedido genérico de gramatura.",
+      "flags": [
+        "exhaustive",
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [
+        "OBS-007"
+      ],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "35150648a2ebff1b70e67741ab49ddf06e4372eb57430e69b0c4e419ce48f98f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 29,
+      "source_text": "A implementação deve partir da branch `develop`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-BASE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Partir de develop e publicar PR para develop."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "505a7b9409e9cb2b7624a7f3e35a75e35d07777d00b89681a2f92bd8adf0e53d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 39,
+      "source_text": "o sistema deve:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "9031f8101f14eaafe5ff7ef8244ba3cbaadef3535792eaf72a8d687d51bdb048",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 41,
+      "source_text": "reconhecer `quantidade = 2`, `unidade = fatia` e `marca = Panco`;",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-IDENTITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar quantidade, unidade, marca e fonte."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "0cca38e4b01ebc8fec4c8074e44a048de0593eac2ac42b5c1418f4d401303be7",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 42,
+      "source_text": "preservar a identidade comercial no fluxo de resolução;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-IDENTITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar quantidade, unidade, marca e fonte."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "56b90da3842034f5948e6998c292326a1f4a77efadafa14b516e8522c6966c1f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 43,
+      "source_text": "consultar referência/catalogação/pesquisa específica para a marca e variante;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-IDENTITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar quantidade, unidade, marca e fonte."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "7c239a95842fd605218cfed897b56942446fb974682e922d98381db9065a2ff1",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 44,
+      "source_text": "se houver uma única correspondência aceita pelo contrato canônico de identidade/nutrição, usar a porção verificada;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "49922f55d0291fd8d9a526a6c483fdf6c6971ff4de015c212f287cbd50f3646b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 45,
+      "source_text": "se houver múltiplas variantes plausíveis, perguntar qual produto/variante Panco o usuário quer informar;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "247f931fd06139a60e452a6f0e5e346ef5e14ec9e05bac3af736de74fc8acd03",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 46,
+      "source_text": "somente pedir peso ou volume quando a identidade comercial já estiver resolvida e não houver porção/medida segura disponível para a quantidade informada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "cb3aa5f37fef7fe2c91eb7a031f9ec93fc9b5cd896bb2b2c51825b296b9d6ff5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 48,
+      "source_text": "Para esta issue, “correspondência aceita” não significa apenas “primeiro resultado” ou “único resultado retornado”: deve reutilizar as verificações já existentes de compatibilidade de produto, marca, variante, evidência e ambiguidade do contrato semântico da #1051. Não criar um novo limiar de confiança específico para o gate contável.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "092e213484718647c2bc42f168d56474bfe9323351685585d0d18d234e052166",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 57,
+      "source_text": "somente depois considerar clarificação por peso.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "c4f53d8e0f9f377b7b2f294263749d032d81425c8e521372d11eda871acc4973",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 59,
+      "source_text": "A clarificação genérica de gramatura não pode antecipar uma clarificação de identidade/variante.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "252cb902d89719c290b4099fadc182c964d8c157d306d4af9a08daba02a19f33",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 63,
+      "source_text": "A causa da pendência deve permanecer compatível com o contrato semântico já existente:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "a7d1489da84228361e2244b994072f204a01974b3ce5080eebbae1e0d70feadb",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 67,
+      "source_text": "identidade comercial comprovada + porção contável não resolvida -> clarificação de peso/volume é permitida;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "42631be65010d9458e1bbfe78660d2bfcbc2b9ba6224d28550394fc81400a4a0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 68,
+      "source_text": "pesquisa/provider indisponível antes de comprovar a identidade -> manter a pendência de identidade de forma fail-closed; não usar alimento genérico e não pedir peso apenas porque a pesquisa falhou.",
+      "flags": [
+        "negative",
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-021"
+      ],
+      "scope_decision": null,
+      "rationale": "Pesquisa indisponível mantém identidade pendente."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "28b2ec95a6439018ba6a28f0a75cfe1fd145e5522d4baabf5135e5efb3030ed8",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 70,
+      "source_text": "O gate contável pode transportar a pendência necessária ao fluxo conversacional, mas não deve criar uma segunda taxonomia concorrente de identidade comercial quando o contrato da #1051 já representa a causa.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "1bef511e845970125451425609e3db74a8509e3ac124cf0924ea84e834d9f159",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 76,
+      "source_text": "`server/modules/whatsapp/countableFoodRegistrationGate.ts`",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Revisar resolvedores e consumidores sem duplicar contratos."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "8bdd2b5d64022f14c2be080c4465bb62e5d54a2cf55499e6fecba1de2e345488",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 77,
+      "source_text": "`server/countableFoodQuantity.ts`",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Revisar resolvedores e consumidores sem duplicar contratos."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "df062be074d8b72b518070790a15a9b7e920e72c8021ab5ef1f57019981f9450",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 78,
+      "source_text": "`server/householdMeasureResolution.ts`",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Revisar resolvedores e consumidores sem duplicar contratos."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "46c63540c46e69b30778d6ac2b3d7eac7aab8eff11c52a0b78f8ffd56d0619e2",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 79,
+      "source_text": "`server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts`",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Revisar resolvedores e consumidores sem duplicar contratos."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "2ee9d8b3ea592ad8164d9683fc04e62fcb9cc634bd2d329c934d76d96f77c19b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 80,
+      "source_text": "`server/mealSemanticContract.ts` e o contrato/tipos já existentes apenas quando necessário para integração, sem duplicação",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "ca9e0af298df13531aed114a93cf0dcf13bf7606ca959e5535edb99a96e43d5f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 81,
+      "source_text": "consumidores do gate no webhook/registro confirmado",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-028"
+      ],
+      "scope_decision": null,
+      "rationale": "Revisar resolvedores e consumidores sem duplicar contratos."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "c472e86962afa8216fb59c3bb7145cc76ab81d6be2e37f594e4ce81524f9c802",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 82,
+      "source_text": "testes associados à #1051, #1037 e #1047",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-REAL-TEST"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Exercitar implementações reais no cenário crítico."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "117d13bd1d6a7b884b6251321f39706aba4c6a576d08abf1ce995b8b3a2061b1",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 84,
+      "source_text": "A correção deve reutilizar o resolvedor canônico e o contrato semântico já existentes. Não criar um segundo resolvedor paralelo para pão, para marcas específicas ou para identidade/variante no gate contável.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "73f634bd1707466ae3be06bc2403a58c12ddd224de58bd312def487b0b7c535a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 88,
+      "source_text": "**`must_behave`**: `2 fatias de pão de forma Panco` deve chegar à resolução de identidade/variante antes de qualquer clarificação de gramatura.",
+      "flags": [
+        "exhaustive",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "628c8764a78461635a2b93c948172cdc7f351c76b89a488696153fcc1ab3a294",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 89,
+      "source_text": "Implementação errada que pode passar no caminho feliz: cadastrar uma porção fixa de Panco e fazer apenas esse exemplo retornar gramas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "63f934d3a5aad8350ee7309ac2b68ac35d4d478748cceb11742077c59e6a92ab",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 90,
+      "source_text": "Controle: testar Panco sem variante, Panco Premium, outra variante, outra marca e pesquisa indisponível.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "d50774600e18d7fe0aea29723c54332edaaf8cf9fe8aa273fc86f86a3357148f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 91,
+      "source_text": "**`must_not_behave`**: marca explícita não pode cair silenciosamente em pão genérico, Wickbold ou macro/porção heurística apresentada como exata.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "a8d5934762c4c4fe15d6a356033d2d36bb96b35f8bad18e0a1ce3843fdc4f3f8",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 92,
+      "source_text": "Implementação errada que pode passar no caminho feliz: manter o nome `Panco` na resposta, mas calcular com referência nutricional genérica.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "400831d007347fe044e47d7aacd728ed5d47a55e95e500c889e9c05c6f9ec932",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 93,
+      "source_text": "Controle: afirmar identidade, fonte/evidência e variante usadas no resultado.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "87d9a673ba7b54ad41c007ca4b8d2e730bca38fa1796afe4f9fdd608aba00088",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 94,
+      "source_text": "**`must_reuse` / `must_be_single_source`**: a ambiguidade comercial deve reutilizar o contrato semântico da #1051 e seus códigos canônicos, em vez de manter uma lista/taxonomia paralela no gate.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "923784bfe9fc1ac92fe05a0036ee5d00526845581b30d5daca5ebb040416b1a3",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 95,
+      "source_text": "Implementação errada que pode passar no caminho feliz: criar `pendingBrand=true` apenas em `countableFoodRegistrationGate.ts` com regras próprias para Panco.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "2f2596c856c04aa3f22897817c73714e3fb8045548571799084a84db6b3135ce",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 96,
+      "source_text": "Controle: teste de integração deve observar os mesmos códigos/alternativas usados pelo fluxo nutricional canônico.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "7765eeba58f83c9a26c7170b1e513afda74c78e0fbf9db41c9bde17f009e1fab",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 97,
+      "source_text": "**`precedence_invariants`**: identidade -> variante -> porção -> peso.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "80b26c00761dfa96d9bc9d8991023eccbca41057e4b32dbc8748a3c84f1a18f6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 98,
+      "source_text": "Implementação errada que pode passar no caminho feliz: chamar o resolvedor correto, mas somente depois de o gate já ter emitido a pergunta de peso.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "aa1a655025a1479a809cccaf1c5ed26b8033a9bb62383e73b6f81ddbcc85f48c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 99,
+      "source_text": "Controle: teste deve comprovar que a primeira clarificação emitida no caso ambíguo é de identidade/variante.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "967173b5d340f218f8bf1cdedb4442e97f9a9a51b7299758a0a4c06f021a366c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 100,
+      "source_text": "**`forbidden_implementation`**: não cadastrar gramatura fixa por marca nem introduzir branch especial para `Panco` como solução da regressão.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "a8ec9614ccc2ea1317f891f9eda2e6691bafa92992f68c69288be65d04a0f885",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 101,
+      "source_text": "Controle: os testes equivalentes com outra marca/variante devem passar pelo mesmo caminho genérico.",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "4f9894614c997802b6cc2709299624e9dbd5370b378e883301b76396d24da61a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 105,
+      "source_text": "O fluxo contável deve diferenciar claramente:",
+      "flags": [
+        "exhaustive",
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [
+        "OBS-045"
+      ],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "1d35347d8f42a4322123a1d0d4a2f61276638a809364944891921fc86764b371",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 106,
+      "source_text": "falta de identidade/variante;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "3c0a9d5b4b1b35525dbd2e20097ecf985be1c550ad71aa95ad398274443621aa",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 107,
+      "source_text": "falta de porção verificável após identidade resolvida;",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "36c98d93c46dd1f19d316ff23449d53f64d26fcf2e8f5a316224258528f54119",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 108,
+      "source_text": "pesquisa indisponível;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pesquisa indisponível mantém identidade pendente."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "ceeb4f5c08875398be5a3a42f613b9390a7ecaf8b11169b5a51463ae8028b993",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 109,
+      "source_text": "ausência real de referência segura.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pesquisa indisponível mantém identidade pendente."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "53efd2b00e297e1eca600f1225fb15c53dc3c62f7078800c2ed7e63a8678b254",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 110,
+      "source_text": "`pendingItems` não deve representar genericamente todos esses estados como “pedir peso”.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "200c79eafd92caccdb8245b40bca22b7330a62dbc7524083a5f6a4cefa978748",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 111,
+      "source_text": "Para marca explícita, a decisão deve respeitar a política fail-closed já introduzida na #1051, sem usar produto genérico como exato.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pesquisa indisponível mantém identidade pendente."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "ffcc8539991fdf592db04dcdc4aaf2fc17ec06999015e805fefb9da6e6e7baa6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 112,
+      "source_text": "A mensagem ao usuário deve refletir a causa real da pendência, sem expor detalhes técnicos de provider/backend.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "954af450b264e45e6c276500c189ee35b5eb742893417b435d9d9c285310bc8b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 113,
+      "source_text": "A resolução de fatias/unidades deve continuar funcionando para alimentos genéricos e para alimentos sem marca, sem regressão.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-GENERIC"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-053"
+      ],
+      "scope_decision": null,
+      "rationale": "Preservar medidas de alimentos sem marca."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "a08ffe758e43f69c3d6c6672364e1643edf2afb8182044cdc7dccd1d82beebb0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 114,
+      "source_text": "Mensagens com vários alimentos devem resolver cada item independentemente para fins de análise, mas **não devem persistir parcialmente a refeição** antes da resolução da clarificação pendente. Itens já resolvidos podem ser preservados no contexto de continuação existente e reutilizados após a resposta do usuário.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal",
+        "aftermath",
+        "structural",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [
+        "OBS-054"
+      ],
+      "scope_decision": null,
+      "rationale": "Preservar resultados irmãos e persistir somente após resolver o lote completo."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "16354b4c49b390ca5a79e3c4db4ee2b9fa172a472fac93f893df93dfc0016949",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 115,
+      "source_text": "Após a clarificação, a mesma operação lógica deve continuar sem recalcular ou trocar silenciosamente a identidade dos itens que já estavam resolvidos.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar resultados irmãos e persistir somente após resolver o lote completo."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "a81829a4df61cd8a41cc2d0a375d5080d5a5c48dd0ae539a2f048719cda7fa18",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 121,
+      "source_text": "É permitido substituir integrações externas por doubles determinísticos no boundary de catálogo/provider/pesquisa para manter o teste reproduzível e sem credenciais reais. O teste deve, porém, executar a implementação real de `resolveHouseholdMeasure()`, o gate e a decisão de clarificação relevantes; não vale mockar diretamente o retorno final de gramas ou o estado final de pendência.",
+      "flags": [
+        "negative",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-REAL-TEST"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Exercitar implementações reais no cenário crítico."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "9f8e4f3e3be6346ebba0a6e284190f0759369738789da62e46d2bd766583f947",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 126,
+      "source_text": "`2 fatias de pão de forma Panco` com múltiplas variantes plausíveis -> pergunta a variante, não a gramatura, usando `brand_variant_unresolved`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "34fc5785e6812993643829316df6f759f785c74b75836f24b5f6298b7acacb73",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 128,
+      "source_text": "marca explícita com pesquisa indisponível -> não usa pão genérico, não apresenta macro genérico como exato e não converte automaticamente a falha em clarificação de peso.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pesquisa indisponível mantém identidade pendente."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "c5e762803827d0af9e7cffb5d582e4b3cecf33ffc9bb5a61ec451ae800a572f6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 130,
+      "source_text": "`2 fatias de pão de forma` sem marca -> mantém fallback genérico atual quando aplicável.",
+      "flags": [
+        "negative",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-GENERIC"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar medidas de alimentos sem marca."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "ffe8468ce0624750d232808b244707ccc9abf410ab37cf059acfb5f5ebfc4576",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 131,
+      "source_text": "mensagem multi-item equivalente ao caso observado em produção -> leite, pão Panco, requeijão, presunto e mussarela são analisados sem o gate antecipar incorretamente a clarificação de peso; se o pão exigir variante, nenhuma refeição/item é persistido parcialmente antes da resposta.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar resultados irmãos e persistir somente após resolver o lote completo."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "0e0dbc211502124c50c2db4a3d7d7e3dfca8dbf5d775945fba5019d603045ce2",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 133,
+      "source_text": "texto com `Panco` preserva marca até o resultado final ou até a clarificação.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-IDENTITY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar quantidade, unidade, marca e fonte."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "c7169d50e0165270c87f214ed1881f2db538ed9154b0480ddb9d53009ce2fb2a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 134,
+      "source_text": "variante explicitamente informada, mas não comprovada -> usa `commercial_identity_unverified` e não pede peso como primeira resposta.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-UNVERIFIED"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Variante informada sem comprovação mantém pendência de identidade."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "f6cca9b4eb77ae6eaea68d5ac692772829f1ca3ccc30f65d7edd09ebb6d7763b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 139,
+      "source_text": "[ ] O caso de produção `2 fatias de pão de forma Panco` não recebe automaticamente a mensagem “Informe somente o peso ou volume correspondente”.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Perguntar a variante antes de gramatura."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "d4ba4efa2f7c886dd8abf3b353416a8642047dae0ebb251ce32f526a4332f36a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 140,
+      "source_text": "[ ] Quando houver ambiguidade entre variantes Panco, a pergunta é sobre a variante/produto e usa a causa canônica `brand_variant_unresolved`.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "65049240aa7457205f616daf2698250c1d29161bf87ab85a48f0011da4d0cf05",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 141,
+      "source_text": "[ ] Quando uma variante explicitamente informada não puder ser comprovada, a pendência permanece `commercial_identity_unverified` e não é reclassificada como falta de gramatura.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-UNVERIFIED"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Variante informada sem comprovação mantém pendência de identidade."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "cc0d7f936733299a10a161c57a3ce36ab08419dddac542b1871a8ebbe3aeba6e",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 142,
+      "source_text": "[ ] Quando houver referência exata, a quantidade em fatias é convertida usando a porção específica do produto.",
+      "flags": [
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "051a6885748bfc5c0a34a6624b12b9dc1b56ae74c3a55464c81433960f45c4b5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 143,
+      "source_text": "[ ] A marca `Panco` permanece presente em todo o contrato de resolução.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-IDENTITY"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar quantidade, unidade, marca e fonte."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "9c0983cd7059acbfc565d51787479a7a7d697607902d5d26d117e41be904fdff",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 144,
+      "source_text": "[ ] Nenhum fallback para Wickbold ou pão genérico é usado silenciosamente.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-PORTION"
+      ],
+      "inventory_ids": [
+        "INV-001"
+      ],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Usar porção comprovada da identidade compatível."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "65f39371495572a9a7adf8cc96aaec416d78033a323fc31477c6c4229389dd7f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 145,
+      "source_text": "[ ] O pedido de gramatura só ocorre depois de a identidade comercial estar resolvida e de a resolução de porção/medida aplicável ter falhado.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Pedir peso somente após comprovar a identidade sem relação física segura."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "3f7df537519670ec869a9d4538706ab87ba204f4489d40b8effcc26d95c3c4da",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 146,
+      "source_text": "[ ] O gate contável não mantém uma segunda fonte de verdade para ambiguidade de marca/variante; reutiliza o contrato canônico da #1051.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Compartilhar a taxonomia e política semânticas existentes."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "cc9731fffa2fd8bc96309458df4962ce39f905788bde2d0f11ddde19b2788e81",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 147,
+      "source_text": "[ ] O teste do cenário principal exercita o resolvedor real; não basta mockar retorno de gramas. Doubles são permitidos somente nos boundaries externos necessários para determinismo.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-REAL-TEST"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Exercitar implementações reais no cenário crítico."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "c849b7efaf64c979921d74c99e6ad5913ec20f00ba785d5c91348ee4bcbf2ff8",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 148,
+      "source_text": "[ ] O fluxo multi-item do exemplo observado em produção tem teste de regressão e prova ausência de persistência parcial durante a clarificação.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar resultados irmãos e persistir somente após resolver o lote completo."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "8320f11c4d5cbe76dca92ede26faeeec52e8a28c53a6f18d94bc1aef2dd5db4b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 149,
+      "source_text": "[ ] A retomada após clarificação não duplica a refeição nem troca a identidade dos itens já resolvidos.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar resultados irmãos e persistir somente após resolver o lote completo."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "fed9a01cfd1ea9aee1df8774249a0f4f4365d93e8affce03d352ae0a77adad42",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 150,
+      "source_text": "[ ] Testes existentes de medidas contáveis continuam passando.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-GENERIC"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Preservar medidas de alimentos sem marca."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "9f6a8702d80f22fe3a9991baf3c8d11f69b01bba4623a1c45c40ec323b4c26a1",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 151,
+      "source_text": "[ ] Type-check, lint, build e suíte focada aplicáveis passam.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-GATES"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Passar verificações aplicáveis da entrega."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "a11b2313ecbbcd7743fed9f4bb9e9b10a7681c1232011648986c71c503242596",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 155,
+      "source_text": "Atualizar `docs/design-docs/whatsapp-countable-measure-passthrough.md` para registrar a precedência **identidade -> variante -> porção -> peso**, a reutilização do contrato semântico e a proibição de clarificação de gramatura antecipada para marca/variante pendente.",
+      "flags": [
+        "structural",
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-DOCS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Alinhar documentação canônica à precedência e ao fail-closed."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "ce1d4191a93c53e5cd58b36f5eff714181a6a437df9cb7a3bb22176271c29308",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 156,
+      "source_text": "Verificar `docs/product-specs/meal-registration.md`: ele já documenta a política fail-closed e os códigos `brand_variant_unresolved` / `commercial_identity_unverified`; só deve ser alterado se a implementação mudar esse contrato público. Caso contrário, registrar na PR que permanece válido sem alteração.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-DOCS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Alinhar documentação canônica à precedência e ao fail-closed."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "39458d5f8b7ed01e66f0332c6d627e2fb301dc5a44e5ab94f90de9b55c3346e2",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 170,
+      "source_text": "Implementação que tentou cobrir o cenário: PR #1052.",
+      "flags": [],
+      "disposition": "not-applicable",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": {
+        "decision_source_id": "SRC-ISSUE",
+        "decision_source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+        "decision_locator": "SRC-ISSUE:L170",
+        "target_issue": null,
+        "parent_issue_must_remain_open": false
+      },
+      "rationale": "Trecho descritivo do incidente/implementação anterior na seção Contexto ou Relação com trabalhos anteriores; não instrui reproduzir a resposta incorreta como comportamento desejado."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "ad8d3614a3da6b318ca2470c6db569939765eb4ac31e02c7738eedacdf53c4b9",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "source_line": 175,
+      "source_text": "A issue estará concluída quando o comportamento observado em produção estiver reproduzido por teste, corrigido no fluxo real, validado sem mock do resolvedor no cenário crítico, sem persistência parcial no fluxo de clarificação, com a documentação afetada consistente, e a solução estiver pronta em PR contra `develop` para auditoria independente.",
+      "flags": [
+        "observable",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-READY"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [
+        "OBS-079"
+      ],
+      "scope_decision": null,
+      "rationale": "Reproduzir e corrigir a regressão em PRcontra develop com evidência auditável."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "1b42cb092acbc9b3e0d3da921d8795218e92e3ca7943aa767daf321aeaa59326",
+      "candidate_count": 79,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [
+    {
+      "id": "INV-001",
+      "name": "Estados comerciais, porções e itens do caso de produção",
+      "closed_world": true,
+      "producer_sources": [
+        "server/nutritionEngine.ts",
+        "server/mealSemanticContract.ts",
+        "server/householdMeasureResolution.ts"
+      ],
+      "consumer_sources": [
+        "server/countableFoodQuantity.ts",
+        "server/modules/whatsapp/countableFoodRegistrationGate.ts",
+        "server/modules/whatsapp/confirmedMealRegistration.ts",
+        "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts",
+        "server/modules/whatsapp/foodClarificationPersistence.ts"
+      ],
+      "values": [
+        {
+          "value": "brand_variant_unresolved",
+          "producer_evidence": [
+            "buildMealSemanticContract"
+          ],
+          "consumer_evidence": [
+            "identityClarification.context"
+          ],
+          "scenario_ids": [
+            "R-CANONICAL"
+          ]
+        },
+        {
+          "value": "commercial_identity_unverified",
+          "producer_evidence": [
+            "buildMealSemanticContract"
+          ],
+          "consumer_evidence": [
+            "identityClarification.context"
+          ],
+          "scenario_ids": [
+            "R-UNVERIFIED"
+          ]
+        },
+        {
+          "value": "identity-resolved/portion-missing",
+          "producer_evidence": [
+            "resolveHouseholdMeasure"
+          ],
+          "consumer_evidence": [
+            "foodQuantityClarification"
+          ],
+          "scenario_ids": [
+            "R-WEIGHT"
+          ]
+        },
+        {
+          "value": "provider-unavailable",
+          "producer_evidence": [
+            "resolveCommercialFoodIdentity"
+          ],
+          "consumer_evidence": [
+            "countableFoodRegistrationGate"
+          ],
+          "scenario_ids": [
+            "R-OFFLINE"
+          ]
+        },
+        {
+          "value": "unbranded",
+          "producer_evidence": [
+            "resolveHouseholdMeasure"
+          ],
+          "consumer_evidence": [
+            "countableFoodRegistrationGate"
+          ],
+          "scenario_ids": [
+            "R-GENERIC"
+          ]
+        },
+        {
+          "value": "milk,bread,spread,ham,cheese",
+          "producer_evidence": [
+            "processMealInput each segment"
+          ],
+          "consumer_evidence": [
+            "resolvedSegments -> final items"
+          ],
+          "scenario_ids": [
+            "R-CONTINUATION"
+          ]
+        }
+      ],
+      "unmapped_values": [],
+      "fallback_policy": "unknown-only",
+      "rationale": "Enum de causas reutiliza os códigos canônicos; os cinco itens do cenário são analisados individualmente, sem gravação parcial. Catálogo alimentar é aberto; inventário fecha os estados e o lote exigidos, não todas as marcas existentes."
+    }
+  ],
+  "observable_assertions": [
+    {
+      "id": "OBS-004",
+      "description": "Perguntar a variante antes de gramatura.",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "obligation_ids": [
+        "OBL-004"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-PRECEDENCE"
+      ],
+      "negative_control_evidence": [
+        "Usar duas alternativas Panco Premium/Integral no gate real. brand_variant_unresolved; pergunta contém Premium e Integral; zero pesquisa de medida.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-007",
+      "description": "Perguntar a variante antes de gramatura.",
+      "requirement_ids": [
+        "R-PRECEDENCE"
+      ],
+      "obligation_ids": [
+        "OBL-007"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-PRECEDENCE"
+      ],
+      "negative_control_evidence": [
+        "Usar duas alternativas Panco Premium/Integral no gate real. brand_variant_unresolved; pergunta contém Premium e Integral; zero pesquisa de medida.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-021",
+      "description": "Pesquisa indisponível mantém identidade pendente.",
+      "requirement_ids": [
+        "R-OFFLINE"
+      ],
+      "obligation_ids": [
+        "OBL-021"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-OFFLINE"
+      ],
+      "negative_control_evidence": [
+        "Rejeitar a Promise da pesquisa externa, mantendo disponível um pão genérico. Clarificação de identidade; nenhum resultado genérico é liberado como refeição nem pergunta de peso.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-028",
+      "description": "Revisar resolvedores e consumidores sem duplicar contratos.",
+      "requirement_ids": [
+        "R-INTEGRATION"
+      ],
+      "obligation_ids": [
+        "OBL-028"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-INTEGRATION"
+      ],
+      "negative_control_evidence": [
+        "Rastrear countableFoodQuantity -> resolveCommercialFoodIdentity -> canonical semantic contract e gate -> confirmedMealRegistration/foodClarificationPersistence. Somente produtor canônico decide identidade; snapshots atravessam ambas continuações; canonicalFoodAdditionResolution revisado e seus contratos regressivos preservados.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-045",
+      "description": "Pedir peso somente após comprovar a identidade sem relação física segura.",
+      "requirement_ids": [
+        "R-WEIGHT"
+      ],
+      "obligation_ids": [
+        "OBL-045"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-WEIGHT"
+      ],
+      "negative_control_evidence": [
+        "Fornecer Panco Premium verificado sem servingLabel e sem pesquisa de medida; comparar cenário ambíguo. Somente identidade comprovada sem porção chega à pergunta Informe somente o peso; ambiguidade retorna variante.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-053",
+      "description": "Preservar medidas de alimentos sem marca.",
+      "requirement_ids": [
+        "R-GENERIC"
+      ],
+      "obligation_ids": [
+        "OBL-053"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-GENERIC"
+      ],
+      "negative_control_evidence": [
+        "Executar pão sem marca e as regressões1037/1047/1051. 2fatias de pão sem marca continuam50g pela referência genérica; 24testes existentes passam.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-054",
+      "description": "Preservar resultados irmãos e persistir somente após resolver o lote completo.",
+      "requirement_ids": [
+        "R-CONTINUATION"
+      ],
+      "obligation_ids": [
+        "OBL-054"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-CONTINUATION"
+      ],
+      "negative_control_evidence": [
+        "Executar os cinco alimentos de produção; remover catálogo dos irmãos antes de responder Premium; repetir resposta; testar cancelamento, expiração, outro usuário e pendência antiga. Zero draft/confirm durante pergunta; snapshots0,2,3,4 imutáveis; uma extração na retomada; cinco itens numa única confirmação, mesmo occurredAt; replay sem segunda gravação.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    },
+    {
+      "id": "OBS-079",
+      "description": "Reproduzir e corrigir a regressão em PRcontra develop com evidência auditável.",
+      "requirement_ids": [
+        "R-READY"
+      ],
+      "obligation_ids": [
+        "OBL-079"
+      ],
+      "evidence_ids": [
+        "evidence/focused/attestation.json"
+      ],
+      "scenario_ids": [
+        "R-READY"
+      ],
+      "negative_control_evidence": [
+        "Comparar os onze casos canônicos com o teste real, docs e CI do SHA publicado. PR1055 contra develop, código real exercitado, CI material verde; publicação de certificado terminal é gate posterior deste pacote.",
+        "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+      ]
+    }
+  ],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Structural or implementation-form obligations were detected.",
+    "entries": [
+      {
+        "id": "SIC-001",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-PORTION"
+        ],
+        "obligation_ids": [
+          "OBL-016"
+        ],
+        "plausible_wrong_implementation": "Fixar50g por marca ou aceitar primeiro candidato ignoraria evidência e variante.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-PORTION"
+        ],
+        "negative_control_evidence": [
+          "Fornecer Panco Premium junto de referência Wickbold ou Integral; variar rótulos e remover URLs.",
+          "Referências incompatíveis e sem evidência geram commercial_identity_unverified; massa75g contraditória não converte50g; variantes válidas50/60/56g.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-002",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-CANONICAL"
+        ],
+        "obligation_ids": [
+          "OBL-030"
+        ],
+        "plausible_wrong_implementation": "Uma lista pendingBrand própria no gate divergiria do contrato nutricional.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-CANONICAL"
+        ],
+        "negative_control_evidence": [
+          "Comparar gate real e processMealInput com catálogo Premium e Integral simultâneos.",
+          "Mesmo brand_variant_unresolved e mesmas alternatives nos dois caminhos; nenhuma pergunta de peso.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-003",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-CANONICAL"
+        ],
+        "obligation_ids": [
+          "OBL-037"
+        ],
+        "plausible_wrong_implementation": "Uma lista pendingBrand própria no gate divergiria do contrato nutricional.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-CANONICAL"
+        ],
+        "negative_control_evidence": [
+          "Comparar gate real e processMealInput com catálogo Premium e Integral simultâneos.",
+          "Mesmo brand_variant_unresolved e mesmas alternatives nos dois caminhos; nenhuma pergunta de peso.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-004",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-CONTINUATION"
+        ],
+        "obligation_ids": [
+          "OBL-054"
+        ],
+        "plausible_wrong_implementation": "Reprocessar irmãos na retomada poderia trocar sua identidade; confirmar antes da resposta criaria refeição parcial.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-CONTINUATION"
+        ],
+        "negative_control_evidence": [
+          "Executar os cinco alimentos de produção; remover catálogo dos irmãos antes de responder Premium; repetir resposta; testar cancelamento, expiração, outro usuário e pendência antiga.",
+          "Zero draft/confirm durante pergunta; snapshots0,2,3,4 imutáveis; uma extração na retomada; cinco itens numa única confirmação, mesmo occurredAt; replay sem segunda gravação.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-005",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-CANONICAL"
+        ],
+        "obligation_ids": [
+          "OBL-070"
+        ],
+        "plausible_wrong_implementation": "Uma lista pendingBrand própria no gate divergiria do contrato nutricional.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-CANONICAL"
+        ],
+        "negative_control_evidence": [
+          "Comparar gate real e processMealInput com catálogo Premium e Integral simultâneos.",
+          "Mesmo brand_variant_unresolved e mesmas alternatives nos dois caminhos; nenhuma pergunta de peso.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-006",
+        "kind": "precedence",
+        "requirement_ids": [
+          "R-DOCS"
+        ],
+        "obligation_ids": [
+          "OBL-076"
+        ],
+        "plausible_wrong_implementation": "Adicionar seção nova sem remover afirmações contraditórias preservaria orientação insegura.",
+        "canonical_path": "server/nutritionEngine.ts:findMostSpecificCatalogForInferenceItem",
+        "competing_paths": [],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-DOCS"
+        ],
+        "negative_control_evidence": [
+          "Pesquisar marca/fallback em RELIABILITY,whatsapp-flow,nutrition-engine e meal-registration e comparar com testes de pesquisa indisponível.",
+          "Claims antigos de fallback heurístico corrigidos em duas superfícies; meal-registration permanece válido sem alteração; docs:check aprovado local e CI.",
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts"
+        ]
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "A continuação transporta resultados e metadados; não há nova coleção paginada ou histórico público.",
+    "entries": [
+      {
+        "id": "RMC-001",
+        "contract_kind": "other",
+        "requirement_ids": [
+          "R-CONTINUATION"
+        ],
+        "required_fields": [
+          "registrationSegments",
+          "itemIndex",
+          "resolvedSegments",
+          "occurredAt",
+          "userTimezone",
+          "clarification"
+        ],
+        "producer_evidence": [
+          "countableFoodRegistrationGate.ts:countableContext"
+        ],
+        "public_projection_evidence": [
+          "mealIntentRegistrationDetailsInteraction.ts:pending target and reply/data"
+        ],
+        "consumer_evidence": [
+          "confirmedMealRegistration.ts:processRegistration",
+          "foodClarificationPersistence.ts"
+        ],
+        "visible_surface_evidence": [
+          "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts:production continuation saved.items and reply"
+        ],
+        "scenario_ids": [
+          "R-CONTINUATION"
+        ],
+        "negative_control_evidence": [
+          "Executar os cinco alimentos de produção; remover catálogo dos irmãos antes de responder Premium; repetir resposta; testar cancelamento, expiração, outro usuário e pendência antiga.",
+          "Zero draft/confirm durante pergunta; snapshots0,2,3,4 imutáveis; uma extração na retomada; cinco itens numa única confirmação, mesmo occurredAt; replay sem segunda gravação."
+        ]
+      }
+    ],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "Identidade e ambiguidade vêm do mesmo contrato no preflight e motor.",
+    "entries": [
+      {
+        "id": "CSC-001",
+        "semantic_field": "commercial identity and clarification reason",
+        "canonical_source": "nutritionEngine.findMostSpecificCatalogForInferenceItem + mealSemanticContract",
+        "alternative_sources": [
+          "generic bread reference",
+          "Panco Integral for a Premium request",
+          "Wickbold Premium for Panco"
+        ],
+        "surfaces": [
+          "countableFoodRegistrationGate",
+          "processMealInput",
+          "resolveHouseholdMeasure"
+        ],
+        "evidence_ids": [
+          "evidence/focused/attestation.json"
+        ],
+        "scenario_ids": [
+          "R-CANONICAL",
+          "R-PORTION"
+        ],
+        "negative_control_evidence": [
+          "Comparar gate real e processMealInput com catálogo Premium e Integral simultâneos.",
+          "Fornecer Panco Premium junto de referência Wickbold ou Integral; variar rótulos e remover URLs."
+        ],
+        "divergent_fixture": {
+          "canonical_value": "Panco Premium50g",
+          "alternative_values": [
+            "Panco Integral60g",
+            "Wickbold Integral56g",
+            "generic bread without commercial verification"
+          ]
+        }
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "Corrigir precedência e claims antigos de fallback genérico nas superfícies canônicas.",
+    "old_contract_terms": [
+      "degrada para a referência heurística canônica",
+      "antes do fallback para alimento genérico"
+    ],
+    "new_contract_terms": [
+      "identidade comercial",
+      "brand_variant_unresolved",
+      "commercial_identity_unverified"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/RELIABILITY.md",
+        "line": 58,
+        "text": "- Para produto industrializado com marca reconhecida, miss do catálogo local pode produzir no máximo uma pesquisa nutricional específica por item antes do fallback. Fonte de outra marca, variante ou porção deve ser rejeitada sem segunda consulta oculta; falha/indisponibilidade preserva a identidade comercial e mantém a clarificação canônica quando marca/variante não estiver comprovada, sem liberar referência heurística como composição do produto.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "line": 175,
+        "text": "`QUESTION`, `NUTRITION_SEARCH` e `EMBEDDING` usam a mesma fundação (`resolveCapabilityConfig` + `executeResolvedCapability`/`executeWithPolicy`), com o mesmo comportamento fail-closed dos consumidores de #922. Em `QUESTION`, `AI_QUESTION_WEB_SEARCH_MODE=auto` oferece a ferramenta sem forçá-la; `disabled` (e o alias legado `off` do modo de pesquisa) não envia a ferramenta, e valores desconhecidos falham fechados. Em `NUTRITION_SEARCH`, o resolvedor também valida a combinação provider + modelo + operações: Gemini 2.5 continua elegível para `QUESTION`, mas é rejeitado para Structured Output + Google Search na mesma chamada; apenas um Gemini 3 explicitamente aprovado pode executar essa combinação, e a #927 preservou os defaults por falta de comparação live suficiente. Fonte insuficiente, ferramenta não executada, citação sem suporte à evidência ou incompatibilidade de marca, produto, sabor, peso ou embalagem retorna ao contrato nutricional canônico local, sem probe, retry ou fallback externo oculto dentro da tentativa do executor. Esse retorno mantém a pendência de identidade para marca/variante não comprovada; fallback nutricional genérico só se aplica quando não existe identidade comercial pendente. Variantes ou medidas presentes apenas no candidato são tratadas como ambiguidade, não como correspondência. JSON/payload inválido pode consumir retry/fallback operacional; `found=false` é resultado funcional e não provoca segunda consulta. `EMBEDDING` indisponível ou com espaço vetorial divergente degrada para busca textual/canônica; Gemini segue inelegível por não anunciar `embeddings`.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/RELIABILITY.md",
+        "line": 219,
+        "text": "A identidade comercial é resolvida antes de pedir gramatura. A ausência de pesquisa ou evidência específica preserva a pendência canônica de identidade; não libera macros genéricos. A continuação textual preserva os resultados dos itens já resolvidos e a data/timezone originais. A resposta só reivindica a pendência exata esperada, evitando que replay de uma pergunta antiga consuma outra operação. Falha ao criar a pendência bloqueia o registro sem persistência parcial. Ver contrato e regressões em [medidas contáveis no WhatsApp](design-docs/whatsapp-countable-measure-passthrough.md).",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/whatsapp-flow.md",
+        "line": 76,
+        "text": "- Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. Produto com marca/variante explícita exige referência comercial compatível e comprovada; ausência ou ambiguidade mantém a clarificação canônica de identidade. A busca por alimento + tipo e o fallback genérico só se aplicam quando não existe identidade comercial pendente, conforme o contrato de registro de refeição.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/whatsapp-flow.md",
+        "line": 124,
+        "text": "- Marca e tipo/qualificador informados no texto influenciam o match nutricional; identidade comercial pendente bloqueia fallback para alimento genérico e pede esclarecimento antes de gramatura ou mutação.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 20,
+        "text": "- Quando não houver referência interna exata para um produto com marca reconhecida, o fluxo usa a capacidade canônica `NUTRITION_SEARCH` para buscar fonte rastreável. Produto, marca, variante e porção precisam ser compatíveis. Se a identidade comercial exata não puder ser comprovada, o sistema preserva a identidade, zera a composição nutricional não comprovada e solicita clarificação; não é permitido reutilizar macros genéricos nem a estimativa da LLM como se fossem do produto de marca.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 23,
+        "text": "- Bebidas gaseificadas explicitamente identificadas como `zero`, `zero açúcar`, `sem açúcar` ou `diet` devem priorizar uma referência nutricional específica e semanticamente compatível do catálogo. O fallback heurístico de `0 kcal` só se aplica ao comportamento genérico já documentado quando **não existe identidade comercial de marca/variante pendente**; uma marca explícita sem comprovação continua fail-closed.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 32,
+        "text": "`processMealInput` produz um contrato semântico canônico para novas inclusões, independentemente de a origem ser texto, transcrição de áudio, imagem ou combinação multimodal. O contrato preserva o texto original/normalizado e, por item, identidade comercial, marca, variante, quantidade, unidade, porção, gramas estimados, confiança e procedência da evidência.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 36,
+        "text": "- O contrato mantém `alternatives`, `needsClarification` e motivo estruturado quando a identidade comercial não puder ser fechada. `brand_variant_unresolved` representa marca conhecida sem variante segura; `commercial_identity_unverified` representa variante/identidade informada mas ainda não comprovada.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 36,
+        "text": "- O contrato mantém `alternatives`, `needsClarification` e motivo estruturado quando a identidade comercial não puder ser fechada. `brand_variant_unresolved` representa marca conhecida sem variante segura; `commercial_identity_unverified` representa variante/identidade informada mas ainda não comprovada.",
+        "term": "brand_variant_unresolved",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "line": 36,
+        "text": "- O contrato mantém `alternatives`, `needsClarification` e motivo estruturado quando a identidade comercial não puder ser fechada. `brand_variant_unresolved` representa marca conhecida sem variante segura; `commercial_identity_unverified` representa variante/identidade informada mas ainda não comprovada.",
+        "term": "commercial_identity_unverified",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "line": 26,
+        "text": "- A busca nutricional deve preferir a referência mais específica disponível. Para alimento genérico, referências menos específicas podem continuar sendo usadas como estimativa transparente. Para produto com marca/variante explícita, uma referência menos específica não autoriza composição nutricional: catálogo/pesquisa precisa comprovar a mesma identidade comercial ou o fluxo entra em clarificação.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "line": 50,
+        "text": "Quando o contrato contém `brand_variant_unresolved` ou `commercial_identity_unverified`, `processMealInput` lança `food_identity_clarification_required` antes de retornar um rascunho mutável. O erro leva o próprio `semanticContract`, identidade, marca, alternativas e razão estruturada. No registro confirmado do WhatsApp, `confirmedMealRegistration` transforma esse erro em `details_needed` antes de `createDraft`/`confirmMeal`; `mealIntentDecisionInteraction` reutiliza a continuação persistente de detalhes existente para guardar o texto original antes da pergunta ao usuário. Não existe fila paralela específica da #1051.",
+        "term": "brand_variant_unresolved",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "line": 50,
+        "text": "Quando o contrato contém `brand_variant_unresolved` ou `commercial_identity_unverified`, `processMealInput` lança `food_identity_clarification_required` antes de retornar um rascunho mutável. O erro leva o próprio `semanticContract`, identidade, marca, alternativas e razão estruturada. No registro confirmado do WhatsApp, `confirmedMealRegistration` transforma esse erro em `details_needed` antes de `createDraft`/`confirmMeal`; `mealIntentDecisionInteraction` reutiliza a continuação persistente de detalhes existente para guardar o texto original antes da pergunta ao usuário. Não existe fila paralela específica da #1051.",
+        "term": "commercial_identity_unverified",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "line": 144,
+        "text": "- JSON inválido ou payload estruturalmente inválido é rejeitado dentro da callback entregue a `executeResolvedCapability`, portanto segue a taxonomia operacional comum e pode consumir retry/fallback único quando explicitamente habilitado. Já `found=false`, confiança insuficiente, fonte ausente/não citada, evidência vazia ou identidade comercial incompatível são resultados funcionais processados depois do executor: retornam `null` e degradam diretamente para a política do resolvedor, sem nova consulta externa.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "line": 145,
+        "text": "- Para identidade comercial explícita, `null` ou miss após a tentativa segura não inventa dado nem libera `hybrid`: o contrato semântico marca a pendência e o motor exige clarificação antes de mutação. Para alimento sem marca/variante, os fallbacks transparentes existentes continuam disponíveis.",
+        "term": "identidade comercial",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/whatsapp-countable-measure-passthrough.md",
+        "line": 22,
+        "text": "`pendingItems.identityClarification` transporta o contexto canônico: `brand_variant_unresolved` pergunta pela variante e `commercial_identity_unverified` pede comprovação da identidade informada. Indisponibilidade de pesquisa mantém essa pendência; não autoriza alimento genérico ou pergunta antecipada de peso. Somente uma identidade comprovada sem porção específica verificável pode seguir para peso/volume.",
+        "term": "brand_variant_unresolved",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      },
+      {
+        "path": "docs/design-docs/whatsapp-countable-measure-passthrough.md",
+        "line": 22,
+        "text": "`pendingItems.identityClarification` transporta o contexto canônico: `brand_variant_unresolved` pergunta pela variante e `commercial_identity_unverified` pede comprovação da identidade informada. Indisponibilidade de pesquisa mantém essa pendência; não autoriza alimento genérico ou pergunta antecipada de peso. Somente uma identidade comprovada sem porção específica verificável pode seguir para peso/volume.",
+        "term": "commercial_identity_unverified",
+        "classification": "current-contract",
+        "evidence_ids": [
+          "evidence/static/attestation.json"
+        ]
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "rg marca/fallback docs/product-specs/meal-registration.md docs/design-docs/nutrition-engine.md docs/product-specs/whatsapp-flow.md docs/RELIABILITY.md",
+      "evidence/static/attestation.json"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "R-PRECEDENCE",
+      "R-IDENTITY",
+      "R-PORTION",
+      "R-CANONICAL",
+      "R-UNVERIFIED",
+      "R-OFFLINE",
+      "R-WEIGHT",
+      "R-GENERIC",
+      "R-CONTINUATION",
+      "R-REAL-TEST",
+      "R-DOCS",
+      "R-BASE",
+      "R-INTEGRATION",
+      "R-GATES",
+      "R-READY"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-056",
+      "OBL-057",
+      "OBL-058",
+      "OBL-059",
+      "OBL-060",
+      "OBL-061",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-076",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079"
+    ],
+    "evidence": [
+      "SRC-ISSUE:source lines41-175; eleven mandatory cases checked against actual assertions",
+      "server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts",
+      "evidence/focused/attestation.json",
+      "evidence/static/attestation.json"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

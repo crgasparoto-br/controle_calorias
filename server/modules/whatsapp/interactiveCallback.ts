@@ -113,10 +113,26 @@ export async function claimWhatsAppTextPendingOperation(
   expectedType: string,
   action: string,
   now = new Date(),
+  expectedPendingOperationId?: number
 ): Promise<WhatsAppInteractiveCallbackClaim> {
-  const pendingOperation = await pendingOperationRepository.getActivePendingOperation(userId, now);
-  if (!pendingOperation || pendingOperation.userId !== userId || pendingOperation.type !== expectedType) return { status: "unavailable" };
-  if (pendingOperation.state !== "active" || new Date(pendingOperation.expiresAt).getTime() < now.getTime()) return { status: "unavailable" };
+  const pendingOperation =
+    await pendingOperationRepository.getActivePendingOperation(userId, now);
+  if (
+    expectedPendingOperationId !== undefined &&
+    pendingOperation?.id !== expectedPendingOperationId
+  )
+    return { status: "unavailable" };
+  if (
+    !pendingOperation ||
+    pendingOperation.userId !== userId ||
+    pendingOperation.type !== expectedType
+  )
+    return { status: "unavailable" };
+  if (
+    pendingOperation.state !== "active" ||
+    new Date(pendingOperation.expiresAt).getTime() < now.getTime()
+  )
+    return { status: "unavailable" };
 
   const claim = await pendingOperationRepository.claimPendingOperation({
     id: pendingOperation.id,

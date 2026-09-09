@@ -25,7 +25,7 @@ vi.mock("../../../nutritionEngine", () => {
     }
   }
 
-  return { MealInferenceError };
+  return { resolveCommercialFoodIdentity: vi.fn(), MealInferenceError };
 });
 
 vi.mock("../coffeeAdditionClarification", () => ({

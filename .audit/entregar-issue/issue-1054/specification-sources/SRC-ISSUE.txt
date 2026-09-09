@@ -1,0 +1,177 @@
+## Contexto
+
+Foi identificado em produção um comportamento incorreto no WhatsApp após a implementação da issue #1051 / PR #1052.
+
+Mensagem enviada pelo usuário:
+
+```text
+50ml leite integral, 2 fatias de pão de forma panco, 35g de requeijão catupiry, 1 fatia de presunto, 1 fatia de mussarela
+```
+
+Resposta atual:
+
+```text
+Preciso de uma informação
+
+Não encontrei uma gramatura verificável nem uma média usual segura para 2 fatias de pão de forma panco. Informe somente o peso ou volume correspondente, por exemplo 20 g.
+```
+
+Esse comportamento contraria o objetivo da #1051. Para alimento com marca explícita, o sistema não deve transformar uma falha de resolução de identidade/variante em uma solicitação imediata de peso ao usuário.
+
+A PR #1052 já preserva `Panco` no fluxo contável e cobre o encaminhamento ao resolvedor, porém o teste específico de `2 fatias de pão de forma Panco` mocka `resolveHouseholdMeasure()` retornando artificialmente `50 g`. Assim, o teste comprova propagação de marca/quantidade/unidade, mas não comprova que o resolvedor real consegue resolver ou clarificar corretamente esse caso.
+
+Além disso, `prepareWhatsappCountableFoodRegistration()` ainda possui um fallback genérico de clarificação por peso quando `prepareCountableFoodRegistrationResolved()` devolve `pendingItems`. Esse fallback pode ocorrer antes da clarificação correta de marca/variante.
+
+## Objetivo
+
+Corrigir a regressão para que alimentos contáveis com marca explícita, especialmente casos como `2 fatias de pão de forma Panco`, passem pelo fluxo completo de resolução de identidade, variante, porção e fonte nutricional antes de qualquer pedido genérico de gramatura.
+
+A implementação deve partir da branch `develop`.
+
+## Comportamento esperado
+
+Para uma entrada como:
+
+```text
+2 fatias de pão de forma Panco
+```
+
+o sistema deve:
+
+1. reconhecer `quantidade = 2`, `unidade = fatia` e `marca = Panco`;
+2. preservar a identidade comercial no fluxo de resolução;
+3. consultar referência/catalogação/pesquisa específica para a marca e variante;
+4. se houver uma única correspondência aceita pelo contrato canônico de identidade/nutrição, usar a porção verificada;
+5. se houver múltiplas variantes plausíveis, perguntar qual produto/variante Panco o usuário quer informar;
+6. somente pedir peso ou volume quando a identidade comercial já estiver resolvida e não houver porção/medida segura disponível para a quantidade informada.
+
+Para esta issue, “correspondência aceita” não significa apenas “primeiro resultado” ou “único resultado retornado”: deve reutilizar as verificações já existentes de compatibilidade de produto, marca, variante, evidência e ambiguidade do contrato semântico da #1051. Não criar um novo limiar de confiança específico para o gate contável.
+
+## Regra de precedência para clarificação
+
+Quando houver marca ou variante explícita:
+
+1. resolver identidade comercial;
+2. resolver variante;
+3. resolver porção/medida específica do produto;
+4. somente depois considerar clarificação por peso.
+
+A clarificação genérica de gramatura não pode antecipar uma clarificação de identidade/variante.
+
+### Estados canônicos de pendência
+
+A causa da pendência deve permanecer compatível com o contrato semântico já existente:
+
+- `brand_variant_unresolved`: marca reconhecida, mas variante ainda ambígua -> perguntar pela variante/produto;
+- `commercial_identity_unverified`: variante/identidade comercial informada, porém ainda não comprovada -> solicitar esclarecimento da identidade/evidência, sem transformar automaticamente a falha em pedido de peso;
+- identidade comercial comprovada + porção contável não resolvida -> clarificação de peso/volume é permitida;
+- pesquisa/provider indisponível antes de comprovar a identidade -> manter a pendência de identidade de forma fail-closed; não usar alimento genérico e não pedir peso apenas porque a pesquisa falhou.
+
+O gate contável pode transportar a pendência necessária ao fluxo conversacional, mas não deve criar uma segunda taxonomia concorrente de identidade comercial quando o contrato da #1051 já representa a causa.
+
+## Escopo técnico
+
+Revisar principalmente:
+
+- `server/modules/whatsapp/countableFoodRegistrationGate.ts`
+- `server/countableFoodQuantity.ts`
+- `server/householdMeasureResolution.ts`
+- `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts`
+- `server/mealSemanticContract.ts` e o contrato/tipos já existentes apenas quando necessário para integração, sem duplicação
+- consumidores do gate no webhook/registro confirmado
+- testes associados à #1051, #1037 e #1047
+
+A correção deve reutilizar o resolvedor canônico e o contrato semântico já existentes. Não criar um segundo resolvedor paralelo para pão, para marcas específicas ou para identidade/variante no gate contável.
+
+## Invariantes estruturais verificáveis
+
+- **`must_behave`**: `2 fatias de pão de forma Panco` deve chegar à resolução de identidade/variante antes de qualquer clarificação de gramatura.
+  - Implementação errada que pode passar no caminho feliz: cadastrar uma porção fixa de Panco e fazer apenas esse exemplo retornar gramas.
+  - Controle: testar Panco sem variante, Panco Premium, outra variante, outra marca e pesquisa indisponível.
+- **`must_not_behave`**: marca explícita não pode cair silenciosamente em pão genérico, Wickbold ou macro/porção heurística apresentada como exata.
+  - Implementação errada que pode passar no caminho feliz: manter o nome `Panco` na resposta, mas calcular com referência nutricional genérica.
+  - Controle: afirmar identidade, fonte/evidência e variante usadas no resultado.
+- **`must_reuse` / `must_be_single_source`**: a ambiguidade comercial deve reutilizar o contrato semântico da #1051 e seus códigos canônicos, em vez de manter uma lista/taxonomia paralela no gate.
+  - Implementação errada que pode passar no caminho feliz: criar `pendingBrand=true` apenas em `countableFoodRegistrationGate.ts` com regras próprias para Panco.
+  - Controle: teste de integração deve observar os mesmos códigos/alternativas usados pelo fluxo nutricional canônico.
+- **`precedence_invariants`**: identidade -> variante -> porção -> peso.
+  - Implementação errada que pode passar no caminho feliz: chamar o resolvedor correto, mas somente depois de o gate já ter emitido a pergunta de peso.
+  - Controle: teste deve comprovar que a primeira clarificação emitida no caso ambíguo é de identidade/variante.
+- **`forbidden_implementation`**: não cadastrar gramatura fixa por marca nem introduzir branch especial para `Panco` como solução da regressão.
+  - Controle: os testes equivalentes com outra marca/variante devem passar pelo mesmo caminho genérico.
+
+## Requisitos funcionais
+
+- O fluxo contável deve diferenciar claramente:
+  - falta de identidade/variante;
+  - falta de porção verificável após identidade resolvida;
+  - pesquisa indisponível;
+  - ausência real de referência segura.
+- `pendingItems` não deve representar genericamente todos esses estados como “pedir peso”.
+- Para marca explícita, a decisão deve respeitar a política fail-closed já introduzida na #1051, sem usar produto genérico como exato.
+- A mensagem ao usuário deve refletir a causa real da pendência, sem expor detalhes técnicos de provider/backend.
+- A resolução de fatias/unidades deve continuar funcionando para alimentos genéricos e para alimentos sem marca, sem regressão.
+- Mensagens com vários alimentos devem resolver cada item independentemente para fins de análise, mas **não devem persistir parcialmente a refeição** antes da resolução da clarificação pendente. Itens já resolvidos podem ser preservados no contexto de continuação existente e reutilizados após a resposta do usuário.
+- Após a clarificação, a mesma operação lógica deve continuar sem recalcular ou trocar silenciosamente a identidade dos itens que já estavam resolvidos.
+
+## Testes obrigatórios
+
+Adicionar teste de regressão com o fluxo real, sem mockar `resolveHouseholdMeasure()` no ponto crítico do cenário `Panco`.
+
+É permitido substituir integrações externas por doubles determinísticos no boundary de catálogo/provider/pesquisa para manter o teste reproduzível e sem credenciais reais. O teste deve, porém, executar a implementação real de `resolveHouseholdMeasure()`, o gate e a decisão de clarificação relevantes; não vale mockar diretamente o retorno final de gramas ou o estado final de pendência.
+
+Cobrir no mínimo:
+
+1. `2 fatias de pão de forma Panco` com uma única referência canonicamente válida -> resolve sem pedir peso.
+2. `2 fatias de pão de forma Panco` com múltiplas variantes plausíveis -> pergunta a variante, não a gramatura, usando `brand_variant_unresolved`.
+3. `2 fatias de pão de forma Panco Premium` com referência exata -> resolve a porção correta.
+4. marca explícita com pesquisa indisponível -> não usa pão genérico, não apresenta macro genérico como exato e não converte automaticamente a falha em clarificação de peso.
+5. produto de marca com identidade comprovada, porém sem porção verificável -> pode solicitar peso, com mensagem compatível com a causa real.
+6. `2 fatias de pão de forma` sem marca -> mantém fallback genérico atual quando aplicável.
+7. mensagem multi-item equivalente ao caso observado em produção -> leite, pão Panco, requeijão, presunto e mussarela são analisados sem o gate antecipar incorretamente a clarificação de peso; se o pão exigir variante, nenhuma refeição/item é persistido parcialmente antes da resposta.
+8. fonte de outra marca ou variante incompatível -> rejeitada.
+9. texto com `Panco` preserva marca até o resultado final ou até a clarificação.
+10. variante explicitamente informada, mas não comprovada -> usa `commercial_identity_unverified` e não pede peso como primeira resposta.
+11. após responder à clarificação de variante, os itens previamente resolvidos permanecem semanticamente estáveis e a operação é persistida uma única vez.
+
+## Critérios de aceite
+
+- [ ] O caso de produção `2 fatias de pão de forma Panco` não recebe automaticamente a mensagem “Informe somente o peso ou volume correspondente”.
+- [ ] Quando houver ambiguidade entre variantes Panco, a pergunta é sobre a variante/produto e usa a causa canônica `brand_variant_unresolved`.
+- [ ] Quando uma variante explicitamente informada não puder ser comprovada, a pendência permanece `commercial_identity_unverified` e não é reclassificada como falta de gramatura.
+- [ ] Quando houver referência exata, a quantidade em fatias é convertida usando a porção específica do produto.
+- [ ] A marca `Panco` permanece presente em todo o contrato de resolução.
+- [ ] Nenhum fallback para Wickbold ou pão genérico é usado silenciosamente.
+- [ ] O pedido de gramatura só ocorre depois de a identidade comercial estar resolvida e de a resolução de porção/medida aplicável ter falhado.
+- [ ] O gate contável não mantém uma segunda fonte de verdade para ambiguidade de marca/variante; reutiliza o contrato canônico da #1051.
+- [ ] O teste do cenário principal exercita o resolvedor real; não basta mockar retorno de gramas. Doubles são permitidos somente nos boundaries externos necessários para determinismo.
+- [ ] O fluxo multi-item do exemplo observado em produção tem teste de regressão e prova ausência de persistência parcial durante a clarificação.
+- [ ] A retomada após clarificação não duplica a refeição nem troca a identidade dos itens já resolvidos.
+- [ ] Testes existentes de medidas contáveis continuam passando.
+- [ ] Type-check, lint, build e suíte focada aplicáveis passam.
+
+## Impacto na documentação
+
+- Atualizar `docs/design-docs/whatsapp-countable-measure-passthrough.md` para registrar a precedência **identidade -> variante -> porção -> peso**, a reutilização do contrato semântico e a proibição de clarificação de gramatura antecipada para marca/variante pendente.
+- Verificar `docs/product-specs/meal-registration.md`: ele já documenta a política fail-closed e os códigos `brand_variant_unresolved` / `commercial_identity_unverified`; só deve ser alterado se a implementação mudar esse contrato público. Caso contrário, registrar na PR que permanece válido sem alteração.
+
+## Fora de escopo
+
+- cadastrar manualmente uma gramatura fixa para toda a marca Panco;
+- assumir que todos os pães Panco têm a mesma porção ou macros;
+- alterar regras de aprendizado global da #1051;
+- criar nova taxonomia de ambiguidade comercial paralela ao contrato semântico existente;
+- refatorar todo o pipeline nutricional além do necessário para corrigir a precedência e os estados de clarificação;
+- fazer merge automático.
+
+## Relação com trabalhos anteriores
+
+- Regressão relacionada à #1051.
+- Implementação que tentou cobrir o cenário: PR #1052.
+- O comportamento chegou à `main` após a promoção de `develop`.
+
+## Definição de pronto
+
+A issue estará concluída quando o comportamento observado em produção estiver reproduzido por teste, corrigido no fluxo real, validado sem mock do resolvedor no cenário crítico, sem persistência parcial no fluxo de clarificação, com a documentação afetada consistente, e a solução estiver pronta em PR contra `develop` para auditoria independente.
+
+`specification_version: 2`

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+  "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
+  "evidence": [
+    {
+      "evidence_id": "remediation",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
+      "sha256": "b7189302b4034640c51a98638b98b47260830418cab46ce02f92bf99c175a37a",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions Agent-first #6183 run 34353999869 exact-head verification + WhatsApp TiDB #3020 run 34353999913 merge-preview persistence validation",
+      "status": "passed"
+    }
+  ]
+}

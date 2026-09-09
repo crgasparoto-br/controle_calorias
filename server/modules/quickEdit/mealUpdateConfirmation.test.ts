@@ -14,7 +14,7 @@ vi.mock("./service", () => ({
   getQuickEditMeal: getQuickEditMealMock,
   updateQuickEditMeal: updateQuickEditMealMock,
 }));
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 vi.mock("../../db", () => ({

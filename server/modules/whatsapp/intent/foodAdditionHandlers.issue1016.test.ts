@@ -6,6 +6,14 @@ const mocks = vi.hoisted(() => ({
   updateMeal: vi.fn(),
   findMealByLabel: vi.fn(),
   resolveCanonicalFoodAdditionItems: vi.fn(),
+  requestIdentityDetails: vi.fn(async (input: any) => ({
+    handled: true,
+    action: "clarification_needed",
+    reply: input.prompt,
+    eventType: "whatsapp.meal_intent_decision.registration_details_requested",
+    detail: "Pendência de identidade persistida.",
+    data: { clarificationReason: input.foodAdditionContext?.clarification?.clarificationReason },
+  })),
   requestFoodQuantity: vi.fn(async () => ({
     handled: true,
     action: "food_clarification_requested",
@@ -17,12 +25,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../shared/timeZone", () => ({ DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo" }));
-vi.mock("../../../nutritionEngine", () => ({
+vi.mock("../../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {
     readonly code = "meal_inference_unavailable";
   },
 }));
 vi.mock("../coffeeAdditionClarification", () => ({ createWhatsappCoffeeAdditionClarification: vi.fn() }));
+vi.mock("../mealIntentRegistrationDetailsInteraction", () => ({
+  createWhatsappMealIntentRegistrationDetailsInteraction: mocks.requestIdentityDetails,
+}));
 vi.mock("../foodQuantityClarification", () => ({
   requestWhatsappCaloricComplementQuantityClarification: vi.fn(),
   requestWhatsappFoodAdditionQuantityClarification: mocks.requestFoodQuantity,
@@ -116,6 +127,58 @@ describe("handleFoodAdditionIntent canonical flow (#1016)", () => {
       addition,
       expectedMealId: 1016,
       messageId: "wamid-1016",
+      resolvedItems: [expect.objectContaining({ foodName: "Presunto cozido" })],
+    }));
+  });
+
+
+  it("preserva clarificação de identidade antes de qualquer pergunta de peso", async () => {
+    mocks.resolveCanonicalFoodAdditionItems.mockResolvedValueOnce({
+      kind: "identity_clarification",
+      itemIndex: 0,
+      item: { foodName: "Pão de forma Panco", quantity: 2, unit: "fatia", brand: "Panco" },
+      resolvedItems: [],
+      message: "Qual variante Panco você quis registrar?",
+      context: {
+        foodName: "Pão de forma Panco",
+        brand: "Panco",
+        clarificationReason: "brand_variant_unresolved",
+        alternatives: [],
+      },
+    });
+
+    const addition = {
+      mealLabel: "Café da manhã",
+      date: occurredAt,
+      items: [
+        { foodName: "Pão de forma Panco", quantity: 2, unit: "fatia", brand: "Panco" },
+      ],
+    };
+    const result = await handleFoodAdditionIntent(7, addition, "America/Sao_Paulo", {
+      originalText: "adicionar 2 fatias de pão de forma Panco ao café da manhã",
+      receivedAt: occurredAt,
+      messageId: "wamid-1054-identity",
+    });
+
+    expect(result).toMatchObject({
+      action: "clarification_needed",
+      data: { clarificationReason: "brand_variant_unresolved" },
+    });
+    expect(result.reply).not.toMatch(/peso|volume/i);
+    expect(mocks.requestFoodQuantity).not.toHaveBeenCalled();
+    expect(mocks.updateMeal).not.toHaveBeenCalled();
+    expect(mocks.requestIdentityDetails).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7,
+      prompt: "Qual variante Panco você quis registrar?",
+      foodAdditionContext: expect.objectContaining({
+        itemIndex: 0,
+        expectedMealId: 1016,
+        expectedMealLabel: "Café da manhã",
+        expectedOccurredAt: occurredAt.toISOString(),
+        clarification: expect.objectContaining({
+          clarificationReason: "brand_variant_unresolved",
+        }),
+      }),
     }));
   });
 
