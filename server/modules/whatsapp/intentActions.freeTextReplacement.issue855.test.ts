@@ -76,7 +76,7 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
   getHabitSnapshots: vi.fn(async () => []),
 }));
-vi.mock("../../nutritionEngine", () => ({ processMealInput: processFoodMock }));
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(), processMealInput: processFoodMock }));
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({
   createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => state.repository),
 }));

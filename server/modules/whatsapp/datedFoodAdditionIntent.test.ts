@@ -5,7 +5,7 @@ const listMealsMock = vi.fn();
 const processMealInputMock = vi.fn();
 const updateMealMock = vi.fn();
 
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 

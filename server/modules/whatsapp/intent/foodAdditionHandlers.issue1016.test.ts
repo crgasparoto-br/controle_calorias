@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../shared/timeZone", () => ({ DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo" }));
-vi.mock("../../../nutritionEngine", () => ({
+vi.mock("../../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {
     readonly code = "meal_inference_unavailable";
   },

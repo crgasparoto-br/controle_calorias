@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../shared/timeZone", () => ({ DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo" }));
-vi.mock("../../../nutritionEngine", () => ({
+vi.mock("../../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {},
 }));
 vi.mock("../coffeeAdditionClarification", () => ({ createWhatsappCoffeeAdditionClarification: vi.fn() }));

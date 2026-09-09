@@ -36,7 +36,7 @@ vi.mock("./db", () => ({
   removeUserMeal: vi.fn(),
 }));
 
-vi.mock("./nutritionEngine", () => ({
+vi.mock("./nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {},
   processMealInput: processMealInputMock,
 }));
