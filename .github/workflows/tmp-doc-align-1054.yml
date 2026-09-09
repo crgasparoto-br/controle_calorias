@@ -1,0 +1,37 @@
+name: Temporary docs alignment issue 1054
+on:
+  push:
+    branches:
+      - tmp/1054-doc-alignment-20260909
+permissions:
+  contents: write
+jobs:
+  align-doc:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/1054-doc-alignment-20260909
+          fetch-depth: 0
+      - name: Align normative quantity policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/design-docs/nutrition-engine.md')
+          text = path.read_text()
+          old = '- quando uma referência de alimento genérico compatível for usada para estimar **quantidade** de um produto de marca, isso não autoriza substituir a composição nutricional específica do produto;'
+          new = '- uma referência de alimento genérico compatível pode estimar **quantidade** somente quando não houver identidade comercial explícita pendente; para produto com marca/variante explícita, a medida deve ser comprovada para a mesma identidade comercial antes de qualquer média ou fallback de categoria;'
+          if old not in text:
+              raise SystemExit('normative source line not found')
+          path.write_text(text.replace(old, new))
+          PY
+          git add docs/design-docs/nutrition-engine.md
+          git rm .github/workflows/tmp-doc-align-1054.yml
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs(nutrition): align branded quantity precedence"
+          git push origin HEAD:tmp/1054-doc-alignment-20260909
