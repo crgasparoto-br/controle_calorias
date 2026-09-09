@@ -3,15 +3,16 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 1054,
   "pull_request": 1055,
-  "material_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+  "material_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
   "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
-  "merge_preview_sha": "16cb5f6800cd2ad10eebfb0ab4ffae6ce8de533a",
+  "merge_preview_sha": "a27e0b96b0eaab2ec64588dbc78cd539d873a2ae",
   "ci": {
     "agent_first": {
-      "run_id": 34256075062,
+      "run_id": 34296793596,
+      "run_number": 6177,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "exact_head": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "passed_steps": [
         "TypeScript check",
         "Tests",
@@ -25,13 +26,22 @@
       ]
     },
     "whatsapp_tidb": {
-      "run_id": 34256075206,
+      "run_id": 34296793593,
+      "run_number": 3014,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "827e3bb1f96656d95c1f4d8e372477ae111b4539"
+      "exact_head": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "passed_steps": [
+        "Apply current repository schema",
+        "Verify canonical food signal tables",
+        "Validate referential integrity",
+        "Run pending operation insert id regression",
+        "Run quick edit meal update regression",
+        "Run persistent context regression"
+      ]
     },
     "merge_preview": {
-      "sha": "16cb5f6800cd2ad10eebfb0ab4ffae6ce8de533a",
+      "sha": "a27e0b96b0eaab2ec64588dbc78cd539d873a2ae",
       "status": "success",
       "passed_steps": [
         "TypeScript integration check",
@@ -45,26 +55,55 @@
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
-      "precondition": "detectKnownBrand returns null and a generic Pão de forma 2-fatias/50-g reference is simultaneously available",
-      "observed": "The exact-head full test suite passed the canonical recovery case where Seven Boys is resolved before generic grams and only verified branded evidence can win."
+      "precondition": "detectKnownBrand returns null while a safe generic bread reference is available",
+      "observed": "Exact-head full suite passed: Seven Boys is recovered before generic grams and only verified branded evidence can resolve it."
     },
     {
       "id": "unknown-brand-provider-unavailable",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
-      "precondition": "generic bread reference remains available and commercial search rejects",
-      "observed": "The exact-head full test suite passed the fail-closed case that preserves Seven Boys and brand_variant_unresolved without falling back to a generic measure."
+      "precondition": "commercial extraction/search is unavailable while generic bread remains available",
+      "observed": "Exact-head full suite passed: brand_variant_unresolved is preserved and neither generic portion nor measure search wins."
+    },
+    {
+      "id": "explicit-commercial-variant-extraction-unavailable",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma integral",
+      "precondition": "generic bread is available and AI extraction is unavailable",
+      "observed": "Exact-head full suite passed: brand stays null and commercial_identity_unverified is preserved for the explicit integral variant."
+    },
+    {
+      "id": "culinary-complement-not-promoted",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "2 fatias de pão de forma com manteiga",
+      "observed": "Exact-head full suite passed: culinary complement does not synthesize commercial identity or identityClarification."
+    },
+    {
+      "id": "compound-food-component-not-brand",
+      "status": "passed",
+      "test": "server/countableFoodQuantity.audit1055.test.ts",
+      "input": "café com leite",
+      "observed": "Exact-head full suite passed: another food component is not promoted to a brand hint."
+    },
+    {
+      "id": "generic-zero-beverage-with-flavor",
+      "status": "passed",
+      "test": "server/nutritionEngine.zeroBeverageFallback.test.ts",
+      "input": "350 ml Soda de limão zero / Soda de limão zero",
+      "observed": "Exact-head full suite passed: flavored generic zero beverage remains on the documented zero-calorie generic fallback with and without explicit quantity."
     },
     {
       "id": "known-brand-regression",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Panco",
-      "observed": "The exact-head full test suite passed the existing Panco known-brand path."
+      "observed": "Exact-head full suite passed: the existing recognized-brand path remains unchanged and does not invoke unknown-brand extraction recovery."
     }
   ],
-  "implementation_path": "prepareCountableFoodRegistrationResolved -> recoverCanonicalCommercialIdentity -> processMealInput canonical semantic contract -> safe generic catalog grams -> resolveCommercialFoodIdentity -> resolveHouseholdMeasure",
-  "assertion": "For parsed countable requests, explicit commercial identity recovery/clarification precedes generic portion fallback even when the brand is outside KNOWN_BRANDS.",
-  "database_note": "Agent-first database-integrity step was skipped because DATABASE_URL was unavailable; the dedicated WhatsApp TiDB gate passed on the exact head. The handoff remediation changes no product schema or persistence behavior."
+  "implementation_path": "prepareCountableFoodRegistrationResolved -> recoverCanonicalCommercialIdentity -> canonical processMealInput -> commercial qualifier guard -> safe generic portion -> resolveCommercialFoodIdentity -> resolveHouseholdMeasure",
+  "assertion": "Commercial identity/variant clarification precedes generic portion when explicit evidence exists, while generic culinary composition and zero/diet beverage fallbacks are not promoted into synthetic commercial identity.",
+  "database_note": "Agent-first database-integrity step was skipped because DATABASE_URL was unavailable; dedicated WhatsApp TiDB gate #3014 passed on the exact material head. No schema or persistence change was introduced by CI remediation."
 }

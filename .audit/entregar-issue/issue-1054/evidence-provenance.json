@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+  "material_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
   "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
   "evidence": [
     {
       "evidence_id": "remediation",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "sha256": "5314113c6e92492d43d3eceb85492657052fa3a57754d4938676db2f04ad8e27",
-      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "sha256": "db0b15aa209ceeb7ead4270d1a5e5c2080b50a31571c7af0ace91f7551d6e308",
+      "subject_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head runs 34256075062/34256075206 plus discriminant full-suite assertions",
+      "producer": "GitHub Actions exact-head runs 34296793596/34296793593, verification artifact, and discriminant full-suite assertions",
       "status": "passed"
     }
   ]

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+  "head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
   "source_audits": [
     {
       "rejection_id": "audit-rejection:pr-1055-explicit-brand-detection-gap",
@@ -21,14 +21,14 @@
     {
       "id": "AUD1055-UNKNOWN-BRAND-CANONICAL-PREFLIGHT",
       "status": "passed",
-      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
-      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "subject_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "control_type": "test",
       "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "evidence_sha256": "5314113c6e92492d43d3eceb85492657052fa3a57754d4938676db2f04ad8e27",
+      "evidence_sha256": "db0b15aa209ceeb7ead4270d1a5e5c2080b50a31571c7af0ace91f7551d6e308",
       "procedure": "Execute an explicit brand outside KNOWN_BRANDS while a usable generic reference exists.",
       "expected": "Canonical commercial identity precedes generic portion.",
-      "observed": "Seven Boys resolves only through verified branded evidence; the generic portion does not win.",
+      "observed": "Exact-head #6177 passes Seven Boys canonical preflight before generic portion, plus explicit integral variant preservation and generic-composition regression guards.",
       "attack_control_id": "R-CANONICAL-NEG-4",
       "risk_family": "structural-contract",
       "surface": "canonical-contract",
@@ -37,14 +37,14 @@
     {
       "id": "AUD1055-UNKNOWN-BRAND-FAIL-CLOSED",
       "status": "passed",
-      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
-      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "subject_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "control_type": "test",
       "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "evidence_sha256": "5314113c6e92492d43d3eceb85492657052fa3a57754d4938676db2f04ad8e27",
+      "evidence_sha256": "db0b15aa209ceeb7ead4270d1a5e5c2080b50a31571c7af0ace91f7551d6e308",
       "procedure": "Fail commercial search for an unknown explicit brand while generic portion remains available.",
       "expected": "Identity remains pending; no generic portion or weight fallback.",
-      "observed": "Seven Boys returns brand_variant_unresolved without measure-search.",
+      "observed": "Exact-head #6177 preserves brand_variant_unresolved for unavailable unknown-brand resolution and does not fall through to generic portion/measure search.",
       "attack_control_id": "R-OFFLINE-NEG-3",
       "risk_family": "temporal-consistency",
       "surface": "clarification-order",
@@ -53,14 +53,14 @@
     {
       "id": "AUD1055-HANDOFF-SCOPE-EXACT",
       "status": "passed",
-      "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
-      "subject_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "subject_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "control_type": "procedure",
       "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
-      "evidence_sha256": "525835d1ee5503645e6aac7fdd4e354c3db70d5f8c09d34363e3c025a7ce27f3",
+      "evidence_sha256": "4d8302c0e2aff1af205374e9e255e4cd7570e36792a0c8a812810c1af32d316d",
       "procedure": "Derive certificate scope from git diff --name-only between the immutable work_item_start_sha and the refrozen material head, with no curated path filtering.",
       "expected": "The rebuilt scope equals the complete immutable work-item delta and its digest is generated from that exact normalized set.",
-      "observed": "The refrozen material head has 37 changed paths from the work-item start SHA; the builder input is taken directly from that exact Git compare."
+      "observed": "The refrozen material head has 50 changed paths from the immutable work-item start SHA; builder input is derived from that exact normalized Git compare."
     }
   ],
   "retired_controls": [],

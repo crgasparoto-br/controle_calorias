@@ -18,7 +18,7 @@
         "procedure": "Use Seven Boys outside KNOWN_BRANDS while a generic bread portion is available and execute the real countable preflight.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-        "observed": "Exact-head 827e3bb1f96656d95c1f4d8e372477ae111b4539: Seven Boys is recovered before generic portion and resolves only against branded verified evidence."
+        "observed": "Exact-head 64d7d2039504046a4d69d5e84ca62c7e0aab4b34: Seven Boys is recovered before generic portion and resolves only against branded verified evidence; current sibling regressions also preserve integral/composition/zero semantics."
       },
       "sibling_cases": [
         {
@@ -68,7 +68,7 @@
         "structural-contract",
         "temporal-consistency"
       ],
-      "revalidated_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "revalidated_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "status": "passed"
     },
     {
@@ -88,7 +88,7 @@
         "procedure": "Compute git diff --name-only from the immutable work-item start SHA to the refrozen material head and require the rebuilt certificate to contain exactly that normalized set.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt",
-        "observed": "Exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539 has 37 paths in the immutable work-item delta; the recovery builder input is derived directly from that Git compare."
+        "observed": "Exact material head 64d7d2039504046a4d69d5e84ca62c7e0aab4b34 has 50 paths in the immutable work-item delta; the recovery builder input is derived directly from that Git compare."
       },
       "sibling_cases": [
         {
@@ -137,7 +137,7 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "revalidated_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+      "revalidated_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
       "status": "passed"
     }
   ]

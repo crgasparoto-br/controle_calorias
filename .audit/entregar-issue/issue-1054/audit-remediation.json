@@ -7,7 +7,7 @@
     "audit_report_sha256": "ac2667cd69b01d64ee171cb19a8467bbb6203458a2eb02cb0f164367313facd2",
     "audited_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539"
   },
-  "candidate_head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+  "candidate_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
@@ -27,14 +27,15 @@
         ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
       ],
       "evidence": [
-        "The refrozen current head has 37 paths in the immutable work-item delta and the rebuilt certificate receives that exact Git-derived list.",
-        "The canonical top-level specification snapshot is synchronized to issue 1054.",
+        "The refrozen current head has 50 paths in the immutable work-item delta and the rebuilt certificate receives that exact Git-derived list.",
+        "The canonical specification snapshot remains synchronized to issue 1054.",
         ".audit/entregar-issue/issue-1054/evidence/remediation/handoff-scope-validation.txt"
       ],
       "validations": [
-        "Agent-first run 34256075062 completed/success on exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539.",
-        "WhatsApp TiDB run 34256075206 completed/success on exact material head 827e3bb1f96656d95c1f4d8e372477ae111b4539.",
-        "The rebuilt scope is derived from the immutable Git compare rather than a curated subset."
+        "Agent-first #6177 run 34296793596 completed/success on exact material head 64d7d2039504046a4d69d5e84ca62c7e0aab4b34.",
+        "WhatsApp TiDB #3014 run 34296793593 completed/success on exact material head 64d7d2039504046a4d69d5e84ca62c7e0aab4b34.",
+        "Merge preview a27e0b96b0eaab2ec64588dbc78cd539d873a2ae completed/success before the exact-head gate.",
+        "The rebuilt scope is derived from the immutable Git compare and contains 50 paths."
       ]
     }
   ],
