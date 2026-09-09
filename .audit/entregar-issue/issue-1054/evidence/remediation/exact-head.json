@@ -3,19 +3,22 @@
   "repository": "crgasparoto-br/controle_calorias",
   "issue": 1054,
   "pull_request": 1055,
-  "material_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+  "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
   "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
-  "merge_preview_sha": "a27e0b96b0eaab2ec64588dbc78cd539d873a2ae",
+  "merge_preview_sha": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
   "ci": {
     "agent_first": {
-      "run_id": 34296793596,
-      "run_number": 6177,
+      "run_id": 34353999869,
+      "run_number": 6183,
+      "job_id": 102477294676,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "exact_head": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
+      "verification_artifact_id": 10105790124,
+      "repository_bundle_artifact_id": 10105792760,
       "passed_steps": [
         "TypeScript check",
-        "Tests",
+        "Tests (24 sequential single-worker shards)",
         "Architecture check",
         "Documentation check",
         "Build",
@@ -26,11 +29,12 @@
       ]
     },
     "whatsapp_tidb": {
-      "run_id": 34296793593,
-      "run_number": 3014,
+      "run_id": 34353999913,
+      "run_number": 3020,
+      "job_id": 102473939911,
       "status": "completed",
       "conclusion": "success",
-      "exact_head": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "merge_preview_head": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
       "passed_steps": [
         "Apply current repository schema",
         "Verify canonical food signal tables",
@@ -38,11 +42,13 @@
         "Run pending operation insert id regression",
         "Run quick edit meal update regression",
         "Run persistent context regression"
-      ]
+      ],
+      "database_integrity": "passed on TiDB v8.5.1"
     },
     "merge_preview": {
-      "sha": "a27e0b96b0eaab2ec64588dbc78cd539d873a2ae",
+      "sha": "fc0be0ab58292f5b19546ffe31a57e81b890fef4",
       "status": "success",
+      "agent_first_job_id": 102473939581,
       "passed_steps": [
         "TypeScript integration check",
         "Test merge preview"
@@ -55,55 +61,47 @@
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
-      "precondition": "detectKnownBrand returns null while a safe generic bread reference is available",
-      "observed": "Exact-head full suite passed: Seven Boys is recovered before generic grams and only verified branded evidence can resolve it."
+      "precondition": "explicit brand is outside KNOWN_BRANDS while a safe generic bread reference exists",
+      "observed": "The exact-head full suite on acfa6053 completed all 24 shards successfully; this regression requires canonical commercial identity recovery before generic grams."
     },
     {
       "id": "unknown-brand-provider-unavailable",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Seven Boys",
-      "precondition": "commercial extraction/search is unavailable while generic bread remains available",
-      "observed": "Exact-head full suite passed: brand_variant_unresolved is preserved and neither generic portion nor measure search wins."
+      "precondition": "commercial extraction/search unavailable while generic bread remains available",
+      "observed": "The exact-head full suite passed; brand_variant_unresolved remains fail-closed and generic portion/weight cannot win first."
     },
     {
       "id": "explicit-commercial-variant-extraction-unavailable",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma integral",
-      "precondition": "generic bread is available and AI extraction is unavailable",
-      "observed": "Exact-head full suite passed: brand stays null and commercial_identity_unverified is preserved for the explicit integral variant."
-    },
-    {
-      "id": "culinary-complement-not-promoted",
-      "status": "passed",
-      "test": "server/countableFoodQuantity.audit1055.test.ts",
-      "input": "2 fatias de pão de forma com manteiga",
-      "observed": "Exact-head full suite passed: culinary complement does not synthesize commercial identity or identityClarification."
-    },
-    {
-      "id": "compound-food-component-not-brand",
-      "status": "passed",
-      "test": "server/countableFoodQuantity.audit1055.test.ts",
-      "input": "café com leite",
-      "observed": "Exact-head full suite passed: another food component is not promoted to a brand hint."
-    },
-    {
-      "id": "generic-zero-beverage-with-flavor",
-      "status": "passed",
-      "test": "server/nutritionEngine.zeroBeverageFallback.test.ts",
-      "input": "350 ml Soda de limão zero / Soda de limão zero",
-      "observed": "Exact-head full suite passed: flavored generic zero beverage remains on the documented zero-calorie generic fallback with and without explicit quantity."
+      "observed": "The exact-head full suite passed; commercial_identity_unverified remains ahead of a weight clarification."
     },
     {
       "id": "known-brand-regression",
       "status": "passed",
       "test": "server/countableFoodQuantity.audit1055.test.ts",
       "input": "2 fatias de pão de forma Panco",
-      "observed": "Exact-head full suite passed: the existing recognized-brand path remains unchanged and does not invoke unknown-brand extraction recovery."
+      "observed": "The exact-head full suite passed the recognized-brand path together with the unknown-brand recovery controls."
+    },
+    {
+      "id": "canonical-addition-resolution",
+      "status": "passed",
+      "test": "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts",
+      "observed": "The exact-head full suite passed the canonical food-addition commercial identity integration added after the previous handoff."
+    },
+    {
+      "id": "multi-item-continuation-stability",
+      "status": "passed",
+      "test": "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts",
+      "observed": "The exact-head full suite passed the post-clarification continuation path introduced after the previous handoff."
     }
   ],
-  "implementation_path": "prepareCountableFoodRegistrationResolved -> recoverCanonicalCommercialIdentity -> canonical processMealInput -> commercial qualifier guard -> safe generic portion -> resolveCommercialFoodIdentity -> resolveHouseholdMeasure",
-  "assertion": "Commercial identity/variant clarification precedes generic portion when explicit evidence exists, while generic culinary composition and zero/diet beverage fallbacks are not promoted into synthetic commercial identity.",
-  "database_note": "Agent-first database-integrity step was skipped because DATABASE_URL was unavailable; dedicated WhatsApp TiDB gate #3014 passed on the exact material head. No schema or persistence change was introduced by CI remediation."
+  "implementation_path": "commercial identity preflight -> canonical identity/variant -> product-specific portion -> weight clarification -> continuation/persistence",
+  "assertion": "The current material candidate was fully revalidated after all post-handoff material writes; commercial identity/variant still precedes generic portion/weight and TiDB persistence regressions are green.",
+  "verification_manifest_path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head-verification.json",
+  "verification_manifest_sha256": "cd477d06330299cff41c726679cb3327926189315af33aa4b26423137ba55aa3",
+  "local_runtime_note": "A local focused rerun was not used as evidence because this isolated runtime could not resolve registry.npmjs.org to download pnpm. Official exact-head GitHub Actions evidence is authoritative and green."
 }

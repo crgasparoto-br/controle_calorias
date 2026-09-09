@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+  "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
   "base_sha": "cb944ca0be23815c631c37995a086a48297d5cf5",
   "evidence": [
     {
       "evidence_id": "remediation",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/issue-1054/evidence/remediation/exact-head.json",
-      "sha256": "db0b15aa209ceeb7ead4270d1a5e5c2080b50a31571c7af0ace91f7551d6e308",
-      "subject_sha": "64d7d2039504046a4d69d5e84ca62c7e0aab4b34",
+      "sha256": "b7189302b4034640c51a98638b98b47260830418cab46ce02f92bf99c175a37a",
+      "subject_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head runs 34296793596/34296793593, verification artifact, and discriminant full-suite assertions",
+      "producer": "GitHub Actions Agent-first #6183 run 34353999869 exact-head verification + WhatsApp TiDB #3020 run 34353999913 merge-preview persistence validation",
       "status": "passed"
     }
   ]

@@ -1,0 +1,15 @@
+HANDOFF TRANSPORT REMEDIATION EVIDENCE
+rejected_published_head=ead4cca89cb1fdbf6cf31e38e53a832b0dba3692
+material_head=acfa6053e91f25eb10c0ee973722f6603a9764dc
+recovery_scope=handoff-only
+manifest_format=base64-shards-v1
+part=handoff-ready.parts/part-000.b64 size_expected=2048 size_actual=2048 sha_expected=a29e235c7b5a65a662d1586c1f9ab407a4675f16225d8f6fb2af4e4e71da41c4 sha_actual=a29e235c7b5a65a662d1586c1f9ab407a4675f16225d8f6fb2af4e4e71da41c4 match=True
+part=handoff-ready.parts/part-001.b64 size_expected=2048 size_actual=2048 sha_expected=a53142e1b4a28650e5174397ead28487aaebdde815169d1829cff9ef28b8d693 sha_actual=a53142e1b4a28650e5174397ead28487aaebdde815169d1829cff9ef28b8d693 match=True
+part=handoff-ready.parts/part-002.b64 size_expected=776 size_actual=776 sha_expected=089f95b6e9544fdf332f20080664199ebc73214b212c94efd0f133a6f85f5c9c sha_actual=b61e69a25c713676fd7a45fef089d71c19542664dec13cf986f748ce318394e7 match=False
+rejected_loader=EXPECTED_BLOCK
+rejected_loader_error=artifact part handoff-ready.parts/part-002.b64 SHA-256 mismatch
+sibling_missing_part=EXPECTED_BLOCK
+sibling_missing_part_error=[Errno 2] No such file or directory: '/tmp/tmp5hr2m26l/pkg/handoff-ready.parts/part-001.b64'
+sibling_altered_part=EXPECTED_BLOCK
+sibling_altered_part_error=artifact part handoff-ready.parts/part-000.b64 SHA-256 mismatch
+policy=regenerate logical handoff with build_handoff_certificate.py; package deterministically as base64-shards-v1 with connector-safe shards; verify manifest/part bytes and Git blob identity; prevalidate sibling result-only child before moving PR ref

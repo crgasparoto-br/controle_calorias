@@ -2,29 +2,29 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:pr-1055-handoff-scope-mismatch",
-  "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
+  "rejection_id": "audit-rejection:pr-1055-handoff-shard-hash-mismatch",
+  "head_sha": "ead4cca89cb1fdbf6cf31e38e53a832b0dba3692",
   "identity": {
-    "head_sha": "827e3bb1f96656d95c1f4d8e372477ae111b4539",
-    "material_head_sha": "427c89068615246fd86f6c0e82f49ae454175bb2",
+    "head_sha": "ead4cca89cb1fdbf6cf31e38e53a832b0dba3692",
+    "material_head_sha": "acfa6053e91f25eb10c0ee973722f6603a9764dc",
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1054,
     "pull_request_number": 1055
   },
   "findings": [
     {
-      "id": "P1",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-handoff-scope",
+      "category": "delivery-handoff-shard-integrity",
       "severity": "P1",
-      "summary": "The handoff certificate declared only 15 issue_changed_paths while the immutable work-item delta contains 31 paths.",
-      "reason": "handoff-scope-mismatch",
+      "summary": "The published result-only handoff cannot be consumed because one base64 shard does not match the SHA-256 declared by the handoff transport manifest.",
+      "reason": "handoff-artifact-integrity-mismatch",
       "recovery_scope": "handoff-only",
       "requires_refreeze": false,
-      "recommendation": "Rebuild the handoff from the exact immutable work-item delta and publish a new result-only child without changing product behavior."
+      "recommendation": "Regenerate the handoff certificate from the already-closed material-head artifacts, use validated transport bytes, prevalidate a sibling result-only child, and replace only the stale result-only ref in the existing PR."
     }
   ],
   "recommendations": []
