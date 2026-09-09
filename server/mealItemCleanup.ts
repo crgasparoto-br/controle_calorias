@@ -72,10 +72,10 @@ function inferStandaloneCommercialVariant(item: MealDraftItem) {
   const normalizedVariants = normalizeText(productVariant)
     .split(/\s+/)
     .filter(Boolean);
-  if (
-    normalizedVariants.length > 0
-    && normalizedVariants.every(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))
-  ) {
+  // Zero/diet em alimento genérico (inclusive acompanhado de sabor, como
+  // "soda de limão zero") não comprova identidade comercial. Marcas explícitas
+  // usam o caminho fail-closed acima e não dependem deste fallback autônomo.
+  if (normalizedVariants.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))) {
     return null;
   }
 
