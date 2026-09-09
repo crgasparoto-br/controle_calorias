@@ -165,6 +165,14 @@ export function inferUnresolvedCommercialIdentityHint(
   if (!remainderTokens.length) return null;
 
   const normalizedRemainder = remainderTokens.map(token => normalizeText(token));
+  const hasExplicitBrandMarker = normalizedRemainder.includes("marca");
+  // Um match genérico de apenas uma palavra (ex.: "água" ou "iogurte") não
+  // comprova que o restante da frase seja marca: ele pode apenas completar a
+  // identidade do alimento ("água tônica", "iogurte sabor ..."). Sem um
+  // marcador explícito de marca, preserve o caminho genérico em vez de
+  // fabricar uma identidade comercial durante indisponibilidade da IA.
+  if (bestMatch.length === 1 && !hasExplicitBrandMarker) return null;
+
   const remainderText = remainderTokens.join(" ");
   const productVariant = extractCommercialVariant(remainderText);
   const firstRemainderToken = normalizedRemainder[0];
