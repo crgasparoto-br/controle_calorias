@@ -59,7 +59,7 @@ vi.mock("./userMeasurementReplyContext", () => ({
   })),
 }));
 
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {},
   processMealInput: processMealInputMock,
 }));

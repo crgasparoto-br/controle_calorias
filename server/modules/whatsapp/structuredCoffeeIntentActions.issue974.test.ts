@@ -15,7 +15,7 @@ vi.mock("./intentValidation", () => ({ validateWhatsappRuntimeIntentForPersisten
 vi.mock("../meals/service", () => ({ listMeals: vi.fn(async () => []), createManualMeal: createMealMock, updateMeal: updateMealMock }));
 vi.mock("../../db", () => ({ getDb: vi.fn(), getHabitSnapshots: vi.fn(async () => []), logPersistenceWarning: vi.fn() }));
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({ createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => pendingRepo) }));
-vi.mock("../../nutritionEngine", () => ({ MealInferenceError: class extends Error {}, processMealInput: processMealInputMock }));
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(), MealInferenceError: class extends Error {}, processMealInput: processMealInputMock }));
 vi.mock("./foodQuantityClarification", () => ({ requestWhatsappCaloricComplementQuantityClarification: vi.fn() }));
 vi.mock("./coffeePreparationClarification", async importOriginal => {
   const actual = await importOriginal<typeof import("./coffeePreparationClarification")>();

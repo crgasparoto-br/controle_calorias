@@ -40,7 +40,7 @@ vi.mock("./db", () => ({
   removeUserMeal: vi.fn(),
 }));
 
-vi.mock("./nutritionEngine", () => ({
+vi.mock("./nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
   MealInferenceError: class MealInferenceError extends Error {},
 }));

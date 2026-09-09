@@ -69,7 +69,7 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
   getHabitSnapshots: vi.fn(async () => []),
 }));
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processFoodMock,
 }));
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({
