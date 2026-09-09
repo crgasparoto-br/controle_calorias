@@ -20,25 +20,50 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           def find_calls(text):
               out=[]
-              pat=re.compile(r"vi\\.mock\\((?:\"|')([^\"']*nutritionEngine)(?:\"|')\\s*,")
-              for m in pat.finditer(text):
-                  s=m.start(); i=text.find('(',s)+1; depth=1; quote=None; esc=False
+              pos=0
+              marker='vi.mock('
+              while True:
+                  s=text.find(marker,pos)
+                  if s < 0:
+                      break
+                  qpos=s+len(marker)
+                  if qpos >= len(text) or text[qpos] not in ('\"', "'"):
+                      pos=qpos
+                      continue
+                  quote_target=text[qpos]
+                  target_end=text.find(quote_target,qpos+1)
+                  if target_end < 0:
+                      break
+                  target=text[qpos+1:target_end]
+                  if 'nutritionEngine' not in target:
+                      pos=target_end+1
+                      continue
+                  i=text.find('(',s)+1
+                  depth=1
+                  quote=None
+                  esc=False
                   while i < len(text) and depth:
                       c=text[i]
                       if quote:
-                          if esc: esc=False
-                          elif c=='\\\\': esc=True
-                          elif c==quote: quote=None
+                          if esc:
+                              esc=False
+                          elif c=='\\':
+                              esc=True
+                          elif c==quote:
+                              quote=None
                       else:
-                          if c in "'\"`": quote=c
-                          elif c=='(': depth+=1
-                          elif c==')': depth-=1
+                          if c in "'\"`":
+                              quote=c
+                          elif c=='(':
+                              depth+=1
+                          elif c==')':
+                              depth-=1
                       i+=1
                   out.append((s,i,text[s:i]))
+                  pos=i
               return out
 
           changed=[]
@@ -70,8 +95,7 @@ jobs:
 
           remaining=[]
           for p in Path('server').rglob('*.test.ts'):
-              t=p.read_text()
-              for s,e,b in find_calls(t):
+              for s,e,b in find_calls(p.read_text()):
                   if 'resolveCommercialFoodIdentity' in b:
                       continue
                   if 'importActual' in b or 'importOriginal' in b or '...actual' in b:
