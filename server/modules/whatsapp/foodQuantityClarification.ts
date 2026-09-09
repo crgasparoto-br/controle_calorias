@@ -17,6 +17,7 @@ import {
   type FoodClarificationCandidate,
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
+import type { CanonicalFoodAdditionItem } from "./intent/canonicalFoodAdditionResolution";
 import type { FoodAdditionIntent, WhatsappIntentResult } from "./intent/types";
 import type { MixedMealItemIncrementPlan } from "./mixedMealItemIncrementPlanTypes";
 import type { ResolvedRegistrationSegment } from "./countableFoodRegistrationGate";
@@ -147,6 +148,7 @@ export type FoodAdditionQuantityContext = {
   expectedOccurredAt: string;
   receivedAt: string;
   inboundMessageId?: string | null;
+  resolvedItems?: CanonicalFoodAdditionItem[];
 };
 
 export type FoodQuantityResolutionContext =
@@ -490,6 +492,7 @@ export function createFoodQuantityClarificationService(
       expectedOccurredAt: string;
       receivedAt?: Date;
       messageId?: string | null;
+      resolvedItems?: CanonicalFoodAdditionItem[];
       instructionText?: string;
     }) =>
       createQuantityClarification({
@@ -512,6 +515,7 @@ export function createFoodQuantityClarificationService(
           expectedOccurredAt: input.expectedOccurredAt,
           receivedAt: (input.receivedAt ?? new Date()).toISOString(),
           inboundMessageId: input.messageId ?? null,
+          resolvedItems: input.resolvedItems,
         },
         instructionText: input.instructionText,
       }),

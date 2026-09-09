@@ -1,5 +1,6 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { getDb, logPersistenceWarning } from "../../db";
+import type { MealInferenceError } from "../../nutritionEngine";
 import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
@@ -12,6 +13,8 @@ import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQua
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 import type { CountableRegistrationContinuation } from "./countableFoodRegistrationGate";
+import type { CanonicalFoodAdditionItem } from "./intent/canonicalFoodAdditionResolution";
+import type { FoodAdditionIntent } from "./intent/types";
 
 export const PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE =
   "meal_intent_registration_details";
@@ -20,6 +23,19 @@ export const PENDING_MEAL_INTENT_REGISTRATION_DETAILS_ORIGIN =
 export const MEAL_INTENT_REGISTRATION_DETAILS_INTERACTION_ID =
   "meal_intent_decision.registration_details";
 const DETAILS_TTL_MS = 10 * 60 * 1000;
+
+
+export type FoodAdditionIdentityContinuation = {
+  addition: Omit<FoodAdditionIntent, "date"> & { date: string };
+  itemIndex: number;
+  expectedMealId: number;
+  expectedMealLabel: string;
+  expectedOccurredAt: string;
+  receivedAt: string;
+  userTimezone: string;
+  clarification: NonNullable<MealInferenceError["context"]>;
+  resolvedItems: CanonicalFoodAdditionItem[];
+};
 
 export const MEAL_INTENT_REGISTRATION_DETAILS_ACTIONS = [
   { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
@@ -37,6 +53,7 @@ export type PendingMealIntentRegistrationDetails = {
   attempts: number;
   actions: Array<{ id: string; label: string; effect: string }>;
   countableContext?: CountableRegistrationContinuation;
+  foodAdditionContext?: FoodAdditionIdentityContinuation;
 };
 
 function normalizeRegistrationDetailsText(value: string) {
@@ -86,6 +103,7 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
   attempts?: number;
   receivedAt?: Date;
   countableContext?: CountableRegistrationContinuation;
+  foodAdditionContext?: FoodAdditionIdentityContinuation;
 }) {
   const registrationText = (input.registrationText ?? input.originalText).trim();
   if (isSugarQuantityPrompt({ registrationText, prompt: input.prompt })) {
@@ -125,6 +143,9 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
     ...(input.countableContext
       ? { countableContext: input.countableContext }
       : {}),
+    ...(input.foodAdditionContext
+      ? { foodAdditionContext: input.foodAdditionContext }
+      : {}),
   };
   const created = await repository.createPendingOperation({
     userId: input.userId,
@@ -150,11 +171,12 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
       interactionClassification: "open",
       interactionComponent: "text",
       interactionLifecycle: "created",
-      ...(input.countableContext
+      ...((input.countableContext || input.foodAdditionContext)
         ? {
             clarificationReason:
-              input.countableContext.clarification.clarificationReason,
-            alternatives: input.countableContext.clarification.alternatives,
+              (input.countableContext?.clarification ?? input.foodAdditionContext?.clarification)?.clarificationReason,
+            alternatives:
+              (input.countableContext?.clarification ?? input.foodAdditionContext?.clarification)?.alternatives,
           }
         : {}),
     },
@@ -211,6 +233,7 @@ async function recreateAfterSafeFailure(input: {
           registrationSegments: input.registrationText.split("\n"),
         }
       : undefined,
+    foodAdditionContext: input.target.foodAdditionContext,
   });
 }
 
@@ -225,7 +248,7 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
   const action = parseDetailsAction(input.text);
   if (!isPendingMealIntentRegistrationDetails(target) || !action) return null;
   if (input.pendingOperation.userId !== input.userId) return null;
-  if (target.countableContext && action !== "cancel") {
+  if ((target.countableContext || target.foodAdditionContext) && action !== "cancel") {
     const details = input.text?.trim() ?? "";
     if (splitFoodTextSegments(details).length !== 1 || parseFoodClarificationQuantityReply(details)) {
       return {
@@ -257,6 +280,45 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
   }
 
   const details = input.text?.trim() ?? "";
+  const foodAdditionContext = target.foodAdditionContext;
+  if (foodAdditionContext) {
+    const items = foodAdditionContext.addition.items.map(item => ({ ...item }));
+    const currentItem = items[foodAdditionContext.itemIndex];
+    if (!currentItem) {
+      return {
+        handled: true as const,
+        action: "clarification_needed" as const,
+        reply: "Não consegui retomar o alimento pendente com segurança. Nada foi alterado. Envie novamente o pedido completo.",
+        eventType: "whatsapp.meal_intent_decision.food_addition_identity_context_invalid",
+        detail: "Contexto persistido da adição não contém o item pendente esperado.",
+        data: { retryRequiresFullMessage: true, originalTextPreserved: true },
+      };
+    }
+    items[foodAdditionContext.itemIndex] = {
+      ...currentItem,
+      foodName: `${currentItem.foodName} ${details}`.trim(),
+    };
+    const { handleFoodAdditionIntent } = await import("./intent/foodAdditionHandlers");
+    return handleFoodAdditionIntent(
+      input.userId,
+      {
+        mealLabel: foodAdditionContext.addition.mealLabel,
+        date: new Date(foodAdditionContext.addition.date),
+        items,
+      },
+      foodAdditionContext.userTimezone || input.userTimezone || DEFAULT_APP_TIME_ZONE,
+      {
+        originalText: target.originalText,
+        receivedAt: new Date(foodAdditionContext.receivedAt),
+        messageId: target.inboundMessageId,
+        expectedMealId: foodAdditionContext.expectedMealId,
+        expectedMealLabel: foodAdditionContext.expectedMealLabel,
+        expectedOccurredAt: foodAdditionContext.expectedOccurredAt,
+        resolvedItems: foodAdditionContext.resolvedItems,
+      },
+    );
+  }
+
   const context = target.countableContext;
   const registrationSegments = context
     ? [...context.registrationSegments]

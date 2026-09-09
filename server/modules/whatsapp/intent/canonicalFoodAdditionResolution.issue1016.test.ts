@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { MealInferenceError } from "../../../nutritionEngine";
 import { resolveCanonicalFoodAdditionItems } from "./canonicalFoodAdditionResolution";
 
 function draftItem(overrides: Record<string, unknown> = {}) {
@@ -36,6 +37,24 @@ function runtime() {
       items: [draftItem()],
       totals: { calories: 21, protein: 3.2, carbs: 0.4, fat: 0.8 },
     })),
+    resolveCommercialFoodIdentity: vi.fn(async (foodName: string, brand: string) => ({
+      slug: `${foodName}-${brand}`,
+      name: foodName,
+      aliases: [foodName],
+      brandName: brand,
+      isBrandedProduct: true,
+      servingLabel: "1 fatia (21 g)",
+      gramsPerServing: 21,
+      calories: 26,
+      protein: 4,
+      carbs: 0.5,
+      fat: 1,
+      researchIdentityKey: `verified:${foodName}:${brand}`,
+      sourceUrls: ["https://example.com/rotulo"],
+      sourceEvidence: "1 fatia = 21 g",
+      sourceVerifiedAt: date,
+      sourceConfidence: 0.95,
+    })),
     resolveHouseholdMeasure: vi.fn(),
   };
 }
@@ -46,7 +65,7 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
   it("usa gramatura da medida para escalar a nutrição específica da marca sem trocar a identidade nutricional", async () => {
     const deps = runtime();
     deps.resolveHouseholdMeasure.mockResolvedValueOnce({
-      kind: "usual_average",
+      kind: "researched_exact",
       grams: 21,
       requestedQuantity: 1,
       requestedUnit: "fatia",
@@ -88,6 +107,17 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
       timeZone: "America/Sao_Paulo",
     }, deps as any);
 
+    expect(deps.resolveCommercialFoodIdentity).toHaveBeenCalledWith(
+      "Presunto cozido Sadia",
+      "Sadia",
+    );
+    expect(deps.resolveHouseholdMeasure).toHaveBeenCalledWith(expect.objectContaining({
+      brand: "Sadia",
+      commercialFood: expect.objectContaining({ brandName: "Sadia" }),
+    }));
+    expect(deps.resolveCommercialFoodIdentity.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.resolveHouseholdMeasure.mock.invocationCallOrder[0],
+    );
     expect(deps.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
       text: "21 g de Presunto cozido Sadia",
     }));
@@ -99,12 +129,12 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
         brand: "Sadia",
         quantity: 1,
         unit: "fatia",
-        portionText: "1 fatia (aprox. 21 g)",
+        portionText: "1 fatia (21 g)",
         estimatedGrams: 21,
         calories: 26,
         source: "hybrid",
         quantityResolution: expect.objectContaining({
-          kind: "usual_average",
+          kind: "researched_exact",
           grams: 21,
           sourceUrls: ["https://example.com/medida-presunto"],
         }),
@@ -218,6 +248,154 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
       item: expect.objectContaining({ foodName: "Requeijão cremoso", unit: "fatia" }),
     }));
     expect(deps.processMealInput).not.toHaveBeenCalled();
+  });
+
+  it("clarifica identidade de marca antes de pesquisar qualquer medida", async () => {
+    const deps = runtime();
+    deps.resolveCommercialFoodIdentity.mockRejectedValueOnce(new MealInferenceError(
+      "Qual variante Panco você quis registrar?",
+      {
+        code: "food_identity_clarification_required",
+        context: {
+          originalText: "Pão de forma Panco",
+          foodName: "Pão de forma Panco",
+          brand: "Panco",
+          clarificationReason: "brand_variant_unresolved",
+          alternatives: [
+            {
+              name: "Pão de forma Panco Premium",
+              brand: "Panco",
+              productVariant: "premium",
+              servingLabel: "2 fatias (50 g)",
+              gramsPerServing: 50,
+            },
+            {
+              name: "Pão de forma Panco Integral",
+              brand: "Panco",
+              productVariant: "integral",
+              servingLabel: "2 fatias (60 g)",
+              gramsPerServing: 60,
+            },
+          ],
+        },
+      },
+    ));
+
+    const result = await resolveCanonicalFoodAdditionItems({
+      userId: 7,
+      addition: {
+        mealLabel: "Café da manhã",
+        date,
+        items: [{ foodName: "Pão de forma Panco", brand: "Panco", quantity: 2, unit: "fatia" }],
+      },
+      occurredAt: date,
+      timeZone: "America/Sao_Paulo",
+    }, deps as any);
+
+    expect(result).toMatchObject({
+      kind: "identity_clarification",
+      itemIndex: 0,
+      context: {
+        brand: "Panco",
+        clarificationReason: "brand_variant_unresolved",
+      },
+    });
+    expect(deps.resolveCommercialFoodIdentity).toHaveBeenCalledOnce();
+    expect(deps.resolveHouseholdMeasure).not.toHaveBeenCalled();
+    expect(deps.processMealInput).not.toHaveBeenCalled();
+  });
+
+  it("só permite clarificação de peso depois que a identidade comercial foi comprovada", async () => {
+    const deps = runtime();
+    deps.resolveHouseholdMeasure.mockResolvedValueOnce(null);
+
+    const result = await resolveCanonicalFoodAdditionItems({
+      userId: 7,
+      addition: {
+        mealLabel: "Café da manhã",
+        date,
+        items: [{ foodName: "Pão de forma Panco Premium", brand: "Panco", quantity: 2, unit: "fatia" }],
+      },
+      occurredAt: date,
+      timeZone: "America/Sao_Paulo",
+    }, deps as any);
+
+    expect(result).toMatchObject({
+      kind: "quantity_clarification",
+      itemIndex: 0,
+    });
+    expect(deps.resolveCommercialFoodIdentity).toHaveBeenCalledWith(
+      "Pão de forma Panco Premium",
+      "Panco",
+    );
+    expect(deps.resolveHouseholdMeasure).toHaveBeenCalledWith(expect.objectContaining({
+      brand: "Panco",
+      commercialFood: expect.objectContaining({ brandName: "Panco" }),
+    }));
+    expect(deps.resolveCommercialFoodIdentity.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.resolveHouseholdMeasure.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("reutiliza itens já resolvidos sem recalcular identidade ou medida na continuação", async () => {
+    const deps = runtime();
+    const preserved = draftItem({
+      foodName: "Leite integral",
+      canonicalName: "Leite integral",
+      brand: null,
+      quantity: 50,
+      unit: "ml",
+      portionText: "50 ml",
+      estimatedGrams: 50,
+    }) as any;
+    deps.resolveHouseholdMeasure.mockResolvedValueOnce({
+      kind: "canonical_portion",
+      grams: 20,
+      requestedQuantity: 1,
+      requestedUnit: "fatia",
+      evidence: "1 fatia = 20 g",
+      sourceUrls: [],
+      referenceCount: 1,
+    });
+    deps.processMealInput.mockResolvedValueOnce({
+      detectedMealLabel: "Café da manhã",
+      sourceText: "",
+      reasoning: "",
+      confidence: 0.9,
+      needsConfirmation: false,
+      items: [draftItem({
+        foodName: "Queijo mussarela",
+        canonicalName: "Queijo mussarela",
+        brand: null,
+        estimatedGrams: 20,
+      })],
+      totals: { calories: 21, protein: 3.2, carbs: 0.4, fat: 0.8 },
+    } as any);
+
+    const result = await resolveCanonicalFoodAdditionItems({
+      userId: 7,
+      addition: {
+        mealLabel: "Café da manhã",
+        date,
+        items: [
+          { foodName: "Leite integral", brand: null, quantity: 50, unit: "ml" },
+          { foodName: "Queijo mussarela", brand: null, quantity: 1, unit: "fatia" },
+        ],
+      },
+      occurredAt: date,
+      timeZone: "America/Sao_Paulo",
+      resolvedItems: [preserved],
+    }, deps as any);
+
+    expect(result).toMatchObject({
+      kind: "items",
+      items: [preserved, expect.objectContaining({ foodName: "Queijo mussarela" })],
+    });
+    expect(deps.processMealInput).toHaveBeenCalledOnce();
+    expect(deps.resolveHouseholdMeasure).toHaveBeenCalledOnce();
+    expect(deps.processMealInput).not.toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringMatching(/Leite integral/i),
+    }));
   });
 
   it("resolve todos os itens antes de devolver o lote, sem produzir resultado parcial", async () => {

@@ -459,6 +459,9 @@ async function persistResolvedFoodAddition(
       receivedAt: new Date(context.receivedAt),
       messageId: context.inboundMessageId ?? null,
       expectedMealId: context.expectedMealId,
+      expectedMealLabel: context.expectedMealLabel,
+      expectedOccurredAt: context.expectedOccurredAt,
+      resolvedItems: context.resolvedItems,
     },
   );
 }

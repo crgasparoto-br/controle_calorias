@@ -13,7 +13,7 @@ Garantir que medidas contáveis resolvidas antes da inferência nutricional, com
 5. Antes do gate contável, perguntas que o roteador canônico classifica como resposta segura não alimentar são preservadas como consulta. Assim, textos como `quantas calorias tem 1 banana nanica?` e `1 banana nanica tem muita caloria?` não viram registro apenas por conter quantidade + alimento.
 6. O preflight interno de `executeWhatsappTextIntent` permanece ativo para consumidores diretos, como transcrições de áudio e retomadas que não passam pelo wrapper textual. No fluxo normal do wrapper ele recebe o texto já convertido em gramas e, portanto, não repete a resolução da medida contável.
 7. Em mensagens `água + alimento`, a hidratação é registrada uma única vez e apenas o fragmento alimentar passa pelo gate de medida contável. O texto alimentar reescrito é o payload encaminhado ao pipeline nutricional e a resposta final permanece uma única resposta lógica composta.
-8. Comandos canônicos de adição a uma refeição, como `Adicionar 2 fatias de mussarela ao café da manhã`, continuam sob responsabilidade do fluxo de adição existente e não são desviados para um segundo pipeline nutricional.
+8. Comandos canônicos de adição a uma refeição, como `Adicionar 2 fatias de mussarela ao café da manhã`, continuam sob responsabilidade do fluxo de adição existente e não são desviados para um segundo pipeline nutricional. Esse produtor reutiliza a mesma precedência comercial deste contrato: marca/variante explícita é resolvida pelo contrato canônico antes de qualquer `resolveHouseholdMeasure`, média usual ou clarificação de peso.
 
 ## Identidade comercial antes da gramatura
 
@@ -27,7 +27,7 @@ Na clarificação, a pendência existente de detalhes alimentares preserva segme
 
 O contrato público de [registro de refeições](../product-specs/meal-registration.md) permanece válido: a mudança corrige a precedência do preflight e reutiliza sua taxonomia.
 
-A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts`, com resolvedor real, doubles apenas nas integrações externas, variantes/marcas incompatíveis, pesquisa indisponível e retomada multi-item sem persistência parcial ou duplicada.
+A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts` e pelos controles de adição em `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts`, `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts` e `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts`. Os testes exercitam resolvedor real onde o boundary externo permite, variantes/marcas incompatíveis, marca fora da allowlist, pesquisa indisponível e retomada sem persistência parcial ou duplicada.
 
 ## Quantidades implícitas sem verbo operacional
 
