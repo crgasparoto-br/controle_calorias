@@ -60,7 +60,13 @@ function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallb
 }
 
 function inferStandaloneCommercialVariant(item: MealDraftItem) {
-  const productVariant = extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  const normalizedFoodName = normalizeText(item.foodName).replace(/-/g, " ");
+  // "com" normalmente descreve composição/preparo (ex.: café com leite), não
+  // uma variante comercial autônoma. Esse caso deve permanecer no fallback
+  // nutricional normal em vez de gerar uma identidade comercial artificial.
+  if (/\bcom\b/.test(normalizedFoodName)) return null;
+
+  const productVariant = extractCommercialVariant(item.foodName);
   if (!productVariant) return null;
 
   const normalizedVariants = normalizeText(productVariant)
