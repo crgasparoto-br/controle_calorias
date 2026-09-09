@@ -1,0 +1,43 @@
+name: Temporary finish issue 1054
+
+on:
+  push:
+    branches:
+      - tmp/finish-1054-20260909-1012
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Materialize exact PR candidate
+        env:
+          EXPECTED_PARENT: cabc595f2369109258be17cbcf190c09c91df3ec
+          EXPECTED_TREE: 1ff6563e598f81a8b7e4c491de5e82c80983b034
+          EXPECTED_PATCH_SHA256: 3c22c916806a8bb466315596c8bfa7a967d33e57c31c9f0b4212b0ab81389903
+          TARGET_BRANCH: fix/1054-countable-commercial-identity
+        run: |
+          set -euo pipefail
+          tr -d '\r\n' < .tmp/issue1054.patch.gz.b64 | base64 -d | gzip -d > /tmp/issue1054.patch
+          echo "${EXPECTED_PATCH_SHA256}  /tmp/issue1054.patch" | sha256sum -c -
+
+          git fetch origin "${TARGET_BRANCH}"
+          ACTUAL_PARENT="$(git rev-parse "origin/${TARGET_BRANCH}")"
+          test "${ACTUAL_PARENT}" = "${EXPECTED_PARENT}"
+
+          git checkout --detach "${EXPECTED_PARENT}"
+          git apply --index --binary /tmp/issue1054.patch
+          ACTUAL_TREE="$(git write-tree)"
+          test "${ACTUAL_TREE}" = "${EXPECTED_TREE}"
+
+          git -c user.name='Claudinei Rogerio Gasparoto' -c user.email='crgasparoto@gmail.com' commit -m 'fix(whatsapp): propagate commercial identity precedence to meal additions'
+          test "$(git rev-parse HEAD^)" = "${EXPECTED_PARENT}"
+          test "$(git rev-parse HEAD^{tree})" = "${EXPECTED_TREE}"
+
+          git push --force-with-lease=refs/heads/${GITHUB_REF_NAME}:${GITHUB_SHA} origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
