@@ -18,6 +18,7 @@ vi.mock("../../nutritionEngine", () => ({
     code = "meal_inference_failed";
   },
   processMealInput: vi.fn(),
+  resolveCommercialFoodIdentity: vi.fn(),
 }));
 
 vi.mock("../meals/service", () => ({
