@@ -56,7 +56,7 @@ vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
   getWhatsAppWaterProgress: vi.fn(async () => ({ totalMl: 250, goalMl: null, timeZone: "America/Sao_Paulo", dateKey: "2024-04-21" })),
 }));
 
-vi.mock("./nutritionEngine", () => ({
+vi.mock("./nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {},
   processMealInput: processMealInputMock,
 }));

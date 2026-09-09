@@ -13,7 +13,7 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
 }));
 
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 

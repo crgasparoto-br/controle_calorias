@@ -20,7 +20,7 @@ vi.mock("../../nutritionEngine", () => {
       this.context = context;
     }
   }
-  return { MealInferenceError, processMealInput: processMock };
+  return { resolveCommercialFoodIdentity: vi.fn(), MealInferenceError, processMealInput: processMock };
 });
 vi.mock("./foodQuantityClarification", () => ({ requestWhatsappCaloricComplementQuantityClarification: sugarMock }));
 vi.mock("./mealActionReplyComposer", () => ({ composeWhatsAppMealActionReply: vi.fn() }));

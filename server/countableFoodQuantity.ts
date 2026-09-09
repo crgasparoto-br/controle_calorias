@@ -10,6 +10,11 @@ import {
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
 import { findTacoFood } from "./tacoLookup";
+import { MealInferenceError, resolveCommercialFoodIdentity } from "./nutritionEngine";
+import {
+  recoverCanonicalCommercialIdentity,
+  type CommercialIdentityClarification,
+} from "./commercialFoodIdentityPreflight";
 import {
   COUNTABLE_QUANTITY_PATTERN,
   parseCountableQuantity,
@@ -31,6 +36,11 @@ export type CountableFoodResolvedMeasure = {
     kind: "canonical_portion";
     grams: number;
   };
+};
+
+export type CountableFoodPendingItem = CountableFoodQuantityRequest & {
+  segmentIndex: number;
+  identityClarification?: CommercialIdentityClarification;
 };
 
 function splitCountableFoodTextSegments(text: string) {
@@ -79,6 +89,7 @@ export function getSafeCatalogCountableGrams(
   food: CatalogFood | null | undefined,
   request: CountableFoodQuantityRequest,
 ) {
+  if (request.brand) return null;
   if (!food || !food.servingLabel || !food.gramsPerServing) return null;
   const serving = parseQuantityUnitFromPortionText(food.servingLabel);
   if (!serving || !serving.quantity || !serving.unit) return null;
@@ -168,13 +179,15 @@ export function prepareCountableFoodRegistration(registrationText: string) {
 export async function prepareCountableFoodRegistrationResolved(
   userId: number,
   registrationText: string,
+  resolvedSegmentIndexes: number[] = []
 ) {
   const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const rewrittenSegments = [...registrationSegments];
-  const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
+  const pendingItems: CountableFoodPendingItem[] = [];
   const resolutions: CountableFoodResolvedMeasure[] = [];
 
   for (const [segmentIndex, segment] of registrationSegments.entries()) {
+    if (resolvedSegmentIndexes.includes(segmentIndex)) continue;
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) {
       const bare = parseBareCount(segment);
@@ -191,35 +204,74 @@ export async function prepareCountableFoodRegistrationResolved(
       continue;
     }
 
+    const canonicalIdentity = await recoverCanonicalCommercialIdentity(request);
+    const resolvedRequest = canonicalIdentity.brand && !request.brand
+      ? { ...request, brand: canonicalIdentity.brand }
+      : request;
+
+    if (canonicalIdentity.identityClarification) {
+      pendingItems.push({
+        ...resolvedRequest,
+        segmentIndex,
+        identityClarification: canonicalIdentity.identityClarification,
+      });
+      continue;
+    }
+
     const safe = resolveSafeCountableCatalogGrams(
-      request.foodName,
-      request.count,
-      request.requestedUnit,
+      resolvedRequest.foodName,
+      resolvedRequest.count,
+      resolvedRequest.requestedUnit,
     );
     if (safe) {
-      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${request.foodName}`;
+      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${resolvedRequest.foodName}`;
       resolutions.push({
         segmentIndex,
-        request,
+        request: resolvedRequest,
         resolution: { kind: "canonical_portion", grams: safe.grams },
       });
       continue;
     }
 
+    let commercialFood: CatalogFood | undefined;
+    if (resolvedRequest.brand) {
+      try {
+        commercialFood = await resolveCommercialFoodIdentity(
+          resolvedRequest.foodName,
+          resolvedRequest.brand
+        );
+      } catch (error) {
+        if (
+          !(error instanceof MealInferenceError) ||
+          !error.context?.clarificationReason
+        )
+          throw error;
+        pendingItems.push({
+          ...resolvedRequest,
+          segmentIndex,
+          identityClarification: {
+            message: error.message,
+            context: error.context,
+          },
+        });
+        continue;
+      }
+    }
     const resolved = await resolveHouseholdMeasure({
       userId,
-      foodName: request.foodName,
-      brand: request.brand,
-      quantity: request.count,
-      unit: request.requestedUnit,
+      foodName: resolvedRequest.foodName,
+      brand: resolvedRequest.brand,
+      quantity: resolvedRequest.count,
+      unit: resolvedRequest.requestedUnit,
+      ...(commercialFood ? { commercialFood } : {}),
     });
     if (resolved) {
-      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${request.foodName}`;
-      resolutions.push({ segmentIndex, request, resolution: resolved });
+      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
+      resolutions.push({ segmentIndex, request: resolvedRequest, resolution: resolved });
       continue;
     }
 
-    pendingItems.push({ ...request, segmentIndex });
+    pendingItems.push({ ...resolvedRequest, segmentIndex });
   }
 
   return {

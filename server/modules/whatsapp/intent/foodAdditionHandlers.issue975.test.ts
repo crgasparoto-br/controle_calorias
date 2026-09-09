@@ -16,7 +16,7 @@ vi.mock("../../../nutritionEngine", () => {
   class MealInferenceError extends Error {
     readonly code = "meal_inference_unavailable";
   }
-  return { MealInferenceError };
+  return { resolveCommercialFoodIdentity: vi.fn(), MealInferenceError };
 });
 
 vi.mock("../coffeeAdditionClarification", () => ({

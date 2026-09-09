@@ -17,8 +17,10 @@ import {
   type FoodClarificationCandidate,
   type PendingFoodClarificationTarget,
 } from "./foodClarificationContract";
+import type { CanonicalFoodAdditionItem } from "./intent/canonicalFoodAdditionResolution";
 import type { FoodAdditionIntent, WhatsappIntentResult } from "./intent/types";
 import type { MixedMealItemIncrementPlan } from "./mixedMealItemIncrementPlanTypes";
+import type { ResolvedRegistrationSegment } from "./countableFoodRegistrationGate";
 import {
   buildWhatsAppClarificationReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
@@ -133,6 +135,7 @@ export type ConfirmedTextMealQuantityContext = {
   receivedAt: string;
   inboundMessageId?: string | null;
   userTimezone: string;
+  resolvedSegments?: ResolvedRegistrationSegment[];
 };
 
 export type FoodAdditionQuantityContext = {
@@ -145,6 +148,7 @@ export type FoodAdditionQuantityContext = {
   expectedOccurredAt: string;
   receivedAt: string;
   inboundMessageId?: string | null;
+  resolvedItems?: CanonicalFoodAdditionItem[];
 };
 
 export type FoodQuantityResolutionContext =
@@ -454,6 +458,7 @@ export function createFoodQuantityClarificationService(
       userTimezone: string;
       messageId?: string | null;
       instructionText?: string;
+      resolvedSegments?: ResolvedRegistrationSegment[];
     }) =>
       createQuantityClarification({
         userId: input.userId,
@@ -471,6 +476,7 @@ export function createFoodQuantityClarificationService(
           receivedAt: (input.receivedAt ?? new Date()).toISOString(),
           inboundMessageId: input.messageId ?? null,
           userTimezone: input.userTimezone,
+          resolvedSegments: input.resolvedSegments,
         },
         instructionText: input.instructionText
           ?? `Não encontrei uma porção contável segura para ${input.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g. Não vou assumir 100 g.`,
@@ -486,6 +492,7 @@ export function createFoodQuantityClarificationService(
       expectedOccurredAt: string;
       receivedAt?: Date;
       messageId?: string | null;
+      resolvedItems?: CanonicalFoodAdditionItem[];
       instructionText?: string;
     }) =>
       createQuantityClarification({
@@ -508,6 +515,7 @@ export function createFoodQuantityClarificationService(
           expectedOccurredAt: input.expectedOccurredAt,
           receivedAt: (input.receivedAt ?? new Date()).toISOString(),
           inboundMessageId: input.messageId ?? null,
+          resolvedItems: input.resolvedItems,
         },
         instructionText: input.instructionText,
       }),

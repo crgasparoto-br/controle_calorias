@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "issue1054-focused",
+  "command": "NODE_OPTIONS=--require=/tmp/issue1054-offline.cjs NODE_ENV=test PROFESSIONAL_ACCESS_RECEIPT_STORAGE=memory node_modules/.bin/vitest run server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts server/countableFoodQuantity.issue1051.test.ts server/countableFoodQuantity.issue1047.test.ts server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts server/modules/whatsapp/countableFoodRegistrationGate.issue1047.integration.test.ts server/nutritionEngine.semanticContract.issue1051.test.ts server/modules/whatsapp/confirmedMealRegistration.identityClarification.issue1051.test.ts server/modules/whatsapp/foodQuantityClarification.test.ts --maxWorkers=1 --minWorkers=1",
+  "cwd": "/workspace/scratch/311c34b7437d/repo",
+  "exit_code": 0,
+  "started_at": "2026-09-08T13:03:23.449198Z",
+  "finished_at": "2026-09-08T13:03:50.117501Z",
+  "head_sha": "ca12a99c878950230f24d797c399f593c51621ed",
+  "stdout_sha256": "b26897f2c3db4fdf62781625e520e600204364aee3d4c927e61e3cab9b2b74cb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_path": "/workspace/scratch/311c34b7437d/current-audit/evidence/focused/stdout.log",
+  "stderr_path": "/workspace/scratch/311c34b7437d/current-audit/evidence/focused/stderr.log",
+  "executor": "entregar-issue/run_attested_gate.py@2"
+}

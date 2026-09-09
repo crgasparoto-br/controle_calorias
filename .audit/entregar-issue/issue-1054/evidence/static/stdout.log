@@ -1,0 +1,82 @@
+Arquitetura validada com sucesso.
+docs/generated/db-schema.md está atualizado.
+docs/generated/trpc-routes.md está atualizado.
+Documentação validada com sucesso.
+
+> controle_calorias@1.0.0 build /workspace/scratch/311c34b7437d/repo
+> vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+vite v7.1.9 building for production...
+transforming...
+✓ 2944 modules transformed.
+rendering chunks...
+computing gzip size...
+../dist/public/index.html                                                            1.64 kB │ gzip:   0.67 kB
+../dist/public/assets/premium_app_icon_for_a_smart_calorie_control_2-DHnx8LoS.png  827.62 kB
+../dist/public/assets/index-Bhlz8f6e.css                                           143.59 kB │ gzip:  22.48 kB
+../dist/public/assets/premium_app_icon_for_a_smart_calorie_control_2-MPi-q5wW.js     0.09 kB │ gzip:   0.11 kB
+../dist/public/assets/dateTime-BdlEi1F-.js                                           0.35 kB │ gzip:   0.22 kB
+../dist/public/assets/safeMessages-txLdHCHS.js                                       0.46 kB │ gzip:   0.31 kB
+../dist/public/assets/label-BDTR9ywm.js                                              0.50 kB │ gzip:   0.33 kB
+../dist/public/assets/useEffectiveUserTimeZone-c5mZsFET.js                           0.51 kB │ gzip:   0.32 kB
+../dist/public/assets/progress-DdKNSoMY.js                                           0.59 kB │ gzip:   0.36 kB
+../dist/public/assets/useComposition-H7Lbg4CY.js                                     0.77 kB │ gzip:   0.38 kB
+../dist/public/assets/SettingsPageRouter-76GaczF3.js                                 0.86 kB │ gzip:   0.49 kB
+../dist/public/assets/checkbox-CpsR3MLt.js                                           1.08 kB │ gzip:   0.51 kB
+../dist/public/assets/ReportsPage-DrEiONrX.js                                        1.09 kB │ gzip:   0.58 kB
+../dist/public/assets/popover--fTmVRTJ.js                                            1.19 kB │ gzip:   0.51 kB
+../dist/public/assets/textarea-C5o1wO1j.js                                           1.22 kB │ gzip:   0.65 kB
+../dist/public/assets/badge-xK2td_td.js                                              1.31 kB │ gzip:   0.63 kB
+../dist/public/assets/ReportsWeightTrendChart-DfbdR1b9.js                            1.38 kB │ gzip:   0.54 kB
+../dist/public/assets/input-DI6FpngG.js                                              1.40 kB │ gzip:   0.70 kB
+../dist/public/assets/ReportsMacroDistributionChart-CCHy34_c.js                      1.57 kB │ gzip:   0.56 kB
+../dist/public/assets/tabs-DQrHOSW7.js                                               1.58 kB │ gzip:   0.65 kB
+../dist/public/assets/RegisteredMealGroupsLazy-DrAiSvnb.js                           1.64 kB │ gzip:   0.82 kB
+../dist/public/assets/UXState-DGUmUG-8.js                                            1.65 kB │ gzip:   0.69 kB
+../dist/public/assets/ReportTrendChart-DoykEiMJ.js                                   1.73 kB │ gzip:   0.64 kB
+../dist/public/assets/PageIntro-Cic74x7z.js                                          1.91 kB │ gzip:   0.75 kB
+../dist/public/assets/mealViewModels-Bb1WjtgM.js                                     2.42 kB │ gzip:   1.05 kB
+../dist/public/assets/alert-dialog-CJwdzxKa.js                                       2.60 kB │ gzip:   0.76 kB
+../dist/public/assets/RegisterPage-CVcKByUy.js                                       2.90 kB │ gzip:   1.08 kB
+../dist/public/assets/timeZone-Qq9M-h-N.js                                           3.33 kB │ gzip:   1.40 kB
+../dist/public/assets/dialog-B7pL_37d.js                                             3.64 kB │ gzip:   1.25 kB
+../dist/public/assets/AuthShell-BSS1WCl4.js                                          3.86 kB │ gzip:   1.13 kB
+../dist/public/assets/LoginPage-BSQRt4ou.js                                          4.43 kB │ gzip:   1.73 kB
+../dist/public/assets/calendar-B7zE_YPJ.js                                           5.05 kB │ gzip:   1.72 kB
+../dist/public/assets/NotFound-D3WEGeQ3.js                                           5.31 kB │ gzip:   1.55 kB
+../dist/public/assets/MealLabelInput-DBEjY9L3.js                                     5.40 kB │ gzip:   1.75 kB
+../dist/public/assets/measurementUnits-CBUlrTSD.js                                   6.08 kB │ gzip:   1.86 kB
+../dist/public/assets/ReportsSupportInsightsSectionContent-Xob916Bf.js               8.46 kB │ gzip:   2.19 kB
+../dist/public/assets/HealthIntegrationsPage-DhajcWOP.js                             9.57 kB │ gzip:   2.76 kB
+../dist/public/assets/QuickEditExercisePage-Dr0uzTQy.js                              9.59 kB │ gzip:   2.53 kB
+../dist/public/assets/ProfessionalUi-Du5sTABY.js                                    10.18 kB │ gzip:   2.69 kB
+../dist/public/assets/PeriodScopeSelector-BJh_nn0X.js                               10.28 kB │ gzip:   2.64 kB
+../dist/public/assets/QuickEditMealPage-D1anmyrs.js                                 11.10 kB │ gzip:   3.11 kB
+../dist/public/assets/DashboardLayout-BsZyXlqw.js                                   11.41 kB │ gzip:   3.14 kB
+../dist/public/assets/DashboardLayoutSkeleton-BYGFIQI6.js                           14.38 kB │ gzip:   3.60 kB
+../dist/public/assets/RegisteredMealGroups-CQxHdYK2.js                              16.98 kB │ gzip:   4.15 kB
+../dist/public/assets/SummaryPill-CJpBNRua.js                                       17.18 kB │ gzip:   4.17 kB
+../dist/public/assets/ChannelsPage-DHNctvTB.js                                      19.61 kB │ gzip:   4.44 kB
+../dist/public/assets/ProfessionalLayout-CmFidNpD.js                                20.17 kB │ gzip:   5.75 kB
+../dist/public/assets/WhatsappOnboardingPage-DMZXKf5t.js                            21.16 kB │ gzip:   5.29 kB
+../dist/public/assets/SyncedHealthDataPage-CgMg5ILF.js                              22.10 kB │ gzip:   6.89 kB
+../dist/public/assets/ProfessionalSettingsPage-BWksD0ya.js                          23.44 kB │ gzip:   4.83 kB
+../dist/public/assets/Home-DJoOqPfb.js                                              23.49 kB │ gzip:   6.24 kB
+../dist/public/assets/FoodsPage-DlZ4d3du.js                                         23.74 kB │ gzip:   5.72 kB
+../dist/public/assets/AdminPage-9XTQT1YK.js                                         31.01 kB │ gzip:   7.28 kB
+../dist/public/assets/RegisteredMealsPage-WucfF_5p.js                               36.33 kB │ gzip:   8.02 kB
+../dist/public/assets/GoalsPage-D9ugysHj.js                                         46.42 kB │ gzip:  10.92 kB
+../dist/public/assets/LogMealPage-BnGLiGwC.js                                       47.16 kB │ gzip:   9.67 kB
+../dist/public/assets/ReportsExperience-BOu9AlzN.js                                 51.28 kB │ gzip:  12.56 kB
+../dist/public/assets/BillingPage-BVxYfXdt.js                                       55.65 kB │ gzip:  13.42 kB
+../dist/public/assets/OnboardingPage-Gxh1gQlZ.js                                    55.74 kB │ gzip:  13.04 kB
+../dist/public/assets/index-DO76fXDB.js                                             62.19 kB │ gzip:  15.94 kB
+../dist/public/assets/vendor-charts-4qpf4DBR.js                                     68.52 kB │ gzip:  22.60 kB
+../dist/public/assets/vendor-data-i6-pBZzM.js                                       73.21 kB │ gzip:  21.00 kB
+../dist/public/assets/vendor-react-DfWTMKXy.js                                      89.97 kB │ gzip:  29.28 kB
+../dist/public/assets/vendor-ui-CRRd5hVP.js                                        134.57 kB │ gzip:  36.49 kB
+../dist/public/assets/vendor-DuDbSSj0.js                                           137.10 kB │ gzip:  47.37 kB
+../dist/public/assets/ProfessionalAreaPage-iqM2D-gR.js                             180.72 kB │ gzip:  34.71 kB
+../dist/public/assets/AdminBillingPage-COpQwW2J.js                                 181.43 kB │ gzip:  31.80 kB
+../dist/public/assets/vendor-react-dom-DvlSBjet.js                                 493.91 kB │ gzip: 132.30 kB
+✓ built in 11.29s

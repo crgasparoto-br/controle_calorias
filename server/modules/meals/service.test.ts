@@ -19,7 +19,7 @@ vi.mock("../../_core/voiceTranscription", () => ({
   transcribeAudio: transcribeAudioMock,
 }));
 
-vi.mock("../../nutritionEngine", () => ({
+vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 

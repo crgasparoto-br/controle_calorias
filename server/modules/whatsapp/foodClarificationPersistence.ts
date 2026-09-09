@@ -380,6 +380,7 @@ async function persistResolvedConfirmedTextMeal(
       registrationSegments,
       pendingItems: context.pendingItems,
       currentPendingIndex: nextPendingIndex,
+      resolvedSegments: context.resolvedSegments,
       occurredAt: new Date(context.occurredAt),
       receivedAt: new Date(),
       userTimezone: context.userTimezone,
@@ -396,6 +397,7 @@ async function persistResolvedConfirmedTextMeal(
     occurredAt: new Date(context.occurredAt),
     userTimezone: context.userTimezone,
     skipCountablePreflight: true,
+    resolvedSegments: context.resolvedSegments,
   });
   if (outcome.status === "registered" || outcome.status === "clarification_requested") {
     return outcome.result;
@@ -457,6 +459,9 @@ async function persistResolvedFoodAddition(
       receivedAt: new Date(context.receivedAt),
       messageId: context.inboundMessageId ?? null,
       expectedMealId: context.expectedMealId,
+      expectedMealLabel: context.expectedMealLabel,
+      expectedOccurredAt: context.expectedOccurredAt,
+      resolvedItems: context.resolvedItems,
     },
   );
 }

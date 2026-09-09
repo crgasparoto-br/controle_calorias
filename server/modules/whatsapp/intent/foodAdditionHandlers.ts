@@ -1,6 +1,7 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
 import { MealInferenceError } from "../../../nutritionEngine";
 import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
+import { createWhatsappMealIntentRegistrationDetailsInteraction } from "../mealIntentRegistrationDetailsInteraction";
 import {
   requestWhatsappCaloricComplementQuantityClarification,
   requestWhatsappFoodAdditionQuantityClarification,
@@ -29,6 +30,9 @@ type AdditionExecutionContext = {
   receivedAt?: Date;
   messageId?: string | null;
   expectedMealId?: number;
+  expectedMealLabel?: string;
+  expectedOccurredAt?: string;
+  resolvedItems?: CanonicalFoodAdditionItem[];
 };
 
 type FoodAdditionItem = FoodAdditionIntent["items"][number];
@@ -90,8 +94,45 @@ async function resolveAdditionItems(input: {
       addition: input.addition,
       occurredAt: receivedAt,
       timeZone: input.timeZone,
+      resolvedItems: input.context?.resolvedItems,
     });
     if (resolution.kind === "items") return resolution;
+
+    if (resolution.kind === "identity_clarification") {
+      const result = await createWhatsappMealIntentRegistrationDetailsInteraction({
+        userId: input.userId,
+        originalText: input.context?.originalText?.trim() || completeFoodText,
+        registrationText: completeFoodText,
+        inboundMessageId: input.context?.messageId,
+        prompt: resolution.message,
+        receivedAt,
+        foodAdditionContext: {
+          addition: {
+            mealLabel: input.addition.mealLabel,
+            date: input.addition.date.toISOString(),
+            items: input.addition.items.map(item => ({ ...item })),
+          },
+          itemIndex: resolution.itemIndex,
+          expectedMealId: input.targetMeal.id,
+          expectedMealLabel: input.targetMeal.mealLabel,
+          expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
+          receivedAt: receivedAt.toISOString(),
+          userTimezone: input.timeZone,
+          clarification: resolution.context,
+          resolvedItems: resolution.resolvedItems,
+        },
+      });
+      return {
+        kind: "clarification",
+        result: result ?? {
+          handled: true,
+          action: "clarification_needed",
+          reply: "Não consegui guardar a pergunta de identidade com segurança. Nada foi alterado. Envie novamente o pedido completo.",
+          eventType: "whatsapp.food_addition.identity_clarification.persistence_unavailable",
+          detail: "Pendência de identidade da adição não foi persistida; mutação bloqueada.",
+        },
+      };
+    }
 
     return {
       kind: "clarification",
@@ -106,6 +147,7 @@ async function resolveAdditionItems(input: {
         expectedOccurredAt: new Date(input.targetMeal.occurredAt).toISOString(),
         receivedAt,
         messageId: input.context?.messageId,
+        resolvedItems: resolution.resolvedItems,
         instructionText: `Não encontrei uma gramatura verificável nem uma estimativa segura para ${resolution.item.quantity} ${resolution.item.unit} de ${resolution.item.foodName}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
       }),
     };
@@ -155,7 +197,18 @@ export async function handleFoodAdditionIntent(
     timeZone,
     { allowCrossDayFallback: !dateSelection.explicit },
   );
-  if (!targetMeal || (context?.expectedMealId && targetMeal.id !== context.expectedMealId)) {
+  const targetChanged = Boolean(
+    targetMeal
+      && (
+        (context?.expectedMealId && targetMeal.id !== context.expectedMealId)
+        || (context?.expectedMealLabel && targetMeal.mealLabel !== context.expectedMealLabel)
+        || (
+          context?.expectedOccurredAt
+          && new Date(targetMeal.occurredAt).toISOString() !== context.expectedOccurredAt
+        )
+      )
+  );
+  if (!targetMeal || targetChanged) {
     return {
       handled: true,
       action: "clarification_needed",
