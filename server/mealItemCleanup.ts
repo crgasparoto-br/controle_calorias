@@ -27,6 +27,8 @@ const CONVERSATIONAL_ONLY_TERMS = new Set([
   "teste",
 ]);
 
+const GENERIC_ZERO_COMMERCIAL_VARIANTS = new Set(["zero", "diet"]);
+
 type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
 
 export function isConversationalOnlyText(value: string) {
@@ -57,6 +59,23 @@ function observeHeuristicFallback(item: MealDraftItem, observer?: NutritionFallb
   }
 }
 
+function inferStandaloneCommercialVariant(item: MealDraftItem) {
+  const productVariant = extractCommercialVariant(`${item.foodName} ${item.canonicalName}`);
+  if (!productVariant) return null;
+
+  const normalizedVariants = normalizeText(productVariant)
+    .split(/\s+/)
+    .filter(Boolean);
+  if (
+    normalizedVariants.length > 0
+    && normalizedVariants.every(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))
+  ) {
+    return null;
+  }
+
+  return productVariant;
+}
+
 function failClosedBrandedHeuristic(item: MealDraftItem): MealDraftItem {
   if (item.source !== "heuristic" || item.resolution?.ambiguity) return item;
 
@@ -65,7 +84,11 @@ function failClosedBrandedHeuristic(item: MealDraftItem): MealDraftItem {
         brand: item.brand,
         productVariant: extractCommercialVariant(`${item.foodName} ${item.canonicalName}`),
       }
-    : inferUnresolvedCommercialIdentityHint(item.foodName);
+    : inferUnresolvedCommercialIdentityHint(item.foodName)
+      ?? (() => {
+        const productVariant = inferStandaloneCommercialVariant(item);
+        return productVariant ? { brand: null, productVariant } : null;
+      })();
   if (!fallbackHint) return item;
 
   const brand = item.brand?.trim() || fallbackHint.brand;
