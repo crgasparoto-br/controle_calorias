@@ -1,4 +1,5 @@
 import { findCatalogFood } from "./catalogMatching";
+import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "./householdMeasureResolution";
@@ -20,6 +21,7 @@ import {
   parseCountableQuantity,
 } from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
+const GENERIC_ZERO_COMMERCIAL_VARIANTS = new Set(["zero", "diet"]);
 
 export type CountableFoodQuantityRequest = {
   segment: string;
@@ -153,6 +155,48 @@ export function resolveSafeCountableCatalogGrams(
   return grams && food ? { food, grams } : null;
 }
 
+function inferUnverifiedCountableCommercialVariant(
+  request: CountableFoodQuantityRequest,
+) {
+  if (/\bcom\b/i.test(request.foodName)) return null;
+
+  const productVariant = extractCommercialVariant(request.foodName);
+  if (!productVariant) return null;
+
+  const variantTokens = productVariant.split(/\s+/).filter(Boolean);
+  if (variantTokens.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))) {
+    return null;
+  }
+
+  const local = findCatalogFood(request.foodName);
+  const localVariant = local ? extractCommercialVariant(local.name) : null;
+  if (localVariant) {
+    const localVariantTokens = new Set(localVariant.split(/\s+/).filter(Boolean));
+    if (variantTokens.every(token => localVariantTokens.has(token))) return null;
+  }
+
+  return productVariant;
+}
+
+function buildUnverifiedCommercialIdentityClarification(
+  request: CountableFoodQuantityRequest,
+): CanonicalCommercialIdentityPreflight {
+  const identity = request.foodName.trim();
+  return {
+    brand: null,
+    identityClarification: {
+      message: `Não consegui comprovar a identidade comercial exata de ${identity}. Confirme a variante ou envie um rótulo legível antes de registrar os nutrientes.`,
+      context: {
+        originalText: request.segment,
+        foodName: identity,
+        brand: null,
+        clarificationReason: "commercial_identity_unverified",
+        alternatives: [],
+      },
+    },
+  };
+}
+
 async function recoverCanonicalCommercialIdentity(
   request: CountableFoodQuantityRequest,
 ): Promise<CanonicalCommercialIdentityPreflight> {
@@ -161,7 +205,12 @@ async function recoverCanonicalCommercialIdentity(
   try {
     const processed = await processMealInput({ text: request.segment });
     if (processed.items.length !== 1) return { brand: null };
-    return { brand: processed.items[0].brand?.trim() || null };
+    const brand = processed.items[0].brand?.trim() || null;
+    if (brand) return { brand };
+    if (inferUnverifiedCountableCommercialVariant(request)) {
+      return buildUnverifiedCommercialIdentityClarification(request);
+    }
+    return { brand: null };
   } catch (error) {
     if (
       !(error instanceof MealInferenceError) ||
