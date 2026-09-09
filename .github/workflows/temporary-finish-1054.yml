@@ -1,0 +1,29 @@
+name: Temporary finish issue 1054
+on:
+  push:
+    branches:
+      - fix/1054-countable-commercial-identity
+permissions:
+  contents: write
+jobs:
+  apply-candidate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/1054-countable-commercial-identity
+          fetch-depth: 0
+      - name: Apply exact candidate patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .audit/entregar-issue/issue-1054/temporary-finish.patch.gz.b64 | gzip -d > /tmp/issue1054.patch
+          git apply --index --check /tmp/issue1054.patch
+          git apply --index /tmp/issue1054.patch
+          git rm .audit/entregar-issue/issue-1054/temporary-finish.patch.gz.b64
+          git rm .github/workflows/temporary-finish-1054.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(whatsapp): propagate commercial identity in meal additions"
+          git push origin HEAD:fix/1054-countable-commercial-identity
