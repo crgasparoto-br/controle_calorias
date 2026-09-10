@@ -1,0 +1,59 @@
+Claim/idempotency/isolation controls on exact head cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:30:let userId = 105790;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:45:  userId += 1;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:66:    userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:70:    inboundMessageId: `wamid-1057-controls-${userId}`,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:88:  const pending = await repository.getActivePendingOperation(userId, now);
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:103:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:116:      "consumed",
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:120:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:132:      `wamid-1057-controls-${userId}`,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:145:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:158:      "consumed",
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:162:        userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:168:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:186:        userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:193:        userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:205:    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts:206:      "consumed",
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:31:let userId = 105700;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:65:  userId += 1;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:94:    userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:97:    inboundMessageId: `wamid-1057-${userId}`,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:114:    userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:142:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:160:      inboundMessageId: `wamid-1057-${userId}`,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:165:    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:166:      "consumed",
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:173:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:182:    userId += 1;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:185:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:198:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:211:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:222:    expect((await repository.getActivePendingOperation(userId, now))?.id).toBe(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:230:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:238:    expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:248:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:264:    userId += 1;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:267:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:278:  it("consome no máximo uma vez e não permite outro usuário usar a continuação", async () => {
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:281:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:288:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:301:    userId += 1;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:304:      userId: userId + 99_000,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:310:    expect((await repository.getActivePendingOperation(userId, now))?.userId).toBe(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts:311:      userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:12:import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:102:  userId: number;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:115:      userId: input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:155:    userId: input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:218:  if (["registrar", "registrar alimento", "registrar consumo", "registre", "registra"].includes(normalized)) {
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:259:  userId: number;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:266:    userId: input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:284:  userId: number;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:294:  if (input.pendingOperation.userId !== input.userId) return null;
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:318:  const claim = await claimWhatsAppTextPendingOperation(
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:319:    input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:358:      input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:400:    userId: input.userId,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:437:    userId: input.userId,

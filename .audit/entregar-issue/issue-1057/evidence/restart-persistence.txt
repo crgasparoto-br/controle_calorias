@@ -1,0 +1,37 @@
+Persistent/restart inherited controls on exact head cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/foodClarification.issue997.test.ts:166:    const firstProcess = clarificationHandler(repository);
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/foodClarification.issue997.test.ts:167:    const restartedProcess = clarificationHandler(repository);
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/foodClarification.issue997.test.ts:169:      firstProcess.handle({ userId: 42, text: "20 g", receivedAt: new Date(), userTimezone: "America/Sao_Paulo" }),
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/foodClarification.issue997.test.ts:170:      restartedProcess.handle({ userId: 42, text: "20 g", receivedAt: new Date(), userTimezone: "America/Sao_Paulo" }),
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:3:import { canUseMemoryPersistenceFallback } from "./memoryFallback";
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:14:  | { kind: "database"; db: any }
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:15:  | { kind: "memory" }
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:103:    if (db) return { kind: "database", db };
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:104:    if (canUseMemoryPersistenceFallback()) return { kind: "memory" };
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:108:      new Error("Database unavailable and memory persistence fallback is disabled.")
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:212:        "WhatsApp pending operation create skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:214:      if (persistence.kind === "memory") return fallback.create(input);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:233:            "WhatsApp pending operation create returned invalid insert id",
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:234:            new Error("Invalid insert id returned by database driver.")
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:247:        deps.onWarning("WhatsApp pending operation create skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:255:        "WhatsApp pending operation read skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:257:      if (persistence.kind === "memory") return fallback.getActive(userId, now);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:279:        deps.onWarning("WhatsApp pending operation read skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:287:        "WhatsApp pending operation latest read skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:289:      if (persistence.kind === "memory") return fallback.getLatest(userId);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:302:        deps.onWarning("WhatsApp pending operation latest read skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:310:        "WhatsApp pending operation read by id skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:312:      if (persistence.kind === "memory") return fallback.getById(id);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:324:        deps.onWarning("WhatsApp pending operation read by id skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:332:        "WhatsApp pending operation claim skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:334:      if (persistence.kind === "memory") {
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:359:        deps.onWarning("WhatsApp pending operation claim skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:367:        "WhatsApp pending operation cancel skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:369:      if (persistence.kind === "memory") {
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:379:        deps.onWarning("WhatsApp pending operation cancel skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:387:        "WhatsApp pending operation supersede skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:389:      if (persistence.kind === "memory") {
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:399:        deps.onWarning("WhatsApp pending operation supersede skipped", error);
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:407:        "WhatsApp pending operation purge skipped"
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:409:      if (persistence.kind === "memory") {
+/tmp/controle_calorias_1057_exact/server/repositories/whatsappPendingOperationRepository.ts:429:        deps.onWarning("WhatsApp pending operation purge skipped", error);

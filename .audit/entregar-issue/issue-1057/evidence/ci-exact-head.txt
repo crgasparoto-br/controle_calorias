@@ -1,0 +1,8 @@
+Material head: cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
+Base: 31c7788d1f2995e3e2326b22738896c0b29ef6e6
+PR: #1058
+Agent-first gate run: 34432979577 — success
+Steps observed success: TypeScript check; Vitest sharded suite; architecture check; documentation check; build; agent check; exact-head manifest; exact-head repository bundle.
+Merge preview integration: success against develop base 31c7788d1f2995e3e2326b22738896c0b29ef6e6.
+TiDB context regression: success.
+DB integrity subcheck: skipped because DATABASE_URL was unavailable; no schema/migration/data-model path changed in issue delta.

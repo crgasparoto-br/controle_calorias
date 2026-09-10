@@ -1,0 +1,18 @@
+Entrypoint parity inherited controls on exact head cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
+10:  it("webhook real resolve callbacks e pendências pelo gate central", () => {
+11:    const webhook = source("server/whatsappIntentWebhook.ts");
+12:    expect(webhook).toContain("resolveWhatsAppPrecedenceGate");
+13:    expect(webhook).toContain("interactiveReplyId");
+14:    expect(webhook).toContain("messageId: message.id");
+17:  it("reapresentação no webhook preserva a mesma pendência ativa", () => {
+18:    const webhook = source("server/whatsappIntentWebhook.ts");
+19:    expect(webhook).toContain('precedenceGate.result.eventType === "whatsapp.interaction.pending_represented"');
+20:    expect(webhook).toMatch(/if \(!preservePendingAfterReplay\)\s*\{\s*await clearPendingTextIntentContext\(userId\);/s);
+24:    const simulator = source("server/modules/whatsapp/service.ts");
+25:    const gateCall = simulator.indexOf("await resolvePendingWhatsappFoodClarification(");
+26:    const nutritionCall = simulator.lastIndexOf("await processMealDraft(");
+32:    const webhook = source("server/whatsappWebhook.ts");
+34:    expect(webhook).toContain("canInterpretAudioTranscriptIntent");
+35:    expect(webhook).toMatch(/executeWhatsappTextIntent\(userId,\s*\{\s*text:\s*prepared\.transcript/s);
+37:    expect(executor).toContain("resolveWhatsAppPrecedenceGate");
+46:      "server/modules/whatsapp/webhookTextCommands.ts",

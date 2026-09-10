@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+  "base_sha": "31c7788d1f2995e3e2326b22738896c0b29ef6e6",
+  "evidence": [
+    {
+      "evidence_id": "E-CI_EXACT_HEAD",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt",
+      "sha256": "1428a5f8dd954a5fb92c121987af4a77b826328fe00bc3d8a008be99a36a7f39",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-QUANTITY_PRESERVATION",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/issue-1057/evidence/quantity-preservation.txt",
+      "sha256": "e9ebfd518af251f024c119c63128ced24530fe57f76ea34b33321b176294e75f",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-STRUCTURAL_GENERICITY",
+      "kind": "structural",
+      "path": ".audit/entregar-issue/issue-1057/evidence/structural-genericity.txt",
+      "sha256": "5a3492cfdc45ca87b0068e7dc83eda4dbe494d896ee4d5422894db55b201e51b",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-RESTART_PERSISTENCE",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+      "sha256": "0f8931e43e45857b0f1afaf801f55bf18eb0ce487d3c578d3ede9628b54958b7",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-ENTRYPOINT_PARITY",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/entrypoint-parity.txt",
+      "sha256": "7ae7432aad01a97450708f0eb8829bca68334deffd443398868d53fb3bd0e971",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-CLAIM_ISOLATION",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt",
+      "sha256": "56cf50c93bd9b7a46a01288f4355f007dce8c7665de114c10c68f98baf2b5240",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-LIFECYCLE_CONTROLS",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt",
+      "sha256": "9e58010f60db89a7539fc0e1c943af76ba3654fdfa8f9e4f3a75a9ad4337ca39",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-DOCUMENTATION_DELTA",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/issue-1057/evidence/documentation-delta.txt",
+      "sha256": "665bc4751afb03f4971c1d8b657060f8bf91b00562f2c60fe611e335a0636bf5",
+      "subject_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+Issue-local diff for 31c7788d1f2995e3e2326b22738896c0b29ef6e6..cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
+docs/design-docs/whatsapp-countable-measure-passthrough.md
+server/modules/whatsapp/foodClarificationGate.ts
+server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.controls.test.ts
+server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts
+server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts
+server/modules/whatsapp/registrationDetailsIdentity.ts
+
+Generic implementation check: production helpers should not contain Panco-specific branches.
+
+Shared identity helper usage:
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:78:export function analyzeRegistrationDetailsIdentityReply(input: {
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:112:export function parsePendingIdentityContext(input: {
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:145:export function mergePendingCountableSegment(segment: string, details: string) {
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:14:  analyzeRegistrationDetailsIdentityReply,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:15:  mergePendingCountableSegment,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:17:  parsePendingIdentityContext,
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:193:    return parsePendingIdentityContext({
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:201:  return parsePendingIdentityContext({
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:225:    const analysis = analyzeRegistrationDetailsIdentityReply({
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:299:    const analysis = analyzeRegistrationDetailsIdentityReply({
+/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:394:      mergePendingCountableSegment(pendingSegment, details);
