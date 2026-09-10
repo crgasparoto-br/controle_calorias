@@ -7,7 +7,6 @@ import { getDb, logPersistenceWarning } from "../server/db";
 import { createDrizzleWhatsAppPendingOperationRepository } from "../server/repositories/whatsappPendingOperationRepository";
 import {
   createWhatsappMealIntentRegistrationDetailsInteraction,
-  resolveWhatsappMealIntentRegistrationDetailsText,
 } from "../server/modules/whatsapp/mealIntentRegistrationDetailsInteraction";
 import { simulateWhatsappInbound } from "../server/modules/whatsapp/service";
 import type { CountableRegistrationContinuation } from "../server/modules/whatsapp/countableFoodRegistrationGate";
@@ -184,10 +183,9 @@ async function resolveConcurrentWorker() {
   } satisfies RaceReadyMessage);
 
   await waitForRaceStart();
-  const result = await resolveWhatsappMealIntentRegistrationDetailsText({
-    userId,
-    pendingOperation,
+  const result = await simulateWhatsappInbound(userId, {
     text: REPLY_TEXT,
+    messageId: `${REPLY_MESSAGE_ID}-${label}`,
     receivedAt: new Date(occurredAt.getTime() + 1_000),
     userTimezone: "America/Sao_Paulo",
   });
