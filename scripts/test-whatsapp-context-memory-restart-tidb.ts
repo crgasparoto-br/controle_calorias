@@ -61,12 +61,13 @@ function runFreshProcess(phase: "write" | "read", userId: number) {
         ALLOW_MEMORY_PERSISTENCE: "false",
       },
       encoding: "utf8",
+      timeout: 30_000,
     },
   );
 
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
-  assert.equal(result.error, undefined, `${phase} process could not start`);
+  assert.equal(result.error, undefined, `${phase} process could not start or timed out`);
   assert.equal(result.status, 0, `${phase} process failed`);
 }
 
@@ -110,7 +111,7 @@ async function main() {
     assert.ok(Number.isInteger(userId) && userId > 0, "child phase requires a positive user id");
     if (phase === "write") await runWritePhase(userId);
     else await runReadPhase(userId);
-    return;
+    process.exit(0);
   }
 
   await runParentPhase();
