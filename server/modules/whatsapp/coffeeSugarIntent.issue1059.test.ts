@@ -4,6 +4,7 @@ const confirmed = vi.fn();
 const quantity = vi.fn();
 const structured = vi.fn();
 const resolvePreference = vi.fn();
+const persistPreference = vi.fn();
 const logInferenceEvent = vi.fn(async () => undefined);
 
 vi.mock("../../db", () => ({ logInferenceEvent }));
@@ -11,12 +12,17 @@ vi.mock("./confirmedMealRegistration", () => ({ executeConfirmedWhatsAppMealRegi
 vi.mock("./foodQuantityClarification", () => ({ requestWhatsappCaloricComplementQuantityClarification: quantity }));
 vi.mock("./structuredCoffeeIntentActions", () => ({ tryExecuteWhatsappStructuredCoffeeIntent: structured }));
 vi.mock("./personalPreparationPreference", () => ({
+  extractWhatsappReusablePreparationPreference: (text: string) =>
+    /(?:normalmente|meu)\s+.*caf[eé].*sem\s+a[cç][uú]car/i.test(text)
+      ? { subject: "cafe", choice: "without_sugar" as const }
+      : null,
+  persistWhatsappReusablePreparationPreferenceFromText: persistPreference,
   resolveWhatsappPersonalPreparationPreference: resolvePreference,
   applyPersonalPreparationChoiceToFoodMention: ({ text, foodPattern, choice }: { text: string; foodPattern: RegExp; choice: "without_sugar" | "with_sugar" }) =>
     text.replace(foodPattern, match => `${match} ${choice === "without_sugar" ? "sem açúcar" : "com açúcar"}`),
 }));
 
-const { handleCoffeeSugarRegistrationIntent } = await import("./coffeeSugarIntent");
+const { handleCoffeeSugarRegistrationIntent, isCoffeeSugarRegistrationText } = await import("./coffeeSugarIntent");
 const receivedAt = new Date("2026-09-10T13:00:00.000Z");
 
 function memory(id = 501) {
@@ -50,6 +56,7 @@ describe("issue #1059 - personal coffee preparation memory", () => {
       result: { handled: true, action: "clarification_needed", reply: "com ou sem açúcar?", eventType: "coffee.clarify", detail: "safe" },
     });
     resolvePreference.mockResolvedValue(memory());
+    persistPreference.mockResolvedValue(null);
   });
 
   it.each([
@@ -78,6 +85,54 @@ describe("issue #1059 - personal coffee preparation memory", () => {
       action: "meal_item_added",
       data: { contextMemoryApplied: true, contextMemoryId: 501, preparationChoice: "without_sugar" },
     });
+  });
+
+  it("learns an explicit reusable preference before any meal mutation or LLM fallback", async () => {
+    persistPreference.mockResolvedValue({
+      recognized: true,
+      persisted: true,
+      subject: "cafe",
+      choice: "without_sugar",
+      memory: { id: 601, key: "food-preparation:cafe" },
+    });
+    const text = "normalmente tomo café sem açúcar";
+
+    expect(isCoffeeSugarRegistrationText(text)).toBe(true);
+    const result = await handleCoffeeSugarRegistrationIntent({
+      userId: 42,
+      text,
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "preference",
+    });
+
+    expect(persistPreference).toHaveBeenCalledWith({ userId: 42, text, createdAt: receivedAt });
+    expect(result).toMatchObject({
+      action: "preference_recorded",
+      data: { preferencePersisted: true, contextMemoryId: 601, preparationChoice: "without_sugar" },
+    });
+    expect(resolvePreference).not.toHaveBeenCalled();
+    expect(confirmed).not.toHaveBeenCalled();
+    expect(structured).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a recurring preference when durable persistence fails", async () => {
+    persistPreference.mockResolvedValue({
+      recognized: true,
+      persisted: false,
+      subject: "cafe",
+      choice: "without_sugar",
+      memory: null,
+    });
+    const result = await handleCoffeeSugarRegistrationIntent({
+      userId: 42,
+      text: "meu café é sem açúcar",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "preference-failed",
+    });
+    expect(result).toMatchObject({ action: "clarification_needed", data: { preferencePersisted: false } });
+    expect(confirmed).not.toHaveBeenCalled();
   });
 
   it("preserves companion items while filling only the missing coffee preparation", async () => {
