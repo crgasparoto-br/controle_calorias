@@ -129,17 +129,15 @@ export function mergePendingIdentity(baseIdentity: string, details: string) {
   const identityDetails = incoming?.identity ?? details.trim();
   if (!identityDetails) return baseIdentity.trim();
 
-  if (isCompatibleIdentityExtension(baseIdentity, identityDetails)) {
-    return identityDetails.trim();
-  }
-
-  const baseTokens = new Set(identityTerms(baseIdentity));
+  const baseTokens = new Set(
+    normalizeIdentity(baseIdentity).split(" ").filter(Boolean),
+  );
   const additions = identityDetails
     .split(/\s+/)
     .filter(Boolean)
     .filter((token) => {
       const normalized = normalizeIdentity(token);
-      return !normalized || !baseTokens.has(normalized);
+      return Boolean(normalized) && !baseTokens.has(normalized);
     });
   return [baseIdentity.trim(), ...additions].filter(Boolean).join(" ").trim();
 }
