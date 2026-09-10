@@ -1,4 +1,4 @@
-subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
 source_rejection_id=audit-rejection:a702f327-51af-490d-9480-90ceaa58633a
 finding_id=A-1058-001
-The prior precedence remediation remains revalidated on material head 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2. While "2 fatias de pão de forma Panco" is pending, "100 g de banana" and siblings "250 ml de leite integral" and "1 unidade de maçã" supersede the old pending interaction; compatible "3 fatias de pão de forma Panco Premium" remains attached to it. Agent-first run 34495231794 completed successfully for the current candidate.
+Agent-first run 34512595502 re-executed the prior precedence remediation on the exact material head. With the bread identity pending, quantity-first incompatible complete commands supersede the old pending interaction, while a compatible bread identity with conflicting quantity remains attached to the clarification.

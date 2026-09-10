@@ -1,3 +1,3 @@
-subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
 control=R-CONTINUATION quantity preservation
-The existing issue #1057 regression remains green on 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2. The new TiDB restart control independently reconstructs registrationText="2 fatias de pão de forma Panco Premium" after a process boundary, preserving explicit quantity=2 and counted slice semantics from the persisted pending state. Agent-first run 34495231794 and TiDB run 34495231787 completed successfully.
+Agent-first run 34512595502 re-executed Issue #1057 regressions on the exact material head. TiDB run 34512595519 reconstructed registrationText="2 fatias de pão de forma Panco Premium" from durable pending state, preserving quantity=2 and the counted slice unit across restart and concurrent-claim scenarios.

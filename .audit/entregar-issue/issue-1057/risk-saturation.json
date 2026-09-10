@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+  "head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
   "families": [
     {
       "family": "authorization",
@@ -114,11 +114,22 @@
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current Issue #1057 contract, diff signal, or inherited exact-head control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Issue #1057 explicitly requires two concurrent replies/retries for the same persisted id/version to produce at most one claim/effect. TiDB exact-head control races two processes against the same snapshot.",
+      "control_ids": [
+        "CONCURRENCY-ATOMICITY-TIDB-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "persistent-claim-race",
+          "reason": "Two separate processes can observe the same active persisted id/version and race the conditional claim.",
+          "control_ids": [
+            "CONCURRENCY-ATOMICITY-TIDB-001"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",

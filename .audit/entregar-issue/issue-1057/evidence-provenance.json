@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "material_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+  "material_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
   "base_sha": "31c7788d1f2995e3e2326b22738896c0b29ef6e6",
   "evidence": [
     {
       "evidence_id": "E-CI_EXACT_HEAD",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt",
-      "sha256": "4435aff0dee464caf71e8c0571324e01ee40d4a937b41d3f362e8ae6c788d959",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "fd468a680f8b0d68c338169636f0c5bc431f860a1c575318f66c3cf7b638bde4",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -17,8 +17,8 @@
       "evidence_id": "E-QUANTITY_PRESERVATION",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/issue-1057/evidence/quantity-preservation.txt",
-      "sha256": "f35769b64b884824f04b6dc6d2a6bca2d407c05b9df02abedc61563132ccb436",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "89db2e4fd75cd28c5d9c2253976aee02266f2d3313004e509d6a162cbd9779bf",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -27,8 +27,8 @@
       "evidence_id": "E-STRUCTURAL_GENERICITY",
       "kind": "structural",
       "path": ".audit/entregar-issue/issue-1057/evidence/structural-genericity.txt",
-      "sha256": "522c8dad80b73ae54b58685116187561f92afdcb57b619a094eed1ccb3769475",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "c487737de6a3599e88ec7376d164000573ebfc0f8d5d9b29dd8e76a80fbd5990",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -37,8 +37,8 @@
       "evidence_id": "E-RESTART_PERSISTENCE",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
-      "sha256": "ffe8deab90ec9b941cb7daa8abffe501c1fbef61a5c768b7573ef7f358a7ede8",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "ce7ba08a75a40137a53932c53c2ee8b7b469906bbe3d4f1c743ff87e3a94ff37",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -47,8 +47,8 @@
       "evidence_id": "E-ENTRYPOINT_PARITY",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/issue-1057/evidence/entrypoint-parity.txt",
-      "sha256": "a14de1bcffec1d82c549dd855dff438a4d84dd2f721fa86f5eb79600bac889af",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "7acb50a0a84270c0ca2e84a9c81934e32e273ba9ba50a4527ea15f40ee23d472",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -57,8 +57,8 @@
       "evidence_id": "E-CLAIM_ISOLATION",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt",
-      "sha256": "fc7f7cbef60ab16d5f9694e91eb82ed8db8a6ceb94ae204468f424dea82d92a6",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "ae9484bc72154356dae2d46ab6812301e9cb93f0a751f8958325888868633551",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -67,8 +67,8 @@
       "evidence_id": "E-LIFECYCLE_CONTROLS",
       "kind": "behavioral",
       "path": ".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt",
-      "sha256": "34872f52f504100ff4a4087ea4adc061292b110a889bd466a6027ae9c26da469",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "155ddba9b97528f93a408c48837d793d1328052dc86df38ba9b0160f50d041f2",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -77,8 +77,8 @@
       "evidence_id": "E-DOCUMENTATION_DELTA",
       "kind": "documentation",
       "path": ".audit/entregar-issue/issue-1057/evidence/documentation-delta.txt",
-      "sha256": "911b1f3b15a9f1fe2deef46ab9514fbb2737709d8df7ea00c38d6b61ae386247",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "3c1ba361180ba5c17c6b83d38f3e51934f316392f14baa977b5a1788d8261fc5",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue exact-head evidence capture",
       "status": "passed"
@@ -87,10 +87,20 @@
       "evidence_id": "E-AUDIT-REMEDIATION-PRECEDENCE",
       "kind": "structural",
       "path": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
-      "sha256": "a610c8243c90c5ee31cbd7bc8d1d2e017ad38c1cc369100af038e2cfefac173f",
-      "subject_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "sha256": "126370cad8c8f2ff1b4f46fc5f5e99460eafe399be73c644d0f14328ef07dc6f",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "freshness_policy": "exact-material-head",
       "producer": "entregar-issue audit remediation exact-head control",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-CONCURRENCY-ATOMICITY-TIDB",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
+      "sha256": "1209fe5b3891dd8e7bfd3d61d681bf8eb0e4029ea42c9cef231070d93f046821",
+      "subject_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+      "freshness_policy": "exact-material-head",
+      "producer": "WhatsApp context TiDB gate run 34512595519",
       "status": "passed"
     }
   ]

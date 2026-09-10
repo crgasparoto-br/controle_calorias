@@ -4,24 +4,24 @@
   "result": "REPROVADA",
   "validity": "Independente",
   "release_allowed": false,
-  "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
-  "head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa",
-  "material_head_sha": "ab59172598758b678352614c46329f2b171128ae",
+  "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+  "head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789",
+  "material_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
   "repository": "crgasparoto-br/controle_calorias",
   "pull_request": 1058,
   "issue": 1057,
   "findings": [
     {
-      "id": "A-1058-002",
-      "title": "Controle de restart não atravessava um processo real",
+      "id": "A-1058-003",
+      "title": "Concorrência persistente não estava saturada no pacote crítico",
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "severity": "ALTO",
-      "category": "execution-state-gap",
-      "reason": "The declared durable-restart control shared one process-local Map and did not prove the explicit restart acceptance criterion.",
-      "literal_case": "Persist registration_details, restart process/runtime, reply through the same public entrypoint without an auxiliary recovery call, preserve 2 slices and consume once."
+      "category": "control-propagation-gap",
+      "reason": "Issue #1057 exige corrida concorrente para o mesmo id/version, porém concurrency-atomicity estava marcada como not-applicable e os controles existentes não provavam a corrida no storage persistente real.",
+      "literal_case": "Persistir uma registration_details, iniciar dois processos/conexões concorrentes que observem o mesmo id/version, liberar ambos pelo entrypoint público e provar no máximo um efeito persistente, sem refeição ou sucessora duplicada."
     }
   ],
   "recommendations": []

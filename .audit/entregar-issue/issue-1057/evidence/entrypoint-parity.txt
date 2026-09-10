@@ -1,3 +1,3 @@
-subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
 control=entrypoint parity
-The inherited entrypoint-parity regression remains green on 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2. The new restart control calls simulateWhatsappInbound() for both seed and resolve phases in separate Node processes, proving the same public simulator entrypoint resumes persisted state instead of using a private recovery path. Agent-first run 34495231794 completed successfully.
+Agent-first run 34512595502 re-executed the inherited entrypoint-parity regression on the exact material head. The TiDB restart/concurrency harness also resolves through public simulateWhatsappInbound in separate Node processes, rather than a private repository recovery path.

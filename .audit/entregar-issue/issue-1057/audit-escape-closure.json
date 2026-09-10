@@ -15,7 +15,7 @@
         "procedure": "With a pending two-slice bread identity clarification, submit 100 g of a different food through the real pending clarification gate.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
-        "observed": "On candidate ab59172598758b678352614c46329f2b171128ae, the exact-head regression returns null from the clarification resolver and the old pending operation is superseded."
+        "observed": "Agent-first run 34512595502 re-executed the Issue #1057 precedence regressions on exact material 1dfda11109cc7aaa91fe95c2bb53ad917514ae77; incompatible quantity-first commands supersede while a compatible quantity conflict remains a clarification."
       },
       "sibling_cases": [
         {
@@ -64,7 +64,7 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "revalidated_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "status": "passed"
     },
     {
@@ -81,7 +81,7 @@
         "procedure": "Persist 2 fatias de pão de forma Panco, terminate the seed Node process, then in a new Node process answer Pão de forma Panco Premium through simulateWhatsappInbound without an auxiliary recovery call.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
-        "observed": "Run 34495231787: PID 2780 -> 2792, original consumed, one active successor, 2 slices preserved, zero partial meals."
+        "observed": "TiDB run 34512595519 on exact material 1dfda11109cc7aaa91fe95c2bb53ad917514ae77: PID 2801 -> 2813, original consumed, one active successor, 2 slices preserved, zero partial meals, no auxiliary recovery call."
       },
       "sibling_cases": [
         {
@@ -130,7 +130,73 @@
       "required_risk_families": [
         "temporal-consistency"
       ],
-      "revalidated_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-003",
+      "escape_class": "concurrency-risk-family-misclassified-without-persistent-race",
+      "source_audit": {
+        "head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789",
+        "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+        "finding_id": "A-1058-003",
+        "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d"
+      },
+      "plausible_wrong_implementation": "Mark concurrency-atomicity not-applicable and rely on process-local or fake-database concurrency tests, allowing a non-atomic persistent claim to pass internal gates.",
+      "literal_case": {
+        "procedure": "Persist one registration_details operation in TiDB, start two distinct Node processes, wait until both observe the same id/version, release both through simulateWhatsappInbound, then query TiDB durable state.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
+        "observed": "TiDB run 34512595519: PIDs 2837/2838 both observed id=4/version=1; exactly one effect, original consumed/version=2, one active successor and zero meal effects."
+      },
+      "sibling_cases": [
+        {
+          "id": "same-snapshot-distinct-processes",
+          "surface": "persistent-claim-race",
+          "dimension": "two-distinct-processes-same-snapshot",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+        },
+        {
+          "id": "post-race-durable-cardinality",
+          "surface": "persistent-claim-race",
+          "dimension": "single-successor-zero-partial-meal",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "persistent-claim-race",
+          "dimension": "two-process-same-id-version"
+        },
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "persistent-claim-race",
+          "dimension": "single-successor-zero-partial-meal"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "WhatsApp TiDB concurrency regression harness",
+        "evidence": "The existing restart harness now launches two synchronized resolver processes after both observe the same persisted id/version."
+      },
+      "detection_change": {
+        "skill_or_gate": "critical risk-saturation + WhatsApp context TiDB gate",
+        "control_id": "CONCURRENCY-ATOMICITY-TIDB-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+      },
+      "trigger_terms": [
+        "concurrent replies",
+        "same id/version",
+        "claim race",
+        "atomic claim",
+        "TiDB"
+      ],
+      "required_risk_families": [
+        "concurrency-atomicity"
+      ],
+      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
       "status": "passed"
     }
   ]

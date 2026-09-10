@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+    "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
     "finding_ids": [
-      "A-1058-002"
+      "A-1058-003"
     ],
-    "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f"
+    "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d"
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The escape is closed by a repository-specific executable control in the existing TiDB CI gate. The generic delivery contract already requires real restart evidence; the defect was the repository evidence implementation, not a missing cross-repository rule."
+    "reason": "The generic delivery contract already requires explicit concurrency-atomicity saturation when the specification contains concrete concurrent-claim semantics. The escape is closed by applying that existing family plus a repository-specific TiDB two-process control, not by adding a new cross-repository rule."
   }
 }

@@ -3,32 +3,31 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
-    "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f",
-    "audited_head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa"
+    "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+    "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d",
+    "audited_head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789"
   },
-  "candidate_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+  "candidate_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1058-002",
+      "source_id": "A-1058-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "evidence-control-fix",
       "changed_files": [
-        "scripts/test-whatsapp-registration-details-restart-tidb.ts",
-        ".github/workflows/whatsapp-context-tidb.yml"
+        "scripts/test-whatsapp-registration-details-restart-tidb.ts"
       ],
       "evidence": [
-        ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+        ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
         ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt"
       ],
       "validations": [
-        "RESTART-IDEM-001 passed in TiDB run 34495231787 with distinct PIDs 2780 and 2792",
-        "Agent-first run 34495231794 completed success",
-        "No production code changed in this remediation"
+        "CONCURRENCY-ATOMICITY-TIDB-001 passed in TiDB run 34512595519 with distinct PIDs 2837 and 2838 observing id=4/version=1",
+        "Agent-first run 34512595502 completed success",
+        "No production runtime code changed in this remediation"
       ]
     }
   ]

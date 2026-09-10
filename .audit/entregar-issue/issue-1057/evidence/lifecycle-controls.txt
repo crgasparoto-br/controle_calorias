@@ -1,3 +1,3 @@
-subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
 control=pending lifecycle
-The exact-head issue controls cover active resolution, successor-before-prompt, stale/expired state, cancellation, isolation and concurrent claim behavior. In TiDB run 34495231787, RESTART-IDEM-001 additionally observed the pre-restart operation state=consumed and exactly one successor state=active after resolution in a distinct process.
+Agent-first run 34512595502 re-executed active, successor, stale/expired, cancellation, isolation and retry controls on the exact material head. TiDB run 34512595519 observed the restart original as consumed with exactly one active successor after resolution in a distinct process.

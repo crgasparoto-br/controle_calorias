@@ -1,3 +1,3 @@
-subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
 control=R-NEW-COMMAND contract precedence
-The prior A-1058-001 literal and sibling precedence controls remain green on current material 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2; no production code in that area changed. Agent-first run 34495231794 completed successfully.
+Agent-first run 34512595502 re-executed the Issue #1057 semantic-precedence regressions on the exact material head. The implementation remains generic: incompatible complete food commands supersede the pending interaction, while a compatible identity reply with a conflicting quantity remains a clarification instead of silently mutating persisted quantity.
