@@ -1,6 +1,6 @@
-material_head_sha=ab59172598758b678352614c46329f2b171128ae
+material_head_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
 base_sha=31c7788d1f2995e3e2326b22738896c0b29ef6e6
-merge_preview_sha=8f56593c807751d39ce09ac63d59dc30ccb32fb5
-agent_first_run=34474313952 status=completed conclusion=success
-whatsapp_tidb_run=34474314102 status=completed conclusion=success
-Agent-first exact-head checkout=ab59172598758b678352614c46329f2b171128ae; TypeScript, Vitest Tests, architecture, documentation, build, agent check, verification manifest and repository bundle completed successfully. Merge preview integration completed successfully. TiDB persistent-context regression completed successfully.
+merge_preview_sha=e4870c81b79d2c75cd1665bd4150a94e8a9e1c79
+agent_first_run=34495231794 status=completed conclusion=success
+whatsapp_tidb_run=34495231787 status=completed conclusion=success
+The Agent-first artifact manifest identifies repository crgasparoto-br/controle_calorias, head 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2, base 31c7788d1f2995e3e2326b22738896c0b29ef6e6. TypeScript integration check and merge-preview tests completed successfully. The WhatsApp TiDB gate completed successfully against the PR merge preview e4870c81b79d2c75cd1665bd4150a94e8a9e1c79, including RESTART-IDEM-001.

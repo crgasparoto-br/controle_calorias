@@ -1,3 +1,3 @@
-subject_sha=ab59172598758b678352614c46329f2b171128ae
+subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
 control=R-CONTINUATION quantity preservation
-The exact-head regression server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts asserts that the production continuation reconstructs "2 fatias de pão de forma Panco Premium" and a sibling pending item with count=3 reconstructs "3 fatias de pão de forma Panco Premium". The Agent-first Tests step for run 34474313952 completed successfully on checkout ab59172598758b678352614c46329f2b171128ae. Quantities 2 and 3 therefore remained explicit and unchanged in the asserted reconstructed registration text.
+The existing issue #1057 regression remains green on 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2. The new TiDB restart control independently reconstructs registrationText="2 fatias de pão de forma Panco Premium" after a process boundary, preserving explicit quantity=2 and counted slice semantics from the persisted pending state. Agent-first run 34495231794 and TiDB run 34495231787 completed successfully.

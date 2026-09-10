@@ -3,32 +3,32 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
-    "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af",
-    "audited_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514"
+    "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+    "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f",
+    "audited_head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa"
   },
-  "candidate_head_sha": "ab59172598758b678352614c46329f2b171128ae",
+  "candidate_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1058-001",
+      "source_id": "A-1058-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
+      "closure_kind": "evidence-control-fix",
       "changed_files": [
-        "server/modules/whatsapp/registrationDetailsIdentity.ts",
-        "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts"
+        "scripts/test-whatsapp-registration-details-restart-tidb.ts",
+        ".github/workflows/whatsapp-context-tidb.yml"
       ],
       "evidence": [
-        ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+        ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
         ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt"
       ],
       "validations": [
-        "Agent-first run 34474313952 completed success on exact material head",
-        "WhatsApp context TiDB run 34474314102 completed success",
-        "Literal and two sibling quantity-first incompatible commands are covered by exact-head regression"
+        "RESTART-IDEM-001 passed in TiDB run 34495231787 with distinct PIDs 2780 and 2792",
+        "Agent-first run 34495231794 completed success",
+        "No production code changed in this remediation"
       ]
     }
   ]

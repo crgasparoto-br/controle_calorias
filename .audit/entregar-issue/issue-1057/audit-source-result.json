@@ -4,30 +4,25 @@
   "result": "REPROVADA",
   "validity": "Independente",
   "release_allowed": false,
-  "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
-  "head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
-  "material_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+  "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+  "head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa",
+  "material_head_sha": "ab59172598758b678352614c46329f2b171128ae",
   "repository": "crgasparoto-br/controle_calorias",
   "pull_request": 1058,
   "issue": 1057,
   "findings": [
     {
-      "id": "A-1058-001",
-      "title": "Comando completo com quantidade explícita fica preso na clarificação anterior",
+      "id": "A-1058-002",
+      "title": "Controle de restart não atravessava um processo real",
       "status": "open",
       "disposition": "blocking",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "reason": "The analyzer returned quantity_conflict before checking semantic incompatibility for a complete quantity-first food command, preventing the central gate from superseding the prior pending operation.",
-      "literal_case": "pending 2 fatias de pão de forma Panco; next message 100 g de banana; expected superseded pending and normal new-command flow."
+      "severity": "ALTO",
+      "category": "execution-state-gap",
+      "reason": "The declared durable-restart control shared one process-local Map and did not prove the explicit restart acceptance criterion.",
+      "literal_case": "Persist registration_details, restart process/runtime, reply through the same public entrypoint without an auxiliary recovery call, preserve 2 slices and consume once."
     }
   ],
-  "recommendations": [
-    {
-      "id": "REC-1058-001",
-      "actionable": false,
-      "status": "open",
-      "reason": "PR description commit/file counts were stale; hygiene only, not a release blocker."
-    }
-  ]
+  "recommendations": []
 }

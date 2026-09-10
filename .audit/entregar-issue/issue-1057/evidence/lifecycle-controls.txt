@@ -1,3 +1,3 @@
-subject_sha=ab59172598758b678352614c46329f2b171128ae
+subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
 control=pending lifecycle
-The exact-head issue tests cover active resolution, supersede for a truly incompatible new command, stale/expired clarification, retry after consumption, user isolation and successor behavior. Agent-first Tests and the WhatsApp TiDB persistent-context regression both completed successfully for ab59172598758b678352614c46329f2b171128ae.
+The exact-head issue controls cover active resolution, successor-before-prompt, stale/expired state, cancellation, isolation and concurrent claim behavior. In TiDB run 34495231787, RESTART-IDEM-001 additionally observed the pre-restart operation state=consumed and exactly one successor state=active after resolution in a distinct process.

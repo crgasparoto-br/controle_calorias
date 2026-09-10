@@ -1,3 +1,3 @@
-subject_sha=ab59172598758b678352614c46329f2b171128ae
+subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
 control=R-NEW-COMMAND contract precedence
-The exact-head regression exercises a pending bread identity clarification followed by three complete quantity-first commands without operational verbs: "100 g de banana", "250 ml de leite integral", and "1 unidade de maçã". Each is asserted complete, classified outside the pending resolver, returns null from the clarification gate, performs no pending meal registration, and leaves the old pending operation superseded. The existing compatible conflicting reply "3 fatias de pão de forma Panco Premium" remains clarification_needed. Agent-first Tests completed successfully on ab59172598758b678352614c46329f2b171128ae.
+The prior A-1058-001 literal and sibling precedence controls remain green on current material 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2; no production code in that area changed. Agent-first run 34495231794 completed successfully.

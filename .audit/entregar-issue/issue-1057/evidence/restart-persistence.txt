@@ -1,3 +1,16 @@
-subject_sha=ab59172598758b678352614c46329f2b171128ae
-control=durable restart continuity
-The inherited restart regression remains present in the exact-head repository bundle and was executed by the successful Agent-first Tests step on ab59172598758b678352614c46329f2b171128ae. It creates durable pending state, reinstantiates the WhatsApp flow/repository boundary, and resolves the persisted continuation without depending on process-local memory. No runtime code in that persistence path changed in the remediation delta.
+subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
+control=RESTART-IDEM-001 durable restart continuity
+workflow_run=34495231787 status=completed conclusion=success
+entrypoint=simulateWhatsappInbound
+storage=TiDB v8.5.1 via DATABASE_URL mysql://root@127.0.0.1:4000/controle_calorias
+seed_pid=2780
+resolve_pid=2792
+seed_command="2 fatias de pão de forma Panco"
+reply_text="Pão de forma Panco Premium"
+original_inbound_message_id=wamid-1057-restart-origin
+original_state_after_reply=consumed
+successor_state=active
+registration_text="2 fatias de pão de forma Panco Premium"
+meal_effects=0
+auxiliary_recovery_call_before_reply=false
+The seed and reply execute in distinct Node processes (2780 != 2792) against the same durable TiDB database. Both phases invoke the same public simulateWhatsappInbound() entrypoint. The reply process performs no auxiliary GET/list/health/recovery call before the reply. After both child processes exit, the parent verifies the original operation was consumed once, one active successor exists, the explicit 2-slice quantity survived, and no partial meal/item was persisted.

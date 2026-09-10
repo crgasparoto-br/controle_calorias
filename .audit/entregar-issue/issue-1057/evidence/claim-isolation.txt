@@ -1,3 +1,3 @@
-subject_sha=ab59172598758b678352614c46329f2b171128ae
+subject_sha=4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2
 control=idempotent claim isolation
-The issue regression suite and inherited pending-operation controls executed in the successful Agent-first Tests step on ab59172598758b678352614c46329f2b171128ae. Duplicate/concurrent resolution continues to permit at most one successful claim and one meal persistence; the remediation does not alter the claim-by-id repository path.
+Issue #1057 exact-claim and concurrent-response regressions remain present on 4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2 and Agent-first run 34495231794 completed successfully. The restart remediation adds only a TiDB regression harness/workflow and does not alter production claim semantics; the original operation in RESTART-IDEM-001 is observed consumed exactly once with one active successor.

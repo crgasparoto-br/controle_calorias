@@ -64,7 +64,73 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "revalidated_head_sha": "ab59172598758b678352614c46329f2b171128ae",
+      "revalidated_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-002",
+      "escape_class": "pseudo-restart-shared-process-state",
+      "source_audit": {
+        "head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa",
+        "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+        "finding_id": "A-1058-002",
+        "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f"
+      },
+      "plausible_wrong_implementation": "Create two handler objects over one in-memory Map inside one test process and treat the second object as a process restart.",
+      "literal_case": {
+        "procedure": "Persist 2 fatias de pão de forma Panco, terminate the seed Node process, then in a new Node process answer Pão de forma Panco Premium through simulateWhatsappInbound without an auxiliary recovery call.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+        "observed": "Run 34495231787: PID 2780 -> 2792, original consumed, one active successor, 2 slices preserved, zero partial meals."
+      },
+      "sibling_cases": [
+        {
+          "id": "restart-stale-expiry",
+          "surface": "pending-state-lifecycle",
+          "dimension": "stale-expired-state",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt"
+        },
+        {
+          "id": "restart-concurrent-claim",
+          "surface": "duplicate-processing",
+          "dimension": "concurrent-single-consumption",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "cross-process-durable-recovery"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "same-entrypoint-no-auxiliary-recovery"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "WhatsApp TiDB regression harness",
+        "evidence": "Restart acceptance is now represented by a process-boundary test against durable TiDB rather than handler re-instantiation over a local Map."
+      },
+      "detection_change": {
+        "skill_or_gate": "WhatsApp context TiDB gate",
+        "control_id": "RESTART-IDEM-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+      },
+      "trigger_terms": [
+        "process restart",
+        "durable pending state",
+        "same public entrypoint",
+        "auxiliary recovery",
+        "in-memory repository"
+      ],
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "revalidated_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
       "status": "passed"
     }
   ]
