@@ -1,7 +1,13 @@
+import { logInferenceEvent } from "../../db";
 import { isCoffeeWithAddedSugar } from "../../foodSemanticCompatibility";
 import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
 import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
+import {
+  applyPersonalPreparationChoiceToFoodMention,
+  resolveWhatsappPersonalPreparationPreference,
+  type PersonalPreparationResolution,
+} from "./personalPreparationPreference";
 import { buildWhatsAppRecoverableErrorReplyMessage } from "./replyMessages";
 import { tryExecuteWhatsappStructuredCoffeeIntent } from "./structuredCoffeeIntentActions";
 
@@ -48,14 +54,108 @@ export function isCoffeeSugarRegistrationText(text: string) {
   return !isMutation && !looksLikeAmbiguousMealIntentDecision(normalized);
 }
 
-export async function handleCoffeeSugarRegistrationIntent(input: {
+type CoffeeRegistrationInput = {
   userId: number;
   text: string;
   receivedAt: Date;
   userTimezone: string;
   messageId: string;
-}): Promise<WhatsappIntentResult> {
+};
+
+type AppliedPreparationResolution = Extract<PersonalPreparationResolution, { status: "applied" }>;
+
+function withMemoryAudit(
+  result: WhatsappIntentResult,
+  resolution?: AppliedPreparationResolution,
+): WhatsappIntentResult {
+  if (!resolution) return result;
+  return {
+    ...result,
+    detail: `${result.detail} Preferência pessoal persistida aplicada antes do gate de café genérico.`,
+    data: {
+      ...(result.data ?? {}),
+      contextMemoryApplied: true,
+      contextMemoryId: resolution.memory.id,
+      contextMemoryKey: resolution.memory.key,
+      preparationChoice: resolution.choice,
+    },
+  };
+}
+
+async function executeCoffeeRegistration(
+  input: CoffeeRegistrationInput,
+  registrationText: string,
+  resolution?: AppliedPreparationResolution,
+): Promise<WhatsappIntentResult> {
+  const outcome = await executeConfirmedWhatsAppMealRegistration({
+    userId: input.userId,
+    registrationText,
+    originalText: input.text,
+    occurredAt: input.receivedAt,
+    userTimezone: input.userTimezone,
+    inboundMessageId: input.messageId,
+  });
+  if (outcome.status === "clarification_requested") return withMemoryAudit(outcome.result, resolution);
+  if (outcome.status === "registered") return withMemoryAudit(outcome.result, resolution);
+  if (outcome.status === "details_needed") {
+    const clarification = await requestWhatsappCaloricComplementQuantityClarification({
+      userId: input.userId,
+      originalFoodText: registrationText,
+      originalText: input.text,
+      operation: { kind: "register", occurredAt: input.receivedAt.toISOString() },
+      receivedAt: input.receivedAt,
+      messageId: input.messageId,
+    });
+    return withMemoryAudit(clarification, resolution);
+  }
+  return withMemoryAudit({
+    handled: true,
+    action: "food_clarification_unavailable",
+    reply: buildWhatsAppRecoverableErrorReplyMessage(outcome.prompt),
+    eventType: outcome.status === "safe_to_retry" ? "whatsapp.food_clarification.processing_retryable" : "whatsapp.food_clarification.persistence_verification_required",
+    detail: outcome.detail,
+    data: {
+      originalTextPreserved: true,
+      retryBlockedToPreventDuplicate: outcome.status === "blocked_after_possible_mutation",
+    },
+  }, resolution);
+}
+
+export async function handleCoffeeSugarRegistrationIntent(input: CoffeeRegistrationInput): Promise<WhatsappIntentResult> {
   if (isGenericCoffeePreparationRegistrationText(input.text)) {
+    const preparation = await resolveWhatsappPersonalPreparationPreference({
+      userId: input.userId,
+      subject: "café",
+      intent: "add_foods_to_meal",
+      now: input.receivedAt,
+    });
+
+    if (preparation.status === "applied") {
+      const registrationText = applyPersonalPreparationChoiceToFoodMention({
+        text: input.text,
+        foodPattern: /\bcaf[eé]\b(?!\s+da\s+manh[ãa])/i,
+        choice: preparation.choice,
+      });
+      await logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.context_memory.preparation_applied",
+        detail: `Memória contextual ${preparation.memory.id} (${preparation.memory.key}) aplicada deterministicamente antes da clarificação de preparo.`,
+      });
+      return executeCoffeeRegistration(input, registrationText, preparation);
+    }
+
+    if (preparation.status === "conflict") {
+      await logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.context_memory.preparation_conflict",
+        detail: `Memórias pessoais conflitantes (${preparation.memoryIds.join(",")}) impediram escolha silenciosa de preparo.`,
+      });
+    }
+
     const preflight = await tryExecuteWhatsappStructuredCoffeeIntent(input.userId, {
       text: input.text,
       receivedAt: input.receivedAt,
@@ -83,33 +183,5 @@ export async function handleCoffeeSugarRegistrationIntent(input: {
     };
   }
 
-  const outcome = await executeConfirmedWhatsAppMealRegistration({
-    userId: input.userId,
-    registrationText: input.text,
-    originalText: input.text,
-    occurredAt: input.receivedAt,
-    userTimezone: input.userTimezone,
-  });
-  if (outcome.status === "clarification_requested") return outcome.result;
-  if (outcome.status === "registered") return outcome.result;
-  if (outcome.status === "details_needed") {
-    return requestWhatsappCaloricComplementQuantityClarification({
-      userId: input.userId,
-      originalFoodText: input.text,
-      operation: { kind: "register", occurredAt: input.receivedAt.toISOString() },
-      receivedAt: input.receivedAt,
-      messageId: input.messageId,
-    });
-  }
-  return {
-    handled: true,
-    action: "food_clarification_unavailable",
-    reply: buildWhatsAppRecoverableErrorReplyMessage(outcome.prompt),
-    eventType: outcome.status === "safe_to_retry" ? "whatsapp.food_clarification.processing_retryable" : "whatsapp.food_clarification.persistence_verification_required",
-    detail: outcome.detail,
-    data: {
-      originalTextPreserved: true,
-      retryBlockedToPreventDuplicate: outcome.status === "blocked_after_possible_mutation",
-    },
-  };
+  return executeCoffeeRegistration(input, input.text);
 }
