@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "subject_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
+  "producer": "GitHub Actions Agent-first gate run 34515270945 plus issue #1059 Vitest assertions",
+  "assertions": [
+    {
+      "input": "4 xícaras de café",
+      "expected_registration_text": "4 xícaras de café sem açúcar",
+      "quantity": 4,
+      "unit": "xícaras",
+      "status": "passed"
+    },
+    {
+      "input": "2 xícaras de café",
+      "expected_registration_text": "2 xícaras de café sem açúcar",
+      "quantity": 2,
+      "unit": "xícaras",
+      "status": "passed"
+    },
+    {
+      "input": "4 xícaras de café e 1 pão",
+      "expected_registration_text": "4 xícaras de café sem açúcar e 1 pão",
+      "coffee_quantity": 4,
+      "companion_quantity": 1,
+      "status": "passed"
+    }
+  ],
+  "workflow": {
+    "run_id": 34515270945,
+    "status": "completed",
+    "conclusion": "success",
+    "test_step": "Test merge preview"
+  }
+}
