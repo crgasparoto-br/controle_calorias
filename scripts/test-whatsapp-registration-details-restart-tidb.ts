@@ -221,16 +221,24 @@ async function parent() {
   }
 }
 
+function exitChildAfterFlush() {
+  process.stdout.write("", () => process.exit(0));
+}
+
 if (phase === "seed") {
-  seedPendingQuestion().catch(error => {
-    console.error(error);
-    process.exit(1);
-  });
+  seedPendingQuestion()
+    .then(exitChildAfterFlush)
+    .catch(error => {
+      console.error(error);
+      process.exit(1);
+    });
 } else if (phase === "resolve") {
-  resolveAfterRestart().catch(error => {
-    console.error(error);
-    process.exit(1);
-  });
+  resolveAfterRestart()
+    .then(exitChildAfterFlush)
+    .catch(error => {
+      console.error(error);
+      process.exit(1);
+    });
 } else {
   parent().catch(error => {
     console.error(error);
