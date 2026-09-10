@@ -86,6 +86,20 @@ export function analyzeRegistrationDetailsIdentityReply(input: {
   if (!raw || splitFoodTextSegments(raw).length !== 1) return { kind: "invalid" };
 
   const portion = parsePortionIdentity(raw);
+  const identityDetails = portion?.identity ?? raw;
+
+  // A complete command for another food must remain able to supersede the
+  // pending identity clarification even when it also carries quantity/unit.
+  // Only after proving identity compatibility should quantity changes be
+  // interpreted as conflicts with the current pending item.
+  if (
+    input.isCompleteCommand &&
+    portion?.identity &&
+    !isCompatibleIdentityExtension(input.baseIdentity, identityDetails)
+  ) {
+    return { kind: "incompatible" };
+  }
+
   if (portion) {
     if (!portion.identity) return { kind: "quantity_conflict" };
     if (
@@ -98,7 +112,6 @@ export function analyzeRegistrationDetailsIdentityReply(input: {
     }
   }
 
-  const identityDetails = portion?.identity ?? raw;
   if (
     input.isCompleteCommand &&
     !isCompatibleIdentityExtension(input.baseIdentity, identityDetails)

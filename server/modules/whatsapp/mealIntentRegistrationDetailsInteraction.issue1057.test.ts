@@ -240,6 +240,34 @@ describe("#1057 — retomada de identidade preserva quantidade e unidade", () =>
     );
   });
 
+  it.each([
+    "100 g de banana",
+    "250 ml de leite integral",
+    "1 unidade de maçã",
+  ])(
+    "prioriza novo comando alimentar incompatível sem verbo operacional: %s",
+    async (text) => {
+      const pending = await createPending();
+      expect(isCompleteWhatsappCommand(text)).toBe(true);
+      expect(
+        classifyMealIntentRegistrationDetailsText(pending.target, text),
+      ).toBe("invalid");
+
+      const result = await resolvePendingWhatsappFoodClarification({
+        userId,
+        text,
+        receivedAt: new Date(now.getTime() + 1_000),
+        userTimezone: "America/Sao_Paulo",
+      });
+
+      expect(result).toBeNull();
+      expect(boundary.register).not.toHaveBeenCalled();
+      expect((await repository.getLatestPendingOperation(userId))?.state).toBe(
+        "superseded",
+      );
+    },
+  );
+
   it("bloqueia resposta curta ou completa quando a pendência expirou, sem fallback nutricional", async () => {
     await createPending();
     const afterTtl = new Date(now.getTime() + 11 * 60 * 1_000);
