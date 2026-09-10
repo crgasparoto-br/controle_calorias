@@ -16,7 +16,7 @@ type StoredContextMemory = {
 
 function preferenceKeyFor(entry: WhatsappContextMemoryEntry) {
   const digest = createHash("sha256")
-    .update([entry.scope, entry.kind, entry.keyHash].join("|"))
+    .update([entry.scope, entry.keyHash].join("|"))
     .digest("hex");
   return `${PREFERENCE_PREFIX}${digest}`;
 }
