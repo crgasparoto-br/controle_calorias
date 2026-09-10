@@ -185,7 +185,7 @@ export async function handleCoffeeSugarRegistrationIntent(input: CoffeeRegistrat
     if (preparation.status === "applied") {
       const registrationText = applyPersonalPreparationChoiceToFoodMention({
         text: input.text,
-        foodPattern: /\bcaf[eé]\b(?!\s+da\s+manh[ãa])/i,
+        foodPattern: /\bcaf[eé](?!\s+da\s+manh[ãa])(?=\s|$|[,.;])/i,
         choice: preparation.choice,
       });
       await logInferenceEvent({
