@@ -5,6 +5,8 @@ import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQua
 import type { WhatsappIntentResult } from "./intent/types";
 import {
   applyPersonalPreparationChoiceToFoodMention,
+  extractWhatsappReusablePreparationPreference,
+  persistWhatsappReusablePreparationPreferenceFromText,
   resolveWhatsappPersonalPreparationPreference,
   type PersonalPreparationResolution,
 } from "./personalPreparationPreference";
@@ -46,7 +48,12 @@ function looksLikeAmbiguousMealIntentDecision(normalized: string) {
   return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
 }
 
+function isReusableCoffeePreferenceStatement(text: string) {
+  return extractWhatsappReusablePreparationPreference(text)?.subject === "cafe";
+}
+
 export function isCoffeeSugarRegistrationText(text: string) {
+  if (isReusableCoffeePreferenceStatement(text)) return true;
   if (isGenericCoffeePreparationRegistrationText(text)) return true;
   if (!isCoffeeWithAddedSugar(text)) return false;
   const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -121,7 +128,52 @@ async function executeCoffeeRegistration(
   }, resolution);
 }
 
+async function handleReusableCoffeePreference(input: CoffeeRegistrationInput) {
+  const reusablePreference = await persistWhatsappReusablePreparationPreferenceFromText({
+    userId: input.userId,
+    text: input.text,
+    createdAt: input.receivedAt,
+  });
+  if (!reusablePreference) return null;
+
+  if (!reusablePreference.persisted || !reusablePreference.memory) {
+    return {
+      handled: true as const,
+      action: "clarification_needed" as const,
+      reply: "Entendi que isso é uma preferência sua, mas não consegui salvá-la com segurança agora. Não vou assumir esse preparo nas próximas refeições.",
+      eventType: "whatsapp.context_memory.preference_persistence_unavailable",
+      detail: "Sinal explícito de preferência recorrente reconhecido, mas a memória durável não pôde ser confirmada.",
+      data: {
+        preferenceRecognized: true,
+        preferencePersisted: false,
+      },
+    } satisfies WhatsappIntentResult;
+  }
+
+  return {
+    handled: true as const,
+    action: "preference_recorded" as const,
+    reply: reusablePreference.choice === "without_sugar"
+      ? `Entendido. Vou considerar ${reusablePreference.subject} sem açúcar quando você não informar outro preparo.`
+      : `Entendido. Vou considerar ${reusablePreference.subject} com açúcar quando você não informar outro preparo.`,
+    eventType: "whatsapp.context_memory.preference_recorded",
+    detail: `Preferência pessoal estruturada persistida como memória ${reusablePreference.memory.id} (${reusablePreference.memory.key}).`,
+    data: {
+      preferenceRecognized: true,
+      preferencePersisted: true,
+      contextMemoryId: reusablePreference.memory.id,
+      contextMemoryKey: reusablePreference.memory.key,
+      preparationChoice: reusablePreference.choice,
+    },
+  } satisfies WhatsappIntentResult;
+}
+
 export async function handleCoffeeSugarRegistrationIntent(input: CoffeeRegistrationInput): Promise<WhatsappIntentResult> {
+  if (isReusableCoffeePreferenceStatement(input.text)) {
+    const learned = await handleReusableCoffeePreference(input);
+    if (learned) return learned;
+  }
+
   if (isGenericCoffeePreparationRegistrationText(input.text)) {
     const preparation = await resolveWhatsappPersonalPreparationPreference({
       userId: input.userId,
