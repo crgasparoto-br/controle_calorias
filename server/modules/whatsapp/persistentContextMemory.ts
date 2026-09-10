@@ -16,7 +16,7 @@ type StoredContextMemory = {
 
 function preferenceKeyFor(entry: WhatsappContextMemoryEntry) {
   const digest = createHash("sha256")
-    .update([entry.scope, entry.kind, entry.keyHash, entry.valueHash].join("|"))
+    .update([entry.scope, entry.kind, entry.keyHash].join("|"))
     .digest("hex");
   return `${PREFERENCE_PREFIX}${digest}`;
 }
@@ -49,7 +49,8 @@ function serialize(entry: WhatsappContextMemoryEntry) {
   return JSON.stringify(stored);
 }
 
-function parseStored(id: number, userId: number, value: string): WhatsappContextMemoryEntry | null {
+function parseStored(id: number, userId: number, value: string | null | undefined): WhatsappContextMemoryEntry | null {
+  if (!value) return null;
   try {
     const parsed = JSON.parse(value) as Partial<StoredContextMemory>;
     const entry = parsed.entry as Partial<WhatsappContextMemoryEntry> | undefined;
