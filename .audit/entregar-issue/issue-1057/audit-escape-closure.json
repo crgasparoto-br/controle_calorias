@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-1058-001",
+      "escape_class": "complete-command-precedence-before-local-conflict",
+      "source_audit": {
+        "head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+        "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+        "finding_id": "A-1058-001",
+        "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af"
+      },
+      "plausible_wrong_implementation": "Evaluate a local field conflict before deciding whether a complete input semantically belongs to the pending object, trapping an independent command in the previous interaction.",
+      "literal_case": {
+        "procedure": "With a pending two-slice bread identity clarification, submit 100 g of a different food through the real pending clarification gate.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+        "observed": "On candidate ab59172598758b678352614c46329f2b171128ae, the exact-head regression returns null from the clarification resolver and the old pending operation is superseded."
+      },
+      "sibling_cases": [
+        {
+          "id": "quantity-first-volume",
+          "surface": "contract-precedence",
+          "dimension": "volume-unit",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+        },
+        {
+          "id": "quantity-first-countable",
+          "surface": "contract-precedence",
+          "dimension": "countable-unit",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "quantity-first-incompatible-command"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "compatible-identity-quantity-conflict"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "registrationDetailsIdentity semantic precedence",
+        "evidence": "registrationDetailsIdentity.ts now checks incompatible complete-command identity before quantity/unit conflict."
+      },
+      "detection_change": {
+        "skill_or_gate": "repository regression",
+        "control_id": "A-1058-001-PRECEDENCE-NEG",
+        "evidence": "mealIntentRegistrationDetailsInteraction.issue1057.test.ts covers literal plus two sibling natural commands."
+      },
+      "trigger_terms": [
+        "pending clarification",
+        "complete command",
+        "quantity conflict",
+        "semantic incompatibility",
+        "precedence"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "ab59172598758b678352614c46329f2b171128ae",
+      "status": "passed"
+    }
+  ]
+}

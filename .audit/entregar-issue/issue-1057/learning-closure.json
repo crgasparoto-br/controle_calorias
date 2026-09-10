@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+    "finding_ids": [
+      "A-1058-001"
+    ],
+    "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af"
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The escape was closed by a repository-specific regression at an existing structural precedence gate; no missing generic entregar-issue rule or cross-repository control defect was demonstrated by the audit finding."
+  }
+}

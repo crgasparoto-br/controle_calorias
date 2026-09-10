@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+  "head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+  "material_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+  "repository": "crgasparoto-br/controle_calorias",
+  "pull_request": 1058,
+  "issue": 1057,
+  "findings": [
+    {
+      "id": "A-1058-001",
+      "title": "Comando completo com quantidade explícita fica preso na clarificação anterior",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "The analyzer returned quantity_conflict before checking semantic incompatibility for a complete quantity-first food command, preventing the central gate from superseding the prior pending operation.",
+      "literal_case": "pending 2 fatias de pão de forma Panco; next message 100 g de banana; expected superseded pending and normal new-command flow."
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "REC-1058-001",
+      "actionable": false,
+      "status": "open",
+      "reason": "PR description commit/file counts were stale; hygiene only, not a release blocker."
+    }
+  ]
+}

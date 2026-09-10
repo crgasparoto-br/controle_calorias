@@ -1,20 +1,3 @@
-Canonical documentation delta on exact head cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
-diff --git a/docs/design-docs/whatsapp-countable-measure-passthrough.md b/docs/design-docs/whatsapp-countable-measure-passthrough.md
-index 32795243..049dc850 100644
---- a/docs/design-docs/whatsapp-countable-measure-passthrough.md
-+++ b/docs/design-docs/whatsapp-countable-measure-passthrough.md
-@@ -25,10 +25,14 @@ Depois de aceitar a identidade, `resolveHouseholdMeasure` usa a porção do prod
- 
- Na clarificação, a pendência existente de detalhes alimentares preserva segmentos, índice do item pendente, causa semântica, data/timezone da refeição e resultados nutricionais dos itens já resolvidos. A resposta complementa somente o item pendente. A retomada processa separadamente os itens restantes e reutiliza os resultados preservados, mesmo que o catálogo mude. Nenhum rascunho ou item de refeição é persistido parcialmente; a gravação ocorre após resolver todos os itens e reivindicar a pendência exata uma única vez.
- 
-+Enquanto `meal_intent_decision.registration_details` estiver `active`, uma resposta semanticamente compatível com a identidade solicitada tem precedência sobre a heurística de novo comando, mesmo quando o texto isolado também for roteável como alimento. Respostas curtas e respostas completas que repetem a identidade base são fundidas semanticamente no item pendente, preservando a quantidade/unidade já persistidas em vez de concatenar cegamente os textos. Quantidade ou unidade conflitante mantém a clarificação sem mutação. Quando a operação estiver expirada, consumida, cancelada ou substituída, uma resposta que ainda corresponda à pergunta antiga recebe a orientação de indisponibilidade e não cai silenciosamente no fallback nutricional como novo alimento incompleto.
-+
- O contrato público de [registro de refeições](../product-specs/meal-registration.md) permanece válido: a mudança corrige a precedência do preflight e reutiliza sua taxonomia.
- 
- A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts` e pelos controles de adição em `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts`, `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts` e `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts`. Os testes exercitam resolvedor real onde o boundary externo permite, variantes/marcas incompatíveis, marca fora da allowlist, pesquisa indisponível e retomada sem persistência parcial ou duplicada.
- 
-+A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
-+
- ## Quantidades implícitas sem verbo operacional
- 
- O vocabulário de contagem por extenso é compartilhado entre o resolvedor contável e o contrato de clarificação (`um/uma`, `dois/duas`, `três` até `dez`). Entradas diretas como `1 banana nanica`, `uma banana nanica`, `duas bananas` e `três ovos cozidos` são sinais de registro quando o domínio consegue resolver a identidade e a porção; não é necessário acrescentar `registrar`, `adicionar` ou outro verbo operacional.
+subject_sha=ab59172598758b678352614c46329f2b171128ae
+control=documentation consistency
+The remediation does not change the canonical design document. Its existing rule—compatible identity clarification retains pending state while a genuinely independent complete command may supersede it—now matches the corrected precedence implementation. The Agent-first Documentation check completed successfully on ab59172598758b678352614c46329f2b171128ae.

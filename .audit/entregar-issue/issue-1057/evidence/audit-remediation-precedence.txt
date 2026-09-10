@@ -1,0 +1,4 @@
+subject_sha=ab59172598758b678352614c46329f2b171128ae
+source_rejection_id=audit-rejection:a702f327-51af-490d-9480-90ceaa58633a
+finding_id=A-1058-001
+Literal case: while "2 fatias de pão de forma Panco" is pending, "100 g de banana" is a complete quantity-first command with an incompatible identity. The corrected analyzer evaluates complete-command identity incompatibility before interpreting quantity/unit mismatch as a conflict. Regression siblings "250 ml de leite integral" and "1 unidade de maçã" exercise volume and countable-unit variants. A compatible quantity conflict, "3 fatias de pão de forma Panco Premium", remains attached to the pending clarification. All cases are part of server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts and the Agent-first Tests step completed successfully on exact checkout ab59172598758b678352614c46329f2b171128ae.

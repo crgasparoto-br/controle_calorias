@@ -1,18 +1,3 @@
-Exact-head quantitative preservation controls for cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
-34:  "50ml leite integral, 2 fatias de pão de forma panco, 35g de requeijão catupiry, 1 fatia de presunto, 1 fatia de mussarela";
-57:      servingLabel: "2 fatias (50 g)",
-154:        "2 fatias de pão de forma Panco Premium",
-179:      "2 fatias de pão de forma Panco Premium",
-191:      "3 fatias de pão de forma Panco Premium",
-204:      "2 fatias de pão de forma Wickbold Integral",
-212:      text: "3 fatias de pão de forma Panco Premium",
-
-Control implementation:
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:24:  | { kind: "quantity_conflict" }
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:90:    if (!portion.identity) return { kind: "quantity_conflict" };
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:97:      return { kind: "quantity_conflict" };
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/registrationDetailsIdentity.ts:145:export function mergePendingCountableSegment(segment: string, details: string) {
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:15:  mergePendingCountableSegment,
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:230:    if (analysis.kind === "compatible" || analysis.kind === "quantity_conflict") {
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:310:        detail: analysis.kind === "quantity_conflict"
-/tmp/controle_calorias_1057_exact/server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.ts:394:      mergePendingCountableSegment(pendingSegment, details);
+subject_sha=ab59172598758b678352614c46329f2b171128ae
+control=R-CONTINUATION quantity preservation
+The exact-head regression server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts asserts that the production continuation reconstructs "2 fatias de pão de forma Panco Premium" and a sibling pending item with count=3 reconstructs "3 fatias de pão de forma Panco Premium". The Agent-first Tests step for run 34474313952 completed successfully on checkout ab59172598758b678352614c46329f2b171128ae. Quantities 2 and 3 therefore remained explicit and unchanged in the asserted reconstructed registration text.

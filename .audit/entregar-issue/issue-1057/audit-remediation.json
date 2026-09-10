@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+    "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af",
+    "audited_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514"
+  },
+  "candidate_head_sha": "ab59172598758b678352614c46329f2b171128ae",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1058-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "server/modules/whatsapp/registrationDetailsIdentity.ts",
+        "server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+        ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt"
+      ],
+      "validations": [
+        "Agent-first run 34474313952 completed success on exact material head",
+        "WhatsApp context TiDB run 34474314102 completed success",
+        "Literal and two sibling quantity-first incompatible commands are covered by exact-head regression"
+      ]
+    }
+  ]
+}

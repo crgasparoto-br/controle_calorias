@@ -1,8 +1,6 @@
-Material head: cd52bf63f1bf10b0c8be3f4a99689dd0c589b514
-Base: 31c7788d1f2995e3e2326b22738896c0b29ef6e6
-PR: #1058
-Agent-first gate run: 34432979577 — success
-Steps observed success: TypeScript check; Vitest sharded suite; architecture check; documentation check; build; agent check; exact-head manifest; exact-head repository bundle.
-Merge preview integration: success against develop base 31c7788d1f2995e3e2326b22738896c0b29ef6e6.
-TiDB context regression: success.
-DB integrity subcheck: skipped because DATABASE_URL was unavailable; no schema/migration/data-model path changed in issue delta.
+material_head_sha=ab59172598758b678352614c46329f2b171128ae
+base_sha=31c7788d1f2995e3e2326b22738896c0b29ef6e6
+merge_preview_sha=8f56593c807751d39ce09ac63d59dc30ccb32fb5
+agent_first_run=34474313952 status=completed conclusion=success
+whatsapp_tidb_run=34474314102 status=completed conclusion=success
+Agent-first exact-head checkout=ab59172598758b678352614c46329f2b171128ae; TypeScript, Vitest Tests, architecture, documentation, build, agent check, verification manifest and repository bundle completed successfully. Merge preview integration completed successfully. TiDB persistent-context regression completed successfully.
