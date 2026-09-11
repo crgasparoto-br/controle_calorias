@@ -1,0 +1,7 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=CONCURRENCY-ATOMICITY-TIDB-001
+workflow_run=34628258197 status=completed conclusion=success
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+entrypoint=simulateWhatsappInbound
+storage=TiDB
+The successful registration-details restart regression executes two distinct Node worker processes against the same durable pending operation id/version. Its assertions require successfulEffects=1, original state consumed with version incremented once, successorCount=1, successor state active, registrationText="2 fatias de pão de forma Panco Premium", and mealEffects=0. Because the workflow step completed successfully, every one of those discriminant assertions passed on this material head.

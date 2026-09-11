@@ -1,0 +1,5 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=entrypoint parity
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material suites passed the inherited entrypoint-parity controls. The durable restart and concurrent-claim regression resolves through public simulateWhatsappInbound in distinct Node processes rather than bypassing the production continuation path.

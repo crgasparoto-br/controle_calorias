@@ -1,0 +1,13 @@
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+base_sha=d67cbc5066587db7e1bb4666ba62970c9fd6ebb7
+material_merge_preview_sha=f572a6f6e3d8fa3835188f79867f51af3a1d9efd
+agent_first_run=34628258179 status=completed conclusion=success
+whatsapp_tidb_run=34628258197 status=completed conclusion=success
+recovery_scope=post-write-refreeze
+work_item_start_sha=31c7788d1f2995e3e2326b22738896c0b29ef6e6
+issue_scope_path_count=8
+issue_delta_sha256=ea9e4beec1fe2b7af6e287bc130bc628184190a9c048347bb3130c4eb5115e91
+scope_method=union of issue #1057 material commits on first-parent history; excludes result-only, no-op, and develop-merge inherited paths
+A-1058-004=closed by fresh develop base, fresh merge-preview identity and green exact-material CI
+A-1058-005=closed by restoring immutable issue start and reconstructing the issue-local 8-path material scope without inherited develop or unrelated issue paths
+No production runtime code is changed by this certification-only child.

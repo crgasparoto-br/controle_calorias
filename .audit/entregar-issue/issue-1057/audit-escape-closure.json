@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-1058-001",
+      "escape_class": "complete-command-precedence-before-local-conflict",
+      "source_audit": {
+        "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+        "finding_id": "A-1058-001",
+        "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af"
+      },
+      "plausible_wrong_implementation": "Evaluate a local field conflict before semantic command precedence and trap an independent food command in stale context.",
+      "literal_case": {
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-1058-001-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+        },
+        {
+          "id": "A-1058-001-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "A-1058-001-PRECEDENCE-NEG",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+      },
+      "detection_change": {
+        "control": "A-1058-001-PRECEDENCE-NEG",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "quantity-first-incompatible-command"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "compatible-identity-quantity-conflict"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "trigger_terms": [],
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-002",
+      "escape_class": "pseudo-restart-shared-process-state",
+      "source_audit": {
+        "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+        "finding_id": "A-1058-002",
+        "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f"
+      },
+      "plausible_wrong_implementation": "Treat two handler instances sharing process-local state as proof of a durable process restart.",
+      "literal_case": {
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-1058-002-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+        },
+        {
+          "id": "A-1058-002-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "RESTART-IDEM-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+      },
+      "detection_change": {
+        "control": "RESTART-IDEM-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "cross-process-durable-recovery"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "same-entrypoint-no-auxiliary-recovery"
+        }
+      ],
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
+      "trigger_terms": [],
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-003",
+      "escape_class": "concurrency-risk-family-misclassified-without-persistent-race",
+      "source_audit": {
+        "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+        "finding_id": "A-1058-003",
+        "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d"
+      },
+      "plausible_wrong_implementation": "Mark persistent concurrency atomicity as not applicable and rely only on process-local race evidence.",
+      "literal_case": {
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-1058-003-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+        },
+        {
+          "id": "A-1058-003-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "CONCURRENCY-ATOMICITY-TIDB-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+      },
+      "detection_change": {
+        "control": "CONCURRENCY-ATOMICITY-TIDB-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "persistent-claim-race",
+          "dimension": "two-process-same-id-version"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "primary-obligation-discriminant"
+        }
+      ],
+      "required_risk_families": [
+        "concurrency-atomicity",
+        "idempotency"
+      ],
+      "trigger_terms": [],
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-004",
+      "escape_class": "handoff-stale-against-moving-base",
+      "source_audit": {
+        "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+        "finding_id": "A-1058-004",
+        "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760"
+      },
+      "plausible_wrong_implementation": "Reuse a previously ready handoff after the target base advances, leaving base and merge-preview identities stale.",
+      "literal_case": {
+        "procedure": "Re-read develop after the prior handoff and recalculate the material merge preview without changing product code.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
+        "observed": "The destination base and material merge-preview identities were freshly re-read and recorded in the referenced handoff-refreeze evidence; both current exact-material workflows completed successfully for the certified material head."
+      },
+      "sibling_cases": [
+        {
+          "id": "fresh-base-sha",
+          "surface": "handoff-identity",
+          "dimension": "base-tip",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        },
+        {
+          "id": "fresh-merge-preview",
+          "surface": "handoff-identity",
+          "dimension": "material-preview",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "post-write-refreeze identity refresh",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "detection_change": {
+        "control": "terminal remote re-read",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "fresh-base-sha"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "fresh-merge-preview"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "trigger_terms": [
+        "moving base",
+        "stale handoff",
+        "merge preview"
+      ],
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-005",
+      "escape_class": "result-only-allowlist-and-scope-divergence",
+      "source_audit": {
+        "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+        "finding_id": "A-1058-005",
+        "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760"
+      },
+      "plausible_wrong_implementation": "Publish result-only evidence files not covered by the certificate allowlist while certifying an incomplete work-item path set.",
+      "literal_case": {
+        "procedure": "Compare the result-only child with its material parent and compare work_item_start_sha with material_head_sha; bind both complete path sets.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
+        "observed": "The immutable work-item scope was recomputed to 102 paths for the current material, and the result-only candidate is validated prospectively so every published path is certificate-allowlisted before the PR ref can move."
+      },
+      "sibling_cases": [
+        {
+          "id": "result-path-coverage",
+          "surface": "handoff-policy",
+          "dimension": "allowlist-subset",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        },
+        {
+          "id": "issue-delta-coverage",
+          "surface": "handoff-policy",
+          "dimension": "scope-equality",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "complete result-only allowlist",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "detection_change": {
+        "control": "exact issue_changed_paths comparison",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "result-path-allowlist-subset"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "issue-scope-equality"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "trigger_terms": [
+        "result-only child",
+        "allowlist",
+        "issue scope"
+      ],
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    }
+  ]
+}

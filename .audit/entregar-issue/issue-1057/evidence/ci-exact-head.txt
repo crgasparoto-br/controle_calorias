@@ -1,0 +1,6 @@
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+base_sha=d67cbc5066587db7e1bb4666ba62970c9fd6ebb7
+material_merge_preview_sha=f572a6f6e3d8fa3835188f79867f51af3a1d9efd
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+whatsapp_tidb_run=34628258197 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+Agent-first completed TypeScript, full tests, architecture, documentation, build, agent checks, exact-head manifest and repository bundle successfully for the material head. The WhatsApp context TiDB gate completed schema, referential-integrity, contextual-memory, registration-details restart, quick-edit and persistent-context regressions successfully for the same material head.

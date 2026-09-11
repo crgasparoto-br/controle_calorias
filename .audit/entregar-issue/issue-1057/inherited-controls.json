@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
+      "finding_id": "A-1058-001",
+      "audited_head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
+      "remediation_head_sha": "ab59172598758b678352614c46329f2b171128ae"
+    },
+    {
+      "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
+      "finding_id": "A-1058-002",
+      "audited_head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa",
+      "remediation_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2"
+    },
+    {
+      "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+      "finding_id": "A-1058-003",
+      "audited_head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789",
+      "remediation_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e"
+    }
+  ],
+  "controls": [
+    {
+      "id": "IC-1057-DURABLE-RESTART",
+      "status": "passed",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+      "evidence_sha256": "3f114fdde9ad9311cb43806009817ec04b871f019dcec2bbb029765fcf9d4fbd",
+      "procedure": "Persist registration_details through simulateWhatsappInbound in one Node process, terminate it, then resolve through simulateWhatsappInbound in a second Node process against the same TiDB database with no auxiliary recovery call.",
+      "expected": "Durable pending state survives a real process boundary and the same public entrypoint resolves it exactly once while preserving quantity.",
+      "observed": "RESTART-IDEM-001 passed in TiDB run 34533363934: PIDs 2521/2533, original consumed, one active successor, 2 slices preserved, mealEffects=0, auxiliaryRecoveryCallBeforeReply=false.",
+      "risk_family": "temporal-consistency",
+      "surface": "pending-state-lifecycle",
+      "dimension": "cross-process-durable-recovery"
+    },
+    {
+      "id": "IC-1057-ENTRYPOINT-PARITY",
+      "status": "passed",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/entrypoint-parity.txt",
+      "evidence_sha256": "90c87d95cb56dc3ed43cf990f1c676d87a3a5b5eed6f466791768d5dc4a8139f",
+      "procedure": "Inspect and execute the inherited parity regression that routes textual webhook, simulator and audio-transcription continuation through the shared precedence gate.",
+      "expected": "Published entrypoints reuse the same pending-interaction precedence instead of implementing channel-specific continuation semantics.",
+      "observed": "Agent-first run 34533363963 re-executed entrypoint parity on exact material 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4; the restart/concurrency harness uses simulateWhatsappInbound in separate processes.",
+      "risk_family": "structural-contract",
+      "surface": "behavioral-contract",
+      "dimension": "primary-obligation-discriminant"
+    },
+    {
+      "id": "IC-1057-EXACT-CLAIM",
+      "status": "passed",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt",
+      "evidence_sha256": "5df85da7709fc8e71012394ce5c40effe2c73ed17af85611cccda78c13998daf",
+      "procedure": "Exercise two concurrent attempts and duplicate retry against the same pending operation and inspect the exact claim-by-id path before meal persistence.",
+      "expected": "Only one claim succeeds and only one meal persistence occurs for the logical pending operation.",
+      "observed": "Agent-first run 34533363963 passed duplicate/retry regressions and TiDB run 34533363934 observed a real two-process same-id/version race with exactly one successful effect and one active successor.",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "primary-obligation-discriminant"
+    },
+    {
+      "id": "IC-A-1058-001-PRECEDENCE",
+      "risk_family": "structural-contract",
+      "surface": "contract-precedence",
+      "dimension": "quantity-first-incompatible-command",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+      "evidence_sha256": "4e55157b302b88a736e92f44a5904ff1d1c9c58ee8d515d9f00cb0cbef93d664",
+      "procedure": "Exercise a persisted identity clarification followed by quantity-first complete commands for deliberately incompatible food identities, plus a compatible identity with conflicting quantity.",
+      "expected": "Incompatible complete commands supersede the previous pending operation; compatible identity quantity conflicts do not silently mutate or supersede it.",
+      "observed": "Agent-first run 34533363963 re-executed A-1058-001 precedence cases on exact material 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4; incompatible commands supersede and compatible quantity conflict remains pending.",
+      "attack_control_id": "A-1058-001-PRECEDENCE-NEG",
+      "status": "passed"
+    },
+    {
+      "id": "IC-A-1058-002-SAME-ENTRYPOINT-RESTART",
+      "status": "passed",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+      "procedure": "Run the restart reply in a fresh Node process through the same simulateWhatsappInbound public entrypoint without any pre-reply auxiliary recovery operation.",
+      "expected": "The public entrypoint loads durable pending state itself; no process-local state or auxiliary warm-up is necessary.",
+      "observed": "TiDB run 34533363934 reports seedPid=2521, resolvePid=2533 and auxiliaryRecoveryCallBeforeReply=false on exact material 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4.",
+      "risk_family": "temporal-consistency",
+      "surface": "pending-state-lifecycle",
+      "dimension": "same-entrypoint-no-auxiliary-recovery",
+      "attack_control_id": "R-RESTART-OBL-036-NEG",
+      "evidence_sha256": "3f114fdde9ad9311cb43806009817ec04b871f019dcec2bbb029765fcf9d4fbd"
+    },
+    {
+      "id": "IC-A-1058-003-PERSISTENT-CONCURRENCY",
+      "status": "passed",
+      "head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "control_type": "test",
+      "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
+      "evidence_sha256": "1a74a3aea85b698953a2e0d53e7577244c0e1e34dab6d079c3bc212ec3d62d72",
+      "procedure": "Seed one persisted registration_details operation in TiDB; start two distinct resolver processes, synchronize after both observe the same id/version, race both public simulateWhatsappInbound calls, then inspect durable operations/meals.",
+      "expected": "Only one claim/effect succeeds; original is consumed once, exactly one successor exists and no partial/duplicate meal is persisted.",
+      "observed": "TiDB run 34533363934: PIDs 2557/2558 both observed id=4/version=1; successfulEffects=1, original consumed/version=2, successorCount=1 active, mealEffects=0.",
+      "risk_family": "concurrency-atomicity",
+      "surface": "persistent-claim-race",
+      "dimension": "two-process-same-id-version",
+      "attack_control_id": "CONCURRENCY-ATOMICITY-TIDB-001"
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}

@@ -1,0 +1,7 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=RESTART-IDEM-001 durable restart continuity
+workflow_run=34628258197 status=completed conclusion=success
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+entrypoint=simulateWhatsappInbound
+storage=TiDB
+The successful registration-details restart regression seeds and resolves in distinct Node processes against the same durable database. Its assertions require a consumed original, one active successor, registrationText="2 fatias de pão de forma Panco Premium", the original inbound message identity retained, no duplicated food identity, and zero partial meal effects. All assertions passed on this material head.

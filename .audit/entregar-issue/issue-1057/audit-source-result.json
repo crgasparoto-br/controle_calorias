@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+  "head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592",
+  "identity": {
+    "head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592",
+    "material_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+    "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a"
+  },
+  "findings": [
+    {
+      "id": "A-1058-004",
+      "severity": "ALTO",
+      "category": "handoff-stale",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "O handoff publicado certificava base e merge-preview antigos, enquanto develop já estava em db7eda7ac6e3a28d70ab3910703a6ac180a5616a."
+    },
+    {
+      "id": "A-1058-005",
+      "severity": "ALTO",
+      "category": "handoff-scope-policy",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "O filho result-only alterou evidencias fora da allowlist e o scope certificado não correspondia ao delta real do work item."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "reason": "handoff-stale",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
+}
