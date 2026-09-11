@@ -1,4 +1,5 @@
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
+import { resolveCapabilityConfig } from "../../_core/ai/configResolver";
 import { getDb, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppConversationRepository,
@@ -15,6 +16,14 @@ function extractQuestion(text?: string | null) {
   const trimmed = text?.trim() ?? "";
   if (!trimmed.startsWith("/")) return null;
   return trimmed.replace(/^\/+/, "").trim() || null;
+}
+
+export function shouldAcknowledgeWhatsappAiQuestion(text?: string | null) {
+  const question = extractQuestion(text);
+  if (!question) return false;
+
+  const policy = resolveCapabilityConfig("QUESTION");
+  return policy.state !== "disabled" && policy.state !== "invalid" && Boolean(policy.primary);
 }
 
 function withoutRecentHistory(

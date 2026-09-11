@@ -2,7 +2,16 @@ import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
 import { logicalReplyFromLegacyText, withAuxiliaryImage, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import type { MessageLifecycleHandle } from "./messageLifecycle";
-import { recordCurrentQuestionDeliveryOutcome } from "./questionLatencyContext";
+import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
+import {
+  getCurrentQuestionLatencyTrace,
+  recordCurrentQuestionDeliveryAttempt,
+  recordCurrentQuestionDeliveryOutcome,
+} from "./questionLatencyContext";
+import {
+  isRetryableQuestionDeliveryFailure,
+  WHATSAPP_QUESTION_FINAL_RETRY_ORIGIN,
+} from "./questionDeliveryRecovery";
 
 export type WhatsAppAuxiliaryImage =
   | { url: string; caption: string }
@@ -27,6 +36,16 @@ function withQuickEditCta(reply: WhatsAppLogicalReply, url: string): WhatsAppLog
       },
     ],
   };
+}
+
+function buildQuestionRetryTraceId(input: { lifecycleHandle?: MessageLifecycleHandle }) {
+  const inboundId = getCurrentWhatsappInboundExternalMessageId();
+  const stableRoot = inboundId
+    ?? (input.lifecycleHandle ? `lifecycle:${input.lifecycleHandle.messageId}` : null);
+  const requestId = getCurrentQuestionLatencyTrace()?.requestId;
+  return stableRoot && requestId
+    ? `${stableRoot}:question-final-retry:${requestId}`
+    : undefined;
 }
 
 export async function buildWhatsAppLogicalReplyForDelivery(input: {
@@ -58,7 +77,22 @@ export async function sendWhatsAppLogicalDomainReply(input: {
   const lifecycle = input.lifecycleHandle
     ? { handle: input.lifecycleHandle, userId: input.userId }
     : undefined;
-  const result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
+  const questionTrace = getCurrentQuestionLatencyTrace();
+
+  if (questionTrace) recordCurrentQuestionDeliveryAttempt(false);
+  let result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
+
+  if (questionTrace && !result.primaryOk && isRetryableQuestionDeliveryFailure(result)) {
+    const retryTraceId = buildQuestionRetryTraceId(input);
+    if (retryTraceId) {
+      recordCurrentQuestionDeliveryAttempt(true);
+      result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle, {
+        origin: WHATSAPP_QUESTION_FINAL_RETRY_ORIGIN,
+        traceId: retryTraceId,
+      });
+    }
+  }
+
   recordCurrentQuestionDeliveryOutcome(result.primaryOk);
   return { reply, result };
 }
