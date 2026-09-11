@@ -6,7 +6,7 @@ type PersistenceWarningHandler = (scope: string, error: unknown) => void;
 
 export type WhatsAppProcessingClaimRepository = {
   claimStaleUnprocessedMessage(messageId: number, staleBefore: Date, claimedAt?: Date): Promise<boolean>;
-  releaseUnprocessedMessage(messageId: number, releasedAt: Date): Promise<boolean>;
+  releaseUnprocessedMessage?(messageId: number, releasedAt: Date): Promise<boolean>;
 };
 
 function getAffectedRows(result: unknown) {
