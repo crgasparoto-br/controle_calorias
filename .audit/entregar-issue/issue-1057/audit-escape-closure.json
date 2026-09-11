@@ -40,10 +40,23 @@
         "control": "A-1058-001-PRECEDENCE-NEG",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
       },
-      "required_attack_dimensions": [],
-      "required_risk_families": [],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "quantity-first-incompatible-command"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "contract-precedence",
+          "dimension": "compatible-identity-quantity-conflict"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
       "trigger_terms": [],
-      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
       "status": "passed"
     },
     {
@@ -85,10 +98,23 @@
         "control": "RESTART-IDEM-001",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
       },
-      "required_attack_dimensions": [],
-      "required_risk_families": [],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "cross-process-durable-recovery"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-state-lifecycle",
+          "dimension": "same-entrypoint-no-auxiliary-recovery"
+        }
+      ],
+      "required_risk_families": [
+        "temporal-consistency"
+      ],
       "trigger_terms": [],
-      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
       "status": "passed"
     },
     {
@@ -130,10 +156,24 @@
         "control": "CONCURRENCY-ATOMICITY-TIDB-001",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
       },
-      "required_attack_dimensions": [],
-      "required_risk_families": [],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "persistent-claim-race",
+          "dimension": "two-process-same-id-version"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "primary-obligation-discriminant"
+        }
+      ],
+      "required_risk_families": [
+        "concurrency-atomicity",
+        "idempotency"
+      ],
       "trigger_terms": [],
-      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
       "status": "passed"
     },
     {
@@ -149,7 +189,7 @@
         "procedure": "Re-read develop after the prior handoff and recalculate the material merge preview without changing product code.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
-        "observed": "A fresh target-base identity was observed and the material merge preview was rebuilt from that base plus the certified material candidate; exact values are recorded in the referenced evidence."
+        "observed": "The destination base and material merge-preview identities were freshly re-read and recorded in the referenced handoff-refreeze evidence; both current exact-material workflows completed successfully for the certified material head."
       },
       "sibling_cases": [
         {
@@ -175,16 +215,27 @@
         "control": "terminal remote re-read",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
       },
-      "required_attack_dimensions": [],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "fresh-base-sha"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "fresh-merge-preview"
+        }
+      ],
       "required_risk_families": [
-        "handoff-integrity"
+        "structural-contract"
       ],
       "trigger_terms": [
         "moving base",
         "stale handoff",
         "merge preview"
       ],
-      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
       "status": "passed"
     },
     {
@@ -200,7 +251,7 @@
         "procedure": "Compare the result-only child with its material parent and compare work_item_start_sha with material_head_sha; bind both complete path sets.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
-        "observed": "The replacement policy covers every published result path and the work-item scope contains all 36 paths from the immutable start to the material candidate."
+        "observed": "The immutable work-item scope was recomputed to 102 paths for the current material, and the result-only candidate is validated prospectively so every published path is certificate-allowlisted before the PR ref can move."
       },
       "sibling_cases": [
         {
@@ -226,16 +277,27 @@
         "control": "exact issue_changed_paths comparison",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
       },
-      "required_attack_dimensions": [],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "result-path-allowlist-subset"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "issue-scope-equality"
+        }
+      ],
       "required_risk_families": [
-        "handoff-integrity"
+        "structural-contract"
       ],
       "trigger_terms": [
         "result-only child",
         "allowlist",
         "issue scope"
       ],
-      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "revalidated_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
       "status": "passed"
     }
   ]

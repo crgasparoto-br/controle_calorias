@@ -1,5 +1,5 @@
-subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 control=entrypoint parity
-agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
-tidb_run=34533363934 status=completed conclusion=success
-The exact-head Agent-first suite re-executed the inherited entrypoint-parity regressions. The TiDB restart and concurrent-claim harness resolves through public simulateWhatsappInbound in separate Node processes, not through the private resolution helper that the final material commit intentionally removed from the race worker.
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material suites passed the inherited entrypoint-parity controls. The durable restart and concurrent-claim regression resolves through public simulateWhatsappInbound in distinct Node processes rather than bypassing the production continuation path.

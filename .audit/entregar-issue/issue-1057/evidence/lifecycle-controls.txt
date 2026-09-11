@@ -1,5 +1,5 @@
-subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 control=pending lifecycle
-agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
-tidb_run=34533363934 status=completed conclusion=success
-The exact-head Agent-first suite re-executed active, successor, stale/expired, cancellation, isolation and retry controls. The TiDB restart control observed the original operation consumed with exactly one active successor after resolution in a distinct process and no auxiliary recovery call.
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material suites passed active/successor/stale/cancellation/isolation/retry coverage. The registration-details TiDB regression asserts a consumed original and exactly one active successor after restart and concurrent exact-claim resolution, with no partial meal persisted.

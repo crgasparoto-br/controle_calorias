@@ -7,7 +7,7 @@
     "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760",
     "audited_head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592"
   },
-  "candidate_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+  "candidate_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
@@ -22,9 +22,9 @@
         ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
       ],
       "validations": [
-        "Base remota develop reconsultada em db7eda7ac6e3a28d70ab3910703a6ac180a5616a.",
-        "Merge-preview material reconstruído com pais develop atual + d129b85d883af0eb7c7bbb11bed0744c2d66ba5e.",
-        "Gates Agent-first 34592570223 e WhatsApp/TiDB 34592570225 concluíram com sucesso no merge contra a base atual."
+        "Base remota develop reconsultada em d67cbc5066587db7e1bb4666ba62970c9fd6ebb7.",
+        "Merge-preview material atual identificado em f572a6f6e3d8fa3835188f79867f51af3a1d9efd para o candidato 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4.",
+        "Agent-first 34628258179 e WhatsApp/TiDB 34628258197 concluíram com sucesso no material atual."
       ]
     },
     {
@@ -38,9 +38,10 @@
         ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
       ],
       "validations": [
-        "Scope recalculado sobre bbf25b04f3a93a60cb76668d087a0bc3f2671789..d129b85d883af0eb7c7bbb11bed0744c2d66ba5e com 36 caminhos.",
-        "Allowlist do novo filho cobre todos os caminhos result-only publicados, incluindo evidence/*.txt.",
-        "Topologia de recuperação preserva d129b85d883af0eb7c7bbb11bed0744c2d66ba5e como pai material direto."
+        "work_item_start_sha imutável restaurado para 31c7788d1f2995e3e2326b22738896c0b29ef6e6, observado antes do primeiro commit material da issue #1057.",
+        "Escopo issue-local reconstruído pela união dos commits materiais específicos da #1057, excluindo commits result-only, no-op e mudanças herdadas pelos merges de develop: 8 caminhos.",
+        "issue_delta_sha256 recalculado para ea9e4beec1fe2b7af6e287bc130bc628184190a9c048347bb3130c4eb5115e91 sobre os 8 caminhos issue-local e o material head 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4.",
+        "O filho result-only permanece filho direto do material head e seu diff contém somente caminhos de evidência autorizados pelo certificado."
       ]
     }
   ]

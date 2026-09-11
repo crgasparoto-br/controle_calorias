@@ -1,4 +1,4 @@
-subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 control=documentation consistency
-agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
-No canonical product documentation changed in the A-1058-003 final remediation; the material delta is test-only and makes the concurrency control exercise the already documented public-entrypoint exact-claim/idempotency contract. Agent-first docs:check completed successfully on the exact material head.
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+No new product/documentation mutation was introduced by this terminal refreeze. Agent-first documentation check and agent check both completed successfully on the exact material head after integration with the current develop base.

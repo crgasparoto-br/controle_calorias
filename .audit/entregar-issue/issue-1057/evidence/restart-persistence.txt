@@ -1,16 +1,7 @@
-subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 control=RESTART-IDEM-001 durable restart continuity
-workflow_run=34533363934 status=completed conclusion=success
-merge_preview_sha=d88cbed70540667656b97185fd72b08f7d2ccaf2
+workflow_run=34628258197 status=completed conclusion=success
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 entrypoint=simulateWhatsappInbound
-storage=TiDB v8.5.1
-seed_pid=2521
-resolve_pid=2533
-seed_command="2 fatias de pão de forma Panco"
-reply_text="Pão de forma Panco Premium"
-original_state_after_reply=consumed
-successor_state=active
-registration_text="2 fatias de pão de forma Panco Premium"
-meal_effects=0
-auxiliary_recovery_call_before_reply=false
-The seed and reply ran in distinct Node processes against the same durable TiDB database. No auxiliary recovery call preceded the reply. The original operation was consumed once, exactly one active successor remained, the 2-slice quantity was preserved, and zero partial meal effects were observed.
+storage=TiDB
+The successful registration-details restart regression seeds and resolves in distinct Node processes against the same durable database. Its assertions require a consumed original, one active successor, registrationText="2 fatias de pão de forma Panco Premium", the original inbound message identity retained, no duplicated food identity, and zero partial meal effects. All assertions passed on this material head.

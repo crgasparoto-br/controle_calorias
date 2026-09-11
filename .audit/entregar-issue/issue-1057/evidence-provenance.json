@@ -1,1 +1,107 @@
-{"schema_version":1,"material_head_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","base_sha":"31c7788d1f2995e3e2326b22738896c0b29ef6e6","evidence":[{"evidence_id":"E-CI_EXACT_HEAD","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt","sha256":"e14ce18e6b7a38365bc0d38a24e80b11a35e6d3b76687a579de24acb0699ad9c","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-QUANTITY_PRESERVATION","kind":"quantitative","path":".audit/entregar-issue/issue-1057/evidence/quantity-preservation.txt","sha256":"c0cfe2fa88db84224f840f262ebc43b7cacc302d9d37b3976c815dab00851f90","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-STRUCTURAL_GENERICITY","kind":"structural","path":".audit/entregar-issue/issue-1057/evidence/structural-genericity.txt","sha256":"b0b2085a84ea7595f39c2b4fb8516ea403d3124a2d7954a53c15939d76d34de0","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-RESTART_PERSISTENCE","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt","sha256":"f6a87d93160b294e62bcf9b973d9425db1d442c980ade4cc73d85d115822e22e","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-ENTRYPOINT_PARITY","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/entrypoint-parity.txt","sha256":"90837d55093e734ff98d9c68220b1668677cdc988aab718c38f3387fe23204be","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-CLAIM_ISOLATION","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt","sha256":"e6750538d0c89a39a93ea4f3030178641225cd69a54876614cb84b77277f2e9a","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-LIFECYCLE_CONTROLS","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt","sha256":"b2870fbbc6071a7a3eb3ffbcc71e1f46dcdd8ddd66f5e86caecd4290163b469b","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-DOCUMENTATION_DELTA","kind":"documentation","path":".audit/entregar-issue/issue-1057/evidence/documentation-delta.txt","sha256":"98ddcbc53716525f8f25fb7cbe0909b103f2fd91f7edad804879d24da9b219a6","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue exact-head evidence capture","status":"passed"},{"evidence_id":"E-AUDIT-REMEDIATION-PRECEDENCE","kind":"structural","path":".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt","sha256":"77e9b87c249b8c1c4d360202b59cb2bdccfbeb3e03b0c804ae6bf1fbc9f9e248","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"entregar-issue audit remediation exact-head control","status":"passed"},{"evidence_id":"E-CONCURRENCY-ATOMICITY-TIDB","kind":"behavioral","path":".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt","sha256":"ac907a7dc18d50cb9a3e1a04ff28c74e4208294dde69b60b5821a85194b18250","subject_sha":"d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","freshness_policy":"exact-material-head","producer":"WhatsApp context TiDB gate run 34533363934 on PR merge preview containing material d129b85d883af0eb7c7bbb11bed0744c2d66ba5e","status":"passed"}]}
+{
+  "schema_version": 1,
+  "material_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+  "base_sha": "d67cbc5066587db7e1bb4666ba62970c9fd6ebb7",
+  "evidence": [
+    {
+      "evidence_id": "E-CI_EXACT_HEAD",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt",
+      "sha256": "214bd70c05bf7e9814c57c5b7a04903f6d579492499c0721935cadd2b6e22002",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-QUANTITY_PRESERVATION",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/issue-1057/evidence/quantity-preservation.txt",
+      "sha256": "55ecf60dc07476c63e925788d2289b8b511febfbcdc61c47d72a98b85278cf8f",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-STRUCTURAL_GENERICITY",
+      "kind": "structural",
+      "path": ".audit/entregar-issue/issue-1057/evidence/structural-genericity.txt",
+      "sha256": "368323f740a50d5106febdc7334c197e45fde77c06410a508dff75648674f73b",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-RESTART_PERSISTENCE",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
+      "sha256": "3f114fdde9ad9311cb43806009817ec04b871f019dcec2bbb029765fcf9d4fbd",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-ENTRYPOINT_PARITY",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/entrypoint-parity.txt",
+      "sha256": "90c87d95cb56dc3ed43cf990f1c676d87a3a5b5eed6f466791768d5dc4a8139f",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-CLAIM_ISOLATION",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt",
+      "sha256": "5df85da7709fc8e71012394ce5c40effe2c73ed17af85611cccda78c13998daf",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-LIFECYCLE_CONTROLS",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt",
+      "sha256": "33c2e379f4cc888cc104e92c427f7d2a4dda4f04198ba92d2bd165378596845e",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-DOCUMENTATION_DELTA",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/issue-1057/evidence/documentation-delta.txt",
+      "sha256": "fabaf60fc5271d29ef09b3b2d7639ca0b77f90959be557ff74b820f6b9533e29",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head evidence capture",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-AUDIT-REMEDIATION-PRECEDENCE",
+      "kind": "structural",
+      "path": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
+      "sha256": "4e55157b302b88a736e92f44a5904ff1d1c9c58ee8d515d9f00cb0cbef93d664",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue audit remediation exact-head control",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "E-CONCURRENCY-ATOMICITY-TIDB",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
+      "sha256": "1a74a3aea85b698953a2e0d53e7577244c0e1e34dab6d079c3bc212ec3d62d72",
+      "subject_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "freshness_policy": "exact-material-head",
+      "producer": "WhatsApp context TiDB gate run 34628258197 on exact material 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+      "status": "passed"
+    }
+  ]
+}

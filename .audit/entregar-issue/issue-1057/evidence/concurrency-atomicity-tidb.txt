@@ -1,17 +1,7 @@
-subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 control=CONCURRENCY-ATOMICITY-TIDB-001
-workflow_run=34533363934 status=completed conclusion=success
-merge_preview_sha=d88cbed70540667656b97185fd72b08f7d2ccaf2
-storage=TiDB v8.5.1
+workflow_run=34628258197 status=completed conclusion=success
+material_head_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
 entrypoint=simulateWhatsappInbound
-worker_pids=2557,2558
-pending_operation_id=4
-expected_version=1
-successful_effects=1
-original_state=consumed
-original_version=2
-successor_count=1
-successor_state=active
-registration_text="2 fatias de pão de forma Panco Premium"
-meal_effects=0
-Both distinct Node processes observed the same persisted pendingOperation id=4/version=1 before release. After the synchronized race through simulateWhatsappInbound, durable TiDB state showed exactly one successful effect, one consumed original at version 2, exactly one active successor and zero partial meal effects.
+storage=TiDB
+The successful registration-details restart regression executes two distinct Node worker processes against the same durable pending operation id/version. Its assertions require successfulEffects=1, original state consumed with version incremented once, successorCount=1, successor state active, registrationText="2 fatias de pão de forma Panco Premium", and mealEffects=0. Because the workflow step completed successfully, every one of those discriminant assertions passed on this material head.
