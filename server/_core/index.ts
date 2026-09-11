@@ -21,6 +21,7 @@ import {
 import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
+import { safeLogDetail } from "../privacy";
 import {
   RuntimeSchemaCompatibilityError,
   ensureRuntimeSchemaCompatibility,
@@ -188,7 +189,12 @@ async function startServer() {
       extended: true,
     }),
     (req, res) => {
-      void handleWhatsAppPersistentContextWebhook(req, res);
+      void handleWhatsAppPersistentContextWebhook(req, res).catch(error => {
+        console.error("[WhatsAppWebhook] Request failed", safeLogDetail(error));
+        if (!res.headersSent) {
+          res.status(503).json({ ok: false, retry: true });
+        }
+      });
     }
   );
   app.post(
