@@ -9,11 +9,65 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  classify:
+    name: Delivery V2 risk
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      risk_profile: ${{ steps.risk.outputs.risk_profile }}
+      requested_risk: ${{ steps.risk.outputs.requested_risk }}
+      promoted: ${{ steps.risk.outputs.promoted }}
+      docs_required: ${{ steps.risk.outputs.docs_required }}
+      code_changed: ${{ steps.risk.outputs.code_changed }}
+      database_required: ${{ steps.risk.outputs.database_required }}
+      changed_paths_json: ${{ steps.risk.outputs.changed_paths_json }}
+      reasons_json: ${{ steps.risk.outputs.reasons_json }}
+    steps:
+      - name: Checkout PR head for classifier
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Collect changed paths
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            require('node:fs').writeFileSync(
+              '/tmp/delivery-v2-changed-paths.json',
+              JSON.stringify(files.map((file) => file.filename))
+            );
+
+      - name: Classify PR deterministically
+        id: risk
+        env:
+          DELIVERY_V2_REQUESTED_RISK: ${{ vars.DELIVERY_V2_RISK_PROFILE || 'auto' }}
+        run: node scripts/delivery-v2-ci-classifier.mjs --paths-file /tmp/delivery-v2-changed-paths.json
+
+      - name: Publish classification summary
+        run: |
+          {
+            echo "## Delivery V2 risk"
+            echo ""
+            echo "- Requested: \`${{ steps.risk.outputs.requested_risk }}\`"
+            echo "- Effective: \`${{ steps.risk.outputs.risk_profile }}\`"
+            echo "- Promoted: \`${{ steps.risk.outputs.promoted }}\`"
+            echo "- Reasons: \`${{ steps.risk.outputs.reasons_json }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   merge-preview-integration:
     name: Merge preview integration
-    if: github.event_name == 'pull_request'
+    needs: classify
+    if: github.event_name == 'pull_request' && needs.classify.result == 'success'
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -26,35 +80,34 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
+        if: needs.classify.outputs.code_changed == 'true'
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: Setup Node.js
+        if: needs.classify.outputs.code_changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
 
       - name: Install dependencies
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript integration check
+        if: needs.classify.outputs.code_changed == 'true'
         run: pnpm check
 
-      - name: Test merge preview
-        env:
-          NODE_ENV: test
+      - name: Merge preview scope
         run: |
-          for shard_number in $(seq 1 24); do
-            shard="${shard_number}/24"
-            echo "Running merge-preview Vitest shard ${shard}"
-            pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1
-          done
+          echo "Merge preview intentionally validates integration/type compatibility only."
+          echo "Vitest executes once on the exact PR head according to Delivery V2 risk."
 
   agent-check:
     name: Agent-first gate
-    needs: merge-preview-integration
+    needs: [classify, merge-preview-integration]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
@@ -62,8 +115,15 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
       VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      DELIVERY_V2_RISK_PROFILE: ${{ github.event_name == 'pull_request' && needs.classify.outputs.risk_profile || 'critical' }}
 
     steps:
+      - name: Require Delivery V2 classification
+        if: github.event_name == 'pull_request' && needs.classify.result != 'success'
+        run: |
+          echo "Delivery V2 classification did not succeed: ${{ needs.classify.result }}"
+          exit 1
+
       - name: Require merge-preview integration
         if: github.event_name == 'pull_request' && needs.merge-preview-integration.result != 'success'
         run: |
@@ -76,21 +136,28 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.VERIFICATION_HEAD_SHA }}
 
+      - name: Delivery V2 classifier self-test
+        run: node --test scripts/delivery-v2-ci-classifier.test.mjs
+
       - name: Setup pnpm
+        if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile != 'fast'
         uses: pnpm/action-setup@v4
         with:
           run_install: false
 
       - name: Setup Node.js
+        if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile != 'fast'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
 
       - name: Install dependencies
+        if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile != 'fast'
         run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
+        if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true'
         run: |
           if ! pnpm check > /tmp/typescript-check.log 2>&1; then
             echo "TypeScript check failed. Showing the final 250 log lines:"
@@ -108,7 +175,40 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
-      - name: Tests
+      - name: FAST related tests
+        if: github.event_name == 'pull_request' && needs.classify.outputs.risk_profile == 'fast' && needs.classify.outputs.code_changed == 'true'
+        env:
+          NODE_ENV: test
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        shell: bash
+        run: |
+          git fetch --no-tags origin "${BASE_REF}"
+          mapfile -t changed_files < <(git diff --name-only "origin/${BASE_REF}...HEAD")
+          test_files=()
+          source_files=()
+          for file in "${changed_files[@]}"; do
+            case "$file" in
+              *.test.ts|*.test.tsx|*.test.js|*.test.jsx|*.spec.ts|*.spec.tsx|*.spec.js|*.spec.jsx)
+                test_files+=("$file")
+                ;;
+              *.ts|*.tsx|*.js|*.jsx)
+                source_files+=("$file")
+                ;;
+            esac
+          done
+
+          if [ "${#test_files[@]}" -gt 0 ]; then
+            pnpm exec vitest run "${test_files[@]}" --passWithNoTests --maxWorkers=2 --minWorkers=1
+          fi
+          if [ "${#source_files[@]}" -gt 0 ]; then
+            pnpm exec vitest related "${source_files[@]}" --run --passWithNoTests --maxWorkers=2 --minWorkers=1
+          fi
+          if [ "${#test_files[@]}" -eq 0 ] && [ "${#source_files[@]}" -eq 0 ]; then
+            echo "No JavaScript/TypeScript files require focused Vitest execution."
+          fi
+
+      - name: Full tests
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
         env:
           NODE_ENV: test
         run: |
@@ -135,9 +235,11 @@ jobs:
           retention-days: 3
 
       - name: Architecture check
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
         run: pnpm architecture:check
 
       - name: Documentation check
+        if: github.event_name != 'pull_request' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile == 'critical'
         run: |
           if ! pnpm docs:check > /tmp/docs-check.log 2>&1; then
             echo "Documentation check failed. Showing the final 250 log lines:"
@@ -156,14 +258,17 @@ jobs:
           retention-days: 3
 
       - name: Build
+        if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.risk_profile != 'fast'
         run: pnpm build
 
       - name: Agent check
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
         env:
           CI_SHARDED_TESTS_COMPLETE: "1"
         run: pnpm agent:check
 
       - name: Upload billing admin visual evidence
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
         uses: actions/upload-artifact@v4
         with:
           name: billing-admin-visual-${{ github.event.pull_request.head.sha || github.sha }}
@@ -172,15 +277,16 @@ jobs:
           retention-days: 30
 
       - name: CI gate docs check
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
         run: pnpm exec tsx scripts/check-ci-gate-docs.ts
 
       - name: Create exact-head verification manifest
         run: |
           mkdir -p /tmp/agent-first-verification
           CHECKOUT_SHA="$(git rev-parse HEAD)"
-          cat > /tmp/agent-first-verification/manifest.json <<EOF
+          cat > /tmp/agent-first-verification/manifest.json <<MANIFEST
           {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "repository": "${GITHUB_REPOSITORY}",
             "headSha": "${VERIFICATION_HEAD_SHA}",
             "checkoutSha": "${CHECKOUT_SHA}",
@@ -189,9 +295,10 @@ jobs:
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
             "ref": "${GITHUB_REF}",
+            "riskProfile": "${DELIVERY_V2_RISK_PROFILE}",
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
-          EOF
+          MANIFEST
           node --input-type=module -e 'import fs from "node:fs"; const value = JSON.parse(fs.readFileSync("/tmp/agent-first-verification/manifest.json", "utf8")); if (value.headSha !== process.env.VERIFICATION_HEAD_SHA) throw new Error("verification manifest does not match PR head"); if (value.checkoutSha !== value.headSha) throw new Error(`exact-head gate executed ${value.checkoutSha} instead of ${value.headSha}`);'
           cat /tmp/agent-first-verification/manifest.json
 
@@ -213,7 +320,7 @@ jobs:
           git bundle create /tmp/agent-first-repository/repository.bundle \
             refs/orchestrator/head refs/orchestrator/base
           git bundle verify /tmp/agent-first-repository/repository.bundle
-          cat > /tmp/agent-first-repository/manifest.json <<EOF
+          cat > /tmp/agent-first-repository/manifest.json <<BUNDLE
           {
             "schemaVersion": 1,
             "repository": "${GITHUB_REPOSITORY}",
@@ -223,7 +330,7 @@ jobs:
             "runId": "${GITHUB_RUN_ID}",
             "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
-          EOF
+          BUNDLE
 
       - name: Upload exact-head repository bundle
         uses: actions/upload-artifact@v4
@@ -234,44 +341,22 @@ jobs:
           retention-days: 7
 
       - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' }}
-        run: |
-          pnpm db:check-integrity
-          {
-            echo "## Agent-first gate"
-            echo ""
-            echo "Required status check: Agent-first gate"
-            echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo "- pnpm db:check-integrity"
-            echo ""
-            echo "Database integrity: executed with DATABASE_URL."
-            echo "Vercel preview/deploy checks are complementary and do not replace this gate."
-          } >> "$GITHUB_STEP_SUMMARY"
+        if: ${{ env.DATABASE_URL != '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
+        run: pnpm db:check-integrity
 
       - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' }}
+        if: ${{ env.DATABASE_URL == '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
+        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+
+      - name: Gate summary
+        if: always()
         run: |
-          echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
           {
             echo "## Agent-first gate"
             echo ""
             echo "Required status check: Agent-first gate"
+            echo "Delivery V2 risk profile: ${DELIVERY_V2_RISK_PROFILE}"
             echo ""
-            echo "Validated commands:"
-            echo "- pnpm check"
-            echo "- pnpm test (24 sequential single-worker shards)"
-            echo "- pnpm architecture:check"
-            echo "- pnpm docs:check"
-            echo "- pnpm build"
-            echo "- pnpm agent:check"
-            echo ""
-            echo "Database integrity: skipped because DATABASE_URL not available. PRs touching persistence must record alternative validation or residual risk."
+            echo "PR policy: FAST uses pnpm check + Vitest related + affected build/docs; STANDARD uses pnpm check + pnpm test equivalent once + architecture + build; CRITICAL and pushes use the complete gate."
             echo "Vercel preview/deploy checks are complementary and do not replace this gate."
           } >> "$GITHUB_STEP_SUMMARY"
