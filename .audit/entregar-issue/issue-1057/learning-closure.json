@@ -3,14 +3,16 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
+    "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+    "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760",
     "finding_ids": [
-      "A-1058-003"
-    ],
-    "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d"
+      "A-1058-004",
+      "A-1058-005"
+    ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The generic delivery contract already requires explicit concurrency-atomicity saturation when the specification contains concrete concurrent-claim semantics. The escape is closed by applying that existing family plus a repository-specific TiDB two-process control, not by adding a new cross-repository rule."
-  }
+    "reason": "The delivery contract already requires fresh base/merge identity, exact work-item scope and a result-only child whose changed paths are fully allowlisted. This rejection was an execution-package inconsistency, not a missing reusable cross-repository rule."
+  },
+  "skill_changes": []
 }

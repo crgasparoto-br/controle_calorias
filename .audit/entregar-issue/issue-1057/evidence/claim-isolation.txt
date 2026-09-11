@@ -1,3 +1,5 @@
-subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
+subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
 control=idempotent claim isolation
-Agent-first run 34512595502 re-executed duplicate/retry regressions on the exact material head. TiDB run 34512595519 additionally raced two distinct resolver processes after both observed the same pending operation id=4/version=1; successfulEffects=1, original state=consumed/version=2, successorCount=1, mealEffects=0.
+agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+tidb_run=34533363934 status=completed conclusion=success
+The exact-head Agent-first suite re-executed duplicate/retry regressions. The TiDB gate raced PIDs 2557 and 2558 after both observed pending operation id=4/version=1 through the public entrypoint; successfulEffects=1, original state=consumed/version=2, successorCount=1, mealEffects=0.

@@ -1,0 +1,10 @@
+material_head_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+base_sha=db7eda7ac6e3a28d70ab3910703a6ac180a5616a
+material_merge_preview_sha=abd4734dba3d9dd6a652a20d9fd1634bd75f5015
+agent_first_run=34592570223 status=completed conclusion=success current_base_merge=verified
+whatsapp_tidb_run=34592570225 status=completed conclusion=success current_base_merge=verified
+whatsapp_tidb_observed=successfulEffects:1 successorCount:1 mealEffects:0
+recovery_scope=post-write-refreeze
+A-1058-004=closed by fresh base and material merge-preview identity
+A-1058-005=closed by exact 36-path scope and complete result-only allowlist
+No production runtime code changed during this certification remediation.

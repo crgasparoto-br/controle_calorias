@@ -1,6 +1,6 @@
-material_head_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
+material_head_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
 base_sha=31c7788d1f2995e3e2326b22738896c0b29ef6e6
-merge_preview_sha=720ed5ee3f6620c0dcaf696871b09b3b5bb1e9e7
-agent_first_run=34512595502 status=completed conclusion=success
-whatsapp_tidb_run=34512595519 status=completed conclusion=success
-Agent-first exact-head verification completed TypeScript, repository tests, architecture, documentation, build and agent checks successfully. WhatsApp context TiDB completed schema, referential-integrity, pending-operation, restart, concurrency, quick-edit and persistent-context checks successfully on the same material candidate.
+merge_preview_sha=d88cbed70540667656b97185fd72b08f7d2ccaf2
+agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+whatsapp_tidb_run=34533363934 status=completed conclusion=success merge_preview_sha=d88cbed70540667656b97185fd72b08f7d2ccaf2
+Agent-first checked out the exact material head and completed TypeScript, 24 sequential Vitest shards, architecture, documentation, build and agent checks successfully. The WhatsApp context TiDB gate executed the current material through PR merge preview d88cbed70540667656b97185fd72b08f7d2ccaf2 and completed schema, referential-integrity, pending-operation, restart, concurrency, quick-edit and persistent-context checks successfully.

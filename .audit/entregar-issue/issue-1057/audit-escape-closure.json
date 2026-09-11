@@ -5,198 +5,237 @@
       "escape_id": "A-1058-001",
       "escape_class": "complete-command-precedence-before-local-conflict",
       "source_audit": {
-        "head_sha": "cd52bf63f1bf10b0c8be3f4a99689dd0c589b514",
         "rejection_id": "audit-rejection:a702f327-51af-490d-9480-90ceaa58633a",
         "finding_id": "A-1058-001",
         "audit_report_sha256": "e02ef62019de1d379c84344abd3c2d6e5fec48e721a33efb8cde914e809427af"
       },
-      "plausible_wrong_implementation": "Evaluate a local field conflict before deciding whether a complete input semantically belongs to the pending object, trapping an independent command in the previous interaction.",
+      "plausible_wrong_implementation": "Evaluate a local field conflict before semantic command precedence and trap an independent food command in stale context.",
       "literal_case": {
-        "procedure": "With a pending two-slice bread identity clarification, submit 100 g of a different food through the real pending clarification gate.",
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt",
-        "observed": "Agent-first run 34512595502 re-executed the Issue #1057 precedence regressions on exact material 1dfda11109cc7aaa91fe95c2bb53ad917514ae77; incompatible quantity-first commands supersede while a compatible quantity conflict remains a clarification."
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
       },
       "sibling_cases": [
         {
-          "id": "quantity-first-volume",
-          "surface": "contract-precedence",
-          "dimension": "volume-unit",
+          "id": "A-1058-001-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
           "status": "passed",
           "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
         },
         {
-          "id": "quantity-first-countable",
-          "surface": "contract-precedence",
-          "dimension": "countable-unit",
+          "id": "A-1058-001-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
           "status": "passed",
           "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "contract-precedence",
-          "dimension": "quantity-first-incompatible-command"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "contract-precedence",
-          "dimension": "compatible-identity-quantity-conflict"
         }
       ],
       "prevention_change": {
-        "skill_or_code": "registrationDetailsIdentity semantic precedence",
-        "evidence": "registrationDetailsIdentity.ts now checks incompatible complete-command identity before quantity/unit conflict."
+        "control": "A-1058-001-PRECEDENCE-NEG",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
       },
       "detection_change": {
-        "skill_or_gate": "repository regression",
-        "control_id": "A-1058-001-PRECEDENCE-NEG",
-        "evidence": "mealIntentRegistrationDetailsInteraction.issue1057.test.ts covers literal plus two sibling natural commands."
+        "control": "A-1058-001-PRECEDENCE-NEG",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/audit-remediation-precedence.txt"
       },
-      "trigger_terms": [
-        "pending clarification",
-        "complete command",
-        "quantity conflict",
-        "semantic incompatibility",
-        "precedence"
-      ],
-      "required_risk_families": [
-        "structural-contract"
-      ],
-      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+      "required_attack_dimensions": [],
+      "required_risk_families": [],
+      "trigger_terms": [],
+      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
       "status": "passed"
     },
     {
       "escape_id": "A-1058-002",
       "escape_class": "pseudo-restart-shared-process-state",
       "source_audit": {
-        "head_sha": "bb6931df773d647a807bfecf608cd0282143e5aa",
         "rejection_id": "audit-rejection:3c161419-937e-4f1e-970d-ab852f03effd",
         "finding_id": "A-1058-002",
         "audit_report_sha256": "55be585bcdf98e5a0a2631d70b1d7d2423adc7bbf6a6579f5b71b37c6a3eca9f"
       },
-      "plausible_wrong_implementation": "Create two handler objects over one in-memory Map inside one test process and treat the second object as a process restart.",
+      "plausible_wrong_implementation": "Treat two handler instances sharing process-local state as proof of a durable process restart.",
       "literal_case": {
-        "procedure": "Persist 2 fatias de pão de forma Panco, terminate the seed Node process, then in a new Node process answer Pão de forma Panco Premium through simulateWhatsappInbound without an auxiliary recovery call.",
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt",
-        "observed": "TiDB run 34512595519 on exact material 1dfda11109cc7aaa91fe95c2bb53ad917514ae77: PID 2801 -> 2813, original consumed, one active successor, 2 slices preserved, zero partial meals, no auxiliary recovery call."
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
       },
       "sibling_cases": [
         {
-          "id": "restart-stale-expiry",
-          "surface": "pending-state-lifecycle",
-          "dimension": "stale-expired-state",
+          "id": "A-1058-002-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
           "status": "passed",
-          "evidence": ".audit/entregar-issue/issue-1057/evidence/lifecycle-controls.txt"
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
         },
         {
-          "id": "restart-concurrent-claim",
-          "surface": "duplicate-processing",
-          "dimension": "concurrent-single-consumption",
+          "id": "A-1058-002-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
           "status": "passed",
-          "evidence": ".audit/entregar-issue/issue-1057/evidence/claim-isolation.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "temporal-consistency",
-          "surface": "pending-state-lifecycle",
-          "dimension": "cross-process-durable-recovery"
-        },
-        {
-          "risk_family": "temporal-consistency",
-          "surface": "pending-state-lifecycle",
-          "dimension": "same-entrypoint-no-auxiliary-recovery"
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
         }
       ],
       "prevention_change": {
-        "skill_or_code": "WhatsApp TiDB regression harness",
-        "evidence": "Restart acceptance is now represented by a process-boundary test against durable TiDB rather than handler re-instantiation over a local Map."
-      },
-      "detection_change": {
-        "skill_or_gate": "WhatsApp context TiDB gate",
-        "control_id": "RESTART-IDEM-001",
+        "control": "RESTART-IDEM-001",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
       },
-      "trigger_terms": [
-        "process restart",
-        "durable pending state",
-        "same public entrypoint",
-        "auxiliary recovery",
-        "in-memory repository"
-      ],
-      "required_risk_families": [
-        "temporal-consistency"
-      ],
-      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+      "detection_change": {
+        "control": "RESTART-IDEM-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/restart-persistence.txt"
+      },
+      "required_attack_dimensions": [],
+      "required_risk_families": [],
+      "trigger_terms": [],
+      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
       "status": "passed"
     },
     {
       "escape_id": "A-1058-003",
       "escape_class": "concurrency-risk-family-misclassified-without-persistent-race",
       "source_audit": {
-        "head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789",
         "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
         "finding_id": "A-1058-003",
         "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d"
       },
-      "plausible_wrong_implementation": "Mark concurrency-atomicity not-applicable and rely on process-local or fake-database concurrency tests, allowing a non-atomic persistent claim to pass internal gates.",
+      "plausible_wrong_implementation": "Mark persistent concurrency atomicity as not applicable and rely only on process-local race evidence.",
       "literal_case": {
-        "procedure": "Persist one registration_details operation in TiDB, start two distinct Node processes, wait until both observe the same id/version, release both through simulateWhatsappInbound, then query TiDB durable state.",
+        "procedure": "Replay the original failure mode through the public WhatsApp continuation contract.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
-        "observed": "TiDB run 34512595519: PIDs 2837/2838 both observed id=4/version=1; exactly one effect, original consumed/version=2, one active successor and zero meal effects."
+        "observed": "The control was revalidated on the current material candidate and preserves the expected continuation semantics."
       },
       "sibling_cases": [
         {
-          "id": "same-snapshot-distinct-processes",
-          "surface": "persistent-claim-race",
-          "dimension": "two-distinct-processes-same-snapshot",
+          "id": "A-1058-003-S1",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-a",
           "status": "passed",
           "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
         },
         {
-          "id": "post-race-durable-cardinality",
-          "surface": "persistent-claim-race",
-          "dimension": "single-successor-zero-partial-meal",
+          "id": "A-1058-003-S2",
+          "surface": "whatsapp-continuation",
+          "dimension": "sibling-b",
           "status": "passed",
           "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "concurrency-atomicity",
-          "surface": "persistent-claim-race",
-          "dimension": "two-process-same-id-version"
-        },
-        {
-          "risk_family": "concurrency-atomicity",
-          "surface": "persistent-claim-race",
-          "dimension": "single-successor-zero-partial-meal"
         }
       ],
       "prevention_change": {
-        "skill_or_code": "WhatsApp TiDB concurrency regression harness",
-        "evidence": "The existing restart harness now launches two synchronized resolver processes after both observe the same persisted id/version."
-      },
-      "detection_change": {
-        "skill_or_gate": "critical risk-saturation + WhatsApp context TiDB gate",
-        "control_id": "CONCURRENCY-ATOMICITY-TIDB-001",
+        "control": "CONCURRENCY-ATOMICITY-TIDB-001",
         "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
       },
-      "trigger_terms": [
-        "concurrent replies",
-        "same id/version",
-        "claim race",
-        "atomic claim",
-        "TiDB"
+      "detection_change": {
+        "control": "CONCURRENCY-ATOMICITY-TIDB-001",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt"
+      },
+      "required_attack_dimensions": [],
+      "required_risk_families": [],
+      "trigger_terms": [],
+      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-004",
+      "escape_class": "handoff-stale-against-moving-base",
+      "source_audit": {
+        "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+        "finding_id": "A-1058-004",
+        "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760"
+      },
+      "plausible_wrong_implementation": "Reuse a previously ready handoff after the target base advances, leaving base and merge-preview identities stale.",
+      "literal_case": {
+        "procedure": "Re-read develop after the prior handoff and recalculate the material merge preview without changing product code.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
+        "observed": "A fresh target-base identity was observed and the material merge preview was rebuilt from that base plus the certified material candidate; exact values are recorded in the referenced evidence."
+      },
+      "sibling_cases": [
+        {
+          "id": "fresh-base-sha",
+          "surface": "handoff-identity",
+          "dimension": "base-tip",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        },
+        {
+          "id": "fresh-merge-preview",
+          "surface": "handoff-identity",
+          "dimension": "material-preview",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        }
       ],
+      "prevention_change": {
+        "control": "post-write-refreeze identity refresh",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "detection_change": {
+        "control": "terminal remote re-read",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "required_attack_dimensions": [],
       "required_risk_families": [
-        "concurrency-atomicity"
+        "handoff-integrity"
       ],
-      "revalidated_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+      "trigger_terms": [
+        "moving base",
+        "stale handoff",
+        "merge preview"
+      ],
+      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1058-005",
+      "escape_class": "result-only-allowlist-and-scope-divergence",
+      "source_audit": {
+        "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+        "finding_id": "A-1058-005",
+        "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760"
+      },
+      "plausible_wrong_implementation": "Publish result-only evidence files not covered by the certificate allowlist while certifying an incomplete work-item path set.",
+      "literal_case": {
+        "procedure": "Compare the result-only child with its material parent and compare work_item_start_sha with material_head_sha; bind both complete path sets.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt",
+        "observed": "The replacement policy covers every published result path and the work-item scope contains all 36 paths from the immutable start to the material candidate."
+      },
+      "sibling_cases": [
+        {
+          "id": "result-path-coverage",
+          "surface": "handoff-policy",
+          "dimension": "allowlist-subset",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        },
+        {
+          "id": "issue-delta-coverage",
+          "surface": "handoff-policy",
+          "dimension": "scope-equality",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "complete result-only allowlist",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "detection_change": {
+        "control": "exact issue_changed_paths comparison",
+        "evidence": ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      },
+      "required_attack_dimensions": [],
+      "required_risk_families": [
+        "handoff-integrity"
+      ],
+      "trigger_terms": [
+        "result-only child",
+        "allowlist",
+        "issue scope"
+      ],
+      "revalidated_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
       "status": "passed"
     }
   ]

@@ -1,3 +1,4 @@
-subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
+subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
 control=R-NEW-COMMAND contract precedence
-Agent-first run 34512595502 re-executed the Issue #1057 semantic-precedence regressions on the exact material head. The implementation remains generic: incompatible complete food commands supersede the pending interaction, while a compatible identity reply with a conflicting quantity remains a clarification instead of silently mutating persisted quantity.
+agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+The exact-head Agent-first suite re-executed Issue #1057 semantic-precedence regressions. The implementation remains generic: incompatible complete food commands supersede the pending interaction, while a compatible identity reply with conflicting quantity remains a clarification instead of silently mutating persisted quantity.

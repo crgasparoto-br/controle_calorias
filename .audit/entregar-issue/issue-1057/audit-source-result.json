@@ -1,28 +1,40 @@
 {
   "schema_version": 1,
-  "contract_version": "2026-08-20.3",
   "result": "REPROVADA",
   "validity": "Independente",
   "release_allowed": false,
-  "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
-  "head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789",
-  "material_head_sha": "4b79d92c75bb1678fa28a5cd4f5ad8b456a557f2",
-  "repository": "crgasparoto-br/controle_calorias",
-  "pull_request": 1058,
-  "issue": 1057,
+  "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+  "head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592",
+  "identity": {
+    "head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592",
+    "material_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
+    "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a"
+  },
   "findings": [
     {
-      "id": "A-1058-003",
-      "title": "Concorrência persistente não estava saturada no pacote crítico",
-      "status": "open",
+      "id": "A-1058-004",
+      "severity": "ALTO",
+      "category": "handoff-stale",
       "disposition": "blocking",
+      "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
+      "reason": "O handoff publicado certificava base e merge-preview antigos, enquanto develop já estava em db7eda7ac6e3a28d70ab3910703a6ac180a5616a."
+    },
+    {
+      "id": "A-1058-005",
       "severity": "ALTO",
-      "category": "control-propagation-gap",
-      "reason": "Issue #1057 exige corrida concorrente para o mesmo id/version, porém concurrency-atomicity estava marcada como not-applicable e os controles existentes não provavam a corrida no storage persistente real.",
-      "literal_case": "Persistir uma registration_details, iniciar dois processos/conexões concorrentes que observem o mesmo id/version, liberar ambos pelo entrypoint público e provar no máximo um efeito persistente, sem refeição ou sucessora duplicada."
+      "category": "handoff-scope-policy",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "O filho result-only alterou evidencias fora da allowlist e o scope certificado não correspondia ao delta real do work item."
     }
   ],
-  "recommendations": []
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "reason": "handoff-stale",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
 }

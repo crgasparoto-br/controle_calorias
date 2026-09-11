@@ -1,4 +1,5 @@
-subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
+subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
 source_rejection_id=audit-rejection:a702f327-51af-490d-9480-90ceaa58633a
 finding_id=A-1058-001
-Agent-first run 34512595502 re-executed the prior precedence remediation on the exact material head. With the bread identity pending, quantity-first incompatible complete commands supersede the old pending interaction, while a compatible bread identity with conflicting quantity remains attached to the clarification.
+agent_first_run=34533363963 status=completed conclusion=success checkout_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
+The exact-head Agent-first suite re-executed the prior precedence remediation. With bread identity pending, quantity-first incompatible complete commands supersede the old pending interaction, while a compatible bread identity with conflicting quantity remains attached to the clarification.

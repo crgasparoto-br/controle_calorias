@@ -3,31 +3,44 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:f75c0879-735a-42e3-abd5-08510e04f6b4",
-    "audit_report_sha256": "7ba938402613c58fdb3d8c1bf4999f1266859b718d79ad031a9ea253294efa8d",
-    "audited_head_sha": "bbf25b04f3a93a60cb76668d087a0bc3f2671789"
+    "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+    "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760",
+    "audited_head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592"
   },
-  "candidate_head_sha": "1dfda11109cc7aaa91fe95c2bb53ad917514ae77",
+  "candidate_head_sha": "d129b85d883af0eb7c7bbb11bed0744c2d66ba5e",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1058-003",
+      "source_id": "A-1058-004",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "evidence-control-fix",
-      "changed_files": [
-        "scripts/test-whatsapp-registration-details-restart-tidb.ts"
-      ],
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
       "evidence": [
-        ".audit/entregar-issue/issue-1057/evidence/concurrency-atomicity-tidb.txt",
-        ".audit/entregar-issue/issue-1057/evidence/ci-exact-head.txt"
+        ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
       ],
       "validations": [
-        "CONCURRENCY-ATOMICITY-TIDB-001 passed in TiDB run 34512595519 with distinct PIDs 2837 and 2838 observing id=4/version=1",
-        "Agent-first run 34512595502 completed success",
-        "No production runtime code changed in this remediation"
+        "Base remota develop reconsultada em db7eda7ac6e3a28d70ab3910703a6ac180a5616a.",
+        "Merge-preview material reconstruído com pais develop atual + d129b85d883af0eb7c7bbb11bed0744c2d66ba5e.",
+        "Gates Agent-first 34592570223 e WhatsApp/TiDB 34592570225 concluíram com sucesso no merge contra a base atual."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-1058-005",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
+      "evidence": [
+        ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      ],
+      "validations": [
+        "Scope recalculado sobre bbf25b04f3a93a60cb76668d087a0bc3f2671789..d129b85d883af0eb7c7bbb11bed0744c2d66ba5e com 36 caminhos.",
+        "Allowlist do novo filho cobre todos os caminhos result-only publicados, incluindo evidence/*.txt.",
+        "Topologia de recuperação preserva d129b85d883af0eb7c7bbb11bed0744c2d66ba5e como pai material direto."
       ]
     }
   ]

@@ -1,9 +1,10 @@
-subject_sha=1dfda11109cc7aaa91fe95c2bb53ad917514ae77
+subject_sha=d129b85d883af0eb7c7bbb11bed0744c2d66ba5e
 control=CONCURRENCY-ATOMICITY-TIDB-001
-workflow_run=34512595519 status=completed conclusion=success
+workflow_run=34533363934 status=completed conclusion=success
+merge_preview_sha=d88cbed70540667656b97185fd72b08f7d2ccaf2
 storage=TiDB v8.5.1
 entrypoint=simulateWhatsappInbound
-worker_pids=2837,2838
+worker_pids=2557,2558
 pending_operation_id=4
 expected_version=1
 successful_effects=1
@@ -13,4 +14,4 @@ successor_count=1
 successor_state=active
 registration_text="2 fatias de pão de forma Panco Premium"
 meal_effects=0
-Both resolver processes observed the same persisted pendingOperation id=4/version=1 before release. After the synchronized race through the public entrypoint, durable TiDB state showed exactly one successful effect, one consumed original at version 2, exactly one active successor and zero partial meal effects.
+Both distinct Node processes observed the same persisted pendingOperation id=4/version=1 before release. After the synchronized race through simulateWhatsappInbound, durable TiDB state showed exactly one successful effect, one consumed original at version 2, exactly one active successor and zero partial meal effects.
