@@ -12,6 +12,8 @@ export type QuestionLatencyTrace = {
   contextMs: number | null;
   llmMs: number | null;
   persistMs: number | null;
+  timeToAckMs: number | null;
+  ackDeliveryOk: boolean | null;
   contextScope: QuestionContextScope | null;
   configuredProvider: string | null;
   configuredModel: string | null;
@@ -55,6 +57,8 @@ function createTrace(userId: number | null, startedAt = performance.now()): Ques
     contextMs: null,
     llmMs: null,
     persistMs: null,
+    timeToAckMs: null,
+    ackDeliveryOk: null,
     contextScope: null,
     configuredProvider: null,
     configuredModel: null,
@@ -196,6 +200,13 @@ export function recordCurrentQuestionPersistenceMs(durationMs: number) {
   trace.persistMs = (trace.persistMs ?? 0) + duration;
 }
 
+export function recordCurrentQuestionAcknowledgementOutcome(ok: boolean) {
+  const trace = getCurrentQuestionLatencyTrace();
+  if (!trace || trace.finalized) return;
+  trace.timeToAckMs = performance.now() - trace.startedAt;
+  trace.ackDeliveryOk = ok;
+}
+
 export function recordCurrentQuestionAiStage(input: {
   contextScope: QuestionContextScope;
   dbMs: number | null;
@@ -278,6 +289,8 @@ export function finalizeCurrentQuestionLatencyTrace() {
       llm_ms: roundLatency(trace.llmMs),
       persist_ms: roundLatency(trace.persistMs),
       time_to_first_token_ms: null,
+      time_to_ack_ms: roundLatency(trace.timeToAckMs),
+      ack_delivery_ok: trace.ackDeliveryOk,
       context_scope: trace.contextScope,
       context_sections: sections,
       configured_provider: trace.configuredProvider,

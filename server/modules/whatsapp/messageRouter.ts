@@ -8,7 +8,12 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
-import { executeWhatsappAiQuestionIntent, isWhatsappAiQuestionText } from "./aiQuestionAssistant";
+import {
+  executeWhatsappAiQuestionIntent,
+  isWhatsappAiQuestionText,
+  shouldAcknowledgeWhatsappAiQuestion,
+} from "./aiQuestionAssistant";
+import { sendWhatsAppAiQuestionAcknowledgement } from "./questionAcknowledgement";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
@@ -156,6 +161,16 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   }
 
   if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
+    const acknowledgementPromise =
+      input.sourcePhone
+      && input.messageId
+      && shouldAcknowledgeWhatsappAiQuestion(input.text)
+        ? sendWhatsAppAiQuestionAcknowledgement({
+            to: input.sourcePhone,
+            sourceMessageId: input.messageId,
+          }).catch(() => false)
+        : null;
+
     const result = await runWithAiUsageScope(
       { userId: input.userId, conversationId: input.messageId },
       () => executeWhatsappAiQuestionIntent(input.userId, {
@@ -165,6 +180,10 @@ export async function resolveWhatsAppPrecedenceGate(input: {
         externalMessageId: input.messageId,
       }),
     );
+
+    if (acknowledgementPromise) {
+      await acknowledgementPromise;
+    }
     if (result) return { step: "ai_question", result };
   }
 
