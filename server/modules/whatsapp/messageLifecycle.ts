@@ -28,11 +28,14 @@ import {
 } from "./inboundCorrelationContext";
 import {
   beginCurrentQuestionLatencyTrace,
+  claimCurrentQuestionDeliveryRetryRelease,
   finalizeCurrentQuestionLatencyTrace,
   getCurrentQuestionLatencyTrace,
   recordCurrentQuestionOutcome,
   recordCurrentQuestionPersistenceMs,
+  shouldReleaseCurrentQuestionForDeliveryRetry,
 } from "./questionLatencyContext";
+import { WhatsAppQuestionDeliveryRetryableError } from "./questionDeliveryRecovery";
 
 export { getCurrentWhatsappInboundExternalMessageId as getCurrentInboundExternalMessageId } from "./inboundCorrelationContext";
 
@@ -131,10 +134,22 @@ export function createMessageLifecycleService(input: {
       );
     },
 
+    async releaseMessageForRetry(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
+      if (!handle || !input.processingClaimRepository?.releaseUnprocessedMessage) return false;
+      return input.processingClaimRepository.releaseUnprocessedMessage(
+        handle.messageId,
+        new Date(now.getTime() - processingLeaseMs - 1),
+      );
+    },
+
     async wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
       if (!handle || handle.wasNewInsert) return false;
-      const links = await input.conversationRepository.findDomainLinksForMessage(handle.messageId);
-      return links.length > 0;
+      const responseIdempotencyKey = `whatsapp:outbound:${handle.conversationId}:response:${handle.messageId}`;
+      const [links, recordedResponse] = await Promise.all([
+        input.conversationRepository.findDomainLinksForMessage(handle.messageId),
+        input.conversationRepository.findByIdempotencyKey(responseIdempotencyKey),
+      ]);
+      return links.length > 0 || Boolean(recordedResponse);
     },
 
     async recordOutboundReply(
@@ -295,6 +310,18 @@ export function isExternalMessageClaimedInCurrentScope(externalMessageId?: strin
   return Boolean(externalMessageId && lifecycleScope.getStore()?.claimedExternalMessageIds.has(externalMessageId));
 }
 
+export async function releaseMessageForRetry(handle: MessageLifecycleHandle, now = new Date()) {
+  if (!handle) return false;
+  const released = await getActiveService().releaseMessageForRetry(handle, now);
+  if (released) {
+    const scope = lifecycleScope.getStore();
+    scope?.claimedMessageIds.delete(handle.messageId);
+    const externalMessageId = scope?.externalMessageIdByMessageId.get(handle.messageId);
+    if (externalMessageId) scope?.claimedExternalMessageIds.delete(externalMessageId);
+  }
+  return released;
+}
+
 export async function wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
   return getActiveService().wasMessageAlreadyProcessed(handle);
 }
@@ -312,6 +339,13 @@ export async function recordDomainLink(handle: MessageLifecycleHandle, link: Dom
 
 export async function markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
   if (!handle) return;
+  if (shouldReleaseCurrentQuestionForDeliveryRetry()) {
+    if (claimCurrentQuestionDeliveryRetryRelease()) {
+      await releaseMessageForRetry(handle, processedAt);
+    }
+    throw new WhatsAppQuestionDeliveryRetryableError();
+  }
+
   const scope = lifecycleScope.getStore();
   if (!scope) {
     await getActiveService().markMessageProcessed(handle, processedAt);

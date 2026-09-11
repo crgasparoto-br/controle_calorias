@@ -6,6 +6,7 @@ import {
   enrichInboundMessage,
   runWithMessageLifecycleRequestScope,
 } from "./modules/whatsapp/messageLifecycle";
+import { runWithQuestionLatencyContext } from "./modules/whatsapp/questionLatencyContext";
 import { withStoragePersistenceCorrelations } from "./storagePersistenceCorrelation";
 import { runWithWhatsAppTimeZoneRequestScope } from "./modules/whatsapp/timeZoneContext";
 
@@ -30,22 +31,24 @@ function buildMediaCorrelations(payload: unknown) {
   });
 }
 
-/** Entry point HTTP canônico: gate comercial + correlação de mídia + claim persistente + roteadores reais. */
+/** Entry point HTTP canônico: telemetria da requisição + gate comercial + correlação de mídia + claim persistente + roteadores reais. */
 export async function handleWhatsAppPersistentContextWebhook(req: Request, res: Response) {
-  return runWithMessageLifecycleRequestScope(() =>
-    runWithWhatsAppTimeZoneRequestScope(async () => {
-      const gated = await gateSuspendedWhatsAppWrites(req.body);
-      if (gated.handledCount > 0) req.body = gated.remainingPayload;
+  return runWithQuestionLatencyContext(() =>
+    runWithMessageLifecycleRequestScope(() =>
+      runWithWhatsAppTimeZoneRequestScope(async () => {
+        const gated = await gateSuspendedWhatsAppWrites(req.body);
+        if (gated.handledCount > 0) req.body = gated.remainingPayload;
 
-      const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
-      if (remainingMessages.length === 0) {
-        return res.status(200).json({ ok: true, processed: gated.handledCount });
-      }
+        const remainingMessages = extractIndexedWhatsAppWebhookMessages(req.body);
+        if (remainingMessages.length === 0) {
+          return res.status(200).json({ ok: true, processed: gated.handledCount });
+        }
 
-      const correlations = buildMediaCorrelations(req.body);
-      return withStoragePersistenceCorrelations(correlations, () =>
-        handleWhatsAppWebhookWithImageIdempotency(req, res),
-      );
-    }),
+        const correlations = buildMediaCorrelations(req.body);
+        return withStoragePersistenceCorrelations(correlations, () =>
+          handleWhatsAppWebhookWithImageIdempotency(req, res),
+        );
+      }),
+    ),
   );
 }
