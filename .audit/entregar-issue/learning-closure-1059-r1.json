@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c",
+    "audit_report_sha256": "c7c177976e713cf8f30fc55fc1821db4bbc5b3a7a77e55661095a0d32d51eea9",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The installed delivery contract already requires post-write refreeze, current-base binding, and terminal result-only publication after any material write; this rejection is closed by applying that existing control rather than adding a duplicate global rule."
+  }
+}

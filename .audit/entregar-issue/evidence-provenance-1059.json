@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
-  "base_sha": "31c7788d1f2995e3e2326b22738896c0b29ef6e6",
+  "material_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
   "evidence": [
     {
       "evidence_id": "EVID-QTY-1059",
       "kind": "quantitative",
       "path": ".audit/entregar-issue/evidence/issue1059-quantity.json",
-      "sha256": "d24b246bfcbcf0bee2e38de497a65bbd6fd4ac5bb694af39418ab3cf0646884a",
-      "subject_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
+      "sha256": "9f2bdb35886b89df4ea6c6b77064d955bd71853a7a3b1286265274b4997e6496",
+      "subject_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions + issue-specific Vitest assertions",
+      "producer": "GitHub Actions exact-head suite + issue-specific Vitest assertions",
       "status": "passed"
     }
   ]

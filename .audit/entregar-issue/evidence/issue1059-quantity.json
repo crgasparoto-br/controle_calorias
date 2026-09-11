@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "subject_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
-  "producer": "GitHub Actions Agent-first gate run 34515270945 plus issue #1059 Vitest assertions",
+  "subject_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "producer": "GitHub Actions Agent-first gate run 34541931423 plus issue #1059 Vitest assertions",
   "assertions": [
     {
       "input": "4 xícaras de café",
@@ -26,9 +26,9 @@
     }
   ],
   "workflow": {
-    "run_id": 34515270945,
+    "run_id": 34541931423,
     "status": "completed",
     "conclusion": "success",
-    "test_step": "Test merge preview"
+    "test_step": "Tests"
   }
 }

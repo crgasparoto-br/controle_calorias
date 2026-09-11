@@ -1,8 +1,36 @@
 {
   "schema_version": 1,
-  "head_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
-  "source_audits": [],
-  "controls": [],
+  "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "source_audits": [
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c",
+      "finding_id": "A-001",
+      "finding_ids": [
+        "A-001"
+      ],
+      "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+      "audit_report_sha256": "c7c177976e713cf8f30fc55fc1821db4bbc5b3a7a77e55661095a0d32d51eea9"
+    }
+  ],
+  "controls": [
+    {
+      "id": "INHERITED-PR1060-A001",
+      "status": "passed",
+      "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+      "subject_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+      "control_type": "procedure",
+      "risk_family": "structural-contract",
+      "surface": "canonical-source-consistency",
+      "dimension": "negative-boundary",
+      "attack_control_id": "INHERITED-ESCAPE-1059-010",
+      "evidence": "Exact material head b8936e7594c127507bf9534c748cd649b2a45f19 was refrozen after the audited post-write drift; Agent-first 34541931423, TiDB 34541931412, and immutable current-base merge preview 4898234edfdac8fe15c5c3a038fdbe0dc6750ada support the revalidation.",
+      "evidence_sha256": "096fd236fec41f4390b5b12717447b689847db284d58462532cecab37a7d667f",
+      "procedure": "Compare the audited stale certificate/material relationship with the current exact material head, current base, immutable merge preview and regenerated result-only package before publication.",
+      "expected": "A post-freeze material write cannot retain an ancestor certificate; the package must be rebuilt for the exact material head before independent audit.",
+      "observed": "The material candidate b8936e7594c127507bf9534c748cd649b2a45f19 is the current exact material head represented by the refreshed evidence and handoff inputs; no ancestor SHA is claimed as current."
+    }
+  ],
   "retired_controls": [],
   "unresolved_controls": []
 }
