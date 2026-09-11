@@ -8,6 +8,7 @@ on:
       - "server/modules/quickEdit/**"
       - "server/modules/meals/**"
       - "scripts/test-quick-edit-meal-update-tidb.ts"
+      - "scripts/test-whatsapp-context-memory-restart-tidb.ts"
       - "scripts/test-whatsapp-registration-details-restart-tidb.ts"
       - "server/repositories/whatsapp**"
       - "server/whatsapp*Webhook*.ts"
@@ -123,6 +124,9 @@ jobs:
 
       - name: Run pending operation insert id regression
         run: pnpm exec tsx scripts/test-whatsapp-pending-operation-tidb.ts
+
+      - name: Run contextual memory restart regression
+        run: pnpm exec tsx scripts/test-whatsapp-context-memory-restart-tidb.ts
 
       - name: Run registration details restart regression
         run: pnpm exec tsx scripts/test-whatsapp-registration-details-restart-tidb.ts

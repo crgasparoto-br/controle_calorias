@@ -77,9 +77,16 @@ vi.mock("../../db", () => ({
 }));
 
 const executeWhatsappAiQuestionIntentMock = vi.fn();
+const shouldAcknowledgeWhatsappAiQuestionMock = vi.fn();
 vi.mock("./aiQuestionAssistant", () => ({
   isWhatsappAiQuestionText: (text?: string | null) => Boolean(text?.trim().startsWith("/")),
+  shouldAcknowledgeWhatsappAiQuestion: shouldAcknowledgeWhatsappAiQuestionMock,
   executeWhatsappAiQuestionIntent: executeWhatsappAiQuestionIntentMock,
+}));
+
+const sendWhatsAppAiQuestionAcknowledgementMock = vi.fn();
+vi.mock("./questionAcknowledgement", () => ({
+  sendWhatsAppAiQuestionAcknowledgement: sendWhatsAppAiQuestionAcknowledgementMock,
 }));
 
 const handlePendingWhatsAppConfirmationMock = vi.fn();
@@ -130,23 +137,29 @@ const deleteResult = {
   data: { fallbackBlocked: true },
 };
 
+const aiQuestionResult = {
+  handled: true as const,
+  action: "ai_question_answered" as const,
+  reply: "resposta da pergunta",
+  eventType: "whatsapp.ai_question_answered",
+  detail: "detalhe",
+};
+
 describe("resolveWhatsAppPrecedenceGate", () => {
   beforeEach(() => {
     fakeDb.reset();
     executeWhatsappAiQuestionIntentMock.mockReset();
+    shouldAcknowledgeWhatsappAiQuestionMock.mockReset();
+    shouldAcknowledgeWhatsappAiQuestionMock.mockReturnValue(true);
+    sendWhatsAppAiQuestionAcknowledgementMock.mockReset();
+    sendWhatsAppAiQuestionAcknowledgementMock.mockResolvedValue(true);
     executeWhatsappDeleteIntentMock.mockReset();
     executeWhatsappDeleteIntentMock.mockResolvedValue(null);
     handlePendingWhatsAppConfirmationMock.mockReset();
   });
 
   it("prioriza comando explícito / e não consulta o executor destrutivo", async () => {
-    executeWhatsappAiQuestionIntentMock.mockResolvedValue({
-      handled: true,
-      action: "ai_question_answered",
-      reply: "resposta da pergunta",
-      eventType: "whatsapp.ai_question_answered",
-      detail: "detalhe",
-    });
+    executeWhatsappAiQuestionIntentMock.mockResolvedValue(aiQuestionResult);
 
     const decision = await resolveWhatsAppPrecedenceGate({
       userId: 1,
@@ -159,6 +172,73 @@ describe("resolveWhatsAppPrecedenceGate", () => {
       externalMessageId: "wamid.current",
     }));
     expect(executeWhatsappDeleteIntentMock).not.toHaveBeenCalled();
+  });
+
+  it("inicia ACK e IA em paralelo e só libera a resposta final depois da tentativa de ACK", async () => {
+    let resolveAck!: (value: boolean) => void;
+    let resolveAi!: (value: typeof aiQuestionResult) => void;
+    const ackPromise = new Promise<boolean>(resolve => { resolveAck = resolve; });
+    const aiPromise = new Promise<typeof aiQuestionResult>(resolve => { resolveAi = resolve; });
+    sendWhatsAppAiQuestionAcknowledgementMock.mockReturnValue(ackPromise);
+    executeWhatsappAiQuestionIntentMock.mockReturnValue(aiPromise);
+
+    let settled = false;
+    const decisionPromise = resolveWhatsAppPrecedenceGate({
+      userId: 1,
+      text: "/quantas calorias hoje?",
+      messageId: "wamid.ack-order",
+      sourcePhone: "5511999999999",
+    }).then(value => {
+      settled = true;
+      return value;
+    });
+
+    await Promise.resolve();
+    expect(sendWhatsAppAiQuestionAcknowledgementMock).toHaveBeenCalledWith({
+      to: "5511999999999",
+      sourceMessageId: "wamid.ack-order",
+    });
+    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalled();
+
+    resolveAi(aiQuestionResult);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveAck(true);
+    await expect(decisionPromise).resolves.toEqual(expect.objectContaining({ step: "ai_question" }));
+  });
+
+  it("continua a pergunta quando o ACK falha", async () => {
+    sendWhatsAppAiQuestionAcknowledgementMock.mockRejectedValue(new Error("falha sintética"));
+    executeWhatsappAiQuestionIntentMock.mockResolvedValue(aiQuestionResult);
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId: 1,
+      text: "/quantas calorias hoje?",
+      messageId: "wamid.ack-fail",
+      sourcePhone: "5511999999999",
+    });
+
+    expect(decision).toEqual(expect.objectContaining({ step: "ai_question" }));
+  });
+
+  it("não envia ACK quando a pergunta não deve ser aceita para processamento", async () => {
+    shouldAcknowledgeWhatsappAiQuestionMock.mockReturnValue(false);
+    executeWhatsappAiQuestionIntentMock.mockResolvedValue({
+      ...aiQuestionResult,
+      action: "ai_question_empty",
+      reply: "Envie sua pergunta depois da barra.",
+    });
+
+    await resolveWhatsAppPrecedenceGate({
+      userId: 1,
+      text: "/",
+      messageId: "wamid.empty",
+      sourcePhone: "5511999999999",
+    });
+
+    expect(sendWhatsAppAiQuestionAcknowledgementMock).not.toHaveBeenCalled();
   });
 
   it("resolve exclusão antes da confirmação genérica e dos parsers alimentares", async () => {

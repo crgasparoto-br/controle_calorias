@@ -4,12 +4,17 @@ import {
   markMessageProcessed,
   withMessageLifecycleService,
 } from "./messageLifecycle";
+import {
+  beginCurrentQuestionLatencyTrace,
+  recordCurrentQuestionDeliveryOutcome,
+  runWithQuestionLatencyContext,
+} from "./questionLatencyContext";
 
 function createConversationRepository() {
   return {
     createOrGetActiveConversation: vi.fn(),
     appendMessage: vi.fn(),
-    findByIdempotencyKey: vi.fn(),
+    findByIdempotencyKey: vi.fn(async () => null),
     linkResponse: vi.fn(),
     linkDomainRecord: vi.fn(),
     findRecentMessages: vi.fn(),
@@ -54,6 +59,22 @@ describe("messageLifecycle persistent processing claim", () => {
     );
   });
 
+  it("libera mensagem não processada para reclaim imediato após falha de entrega", async () => {
+    const release = vi.fn(async () => true);
+    const service = createMessageLifecycleService({
+      conversationRepository: createConversationRepository() as never,
+      processingClaimRepository: {
+        claimStaleUnprocessedMessage: vi.fn(async () => true),
+        releaseUnprocessedMessage: release,
+      },
+      processingLeaseMs: 60_000,
+    });
+    const now = new Date("2026-07-11T01:00:00.000Z");
+
+    await expect(service.releaseMessageForRetry({ conversationId: 1, messageId: 2, wasNewInsert: false }, now)).resolves.toBe(true);
+    expect(release).toHaveBeenCalledWith(2, new Date("2026-07-11T00:58:59.999Z"));
+  });
+
   it("bloqueia reentrega quando a persistência não concede propriedade", async () => {
     const service = createMessageLifecycleService({
       conversationRepository: createConversationRepository() as never,
@@ -61,6 +82,15 @@ describe("messageLifecycle persistent processing claim", () => {
     });
 
     await expect(service.claimMessageForProcessing({ conversationId: 1, messageId: 2, wasNewInsert: false })).resolves.toBe(false);
+  });
+
+  it("considera resposta funcional já gravada como conclusão idempotente", async () => {
+    const repository = createConversationRepository();
+    repository.findByIdempotencyKey.mockResolvedValueOnce({ id: 99 } as never);
+    const service = createMessageLifecycleService({ conversationRepository: repository as never });
+
+    await expect(service.wasMessageAlreadyProcessed({ conversationId: 7, messageId: 11, wasNewInsert: false })).resolves.toBe(true);
+    expect(repository.findByIdempotencyKey).toHaveBeenCalledWith("whatsapp:outbound:7:response:11");
   });
 
   it("só grava processedAt quando o escopo termina com sucesso", async () => {
@@ -75,6 +105,31 @@ describe("messageLifecycle persistent processing claim", () => {
 
     expect(repository.markProcessed).toHaveBeenCalledOnce();
     expect(repository.markProcessed).toHaveBeenCalledWith(2, new Date("2026-07-11T01:00:00.000Z"));
+  });
+
+  it("não finaliza processedAt e libera claim quando a resposta final da pergunta falha", async () => {
+    const repository = createConversationRepository();
+    const release = vi.fn(async () => true);
+    const service = createMessageLifecycleService({
+      conversationRepository: repository as never,
+      processingClaimRepository: {
+        claimStaleUnprocessedMessage: vi.fn(async () => true),
+        releaseUnprocessedMessage: release,
+      },
+      processingLeaseMs: 60_000,
+    });
+    const handle = { conversationId: 1, messageId: 2, wasNewInsert: true };
+
+    await expect(runWithQuestionLatencyContext(() =>
+      withMessageLifecycleService(service, async () => {
+        beginCurrentQuestionLatencyTrace({ userId: 1, contentType: "text", text: "/teste" });
+        recordCurrentQuestionDeliveryOutcome(false);
+        await markMessageProcessed(handle, new Date("2026-07-11T01:00:00.000Z"));
+      }),
+    )).rejects.toThrow("inbound remains retryable");
+
+    expect(repository.markProcessed).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledWith(2, new Date("2026-07-11T00:58:59.999Z"));
   });
 
   it("descarta a finalização pendente quando o escopo falha", async () => {

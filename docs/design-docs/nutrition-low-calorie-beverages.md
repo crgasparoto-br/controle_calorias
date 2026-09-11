@@ -44,6 +44,20 @@ Issue #974 makes preparation ambiguity a hard boundary before generic nutrition 
 - Text webhook, transcribed audio and `simulateWhatsappInbound` use the same registered interaction and continuation contract.
 - The generic heuristic remains available for unrelated unknown foods; the precedence rule applies specifically when a coffee preparation is still semantically incomplete.
 
+### Personal preparation memory before clarification (#1059)
+
+Issue #1059 adds one narrowly-scoped exception before the #974 clarification gate: when the current message omits the preparation and the same user has a single applicable personal preparation memory, the missing preparation is completed before the generic-coffee check.
+
+- Precedence is `explicit current input > applicable persisted personal memory > canonical nutrition resolver > #974 clarification`.
+- Only an explicit reusable individual signal such as `normalmente tomo café sem açúcar` or `meu café é sem açúcar` can create this preference automatically. A single consumption statement such as `4 xícaras de café sem açúcar` does not become a recurring preference by itself.
+- The semantic key is based on food identity and preparation attribute, not on quantity. Therefore the same `café -> sem açúcar` memory applies to `4 xícaras de café`, `2 xícaras de café` or another quantity without creating quantity-specific memories.
+- The domain decision reads the durable contextual-memory representation stored per `userId`. Process-local memory is allowed only by the existing test/development fallback policy and never authorizes a persisted success in production.
+- An applicable memory must belong to the same user, be active, non-expired and non-replaced, match the current intent and carry an allowed explicit source. A missing, unavailable or conflicting memory falls through to the existing #974 clarification instead of guessing.
+- Current explicit preparation always wins. `café com açúcar`, `café sem açúcar`, `café com leite` and other complements never get overwritten by the stored default.
+- Memory fills only the missing preparation. Quantity, unit, date, meal target, inbound correlation and companion foods remain unchanged, and the qualified text is then sent through the canonical nutrition pipeline. No coffee-specific macro table or hardcoded calorie value is introduced.
+- Preference learning and application happen in the same deterministic WhatsApp text-intent path used by text webhook, transcribed audio and simulator. The LLM is not the source of truth for the bypass decision.
+- Applied memory is observable by structured memory id/key metadata and a dedicated inference event; raw user text is not required in operational logs.
+
 ## Sweetened coffee quantity
 
 - An explicit amount such as `5 g de açúcar` is incorporated once into calories and carbohydrates.
@@ -107,10 +121,13 @@ Coverage lives in:
 - `server/modules/whatsapp/service.coffeeSugarParity.test.ts`;
 - `server/modules/whatsapp/interactionRegistry.coffeeSugar.test.ts`;
 - `server/modules/whatsapp/structuredCoffeeIntentActions.issue974.test.ts`;
+- `server/modules/whatsapp/coffeeSugarIntent.issue1059.test.ts`;
+- `server/modules/whatsapp/personalPreparationPreference.issue1059.test.ts`;
+- `server/modules/whatsapp/persistentContextMemory.issue1059.test.ts`;
 - `server/whatsappMealIntentDecisionWebhook.issue899.test.ts`;
 - `server/modules/whatsapp/mealIntentDecisionInteraction.test.ts`.
 
-The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, production database outage through the real repository adapter, restart/cross-instance fail-closed behavior, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, generic-coffee preparation precedence, companion preservation, text/audio/simulator registry parity and registry parity.
+The tests cover qualified low-calorie beverages, contradictory and generic coffee variants, fuzzy matching, catalog-source parity, explicit sugar calculation, complete preparations with milk/honey/cream/condensed milk, coordinated complements, consume-or-suggest routing, adversarial association and cardinality cases, missing-quantity clarification, contextual unit validation before claim, persistent operation context, sequential quantities for multiple sweetened coffees, restart-safe progress, follow-up persistence failure without orphan outbound, production database outage through the real repository adapter, restart/cross-instance fail-closed behavior, compound registration/addition/replacement, target revalidation, compensation after persistence-before-error, generic-coffee preparation precedence, personal preparation-memory precedence, user isolation, quantity-independent semantic memory, restart-safe contextual memory, companion preservation, explicit-current-input precedence, text/audio/simulator registry parity and registry parity.
 
 ## Known limits
 

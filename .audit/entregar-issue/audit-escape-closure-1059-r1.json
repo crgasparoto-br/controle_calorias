@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "PR1060-A001",
+      "escape_class": "post-write-handoff-staleness",
+      "source_audit": {
+        "kind": "independent-audit-rejection",
+        "rejection_id": "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c",
+        "finding_id": "A-001",
+        "finding_ids": [
+          "A-001"
+        ],
+        "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+        "audit_report_sha256": "c7c177976e713cf8f30fc55fc1821db4bbc5b3a7a77e55661095a0d32d51eea9"
+      },
+      "plausible_wrong_implementation": "Publish a valid terminal handoff and then add a material regression test or workflow change without regenerating the certificate and evidence.",
+      "literal_case": {
+        "procedure": "Compare the certified material head with the immutable PR commit chain after every post-freeze write and require a fresh terminal child.",
+        "expected": "Any material write after freeze invalidates the old handoff and forces post-write refreeze before audit.",
+        "observed": "The current material candidate is refrozen at the final material commit; all refreshed evidence is bound to that same candidate before terminal publication.",
+        "status": "passed",
+        "evidence": "Immutable Git history, exact-head CI runs, local current-base merge check, and regenerated handoff artifacts."
+      },
+      "sibling_cases": [
+        {
+          "id": "post-freeze-test-write",
+          "surface": "delivery-control",
+          "dimension": "material-test-after-freeze",
+          "status": "passed",
+          "evidence": "Post-write classifier requires refreeze when a test path changes after the certified material head."
+        },
+        {
+          "id": "post-freeze-workflow-write",
+          "surface": "ci-control",
+          "dimension": "material-workflow-after-freeze",
+          "status": "passed",
+          "evidence": "Post-write classifier requires refreeze when a workflow path changes after the certified material head."
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "negative-boundary"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "negative-boundary"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Existing terminal-handoff/post-write-refreeze contract",
+        "evidence": "The installed entregar-issue contract requires restoring terminal handoff after any material post-freeze write."
+      },
+      "detection_change": {
+        "skill_or_gate": "handoff readiness and terminal result-only guard",
+        "control_id": "POST-WRITE-HANDOFF-REFREEZE-001",
+        "evidence": "Current remediation rebinds the material head, current base, refreshed evidence and terminal child."
+      },
+      "trigger_terms": [
+        "material write",
+        "post-freeze",
+        "handoff",
+        "refreeze"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "status": "passed",
+      "revalidated_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19"
+    }
+  ],
+  "closed_independent_rejection_ids": [
+    "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c"
+  ],
+  "closed_finding_ids_by_rejection": {
+    "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c": [
+      "A-001"
+    ]
+  }
+}

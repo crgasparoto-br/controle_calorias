@@ -12,6 +12,8 @@ export type QuestionLatencyTrace = {
   contextMs: number | null;
   llmMs: number | null;
   persistMs: number | null;
+  timeToAckMs: number | null;
+  ackDeliveryOk: boolean | null;
   contextScope: QuestionContextScope | null;
   configuredProvider: string | null;
   configuredModel: string | null;
@@ -25,6 +27,9 @@ export type QuestionLatencyTrace = {
   outcome: "success" | "error" | null;
   errorCode: string | null;
   deliveryOk: boolean | null;
+  deliveryAttempts: number;
+  deliveryRetryOccurred: boolean;
+  deliveryRetryReleaseIssued: boolean;
   finalized: boolean;
 };
 
@@ -55,6 +60,8 @@ function createTrace(userId: number | null, startedAt = performance.now()): Ques
     contextMs: null,
     llmMs: null,
     persistMs: null,
+    timeToAckMs: null,
+    ackDeliveryOk: null,
     contextScope: null,
     configuredProvider: null,
     configuredModel: null,
@@ -68,6 +75,9 @@ function createTrace(userId: number | null, startedAt = performance.now()): Ques
     outcome: null,
     errorCode: null,
     deliveryOk: null,
+    deliveryAttempts: 0,
+    deliveryRetryOccurred: false,
+    deliveryRetryReleaseIssued: false,
     finalized: false,
   };
 }
@@ -196,6 +206,34 @@ export function recordCurrentQuestionPersistenceMs(durationMs: number) {
   trace.persistMs = (trace.persistMs ?? 0) + duration;
 }
 
+export function recordCurrentQuestionAcknowledgementOutcome(ok: boolean) {
+  const trace = getCurrentQuestionLatencyTrace();
+  if (!trace || trace.finalized) return;
+  trace.timeToAckMs = performance.now() - trace.startedAt;
+  trace.ackDeliveryOk = ok;
+}
+
+export function recordCurrentQuestionDeliveryAttempt(retry: boolean) {
+  const trace = getCurrentQuestionLatencyTrace();
+  if (!trace || trace.finalized) return;
+  trace.deliveryAttempts += 1;
+  if (retry) trace.deliveryRetryOccurred = true;
+}
+
+export function shouldReleaseCurrentQuestionForDeliveryRetry() {
+  const trace = getCurrentQuestionLatencyTrace();
+  return Boolean(trace && !trace.finalized && trace.deliveryOk === false);
+}
+
+export function claimCurrentQuestionDeliveryRetryRelease() {
+  const trace = getCurrentQuestionLatencyTrace();
+  if (!trace || trace.finalized || trace.deliveryOk !== false || trace.deliveryRetryReleaseIssued) {
+    return false;
+  }
+  trace.deliveryRetryReleaseIssued = true;
+  return true;
+}
+
 export function recordCurrentQuestionAiStage(input: {
   contextScope: QuestionContextScope;
   dbMs: number | null;
@@ -242,10 +280,12 @@ export function recordCurrentQuestionDeliveryOutcome(ok: boolean) {
   const trace = getCurrentQuestionLatencyTrace();
   if (!trace || trace.finalized) return;
   trace.deliveryOk = ok;
-  if (!ok && trace.outcome !== "error") {
+  if (!ok) {
     trace.outcome = "error";
     trace.errorCode = "delivery_failed";
-  } else if (ok && trace.outcome === null) {
+    return;
+  }
+  if (trace.errorCode === "delivery_failed" || trace.outcome === null) {
     trace.outcome = "success";
     trace.errorCode = null;
   }
@@ -278,6 +318,8 @@ export function finalizeCurrentQuestionLatencyTrace() {
       llm_ms: roundLatency(trace.llmMs),
       persist_ms: roundLatency(trace.persistMs),
       time_to_first_token_ms: null,
+      time_to_ack_ms: roundLatency(trace.timeToAckMs),
+      ack_delivery_ok: trace.ackDeliveryOk,
       context_scope: trace.contextScope,
       context_sections: sections,
       configured_provider: trace.configuredProvider,
@@ -290,6 +332,9 @@ export function finalizeCurrentQuestionLatencyTrace() {
       web_search_available: trace.webSearchAvailable,
       web_search_executed: trace.webSearchExecuted,
       delivery_ok: trace.deliveryOk,
+      delivery_attempts: trace.deliveryAttempts,
+      delivery_retry_occurred: trace.deliveryRetryOccurred,
+      delivery_retry_release_issued: trace.deliveryRetryReleaseIssued,
       outcome,
       error_code: errorCode,
     }),
