@@ -6,6 +6,7 @@ type PersistenceWarningHandler = (scope: string, error: unknown) => void;
 
 export type WhatsAppProcessingClaimRepository = {
   claimStaleUnprocessedMessage(messageId: number, staleBefore: Date, claimedAt?: Date): Promise<boolean>;
+  releaseUnprocessedMessage(messageId: number, releasedAt: Date): Promise<boolean>;
 };
 
 function getAffectedRows(result: unknown) {
@@ -43,6 +44,25 @@ export function createDrizzleWhatsAppProcessingClaimRepository(deps: {
         return getAffectedRows(result) > 0;
       } catch (error) {
         deps.onWarning("WhatsApp conversation stale message claim skipped", error);
+        return false;
+      }
+    },
+
+    async releaseUnprocessedMessage(messageId, releasedAt) {
+      const db = await deps.getDb();
+      if (!db) return false;
+
+      try {
+        const result = await db
+          .update(whatsappConversationMessages)
+          .set({ updatedAt: releasedAt })
+          .where(and(
+            eq(whatsappConversationMessages.id, messageId),
+            isNull(whatsappConversationMessages.processedAt),
+          ));
+        return getAffectedRows(result) > 0;
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation processing claim release skipped", error);
         return false;
       }
     },
