@@ -1,4 +1,4 @@
-import { index, int, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { foreignKey, index, int, mysqlTable, timestamp, varchar } from "drizzle-orm/mysql-core";
 import { whatsappConversationMessages } from "./schema";
 
 /**
@@ -10,14 +10,17 @@ import { whatsappConversationMessages } from "./schema";
  * ou libere um claim que já foi retomado por outro runtime.
  */
 export const whatsappMessageProcessingClaims = mysqlTable("whatsappMessageProcessingClaims", {
-  messageId: int("messageId")
-    .primaryKey()
-    .references(() => whatsappConversationMessages.id, { onDelete: "cascade" }),
+  messageId: int("messageId").primaryKey(),
   ownerToken: varchar("ownerToken", { length: 64 }).notNull(),
   claimedAt: timestamp("claimedAt").defaultNow().notNull(),
   heartbeatAt: timestamp("heartbeatAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => ({
+  messageFk: foreignKey({
+    columns: [table.messageId],
+    foreignColumns: [whatsappConversationMessages.id],
+    name: "waProcessingClaim_messageId_fk",
+  }).onDelete("cascade"),
   heartbeatIdx: index("whatsappMessageProcessingClaims_heartbeatAt_idx").on(table.heartbeatAt),
 }));
 
