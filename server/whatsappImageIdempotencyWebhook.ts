@@ -20,9 +20,10 @@ import {
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import {
   beginInboundMessage,
-  claimMessageForProcessing,
+  claimMessageForProcessingState,
   recordDomainLink,
   runWithMessageLifecycleRequestScope,
+  wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 import {
@@ -54,6 +55,8 @@ type ClaimedMessage = {
   accessAllowed: boolean;
   lifecycleHandle: MessageLifecycleHandle;
 };
+
+type ClaimIndexedMessageResult = ClaimedMessage | null | "duplicate" | "inflight" | "unavailable";
 
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
@@ -103,9 +106,30 @@ function resolveBatchContextFlow(
   return type === "image" || type === "audio" ? type : "text";
 }
 
+function logIdempotencyState(input: {
+  userId: number;
+  eventType: string;
+  status: "success" | "warning";
+  source: string;
+  contentType: ReturnType<typeof resolveMessageContentType>;
+  locallySeen: boolean;
+}) {
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: input.status,
+    eventType: input.eventType,
+    detail: JSON.stringify({
+      source: input.source,
+      contentType: input.contentType,
+      locallySeen: input.locallySeen,
+    }),
+  });
+}
+
 async function claimIndexedMessage(
   item: IndexedWhatsAppWebhookMessage
-): Promise<ClaimedMessage | null | "duplicate"> {
+): Promise<ClaimIndexedMessageResult> {
   const message = item.message;
   if (!message.from) return null;
 
@@ -128,21 +152,78 @@ async function claimIndexedMessage(
     allowRawContentStorage: access.allowed,
   });
 
-  if (!lifecycleHandle && locallySeen) return "duplicate";
-
-  if (!(await claimMessageForProcessing(lifecycleHandle))) {
-    logInferenceEvent({
+  // Cache local nunca é prova terminal de conclusão. Sem persistência não há
+  // base segura para confirmar a mensagem ao provedor.
+  if (!lifecycleHandle) {
+    logIdempotencyState({
       userId,
-      origin: "whatsapp",
+      eventType: "whatsapp.idempotency.persistence_unavailable",
+      status: "warning",
+      source: "message_lifecycle",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
+    });
+    return "unavailable";
+  }
+
+  if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+    logIdempotencyState({
+      userId,
+      eventType: "whatsapp.idempotency.processed_duplicate",
       status: "success",
-      eventType: "whatsapp.idempotency.duplicate_detected",
-      detail: JSON.stringify({
-        source: "persistent_processing_claim",
-        contentType: resolveMessageContentType(message),
-        locallySeen,
-      }),
+      source: "persisted_effect_or_response",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
     });
     return "duplicate";
+  }
+
+  const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+  if (claimStatus === "processed") {
+    logIdempotencyState({
+      userId,
+      eventType: "whatsapp.idempotency.processed_duplicate",
+      status: "success",
+      source: "processed_at",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
+    });
+    return "duplicate";
+  }
+
+  if (claimStatus === "inflight") {
+    logIdempotencyState({
+      userId,
+      eventType: "whatsapp.idempotency.inflight_retry",
+      status: "warning",
+      source: "active_processing_owner",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
+    });
+    return "inflight";
+  }
+
+  if (claimStatus === "unavailable") {
+    logIdempotencyState({
+      userId,
+      eventType: "whatsapp.idempotency.processing_claim_unavailable",
+      status: "warning",
+      source: "persistent_processing_owner",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
+    });
+    return "unavailable";
+  }
+
+  if (claimStatus === "recovered") {
+    logIdempotencyState({
+      userId,
+      eventType: "whatsapp.idempotency.orphan_recovered",
+      status: "success",
+      source: "stale_processing_owner",
+      contentType: resolveMessageContentType(message),
+      locallySeen,
+    });
   }
 
   if (message.id) fallbackMessageDeduplicationCache.markHandled(message.id);
@@ -408,6 +489,15 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(
     }
 
     const claim = await claimIndexedMessage(item);
+    if (claim === "inflight" || claim === "unavailable") {
+      return res.status(503).json({
+        ok: false,
+        retryable: true,
+        reason: claim === "inflight"
+          ? "message_processing_inflight"
+          : "message_processing_unavailable",
+      });
+    }
     if (claim === "duplicate") {
       duplicateKeys.add(item.key);
       handledKeys.add(item.key);
