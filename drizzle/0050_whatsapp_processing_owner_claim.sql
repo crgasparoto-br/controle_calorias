@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `whatsappMessageProcessingClaims` (
   `heartbeatAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `whatsappMessageProcessingClaims_messageId` PRIMARY KEY(`messageId`),
-  CONSTRAINT `whatsappMessageProcessingClaims_messageId_whatsappConversationMessages_id_fk`
+  CONSTRAINT `waProcessingClaim_messageId_fk`
     FOREIGN KEY (`messageId`) REFERENCES `whatsappConversationMessages`(`id`) ON DELETE CASCADE
 );--> statement-breakpoint
 CREATE INDEX `whatsappMessageProcessingClaims_heartbeatAt_idx` ON `whatsappMessageProcessingClaims` (`heartbeatAt`);
