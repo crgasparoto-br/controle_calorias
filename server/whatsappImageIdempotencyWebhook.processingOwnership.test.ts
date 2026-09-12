@@ -24,6 +24,7 @@ vi.mock("./modules/billing/service", () => ({
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: mocks.beginInbound,
   claimMessageForProcessingState: mocks.claimState,
+  isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   recordDomainLink: vi.fn(),
   runWithMessageLifecycleRequestScope: (operation: () => unknown) => operation(),
   wasMessageAlreadyProcessed: mocks.wasProcessed,
