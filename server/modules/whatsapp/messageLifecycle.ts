@@ -2,11 +2,13 @@
  * Camada central de captura e idempotência das mensagens do WhatsApp.
  *
  * Os entrypoints usam o mesmo serviço. A chave única no banco impede linhas
- * duplicadas e um lease atômico permite retry após crash, sem depender de Map local.
- * O escopo AsyncLocalStorage preserva a propriedade da mesma mensagem quando o
- * roteamento passa por wrappers e handlers encadeados na mesma requisição.
+ * duplicadas e o ownership persistente permite retry após crash, sem depender de
+ * Map local para decidir conclusão ou liveness. O escopo AsyncLocalStorage
+ * preserva somente a propriedade já comprovada na persistência durante a mesma
+ * requisição.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import {
   createDrizzleWhatsAppConversationRepository,
   type DomainLinkInput,
@@ -39,9 +41,24 @@ import { WhatsAppQuestionDeliveryRetryableError } from "./questionDeliveryRecove
 
 export { getCurrentWhatsappInboundExternalMessageId as getCurrentInboundExternalMessageId } from "./inboundCorrelationContext";
 
-const DEFAULT_PROCESSING_LEASE_MS = 15 * 60 * 1000;
+const LEGACY_PROCESSING_LEASE_MS = 15 * 60 * 1000;
+export const DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS = 30 * 1000;
+export const DEFAULT_PROCESSING_HEARTBEAT_INTERVAL_MS = 5 * 1000;
 
 export type MessageLifecycleHandle = { conversationId: number; messageId: number; wasNewInsert: boolean } | null;
+export type MessageProcessingClaimStatus = "claimed" | "recovered" | "inflight" | "processed" | "unavailable";
+
+type MessageProcessingClaimDecision = {
+  status: MessageProcessingClaimStatus;
+  ownerToken?: string;
+};
+
+export class WhatsAppProcessingOwnershipLostError extends Error {
+  constructor() {
+    super("WhatsApp processing ownership is no longer available for this inbound message.");
+    this.name = "WhatsAppProcessingOwnershipLostError";
+  }
+}
 
 export type BeginInboundMessageInput = {
   userId: number;
@@ -64,6 +81,7 @@ type PendingProcessedMessage = {
   service: MessageLifecycleService;
   handle: NonNullable<MessageLifecycleHandle>;
   processedAt: Date;
+  ownerToken?: string;
 };
 
 type MessageLifecycleScope = {
@@ -71,6 +89,9 @@ type MessageLifecycleScope = {
   claimedMessageIds: Set<number>;
   externalMessageIdByMessageId: Map<number, string>;
   claimedExternalMessageIds: Set<string>;
+  processingOwnerTokenByMessageId: Map<number, string>;
+  processingHeartbeatTimers: Map<number, ReturnType<typeof setInterval>>;
+  heartbeatInFlightMessageIds: Set<number>;
   pendingProcessedMessages: Map<number, PendingProcessedMessage>;
 };
 
@@ -78,11 +99,55 @@ export function createMessageLifecycleService(input: {
   conversationRepository: WhatsAppConversationRepository;
   enrichmentRepository?: WhatsAppConversationMessageEnrichmentRepository;
   processingClaimRepository?: WhatsAppProcessingClaimRepository;
+  /** Alias mantido para testes/compatibilidade do lease legado. */
   processingLeaseMs?: number;
+  processingHeartbeatTimeoutMs?: number;
+  processingHeartbeatIntervalMs?: number;
+  ownerTokenFactory?: () => string;
 }) {
-  const processingLeaseMs = input.processingLeaseMs ?? DEFAULT_PROCESSING_LEASE_MS;
+  const legacyProcessingLeaseMs = input.processingLeaseMs ?? LEGACY_PROCESSING_LEASE_MS;
+  const processingHeartbeatTimeoutMs = input.processingHeartbeatTimeoutMs
+    ?? input.processingLeaseMs
+    ?? DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS;
+  const processingHeartbeatIntervalMs = input.processingHeartbeatIntervalMs
+    ?? Math.min(DEFAULT_PROCESSING_HEARTBEAT_INTERVAL_MS, Math.max(100, Math.floor(processingHeartbeatTimeoutMs / 3)));
+  const ownerTokenFactory = input.ownerTokenFactory ?? randomUUID;
+
+  async function claimMessageForProcessingState(
+    handle: MessageLifecycleHandle,
+    now = new Date(),
+  ): Promise<MessageProcessingClaimDecision> {
+    if (!handle) return { status: "claimed" };
+
+    if (input.processingClaimRepository?.claimUnprocessedMessage) {
+      const ownerToken = ownerTokenFactory();
+      const decision = await input.processingClaimRepository.claimUnprocessedMessage(
+        handle.messageId,
+        ownerToken,
+        new Date(now.getTime() - processingHeartbeatTimeoutMs),
+        now,
+      );
+      return {
+        status: decision.state,
+        ownerToken: decision.ownerToken,
+      };
+    }
+
+    // Compatibilidade para doubles e consumidores antigos enquanto todos os
+    // caminhos migram para o claim com owner persistente.
+    if (handle.wasNewInsert) return { status: "claimed" };
+    if (!input.processingClaimRepository) return { status: "unavailable" };
+    const claimed = await input.processingClaimRepository.claimStaleUnprocessedMessage(
+      handle.messageId,
+      new Date(now.getTime() - legacyProcessingLeaseMs),
+      now,
+    );
+    return { status: claimed ? "recovered" : "inflight" };
+  }
 
   return {
+    processingHeartbeatIntervalMs,
+
     async beginInboundMessage(message: BeginInboundMessageInput): Promise<MessageLifecycleHandle> {
       const latencyTrace = getCurrentQuestionLatencyTrace() ?? beginCurrentQuestionLatencyTrace({
         userId: message.userId,
@@ -122,24 +187,45 @@ export function createMessageLifecycleService(input: {
       }
     },
 
-    async claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
-      if (!handle) return true;
-      if (handle.wasNewInsert) return true;
-      if (!input.processingClaimRepository) return false;
+    claimMessageForProcessingState,
 
-      return input.processingClaimRepository.claimStaleUnprocessedMessage(
+    async claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
+      const decision = await claimMessageForProcessingState(handle, now);
+      return decision.status === "claimed" || decision.status === "recovered";
+    },
+
+    async heartbeatMessageProcessing(
+      handle: MessageLifecycleHandle,
+      ownerToken: string,
+      heartbeatAt = new Date(),
+    ): Promise<boolean> {
+      if (!handle || !input.processingClaimRepository?.heartbeatOwnedUnprocessedMessage) return true;
+      return input.processingClaimRepository.heartbeatOwnedUnprocessedMessage(
         handle.messageId,
-        new Date(now.getTime() - processingLeaseMs),
-        now,
+        ownerToken,
+        heartbeatAt,
       );
     },
 
-    async releaseMessageForRetry(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
-      if (!handle || !input.processingClaimRepository?.releaseUnprocessedMessage) return false;
+    async releaseMessageForRetry(
+      handle: MessageLifecycleHandle,
+      now = new Date(),
+      ownerToken?: string,
+    ): Promise<boolean> {
+      if (!handle || !input.processingClaimRepository) return false;
+      if (ownerToken && input.processingClaimRepository.releaseOwnedUnprocessedMessage) {
+        return input.processingClaimRepository.releaseOwnedUnprocessedMessage(handle.messageId, ownerToken);
+      }
+      if (!input.processingClaimRepository.releaseUnprocessedMessage) return false;
       return input.processingClaimRepository.releaseUnprocessedMessage(
         handle.messageId,
-        new Date(now.getTime() - processingLeaseMs - 1),
+        new Date(now.getTime() - legacyProcessingLeaseMs - 1),
       );
+    },
+
+    async completeMessageProcessingClaim(handle: MessageLifecycleHandle, ownerToken?: string): Promise<boolean> {
+      if (!handle || !ownerToken || !input.processingClaimRepository?.completeOwnedMessageClaim) return false;
+      return input.processingClaimRepository.completeOwnedMessageClaim(handle.messageId, ownerToken);
     },
 
     async wasMessageAlreadyProcessed(handle: MessageLifecycleHandle): Promise<boolean> {
@@ -239,6 +325,9 @@ function createScope(service: MessageLifecycleService, current?: MessageLifecycl
     claimedMessageIds: current?.claimedMessageIds ?? new Set<number>(),
     externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
     claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
+    processingOwnerTokenByMessageId: current?.processingOwnerTokenByMessageId ?? new Map<number, string>(),
+    processingHeartbeatTimers: current?.processingHeartbeatTimers ?? new Map<number, ReturnType<typeof setInterval>>(),
+    heartbeatInFlightMessageIds: current?.heartbeatInFlightMessageIds ?? new Set<number>(),
     pendingProcessedMessages: current?.pendingProcessedMessages ?? new Map<number, PendingProcessedMessage>(),
   };
 }
@@ -247,19 +336,60 @@ function getActiveService() {
   return lifecycleScope.getStore()?.service ?? defaultService;
 }
 
+function stopProcessingHeartbeat(scope: MessageLifecycleScope, messageId: number) {
+  const timer = scope.processingHeartbeatTimers.get(messageId);
+  if (timer) clearInterval(timer);
+  scope.processingHeartbeatTimers.delete(messageId);
+  scope.heartbeatInFlightMessageIds.delete(messageId);
+}
+
+function stopAllProcessingHeartbeats(scope: MessageLifecycleScope) {
+  for (const messageId of [...scope.processingHeartbeatTimers.keys()]) {
+    stopProcessingHeartbeat(scope, messageId);
+  }
+}
+
+function registerPersistentOwner(
+  scope: MessageLifecycleScope,
+  handle: NonNullable<MessageLifecycleHandle>,
+  ownerToken: string | undefined,
+) {
+  if (!ownerToken) return;
+  scope.processingOwnerTokenByMessageId.set(handle.messageId, ownerToken);
+  stopProcessingHeartbeat(scope, handle.messageId);
+
+  const timer = setInterval(() => {
+    if (scope.heartbeatInFlightMessageIds.has(handle.messageId)) return;
+    scope.heartbeatInFlightMessageIds.add(handle.messageId);
+    void scope.service
+      .heartbeatMessageProcessing(handle, ownerToken, new Date())
+      .finally(() => scope.heartbeatInFlightMessageIds.delete(handle.messageId));
+  }, scope.service.processingHeartbeatIntervalMs);
+  if (typeof timer === "object" && "unref" in timer && typeof timer.unref === "function") timer.unref();
+  scope.processingHeartbeatTimers.set(handle.messageId, timer);
+}
+
 async function flushProcessedMessages(scope: MessageLifecycleScope) {
   const pending = [...scope.pendingProcessedMessages.values()];
   scope.pendingProcessedMessages.clear();
   for (const entry of pending) {
     await entry.service.markMessageProcessed(entry.handle, entry.processedAt);
+    await entry.service.completeMessageProcessingClaim(entry.handle, entry.ownerToken);
+    stopProcessingHeartbeat(scope, entry.handle.messageId);
   }
 }
 
 async function runOwnedScope<T>(scope: MessageLifecycleScope, operation: () => Promise<T>): Promise<T> {
   return runWithWhatsappInboundCorrelationScope(() => lifecycleScope.run(scope, async () => {
-    const result = await operation();
-    await flushProcessedMessages(scope);
-    return result;
+    try {
+      const result = await operation();
+      await flushProcessedMessages(scope);
+      return result;
+    } finally {
+      // Em erro/crash simulado o claim não é liberado aqui de propósito. O
+      // heartbeat para e outro runtime só assume depois da janela de liveness.
+      stopAllProcessingHeartbeats(scope);
+    }
   }));
 }
 
@@ -290,32 +420,59 @@ export async function beginInboundMessage(input: BeginInboundMessageInput): Prom
   return handle;
 }
 
-export async function claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
-  if (!handle) return true;
+export async function claimMessageForProcessingState(
+  handle: MessageLifecycleHandle,
+  now = new Date(),
+): Promise<MessageProcessingClaimStatus> {
+  if (!handle) return "claimed";
 
   const scope = lifecycleScope.getStore();
-  if (scope?.claimedMessageIds.has(handle.messageId)) return true;
+  if (scope?.claimedMessageIds.has(handle.messageId)) return "claimed";
 
-  const claimed = await getActiveService().claimMessageForProcessing(handle, now);
-  if (claimed && scope) {
+  const decision = await getActiveService().claimMessageForProcessingState(handle, now);
+  if ((decision.status === "claimed" || decision.status === "recovered") && scope) {
     scope.claimedMessageIds.add(handle.messageId);
     const externalMessageId = scope.externalMessageIdByMessageId.get(handle.messageId);
     if (externalMessageId) scope.claimedExternalMessageIds.add(externalMessageId);
+    registerPersistentOwner(scope, handle, decision.ownerToken);
   }
-  return claimed;
+  return decision.status;
 }
 
-/** Permite que caches locais reconheçam um retry legitimamente assumido pelo lease persistente. */
+export async function claimMessageForProcessing(handle: MessageLifecycleHandle, now = new Date()): Promise<boolean> {
+  const status = await claimMessageForProcessingState(handle, now);
+  return status === "claimed" || status === "recovered";
+}
+
+/** Permite que caches locais reconheçam um retry legitimamente assumido pelo claim persistente. */
 export function isExternalMessageClaimedInCurrentScope(externalMessageId?: string | null) {
   return Boolean(externalMessageId && lifecycleScope.getStore()?.claimedExternalMessageIds.has(externalMessageId));
 }
 
+/**
+ * Renova o owner no ponto imediatamente anterior a um efeito externo. Falha
+ * fechada: um runtime que perdeu o token não pode continuar enviando resposta.
+ */
+export async function ensureMessageProcessingOwnership(handle: MessageLifecycleHandle) {
+  if (!handle) return true;
+  const scope = lifecycleScope.getStore();
+  const ownerToken = scope?.processingOwnerTokenByMessageId.get(handle.messageId);
+  if (!scope || !ownerToken) return true;
+
+  const owned = await scope.service.heartbeatMessageProcessing(handle, ownerToken, new Date());
+  if (!owned) throw new WhatsAppProcessingOwnershipLostError();
+  return true;
+}
+
 export async function releaseMessageForRetry(handle: MessageLifecycleHandle, now = new Date()) {
   if (!handle) return false;
-  const released = await getActiveService().releaseMessageForRetry(handle, now);
+  const scope = lifecycleScope.getStore();
+  const ownerToken = scope?.processingOwnerTokenByMessageId.get(handle.messageId);
+  const released = await getActiveService().releaseMessageForRetry(handle, now, ownerToken);
   if (released) {
-    const scope = lifecycleScope.getStore();
     scope?.claimedMessageIds.delete(handle.messageId);
+    scope?.processingOwnerTokenByMessageId.delete(handle.messageId);
+    if (scope) stopProcessingHeartbeat(scope, handle.messageId);
     const externalMessageId = scope?.externalMessageIdByMessageId.get(handle.messageId);
     if (externalMessageId) scope?.claimedExternalMessageIds.delete(externalMessageId);
   }
@@ -356,6 +513,7 @@ export async function markMessageProcessed(handle: MessageLifecycleHandle, proce
     service: getActiveService(),
     handle,
     processedAt,
+    ownerToken: scope.processingOwnerTokenByMessageId.get(handle.messageId),
   });
 }
 
