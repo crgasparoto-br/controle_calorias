@@ -133,6 +133,7 @@ function buildDbCredentials() {
 export default defineConfig({
   schema: [
     "./drizzle/schema.ts",
+    "./drizzle/whatsapp-processing-schema.ts",
     "./drizzle/food-signals-schema.ts",
     "./drizzle/professional-schema.ts",
     "./drizzle/billing-schema.ts",
