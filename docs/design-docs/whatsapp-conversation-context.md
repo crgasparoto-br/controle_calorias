@@ -46,7 +46,7 @@ A ordem funcional é:
 11. gravação da resposta funcional;
 12. finalização de `processedAt` somente quando o escopo HTTP termina com sucesso.
 
-Acknowledgements intermediários de processamento não substituem a resposta funcional no histórico. Uma exceção descarta a finalização pendente e mantém a mensagem recuperável após o vencimento do lease.
+Acknowledgements intermediários de processamento não substituem a resposta funcional no histórico. Uma exceção descarta a finalização pendente. Falhas controladas podem liberar explicitamente a propriedade para retry; em término abrupto, a reentrega continua sendo não terminal até que uma resposta funcional seja concluída ou uma nova tentativa obtenha propriedade segura.
 
 ## Orçamento e resumo
 
@@ -58,14 +58,17 @@ Quando há overflow, o resumo é regenerado de forma idempotente e protegido con
 
 - A chave de idempotência baseada no `message.id` da Meta possui unicidade no banco.
 - A identidade do `message.id` também delimita qual inbound deve ser removido da janela da própria requisição; mensagens concorrentes no mesmo segundo não podem ser distinguidas apenas por timestamp.
-- Uma inserção nova recebe propriedade imediatamente; reentrega só retoma uma mensagem não processada quando o lease está vencido.
-- Reentrega de mensagem concluída não cria nova entrada nem repete ação de domínio.
+- Uma inserção nova recebe propriedade imediatamente.
+- Reentrega de mensagem concluída não cria nova entrada nem repete ação de domínio e pode ser reconhecida como duplicata terminal.
+- Reentrega de mensagem ainda não processada **não** pode ser confirmada como duplicata terminal apenas porque existe um claim/lease ainda dentro da janela. Enquanto não houver prova persistida de conclusão, o resultado HTTP deve permanecer retryável quando a reentrega não puder prosseguir.
+- O lease impede dois proprietários simultâneos, mas não é prova de conclusão. Após perda abrupta do proprietário, a próxima reentrega deve conseguir retomar o inbound sem depender exclusivamente de esperar o lease global inteiro expirar.
+- A recuperação de owner órfão não pode roubar uma mensagem de um proprietário comprovadamente ativo; o mecanismo de propriedade deve preservar execução única mesmo sob reentregas concorrentes.
 - Atualização de conversa e consumo de pendência usam versão/compare-and-set.
 - Duas instâncias podem processar mensagens sobre o mesmo armazenamento sem depender de lock em memória.
 - A ordenação lógica usa `occurredAt` e `id`, não a ordem de conclusão de download ou transcrição.
 - `processedAt` só é efetivado ao final de um escopo bem-sucedido.
 
-Caches locais podem existir apenas como fast-path. Quando o lease persistente concede propriedade, a requisição ignora esses caches. Eles não são a fronteira de correção.
+Caches locais podem existir apenas como fast-path. Quando o lease persistente concede propriedade, a requisição ignora esses caches. Eles não são a fronteira de correção e não podem ser usados como prova de que um inbound já terminou ou de que um owner ainda está vivo.
 
 ## Segurança de ações
 
@@ -105,6 +108,7 @@ Eventos de contexto registram, sem conteúdo de mensagem:
 - equivalência funcional de intenção, alvo e confirmação;
 - resumo utilizado ou falho;
 - duplicidade e conflito de concorrência;
+- classificação distinta entre duplicata terminal já processada, reentrega ainda em processamento e retomada de owner órfão;
 - fallback para banco ou clarificação;
 - latência, tamanho e custo quando disponíveis;
 - erro de persistência ou envio.
