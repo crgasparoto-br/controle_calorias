@@ -12,6 +12,7 @@ on:
       - "scripts/test-whatsapp-registration-details-restart-tidb.ts"
       - "server/repositories/whatsapp**"
       - "server/whatsapp*Webhook*.ts"
+      - "server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts"
       - ".github/workflows/whatsapp-context-tidb.yml"
   workflow_dispatch:
 
@@ -130,6 +131,11 @@ jobs:
 
       - name: Run registration details restart regression
         run: pnpm exec tsx scripts/test-whatsapp-registration-details-restart-tidb.ts
+
+      - name: Run webhook processing-owner crash/restart regression
+        env:
+          WHATSAPP_RESTART_TIDB_REGRESSION: "1"
+        run: pnpm exec vitest run server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts --reporter=verbose
 
       - name: Run quick edit meal update regression
         id: quick_edit_regression
