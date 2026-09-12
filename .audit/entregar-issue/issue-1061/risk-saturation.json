@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "head_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-081-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "scope-preservation",
+          "reason": "O requisito expõe a superfície authorization:scope-preservation; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-081-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-037-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "attempt-identity-isolation",
+          "reason": "O requisito expõe a superfície tenant-isolation:attempt-identity-isolation; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-037-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-011-01",
+        "CTRL-REQ-1061-015-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "processing-owner-liveness",
+          "reason": "O requisito expõe a superfície reference-liveness:processing-owner-liveness; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-011-01",
+            "CTRL-REQ-1061-015-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-001-01",
+        "CTRL-REQ-1061-012-01",
+        "CTRL-REQ-1061-013-01",
+        "CTRL-REQ-1061-015-02",
+        "CTRL-REQ-1061-019-01",
+        "CTRL-REQ-1061-032-02",
+        "CTRL-REQ-1061-035-01",
+        "CTRL-REQ-1061-036-01",
+        "CTRL-REQ-1061-050-01",
+        "CTRL-REQ-1061-054-01",
+        "CTRL-REQ-1061-055-01",
+        "CTRL-REQ-1061-065-01",
+        "CTRL-REQ-1061-066-02",
+        "CTRL-REQ-1061-067-02",
+        "CTRL-REQ-1061-071-02",
+        "CTRL-REQ-1061-073-02",
+        "CTRL-REQ-1061-076-01",
+        "CTRL-REQ-1061-079-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "ordering-and-retry",
+          "reason": "O requisito expõe a superfície temporal-consistency:ordering-and-retry; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-001-01",
+            "CTRL-REQ-1061-012-01",
+            "CTRL-REQ-1061-013-01",
+            "CTRL-REQ-1061-015-02",
+            "CTRL-REQ-1061-019-01",
+            "CTRL-REQ-1061-032-02",
+            "CTRL-REQ-1061-035-01",
+            "CTRL-REQ-1061-036-01",
+            "CTRL-REQ-1061-050-01",
+            "CTRL-REQ-1061-054-01",
+            "CTRL-REQ-1061-055-01",
+            "CTRL-REQ-1061-065-01",
+            "CTRL-REQ-1061-066-02",
+            "CTRL-REQ-1061-067-02",
+            "CTRL-REQ-1061-071-02",
+            "CTRL-REQ-1061-073-02",
+            "CTRL-REQ-1061-076-01",
+            "CTRL-REQ-1061-079-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-044-01",
+        "CTRL-REQ-1061-051-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "processing-owner-exclusivity",
+          "reason": "O requisito expõe a superfície concurrency-atomicity:processing-owner-exclusivity; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-044-01",
+            "CTRL-REQ-1061-051-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-020-01",
+        "CTRL-REQ-1061-024-01",
+        "CTRL-REQ-1061-027-01",
+        "CTRL-REQ-1061-030-01",
+        "CTRL-REQ-1061-031-01",
+        "CTRL-REQ-1061-032-01",
+        "CTRL-REQ-1061-034-01",
+        "CTRL-REQ-1061-039-01",
+        "CTRL-REQ-1061-041-01",
+        "CTRL-REQ-1061-042-01",
+        "CTRL-REQ-1061-043-01",
+        "CTRL-REQ-1061-049-01",
+        "CTRL-REQ-1061-063-01",
+        "CTRL-REQ-1061-066-01",
+        "CTRL-REQ-1061-067-01",
+        "CTRL-REQ-1061-070-01",
+        "CTRL-REQ-1061-071-01",
+        "CTRL-REQ-1061-072-01",
+        "CTRL-REQ-1061-073-01",
+        "CTRL-REQ-1061-079-01",
+        "CTRL-REQ-1061-081-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "O requisito expõe a superfície idempotency:duplicate-processing; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-020-01",
+            "CTRL-REQ-1061-024-01",
+            "CTRL-REQ-1061-027-01",
+            "CTRL-REQ-1061-030-01",
+            "CTRL-REQ-1061-031-01",
+            "CTRL-REQ-1061-032-01",
+            "CTRL-REQ-1061-034-01",
+            "CTRL-REQ-1061-039-01",
+            "CTRL-REQ-1061-041-01",
+            "CTRL-REQ-1061-042-01",
+            "CTRL-REQ-1061-043-01",
+            "CTRL-REQ-1061-049-01",
+            "CTRL-REQ-1061-063-01",
+            "CTRL-REQ-1061-066-01",
+            "CTRL-REQ-1061-067-01",
+            "CTRL-REQ-1061-070-01",
+            "CTRL-REQ-1061-071-01",
+            "CTRL-REQ-1061-072-01",
+            "CTRL-REQ-1061-073-01",
+            "CTRL-REQ-1061-079-01",
+            "CTRL-REQ-1061-081-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-022-01",
+        "CTRL-REQ-1061-033-02",
+        "CTRL-REQ-1061-037-01",
+        "CTRL-REQ-1061-042-02",
+        "CTRL-REQ-1061-060-01",
+        "CTRL-REQ-1061-072-02",
+        "CTRL-REQ-1061-081-03"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "O requisito expõe a superfície structural-contract:benchmark-path-fidelity; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-033-02",
+            "CTRL-REQ-1061-072-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-lifecycle",
+          "reason": "O requisito expõe a superfície structural-contract:canonical-lifecycle; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-022-01",
+            "CTRL-REQ-1061-037-01",
+            "CTRL-REQ-1061-042-02",
+            "CTRL-REQ-1061-081-03"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "stage-attribution-completeness",
+          "reason": "O requisito expõe a superfície structural-contract:stage-attribution-completeness; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-060-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-033-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "O requisito expõe a superfície documentation:canonical-claims; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "control_ids": [
+            "CTRL-REQ-1061-033-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+  "base_sha": "2f32a2cbffe9db12b5da954c2c6f19b46b7b59e0",
+  "evidence": [
+    {
+      "evidence_id": "EV-1061-CI",
+      "kind": "behavioral",
+      "path": "evidence/ci-exact-head.txt",
+      "sha256": "9715433f362fac99575ade147c8d1b896ede278dd76924f8748e954d0159ee64",
+      "subject_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-PERF",
+      "kind": "quantitative",
+      "path": "evidence/performance-contract.txt",
+      "sha256": "d074330bf61ad43bae4831f08f754e8c14f773ecb81b6a0ce5d9bea3a169a3d7",
+      "subject_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-RESTART",
+      "kind": "behavioral",
+      "path": "evidence/restart-controls.txt",
+      "sha256": "d69b8c752fbeca53731990ad3749754f4e3dc510c5f95a2e13c27856e069aa20",
+      "subject_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-DOCS",
+      "kind": "documentation",
+      "path": "evidence/documentation-delta.txt",
+      "sha256": "fad67a59e30c6f7271a9cc266ad8727024dc7e0bd591539fed050742252499da",
+      "subject_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head post-write-refreeze",
+      "status": "passed"
+    }
+  ]
+}
