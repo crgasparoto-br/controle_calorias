@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const getUserEntitlementsMock = vi.fn();
 const beginInboundMessageMock = vi.fn();
-const claimMessageForProcessingMock = vi.fn();
+const claimMessageForProcessingStateMock = vi.fn();
 const markMessageProcessedMock = vi.fn();
 const sendWhatsAppLogicalDomainReplyMock = vi.fn();
 
@@ -15,7 +15,7 @@ vi.mock("./modules/billing/service", () => ({
 }));
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
-  claimMessageForProcessing: claimMessageForProcessingMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
   markMessageProcessed: markMessageProcessedMock,
 }));
 vi.mock("./modules/whatsapp/logicalReplyDelivery", () => ({
@@ -41,8 +41,12 @@ describe("suspended WhatsApp write gate", () => {
       sourceAvailable: true,
       evaluatedAt: new Date("2026-08-10T12:00:00.000Z"),
     });
-    beginInboundMessageMock.mockResolvedValue({ id: 99 });
-    claimMessageForProcessingMock.mockResolvedValue(true);
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 77,
+      messageId: 99,
+      wasNewInsert: true,
+    });
+    claimMessageForProcessingStateMock.mockResolvedValue("claimed");
     markMessageProcessedMock.mockResolvedValue(undefined);
     sendWhatsAppLogicalDomainReplyMock.mockResolvedValue({ result: { primaryOk: true } });
   });
