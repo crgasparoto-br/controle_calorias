@@ -4,7 +4,7 @@ import { canUseBillingWriteAccess } from "./modules/billing/types";
 import { buildWhatsAppReadOnlyAccessReplyMessage } from "./modules/billing/whatsappAccessReply";
 import {
   beginInboundMessage,
-  claimMessageForProcessing,
+  claimMessageForProcessingState,
   markMessageProcessed,
 } from "./modules/whatsapp/messageLifecycle";
 import { sendWhatsAppLogicalDomainReply } from "./modules/whatsapp/logicalReplyDelivery";
@@ -70,7 +70,13 @@ async function handleReadOnlyMessage(item: IndexedWhatsAppWebhookMessage) {
     occurredAt: resolveWhatsAppMessageOccurredAt(message),
     allowRawContentStorage: false,
   });
-  if (!(await claimMessageForProcessing(lifecycleHandle))) return true;
+  const claimState = await claimMessageForProcessingState(lifecycleHandle);
+  if (claimState === "processed") return true;
+  if (claimState === "inflight" || claimState === "unavailable") {
+    // O webhook principal reavalia o mesmo inbound e devolve 503 retryable.
+    // Não transformar ownership transitório em ACK terminal neste gate.
+    return false;
+  }
 
   await sendWhatsAppLogicalDomainReply({
     to: message.from,
