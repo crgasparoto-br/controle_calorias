@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:b46febc0-b464-419b-80ab-a82aa62a6f64",
+      "finding_id": "A-1070-001",
+      "audited_head_sha": "da805e401b2a4eeeb3e4ae7111e885b119ca317f",
+      "remediation_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7"
+    }
+  ],
+  "controls": [
+    {
+      "id": "IC-1061-REAL-WEBHOOK-PERSISTENT-RESTART",
+      "status": "passed",
+      "head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "subject_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "control_type": "test",
+      "evidence": "evidence/restart-integrated.txt",
+      "evidence_sha256": "edcae56d4d08b65dcfeacb5773f4858e64b08e96c32df91c83d42b32ed7da64d",
+      "procedure": "Repeat one Meta message.id through the real persistent-context webhook with separate lifecycle runtime scopes sharing TiDB; crash after claim, probe the live owner, recover the orphan, then replay after persisted completion.",
+      "expected": "Unfinished active ownership remains retryable and exclusive; orphan ownership recovers before the legacy lease; ACK/final/domain effects execute once; terminal replay is idempotent and cache-independent.",
+      "observed": "WhatsApp context TiDB run 34696879452 passed the dedicated integrated crash/restart step on exact material 99f5189eb41498aca9879d20fa7900f53e6e92e7.",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "restart-same-message-id-integrated",
+      "attack_control_id": "CTRL-REQ-1061-071-01"
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": []
+}

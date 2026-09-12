@@ -51,7 +51,8 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
     messageId: 10,
     wasNewInsert: true,
   })),
-  claimMessageForProcessing: vi.fn(async () => true),
+  claimMessageForProcessingState: vi.fn(async () => "claimed"),
+  wasMessageAlreadyProcessed: vi.fn(async () => false),
   markMessageProcessed: markMessageProcessedMock,
   recordDomainLink: vi.fn(async () => undefined),
   runWithMessageLifecycleRequestScope: async (

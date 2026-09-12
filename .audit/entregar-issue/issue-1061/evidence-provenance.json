@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+  "base_sha": "6507bdc0dc14ebc744de75393e5dc0c6bda8b112",
+  "evidence": [
+    {
+      "evidence_id": "EV-1061-CI",
+      "kind": "behavioral",
+      "path": "evidence/ci-exact-head.txt",
+      "sha256": "4b198a8780e5053b45c4a3ba29515775447e6f8be9a60b7ff7700f33029e0842",
+      "subject_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue targeted post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-RESTART",
+      "kind": "behavioral",
+      "path": "evidence/restart-integrated.txt",
+      "sha256": "edcae56d4d08b65dcfeacb5773f4858e64b08e96c32df91c83d42b32ed7da64d",
+      "subject_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue targeted post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-PERF",
+      "kind": "quantitative",
+      "path": "evidence/performance-contract.txt",
+      "sha256": "60396bbbd6f67c3e6643ae0354e06123d8521e05e118c6d72b211319a0fade3a",
+      "subject_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue targeted post-write-refreeze",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-1061-DOCS",
+      "kind": "documentation",
+      "path": "evidence/documentation-delta.txt",
+      "sha256": "b99bc3fd8acceef9b50c71b56bbede39e1253baa1b5f336fb7589afda41ead55",
+      "subject_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue targeted post-write-refreeze",
+      "status": "passed"
+    }
+  ]
+}

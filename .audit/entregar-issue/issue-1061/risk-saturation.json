@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-081-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "scope-preservation",
+          "reason": "The canonical requirement exposes authorization:scope-preservation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-081-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-037-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "attempt-identity-isolation",
+          "reason": "The canonical requirement exposes tenant-isolation:attempt-identity-isolation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-037-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-011-01",
+        "CTRL-REQ-1061-015-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "processing-owner-liveness",
+          "reason": "The canonical requirement exposes reference-liveness:processing-owner-liveness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-011-01",
+            "CTRL-REQ-1061-015-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-001-01",
+        "CTRL-REQ-1061-012-01",
+        "CTRL-REQ-1061-013-01",
+        "CTRL-REQ-1061-015-02",
+        "CTRL-REQ-1061-019-01",
+        "CTRL-REQ-1061-032-02",
+        "CTRL-REQ-1061-035-01",
+        "CTRL-REQ-1061-036-01",
+        "CTRL-REQ-1061-050-01",
+        "CTRL-REQ-1061-054-01",
+        "CTRL-REQ-1061-055-01",
+        "CTRL-REQ-1061-065-01",
+        "CTRL-REQ-1061-066-02",
+        "CTRL-REQ-1061-067-02",
+        "CTRL-REQ-1061-071-02",
+        "CTRL-REQ-1061-073-02",
+        "CTRL-REQ-1061-076-01",
+        "CTRL-REQ-1061-079-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "ordering-and-retry",
+          "reason": "The canonical requirement exposes temporal-consistency:ordering-and-retry; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-001-01",
+            "CTRL-REQ-1061-012-01",
+            "CTRL-REQ-1061-013-01",
+            "CTRL-REQ-1061-015-02",
+            "CTRL-REQ-1061-019-01",
+            "CTRL-REQ-1061-032-02",
+            "CTRL-REQ-1061-035-01",
+            "CTRL-REQ-1061-036-01",
+            "CTRL-REQ-1061-050-01",
+            "CTRL-REQ-1061-054-01",
+            "CTRL-REQ-1061-055-01",
+            "CTRL-REQ-1061-065-01",
+            "CTRL-REQ-1061-066-02",
+            "CTRL-REQ-1061-067-02",
+            "CTRL-REQ-1061-071-02",
+            "CTRL-REQ-1061-073-02",
+            "CTRL-REQ-1061-076-01",
+            "CTRL-REQ-1061-079-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-044-01",
+        "CTRL-REQ-1061-051-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "processing-owner-exclusivity",
+          "reason": "The canonical requirement exposes concurrency-atomicity:processing-owner-exclusivity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-044-01",
+            "CTRL-REQ-1061-051-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-020-01",
+        "CTRL-REQ-1061-024-01",
+        "CTRL-REQ-1061-027-01",
+        "CTRL-REQ-1061-030-01",
+        "CTRL-REQ-1061-031-01",
+        "CTRL-REQ-1061-032-01",
+        "CTRL-REQ-1061-034-01",
+        "CTRL-REQ-1061-039-01",
+        "CTRL-REQ-1061-041-01",
+        "CTRL-REQ-1061-042-01",
+        "CTRL-REQ-1061-043-01",
+        "CTRL-REQ-1061-049-01",
+        "CTRL-REQ-1061-063-01",
+        "CTRL-REQ-1061-066-01",
+        "CTRL-REQ-1061-067-01",
+        "CTRL-REQ-1061-070-01",
+        "CTRL-REQ-1061-071-01",
+        "CTRL-REQ-1061-072-01",
+        "CTRL-REQ-1061-073-01",
+        "CTRL-REQ-1061-079-01",
+        "CTRL-REQ-1061-081-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "The canonical requirement exposes idempotency:duplicate-processing; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-020-01",
+            "CTRL-REQ-1061-024-01",
+            "CTRL-REQ-1061-027-01",
+            "CTRL-REQ-1061-030-01",
+            "CTRL-REQ-1061-031-01",
+            "CTRL-REQ-1061-032-01",
+            "CTRL-REQ-1061-034-01",
+            "CTRL-REQ-1061-039-01",
+            "CTRL-REQ-1061-041-01",
+            "CTRL-REQ-1061-042-01",
+            "CTRL-REQ-1061-043-01",
+            "CTRL-REQ-1061-049-01",
+            "CTRL-REQ-1061-063-01",
+            "CTRL-REQ-1061-066-01",
+            "CTRL-REQ-1061-067-01",
+            "CTRL-REQ-1061-070-01",
+            "CTRL-REQ-1061-071-01",
+            "CTRL-REQ-1061-072-01",
+            "CTRL-REQ-1061-073-01",
+            "CTRL-REQ-1061-079-01",
+            "CTRL-REQ-1061-081-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-022-01",
+        "CTRL-REQ-1061-033-02",
+        "CTRL-REQ-1061-037-01",
+        "CTRL-REQ-1061-042-02",
+        "CTRL-REQ-1061-060-01",
+        "CTRL-REQ-1061-072-02",
+        "CTRL-REQ-1061-081-03"
+      ],
+      "dimensions": [
+        {
+          "surface": "behavioral-contract",
+          "reason": "The canonical requirement exposes structural-contract:behavioral-contract; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-022-01",
+            "CTRL-REQ-1061-037-01",
+            "CTRL-REQ-1061-042-02",
+            "CTRL-REQ-1061-081-03"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "The canonical requirement exposes structural-contract:benchmark-path-fidelity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-033-02",
+            "CTRL-REQ-1061-072-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "stage-attribution-completeness",
+          "reason": "The canonical requirement exposes structural-contract:stage-attribution-completeness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-060-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "CTRL-REQ-1061-033-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "The canonical requirement exposes documentation:canonical-claims; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-033-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}

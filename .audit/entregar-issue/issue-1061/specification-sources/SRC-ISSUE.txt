@@ -1,0 +1,223 @@
+<!-- specification_version: 3 -->
+
+## Objetivo
+
+Corrigir a experiência e a confiabilidade das perguntas iniciadas por `/` no WhatsApp para que o usuário receba confirmação imediata de que a pergunta foi aceita e, depois, uma resposta final; falhas transitórias de entrega **e término abrupto/restart do processo** não podem transformar uma pergunta aceita em silêncio permanente.
+
+A implementação deve partir de `develop` e preservar a fundação multi-provider, pesquisa web, contexto, lifecycle persistente, governança de uso e políticas centrais existentes.
+
+## Contexto
+
+A #989 reduziu a latência total, mas o fluxo de pergunta `/` ainda tinha duas fragilidades:
+
+1. não havia feedback imediato enquanto contexto + IA eram processados;
+2. uma falha de outbound podia encerrar o inbound como processado sem resposta funcional efetivamente entregue.
+
+A PR #1062 implementou ACK imediato, recuperação limitada de outbound e liberação explícita do claim em falhas controladas. A PR #1063 promoveu essa correção para `main`.
+
+### Evidência de produção que reabriu o contrato
+
+Em **11/09/2026 às 09:21 BRT**, a pergunta `/ Qual opção para um jantar rico em proteínas` não recebeu ACK nem resposta final mesmo com a correção já em produção. Pouco depois, o Render reiniciou a instância do `controle-calorias-api`; houve janela com `instance_count=0` e respostas HTTP 502. CPU e memória não indicaram saturação/OOM.
+
+A investigação mostrou uma lacuna diferente da falha controlada de outbound:
+
+- `messageLifecycle` usa lease de processamento de 15 minutos;
+- em crash/restart abrupto, o processo não executa `releaseMessageForRetry()`;
+- se a Meta reentrega o mesmo `message.id` antes do lease ficar stale, `claimMessageForProcessing()` falha;
+- hoje `whatsappImageIdempotencyWebhook.ts` classifica isso como `duplicate`, remove a mensagem do payload e pode responder **HTTP 200 com `deduplicated: true` e `processed: 0`**;
+- assim, um inbound ainda sem resposta funcional pode ser confirmado como terminal ao provider e nunca mais ser reenviado.
+
+A documentação canônica anterior também dizia que a reentrega só retomava uma mensagem não processada após o vencimento do lease, o que é incompatível com recuperação rápida de owner órfão. A reconciliação documental está na PR #1068.
+
+## Fontes canônicas afetadas
+
+- `docs/design-docs/whatsapp-conversation-context.md` — ownership, lifecycle, idempotência e concorrência;
+- `docs/testing/whatsapp-conversation-context-regression.md` — matriz de regressão e staging;
+- `docs/benchmarks/question-latency/README-v3.md` — contrato específico da capacidade `QUESTION`, ACK, telemetria e retry.
+
+A PR documental #1068 atualiza essas fontes. A implementação deve permanecer coerente com elas; não criar um segundo contrato de lifecycle exclusivo para `/`.
+
+## Comportamento esperado
+
+Para uma pergunta válida como:
+
+```text
+/como está meu consumo de proteína hoje?
+```
+
+o fluxo deve ser:
+
+1. persistir/validar o inbound e resolver o usuário conforme o lifecycle atual;
+2. reconhecer deterministicamente a pergunta `/` e validar que a capacidade `QUESTION` está disponível;
+3. disparar imediatamente uma confirmação curta, por exemplo `✅ Recebi sua pergunta. Estou preparando a resposta…`;
+4. iniciar/continuar em paralelo o carregamento de contexto e a chamada de IA, sem serializar o trabalho caro atrás do ACK;
+5. garantir que a tentativa do ACK termine antes de liberar a resposta final, evitando inversão visual;
+6. enviar a resposta final normalmente;
+7. se a primeira tentativa da resposta final falhar por condição transitória, executar no máximo uma recuperação imediata com identidade física distinta;
+8. se nenhuma tentativa final for entregue, não gravar resposta funcional nem `processedAt`, liberar explicitamente o claim quando o processo continua vivo e devolver resposta HTTP retryável;
+9. se o processo terminar abruptamente antes da liberação, a reentrega do mesmo POST + `message.id` deve continuar não terminal e conseguir retomar após perda do owner **sem depender de esperar os 15 minutos do lease global**;
+10. retries/restarts devem preservar idempotência: ACK, resposta final e efeitos de domínio já concluídos não podem ser duplicados;
+11. falha do ACK deve ser observável, mas não impedir a tentativa da resposta final.
+
+## Escopo
+
+- manter o hook de aceitação da pergunta no caminho canônico de `/`;
+- executar ACK e contexto/IA concorrentemente, preservando ACK -> resposta final;
+- manter resposta final e ACK idempotentes;
+- manter recuperação imediata limitada de falha transitória de outbound;
+- corrigir o lifecycle de reentrega quando o inbound existe, está `unprocessed` e o owner anterior pode ter sido perdido por crash/restart;
+- impedir que `claim=false` em inbound ainda não processado seja convertido automaticamente em duplicata terminal HTTP 200;
+- preservar exclusão mútua: uma reentrega não pode roubar um claim de um owner comprovadamente ativo;
+- permitir retomada de owner órfão sem depender exclusivamente do vencimento integral do lease de 15 minutos;
+- manter o mesmo entrypoint público `POST /api/whatsapp/webhook` e o mesmo `message.id` da Meta como caminho de recuperação;
+- instrumentar estados distinguíveis de duplicata concluída, reentrega em processamento e retomada de owner órfão;
+- atualizar regressões do webhook/lifecycle para crash/restart durante processamento;
+- manter documentação/benchmark coerentes com a semântica implementada.
+
+## Fora de escopo
+
+- streaming de tokens no WhatsApp;
+- trocar provider/modelo apenas para mascarar latência;
+- remover `web_search` de `QUESTION`;
+- criar fila externa ou arquitetura de background nova;
+- criar endpoint auxiliar de recuperação;
+- exigir intervenção manual para liberar mensagens;
+- alterar sem necessidade os contratos funcionais de comandos sem `/`;
+- fazer merge automático.
+
+## Invariantes
+
+### `must_behave`
+
+- pergunta `/` válida recebe confirmação antes da resposta final;
+- contexto/LLM começa sem aguardar serialmente a confirmação;
+- falha do ACK não suprime a resposta final;
+- falha transitória da primeira entrega final tem no máximo uma recuperação imediata;
+- se nenhuma tentativa final for entregue, o inbound permanece não processado e retryável;
+- após crash/restart entre claim e conclusão, a reentrega do mesmo `message.id` consegue fazer progresso sem avançar artificialmente o relógio por 15 minutos;
+- uma resposta outbound já persistida é reconhecida como conclusão idempotente em retry posterior;
+- a recuperação usa o mesmo webhook público e a mesma mensagem da Meta.
+
+### `must_not_behave`
+
+- não enviar ACK para `/` vazio quando a validação já responde imediatamente;
+- não enviar `estou preparando` quando `QUESTION` estiver indisponível e essa indisponibilidade já puder ser respondida imediatamente;
+- não enviar duas respostas finais efetivas;
+- não duplicar ACK já efetivamente entregue;
+- não permitir resposta final antes de uma tentativa de ACK ainda pendente;
+- não reutilizar a mesma identidade física de uma tentativa de outbound já finalizada como falha;
+- não marcar a pergunta como processada quando nenhuma resposta funcional foi entregue;
+- **não responder HTTP 200 apenas como `duplicate` quando o inbound está sem `processedAt` e a requisição não conseguiu adquirir o claim**;
+- não roubar claim de uma execução ainda comprovadamente ativa;
+- não resolver crash safety simplesmente permitindo processamento concorrente do mesmo inbound.
+
+### `must_reuse`
+
+- `messageLifecycle`/processing claim/deduplicação persistentes como lifecycle canônico;
+- `resolveWhatsAppPrecedenceGate` e `executeWhatsappAiQuestionIntent` como fluxo canônico de `/`;
+- `sendWhatsAppLogical...`/transporte atual;
+- governança de dispatch do provider como fonte de idempotência física;
+- `whatsapp.ai_question.latency` e benchmark de question latency;
+- resolução central da capacidade `QUESTION`;
+- `POST /api/whatsapp/webhook` como único entrypoint público de reentrega.
+
+### `must_be_single_source`
+
+- estado terminal do inbound vem da persistência/lifecycle (`processedAt`, resposta funcional/vínculos idempotentes), não de cache local;
+- ownership/retry deve ter uma única semântica compartilhada pelo lifecycle do WhatsApp, não uma regra paralela somente para perguntas `/`.
+
+### `must_not_depend_on`
+
+- expiração integral do lease de 15 minutos como condição normal para recuperar owner perdido;
+- cache em memória para decidir se uma mensagem terminou ou se um owner continua vivo;
+- GET/health-check intermediário antes do retry;
+- intervenção manual/restart adicional;
+- novo `message.id` da Meta para recuperar a mesma mensagem.
+
+### `precedence_invariants`
+
+1. **conclusão persistida** (`processedAt`/resposta funcional idempotente) vence qualquer sinal transitório: redelivery é duplicata terminal e não reexecuta domínio/outbound;
+2. **inbound ainda não processado** não é terminal: claim existente pode impedir concorrência, mas não pode por si só converter a reentrega em sucesso HTTP definitivo;
+3. **owner ativo** mantém exclusividade; **owner perdido** deve ser recuperável sem esperar o lease inteiro;
+4. cache local nunca prevalece sobre o estado persistente.
+
+### `forbidden_implementation`
+
+- reduzir o lease global a um valor tão curto que duas requisições possam processar a mesma mensagem simultaneamente;
+- limpar indiscriminadamente todos os claims no startup;
+- promover toda reentrega imediatamente a owner sem verificar exclusividade;
+- tratar `claim=false` como `processed`/HTTP 200 sem consultar o estado terminal persistido;
+- adicionar roteador, fila ou endpoint paralelo apenas para recuperar `/`.
+
+## Controles discriminantes
+
+1. **ACK serializa a IA:** ACK artificialmente lento + provider/contexto instrumentados; processamento caro começa antes de o ACK concluir.
+2. **ACK chega depois da resposta:** provider rápido + ACK lento; resposta final só é liberada após a tentativa do ACK.
+3. **ACK falha e mata a pergunta:** transporte do ACK falha; resposta final ainda é gerada e tentada.
+4. **Retry duplica ACK:** repetir o mesmo `messageId`; no máximo um ACK é efetivamente entregue.
+5. **Métrica enganosa:** `time_to_ack_ms` mede confirmação; `total_ms` continua representando a resposta final.
+6. **Primeiro outbound final falha:** primeira tentativa transitória falha e a segunda sucesso; uma única resposta final efetiva e inbound processado.
+7. **Duas tentativas finais falham:** nenhuma resposta funcional/`processedAt`; claim é liberado e webhook devolve status retryável.
+8. **Crash após claim, antes de ACK/final:** terminar o runtime depois do claim, iniciar novo runtime e repetir imediatamente o mesmo POST + `message.id`; sem avançar 15 min, a mensagem não pode ser consumida com 200 silencioso e deve conseguir retomar.
+9. **Crash após ACK, antes da final:** replay não duplica ACK e entrega exatamente uma resposta final.
+10. **Crash após final persistida, antes de `processedAt`:** replay reconhece conclusão idempotente e não envia segunda resposta final.
+11. **Owner ainda saudável:** manter primeira requisição bloqueada/ativa e enviar a mesma mensagem em concorrência; segunda requisição não executa IA/domínio/outbound em paralelo e não rouba ownership.
+12. **Claim ocupado não processado:** enquanto a segunda requisição não puder prosseguir e não houver conclusão persistida, ela não recebe HTTP 200 terminal por deduplicação.
+13. **Solução por lease curto:** teste concorrente mantém a primeira execução além do limiar escolhido; ainda assim não pode haver dois owners/efeitos.
+14. **Cache local enganoso:** reiniciar/limpar caches sem alterar persistência não muda a decisão terminal do inbound.
+15. **Falha não retryável:** validação/configuração não entra em loop imediato de provider; permanece observável conforme política explícita do canal.
+
+## Critérios de aceite
+
+- [ ] Pergunta `/` válida gera `✅ Recebi sua pergunta. Estou preparando a resposta…` antes da resposta final.
+- [ ] ACK é disparado antes da etapa cara e não serializa contexto/LLM.
+- [ ] Resposta final aguarda somente a conclusão da tentativa do ACK necessária para preservar ordem.
+- [ ] Falha do ACK é registrada e não impede a resposta final.
+- [ ] `/` vazio continua recebendo somente a orientação existente.
+- [ ] `QUESTION` indisponível continua respondendo sem ACK enganoso.
+- [ ] `time_to_ack_ms`, `ack_delivery_ok`, `total_ms`, `db_ms`, `context_ms`, `llm_ms` e `persist_ms` preservam sua semântica.
+- [ ] Primeira falha transitória de entrega final executa no máximo uma recuperação imediata com identidade física distinta.
+- [ ] Falha de todas as tentativas finais não grava resposta funcional nem finaliza `processedAt` e devolve HTTP retryável.
+- [ ] Redelivery de inbound já concluído retorna sucesso idempotente sem duplicar ACK/resposta/efeito.
+- [ ] Redelivery de inbound ainda não processado **não** retorna 200 terminal somente porque o claim não pôde ser adquirido.
+- [ ] Após crash/restart entre claim e conclusão, o mesmo POST + `message.id` retoma sem espera artificial de 15 minutos.
+- [ ] Retry após ACK entregue e antes da final não duplica ACK.
+- [ ] Retry após resposta final persistida e antes de `processedAt` não duplica a resposta final.
+- [ ] Reentrega concorrente com owner original saudável mantém exatamente um owner funcional.
+- [ ] Recuperação de owner órfão não depende de cache local, GET auxiliar, intervenção manual ou novo `message.id`.
+- [ ] Observabilidade distingue semanticamente: duplicata já processada, reentrega ainda em processamento e owner órfão retomado.
+- [ ] `RESTART-IDEM-001` executa o mesmo webhook/messageId após término abrupto, sem operação auxiliar e sem avanço do relógio pelo lease integral.
+- [ ] Benchmark distingue ACK auxiliar, resposta final, retry físico e replay/restart sem contar tentativa física falha como segunda resposta lógica.
+- [ ] Testes do webhook real cobrem ordem ACK -> resposta final, outbound retry e crash/restart durante claim.
+- [ ] Testes, type-check, architecture/docs checks, TiDB gate aplicável e build passam.
+
+## Considerações de teste
+
+Além das regressões unitárias, a prova precisa atravessar o **entrypoint HTTP real** e o lifecycle persistente. Um teste que apenas chama `releaseMessageForRetry()` não cobre o defeito de restart porque o processo morto não executa cleanup.
+
+A simulação de restart deve criar um novo runtime/escopo de processamento sobre a mesma persistência, repetir o mesmo payload Meta e `message.id` imediatamente e provar simultaneamente:
+
+- ausência de 200 terminal enquanto a mensagem continua sem conclusão;
+- retomada sem espera integral do lease;
+- uma única execução funcional;
+- idempotência de ACK e resposta já persistidos;
+- nenhuma dependência de cache em memória.
+
+## Impacto na documentação
+
+Reconciliar as fontes canônicas, sem manter a regra somente nesta issue:
+
+- `docs/design-docs/whatsapp-conversation-context.md` — substituir a regra antiga de "retry apenas após lease vencido" pelo contrato de estado terminal vs. owner/inflight;
+- `docs/testing/whatsapp-conversation-context-regression.md` — adicionar crash durante claim, concurrent owner e terminal duplicate;
+- `docs/benchmarks/question-latency/README-v3.md` — registrar a semântica específica de `QUESTION`, observabilidade e controles de replay/restart.
+
+PR documental: #1068.
+
+## Premissas
+
+- O mecanismo concreto para identificar owner ativo/órfão é decisão de implementação, desde que satisfaça os invariantes e controles acima.
+- A mudança pode ocorrer no lifecycle genérico porque o defeito está na fronteira compartilhada; isso não autoriza alterar comportamentos funcionais de outros intents além do necessário para preservar retry/idempotência.
+
+## Relação
+
+Follow-up de UX/performance da #989. A #1062/#1063 corrigiu ACK e falha controlada de outbound; esta revisão fecha a lacuna de **process termination/restart durante ownership do inbound** descoberta em produção.

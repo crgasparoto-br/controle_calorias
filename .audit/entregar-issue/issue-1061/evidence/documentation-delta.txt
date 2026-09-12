@@ -1,0 +1,3 @@
+Issue #1061 documentation consistency revalidation
+material_head_sha=99f5189eb41498aca9879d20fa7900f53e6e92e7
+No documentation semantics were changed by the targeted A-1070-001 remediation. Canonical restart/owner semantics already present in docs/design-docs/whatsapp-conversation-context.md, docs/testing/whatsapp-conversation-context-regression.md and docs/benchmarks/question-latency/README-v3.md remain consistent with the integrated TiDB regression. Agent-first run 34696879500 Documentation check and Agent check passed on the same material head.

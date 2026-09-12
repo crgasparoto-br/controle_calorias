@@ -20,6 +20,8 @@ A partir da issue #1061, o webhook produtivo pode emitir uma confirmação auxil
 
 A mesma issue também torna a entrega final recuperável. Uma falha transitória de rede/provider pode gerar no máximo uma recuperação imediata dentro da mesma requisição, com identidade física de dispatch distinta da tentativa original. Se nenhuma tentativa final for entregue, o inbound não recebe `processedAt`: o processing claim é liberado e a borda HTTP devolve 5xx para permitir que a Meta reentregue o mesmo webhook. A reentrega usa o mesmo entrypoint público e o mesmo `messageId`; ACK e resposta funcional já efetivamente entregues continuam protegidos por idempotência.
 
+A recuperação também cobre término abrupto da instância depois de adquirido o claim. Nessa situação não existe oportunidade de executar `releaseMessageForRetry()`: por isso, uma reentrega que encontra o inbound ainda sem `processedAt` não pode ser tratada como duplicata terminal apenas porque o lease anterior ainda está dentro da janela. Se a tentativa não puder prosseguir, a borda HTTP continua retryável; depois que o owner anterior deixa de ser válido, uma nova tentativa deve poder assumir o mesmo inbound sem esperar o lease global inteiro. Essa regra não autoriza roubar um claim de um owner ainda ativo nem criar duas execuções funcionais.
+
 Para tornar a comparação reproduzível e sem credenciais, somente fronteiras externas são substituídas por doubles determinísticos: repositório/persistência, entrega do WhatsApp, histórico/consultas de contexto e provider. A execução continua atravessando os módulos produtivos de lifecycle, montagem de prompt, resolução/execução central de `QUESTION` e entrega lógica de cada SHA testado. Assim, a diferença mede o trabalho removido do caminho crítico sem depender da variância de rede da OpenAI/Gemini ou de banco remoto.
 
 ## Métricas e integridade da coorte
@@ -35,6 +37,7 @@ O gate exige:
 - nenhuma regressão superior a 5% em p50, p90 ou p95;
 - nenhum aumento de erros ou timeouts;
 - exatamente uma chamada ao provider de `QUESTION` e uma resposta final lógica por pergunta bem-sucedida; no fluxo produtivo com #1061 é permitida no máximo uma confirmação auxiliar idempotente e uma tentativa física adicional de entrega final quando a primeira falha de modo transitório;
+- restart/replay do mesmo `messageId` não produz duas respostas finais nem consome com sucesso terminal um inbound ainda não processado;
 - `web_search` disponível em toda pergunta bem-sucedida;
 - as mesmas operações de lifecycle/persistência da resposta final em baseline e candidato;
 - identidades Git baseline/candidato distintas e verificadas pelos worktrees;
@@ -73,9 +76,13 @@ Para perguntas `/` aceitas no webhook real, a issue #1061 adiciona ao evento `wh
 - `delivery_retry_occurred`: indica se houve a recuperação imediata da entrega final;
 - `delivery_retry_release_issued`: indica que nenhuma entrega final foi concluída e o claim foi liberado para reentrega.
 
+Além do trace de latência, a observabilidade de idempotência precisa distinguir semanticamente pelo menos três resultados: duplicata terminal já processada, reentrega ainda em processamento e retomada de owner órfão após crash/restart. Os nomes concretos dos eventos/campos podem seguir a convenção do repositório, mas esses estados não podem ficar colapsados em um único `duplicate_detected` indistinguível.
+
 Falha do ACK é best-effort: ela deve permanecer observável, mas não transforma por si só uma resposta final bem-sucedida em erro e não impede a tentativa da resposta final. O ACK usa uma posição de envio idempotente própria derivada do `messageId`, separada da posição da resposta final, para evitar colisão ou duplicação em replay.
 
 A resposta funcional segue semântica distinta: o transporte tenta a posição original; para falhas transitórias, pode executar uma recuperação imediata com identidade de dispatch própria. Se a entrega final continuar falhando, não há gravação de resposta outbound nem `processedAt`, o claim persistente volta a ficar imediatamente reclaimable e o endpoint HTTP responde 5xx. Em uma reentrega, uma resposta outbound já gravada para o inbound é tratada como conclusão idempotente para não reenviar conteúdo já entregue após crash entre persistência e finalização do lifecycle.
+
+Em crash/restart entre claim e resposta, não há release explícito garantido. O contrato de borda é, portanto, não terminal até existir `processedAt`/resposta funcional persistida: uma tentativa bloqueada por ownership ainda não concluído não deve receber 200 apenas por deduplicação. A recuperação deve continuar protegendo execução única e não pode depender de cache em memória, GET auxiliar, intervenção manual ou espera integral do lease global como condição normal de retomada.
 
 Para o consumidor `slash_assistant`, o builder de histórico é chamado em modo mínimo: sem `currentDomainSnapshot`, sem memória contextual, sem resumo e sem shadow intent comparison. Isso preserva a seleção canônica de `recentTurns` e elimina I/O/cálculo que o prompt de `QUESTION` não consome.
 
@@ -90,5 +97,7 @@ A otimização é fail-safe: `full` continua sendo o fallback para follow-ups, f
 A confirmação da #1061 também é fail-safe: `/` vazio e capacidade `QUESTION` indisponível não emitem uma mensagem enganosa de processamento; nesses casos a resposta imediata existente permanece suficiente. Quando há ACK, a chamada de confirmação e o processamento de IA são concorrentes, e apenas a entrega final aguarda a tentativa do ACK quando necessário para preservar a ordem das mensagens.
 
 A recuperação de outbound não converte falhas determinísticas de validação/configuração em loop imediato de chamadas à Meta. Essas falhas permanecem observáveis; como não houve resposta funcional entregue, o inbound também não é marcado como concluído. Falhas transitórias de rede, `429`, `408`, `409`, `425` e respostas `5xx` da Meta são elegíveis para uma recuperação imediata antes de devolver 5xx ao webhook.
+
+A recuperação de crash não pode ser implementada simplesmente reduzindo o lease até permitir concorrência, limpando indiscriminadamente claims no startup ou promovendo toda reentrega a owner. O controle correto precisa manter uma única execução funcional e, ao mesmo tempo, impedir que um claim órfão seja convertido em silêncio permanente.
 
 O executor, timeout, retry/fallback, provider/model e a ferramenta `web_search` continuam pertencendo à fundação multi-provider descrita em `ARCHITECTURE.md` e `docs/RELIABILITY.md`. O harness falha se uma pergunta bem-sucedida multiplicar chamadas ao provider de IA, remover `web_search`, pular entrega/persistência da resposta final ou encerrar a métrica antes da fronteira terminal.

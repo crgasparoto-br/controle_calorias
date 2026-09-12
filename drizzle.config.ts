@@ -29,6 +29,18 @@ const usageGovernanceSnapshotSha256 =
   "14e69eeffaa4d1ee162db9a06a32a0a1cda526c8e5c54bd583f60275b434dd78";
 let materializedUsageGovernanceSnapshot = false;
 
+const whatsappProcessingSnapshotPath = new URL(
+  "./drizzle/meta/0050_snapshot.json",
+  import.meta.url
+);
+const nutritionResearchSnapshotPath = new URL(
+  "./drizzle/meta/0049_snapshot.json",
+  import.meta.url
+);
+const nutritionResearchSnapshotId = "2a4df177-1cf6-4519-8467-8344377e0cb5";
+const whatsappProcessingSnapshotId = "026371cc-5ab2-446a-a0d3-9f7e3e6835a3";
+let materializedWhatsappProcessingSnapshot = false;
+
 function materializeLifecycleSnapshot() {
   if (existsSync(lifecycleSnapshotPath)) return;
 
@@ -63,6 +75,102 @@ function materializeUsageGovernanceSnapshot() {
   materializedUsageGovernanceSnapshot = true;
 }
 
+function materializeWhatsappProcessingSnapshot() {
+  if (existsSync(whatsappProcessingSnapshotPath)) return;
+
+  const previous = JSON.parse(
+    readFileSync(nutritionResearchSnapshotPath, "utf8")
+  ) as any;
+  if (previous.id !== nutritionResearchSnapshotId) {
+    throw new Error("Unexpected Drizzle 0049 snapshot identity");
+  }
+
+  const snapshot = {
+    ...previous,
+    id: whatsappProcessingSnapshotId,
+    prevId: nutritionResearchSnapshotId,
+    tables: {
+      ...previous.tables,
+      whatsappMessageProcessingClaims: {
+        name: "whatsappMessageProcessingClaims",
+        columns: {
+          messageId: {
+            name: "messageId",
+            type: "int",
+            primaryKey: false,
+            notNull: true,
+            autoincrement: false,
+          },
+          ownerToken: {
+            name: "ownerToken",
+            type: "varchar(64)",
+            primaryKey: false,
+            notNull: true,
+            autoincrement: false,
+          },
+          claimedAt: {
+            name: "claimedAt",
+            type: "timestamp",
+            primaryKey: false,
+            notNull: true,
+            autoincrement: false,
+            default: "(now())",
+          },
+          heartbeatAt: {
+            name: "heartbeatAt",
+            type: "timestamp",
+            primaryKey: false,
+            notNull: true,
+            autoincrement: false,
+            default: "(now())",
+          },
+          updatedAt: {
+            name: "updatedAt",
+            type: "timestamp",
+            primaryKey: false,
+            notNull: true,
+            autoincrement: false,
+            onUpdate: true,
+            default: "(now())",
+          },
+        },
+        indexes: {
+          whatsappMessageProcessingClaims_heartbeatAt_idx: {
+            name: "whatsappMessageProcessingClaims_heartbeatAt_idx",
+            columns: ["heartbeatAt"],
+            isUnique: false,
+          },
+        },
+        foreignKeys: {
+          waProcessingClaim_messageId_fk: {
+            name: "waProcessingClaim_messageId_fk",
+            tableFrom: "whatsappMessageProcessingClaims",
+            tableTo: "whatsappConversationMessages",
+            columnsFrom: ["messageId"],
+            columnsTo: ["id"],
+            onDelete: "cascade",
+            onUpdate: "no action",
+          },
+        },
+        compositePrimaryKeys: {
+          whatsappMessageProcessingClaims_messageId: {
+            name: "whatsappMessageProcessingClaims_messageId",
+            columns: ["messageId"],
+          },
+        },
+        uniqueConstraints: {},
+        checkConstraint: {},
+      },
+    },
+  };
+
+  writeFileSync(
+    whatsappProcessingSnapshotPath,
+    `${JSON.stringify(snapshot, null, 2)}\n`,
+  );
+  materializedWhatsappProcessingSnapshot = true;
+}
+
 function cleanupLifecycleSnapshot() {
   if (!materializedLifecycleSnapshot) return;
 
@@ -83,6 +191,16 @@ function cleanupUsageGovernanceSnapshot() {
   }
 }
 
+function cleanupWhatsappProcessingSnapshot() {
+  if (!materializedWhatsappProcessingSnapshot) return;
+
+  try {
+    unlinkSync(whatsappProcessingSnapshotPath);
+  } catch {
+    // Best-effort cleanup only. The deterministic snapshot will be rebuilt next time.
+  }
+}
+
 function validateDrizzleMetadata() {
   const metadataDirectory = new URL("./drizzle/meta/", import.meta.url);
   for (const name of readdirSync(metadataDirectory)) {
@@ -95,8 +213,10 @@ function validateDrizzleMetadata() {
 
 materializeLifecycleSnapshot();
 materializeUsageGovernanceSnapshot();
+materializeWhatsappProcessingSnapshot();
 validateDrizzleMetadata();
 process.once("exit", () => {
+  cleanupWhatsappProcessingSnapshot();
   cleanupUsageGovernanceSnapshot();
   cleanupLifecycleSnapshot();
 });
@@ -133,6 +253,7 @@ function buildDbCredentials() {
 export default defineConfig({
   schema: [
     "./drizzle/schema.ts",
+    "./drizzle/whatsapp-processing-schema.ts",
     "./drizzle/food-signals-schema.ts",
     "./drizzle/professional-schema.ts",
     "./drizzle/billing-schema.ts",

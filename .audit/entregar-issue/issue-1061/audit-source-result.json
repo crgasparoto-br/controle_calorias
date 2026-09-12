@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:b46febc0-b464-419b-80ab-a82aa62a6f64",
+  "head_sha": "da805e401b2a4eeeb3e4ae7111e885b119ca317f",
+  "identity": {
+    "head_sha": "da805e401b2a4eeeb3e4ae7111e885b119ca317f",
+    "material_head_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+    "base_sha": "2f32a2cbffe9db12b5da954c2c6f19b46b7b59e0"
+  },
+  "findings": [
+    {
+      "id": "A-1070-001",
+      "severity": "BLOCKER",
+      "category": "execution-state-gap",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "RESTART-IDEM-001 lacked the required integrated regression crossing the real webhook entrypoint and persistent lifecycle. The webhook test mocked messageLifecycle while the lifecycle restart test used a fake repository, so cross-layer crash/restart behavior was not proven."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "reason": "audit-finding",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
+}

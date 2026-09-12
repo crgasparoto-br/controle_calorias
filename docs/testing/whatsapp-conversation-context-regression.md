@@ -10,7 +10,9 @@ O POST `/api/whatsapp/webhook` registra `handleWhatsAppPersistentContextWebhook`
 2. imagem anotada;
 3. webhook nutricional base.
 
-Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes de qualquer efeito de domínio. O `message.id` da Meta identifica a entrada; um lease atômico concede propriedade a uma única instância. Caches locais permanecem somente como fast-path e ignoram uma entrada quando a requisição possui claim persistente válido. `processedAt` é finalizado apenas quando todo o escopo do entrypoint termina com sucesso; exceções preservam a possibilidade de retry pelo lease.
+Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes de qualquer efeito de domínio. O `message.id` da Meta identifica a entrada; um lease atômico concede propriedade a uma única instância. Caches locais permanecem somente como fast-path e ignoram uma entrada quando a requisição possui claim persistente válido. `processedAt` é finalizado apenas quando todo o escopo do entrypoint termina com sucesso; exceções preservam a possibilidade de retry.
+
+Uma reentrega só é duplicata terminal quando há evidência persistida de conclusão. Se o inbound ainda estiver `unprocessed`, a existência de um claim não autoriza responder HTTP 200 apenas como deduplicação. Uma reentrega que não consiga prosseguir deve permanecer retryável; após perda abrupta do owner, uma tentativa subsequente precisa poder retomar sem depender exclusivamente do vencimento integral do lease, sem criar um segundo owner enquanto o primeiro estiver comprovadamente ativo.
 
 ## Evidências automatizadas
 
@@ -22,6 +24,9 @@ Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes
 | Reentrega de imagem/áudio sem repetir domínio | `server/whatsappPersistentContextWebhook.test.ts` |
 | Falha da Meta após persistência e retry em outra instância | `server/whatsappPersistentContextWebhook.test.ts` |
 | Lease persistente, retry abandonado e finalização somente após sucesso | `server/modules/whatsapp/messageLifecycle.processingClaim.test.ts`, `server/whatsappImageIdempotencyWebhook.failure.test.ts` |
+| Crash/restart após claim e antes da resposta final, seguido do mesmo POST + `message.id` sem espera do lease completo | regressão do entrypoint HTTP canônico + lifecycle persistente |
+| Reentrega concorrente enquanto o owner original continua ativo não cria segundo efeito nem segunda resposta final | regressão de concorrência do lifecycle/entrypoint |
+| Duplicata de inbound já concluído retorna sucesso idempotente sem reexecutar domínio/outbound | regressão do lifecycle/entrypoint |
 | Claim persistente prevalece sobre cache local | `server/modules/whatsapp/messageDeduplicationCache.test.ts` |
 | Imagem/áudio enriquecem a mesma mensagem inbound | `server/modules/whatsapp/webhookMediaPipeline.test.ts`, `server/repositories/whatsappConversationMessageEnrichmentRepository.test.ts` |
 | Seleção `o segundo` → confirmação `sim` no webhook real | `server/whatsappIntentWebhook.selection.test.ts` |
@@ -45,7 +50,10 @@ Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes
 | Texto → imagem → áudio → texto | regressão multicanal + contexto | continuidade única; valores vêm do domínio |
 | Seleção/confirmação | webhook de seleção | `o segundo` seleciona; somente `sim` muta; execução única |
 | Reentrega texto/imagem/áudio | lifecycle/entrypoint | uma entrada e um efeito de domínio |
-| Reinício | entrypoint com caches zerados | continuidade preservada no mesmo armazenamento |
+| Reinício entre mensagens | entrypoint com caches zerados | continuidade preservada no mesmo armazenamento |
+| Reinício durante mensagem claimed | mesmo POST + `message.id` após término abrupto | retry não recebe 200 terminal enquanto inbound estiver sem resposta; retomada ocorre sem aguardar o lease inteiro e sem duplicar efeito |
+| Duplicata concorrente com owner saudável | duas requisições simultâneas do mesmo `message.id` | apenas um owner executa; a segunda não rouba o claim nem transforma estado não processado em duplicata terminal |
+| Duplicata após conclusão | mesma mensagem já processada | 200 idempotente; nenhum novo efeito nem nova resposta funcional |
 | Duas instâncias | runtimes A/B independentes | uma propriedade de processamento por mensagem |
 | Nova mensagem antes da resposta anterior | ordenação/claim | mensagens não se sobrescrevem e usam `occurredAt` + `id` |
 | Mídia não reconhecida | pipeline existente | erro controlado; nenhuma refeição falsa |
@@ -82,7 +90,7 @@ Sem configuração explícita, o código usa `write_only` e 0% de leitura persis
 4. ampliar texto e ativar imagem/áudio/multimodal separadamente;
 5. manter 100% somente após critérios da janela controlada.
 
-Eventos operacionais não incluem conteúdo: `contextMode`, `contextFlow`, origem escolhida, elegibilidade, contagens e divergência booleana.
+Eventos operacionais não incluem conteúdo: `contextMode`, `contextFlow`, origem escolhida, elegibilidade, contagens e divergência booleana. Eventos de idempotência devem distinguir semanticamente duplicata terminal já processada, reentrega ainda em processamento e retomada de owner órfão.
 
 ### Critérios mensuráveis
 
@@ -92,6 +100,7 @@ Durante a janela definida pela operação:
 - ação destrutiva ambígua sem confirmação = 0;
 - divergência funcional crítica antigo × persistente = 0;
 - falha de contexto sempre termina em fallback ou clarificação segura;
+- inbound não processado nunca é consumido silenciosamente como duplicata terminal durante restart/recovery;
 - latência permanece dentro do orçamento do ambiente;
 - logs e métricas passam na revisão de privacidade;
 - gates do repositório e TiDB estão verdes.
@@ -134,6 +143,8 @@ Esta lista exige ambiente integrado e deve ser anexada à PR antes da promoção
 - [ ] alternância entre duas instâncias do serviço;
 - [ ] reinício entre mensagens;
 - [ ] reentrega do mesmo `message.id` para texto, imagem e áudio;
+- [ ] término/restart da instância depois do claim e antes da resposta final, seguido imediatamente pelo mesmo POST + `message.id`, sem esperar o lease global;
+- [ ] reentrega concorrente enquanto o owner original continua ativo, provando execução única;
 - [ ] falha controlada de resumo;
 - [ ] resposta da Meta falhando após persistência;
 - [ ] observação shadow antigo × novo;
