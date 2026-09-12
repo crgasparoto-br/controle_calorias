@@ -142,8 +142,8 @@ function materializeWhatsappProcessingSnapshot() {
           },
         },
         foreignKeys: {
-          whatsappMessageProcessingClaims_messageId_whatsappConversationMessages_id_fk: {
-            name: "whatsappMessageProcessingClaims_messageId_whatsappConversationMessages_id_fk",
+          waProcessingClaim_messageId_fk: {
+            name: "waProcessingClaim_messageId_fk",
             tableFrom: "whatsappMessageProcessingClaims",
             tableTo: "whatsappConversationMessages",
             columnsFrom: ["messageId"],
