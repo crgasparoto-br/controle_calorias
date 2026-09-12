@@ -42,6 +42,24 @@ vi.mock("./modules/whatsapp/timeZoneContext", () => ({
   resolveWhatsAppOperationTimeZone: vi.fn(async () => ({ timeZone: "America/Sao_Paulo" })),
 }));
 
+vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
+  getWhatsAppWaterProgress: vi.fn(async () => ({
+    totalMl: 0,
+    goalMl: 2000,
+    dateKey: "2026-09-11",
+    timeZone: "America/Sao_Paulo",
+  })),
+}));
+
+vi.mock("./modules/whatsapp/domainReplyFormatters", () => ({
+  buildWhatsAppCanonicalWaterReply: vi.fn(() => "Água registrada."),
+}));
+
+vi.mock("./modules/whatsapp/replyMessages", () => ({
+  buildWhatsAppOnboardingLeadReplyMessage: vi.fn(() => "Finalize seu cadastro."),
+  buildWhatsAppWaterImageClarificationReplyMessage: vi.fn(() => "Informe a quantidade de água."),
+}));
+
 vi.mock("./modules/whatsapp/logicalReplyDelivery", () => ({
   sendWhatsAppLogicalDomainReply: vi.fn(),
   sendWhatsAppStandaloneLogicalReply: vi.fn(),
