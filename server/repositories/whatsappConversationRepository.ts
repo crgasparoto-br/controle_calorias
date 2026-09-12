@@ -126,6 +126,12 @@ function getMysqlAffectedRows(result: unknown) {
   return Number.isFinite(affectedRows) ? affectedRows : 0;
 }
 
+function getMysqlInsertId(result: unknown) {
+  const candidate = Array.isArray(result) ? result[0] : result;
+  const insertId = Number((candidate as { insertId?: number })?.insertId ?? 0);
+  return Number.isFinite(insertId) ? insertId : 0;
+}
+
 function buildTextFields(input: AppendMessageInput, occurredAtIso: string) {
   const rawText = input.text ?? null;
   const rawTranscript = input.transcript ?? null;
@@ -217,7 +223,7 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           lastActivityAt: now,
           version: 0,
         });
-        const insertedId = Number((inserted as { insertId?: number }).insertId ?? 0);
+        const insertedId = getMysqlInsertId(inserted);
 
         const [created] = await db
           .select()
@@ -250,10 +256,10 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           idempotencyKey,
           contentType: input.contentType,
           rawTextStored: textFields.rawTextStored,
-          text: textFields.text,
-          sanitizedText: textFields.sanitizedText,
-          transcript: textFields.transcript,
-          sanitizedTranscript: textFields.sanitizedTranscript,
+          text: textFields.raw,
+          sanitizedText: textFields.sanitized,
+          transcript: transcriptResult.raw,
+          sanitizedTranscript: transcriptResult.sanitized,
           mediaStorageKey: input.mediaStorageKey ?? null,
           mediaMimeType: input.mediaMimeType ?? null,
           captionText: input.captionText ?? null,
@@ -263,7 +269,7 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
           occurredAt: input.occurredAt,
           processedAt: input.processedAt ?? null,
         });
-        const insertedId = Number((inserted as { insertId?: number }).insertId ?? 0);
+        const insertedId = getMysqlInsertId(inserted);
 
         const [created] = await db
           .select()
