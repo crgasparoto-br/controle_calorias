@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:b46febc0-b464-419b-80ab-a82aa62a6f64",
+    "audit_report_sha256": "ee2f5d06a5e370f7681a35e98750a7f61c9c9e4bc90db07fed216492f7b0a311",
+    "finding_ids": [
+      "A-1070-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The delivery controller already requires behavioral proof at the declared evidence level and prohibits replacing real entrypoint plus persistent-lifecycle coverage with mocked boundaries. This rejection exposed a missing candidate-specific integrated control, so targeted implementation/evidence remediation is sufficient without adding a new global skill rule."
+  },
+  "skill_changes": []
+}

@@ -1,0 +1,10 @@
+A-1070-001 / RESTART-IDEM-001 integrated crash-restart proof
+material_head_sha=99f5189eb41498aca9879d20fa7900f53e6e92e7
+control_path=server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts
+workflow=.github/workflows/whatsapp-context-tidb.yml
+run=34696879452
+step="Run webhook processing-owner crash/restart regression"
+step_conclusion=success
+The regression invokes handleWhatsAppPersistentContextWebhook through two fresh MessageLifecycleService runtime scopes over the same TiDB persistence and repeats the same Meta payload/message.id.
+It proves: abrupt termination after persistent claim leaves processedAt null and owner runtime-a persisted; immediate replay by runtime-b returns HTTP 503 message_processing_inflight and executes no QUESTION work; after a 1.5s test-only liveness timeout plus guard margin (far below the legacy 15-minute lease), runtime-b recovers the orphan and processes exactly once; outbound text bodies are exactly ACK then one final answer; one persisted outbound response links to the inbound; the processing claim is removed after completion; runtime-c terminal replay returns idempotent HTTP 200 without additional downstream work or outbound messages; the local idempotency cache is reset between runtime phases.
+Production heartbeat defaults remain unchanged; the shortened liveness window exists only inside the deterministic TiDB regression.

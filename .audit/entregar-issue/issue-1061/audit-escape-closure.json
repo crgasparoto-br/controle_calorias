@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-1070-001",
+      "escape_class": "cross-layer-restart-proof-split-by-mocked-boundaries",
+      "source_audit": {
+        "rejection_id": "audit-rejection:b46febc0-b464-419b-80ab-a82aa62a6f64",
+        "finding_id": "A-1070-001",
+        "audit_report_sha256": "ee2f5d06a5e370f7681a35e98750a7f61c9c9e4bc90db07fed216492f7b0a311"
+      },
+      "plausible_wrong_implementation": "Treat a mocked webhook claim state plus a separate fake-repository lifecycle restart test as sufficient proof of crash recovery through the real persistent entrypoint.",
+      "literal_case": {
+        "procedure": "Execute the same Meta POST/message.id through handleWhatsAppPersistentContextWebhook in fresh lifecycle runtime scopes backed by the same TiDB database, with an abrupt crash after the persisted claim.",
+        "status": "passed",
+        "evidence": "evidence/restart-integrated.txt",
+        "observed": "On exact material 99f5189eb41498aca9879d20fa7900f53e6e92e7, the integrated TiDB control rejects the live-owner replay, recovers the orphan before the legacy lease, emits exactly one ACK and one final answer, persists completion, and deduplicates the terminal replay."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-1070-001-S1",
+          "surface": "duplicate-processing",
+          "dimension": "active-owner-replay-nonterminal",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        },
+        {
+          "id": "A-1070-001-S2",
+          "surface": "duplicate-processing",
+          "dimension": "terminal-replay-no-second-outbound",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "CTRL-REQ-1061-071-01",
+        "evidence": "evidence/restart-integrated.txt"
+      },
+      "detection_change": {
+        "control": "WhatsApp context TiDB / Run webhook processing-owner crash/restart regression",
+        "evidence": "evidence/restart-integrated.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "restart-same-message-id-integrated"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "ordering-and-retry",
+          "dimension": "orphan-takeover-before-legacy-lease"
+        }
+      ],
+      "required_risk_families": [
+        "idempotency",
+        "temporal-consistency"
+      ],
+      "trigger_terms": [
+        "real webhook",
+        "persistent lifecycle",
+        "crash/restart",
+        "same message.id"
+      ],
+      "revalidated_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "status": "passed"
+    }
+  ]
+}

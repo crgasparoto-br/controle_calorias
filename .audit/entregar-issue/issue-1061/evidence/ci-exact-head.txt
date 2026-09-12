@@ -1,6 +1,8 @@
-Issue #1061 exact-head verification
-material_head_sha=3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294
-Agent-first gate run=34692626893 conclusion=success
+Issue #1061 targeted audit remediation exact-head verification
+material_head_sha=99f5189eb41498aca9879d20fa7900f53e6e92e7
+base_sha=6507bdc0dc14ebc744de75393e5dc0c6bda8b112
+merge_preview_sha=57e3d5c44217f971ec2acf96dfcc1d8596444dc0
+Agent-first gate run=34696879500 conclusion=success
 - Delivery V2 risk: success
 - Merge preview integration: success
 - TypeScript check: success
@@ -11,8 +13,7 @@ Agent-first gate run=34692626893 conclusion=success
 - Agent check: success
 - Exact-head verification manifest: success
 - Exact-head repository bundle: success
-Billing persistence TiDB gate run=34692626872 conclusion=success
-WhatsApp context TiDB gate run=34692626897 conclusion=success
-Professional persistence TiDB gate run=34692626900 conclusion=success
-Verification artifact id=10297627352 digest=sha256:97dcab60b13ffbd87aee0e52f583804aaf435a578564e2bebcf41d9dc4255c3c
-Verification manifest headSha=3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294 eventSha=b9f1a8975e2510fd5c164b5d0e184b56e090677b riskProfile=critical verifiedAt=2026-09-12T12:14:48Z
+WhatsApp context TiDB gate run=34696879452 conclusion=success
+Billing persistence TiDB gate run=34696879521 conclusion=success
+Professional persistence TiDB gate run=34696879541 conclusion=success
+All four applicable workflows completed successfully on material head 99f5189eb41498aca9879d20fa7900f53e6e92e7.

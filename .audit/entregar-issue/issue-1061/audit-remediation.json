@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:b46febc0-b464-419b-80ab-a82aa62a6f64",
+    "audit_report_sha256": "ee2f5d06a5e370f7681a35e98750a7f61c9c9e4bc90db07fed216492f7b0a311",
+    "audited_head_sha": "da805e401b2a4eeeb3e4ae7111e885b119ca317f"
+  },
+  "candidate_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1070-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        ".github/workflows/whatsapp-context-tidb.yml",
+        "server/repositories/whatsappConversationRepository.ts",
+        "server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts"
+      ],
+      "evidence": [
+        "evidence/restart-integrated.txt",
+        "evidence/ci-exact-head.txt"
+      ],
+      "validations": [
+        "WhatsApp context TiDB run 34696879452 executed the real webhook processing-owner crash/restart regression and the dedicated step completed successfully on 99f5189eb41498aca9879d20fa7900f53e6e92e7.",
+        "The regression repeats the same Meta payload/message.id across fresh lifecycle runtime scopes over the same TiDB persistence, rejects the active-owner replay with HTTP 503, recovers the orphan before the legacy 15-minute lease, and sends exactly one ACK plus one final response.",
+        "Terminal replay after persisted completion returns idempotent HTTP 200 without new downstream or outbound effects, with the local idempotency cache reset between runtime phases.",
+        "Agent-first run 34696879500 and WhatsApp/Billing/Professional TiDB gates all completed successfully on the same material head."
+      ]
+    }
+  ]
+}

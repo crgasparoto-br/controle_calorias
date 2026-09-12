@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294",
+  "head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
   "families": [
     {
       "family": "authorization",
@@ -12,7 +12,7 @@
       "dimensions": [
         {
           "surface": "scope-preservation",
-          "reason": "O requisito expõe a superfície authorization:scope-preservation; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes authorization:scope-preservation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-081-01"
           ],
@@ -31,7 +31,7 @@
       "dimensions": [
         {
           "surface": "attempt-identity-isolation",
-          "reason": "O requisito expõe a superfície tenant-isolation:attempt-identity-isolation; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes tenant-isolation:attempt-identity-isolation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-037-02"
           ],
@@ -59,7 +59,7 @@
       "dimensions": [
         {
           "surface": "processing-owner-liveness",
-          "reason": "O requisito expõe a superfície reference-liveness:processing-owner-liveness; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes reference-liveness:processing-owner-liveness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-011-01",
             "CTRL-REQ-1061-015-01"
@@ -96,7 +96,7 @@
       "dimensions": [
         {
           "surface": "ordering-and-retry",
-          "reason": "O requisito expõe a superfície temporal-consistency:ordering-and-retry; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes temporal-consistency:ordering-and-retry; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-001-01",
             "CTRL-REQ-1061-012-01",
@@ -141,7 +141,7 @@
       "dimensions": [
         {
           "surface": "processing-owner-exclusivity",
-          "reason": "O requisito expõe a superfície concurrency-atomicity:processing-owner-exclusivity; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes concurrency-atomicity:processing-owner-exclusivity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-044-01",
             "CTRL-REQ-1061-051-01"
@@ -181,7 +181,7 @@
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "O requisito expõe a superfície idempotency:duplicate-processing; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes idempotency:duplicate-processing; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-020-01",
             "CTRL-REQ-1061-024-01",
@@ -241,17 +241,8 @@
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "O requisito expõe a superfície structural-contract:benchmark-path-fidelity; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
-          "control_ids": [
-            "CTRL-REQ-1061-033-02",
-            "CTRL-REQ-1061-072-02"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "canonical-lifecycle",
-          "reason": "O requisito expõe a superfície structural-contract:canonical-lifecycle; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "surface": "behavioral-contract",
+          "reason": "The canonical requirement exposes structural-contract:behavioral-contract; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-022-01",
             "CTRL-REQ-1061-037-01",
@@ -261,8 +252,17 @@
           "status": "passed"
         },
         {
+          "surface": "benchmark-path-fidelity",
+          "reason": "The canonical requirement exposes structural-contract:benchmark-path-fidelity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "control_ids": [
+            "CTRL-REQ-1061-033-02",
+            "CTRL-REQ-1061-072-02"
+          ],
+          "status": "passed"
+        },
+        {
           "surface": "stage-attribution-completeness",
-          "reason": "O requisito expõe a superfície structural-contract:stage-attribution-completeness; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes structural-contract:stage-attribution-completeness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-060-01"
           ],
@@ -281,7 +281,7 @@
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "O requisito expõe a superfície documentation:canonical-claims; o controle precisa distinguir conclusão persistida, retry e ownership no mesmo SHA material.",
+          "reason": "The canonical requirement exposes documentation:canonical-claims; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
           "control_ids": [
             "CTRL-REQ-1061-033-01"
           ],
