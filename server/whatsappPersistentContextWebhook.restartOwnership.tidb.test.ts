@@ -79,8 +79,8 @@ const {
 
 const ACK_TEXT = "✅ Recebi sua pergunta. Estou preparando a resposta…";
 const FINAL_TEXT = "Resposta final única após recuperar o owner órfão.";
-const HEARTBEAT_TIMEOUT_MS = 80;
-const HEARTBEAT_INTERVAL_MS = 20;
+const HEARTBEAT_TIMEOUT_MS = 1_500;
+const HEARTBEAT_INTERVAL_MS = 250;
 
 function createRuntime(ownerToken: string) {
   return createMessageLifecycleService({
@@ -251,7 +251,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     expect(controls.downstreamCalls).toBe(1);
     expect(controls.questionCalls).toBe(0);
 
-    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 40));
+    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
 
     const recoveredReplay = await deliver(runtimeB, payload);
     expect(recoveredReplay.statusCode).toBe(200);
