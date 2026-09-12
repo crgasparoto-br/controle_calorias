@@ -275,13 +275,13 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     const inboundMessageId = Number(completedRows[0].id);
 
     const [responseRows] = await connection.execute<RowDataPacket[]>(
-      `SELECT id, text
+      `SELECT id, sanitizedText
          FROM whatsappConversationMessages
         WHERE direction = 'outbound' AND respondsToMessageId = ?`,
       [inboundMessageId],
     );
     expect(responseRows).toHaveLength(1);
-    expect(responseRows[0].text).toBe(FINAL_TEXT);
+    expect(responseRows[0].sanitizedText).toBe(FINAL_TEXT);
 
     const [claimRowsAfterCompletion] = await connection.execute<RowDataPacket[]>(
       "SELECT messageId FROM whatsappMessageProcessingClaims WHERE messageId = ?",
