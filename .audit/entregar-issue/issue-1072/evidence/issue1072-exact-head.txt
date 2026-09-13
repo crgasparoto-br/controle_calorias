@@ -1,0 +1,15 @@
+Issue #1072 exact-head verification evidence
+repository=crgasparoto-br/controle_calorias
+pr=1074
+base=develop
+base_sha=2b11e70077e4fe1f47f322178b5479c60aeeefd3
+material_head_sha=c1fbfaf3b00d97712e9bccefd122623e04b27c10
+merge_preview_sha=3fb5ce669113adfefa432e0f10db7d17c126dfc5
+workflow_run=34768552232 Agent-first gate completed success
+workflow_run=34768552211 WhatsApp context TiDB gate completed success
+workflow_run=34768552240 AI provider live smoke completed skipped (expected)
+Agent-first successful steps: TypeScript check; Full tests; Architecture check; Documentation check; Build; Agent check; CI gate docs check; exact-head verification manifest; exact-head repository bundle; Gate summary.
+PR changed paths: server/brandedNutritionSearch.ts; server/catalogSemanticSearch.ts; server/commercialProductIdentity.ts; server/commercialServingRelation.issue1072.test.ts; server/householdMeasureResolution.ts; server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts.
+Issue-specific controls in server/commercialServingRelation.issue1072.test.ts cover Panco Premium at 1/2/3 slices, 25 g proportional compatibility versus 30 g rejection, provider servingLabel without source relation, exact second source, cache, provider unavailability, Wickbold, non-bread countable product, wrong brand/variant, and nutrition scaling without double-scaling.
+Issue-specific WhatsApp test server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts covers the production multi-item registration path with one Panco Premium slice without unnecessary clarification when identity, measure relation and nutrition evidence are proven.
+The exact-head GitHub Actions verification manifest reports riskProfile=critical and checkoutSha=headSha=c1fbfaf3b00d97712e9bccefd122623e04b27c10.
