@@ -1,10 +1,13 @@
-A-1070-001 / RESTART-IDEM-001 integrated crash-restart proof
-material_head_sha=99f5189eb41498aca9879d20fa7900f53e6e92e7
-control_path=server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts
+A-1070-001 + A-1070-002 / RESTART-IDEM-001 + RESTART-FENCE-001 exact-head proof
+material_head_sha=3cf47471261e677aa48c69fabaf5e4ebcfcfee64
+canonical_entrypoint=POST /api/whatsapp/webhook
+canonical_restart_control=server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts
 workflow=.github/workflows/whatsapp-context-tidb.yml
-run=34696879452
-step="Run webhook processing-owner crash/restart regression"
-step_conclusion=success
-The regression invokes handleWhatsAppPersistentContextWebhook through two fresh MessageLifecycleService runtime scopes over the same TiDB persistence and repeats the same Meta payload/message.id.
-It proves: abrupt termination after persistent claim leaves processedAt null and owner runtime-a persisted; immediate replay by runtime-b returns HTTP 503 message_processing_inflight and executes no QUESTION work; after a 1.5s test-only liveness timeout plus guard margin (far below the legacy 15-minute lease), runtime-b recovers the orphan and processes exactly once; outbound text bodies are exactly ACK then one final answer; one persisted outbound response links to the inbound; the processing claim is removed after completion; runtime-c terminal replay returns idempotent HTTP 200 without additional downstream work or outbound messages; the local idempotency cache is reset between runtime phases.
-Production heartbeat defaults remain unchanged; the shortened liveness window exists only inside the deterministic TiDB regression.
+workflow_run=34729502201 conclusion=success
+The integrated TiDB regression repeats the same Meta payload/message.id through fresh lifecycle runtime scopes sharing the same persistence. It proves an active owner replay is retryable, an orphan owner is recovered before the legacy 15-minute lease, exactly one ACK and one final functional reply are emitted, completion is persisted, and terminal replay is idempotent without extra downstream/outbound work.
+RESTART-FENCE-001 on the exact material head additionally fences stale runtimes immediately before irreversible/costed effects after takeover:
+- server/modules/whatsapp/messageLifecycle.effectFence.test.ts: runtime A loses persisted ownership after runtime B takeover; A is rejected by the request-scoped irreversible-effect fence, including terminal processedAt revalidation.
+- server/_core/ai/__tests__/capabilityExecutor.test.ts and providerBoundary coverage: a stale owner cannot start another physical provider attempt or usage-producing provider call.
+- server/modules/water/store.test.ts: a stale owner is rejected before water-domain persistence, preventing a second durable domain mutation/link.
+- server/modules/whatsapp/questionAcknowledgement.test.ts: a stale owner is rejected immediately before ACK transport, while the router keeps ACK/AI parallel start semantics.
+The full Agent-first run 34729502259 passed on the same material head, so these unit/integration controls and the canonical public restart path are green together. The discriminant is takeover-after-suspension: authority checked before work is not treated as durable permission for later provider, domain, outbound, or terminal effects.

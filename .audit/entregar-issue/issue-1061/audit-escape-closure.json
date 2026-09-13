@@ -14,7 +14,7 @@
         "procedure": "Execute the same Meta POST/message.id through handleWhatsAppPersistentContextWebhook in fresh lifecycle runtime scopes backed by the same TiDB database, with an abrupt crash after the persisted claim.",
         "status": "passed",
         "evidence": "evidence/restart-integrated.txt",
-        "observed": "On exact material 99f5189eb41498aca9879d20fa7900f53e6e92e7, the integrated TiDB control rejects the live-owner replay, recovers the orphan before the legacy lease, emits exactly one ACK and one final answer, persists completion, and deduplicates the terminal replay."
+        "observed": "On exact material 3cf47471261e677aa48c69fabaf5e4ebcfcfee64, WhatsApp context TiDB run 34729502201 again passed the same public webhook/message.id restart proof, preserving the previously closed cross-layer control."
       },
       "sibling_cases": [
         {
@@ -62,7 +62,103 @@
         "crash/restart",
         "same message.id"
       ],
-      "revalidated_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+      "revalidated_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-1070-002",
+      "escape_class": "stale-owner-fencing-propagation-gap",
+      "source_audit": {
+        "head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467",
+        "rejection_id": "audit-rejection:259be11e-620c-4172-91a6-2debe9c096a0",
+        "finding_id": "A-1070-002",
+        "audit_report_sha256": "28975569cfe1b874d6774531b8ab2a3f1905ff7bf71a55bfc2e985597ef7860f"
+      },
+      "plausible_wrong_implementation": "Allow takeover after heartbeat expiry but validate authority only at routing or final outbound, so a suspended runtime can resume after losing ownership and still perform provider, domain, outbound, or terminal effects.",
+      "literal_case": {
+        "procedure": "Use the same public webhook and message.id. Suspend owner A beyond liveness, let B take over and progress, then resume A immediately before an irreversible/costed effect.",
+        "expected": "A is fenced before every effect after ownership loss and only the current owner produces functional effects.",
+        "observed": "On the exact material head, request-scoped effect fencing rejects stale A at provider/domain/outbound/terminal boundaries while the canonical TiDB restart path remains single-effect.",
+        "status": "passed",
+        "evidence": "evidence/restart-integrated.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "A-1070-002-S1",
+          "surface": "provider-effect",
+          "dimension": "stale-owner-no-second-provider-or-usage",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        },
+        {
+          "id": "A-1070-002-S2",
+          "surface": "domain-db-effect",
+          "dimension": "stale-owner-no-second-domain-write",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        },
+        {
+          "id": "A-1070-002-S3",
+          "surface": "outbound-effect",
+          "dimension": "stale-owner-no-second-outbound",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        },
+        {
+          "id": "A-1070-002-S4",
+          "surface": "terminal-lifecycle",
+          "dimension": "stale-owner-no-terminal-finalization",
+          "status": "passed",
+          "evidence": "evidence/restart-integrated.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "stale-owner-effect-fencing",
+          "dimension": "provider-effect-boundary"
+        },
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "stale-owner-effect-fencing",
+          "dimension": "domain-effect-boundary"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "stale-owner-effect-fencing",
+          "dimension": "outbound-effect-boundary"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "ordering-and-retry",
+          "dimension": "terminal-finalization-boundary"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Effect-boundary authority fencing is now implemented in the request-scoped runtime control and promoted to the delivery skill prevention rule.",
+        "evidence": "evidence/restart-integrated.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "RESTART-FENCE-001 is promoted to the audit adversarial rule and exercised across provider/domain/outbound/terminal surfaces.",
+        "control_id": "RESTART-FENCE-001",
+        "evidence": "evidence/restart-integrated.txt"
+      },
+      "trigger_terms": [
+        "retry",
+        "restart",
+        "heartbeat",
+        "owner",
+        "takeover",
+        "lease",
+        "fencing",
+        "idempotency"
+      ],
+      "required_risk_families": [
+        "concurrency-atomicity",
+        "idempotency",
+        "temporal-consistency"
+      ],
+      "revalidated_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
       "status": "passed"
     }
   ]

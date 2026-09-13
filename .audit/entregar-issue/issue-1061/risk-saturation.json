@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+  "head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
   "families": [
     {
       "family": "authorization",
@@ -91,7 +91,8 @@
         "CTRL-REQ-1061-071-02",
         "CTRL-REQ-1061-073-02",
         "CTRL-REQ-1061-076-01",
-        "CTRL-REQ-1061-079-02"
+        "CTRL-REQ-1061-079-02",
+        "CTRL-REQ-1061-071-03"
       ],
       "dimensions": [
         {
@@ -115,7 +116,8 @@
             "CTRL-REQ-1061-071-02",
             "CTRL-REQ-1061-073-02",
             "CTRL-REQ-1061-076-01",
-            "CTRL-REQ-1061-079-02"
+            "CTRL-REQ-1061-079-02",
+            "CTRL-REQ-1061-071-03"
           ],
           "status": "passed"
         }
@@ -136,7 +138,9 @@
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
         "CTRL-REQ-1061-044-01",
-        "CTRL-REQ-1061-051-01"
+        "CTRL-REQ-1061-051-01",
+        "CTRL-REQ-1061-052-02",
+        "CTRL-REQ-1061-052-03"
       ],
       "dimensions": [
         {
@@ -145,6 +149,15 @@
           "control_ids": [
             "CTRL-REQ-1061-044-01",
             "CTRL-REQ-1061-051-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "stale-owner-effect-fencing",
+          "reason": "A worker can become stale after takeover while still executing; effect-boundary fencing must discriminate provider and domain effects.",
+          "control_ids": [
+            "CTRL-REQ-1061-052-02",
+            "CTRL-REQ-1061-052-03"
           ],
           "status": "passed"
         }
@@ -176,7 +189,8 @@
         "CTRL-REQ-1061-072-01",
         "CTRL-REQ-1061-073-01",
         "CTRL-REQ-1061-079-01",
-        "CTRL-REQ-1061-081-02"
+        "CTRL-REQ-1061-081-02",
+        "CTRL-REQ-1061-020-02"
       ],
       "dimensions": [
         {
@@ -204,6 +218,14 @@
             "CTRL-REQ-1061-073-01",
             "CTRL-REQ-1061-079-01",
             "CTRL-REQ-1061-081-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "stale-owner-effect-fencing",
+          "reason": "Idempotency must fence stale owners before duplicate outbound effects after takeover.",
+          "control_ids": [
+            "CTRL-REQ-1061-020-02"
           ],
           "status": "passed"
         }
