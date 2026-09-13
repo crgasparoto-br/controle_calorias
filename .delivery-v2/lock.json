@@ -1,0 +1,23 @@
+{
+  "canonicalClassifierFingerprint": "35914f89844e0a6c35a436af1a1856e6a2b37ab7f5e0f3d3c1749e7a89d3ad24",
+  "contract": "delivery-v2-classifier-package",
+  "files": {
+    "policy.json": "cb5ffa0cab14f27a4361c815da669081401d136211a879401064b30d335cb54e",
+    "repository-risk-policy.mjs": "05ca47ab7cbd9dbf8d41c9f3a5ec98cfd977758ef8e5f215b4c0f7d48e525a1f",
+    "risk-profile.mjs": "498ba7773f1887971148467500a4baf2a3b2a8072b181dd22b59ce360cee11ad",
+    "verify.mjs": "6b5b0332650a38546e6cacf3be0dda3ffcbf5c0b19f772191a46a0c10ead013e"
+  },
+  "packageFingerprint": "3cd2e3867919e9ae55a72b310f7731c2fe6b2813549731ecefb6f4f4b6f69c03",
+  "schemaVersion": 1,
+  "source": {
+    "commit": "1d6185de16e3a30378a810132bb4e3cf9483f98c",
+    "repository": "crgasparoto-br/delivery-orchestrator"
+  },
+  "target": {
+    "baseBranch": "develop",
+    "packageDir": ".delivery-v2",
+    "policySchemaVersion": 1,
+    "repository": "crgasparoto-br/controle_calorias"
+  },
+  "verificationCommand": "node .delivery-v2/verify.mjs"
+}
