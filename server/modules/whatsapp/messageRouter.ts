@@ -7,6 +7,7 @@
  */
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import {
   executeWhatsappAiQuestionIntent,
@@ -14,7 +15,6 @@ import {
   shouldAcknowledgeWhatsappAiQuestion,
 } from "./aiQuestionAssistant";
 import { sendWhatsAppAiQuestionAcknowledgement } from "./questionAcknowledgement";
-import { ensureCurrentMessageProcessingOwnership } from "./messageLifecycle";
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
@@ -162,7 +162,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   }
 
   if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
-    await ensureCurrentMessageProcessingOwnership(input.messageId);
+    await ensureCurrentIrreversibleEffectAllowed();
     const acknowledgementPromise =
       input.sourcePhone
       && input.messageId

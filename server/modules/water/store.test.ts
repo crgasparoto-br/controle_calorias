@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createWaterService, sumWater } from "./store";
+import { runWithIrreversibleEffectFence } from "../../_core/effectFenceContext";
 import type { WaterRepository } from "../../repositories/waterRepository";
 
 function createFakeWaterRepository(overrides: Partial<WaterRepository> = {}): WaterRepository {
@@ -36,6 +37,19 @@ describe("water service", () => {
     const service = createService();
     const goal = await service.getWaterGoal(1);
     expect(goal.dailyTargetMl).toBe(2500);
+  });
+
+  it("blocks a stale owner before persisting a water log", async () => {
+    const insertLog = vi.fn(async () => undefined);
+    const repository = createFakeWaterRepository({ insertLog });
+    const service = createService({ waterRepository: repository });
+
+    await expect(runWithIrreversibleEffectFence(
+      async () => { throw new Error("stale processing owner"); },
+      () => service.createWaterLog(1, { amountMl: 250, occurredAt: "2026-06-01T10:00:00.000Z" }),
+    )).rejects.toThrow("stale processing owner");
+
+    expect(insertLog).not.toHaveBeenCalled();
   });
 
   it("registers and lists water logs sorted from most to least recent", async () => {
