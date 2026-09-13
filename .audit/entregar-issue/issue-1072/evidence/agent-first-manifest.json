@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 3,
+  "repository": "crgasparoto-br/controle_calorias",
+  "headSha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+  "checkoutSha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+  "eventSha": "3fb5ce669113adfefa432e0f10db7d17c126dfc5",
+  "runId": "34768552232",
+  "workflow": "Agent-first gate",
+  "event": "pull_request",
+  "ref": "refs/pull/1074/merge",
+  "riskProfile": "critical",
+  "verifiedAt": "2026-09-13T16:37:48Z"
+}

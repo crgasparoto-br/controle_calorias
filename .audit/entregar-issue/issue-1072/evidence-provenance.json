@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+  "base_sha": "2b11e70077e4fe1f47f322178b5479c60aeeefd3",
+  "evidence": [
+    {
+      "evidence_id": "Q-R-CACHE-SAFETY",
+      "kind": "quantitative",
+      "path": "evidence/issue1072-exact-head.txt",
+      "sha256": "16793120dd5382796506736ce6a6b84e963406768ed24e04a12130e7cf8a622b",
+      "subject_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+      "base_sha": "2b11e70077e4fe1f47f322178b5479c60aeeefd3",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head CI evidence",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "Q-R-EVIDENCE-GROUNDING",
+      "kind": "quantitative",
+      "path": "evidence/issue1072-exact-head.txt",
+      "sha256": "16793120dd5382796506736ce6a6b84e963406768ed24e04a12130e7cf8a622b",
+      "subject_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+      "base_sha": "2b11e70077e4fe1f47f322178b5479c60aeeefd3",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head CI evidence",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "Q-R-NO-MIXING",
+      "kind": "quantitative",
+      "path": "evidence/issue1072-exact-head.txt",
+      "sha256": "16793120dd5382796506736ce6a6b84e963406768ed24e04a12130e7cf8a622b",
+      "subject_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+      "base_sha": "2b11e70077e4fe1f47f322178b5479c60aeeefd3",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head CI evidence",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "Q-R-PROPORTIONAL-SCALING",
+      "kind": "quantitative",
+      "path": "evidence/issue1072-exact-head.txt",
+      "sha256": "16793120dd5382796506736ce6a6b84e963406768ed24e04a12130e7cf8a622b",
+      "subject_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+      "base_sha": "2b11e70077e4fe1f47f322178b5479c60aeeefd3",
+      "freshness_policy": "exact-material-head",
+      "producer": "entregar-issue exact-head CI evidence",
+      "status": "passed"
+    }
+  ]
+}
