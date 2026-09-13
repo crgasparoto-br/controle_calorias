@@ -160,6 +160,11 @@ function extractCountableMeasure(value: string) {
   ) ?? null;
 }
 
+function servingAmountMatches(requestedValue: number, gramsPerServing: number) {
+  const tolerance = Math.max(0.05, Math.abs(requestedValue) * 0.01);
+  return Math.abs(requestedValue - gramsPerServing) <= tolerance;
+}
+
 export function isCommercialServingMeasureCompatible(input: {
   foodName: string;
   servingLabel: string;
@@ -209,6 +214,15 @@ export function isCommercialServingMeasureCompatible(input: {
     input.gramsPerServing > 0
   ) {
     candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
+  }
+
+  if (
+    requestedMeasures.length === 1 &&
+    Number.isFinite(input.gramsPerServing) &&
+    input.gramsPerServing > 0 &&
+    !servingAmountMatches(requestedMeasures[0].value, input.gramsPerServing)
+  ) {
+    return false;
   }
 
   return measuresMatch(requestedMeasures, candidateMeasures);
