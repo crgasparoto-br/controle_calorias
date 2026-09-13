@@ -14,6 +14,7 @@ Garantir que medidas contáveis resolvidas antes da inferência nutricional, com
 6. O preflight interno de `executeWhatsappTextIntent` permanece ativo para consumidores diretos, como transcrições de áudio e retomadas que não passam pelo wrapper textual. No fluxo normal do wrapper ele recebe o texto já convertido em gramas e, portanto, não repete a resolução da medida contável.
 7. Em mensagens `água + alimento`, a hidratação é registrada uma única vez e apenas o fragmento alimentar passa pelo gate de medida contável. O texto alimentar reescrito é o payload encaminhado ao pipeline nutricional e a resposta final permanece uma única resposta lógica composta.
 8. Comandos canônicos de adição a uma refeição, como `Adicionar 2 fatias de mussarela ao café da manhã`, continuam sob responsabilidade do fluxo de adição existente e não são desviados para um segundo pipeline nutricional. Esse produtor reutiliza a mesma precedência comercial deste contrato: marca/variante explícita é resolvida pelo contrato canônico antes de qualquer `resolveHouseholdMeasure`, média usual ou clarificação de peso.
+9. Para produto comercial resolvido por medida contável, o gate preserva também um `resolvedSegment` do item já validado. A gramatura reescrita (por exemplo, `25 g`) continua sendo usada para o cálculo, mas não é reinterpretada no registro final como se fosse uma entrada mass-only digitada pelo usuário. A identidade, marca/variante e a quantidade/unidade originais permanecem a evidência semântica do item.
 
 ## Identidade comercial antes da gramatura
 
@@ -32,6 +33,8 @@ O contrato público de [registro de refeições](../product-specs/meal-registrat
 A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts` e pelos controles de adição em `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts`, `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts` e `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts`. Os testes exercitam resolvedor real onde o boundary externo permite, variantes/marcas incompatíveis, marca fora da allowlist, pesquisa indisponível e retomada sem persistência parcial ou duplicada.
 
 A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
+
+A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial e o controle negativo em que uma massa informada diretamente segue o caminho mass-only normal sem herdar a proveniência de uma resolução contável que não ocorreu.
 
 ## Quantidades implícitas sem verbo operacional
 
@@ -54,6 +57,8 @@ Conversões `usual_average` são explicitamente apresentadas como aproximação 
 
 - Uma referência nutricional genérica de `100 g` não pode substituir silenciosamente uma medida contável resolvida.
 - O passthrough normal e o fragmento alimentar de `água + alimento` devem encaminhar `registrationText`, nunca o texto contável original, quando houver resolução.
+- Uma medida contável comercial já comprovada deve chegar ao registro final com seu resultado semântico preservado; a gramatura interna não pode ser reinterpretada como nova entrada mass-only.
+- Uma massa explicitamente digitada pelo usuário continua restritiva e não herda a confiança de uma resolução contável que não ocorreu.
 - O mesmo fragmento alimentar não pode executar duas resoluções lógicas de medida contável no wrapper.
 - O classificador contextual não é dependência para o caminho explícito de medidas contáveis.
 - A solução reutiliza o pipeline nutricional existente; não existe segundo mecanismo de cálculo de calorias/macronutrientes.

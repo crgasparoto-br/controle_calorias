@@ -1,15 +1,15 @@
-Issue #1072 exact-head verification evidence
+Issue #1072 exact-head delivery evidence
 repository=crgasparoto-br/controle_calorias
-pr=1074
-base=develop
-base_sha=2b11e70077e4fe1f47f322178b5479c60aeeefd3
-material_head_sha=c1fbfaf3b00d97712e9bccefd122623e04b27c10
-merge_preview_sha=3fb5ce669113adfefa432e0f10db7d17c126dfc5
-workflow_run=34768552232 Agent-first gate completed success
-workflow_run=34768552211 WhatsApp context TiDB gate completed success
-workflow_run=34768552240 AI provider live smoke completed skipped (expected)
-Agent-first successful steps: TypeScript check; Full tests; Architecture check; Documentation check; Build; Agent check; CI gate docs check; exact-head verification manifest; exact-head repository bundle; Gate summary.
-PR changed paths: server/brandedNutritionSearch.ts; server/catalogSemanticSearch.ts; server/commercialProductIdentity.ts; server/commercialServingRelation.issue1072.test.ts; server/householdMeasureResolution.ts; server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts.
-Issue-specific controls in server/commercialServingRelation.issue1072.test.ts cover Panco Premium at 1/2/3 slices, 25 g proportional compatibility versus 30 g rejection, provider servingLabel without source relation, exact second source, cache, provider unavailability, Wickbold, non-bread countable product, wrong brand/variant, and nutrition scaling without double-scaling.
-Issue-specific WhatsApp test server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts covers the production multi-item registration path with one Panco Premium slice without unnecessary clarification when identity, measure relation and nutrition evidence are proven.
-The exact-head GitHub Actions verification manifest reports riskProfile=critical and checkoutSha=headSha=c1fbfaf3b00d97712e9bccefd122623e04b27c10.
+pull_request=1076
+base_ref=develop
+head_ref=fix/1072-preserve-countable-provenance
+base_sha=0f3b913a6dc49ff15aaac4ed28ea09735c07b968
+material_head_sha=4967064bb54ad82ce92686198aeca387c42883f8
+merge_preview_sha=7a08f28f6cf52fd77b0fb5f034d8cec57bc1febf
+agent_first_run=34780754120 status=completed conclusion=success riskProfile=critical
+whatsapp_context_tidb_run=34780754115 status=completed conclusion=success
+agent_first_steps=TypeScript check:success; Full tests:success; Architecture check:success; Documentation check:success; Build:success; Agent check:success
+changed_paths=docs/design-docs/whatsapp-countable-measure-passthrough.md;server/countableFoodQuantity.ts;server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts;server/modules/whatsapp/countableFoodRegistrationGate.ts
+focused_new_controls=resolve o cenário multi-item com 1 fatia Panco Premium sem clarificação indevida; atravessa o registro confirmado com o payload real sem reclassificar a normalização de 25 g como entrada mass-only; não concede proveniência contável a uma massa informada diretamente pelo usuário
+existing_issue1072_controls=aceita 1 fatia sem exigir que a consulta repita a gramatura; aceita massa proporcional unidade+massa; rejeita massa contraditória; mantém consulta somente por massa restritiva; não relaxa marca/variante; servingLabel sem source grounding não prova relação; pesquisa medida exata adicional; rejeita outra variante; cache não transforma relação não comprovada; provider indisponível permanece fail-closed; Wickbold equivalente; outro produto contável fora de pão
+observed_behavior=O gate preserva o CatalogFood comercial validado e materializa resolvedSegment para que a gramatura interna resolvida, por exemplo 25 g, não seja reinterpretada como entrada mass-only no registro final. O cenário multi-item de produção registra Panco Premium com 25 g sem nova clarificação quando identidade, relação física e nutrição já estão comprovadas. Entrada mass-only digitada diretamente não herda proveniência contável.
