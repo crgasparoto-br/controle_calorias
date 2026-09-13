@@ -18,12 +18,22 @@ const brandedNutritionRuntime = {
   persistence: getDefaultNutritionResearchPersistence(),
 };
 
+function preserveLiveResearchProvenance(food: CatalogFood | null) {
+  if (!food || food.researchIdentityKey || !food.sourceVerifiedAt) return food;
+  return {
+    ...food,
+    researchIdentityKey: `nutrition-research-live:${food.slug}`,
+  };
+}
+
 export async function findPackagedSnackByWebSearch(
   foodName: string,
   category: NutritionSearchCategory,
 ): Promise<CatalogFood | null> {
   if (category === "branded_product") {
-    return findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
+    return preserveLiveResearchProvenance(
+      await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime),
+    );
   }
   return findPackagedSnackByWebSearchCore(foodName, category);
 }
@@ -33,7 +43,9 @@ export async function findCatalogFoodSemantic(
   options: SemanticSearchOptions = {},
 ): Promise<CatalogFood | null> {
   if (options.searchSpecificProduct && !options.skipNutritionSearch) {
-    return findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime);
+    return preserveLiveResearchProvenance(
+      await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime),
+    );
   }
 
   return findCatalogFoodSemanticCore(foodName, options);
