@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type RequestHandler } from "express";
 import { createServer } from "http";
 import net from "net";
+import { randomUUID } from "node:crypto";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -12,6 +13,7 @@ import {
   createExpressRateLimit,
 } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
+import { exposeHttpAvailabilityBeforeBackgroundTasks } from "./runtimeAvailability";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import {
@@ -87,7 +89,32 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+function listenHttpServer(server: ReturnType<typeof createServer>, port: number) {
+  return new Promise<void>((resolve, reject) => {
+    const handleError = (error: Error) => {
+      server.off("listening", handleListening);
+      reject(error);
+    };
+    const handleListening = () => {
+      server.off("error", handleError);
+      resolve();
+    };
+
+    server.once("error", handleError);
+    server.once("listening", handleListening);
+    server.listen(port);
+  });
+}
+
 async function startServer() {
+  const runtimeBootId = randomUUID();
+  const runtimeBootStartedAt = Date.now();
+  console.info("[Runtime] boot_started", {
+    bootId: runtimeBootId,
+    pid: process.pid,
+    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 12) ?? null,
+  });
+
   validateRuntimeEnv();
   configureAiObservabilityLogging();
   configureUsageGovernanceRuntime();
@@ -136,13 +163,6 @@ async function startServer() {
     console.warn("[Database] Runtime schema compatibility skipped:", error);
   }
 
-  try {
-    const catalogSync = await syncFoodCatalogReference();
-    console.log("[Nutrition] Food catalog sync:", catalogSync);
-  } catch (error) {
-    console.warn("[Nutrition] Food catalog sync skipped:", error);
-  }
-
   const defaultJsonParser = express.json({ limit: PAYLOAD_LIMITS.defaultJson });
   const defaultUrlencodedParser = express.urlencoded({
     limit: PAYLOAD_LIMITS.defaultJson,
@@ -151,6 +171,16 @@ async function startServer() {
   const mediaJsonParser = express.json({ limit: PAYLOAD_LIMITS.mediaJson });
   const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
   const asaasWebhookHandler = getAsaasWebhookHandler();
+
+  const observeWhatsAppIngress: RequestHandler = (req, _res, next) => {
+    console.info("[WhatsAppWebhook] ingress_received", {
+      bootId: runtimeBootId,
+      state: "request_reached_runtime",
+      method: req.method,
+      contentLength: req.get("content-length") ?? null,
+    });
+    next();
+  };
 
   app.use(MEDIA_TRPC_PATHS, mediaJsonParser);
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
@@ -182,6 +212,7 @@ async function startServer() {
   );
   app.post(
     "/api/whatsapp/webhook",
+    observeWhatsAppIngress,
     webhookRateLimit,
     express.json({ limit: PAYLOAD_LIMITS.webhookJson }),
     express.urlencoded({
@@ -189,8 +220,16 @@ async function startServer() {
       extended: true,
     }),
     (req, res) => {
+      console.info("[WhatsAppWebhook] lifecycle_dispatch", {
+        bootId: runtimeBootId,
+        state: "request_entering_lifecycle",
+      });
       void handleWhatsAppPersistentContextWebhook(req, res).catch(error => {
-        console.error("[WhatsAppWebhook] Request failed", safeLogDetail(error));
+        console.error("[WhatsAppWebhook] Request failed", {
+          bootId: runtimeBootId,
+          state: "lifecycle_failed_retryable",
+          error: safeLogDetail(error),
+        });
         if (!res.headersSent) {
           res.status(503).json({ ok: false, retry: true });
         }
@@ -224,8 +263,28 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  await exposeHttpAvailabilityBeforeBackgroundTasks({
+    listen: () => listenHttpServer(server, port),
+    onReady: () => {
+      console.log(`Server running on http://localhost:${port}/`);
+      console.info("[Runtime] http_ready", {
+        bootId: runtimeBootId,
+        port,
+        startupMs: Date.now() - runtimeBootStartedAt,
+      });
+    },
+    tasks: [
+      {
+        name: "food-catalog-sync",
+        run: async () => {
+          const catalogSync = await syncFoodCatalogReference();
+          console.log("[Nutrition] Food catalog sync:", catalogSync);
+        },
+        onError: error => {
+          console.warn("[Nutrition] Food catalog sync skipped:", error);
+        },
+      },
+    ],
   });
 
   startConversationRetentionScheduler();
@@ -234,4 +293,6 @@ async function startServer() {
   startAsaasPixAuthorizationRecoveryScheduler();
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error("[Runtime] startup_failed", safeLogDetail(error));
+});
