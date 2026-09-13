@@ -100,4 +100,6 @@ A recuperação de outbound não converte falhas determinísticas de validação
 
 A recuperação de crash não pode ser implementada simplesmente reduzindo o lease até permitir concorrência, limpando indiscriminadamente claims no startup ou promovendo toda reentrega a owner. O controle correto precisa manter uma única execução funcional e, ao mesmo tempo, impedir que um claim órfão seja convertido em silêncio permanente.
 
+A exclusividade precisa sobreviver também ao caso em que o runtime antigo volta a executar depois que seu heartbeat expirou. Por isso, `QUESTION` revalida o owner antes do ACK e novamente no boundary de cada tentativa física de provider; os efeitos de domínio e a finalização terminal usam o mesmo fence request-scoped. `RESTART-FENCE-001` deve falhar se a proteção existir apenas na entrada do handler ou apenas no outbound.
+
 O executor, timeout, retry/fallback, provider/model e a ferramenta `web_search` continuam pertencendo à fundação multi-provider descrita em `ARCHITECTURE.md` e `docs/RELIABILITY.md`. O harness falha se uma pergunta bem-sucedida multiplicar chamadas ao provider de IA, remover `web_search`, pular entrega/persistência da resposta final ou encerrar a métrica antes da fronteira terminal.

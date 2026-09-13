@@ -24,6 +24,7 @@ import {
   type WhatsAppProcessingClaimRepository,
 } from "../../repositories/whatsappProcessingClaimRepository";
 import { getDb, logPersistenceWarning } from "../../db";
+import { runWithIrreversibleEffectFence } from "../../_core/effectFenceContext";
 import {
   runWithWhatsappInboundCorrelationScope,
   setCurrentWhatsappInboundExternalMessageId,
@@ -87,6 +88,7 @@ type PendingProcessedMessage = {
 type MessageLifecycleScope = {
   service: MessageLifecycleService;
   claimedMessageIds: Set<number>;
+  claimedMessageHandles: Map<number, NonNullable<MessageLifecycleHandle>>;
   externalMessageIdByMessageId: Map<number, string>;
   claimedExternalMessageIds: Set<string>;
   processingOwnerTokenByMessageId: Map<number, string>;
@@ -323,6 +325,7 @@ function createScope(service: MessageLifecycleService, current?: MessageLifecycl
   return {
     service,
     claimedMessageIds: current?.claimedMessageIds ?? new Set<number>(),
+    claimedMessageHandles: current?.claimedMessageHandles ?? new Map<number, NonNullable<MessageLifecycleHandle>>(),
     externalMessageIdByMessageId: current?.externalMessageIdByMessageId ?? new Map<number, string>(),
     claimedExternalMessageIds: current?.claimedExternalMessageIds ?? new Set<string>(),
     processingOwnerTokenByMessageId: current?.processingOwnerTokenByMessageId ?? new Map<number, string>(),
@@ -373,6 +376,7 @@ async function flushProcessedMessages(scope: MessageLifecycleScope) {
   const pending = [...scope.pendingProcessedMessages.values()];
   scope.pendingProcessedMessages.clear();
   for (const entry of pending) {
+    await ensureMessageProcessingOwnership(entry.handle);
     await entry.service.markMessageProcessed(entry.handle, entry.processedAt);
     await entry.service.completeMessageProcessingClaim(entry.handle, entry.ownerToken);
     stopProcessingHeartbeat(scope, entry.handle.messageId);
@@ -380,17 +384,26 @@ async function flushProcessedMessages(scope: MessageLifecycleScope) {
 }
 
 async function runOwnedScope<T>(scope: MessageLifecycleScope, operation: () => Promise<T>): Promise<T> {
-  return runWithWhatsappInboundCorrelationScope(() => lifecycleScope.run(scope, async () => {
-    try {
-      const result = await operation();
-      await flushProcessedMessages(scope);
-      return result;
-    } finally {
-      // Em erro/crash simulado o claim não é liberado aqui de propósito. O
-      // heartbeat para e outro runtime só assume depois da janela de liveness.
-      stopAllProcessingHeartbeats(scope);
-    }
-  }));
+  return runWithWhatsappInboundCorrelationScope(() =>
+    runWithIrreversibleEffectFence(
+      async () => {
+        for (const handle of scope.claimedMessageHandles.values()) {
+          await ensureMessageProcessingOwnership(handle);
+        }
+      },
+      () => lifecycleScope.run(scope, async () => {
+        try {
+          const result = await operation();
+          await flushProcessedMessages(scope);
+          return result;
+        } finally {
+          // Em erro/crash simulado o claim não é liberado aqui de propósito. O
+          // heartbeat para e outro runtime só assume depois da janela de liveness.
+          stopAllProcessingHeartbeats(scope);
+        }
+      }),
+    ),
+  );
 }
 
 export async function withMessageLifecycleService<T>(
@@ -432,6 +445,7 @@ export async function claimMessageForProcessingState(
   const decision = await getActiveService().claimMessageForProcessingState(handle, now);
   if ((decision.status === "claimed" || decision.status === "recovered") && scope) {
     scope.claimedMessageIds.add(handle.messageId);
+    scope.claimedMessageHandles.set(handle.messageId, handle);
     const externalMessageId = scope.externalMessageIdByMessageId.get(handle.messageId);
     if (externalMessageId) scope.claimedExternalMessageIds.add(externalMessageId);
     registerPersistentOwner(scope, handle, decision.ownerToken);
@@ -471,6 +485,7 @@ export async function releaseMessageForRetry(handle: MessageLifecycleHandle, now
   const released = await getActiveService().releaseMessageForRetry(handle, now, ownerToken);
   if (released) {
     scope?.claimedMessageIds.delete(handle.messageId);
+    scope?.claimedMessageHandles.delete(handle.messageId);
     scope?.processingOwnerTokenByMessageId.delete(handle.messageId);
     if (scope) stopProcessingHeartbeat(scope, handle.messageId);
     const externalMessageId = scope?.externalMessageIdByMessageId.get(handle.messageId);

@@ -11,6 +11,7 @@ import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
+import { ensureCurrentMessageProcessingOwnership } from "./messageLifecycle";
 import {
   handleCoffeeAdditionIntent,
   handleCoffeeLorCapsuleIntent,
@@ -537,6 +538,7 @@ export async function executeWhatsappTextIntent(
   userId: number,
   input: WhatsappIntentInput,
 ): Promise<WhatsappIntentResult | null> {
+  await ensureCurrentMessageProcessingOwnership(input.messageId);
   return runWithAiUsageScope(
     { userId, conversationId: input.messageId ?? getCurrentWhatsappInboundExternalMessageId() },
     () => executeWhatsappTextIntentAttributed(userId, input),

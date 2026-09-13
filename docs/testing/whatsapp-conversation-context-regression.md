@@ -14,6 +14,8 @@ Texto, imagem, áudio e multimodal passam pelo mesmo lifecycle persistente antes
 
 Uma reentrega só é duplicata terminal quando há evidência persistida de conclusão. Se o inbound ainda estiver `unprocessed`, a existência de um claim não autoriza responder HTTP 200 apenas como deduplicação. Uma reentrega que não consiga prosseguir deve permanecer retryável; após perda abrupta do owner, uma tentativa subsequente precisa poder retomar sem depender exclusivamente do vencimento integral do lease, sem criar um segundo owner enquanto o primeiro estiver comprovadamente ativo.
 
+O claim não protege apenas a entrada do handler. Toda fronteira material deve revalidar o owner imediatamente antes do efeito. O controle `RESTART-FENCE-001` mantém o runtime A vivo, porém suspenso depois do guard inicial e além do heartbeat timeout, deixa B assumir o mesmo `message.id` e concluir, e só então retoma A. A execução stale deve ser cercada antes de provider/IA, persistência de domínio, outbound e `processedAt`.
+
 ## Evidências automatizadas
 
 | Contrato | Evidência executável |
@@ -25,6 +27,7 @@ Uma reentrega só é duplicata terminal quando há evidência persistida de conc
 | Falha da Meta após persistência e retry em outra instância | `server/whatsappPersistentContextWebhook.test.ts` |
 | Lease persistente, retry abandonado e finalização somente após sucesso | `server/modules/whatsapp/messageLifecycle.processingClaim.test.ts`, `server/whatsappImageIdempotencyWebhook.failure.test.ts` |
 | Crash/restart após claim e antes da resposta final, seguido do mesmo POST + `message.id` sem espera do lease completo | regressão do entrypoint HTTP canônico + lifecycle persistente |
+| Runtime antigo retoma após takeover e tenta novo efeito | `server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts` (`RESTART-FENCE-001`) + boundary unitário de provider |
 | Reentrega concorrente enquanto o owner original continua ativo não cria segundo efeito nem segunda resposta final | regressão de concorrência do lifecycle/entrypoint |
 | Duplicata de inbound já concluído retorna sucesso idempotente sem reexecutar domínio/outbound | regressão do lifecycle/entrypoint |
 | Claim persistente prevalece sobre cache local | `server/modules/whatsapp/messageDeduplicationCache.test.ts` |
@@ -52,6 +55,7 @@ Uma reentrega só é duplicata terminal quando há evidência persistida de conc
 | Reentrega texto/imagem/áudio | lifecycle/entrypoint | uma entrada e um efeito de domínio |
 | Reinício entre mensagens | entrypoint com caches zerados | continuidade preservada no mesmo armazenamento |
 | Reinício durante mensagem claimed | mesmo POST + `message.id` após término abrupto | retry não recebe 200 terminal enquanto inbound estiver sem resposta; retomada ocorre sem aguardar o lease inteiro e sem duplicar efeito |
+| Owner A suspenso após guard, B assume, A retoma | mesmo POST + `message.id`; pergunta e hidratação | B é o único produtor funcional; A falha no fence imediatamente anterior ao efeito; uma única chamada/registro/outbound |
 | Duplicata concorrente com owner saudável | duas requisições simultâneas do mesmo `message.id` | apenas um owner executa; a segunda não rouba o claim nem transforma estado não processado em duplicata terminal |
 | Duplicata após conclusão | mesma mensagem já processada | 200 idempotente; nenhum novo efeito nem nova resposta funcional |
 | Duas instâncias | runtimes A/B independentes | uma propriedade de processamento por mensagem |

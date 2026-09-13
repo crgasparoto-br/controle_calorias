@@ -63,6 +63,7 @@ Quando há overflow, o resumo é regenerado de forma idempotente e protegido con
 - Reentrega de mensagem ainda não processada **não** pode ser confirmada como duplicata terminal apenas porque existe um claim/lease ainda dentro da janela. Enquanto não houver prova persistida de conclusão, o resultado HTTP deve permanecer retryável quando a reentrega não puder prosseguir.
 - O lease impede dois proprietários simultâneos, mas não é prova de conclusão. Após perda abrupta do proprietário, a próxima reentrega deve conseguir retomar o inbound sem depender exclusivamente de esperar o lease global inteiro expirar.
 - A recuperação de owner órfão não pode roubar uma mensagem de um proprietário comprovadamente ativo; o mecanismo de propriedade deve preservar execução única mesmo sob reentregas concorrentes.
+- Ownership persistente também funciona como **fence de efeitos**: um runtime que perdeu o owner deve revalidar a autoridade imediatamente antes de mutação de domínio, tentativa física de provider/IA, outbound funcional e finalização de `processedAt`. Um runtime antigo que retoma depois de takeover não pode produzir efeito apenas porque havia passado por um guard anterior.
 - Atualização de conversa e consumo de pendência usam versão/compare-and-set.
 - Duas instâncias podem processar mensagens sobre o mesmo armazenamento sem depender de lock em memória.
 - A ordenação lógica usa `occurredAt` e `id`, não a ordem de conclusão de download ou transcrição.
