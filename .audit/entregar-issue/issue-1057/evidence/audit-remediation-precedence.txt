@@ -1,0 +1,5 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+source_rejection_id=audit-rejection:a702f327-51af-490d-9480-90ceaa58633a
+finding_id=A-1058-001
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+The exact-material Agent-first suite passed on the refreshed candidate. The inherited precedence control remains enforced: an incompatible complete food command supersedes stale clarification context, while a compatible bread-identity reply remains attached to the clarification and does not silently replace the persisted counted quantity.

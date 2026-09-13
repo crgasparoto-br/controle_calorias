@@ -19,6 +19,11 @@ import {
   parseMealIntentDecisionTextAction,
   PENDING_MEAL_INTENT_DECISION_TYPE,
 } from "./mealIntentDecisionInteraction";
+import {
+  classifyMealIntentRegistrationDetailsText,
+  isPendingMealIntentRegistrationDetails,
+  PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE,
+} from "./mealIntentRegistrationDetailsInteraction";
 import { buildWhatsappInteractionTelemetry } from "./interactionPresentation";
 import {
   findWhatsappRegisteredInteraction,
@@ -267,6 +272,29 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         data: {
           fallbackBlocked: true,
           fallbackBlockReason: "stale_meal_intent_decision",
+          interactionLifecycle: "blocked",
+        },
+      };
+    }
+    if (
+      latest?.type === PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE &&
+      isPendingMealIntentRegistrationDetails(latest.target) &&
+      (latest.state !== "active" ||
+        new Date(latest.expiresAt).getTime() <
+          (input.receivedAt ?? new Date()).getTime()) &&
+      classifyMealIntentRegistrationDetailsText(latest.target, input.text) === "resolve"
+    ) {
+      return {
+        handled: true,
+        action: "clarification_needed",
+        reply:
+          "Essa pergunta não está mais disponível. Envie novamente a descrição completa da refeição.",
+        eventType: "whatsapp.meal_intent_decision.registration_details_unavailable",
+        detail:
+          "Resposta compatível com clarificação alimentar expirada, consumida, cancelada ou substituída foi bloqueada antes do fallback.",
+        data: {
+          fallbackBlocked: true,
+          fallbackBlockReason: "stale_meal_intent_registration_details",
           interactionLifecycle: "blocked",
         },
       };

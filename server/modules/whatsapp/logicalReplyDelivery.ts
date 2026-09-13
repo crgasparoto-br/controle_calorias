@@ -1,7 +1,10 @@
 import { tryCreateQuickEditLinkForMeal } from "../quickEdit/service";
 import { logicalReplyFromLegacyText, withAuxiliaryImage, type WhatsAppLogicalReply } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
-import type { MessageLifecycleHandle } from "./messageLifecycle";
+import {
+  ensureMessageProcessingOwnership,
+  type MessageLifecycleHandle,
+} from "./messageLifecycle";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import {
   getCurrentQuestionLatencyTrace,
@@ -79,12 +82,18 @@ export async function sendWhatsAppLogicalDomainReply(input: {
     : undefined;
   const questionTrace = getCurrentQuestionLatencyTrace();
 
+  // O owner é renovado imediatamente antes do efeito externo. Um runtime que
+  // ficou suspenso, perdeu o heartbeat e foi substituído não pode ressurgir e
+  // disparar a mesma resposta depois do takeover.
+  if (input.lifecycleHandle) await ensureMessageProcessingOwnership(input.lifecycleHandle);
+
   if (questionTrace) recordCurrentQuestionDeliveryAttempt(false);
   let result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle);
 
   if (questionTrace && !result.primaryOk && isRetryableQuestionDeliveryFailure(result)) {
     const retryTraceId = buildQuestionRetryTraceId(input);
     if (retryTraceId) {
+      if (input.lifecycleHandle) await ensureMessageProcessingOwnership(input.lifecycleHandle);
       recordCurrentQuestionDeliveryAttempt(true);
       result = await sendWhatsAppLogicalReply(input.to, reply, lifecycle, {
         origin: WHATSAPP_QUESTION_FINAL_RETRY_ORIGIN,

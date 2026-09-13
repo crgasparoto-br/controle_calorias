@@ -1,0 +1,4 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=R-NEW-COMMAND contract precedence
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+The exact-material Agent-first full test suite passed the Issue #1057 semantic-precedence regressions. The implementation remains generic: incompatible complete food commands can supersede pending context, while a compatible identity reply with conflicting quantity stays a clarification and does not silently mutate the persisted quantity.

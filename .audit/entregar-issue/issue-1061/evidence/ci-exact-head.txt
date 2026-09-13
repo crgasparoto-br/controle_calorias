@@ -1,0 +1,20 @@
+Issue #1061 systemic audit remediation exact-head verification
+material_head_sha=3cf47471261e677aa48c69fabaf5e4ebcfcfee64
+base_sha=6507bdc0dc14ebc744de75393e5dc0c6bda8b112
+merge_preview_sha=31db5632d3c1a51f77f934c83ee77a99ea5e09f5
+Agent-first gate run=34729502259 conclusion=success
+- Delivery V2 risk: success
+- Merge preview integration: success
+- TypeScript check: success
+- Full tests: success
+- Architecture check: success
+- Documentation check: success
+- Build: success
+- Agent check: success
+- Exact-head verification manifest: success
+- Exact-head repository bundle: success
+WhatsApp context TiDB gate run=34729502201 conclusion=success
+Billing persistence TiDB gate run=34729502203 conclusion=success
+Professional persistence TiDB gate run=34729502217 conclusion=success
+AI provider live smoke run=34729502198 conclusion=skipped (expected for this PR trigger)
+All applicable material workflows are terminal on 3cf47471261e677aa48c69fabaf5e4ebcfcfee64.

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:bdedee4f-9f9d-4efa-a882-5051f62dc696",
+    "audit_report_sha256": "b446dc25f8c462fb53d6194139f0dbafe3d142ad138c9a94a8b8698101a54760",
+    "audited_head_sha": "325349ef0b3a651bf5fa5b771423aad58860d592"
+  },
+  "candidate_head_sha": "367b248bb1d256b1aadeeb1db46cbdcf4b606cf4",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1058-004",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
+      "evidence": [
+        ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      ],
+      "validations": [
+        "Base remota develop reconsultada em d67cbc5066587db7e1bb4666ba62970c9fd6ebb7.",
+        "Merge-preview material atual identificado em f572a6f6e3d8fa3835188f79867f51af3a1d9efd para o candidato 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4.",
+        "Agent-first 34628258179 e WhatsApp/TiDB 34628258197 concluíram com sucesso no material atual."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-1058-005",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
+      "evidence": [
+        ".audit/entregar-issue/issue-1057/evidence/handoff-refreeze.txt"
+      ],
+      "validations": [
+        "work_item_start_sha imutável restaurado para 31c7788d1f2995e3e2326b22738896c0b29ef6e6, observado antes do primeiro commit material da issue #1057.",
+        "Escopo issue-local reconstruído pela união dos commits materiais específicos da #1057, excluindo commits result-only, no-op e mudanças herdadas pelos merges de develop: 8 caminhos.",
+        "issue_delta_sha256 recalculado para ea9e4beec1fe2b7af6e287bc130bc628184190a9c048347bb3130c4eb5115e91 sobre os 8 caminhos issue-local e o material head 367b248bb1d256b1aadeeb1db46cbdcf4b606cf4.",
+        "O filho result-only permanece filho direto do material head e seu diff contém somente caminhos de evidência autorizados pelo certificado."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
+  "evidence": [
+    {
+      "evidence_id": "EVID-QTY-1059",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1059-quantity.json",
+      "sha256": "9f2bdb35886b89df4ea6c6b77064d955bd71853a7a3b1286265274b4997e6496",
+      "subject_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head suite + issue-specific Vitest assertions",
+      "status": "passed"
+    }
+  ]
+}

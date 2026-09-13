@@ -14,6 +14,7 @@ import {
   type ResolvedRegistrationSegment,
 } from "./countableFoodRegistrationGate";
 import { splitFoodTextSegments } from "../../mealTextParsing";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 
 export type ConfirmedMealRegistrationOutcome =
   | { status: "registered"; result: WhatsappIntentResult }
@@ -124,8 +125,10 @@ export function createConfirmedMealRegistrationService(
         processed = await deps.processMeal(processingInput);
       }
 
+      await ensureCurrentIrreversibleEffectAllowed();
       const draft = deps.createDraft(input.userId, "whatsapp", processed, []);
       mutationMayHaveStarted = true;
+      await ensureCurrentIrreversibleEffectAllowed();
       const savedMeal = await deps.confirmMeal({
         draftId: draft.draftId,
         userId: input.userId,
@@ -138,8 +141,14 @@ export function createConfirmedMealRegistrationService(
       const consolidation = await deps.consolidateMeal(
         {
           listUserMeals: (...args) => dbRuntime.listUserMeals(...args),
-          updateUserMeal: (...args) => dbRuntime.updateUserMeal(...args),
-          removeUserMeal: (...args) => dbRuntime.removeUserMeal(...args),
+          updateUserMeal: async (...args) => {
+            await ensureCurrentIrreversibleEffectAllowed();
+            return dbRuntime.updateUserMeal(...args);
+          },
+          removeUserMeal: async (...args) => {
+            await ensureCurrentIrreversibleEffectAllowed();
+            return dbRuntime.removeUserMeal(...args);
+          },
         },
         savedMeal,
         input.userTimezone,

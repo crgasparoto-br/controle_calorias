@@ -9,6 +9,7 @@ export type WhatsappIntentResult = {
     | "meal_item_replaced"
     | "meal_suggestion"
     | "period_report"
+    | "preference_recorded"
     | "clarification_needed"
     | "meal_deleted"
     | "meal_item_deleted"

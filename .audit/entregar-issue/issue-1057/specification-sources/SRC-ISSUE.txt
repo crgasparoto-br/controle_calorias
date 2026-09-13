@@ -1,0 +1,59 @@
+# Issue #1057 — [bug][whatsapp] Preservar quantidade e unidade ao responder clarificação de variante
+
+## Objetivo
+Corrigir o fluxo de clarificação multi-turn do WhatsApp para que uma resposta complementar de marca/variante preencha somente o dado pendente e preserve quantidade, unidade, demais atributos já conhecidos do item e os outros alimentos extraídos da mensagem original.
+A implementação deve partir da branch `develop`.
+
+## Comportamento esperado
+- Quando existir uma pendência ativa de identidade/variante, a resposta seguinte deve passar primeiro pela interação pendente antes de ser tratada como uma nova intenção alimentar.
+- Texto compatível com o dado solicitado deve ser aceito mesmo quando, isoladamente, também pareça uma descrição completa de alimento.
+- Quantidade, unidade, alimento base, marca previamente conhecida, data da refeição, timezone e demais atributos já extraídos devem ser mantidos.
+- Apenas a identidade/variante pendente deve ser completada; os outros itens da mensagem multi-item devem permanecer semanticamente estáveis.
+- A retomada deve continuar identidade -> variante -> porção -> nutrientes sobre o item reconstruído.
+- Se surgir nova pendência legítima, a próxima pergunta deve se referir somente ao novo dado ausente e uma sucessora ativa deve ser persistida antes do novo prompt.
+- A refeição deve ser persistida uma única vez, somente após todas as pendências serem resolvidas.
+
+## Precedência e merge semântico
+- A interação `meal_intent_decision.registration_details` ativa e semanticamente compatível deve ter precedência sobre a heurística `isCompleteWhatsappCommand()`.
+- `Premium` e `Pão de forma Panco Premium` devem resolver a mesma pendência e produzir o mesmo item semântico, preservando `2 fatias`.
+- Somente um comando completo realmente incompatível pode substituir a pendência e seguir o fluxo normal como nova intenção.
+- A reconstrução do item pendente não deve depender de concatenação textual cega que duplique a identidade.
+- Se a resposta trouxer quantidade/unidade conflitante enquanto a pendência atual é somente de identidade, o fluxo não deve alterar silenciosamente a quantidade já conhecida; deve manter a pendência ou encaminhar a correção pelo mecanismo existente.
+
+## Contrato persistente
+- `whatsappPendingOperation` deve permanecer a fonte persistente da continuação, com isolamento por `userId`, operação exata/versionada, `expiresAt`, target e correlação disponível.
+- A resolução deve reivindicar a operação persistida exata no máximo uma vez e não pode depender de memória do processo.
+- Repetição/retry ou duas respostas concorrentes para o mesmo `id/version` não devem duplicar refeição nem reabrir uma operação consumida.
+- Após reinício do processo entre pergunta e resposta, o mesmo entrypoint deve recuperar a pendência durável sem chamada auxiliar e produzir o mesmo resultado.
+- Uma resposta de outro usuário não pode consumir, completar nem revelar o contexto da pendência original.
+- Pendência expirada, consumida, cancelada ou substituída deve aplicar staleBehavior e pedir o comando/refeição completa; a resposta antiga não deve cair silenciosamente no fallback como novo alimento incompleto.
+- `CANCELAR` deve encerrar a operação sem persistir refeição.
+
+## Paridade e fonte canônica
+- O contrato central deve permanecer coerente nos entrypoints publicados: webhook textual, intent webhook, simulador e transcrição de áudio, com cobertura representativa/pairwise em vez de duplicar toda a matriz por canal.
+- Reutilizar `CountableRegistrationContinuation`, `meal_intent_decision.registration_details`, o gate central de operações pendentes, o registry e os códigos/contratos semânticos existentes; não criar memória paralela nem rota especial para Panco.
+- Manter coerência com `docs/design-docs/whatsapp-countable-measure-passthrough.md`, `docs/product-specs/meal-registration.md` e a matriz executável #857.
+
+## Critérios de aceite
+- [ ] O fluxo reproduzido em produção deixa de pedir quantidade após `Pão de forma Panco Premium`.
+- [ ] `2 fatias` da mensagem original permanecem no item retomado.
+- [ ] `Premium` e `Pão de forma Panco Premium` funcionam como respostas equivalentes da mesma pendência.
+- [ ] Uma resposta alimentar completa, mas semanticamente compatível com a identidade solicitada, não é marcada como novo comando apenas por `isCompleteWhatsappCommand()`.
+- [ ] `supersedePendingOperation()` não é acionado no cenário de produção.
+- [ ] Um comando realmente independente continua podendo substituir a pendência.
+- [ ] O item pendente é reconstruído sem depender de duplicação textual da identidade.
+- [ ] Apenas o item pendente é alterado; os demais permanecem semanticamente estáveis.
+- [ ] Reclarificações posteriores preservam todos os campos já conhecidos em uma sucessora persistida antes do novo prompt.
+- [ ] Nenhuma refeição/item é persistido parcialmente antes da resolução final.
+- [ ] A continuação é idempotente e não duplica registro, inclusive sob retry/claim concorrente.
+- [ ] Após reinício do processo, a mesma resposta pelo mesmo entrypoint recupera a pendência durável sem chamada auxiliar.
+- [ ] Resposta a pendência expirada não vira novo alimento incompleto e segue o `staleBehavior` registrado.
+- [ ] Cancelamento encerra a continuação sem mutação.
+- [ ] Outro usuário não consegue consumir nem observar o contexto da pendência.
+- [ ] O comportamento permanece coerente nos entrypoints publicados e no gate/matriz da #857.
+- [ ] A correção é genérica para outras marcas/produtos.
+- [ ] Testes da #1054/#1055 continuam passando.
+- [ ] Type-check, build, `agent:check`, `docs:check` e suíte focada aplicáveis passam.
+
+## Fora de escopo
+Não alterar a política nutricional por marca, não criar regra especial para Panco Premium, não redesenhar schema/arquitetura de pendências, não remover globalmente a substituição de uma pendência por novo comando incompatível e não fazer merge automático.

@@ -7,10 +7,15 @@ import {
   type WhatsAppPendingOperationRecord,
 } from "../../repositories/whatsappPendingOperationRepository";
 import { executeConfirmedWhatsAppMealRegistration } from "./confirmedMealRegistration";
-import { isCompleteWhatsappCommand, parseFoodClarificationQuantityReply } from "./foodClarificationContract";
-import { splitFoodTextSegments } from "../../mealTextParsing";
+import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { requestWhatsappCaloricComplementQuantityClarification } from "./foodQuantityClarification";
 import { claimWhatsAppTextPendingOperation } from "./interactiveCallback";
+import {
+  analyzeRegistrationDetailsIdentityReply,
+  mergePendingCountableSegment,
+  mergePendingIdentity,
+  parsePendingIdentityContext,
+} from "./registrationDetailsIdentity";
 import { normalizeStandaloneWhatsappCommand } from "./standaloneCommandWords";
 import type { CountableRegistrationContinuation } from "./countableFoodRegistrationGate";
 import type { CanonicalFoodAdditionItem } from "./intent/canonicalFoodAdditionResolution";
@@ -23,7 +28,6 @@ export const PENDING_MEAL_INTENT_REGISTRATION_DETAILS_ORIGIN =
 export const MEAL_INTENT_REGISTRATION_DETAILS_INTERACTION_ID =
   "meal_intent_decision.registration_details";
 const DETAILS_TTL_MS = 10 * 60 * 1000;
-
 
 export type FoodAdditionIdentityContinuation = {
   addition: Omit<FoodAdditionIntent, "date"> & { date: string };
@@ -183,9 +187,29 @@ export async function createWhatsappMealIntentRegistrationDetailsInteraction(inp
   };
 }
 
-function parseDetailsAction(text?: string | null) {
+function getPendingIdentityContext(target: PendingMealIntentRegistrationDetails) {
+  const countableContext = target.countableContext;
+  if (countableContext) {
+    return parsePendingIdentityContext({
+      segment: countableContext.registrationSegments[countableContext.itemIndex],
+    });
+  }
+
+  const foodAdditionContext = target.foodAdditionContext;
+  const item = foodAdditionContext?.addition.items[foodAdditionContext.itemIndex];
+  if (!item) return null;
+  return parsePendingIdentityContext({
+    fallbackIdentity: item.foodName,
+    fallbackQuantity: item.quantity,
+    fallbackUnit: item.unit,
+  });
+}
+
+function parseDetailsAction(
+  target: PendingMealIntentRegistrationDetails,
+  text?: string | null,
+) {
   const raw = text?.trim() ?? "";
-  if (isCompleteWhatsappCommand(raw)) return null;
   const normalized = normalizeStandaloneWhatsappCommand(raw);
   if (!normalized) return null;
   if (["cancelar", "cancela", "cancele", "nao", "0"].includes(normalized)) {
@@ -194,6 +218,25 @@ function parseDetailsAction(text?: string | null) {
   if (["registrar", "registrar alimento", "registrar consumo", "registre", "registra"].includes(normalized)) {
     return null;
   }
+
+  const completeCommand = isCompleteWhatsappCommand(raw);
+  const identityContext = getPendingIdentityContext(target);
+  if (identityContext) {
+    const analysis = analyzeRegistrationDetailsIdentityReply({
+      text: raw,
+      ...identityContext,
+      isCompleteCommand: completeCommand,
+    });
+    if (analysis.kind === "compatible" || analysis.kind === "quantity_conflict") {
+      return "provide_details" as const;
+    }
+    if (analysis.kind === "invalid" && !completeCommand) {
+      return "provide_details" as const;
+    }
+    return null;
+  }
+
+  if (completeCommand) return null;
   return "provide_details" as const;
 }
 
@@ -202,7 +245,7 @@ export function classifyMealIntentRegistrationDetailsText(
   text?: string | null,
 ): "resolve" | "invalid" {
   if (!isPendingMealIntentRegistrationDetails(target)) return "invalid";
-  return parseDetailsAction(text) ? "resolve" : "invalid";
+  return parseDetailsAction(target, text) ? "resolve" : "invalid";
 }
 
 function combineRegistrationText(base: string, details: string) {
@@ -245,20 +288,33 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
   userTimezone: string;
 }) {
   const target = input.pendingOperation.target;
-  const action = parseDetailsAction(input.text);
-  if (!isPendingMealIntentRegistrationDetails(target) || !action) return null;
+  if (!isPendingMealIntentRegistrationDetails(target)) return null;
+  const action = parseDetailsAction(target, input.text);
+  if (!action) return null;
   if (input.pendingOperation.userId !== input.userId) return null;
-  if ((target.countableContext || target.foodAdditionContext) && action !== "cancel") {
-    const details = input.text?.trim() ?? "";
-    if (splitFoodTextSegments(details).length !== 1 || parseFoodClarificationQuantityReply(details)) {
+
+  const details = input.text?.trim() ?? "";
+  const identityContext = getPendingIdentityContext(target);
+  if (identityContext && action !== "cancel") {
+    const analysis = analyzeRegistrationDetailsIdentityReply({
+      text: details,
+      ...identityContext,
+      isCompleteCommand: isCompleteWhatsappCommand(details),
+    });
+    if (analysis.kind !== "compatible") {
       return {
-        handled: true as const, action: "clarification_needed" as const,
+        handled: true as const,
+        action: "clarification_needed" as const,
         reply: target.prompt,
         eventType: "whatsapp.meal_intent_decision.invalid_identity_details",
-        detail: "Resposta não identifica uma única variante; pendência preservada sem efeito.",
+        detail: analysis.kind === "quantity_conflict"
+          ? "Resposta de identidade conflita com a quantidade ou unidade já conhecida; pendência preservada sem efeito."
+          : "Resposta não identifica uma única variante compatível; pendência preservada sem efeito.",
+        data: { originalTextPreserved: true },
       };
     }
   }
+
   const claim = await claimWhatsAppTextPendingOperation(
     input.userId,
     PENDING_MEAL_INTENT_REGISTRATION_DETAILS_TYPE,
@@ -279,7 +335,6 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
     };
   }
 
-  const details = input.text?.trim() ?? "";
   const foodAdditionContext = target.foodAdditionContext;
   if (foodAdditionContext) {
     const items = foodAdditionContext.addition.items.map(item => ({ ...item }));
@@ -296,7 +351,7 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
     }
     items[foodAdditionContext.itemIndex] = {
       ...currentItem,
-      foodName: `${currentItem.foodName} ${details}`.trim(),
+      foodName: mergePendingIdentity(currentItem.foodName, details),
     };
     const { handleFoodAdditionIntent } = await import("./intent/foodAdditionHandlers");
     return handleFoodAdditionIntent(
@@ -324,9 +379,19 @@ export async function resolveWhatsappMealIntentRegistrationDetailsText(input: {
     ? [...context.registrationSegments]
     : null;
   if (context && registrationSegments) {
-    // Apply the answer only to the unresolved identity, retaining quantity and siblings.
+    const pendingSegment = registrationSegments[context.itemIndex];
+    if (!pendingSegment) {
+      return {
+        handled: true as const,
+        action: "clarification_needed" as const,
+        reply: "Não consegui retomar o alimento pendente com segurança. Nada foi registrado. Envie novamente a descrição completa da refeição.",
+        eventType: "whatsapp.meal_intent_decision.countable_identity_context_invalid",
+        detail: "Contexto persistido não contém o segmento alimentar pendente esperado.",
+        data: { retryRequiresFullMessage: true, originalTextPreserved: true },
+      };
+    }
     registrationSegments[context.itemIndex] =
-      `${registrationSegments[context.itemIndex]} ${details}`;
+      mergePendingCountableSegment(pendingSegment, details);
   }
   const registrationText =
     registrationSegments?.join("\n") ??

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import { hasUnsafeKnownCountableFoodQuantity } from "../../countableFoodQuantity";
 import {
   handleCoffeeSugarRegistrationIntent,
@@ -537,6 +538,7 @@ export async function executeWhatsappTextIntent(
   userId: number,
   input: WhatsappIntentInput,
 ): Promise<WhatsappIntentResult | null> {
+  await ensureCurrentIrreversibleEffectAllowed();
   return runWithAiUsageScope(
     { userId, conversationId: input.messageId ?? getCurrentWhatsappInboundExternalMessageId() },
     () => executeWhatsappTextIntentAttributed(userId, input),

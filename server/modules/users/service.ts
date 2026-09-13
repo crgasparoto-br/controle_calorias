@@ -4,6 +4,7 @@ import type { UsersRepository } from "../../repositories/usersRepository";
 import type { UserProfileRepository } from "../../repositories/userProfileRepository";
 import type { WeightRepository } from "../../repositories/weightRepository";
 import { canUseMemoryPersistenceFallback } from "../../repositories/memoryFallback";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 
 export type OnboardingProfileEntry = OnboardingInput & {
   userId: number;
@@ -133,6 +134,7 @@ export function createUsersService(deps: {
     measuredAt: Date;
     notes?: string;
   }) {
+    await ensureCurrentIrreversibleEffectAllowed();
     if (canUseMemoryPersistenceFallback()) {
       const existingProfile = onboardingProfileStore.get(userId);
       if (existingProfile) {

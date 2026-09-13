@@ -20,12 +20,14 @@
 
 Status check obrigatório:
 
-- [ ] `Merge preview integration` concluiu com sucesso e `Agent-first gate` passou no `head_sha` exato da PR contra `main` ou `develop`
+- [ ] `Delivery V2 risk` classificou a PR e `Agent-first gate` passou no `head_sha` exato contra `main` ou `develop`
+- Perfil efetivo: <!-- FAST / STANDARD / CRITICAL -->
+- Promoção de risco: <!-- sim / não / não aplicável -->
 
-Comandos relevantes:
+Comandos relevantes executados pelo perfil (marque somente os aplicáveis):
 
 - [ ] `pnpm check`
-- [ ] `pnpm test`
+- [ ] testes relacionados (`vitest related`) ou `pnpm test` equivalente completo
 - [ ] `pnpm architecture:check`
 - [ ] `pnpm docs:check`
 - [ ] `pnpm build`
@@ -42,7 +44,7 @@ Banco e integridade:
 Vercel:
 
 - Preview/deploy: <!-- passou / falhou por código / falhou por limite externo / não aplicável -->
-- Observação: Vercel não substitui `Agent-first gate` nem os comandos acima.
+- Observação: Vercel não substitui `Agent-first gate` nem os comandos exigidos pelo perfil Delivery V2.
 
 ## Riscos e pendências
 

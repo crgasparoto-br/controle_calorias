@@ -70,3 +70,14 @@ Alimentos criados pelo próprio usuário no catálogo legado podem ser removidos
 - `items: []` validado por Zod é resultado funcional e não aciona retry, fallback ou escalonamento.
 - Erros recuperáveis podem seguir a política limitada; autenticação, modelo inexistente, incompatibilidade, bloqueio de segurança e configuração inválida não geram segundo envio.
 - Ao esgotar o caminho externo, o núcleo mantém a resposta funcional documentada de esclarecimento/indisponibilidade e não persiste refeição vazia ou genérica.
+
+## Preferências pessoais para atributos omitidos (#1059)
+
+No WhatsApp, um atributo de preparo omitido pode ser preenchido por memória individual somente quando existir uma memória contextual estruturada, durável, ativa, não expirada e pertencente ao mesmo `userId`. A precedência é **entrada explícita atual > memória pessoal aplicável > resolvedor canônico > clarificação**.
+
+- A memória completa somente o atributo ausente; quantidade, unidade, refeição, data, operação, correlação e itens acompanhantes permanecem os da mensagem atual.
+- Sinais explicitamente recorrentes, como `normalmente tomo café sem açúcar` ou `meu café é sem açúcar`, podem alimentar o lifecycle de feedback e ser persistidos por identidade semântica do alimento e do preparo. Uma ocorrência isolada, como `4 xícaras de café sem açúcar`, não cria preferência recorrente por si só.
+- `habitMemories`, última refeição e frequência de consumo não são fontes autorizadas para preencher preparo omitido.
+- A leitura usada por decisões de domínio vem da memória contextual persistida; memória de processo pode existir apenas como fallback de teste/desenvolvimento permitido e nunca autoriza sucesso persistente em produção.
+- Memória inativa, expirada, substituída, de outro usuário ou em conflito mantém o fluxo de clarificação. Nenhuma LLM escolhe silenciosamente entre memórias conflitantes.
+- O uso de uma memória aplicada é registrado com identificador e chave operacionais, sem depender do texto bruto do usuário como fonte de verdade da mutação.

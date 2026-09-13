@@ -1,0 +1,5 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=R-CONTINUATION quantity preservation
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material Issue #1057 regressions passed. The TiDB registration-details restart script explicitly asserts successor registrationText="2 fatias de pão de forma Panco Premium" and countableContext.registrationSegments=["2 fatias de pão de forma Panco Premium"], preserving quantity 2 and the counted slice unit across process restart and the concurrent exact-claim scenario.

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "validated",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1059,
+  "pull_request_number": 1060,
+  "material_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "previous_certified_material_head_sha": "36fab9918193aa316a23f4c0b781e916e2722a13",
+  "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
+  "exact_head_ci": {
+    "agent_first": {
+      "run_id": 34541931423,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "whatsapp_tidb": {
+      "run_id": 34541931412,
+      "status": "completed",
+      "conclusion": "success",
+      "restart_regression": "passed"
+    }
+  },
+  "merge_check": {
+    "status": "passed",
+    "conflicts": 0,
+    "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
+    "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+    "merge_tree_sha": "fba4cc2d4ec115eadd232e5868d32424ed991156",
+    "github_merge_preview_sha": "4898234edfdac8fe15c5c3a038fdbe0dc6750ada"
+  },
+  "reason": "post-write-refreeze after material test/workflow changes invalidated the previous handoff",
+  "material_merge_preview_sha": "4898234edfdac8fe15c5c3a038fdbe0dc6750ada"
+}

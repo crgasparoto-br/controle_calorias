@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:259be11e-620c-4172-91a6-2debe9c096a0",
+    "audit_report_sha256": "28975569cfe1b874d6774531b8ab2a3f1905ff7bf71a55bfc2e985597ef7860f",
+    "audited_head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467"
+  },
+  "candidate_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
+  "remediation_mode": "systemic-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1070-002",
+      "remediation_mode": "systemic-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "server/_core/effectFenceContext.ts",
+        "server/_core/ai/capabilityExecutor.ts",
+        "server/_core/ai/providerBoundary.ts",
+        "server/modules/water/store.ts",
+        "server/modules/users/service.ts",
+        "server/modules/meals/service.ts",
+        "server/modules/whatsapp/confirmedMealRegistration.ts",
+        "server/modules/whatsapp/intentActions.ts",
+        "server/modules/whatsapp/messageLifecycle.ts",
+        "server/modules/whatsapp/questionAcknowledgement.ts",
+        "server/modules/whatsapp/messageLifecycle.effectFence.test.ts",
+        "server/modules/water/store.test.ts",
+        "server/modules/whatsapp/questionAcknowledgement.test.ts",
+        "docs/design-docs/whatsapp-conversation-context.md",
+        "docs/testing/whatsapp-conversation-context-regression.md",
+        "docs/benchmarks/question-latency/README-v3.md"
+      ],
+      "evidence": [
+        "evidence/restart-integrated.txt",
+        "evidence/ci-exact-head.txt",
+        "evidence/documentation-delta.txt"
+      ],
+      "validations": [
+        "Agent-first run 34729502259 completed successfully on exact material 3cf47471261e677aa48c69fabaf5e4ebcfcfee64.",
+        "WhatsApp context TiDB run 34729502201 passed the canonical public same-message restart regression on the same material head.",
+        "Stale-owner discriminants fence provider attempts, water-domain persistence, ACK transport and terminal processedAt after takeover, while preserving immediate ACK/AI parallel start.",
+        "The generalized prevention and detection rules were promoted to entregar-issue and auditar-issue skill packages with RESTART-FENCE-001 contract tests."
+      ]
+    }
+  ]
+}

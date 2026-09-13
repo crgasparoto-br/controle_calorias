@@ -1,3 +1,4 @@
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import { logicalReplyFromLegacyText } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import { recordCurrentQuestionAcknowledgementOutcome } from "./questionLatencyContext";
@@ -9,6 +10,7 @@ export async function sendWhatsAppAiQuestionAcknowledgement(input: {
   sourceMessageId: string;
 }) {
   try {
+    await ensureCurrentIrreversibleEffectAllowed();
     const result = await sendWhatsAppLogicalReply(
       input.to,
       logicalReplyFromLegacyText(WHATSAPP_AI_QUESTION_ACK_REPLY),

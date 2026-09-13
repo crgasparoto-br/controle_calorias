@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c",
+    "audit_report_sha256": "c7c177976e713cf8f30fc55fc1821db4bbc5b3a7a77e55661095a0d32d51eea9",
+    "audited_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19"
+  },
+  "candidate_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "post-write-refreeze",
+      "changed_files": [
+        ".audit/entregar-issue/handoff-ready.json",
+        ".audit/entregar-issue/audit-remediation-1059-r1.json",
+        ".audit/entregar-issue/audit-source-result-1059-r1.json",
+        ".audit/entregar-issue/audit-escape-closure-1059-r1.json",
+        ".audit/entregar-issue/learning-closure-1059-r1.json",
+        ".audit/entregar-issue/post-write-refreeze-1059-r1.json"
+      ],
+      "evidence": [
+        "Final material head is rebound from 36fab9918193aa316a23f4c0b781e916e2722a13 to b8936e7594c127507bf9534c748cd649b2a45f19.",
+        "Agent-first exact-head run 34541931423 and WhatsApp TiDB run 34541931412 completed successfully on the material head.",
+        "The restart-across-processes regression is reached and passed in the TiDB workflow."
+      ],
+      "validations": [
+        "Immutable merge preview 4898234edfdac8fe15c5c3a038fdbe0dc6750ada combines current develop base db7eda7ac6e3a28d70ab3910703a6ac180a5616a with material head b8936e7594c127507bf9534c748cd649b2a45f19 using the exact conflict-free merge tree.",
+        "Critical evidence artifacts were refreshed to candidate b8936e7594c127507bf9534c748cd649b2a45f19 and are validated before terminal publication.",
+        "Terminal publication is constructed as a direct result-only child of the material head."
+      ]
+    }
+  ],
+  "status": "closed",
+  "remote_ci_validation": {
+    "run_id": 34541931423,
+    "run_number": 6208,
+    "status": "completed",
+    "conclusion": "success",
+    "published_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+    "material_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+    "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
+    "merge_preview_sha": "4898234edfdac8fe15c5c3a038fdbe0dc6750ada",
+    "execution_kind": "exact-head-ci-plus-immutable-current-base-material-preview"
+  }
+}

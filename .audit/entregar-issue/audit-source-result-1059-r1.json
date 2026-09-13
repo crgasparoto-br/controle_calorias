@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "mode": "independent",
+  "rejection_id": "audit-rejection:1f66e5f8-6ecc-4b09-b9e1-7b9a7e24612c",
+  "head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "material_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "published_handoff_head_sha": "b8936e7594c127507bf9534c748cd649b2a45f19",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1059,
+  "pull_request_number": 1060,
+  "base_sha": "db7eda7ac6e3a28d70ab3910703a6ac180a5616a",
+  "findings": [
+    {
+      "id": "A-001",
+      "severity": "blocker",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "requirement": "delivery handoff readiness",
+      "summary": "Handoff certificate remained bound to stale material head 36fab9918193aa316a23f4c0b781e916e2722a13 after material test/workflow writes advanced PR head to b8936e7594c127507bf9534c748cd649b2a45f19; post-write refreeze is required."
+    }
+  ],
+  "recommendations": []
+}

@@ -9,6 +9,7 @@ import type { AiProviderFactoryMap } from "../providerResolver";
 import { AiOperationalError } from "../policyExecutor";
 import { setAiUsageGate } from "../usageGate";
 import { runWithAiUsageScope } from "../usageContext";
+import { runWithIrreversibleEffectFence } from "../../effectFenceContext";
 
 function provider(id: string): AiProvider {
   return {
@@ -197,4 +198,56 @@ describe("resolved capability executor", () => {
     expect(adapters.map.openai).not.toHaveBeenCalled();
     expect(adapters.map.gemini).not.toHaveBeenCalled();
   });
+  it("revalida o fence de efeito antes de cada tentativa de provider", async () => {
+    const adapters = factories();
+    const fence = vi.fn(async () => undefined);
+    const operation = vi
+      .fn()
+      .mockRejectedValueOnce(new AiOperationalError("retry"))
+      .mockResolvedValueOnce("ok");
+
+    await expect(runWithIrreversibleEffectFence(
+      fence,
+      () => executeResolvedCapability(config({ maxAttempts: 2 }), operation, {
+        providerFactories: adapters.map,
+      }),
+    )).resolves.toMatchObject({ value: "ok" });
+
+    expect(fence).toHaveBeenCalledTimes(2);
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+
+  it("revalida o fence no boundary imediatamente antes da chamada física ao provider", async () => {
+    const adapters = factories();
+    let checks = 0;
+    const fence = vi.fn(async () => {
+      checks += 1;
+      if (checks >= 2) throw new Error("processing ownership lost at provider boundary");
+    });
+    const operation = vi.fn(async ({ provider: adapter, model }: ResolvedCapabilityAttemptContext) =>
+      adapter.createTextResponse({ model, input: "test" }),
+    );
+
+    await expect(runWithIrreversibleEffectFence(
+      fence,
+      () => executeResolvedCapability(config(), operation, { providerFactories: adapters.map }),
+    )).rejects.toThrow("processing ownership lost at provider boundary");
+
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(adapters.openai.createTextResponse).not.toHaveBeenCalled();
+    expect(fence).toHaveBeenCalledTimes(2);
+  });
+
+  it("não inicia provider quando o fence de efeito perdeu autoridade", async () => {
+    const adapters = factories();
+    const operation = vi.fn(async () => "unexpected");
+
+    await expect(runWithIrreversibleEffectFence(
+      async () => { throw new Error("processing ownership lost"); },
+      () => executeResolvedCapability(config(), operation, { providerFactories: adapters.map }),
+    )).rejects.toThrow("processing ownership lost");
+
+    expect(operation).not.toHaveBeenCalled();
+  });
+
 });

@@ -1,0 +1,246 @@
+<!-- specification_version: 2 -->
+
+## Objetivo
+
+Corrigir o fluxo de registro de refeições pelo WhatsApp para que uma **preferência pessoal explícita, estruturada e durável** seja aplicada antes da clarificação genérica de preparo.
+
+Caso real: depois de o usuário ter informado uma preferência reutilizável equivalente a `normalmente tomo café sem açúcar`, uma mensagem posterior `4 xícaras de café` deve completar apenas o preparo omitido como `sem açúcar`, preservar `4 xícaras` e seguir o resolvedor nutricional canônico, sem perguntar novamente `com ou sem açúcar?`.
+
+A implementação deve partir de `develop`.
+
+## Evidência de produção
+
+Entrada em 10/09/2026:
+
+```text
+4 xícaras de café
+```
+
+Resposta atual:
+
+```text
+Preciso de uma informação
+
+O preparo do café ficou ambíguo e eu não consegui preservar o destino com segurança.
+Envie novamente a mensagem completa informando a refeição; não vou assumir calorias para café genérico.
+```
+
+Para usuário com preferência pessoal aplicável:
+
+```text
+4 xícaras de café
+        ↓
+memória pessoal explícita e ativa: café -> Café sem açúcar
+        ↓
+4 xícaras de café sem açúcar
+        ↓
+resolvedor nutricional canônico
+```
+
+Sem memória pessoal aplicável, o comportamento seguro da #974 permanece inalterado.
+
+## Fontes canônicas e estado atual em `develop`
+
+### Café genérico
+
+`docs/design-docs/nutrition-low-calorie-beverages.md` define que `café` isolado é ambíguo e que a #974 exige clarificação antes de qualquer fallback nutricional. `Café sem açúcar` continua sendo a referência canônica para `sem açúcar`, `puro`, `preto` e `natural`.
+
+### Memória contextual
+
+`server/modules/whatsapp/contextMemory.ts` já possui o contrato estruturado mais próximo da memória individual pretendida: `userId`, `scope`, `kind`, `status`, `key/value`, confiança, prioridade, origem, substituição, expiração e conflitos. `recordWhatsappMemoryFromFeedback()` também converte feedback de `preference`/`personal_alias` em memória individual.
+
+Porém, a implementação atual mantém `memoryEntries` e `usageEntries` em arrays do processo. Portanto, ela **não é durável entre reinícios nem compartilhada entre instâncias**.
+
+`server/modules/whatsapp/personalFoodAliasStore.ts` também é efêmero (`Map` local) e não pode ser a fonte final de verdade desta correção.
+
+### Hábitos alimentares
+
+`habitMemories` é persistente, mas seu contrato atual contém essencialmente alimento, refeição típica, porção preferida, frequência e último uso. `mealAiExtraction.ts` orienta a IA a usar esse histórico apenas para calibrar porções de alimentos já mencionados.
+
+Logo, **frequência/hábito alimentar, por si só, não comprova uma preferência de preparo** e não pode autorizar o sistema a transformar silenciosamente `café` em `Café sem açúcar`.
+
+### #1051
+
+A #1051 determina que memória individual seja persistente, isolada por usuário, vinculada à identidade do alimento e capaz de carregar confiança, origem, validade e revogação. Também estabelece que confirmações e correções explícitas podem gerar aprendizado individual. Esta issue implementa somente o recorte necessário para aplicar uma preferência pessoal de preparo sem criar uma segunda arquitetura de memória.
+
+## Decisão de contrato desta revisão
+
+### O que é uma preferência aplicável
+
+Para esta issue, uma preferência de preparo só pode dispensar a clarificação da #974 quando existir uma memória individual estruturada que:
+
+1. pertença ao mesmo `userId`;
+2. esteja ativa e não expirada/substituída;
+3. tenha origem rastreável em sinal individual explícito aceito pelo lifecycle de aprendizado, como preferência/alias/correção explícita;
+4. possa ser normalizada semanticamente para a **identidade base** e o **atributo ausente**, por exemplo `café -> Café sem açúcar`;
+5. não esteja em conflito não resolvido com outra memória individual aplicável;
+6. seja válida para a intenção/contexto atual segundo o contrato de memória.
+
+O texto cru `preference` como chave genérica, uma observação de hábito ou a última refeição consumida não são, sozinhos, uma identidade semântica suficiente para esse bypass.
+
+### Como a preferência pode ser aprendida
+
+Um enunciado explicitamente recorrente, como `normalmente tomo café sem açúcar`, `meu café é sem açúcar` ou equivalente reconhecido pelo lifecycle canônico de feedback/memória, pode gerar memória individual reutilizável.
+
+Uma ocorrência isolada como `4 xícaras de café sem açúcar` resolve aquela refeição, mas **não deve virar automaticamente uma preferência recorrente apenas por frequência ou por ser a última ocorrência**. Se o lifecycle canônico já possuir evidência explícita adicional que autorize aprendizado, deve reutilizá-la; não criar regra paralela nesta issue.
+
+A resposta `sem açúcar` a uma clarificação da #974 resolve a pendência atual. Ela só se torna padrão futuro quando o lifecycle canônico registrar evidência de preferência reutilizável; não inferir essa intenção recorrente silenciosamente.
+
+## Precedência obrigatória
+
+Para o atributo de preparo omitido na mensagem atual:
+
+1. **informação explícita da mensagem atual**;
+2. **memória pessoal estruturada, ativa e aplicável**;
+3. resolvedor nutricional/regras canônicas;
+4. **clarificação**, se a ambiguidade permanecer.
+
+A memória completa apenas o atributo ausente. Ela não pode alterar quantidade, unidade, refeição, data, operação, itens companheiros ou uma preparação explicitamente informada.
+
+## Escopo funcional
+
+1. Antes do gate que classifica `café` como preparo genérico/ambíguo, consultar deterministicamente a memória pessoal aplicável ao usuário.
+2. Reutilizar/evoluir o contrato de `contextMemory.ts` e o lifecycle de feedback da #1051; não criar store exclusivo para café.
+3. Tornar a memória individual usada para decisão de domínio **durável em produção**, recuperável após reinício e entre instâncias. O store local pode permanecer somente como adapter/fallback permitido em testes/desenvolvimento, nunca como sucesso persistente em produção.
+4. Normalizar uma preferência explícita de preparo em identidade semântica reutilizável independente de quantidade. `4 xícaras` e `2 xícaras` devem consultar a mesma preferência `café -> Café sem açúcar`.
+5. Quando houver preferência válida por `sem açúcar`, qualificar apenas o café ambíguo e continuar pelo pipeline nutricional canônico de `Café sem açúcar`.
+6. Sem preferência aplicável, preservar integralmente a #974: perguntar o preparo antes de persistir.
+7. Informação explícita sempre vence memória pessoal, inclusive `com açúcar`, `adoçado`, `açucarado`, `com leite`, mel, creme, leite condensado ou outro complemento.
+8. Preservar quantidade, unidade, refeição/alvo, data, operação, correlação/idempotência e itens companheiros.
+9. Registrar/auditar qual memória foi consultada/aplicada sem depender do conteúdo bruto como fonte de verdade da mutação.
+10. Webhook textual, transcrição de áudio e `simulateWhatsappInbound` devem convergir para a mesma decisão sem duplicar lógica por canal.
+
+## Cenários obrigatórios
+
+| Cenário | Resultado esperado |
+|---|---|
+| usuário A declarou preferência reutilizável `normalmente tomo café sem açúcar`; depois envia `4 xícaras de café` | aplica `sem açúcar`, preserva `4 xícaras`, não abre clarificação de preparo |
+| mesma preferência; envia `2 xícaras de café` | usa a mesma memória de identidade, preserva `2 xícaras` |
+| usuário A tem apenas histórico frequente de `Café sem açúcar`, sem memória explícita reutilizável | continua clarificando; frequência não vira preferência silenciosa |
+| usuário A possui preferência; envia `4 xícaras de café com açúcar` | texto explícito vence memória; segue fluxo de café com açúcar |
+| usuário A possui preferência; envia `4 xícaras de café com leite` | mantém preparação completa; não reduz para sem açúcar |
+| usuário A não possui preferência | mantém clarificação segura da #974 |
+| usuário A possui preferência; usuário B não possui | A resolve pela memória; B continua sendo clarificado |
+| memória inativa/expirada/substituída | não aplica; clarifica |
+| duas memórias pessoais conflitantes sem vencedor seguro | não escolhe arbitrariamente; clarifica |
+| processo reiniciado / outra instância atende a mensagem | memória válida continua disponível e a decisão é a mesma |
+| IA/capability indisponível, mas memória estruturada válida existe | decisão de aplicar a preferência continua determinística; não depende de a LLM adivinhar o preparo |
+| mensagem composta `4 xícaras de café e 1 pão` | aplica memória apenas ao café e preserva o outro item sem perda/duplicação |
+| áudio transcrito como `4 xícaras de café` | mesma decisão do texto e simulador |
+
+## Critérios de aceite
+
+- [ ] Existe teste de regressão do caso real na cadeia efetivamente executada pelo WhatsApp.
+- [ ] Preferência explícita e persistida `café -> Café sem açúcar` é consultada **antes** do gate genérico da #974.
+- [ ] `4 xícaras de café` mantém exatamente quantidade/unidade e segue a referência nutricional canônica de `Café sem açúcar`.
+- [ ] A mesma memória funciona com outra quantidade sem reaprendizado por frase inteira.
+- [ ] `habitMemories`, última refeição ou frequência isolada não dispensam clarificação.
+- [ ] Com IA indisponível, uma preferência estruturada válida continua produzindo a mesma decisão de preparo; a LLM não é fonte de verdade para o bypass.
+- [ ] Sem preferência pessoal válida, o comportamento da #974 permanece intacto.
+- [ ] `com açúcar` e complementos explícitos prevalecem sobre a memória.
+- [ ] Memórias são isoladas por usuário e conflitos não são resolvidos arbitrariamente.
+- [ ] Memória aplicada sobrevive a reinício e atendimento por outra instância.
+- [ ] Texto, áudio transcrito e simulador possuem paridade.
+- [ ] Não existe regra global `café = sem açúcar` nem macros/calorias duplicados no handler do WhatsApp.
+- [ ] Uso da memória é rastreável por identificador/metadata operacional apropriada.
+- [ ] A documentação canônica afetada é atualizada junto da implementação.
+
+## Invariantes estruturais
+
+### `must_behave`
+- Memória individual válida completa apenas o preparo ausente de `café` genérico.
+- A mesma preferência funciona independentemente da quantidade textual.
+- A decisão pode ser reproduzida após reinício/entre instâncias.
+
+### `must_not_behave`
+- Não inferir `sem açúcar` de `habitMemories`, última ocorrência ou frequência sem memória explícita reutilizável.
+- Não sobrescrever `com açúcar`, `com leite` ou outro preparo explícito.
+- Não perder quantidade, unidade, alvo, data ou itens irmãos.
+- Não aplicar memória de outro usuário.
+- Não transformar conflito de memória em escolha silenciosa.
+
+### `must_reuse`
+- Reutilizar o contrato/lifecycle de memória contextual e feedback já existente e a direção arquitetural da #1051.
+- Reutilizar o resolvedor nutricional canônico e a referência de `Café sem açúcar`.
+- Preservar a clarificação persistente da #974 como fallback seguro.
+
+### `must_be_single_source`
+- A memória pessoal estruturada e persistente deve ter uma única fonte canônica de leitura para decisões de domínio. `personalFoodAliasStore`, `contextMemory` local, `habitMemories` e o prompt da IA não podem competir como fontes independentes para decidir o preparo.
+
+### `must_not_depend_on`
+- Não depender de memória do processo, afinidade de instância, ordem acidental de mensagens, última refeição, frequência de hábito ou decisão probabilística da LLM para aplicar a preferência.
+
+### `precedence_invariants`
+- entrada explícita atual -> memória pessoal aplicável -> resolução canônica -> clarificação;
+- ausência/conflito/inatividade/expiração da memória -> #974;
+- preferência pessoal nunca altera campos que já estão explícitos na mensagem atual.
+
+### `forbidden_implementation`
+- `if (café) => sem açúcar` global.
+- Apenas mover `processMealInput`/prompt de hábitos para antes da clarificação e aceitar a escolha da LLM como preferência.
+- Usar `habitMemories` mais frequente/mais recente como default de preparo.
+- Usar somente `Map`/array local de `personalFoodAliasStore.ts` ou `contextMemory.ts` como solução de produção.
+- Aprender alias a partir da mensagem inteira (`4 xícaras de café ...`) de modo que mudança de quantidade quebre a preferência.
+- Hardcodar calorias/macros de café no handler.
+
+## Implementações erradas plausíveis e controles discriminantes
+
+1. **Mover a IA antes do gate de café.** O happy path pode escolher `sem açúcar`, mas muda com provider/modelo. **Controle:** desabilitar a IA e provar a mesma decisão a partir da memória persistida.
+2. **Usar hábito mais frequente/recente como preferência.** O caso principal passa, mas histórico misto pode gerar default indevido. **Controle:** várias refeições sem açúcar sem preferência explícita continuam abrindo #974.
+3. **Usar apenas o store local atual.** Funciona na mesma instância e falha após restart. **Controle:** persistir preferência, reconstruir runtime/usar outra instância e repetir `4 xícaras de café`.
+4. **Aprender a frase inteira.** `4 xícaras` funciona e `2 xícaras` falha. **Controle:** uma única preferência deve resolver ambas as quantidades.
+5. **Aplicar memória antes de respeitar texto explícito.** `com açúcar` vira sem açúcar. **Controle:** preferência existente + `4 xícaras de café com açúcar` deve seguir #903/#1016.
+6. **Vazar memória entre usuários.** Usuário B herda A. **Controle:** A resolve por memória e B, com a mesma frase, continua na #974.
+7. **Hardcodar somente o resultado visual.** O nome aparece correto, mas nutrientes podem vir de fonte diferente. **Controle:** validar procedência/referência canônica, não apenas o label exibido.
+
+## Documentação canônica afetada
+
+- `docs/product-specs/meal-registration.md`: registrar a precedência **entrada explícita > memória pessoal estruturada > clarificação** para atributos omitidos e o isolamento por usuário.
+- `docs/design-docs/nutrition-low-calorie-beverages.md`: registrar a exceção à #974 quando o preparo ausente é resolvido por memória pessoal válida antes do gate, mantendo #974 para ausência/conflito.
+- `docs/design-docs/database-persistence.md`: atualizar somente se a implementação introduzir/evoluir schema/repository durável para memória contextual; `drizzle/schema.ts` permanece a fonte de verdade relacional.
+- `docs/product-specs/whatsapp-flow.md`: referenciar a regra canônica se o fluxo geral precisar explicitar a precedência, sem duplicar a definição completa.
+
+## Referências
+
+- #974 — clarificação segura de café genérico.
+- #903 / #1016 — regras canônicas de café com/sem açúcar.
+- #1051 — memória individual persistente e aprendizado controlado.
+- `server/modules/whatsapp/structuredCoffeeIntentActions.ts`
+- `server/modules/whatsapp/contextMemory.ts`
+- `server/modules/whatsapp/feedbackLoop.ts`
+- `server/modules/whatsapp/personalFoodAliasStore.ts`
+- `server/repositories/habitsRepository.ts`
+- `server/mealAiExtraction.ts`
+- `docs/product-specs/meal-registration.md`
+- `docs/design-docs/nutrition-low-calorie-beverages.md`
+- `docs/design-docs/database-persistence.md`
+
+## Validação
+
+Usar os comandos vigentes do repositório em `develop`. No mínimo:
+
+```bash
+pnpm check
+pnpm test
+pnpm architecture:check
+pnpm docs:check
+pnpm agent:check
+pnpm build
+```
+
+Quando houver alteração de schema/migration, incluir os checks de banco aplicáveis e provar a recuperação da memória com runtime reconstruído, sem depender de estado local anterior.
+
+## Fora de escopo
+
+- Tornar toda ocorrência repetida em preferência implícita.
+- Criar regra global de preparo de café.
+- Alterar a política nutricional de café com açúcar da #903/#1016.
+- Reimplementar toda a arquitetura multimodal da #1051.
+- Criar storage, matcher ou lifecycle exclusivo para café.
+- Promover aprendizado individual para regra global sem revisão.
+
+## Prontidão
+
+**Pronta com premissas.**
+
+Premissa explícita: a implementação deve reutilizar/evoluir o contrato genérico de memória individual da #1051 e torná-lo durável no recorte necessário. Não é permitido resolver a issue apenas reordenando o gate de café sobre os stores locais atuais.

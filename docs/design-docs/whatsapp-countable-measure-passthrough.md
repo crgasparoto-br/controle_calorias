@@ -25,9 +25,13 @@ Depois de aceitar a identidade, `resolveHouseholdMeasure` usa a porção do prod
 
 Na clarificação, a pendência existente de detalhes alimentares preserva segmentos, índice do item pendente, causa semântica, data/timezone da refeição e resultados nutricionais dos itens já resolvidos. A resposta complementa somente o item pendente. A retomada processa separadamente os itens restantes e reutiliza os resultados preservados, mesmo que o catálogo mude. Nenhum rascunho ou item de refeição é persistido parcialmente; a gravação ocorre após resolver todos os itens e reivindicar a pendência exata uma única vez.
 
+Enquanto `meal_intent_decision.registration_details` estiver `active`, uma resposta semanticamente compatível com a identidade solicitada tem precedência sobre a heurística de novo comando, mesmo quando o texto isolado também for roteável como alimento. Respostas curtas e respostas completas que repetem a identidade base são fundidas semanticamente no item pendente, preservando a quantidade/unidade já persistidas em vez de concatenar cegamente os textos. Quantidade ou unidade conflitante mantém a clarificação sem mutação. Quando a operação estiver expirada, consumida, cancelada ou substituída, uma resposta que ainda corresponda à pergunta antiga recebe a orientação de indisponibilidade e não cai silenciosamente no fallback nutricional como novo alimento incompleto.
+
 O contrato público de [registro de refeições](../product-specs/meal-registration.md) permanece válido: a mudança corrige a precedência do preflight e reutiliza sua taxonomia.
 
 A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts` e pelos controles de adição em `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts`, `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts` e `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts`. Os testes exercitam resolvedor real onde o boundary externo permite, variantes/marcas incompatíveis, marca fora da allowlist, pesquisa indisponível e retomada sem persistência parcial ou duplicada.
+
+A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
 
 ## Quantidades implícitas sem verbo operacional
 

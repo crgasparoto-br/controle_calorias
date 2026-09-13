@@ -1,0 +1,5 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=pending lifecycle
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material suites passed active/successor/stale/cancellation/isolation/retry coverage. The registration-details TiDB regression asserts a consumed original and exactly one active successor after restart and concurrent exact-claim resolution, with no partial meal persisted.

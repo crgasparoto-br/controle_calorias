@@ -1,0 +1,2 @@
+Exact-head crash/restart controls for 3d8f0d0feaf7e0cb2e9b05d508e1c33ddfcec294.
+The lifecycle uses persisted ownerToken/heartbeatAt, rejects active-owner theft, allows stale-owner recovery, treats inflight/persistence-unavailable redelivery as retryable rather than terminal duplicate, and recognizes persisted completion idempotently. The final outbound is fenced by ownership renewal. Agent-first run 34692626893 and WhatsApp context TiDB gate 34692626897 passed on the exact material head.

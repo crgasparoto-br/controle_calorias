@@ -1,0 +1,5 @@
+subject_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+control=idempotent claim isolation
+agent_first_run=34628258179 status=completed conclusion=success checkout_sha=367b248bb1d256b1aadeeb1db46cbdcf4b606cf4
+tidb_run=34628258197 status=completed conclusion=success
+The exact-material regression suite passed. The registration-details TiDB script asserts that two distinct workers preloading the same persisted id/version yield exactly one successful successor effect, one consumed original, one active successor and zero partial meal effects.

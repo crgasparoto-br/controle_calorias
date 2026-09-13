@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithIrreversibleEffectFence } from "../../_core/effectFenceContext";
 
 const sendWhatsAppLogicalReplyMock = vi.fn();
 vi.mock("./replyTransport", () => ({
@@ -44,6 +45,23 @@ describe("sendWhatsAppAiQuestionAcknowledgement", () => {
       },
     );
     expect(recordCurrentQuestionAcknowledgementOutcomeMock).toHaveBeenCalledWith(true);
+  });
+
+
+  it("nao envia ACK quando o runtime perdeu ownership antes do efeito", async () => {
+    sendWhatsAppLogicalReplyMock.mockResolvedValue({ primaryOk: true });
+
+    const result = await runWithIrreversibleEffectFence(
+      async () => { throw new Error("processing_owner_lost"); },
+      () => sendWhatsAppAiQuestionAcknowledgement({
+        to: "5511999999999",
+        sourceMessageId: "wamid.1061-stale-owner",
+      }),
+    );
+
+    expect(result).toBe(false);
+    expect(sendWhatsAppLogicalReplyMock).not.toHaveBeenCalled();
+    expect(recordCurrentQuestionAcknowledgementOutcomeMock).toHaveBeenCalledWith(false);
   });
 
   it("trata falha do transporte como best-effort sem propagar erro", async () => {
