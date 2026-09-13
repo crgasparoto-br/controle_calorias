@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CatalogFood } from "../../nutritionEngineTypes";
+import type { CatalogFood, MealProcessingResult } from "../../nutritionEngineTypes";
 
 const boundary = vi.hoisted(() => ({
   catalog: [] as CatalogFood[],
@@ -32,6 +32,8 @@ vi.mock("../foods/service", () => ({
 }));
 
 import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
+import { createConfirmedMealRegistrationService } from "./confirmedMealRegistration";
+import { MealInferenceError, processMealInput } from "../../nutritionEngine";
 import { detectKnownBrand } from "../../foodBrandDetection";
 import { parseFoodText, splitFoodTextSegments } from "../../mealTextParsing";
 
@@ -69,6 +71,40 @@ function catalogFood(input: {
       sourceVerifiedAt: now,
       sourceConfidence: 0.96,
     } : {}),
+  };
+}
+
+function fakeProcessedSegment(text: string): MealProcessingResult {
+  const panco = /panco premium/i.test(text);
+  const item = {
+    foodName: text,
+    canonicalName: text,
+    brand: panco ? "Panco" : null,
+    quantity: 1,
+    unit: "un",
+    portionText: text,
+    servings: 1,
+    estimatedGrams: panco ? 25 : 1,
+    calories: panco ? 63.5 : 1,
+    protein: panco ? 2 : 0,
+    carbs: panco ? 12 : 0,
+    fat: panco ? 1 : 0,
+    confidence: 0.9,
+    source: "catalog" as const,
+  };
+  return {
+    detectedMealLabel: "Café da manhã",
+    sourceText: text,
+    confidence: 0.9,
+    needsConfirmation: false,
+    reasoning: "Fixture da fronteira pública de registro.",
+    items: [item],
+    totals: {
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+    },
   };
 }
 
@@ -146,10 +182,104 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
           }),
         }),
       ]),
+      resolvedSegments: expect.arrayContaining([
+        expect.objectContaining({
+          segmentIndex: 1,
+          processed: expect.objectContaining({
+            items: [expect.objectContaining({
+              brand: "Panco",
+              estimatedGrams: 25,
+              calories: 63.5,
+              protein: 2,
+              carbs: 12,
+              fat: 1,
+            })],
+          }),
+        }),
+      ]),
     });
     expect(result.kind === "ready" && result.registrationText).toContain(
       "25 g de pão de forma panco Premium",
     );
     expect(boundary.measureSearch).not.toHaveBeenCalled();
+  });
+
+  it("atravessa o registro confirmado com o payload real sem reclassificar a normalização de 25 g como entrada mass-only", async () => {
+    const text = "1,5 pão frances, 1 fatia de mussarela, 1 fatia de presunto, 40g de requeijão, 20g de manteiga Batavo com sal, 3 xícaras de café, 1 fatia de pão de forma panco Premium";
+    const processMeal = vi.fn(async ({ text: segmentText }: { text?: string }) => {
+      const value = segmentText ?? "";
+      if (/25\s*g\s+de\s+pão de forma panco Premium/i.test(value)) {
+        throw new MealInferenceError(
+          "Não consegui comprovar a identidade comercial exata de Pão de Forma Panco Premium (Panco).",
+          {
+            code: "food_identity_clarification_required",
+            context: {
+              originalText: value,
+              foodName: "Pão de Forma Panco Premium",
+              brand: "Panco",
+              clarificationReason: "commercial_identity_unverified",
+              alternatives: [],
+            },
+          },
+        );
+      }
+      return fakeProcessedSegment(value);
+    });
+    const createDraft = vi.fn(() => ({ draftId: "draft-1072" }));
+    const confirmMeal = vi.fn(async (input: any) => ({
+      id: 1072,
+      userId: 1072,
+      mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      items: input.items,
+    }));
+    const service = createConfirmedMealRegistrationService({
+      processMeal: processMeal as any,
+      getHabits: async () => [],
+      createDraft: createDraft as any,
+      confirmMeal: confirmMeal as any,
+      consolidateMeal: (async (_deps: unknown, meal: unknown) => ({ action: "created", meal })) as any,
+      getGoalProgress: async () => undefined,
+    });
+
+    const result = await service({
+      userId: 1072,
+      registrationText: text,
+      originalText: text,
+      occurredAt: now,
+      userTimezone: "America/Sao_Paulo",
+      inboundMessageId: "wamid-1072-production-regression",
+    });
+
+    expect(result.status).toBe("registered");
+    expect(createDraft).toHaveBeenCalledTimes(1);
+    expect(confirmMeal).toHaveBeenCalledTimes(1);
+    expect(processMeal).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringMatching(/25\s*g\s+de\s+pão de forma panco Premium/i),
+      }),
+    );
+    expect(confirmMeal.mock.calls[0]?.[0]?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          brand: "Panco",
+          estimatedGrams: 25,
+          calories: 63.5,
+        }),
+      ]),
+    );
+  });
+
+  it("mantém uma entrada realmente mass-only restritiva quando não existe resolução contável anterior", async () => {
+    await expect(processMealInput({
+      text: "25 g de pão de forma Panco Premium",
+      occurredAt: now,
+      timeZone: "America/Sao_Paulo",
+    })).rejects.toMatchObject({
+      name: "MealInferenceError",
+      context: expect.objectContaining({
+        clarificationReason: "commercial_identity_unverified",
+      }),
+    });
   });
 });
