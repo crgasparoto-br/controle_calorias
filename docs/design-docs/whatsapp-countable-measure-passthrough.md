@@ -34,7 +34,7 @@ A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegis
 
 A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
 
-A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial e o controle negativo em que `25 g de pão de forma Panco Premium` continua restritivo quando essa massa é realmente informada pelo usuário.
+A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial e o controle negativo em que uma massa informada diretamente segue o caminho mass-only normal sem herdar a proveniência de uma resolução contável que não ocorreu.
 
 ## Quantidades implícitas sem verbo operacional
 

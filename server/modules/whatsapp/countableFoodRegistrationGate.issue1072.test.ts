@@ -33,7 +33,7 @@ vi.mock("../foods/service", () => ({
 
 import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
 import { createConfirmedMealRegistrationService } from "./confirmedMealRegistration";
-import { MealInferenceError, processMealInput } from "../../nutritionEngine";
+import { MealInferenceError } from "../../nutritionEngine";
 import { detectKnownBrand } from "../../foodBrandDetection";
 import { parseFoodText, splitFoodTextSegments } from "../../mealTextParsing";
 
@@ -111,6 +111,11 @@ function fakeProcessedSegment(text: string): MealProcessingResult {
 beforeEach(() => {
   vi.clearAllMocks();
   boundary.catalog = [
+    catalogFood({
+      name: "Pão frances",
+      servingLabel: "1 unidade",
+      gramsPerServing: 50,
+    }),
     catalogFood({
       name: "Pão de Forma Panco Premium",
       servingLabel: "2 fatias (50 g)",
@@ -270,16 +275,20 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
     );
   });
 
-  it("mantém uma entrada realmente mass-only restritiva quando não existe resolução contável anterior", async () => {
-    await expect(processMealInput({
-      text: "25 g de pão de forma Panco Premium",
-      occurredAt: now,
-      timeZone: "America/Sao_Paulo",
-    })).rejects.toMatchObject({
-      name: "MealInferenceError",
-      context: expect.objectContaining({
-        clarificationReason: "commercial_identity_unverified",
-      }),
+  it("não concede proveniência contável a uma massa informada diretamente pelo usuário", async () => {
+    const text = "25 g de pão de forma Panco Premium";
+    const result = await prepareWhatsappCountableFoodRegistration({
+      userId: 1072,
+      text,
+      originalText: text,
+      receivedAt: now,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual({
+      kind: "ready",
+      registrationText: text,
+      resolutions: [],
     });
   });
 });
