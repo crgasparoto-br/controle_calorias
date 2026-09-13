@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const beginInboundMessageMock = vi.fn(async () => null);
+const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 const downstreamWebhookMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
 const getUserEntitlementsMock = vi.fn();
@@ -27,8 +29,12 @@ vi.mock("./modules/billing/service", () => ({
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
   claimMessageForProcessing: vi.fn(async () => true),
+  ensureMessageProcessingOwnership: vi.fn(async () => true),
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   markMessageProcessed: vi.fn(async () => undefined),
+  recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   runWithMessageLifecycleRequestScope: async (
     operation: () => Promise<unknown>
@@ -137,7 +143,13 @@ describe("WhatsApp billing access across message modalities", () => {
   beforeEach(() => {
     __resetWhatsAppImageIdempotencyForTests();
     vi.clearAllMocks();
-    beginInboundMessageMock.mockResolvedValue(null);
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 77,
+      messageId: 1061,
+      wasNewInsert: true,
+    });
+    claimMessageForProcessingStateMock.mockResolvedValue("claimed");
+    wasMessageAlreadyProcessedMock.mockResolvedValue(false);
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getUserEntitlementsMock.mockResolvedValue({
       allowed: false,

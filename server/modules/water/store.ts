@@ -1,5 +1,6 @@
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone } from "../../../shared/timeZone";
 import { canUseMemoryPersistenceFallback } from "../../repositories/memoryFallback";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import type { WaterGoalRecord, WaterLogRecord, WaterRepository } from "../../repositories/waterRepository";
 
 export type WaterGoalEntry = WaterGoalRecord;
@@ -95,6 +96,7 @@ export function createWaterService(deps: {
       dailyTargetMl,
       updatedAt: new Date(),
     };
+    await ensureCurrentIrreversibleEffectAllowed();
     if (canUseMemoryPersistenceFallback()) {
       waterGoalStore.set(userId, updated);
     }
@@ -120,6 +122,7 @@ export function createWaterService(deps: {
     };
 
     const current = await listWaterLogs(userId);
+    await ensureCurrentIrreversibleEffectAllowed();
     if (canUseMemoryPersistenceFallback()) {
       waterLogStore.set(userId, [created, ...current.filter(item => item.id !== created.id)]);
     }
@@ -141,6 +144,7 @@ export function createWaterService(deps: {
       throw new Error("Registro de água não encontrado.");
     }
 
+    await ensureCurrentIrreversibleEffectAllowed();
     if (canUseMemoryPersistenceFallback()) {
       waterLogStore.set(userId, current.filter(item => item.id !== waterLogId));
     }

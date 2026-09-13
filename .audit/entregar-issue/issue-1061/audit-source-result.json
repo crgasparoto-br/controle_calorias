@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:259be11e-620c-4172-91a6-2debe9c096a0",
+  "head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467",
+  "identity": {
+    "head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467",
+    "material_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
+    "base_sha": "6507bdc0dc14ebc744de75393e5dc0c6bda8b112"
+  },
+  "findings": [
+    {
+      "id": "A-1070-002",
+      "severity": "BLOCKER",
+      "category": "control-propagation-gap",
+      "gate": "F29",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "systemic-remediation",
+      "reason": "Ownership was revalidated too late: after runtime A passed the initial guard, its heartbeat could expire, runtime B could take over the same persisted claim, and A could resume into provider/domain/terminal effects before discovering that it had lost authority. The control must fence every irreversible or costed effect boundary, not only final outbound delivery."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "reason": "audit-finding",
+  "recovery_scope": "post-write-refreeze",
+  "requires_refreeze": true
+}

@@ -8,6 +8,7 @@ import type {
   AiWebSearchResult,
 } from "../aiProvider";
 import { classifyAiError, AiNonRetryableError, AiOperationalError } from "./policyExecutor";
+import { ensureCurrentIrreversibleEffectAllowed } from "../effectFenceContext";
 
 export type AiNormalizedUsage = Omit<AiProviderUsage, "raw"> & {
   cachedInputTokens?: number;
@@ -135,6 +136,7 @@ export function createNormalizedProviderBoundary(
 
   return {
     async createTextResponse(request, requestOptions) {
+      await ensureCurrentIrreversibleEffectAllowed();
       beginCall();
       try {
         const response = await provider.createTextResponse(request, requestOptions);
@@ -153,6 +155,7 @@ export function createNormalizedProviderBoundary(
       }
     },
     async createEmbeddings(request, requestOptions) {
+      await ensureCurrentIrreversibleEffectAllowed();
       beginCall();
       try {
         const response = await provider.createEmbeddings(request, requestOptions);
@@ -168,6 +171,7 @@ export function createNormalizedProviderBoundary(
       }
     },
     async createAudioTranscription(request, requestOptions) {
+      await ensureCurrentIrreversibleEffectAllowed();
       beginCall();
       try {
         const response = await provider.createAudioTranscription(request, requestOptions);
@@ -186,6 +190,7 @@ export function createNormalizedProviderBoundary(
       }
     },
     async createImageGeneration(request, requestOptions) {
+      await ensureCurrentIrreversibleEffectAllowed();
       beginCall();
       try {
         const response = await provider.createImageGeneration(request, requestOptions);

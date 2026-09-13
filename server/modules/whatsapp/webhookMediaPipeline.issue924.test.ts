@@ -21,6 +21,7 @@ const {
 
 vi.mock("./messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
+  ensureMessageProcessingOwnership: vi.fn(async () => true),
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,

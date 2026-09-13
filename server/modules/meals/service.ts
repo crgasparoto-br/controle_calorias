@@ -25,6 +25,7 @@ import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTi
 import { storagePut } from "../../storage";
 import { transcribeAudio } from "../../_core/voiceTranscription";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
+import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import {
   ConfirmMealInput,
   CopyMealInput,
@@ -276,7 +277,9 @@ export async function getDayTotals(userId: number, date: string, timeZone = DEFA
 }
 
 export async function createManualMeal(userId: number, input: ManualMealInput) {
+  await ensureCurrentIrreversibleEffectAllowed();
   const items = await prepareMealItemsForSave(userId, input.items);
+  await ensureCurrentIrreversibleEffectAllowed();
   const meal = decorateMealWithImageUrl(await createUserManualMeal({ userId, ...input, items }));
   await persistMealItemNutritionSnapshots(meal.id, items);
   return meal;
@@ -296,12 +299,14 @@ export type UpdateMealServiceOptions = {
 const MEAL_UPDATE_SERVICE_OPTIONS = Symbol.for("controle_calorias.mealUpdateServiceOptions");
 
 export async function updateMeal(userId: number, input: UpdateMealInput) {
+  await ensureCurrentIrreversibleEffectAllowed();
   const options = (input as UpdateMealInput & {
     [MEAL_UPDATE_SERVICE_OPTIONS]?: UpdateMealServiceOptions;
   })[MEAL_UPDATE_SERVICE_OPTIONS] ?? {};
   const items = await prepareMealItemsForSave(userId, input.items, {
     recordUsage: options.recordCatalogUsage !== false,
   });
+  await ensureCurrentIrreversibleEffectAllowed();
   const meal = decorateMealWithImageUrl(await updateUserMeal({
     userId,
     mealId: input.mealId,
@@ -353,7 +358,9 @@ export async function updateMealWithHouseholdMeasureLearning(
   if (!buildUserLearnedHouseholdMeasurePreference(learning.relation)) {
     return updateMeal(userId, input);
   }
+  await ensureCurrentIrreversibleEffectAllowed();
   const items = await prepareMealItemsForSave(userId, input.items);
+  await ensureCurrentIrreversibleEffectAllowed();
   const meal = decorateMealWithImageUrl(await updateMealAndHouseholdMeasureLearning({
     userId,
     mealId: input.mealId,
@@ -369,10 +376,12 @@ export async function updateMealWithHouseholdMeasureLearning(
 }
 
 export async function removeMeal(userId: number, mealId: number) {
+  await ensureCurrentIrreversibleEffectAllowed();
   return removeUserMeal(userId, mealId);
 }
 
 export async function copyMeal(userId: number, input: CopyMealInput) {
+  await ensureCurrentIrreversibleEffectAllowed();
   return decorateMealWithImageUrl(await copyUserMeal({ userId, ...input }));
 }
 
@@ -381,10 +390,12 @@ export async function listMealFavorites(userId: number) {
 }
 
 export async function saveMealFavorite(userId: number, input: SaveFavoriteMealInput) {
+  await ensureCurrentIrreversibleEffectAllowed();
   return saveFavoriteMeal({ userId, ...input });
 }
 
 export async function reuseMealFavorite(userId: number, input: ReuseFavoriteMealInput) {
+  await ensureCurrentIrreversibleEffectAllowed();
   return decorateMealWithImageUrl(await reuseFavoriteMeal({ userId, ...input }));
 }
 

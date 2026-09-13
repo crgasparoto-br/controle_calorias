@@ -29,6 +29,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
 }));
 

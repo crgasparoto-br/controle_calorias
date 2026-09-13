@@ -28,6 +28,7 @@ import {
 } from "./observability";
 import { enforceAiUsageGate, getAiUsageGate } from "./usageGate";
 import { getCurrentAiUsageScope } from "./usageContext";
+import { ensureCurrentIrreversibleEffectAllowed } from "../effectFenceContext";
 
 export type ResolvedCapabilityAttemptContext = AiAttemptContext & {
   provider: AiProvider;
@@ -160,6 +161,7 @@ export async function executeResolvedCapability<T>(
     providerId: AiProviderId,
     model: string,
   ): Promise<T> => {
+    await ensureCurrentIrreversibleEffectAllowed();
     const key = `${context.source}:${context.attempt}`;
     let observation: AiProviderCallObservation | undefined;
     let callLimitExceeded = false;
