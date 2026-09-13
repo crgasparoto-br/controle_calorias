@@ -478,6 +478,29 @@ export async function ensureMessageProcessingOwnership(handle: MessageLifecycleH
   return true;
 }
 
+/**
+ * Compatibilidade para consumidores que só conhecem o message.id externo.
+ * Delega ao mesmo fence persistente e nunca usa cache local como autoridade.
+ */
+export async function ensureCurrentMessageProcessingOwnership(externalMessageId?: string | null) {
+  const scope = lifecycleScope.getStore();
+  if (!scope) return true;
+
+  if (externalMessageId) {
+    for (const [messageId, currentExternalMessageId] of scope.externalMessageIdByMessageId.entries()) {
+      if (currentExternalMessageId !== externalMessageId) continue;
+      const handle = scope.claimedMessageHandles.get(messageId);
+      if (handle) await ensureMessageProcessingOwnership(handle);
+      return true;
+    }
+  }
+
+  for (const handle of scope.claimedMessageHandles.values()) {
+    await ensureMessageProcessingOwnership(handle);
+  }
+  return true;
+}
+
 export async function releaseMessageForRetry(handle: MessageLifecycleHandle, now = new Date()) {
   if (!handle) return false;
   const scope = lifecycleScope.getStore();
