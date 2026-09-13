@@ -1,252 +1,178 @@
 {
   "schema_version": 1,
-  "head_sha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
+  "head_sha": "4967064bb54ad82ce92686198aeca387c42883f8",
   "families": [
     {
       "family": "authorization",
       "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "concurrency-atomicity",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "documentation",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Canonical/source-derived family is covered by exact-head discriminant controls for issue #1072.",
-      "control_ids": [
-        "NEG-R-DOCUMENTATION-CONTRACT-OBL-005",
-        "NEG-R-DOCUMENTATION-CONTRACT-OBL-009",
-        "NEG-R-DOCUMENTATION-CONTRACT-OBL-040"
-      ],
-      "dimensions": [
-        {
-          "surface": "canonical-claims",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-DOCUMENTATION-CONTRACT-OBL-005",
-            "NEG-R-DOCUMENTATION-CONTRACT-OBL-009",
-            "NEG-R-DOCUMENTATION-CONTRACT-OBL-040"
-          ]
-        }
-      ]
-    },
-    {
-      "family": "historical-immutability",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "idempotency",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "public-boundary",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "reference-liveness",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Canonical/source-derived family is covered by exact-head discriminant controls for issue #1072.",
-      "control_ids": [
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-010",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-042"
-      ],
-      "dimensions": [
-        {
-          "surface": "provider-boundary-freshness",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-010",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-042"
-          ]
-        }
-      ]
-    },
-    {
-      "family": "rollback",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "structural-contract",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Canonical/source-derived family is covered by exact-head discriminant controls for issue #1072.",
-      "control_ids": [
-        "NEG-R-CANONICAL-MEASURE-OBL-025",
-        "NEG-R-CANONICAL-MEASURE-OBL-031",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-014",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-018",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-024",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-030",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-044",
-        "NEG-R-EVIDENCE-GROUNDING-OBL-051",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-006",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-011",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-013",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-016",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-019",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-020",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-026",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-027",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-035",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-036",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-050",
-        "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-058",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-012",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-021",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-023",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-028",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-029",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-039",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-043",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-049",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-052",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-053",
-        "NEG-R-PROPORTIONAL-SCALING-OBL-055"
-      ],
-      "dimensions": [
-        {
-          "surface": "benchmark-path-fidelity",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-006",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-011",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-013",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-016",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-019",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-020",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-026",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-027",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-035",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-036",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-050",
-            "NEG-R-IDENTITY-PHYSICAL-SPLIT-OBL-058"
-          ]
-        },
-        {
-          "surface": "countable-scaling-contract",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-PROPORTIONAL-SCALING-OBL-012",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-021",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-023",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-028",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-029",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-039",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-043",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-049",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-052",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-053",
-            "NEG-R-PROPORTIONAL-SCALING-OBL-055"
-          ]
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-CANONICAL-MEASURE-OBL-025",
-            "NEG-R-CANONICAL-MEASURE-OBL-031"
-          ]
-        },
-        {
-          "surface": "source-grounding-contract",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-EVIDENCE-GROUNDING-OBL-014",
-            "NEG-R-EVIDENCE-GROUNDING-OBL-018",
-            "NEG-R-EVIDENCE-GROUNDING-OBL-024",
-            "NEG-R-EVIDENCE-GROUNDING-OBL-030",
-            "NEG-R-EVIDENCE-GROUNDING-OBL-044",
-            "NEG-R-EVIDENCE-GROUNDING-OBL-051"
-          ]
-        }
-      ]
-    },
-    {
-      "family": "temporal-consistency",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Canonical/source-derived family is covered by exact-head discriminant controls for issue #1072.",
-      "control_ids": [
-        "NEG-R-CANONICAL-MEASURE-OBL-007",
-        "NEG-R-PRECEDENCE-OBL-034",
-        "NEG-R-REAL-FLOW-TESTS-OBL-015",
-        "NEG-R-REAL-FLOW-TESTS-OBL-048",
-        "NEG-R-REAL-FLOW-TESTS-OBL-059",
-        "NEG-R-REAL-FLOW-TESTS-OBL-060",
-        "NEG-R-REAL-FLOW-TESTS-OBL-061"
-      ],
-      "dimensions": [
-        {
-          "surface": "reporting-availability-window",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-REAL-FLOW-TESTS-OBL-015",
-            "NEG-R-REAL-FLOW-TESTS-OBL-048",
-            "NEG-R-REAL-FLOW-TESTS-OBL-059",
-            "NEG-R-REAL-FLOW-TESTS-OBL-060",
-            "NEG-R-REAL-FLOW-TESTS-OBL-061"
-          ]
-        },
-        {
-          "surface": "resolution-order",
-          "status": "passed",
-          "reason": "Exact-head negative controls exercise this material surface.",
-          "control_ids": [
-            "NEG-R-CANONICAL-MEASURE-OBL-007",
-            "NEG-R-PRECEDENCE-OBL-034"
-          ]
-        }
-      ]
-    },
-    {
-      "family": "temporal-destination",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
-      "control_ids": [],
-      "dimensions": []
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical #1072 obligation or active attack-matrix requirement activates this risk family.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
-      "dimensions": []
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R-072-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "provider-boundary-freshness",
+          "reason": "Um double ou referência pré-resolvida pode mascarar falha do boundary externo e aceitar estado stale.",
+          "control_ids": [
+            "NEG-R-072-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R-007-01",
+        "NEG-R-064-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "resolution-order",
+          "reason": "A precedência descrita pode ser executada fora da ordem exigida e produzir fallback incorreto.",
+          "control_ids": [
+            "NEG-R-007-01",
+            "NEG-R-064-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R-016-01",
+        "NEG-R-023-01",
+        "NEG-R-024-01",
+        "NEG-R-043-01",
+        "NEG-R-053-01",
+        "NEG-R-054-01",
+        "NEG-R-083-01",
+        "NEG-R-090-01",
+        "NEG-R-095-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
+          "control_ids": [
+            "NEG-R-090-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "Uma implementação paralela pode reproduzir o caso feliz sem reutilizar a fonte canônica exigida.",
+          "control_ids": [
+            "NEG-R-016-01",
+            "NEG-R-023-01",
+            "NEG-R-024-01",
+            "NEG-R-043-01",
+            "NEG-R-053-01",
+            "NEG-R-083-01",
+            "NEG-R-095-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-R-054-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-R-009-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Código e documentação podem divergir e criar duas fontes de verdade para o mesmo contrato.",
+          "control_ids": [
+            "NEG-R-009-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     }
   ],
   "material_families_missing_controls": []
