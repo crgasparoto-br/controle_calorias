@@ -1,13 +1,13 @@
 {
   "schemaVersion": 3,
   "repository": "crgasparoto-br/controle_calorias",
-  "headSha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
-  "checkoutSha": "c1fbfaf3b00d97712e9bccefd122623e04b27c10",
-  "eventSha": "3fb5ce669113adfefa432e0f10db7d17c126dfc5",
-  "runId": "34768552232",
+  "headSha": "4967064bb54ad82ce92686198aeca387c42883f8",
+  "checkoutSha": "4967064bb54ad82ce92686198aeca387c42883f8",
+  "eventSha": "7a08f28f6cf52fd77b0fb5f034d8cec57bc1febf",
+  "runId": "34780754120",
   "workflow": "Agent-first gate",
   "event": "pull_request",
-  "ref": "refs/pull/1074/merge",
+  "ref": "refs/pull/1076/merge",
   "riskProfile": "critical",
-  "verifiedAt": "2026-09-13T16:37:48Z"
+  "verifiedAt": "2026-09-13T20:38:33Z"
 }

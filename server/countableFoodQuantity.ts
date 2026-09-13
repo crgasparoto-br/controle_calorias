@@ -36,6 +36,8 @@ export type CountableFoodResolvedMeasure = {
     kind: "canonical_portion";
     grams: number;
   };
+  /** Produto comercial já validado pelo resolvedor canônico desta mesma resolução. */
+  commercialFood?: CatalogFood;
 };
 
 export type CountableFoodPendingItem = CountableFoodQuantityRequest & {
@@ -267,7 +269,12 @@ export async function prepareCountableFoodRegistrationResolved(
     });
     if (resolved) {
       rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
-      resolutions.push({ segmentIndex, request: resolvedRequest, resolution: resolved });
+      resolutions.push({
+        segmentIndex,
+        request: resolvedRequest,
+        resolution: resolved,
+        ...(commercialFood ? { commercialFood } : {}),
+      });
       continue;
     }
 

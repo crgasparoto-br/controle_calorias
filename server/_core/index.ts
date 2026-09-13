@@ -14,12 +14,14 @@ import {
 } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { exposeHttpAvailabilityBeforeBackgroundTasks } from "./runtimeAvailability";
+import { installRuntimeTerminationDiagnostics } from "./runtimeTerminationDiagnostics";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import {
   handleStravaWebhookVerification,
   handleStravaWebhookEvent,
 } from "../modules/healthIntegrations/stravaWebhookHandler";
+import { resolveWhatsAppWebhookCorrelation } from "../modules/whatsapp/webhookCorrelation";
 import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
@@ -109,10 +111,16 @@ function listenHttpServer(server: ReturnType<typeof createServer>, port: number)
 async function startServer() {
   const runtimeBootId = randomUUID();
   const runtimeBootStartedAt = Date.now();
+  const runtimeCommit = process.env.RENDER_GIT_COMMIT?.slice(0, 12) ?? null;
   console.info("[Runtime] boot_started", {
     bootId: runtimeBootId,
     pid: process.pid,
-    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 12) ?? null,
+    commit: runtimeCommit,
+  });
+  installRuntimeTerminationDiagnostics({
+    bootId: runtimeBootId,
+    bootStartedAt: runtimeBootStartedAt,
+    commit: runtimeCommit,
   });
 
   validateRuntimeEnv();
@@ -172,9 +180,12 @@ async function startServer() {
   const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
   const asaasWebhookHandler = getAsaasWebhookHandler();
 
-  const observeWhatsAppIngress: RequestHandler = (req, _res, next) => {
+  const observeWhatsAppIngress: RequestHandler = (req, res, next) => {
+    const ingressId = randomUUID();
+    res.locals.whatsappIngressId = ingressId;
     console.info("[WhatsAppWebhook] ingress_received", {
       bootId: runtimeBootId,
+      ingressId,
       state: "request_reached_runtime",
       method: req.method,
       contentLength: req.get("content-length") ?? null,
@@ -220,14 +231,19 @@ async function startServer() {
       extended: true,
     }),
     (req, res) => {
+      const correlation = resolveWhatsAppWebhookCorrelation(req.body);
       console.info("[WhatsAppWebhook] lifecycle_dispatch", {
         bootId: runtimeBootId,
+        ingressId: res.locals.whatsappIngressId ?? null,
         state: "request_entering_lifecycle",
+        ...correlation,
       });
       void handleWhatsAppPersistentContextWebhook(req, res).catch(error => {
         console.error("[WhatsAppWebhook] Request failed", {
           bootId: runtimeBootId,
+          ingressId: res.locals.whatsappIngressId ?? null,
           state: "lifecycle_failed_retryable",
+          ...correlation,
           error: safeLogDetail(error),
         });
         if (!res.headersSent) {

@@ -1,1 +1,213 @@
-{"schema_version":2,"status":"ready","created_at":"2026-09-13T16:59:44.838888+00:00","identity":{"head_sha":"c1fbfaf3b00d97712e9bccefd122623e04b27c10","material_head_sha":"c1fbfaf3b00d97712e9bccefd122623e04b27c10","base_sha":"2b11e70077e4fe1f47f322178b5479c60aeeefd3","merge_preview_sha":"3fb5ce669113adfefa432e0f10db7d17c126dfc5","material_merge_preview_sha":"3fb5ce669113adfefa432e0f10db7d17c126dfc5"},"subject":{"repository":"crgasparoto-br/controle_calorias","issue_number":1072,"pull_request_number":1074,"work_item_kind":"issue","work_item_number":1072,"pull_request":1074,"base_ref":"develop","head_ref":"fix/1072-countable-serving-identity"},"scope":{"schema_version":1,"work_item_start_sha":"2b11e70077e4fe1f47f322178b5479c60aeeefd3","material_head_sha":"c1fbfaf3b00d97712e9bccefd122623e04b27c10","issue_changed_paths":["server/brandedNutritionSearch.ts","server/catalogSemanticSearch.ts","server/commercialProductIdentity.ts","server/commercialServingRelation.issue1072.test.ts","server/householdMeasureResolution.ts","server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts"],"issue_delta_sha256":"f14e02e276fee615c364aa755e294d22a6ce309b4507031afffc1699bd4fddab"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/issue-1072/evidence-provenance.json",".audit/entregar-issue/issue-1072/evidence/agent-first-manifest.json",".audit/entregar-issue/issue-1072/evidence/issue1072-exact-head.txt",".audit/entregar-issue/issue-1072/inherited-controls.json",".audit/entregar-issue/issue-1072/requirement-attack-matrix.json",".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-000.b64",".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-001.b64",".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-002.b64",".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-003.b64",".audit/entregar-issue/issue-1072/requirement-closure.json",".audit/entregar-issue/issue-1072/requirement-closure.parts/part-000.b64",".audit/entregar-issue/issue-1072/requirement-closure.parts/part-001.b64",".audit/entregar-issue/issue-1072/requirement-closure.parts/part-002.b64",".audit/entregar-issue/issue-1072/requirement-closure.parts/part-003.b64",".audit/entregar-issue/issue-1072/risk-saturation.json",".audit/entregar-issue/issue-1072/specification-snapshot.json",".audit/entregar-issue/issue-1072/specification-sources/SRC-ISSUE.txt",".audit/entregar-issue/specification-snapshot.json"]},"contract_version":"2026-08-20.3","evidence_profile":"critical","remediation_mode":null,"producer":{"skill":"entregar-issue","skill_sha256":"e3addabd27e11e0537823e3f51f2e8b39d08c76db1b2ec6357e50765fb3383b2"},"validators":{"validate_specification_coverage.py":"01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b","validate_handoff_readiness.py":"e2bbbe81297b416c4ff087b7c79ffb398207d44093fee3b184b09fbbc929a2cd","validate_standard_evidence.py":"87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588","validate_requirement_attack_matrix.py":"96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99","validate_evidence_freshness.py":"e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04","validate_risk_saturation.py":"5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac","validate_inherited_controls.py":"183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146","validate_learning_closure.py":"d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc","validate_independent_rejection_closure.py":"61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4","validate_audit_remediation.py":"aa0e7555122ab9a01dcbfd057f4de92d4f30f94e1e0dad1cace9b49a74171777"},"artifact_transport":{"version":1,"supported_formats":["plain-json","base64-shards-v1"]},"artifacts":{"specification_snapshot":{"name":"specification-snapshot.json","sha256":"d4710464020969ad61ac585ae6f524cf9b9be873269c39be04bc7fa9439d659f","logical_sha256":"d4710464020969ad61ac585ae6f524cf9b9be873269c39be04bc7fa9439d659f","logical_size":593,"artifact_transport":{"format":"plain-json","version":1}},"requirement_closure":{"name":"requirement-closure.json","sha256":"7e51ab8a06073ef095fb2927cb62762fab664c7e9fb2d552fd717e6504a95127","logical_sha256":"5168449acd16695c28fead2e44a01f700df4e49a18d5d54fb5b0c28de501843c","logical_size":57292,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":13232,"decoded_size":57292,"decoded_sha256":"5168449acd16695c28fead2e44a01f700df4e49a18d5d54fb5b0c28de501843c","encoded_sha256":"54705615f0e4ea42b3368c0a260475772123b113a1cf128302c9cd2173653c43","parts":[{"path":"requirement-closure.parts/part-000.b64","size":4000,"sha256":"f9d7f25eb782ac1977bc2c25dd00bc12a00a765a6221386dcd9d3b732b4a2d68"},{"path":"requirement-closure.parts/part-001.b64","size":4000,"sha256":"3d5ecb8f7fbc6a9bdcdec18da77e87cb2d067af663fc8af4d7dbbdcbd2e5588a"},{"path":"requirement-closure.parts/part-002.b64","size":4000,"sha256":"9ad2096227ff85a78746b4b27ab63d085aa459eaf0fe27e2bfed4b53d2b00035"},{"path":"requirement-closure.parts/part-003.b64","size":1232,"sha256":"40de484a7553a1e5c439a01c3cefb05ce0d8c57c3371f607134ff3f245be97e9"}]}},"requirement_attack_matrix":{"name":"requirement-attack-matrix.json","sha256":"e336d42028cab549ba54cf69fe86e9bf75b6dfaa3ff716f71297a6115a7ff0d1","logical_sha256":"cdd003c0389b8274abada1569c7f9ee2202851ce9383861713ec496050955046","logical_size":148099,"artifact_transport":{"format":"base64-shards-v1","version":1,"compression":"gzip","encoded_size":15820,"decoded_size":148099,"decoded_sha256":"cdd003c0389b8274abada1569c7f9ee2202851ce9383861713ec496050955046","encoded_sha256":"b7d856d489f790288004e3cdbaa85caa5e5edd0ffc8b8212b557c2afbe08edda","parts":[{"path":"requirement-attack-matrix.parts/part-000.b64","size":4000,"sha256":"826861912d1d40e4eb8462e5d89fb700f366f46f5880efa0cc3fb52cec5ac497"},{"path":"requirement-attack-matrix.parts/part-001.b64","size":4000,"sha256":"3cdaa4f1e59d20c0bf725bb5dd95066220aaec7d217291a348eaa93f0cb1224b"},{"path":"requirement-attack-matrix.parts/part-002.b64","size":4000,"sha256":"b32100650e4fa999be5e7690153f02ddb58ae7bec6703c4375534e30df9d43c4"},{"path":"requirement-attack-matrix.parts/part-003.b64","size":3820,"sha256":"8ae57de286f5201cd031a9b3249b7ecce1b506aea9c2e34c262b8b423b332822"}]}},"risk_saturation":{"name":"risk-saturation.json","sha256":"8dc39c5d2a5de1ad56dfbd8a18328c640a9337cc65e3b2e6917dc96f36764c6d","logical_sha256":"8dc39c5d2a5de1ad56dfbd8a18328c640a9337cc65e3b2e6917dc96f36764c6d","logical_size":9312,"artifact_transport":{"format":"plain-json","version":1}},"inherited_controls":{"name":"inherited-controls.json","sha256":"4b1159bd8fe80960cf6128d7e28d370908df57d2d31a67f654db597b895f3511","logical_sha256":"4b1159bd8fe80960cf6128d7e28d370908df57d2d31a67f654db597b895f3511","logical_size":180,"artifact_transport":{"format":"plain-json","version":1}},"evidence_provenance":{"name":"evidence-provenance.json","sha256":"9621168ca3a5c39634d7ef5a350fe1d3cdf502c44ae71f1c1f9c338d62335b19","logical_sha256":"9621168ca3a5c39634d7ef5a350fe1d3cdf502c44ae71f1c1f9c338d62335b19","logical_size":2098,"artifact_transport":{"format":"plain-json","version":1}}},"previous_independent_rejection":false}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "created_at": "2026-09-13T21:24:58.381735+00:00",
+  "identity": {
+    "head_sha": "4967064bb54ad82ce92686198aeca387c42883f8",
+    "material_head_sha": "4967064bb54ad82ce92686198aeca387c42883f8",
+    "base_sha": "0f3b913a6dc49ff15aaac4ed28ea09735c07b968",
+    "merge_preview_sha": "7a08f28f6cf52fd77b0fb5f034d8cec57bc1febf",
+    "material_merge_preview_sha": "7a08f28f6cf52fd77b0fb5f034d8cec57bc1febf"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1072,
+    "pull_request_number": 1076,
+    "work_item_kind": "issue",
+    "work_item_number": 1072,
+    "pull_request": 1076,
+    "base_ref": "develop",
+    "head_ref": "fix/1072-preserve-countable-provenance"
+  },
+  "scope": {
+    "schema_version": 1,
+    "work_item_start_sha": "0f3b913a6dc49ff15aaac4ed28ea09735c07b968",
+    "material_head_sha": "4967064bb54ad82ce92686198aeca387c42883f8",
+    "issue_changed_paths": [
+      "docs/design-docs/whatsapp-countable-measure-passthrough.md",
+      "server/countableFoodQuantity.ts",
+      "server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts",
+      "server/modules/whatsapp/countableFoodRegistrationGate.ts"
+    ],
+    "issue_delta_sha256": "7a60efebc69a68db6ad1d2bd448d5c90b6b11fad22ec19c33dcfab24072b0204"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/issue-1072/evidence-provenance.json",
+      ".audit/entregar-issue/issue-1072/evidence/agent-first-manifest.json",
+      ".audit/entregar-issue/issue-1072/evidence/issue1072-exact-head.txt",
+      ".audit/entregar-issue/issue-1072/inherited-controls.json",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.json",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-000.b64",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-001.b64",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-002.b64",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-003.b64",
+      ".audit/entregar-issue/issue-1072/requirement-attack-matrix.parts/part-004.b64",
+      ".audit/entregar-issue/issue-1072/requirement-closure.json",
+      ".audit/entregar-issue/issue-1072/requirement-closure.parts/part-000.b64",
+      ".audit/entregar-issue/issue-1072/requirement-closure.parts/part-001.b64",
+      ".audit/entregar-issue/issue-1072/requirement-closure.parts/part-002.b64",
+      ".audit/entregar-issue/issue-1072/requirement-closure.parts/part-003.b64",
+      ".audit/entregar-issue/issue-1072/requirement-closure.parts/part-004.b64",
+      ".audit/entregar-issue/issue-1072/risk-saturation.json",
+      ".audit/entregar-issue/issue-1072/specification-snapshot.json",
+      ".audit/entregar-issue/issue-1072/specification-sources/SRC-ISSUE.txt",
+      ".audit/entregar-issue/specification-snapshot.json"
+    ]
+  },
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "critical",
+  "remediation_mode": null,
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "e3addabd27e11e0537823e3f51f2e8b39d08c76db1b2ec6357e50765fb3383b2"
+  },
+  "validators": {
+    "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
+    "validate_handoff_readiness.py": "e2bbbe81297b416c4ff087b7c79ffb398207d44093fee3b184b09fbbc929a2cd",
+    "validate_standard_evidence.py": "87a82707220b15407cf39b956c7c5c05b6030edee3a87561b0cd0aec3328f588",
+    "validate_requirement_attack_matrix.py": "96d6d1a31a2387ae9e4e0f59cc2f384580abc2b21293dc37381fab66707fba99",
+    "validate_evidence_freshness.py": "e85849415ea701c39ead5eb7203d2264092fece959479e69c0b37b67a56c7d04",
+    "validate_risk_saturation.py": "5016cc0fb23264babd2c904e58ff9d41a266e1d764ef675bcd416503754c57ac",
+    "validate_inherited_controls.py": "183f6530f41e1d516505bb19cd315148425f7647d74f4be021a582217f96b146",
+    "validate_learning_closure.py": "d7baa1043776f7362bd2cf10125174803ba036c395f0df1268b80a89def0e0bc",
+    "validate_independent_rejection_closure.py": "61d0cb9336186e9677b718303bcdf040e77cb90beb587c64a2be5367fab056c4",
+    "validate_audit_remediation.py": "aa0e7555122ab9a01dcbfd057f4de92d4f30f94e1e0dad1cace9b49a74171777"
+  },
+  "artifact_transport": {
+    "version": 1,
+    "supported_formats": [
+      "plain-json",
+      "base64-shards-v1"
+    ]
+  },
+  "artifacts": {
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "6b23d53c57325ebfdbc623f5dde869e4c2a18566d299ebabd4f4a17f4b95d0f6",
+      "logical_sha256": "6b23d53c57325ebfdbc623f5dde869e4c2a18566d299ebabd4f4a17f4b95d0f6",
+      "logical_size": 561,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "4207c9389679f600eb70bed769514884210371b32b037b83cc023c7d3e1daf10",
+      "logical_sha256": "53ab6d5ac2dc39f7ab01ca78c3db50729a4e04b393451f5e38aea1217c914ef9",
+      "logical_size": 92666,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 18924,
+        "decoded_size": 92666,
+        "decoded_sha256": "53ab6d5ac2dc39f7ab01ca78c3db50729a4e04b393451f5e38aea1217c914ef9",
+        "encoded_sha256": "c2cfa5d9107fb4ca8a152491f2fee8762a4d3c9c5f74364efb50ae7f2c16a2c5",
+        "parts": [
+          {
+            "path": "requirement-closure.parts/part-000.b64",
+            "size": 4000,
+            "sha256": "2a7b6a1105e8a162196d33016c38912bdb5c615c4689ad01a35d5ac3e07f245b"
+          },
+          {
+            "path": "requirement-closure.parts/part-001.b64",
+            "size": 4000,
+            "sha256": "201491839ba47323555dcf7825197eb8bfb908fb59fee1a9f283f0add4476240"
+          },
+          {
+            "path": "requirement-closure.parts/part-002.b64",
+            "size": 4000,
+            "sha256": "106f1a353e9fb4779432ce36a73e04094c54123443119d3c8ecca4ea2b196cd7"
+          },
+          {
+            "path": "requirement-closure.parts/part-003.b64",
+            "size": 4000,
+            "sha256": "cc9796dcd0d40301196ef11c632755bccfc22e87fc7dc7941a369194da342645"
+          },
+          {
+            "path": "requirement-closure.parts/part-004.b64",
+            "size": 2924,
+            "sha256": "60db3859836973d73696954c04cea5bade01999f12aa12fd297ed2777e870dcd"
+          }
+        ]
+      }
+    },
+    "requirement_attack_matrix": {
+      "name": "requirement-attack-matrix.json",
+      "sha256": "784b1356c42e00995a7fcff6f0f163a357ac9e5e80febaa2442eb99f7e74004b",
+      "logical_sha256": "bcbebb29dea2d9c34922eb2647d4a223db65c2f03044bf27b70c7cd92bbf5daa",
+      "logical_size": 296384,
+      "artifact_transport": {
+        "format": "base64-shards-v1",
+        "version": 1,
+        "compression": "gzip",
+        "encoded_size": 19956,
+        "decoded_size": 296384,
+        "decoded_sha256": "bcbebb29dea2d9c34922eb2647d4a223db65c2f03044bf27b70c7cd92bbf5daa",
+        "encoded_sha256": "cca3b32b54f52f01af16ba1aa1ed641eee7a9a844c91330caeacba8a67b6b304",
+        "parts": [
+          {
+            "path": "requirement-attack-matrix.parts/part-000.b64",
+            "size": 4000,
+            "sha256": "2a7c0889e185f1d3ae827ab341738aa3b29b8e01749940ed5203c39630d8e242"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-001.b64",
+            "size": 4000,
+            "sha256": "c7b3585770402c3737992c96c25d36b7bc455388e470d62e2a88f86229673a90"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-002.b64",
+            "size": 4000,
+            "sha256": "9cb1741306555aa1cb666164f1702b480b5f2955914268ca40f976695b10621b"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-003.b64",
+            "size": 4000,
+            "sha256": "cc6e455cbfb4bc6d261f085f0cb0d59ee838d2663da4b322d1f70e02103c182b"
+          },
+          {
+            "path": "requirement-attack-matrix.parts/part-004.b64",
+            "size": 3956,
+            "sha256": "8f04781d4a5a268de6084e235f36b9d4c5754e2b7d13fbea5585b366490eb971"
+          }
+        ]
+      }
+    },
+    "risk_saturation": {
+      "name": "risk-saturation.json",
+      "sha256": "6d89c41f85d7e29857e1880b813427ac08276aca6b67843d1d7c79c638172abb",
+      "logical_sha256": "6d89c41f85d7e29857e1880b813427ac08276aca6b67843d1d7c79c638172abb",
+      "logical_size": 5228,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "inherited_controls": {
+      "name": "inherited-controls.json",
+      "sha256": "40daf376e11ec481b6e348cc5e47538932b845c84424ffb21946f03f088ae972",
+      "logical_sha256": "40daf376e11ec481b6e348cc5e47538932b845c84424ffb21946f03f088ae972",
+      "logical_size": 180,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "evidence_provenance": {
+      "name": "evidence-provenance.json",
+      "sha256": "207648d8cd8e46395813f56e4059277d1d31af458f7146d30a03581de52c0e6e",
+      "logical_sha256": "207648d8cd8e46395813f56e4059277d1d31af458f7146d30a03581de52c0e6e",
+      "logical_size": 4455,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    }
+  },
+  "previous_independent_rejection": false
+}

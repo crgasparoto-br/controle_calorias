@@ -1,8 +1,11 @@
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
+import { calculateMealTotals } from "../../../shared/mealTotals";
 import {
   prepareCountableFoodRegistrationResolved,
   type CountableFoodResolvedMeasure,
 } from "../../countableFoodQuantity";
+import { buildItemFromCatalog } from "../../mealItemBuilders";
+import { buildMealSemanticContract } from "../../mealSemanticContract";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
@@ -11,7 +14,7 @@ import {
   type MealProcessingResult,
 } from "../../nutritionEngine";
 import { createWhatsappMealIntentRegistrationDetailsInteraction } from "./mealIntentRegistrationDetailsInteraction";
-import { parseFoodText } from "../../mealTextParsing";
+import { buildPortionText, parseFoodText } from "../../mealTextParsing";
 
 export type ResolvedRegistrationSegment = {
   segmentIndex: number;
@@ -35,6 +38,65 @@ export type CountableFoodRegistrationGateResult =
     }
   | { kind: "clarification"; result: WhatsappIntentResult };
 
+function applyResolvedCommercialMeasure(input: {
+  resolved: CountableFoodResolvedMeasure;
+  processed: MealProcessingResult;
+  occurredAt?: Date;
+  userTimezone: string;
+}): MealProcessingResult {
+  const food = input.resolved.commercialFood;
+  const referenceItem = input.processed.items[0];
+  const grams = input.resolved.resolution.grams;
+  if (
+    !food ||
+    !input.resolved.request.brand ||
+    input.processed.items.length !== 1 ||
+    !referenceItem ||
+    !Number.isFinite(grams) ||
+    grams <= 0 ||
+    !Number.isFinite(food.gramsPerServing) ||
+    food.gramsPerServing <= 0
+  ) {
+    return input.processed;
+  }
+
+  const request = input.resolved.request;
+  const processingInput = {
+    text: request.segment,
+    occurredAt: input.occurredAt,
+    timeZone: input.userTimezone,
+  };
+  const item = {
+    ...buildItemFromCatalog(food, {
+      foodName: request.foodName,
+      brand: request.brand,
+      quantity: request.count,
+      unit: request.requestedUnit,
+      portionText: buildPortionText(request.count, request.requestedUnit),
+      servings: Math.max(grams / food.gramsPerServing, 0.25),
+      estimatedGrams: grams,
+      estimatedCalories: 0,
+      estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+      confidence: referenceItem.confidence,
+      foodClassification: referenceItem.classification,
+    }),
+    resolution: referenceItem.resolution,
+  };
+  const semanticContract = buildMealSemanticContract({
+    processingInput,
+    sourceText: request.segment,
+    items: [item],
+  });
+
+  return {
+    ...input.processed,
+    sourceText: request.segment,
+    items: [item],
+    totals: calculateMealTotals([item]),
+    semanticContract,
+  };
+}
+
 export async function prepareWhatsappCountableFoodRegistration(input: {
   userId: number;
   text?: string | null;
@@ -45,12 +107,41 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   resolvedSegments?: ResolvedRegistrationSegment[];
 }): Promise<CountableFoodRegistrationGateResult> {
   const text = input.text?.trim() ?? "";
+  const userTimezone = input.userTimezone ?? DEFAULT_APP_TIME_ZONE;
   const prepared = await prepareCountableFoodRegistrationResolved(
     input.userId,
     text,
     input.resolvedSegments?.map(item => item.segmentIndex)
   );
   const resolvedSegments = [...(input.resolvedSegments ?? [])];
+
+  // A gramatura de uma medida contável comercial é uma normalização interna,
+  // não uma nova alegação mass-only do usuário. Preserve o resultado semântico
+  // já validado para que o registro final não reinterprete "25 g" isoladamente.
+  for (const resolved of prepared.resolutions) {
+    if (
+      !resolved.commercialFood ||
+      !resolved.request.brand ||
+      resolvedSegments.some(item => item.segmentIndex === resolved.segmentIndex)
+    )
+      continue;
+
+    const processed = await processMealInput({
+      text: resolved.request.segment,
+      occurredAt: input.receivedAt,
+      timeZone: userTimezone,
+    });
+    resolvedSegments.push({
+      segmentIndex: resolved.segmentIndex,
+      processed: applyResolvedCommercialMeasure({
+        resolved,
+        processed,
+        occurredAt: input.receivedAt,
+        userTimezone,
+      }),
+    });
+  }
+
   if (
     input.resolvedSegments ||
     prepared.pendingItems.some(item => item.identityClarification)
@@ -72,7 +163,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
           processed: await processMealInput({
             text: segment,
             occurredAt: input.receivedAt,
-            timeZone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+            timeZone: userTimezone,
           }),
         });
       } catch (error) {
@@ -115,7 +206,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
           itemIndex: firstIdentity.segmentIndex,
           resolvedSegments,
           occurredAt: (input.receivedAt ?? new Date()).toISOString(),
-          userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+          userTimezone,
           clarification: clarification.context,
         },
       }
@@ -138,7 +229,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       kind: "ready",
       registrationText: prepared.registrationText || text,
       resolutions: prepared.resolutions,
-      ...(input.resolvedSegments ? { resolvedSegments } : {}),
+      ...(resolvedSegments.length ? { resolvedSegments } : {}),
     };
   }
 
@@ -159,9 +250,9 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       })),
       currentPendingIndex: 0,
       occurredAt,
-      userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
+      userTimezone,
       messageId: input.inboundMessageId,
-      resolvedSegments: input.resolvedSegments ? resolvedSegments : undefined,
+      resolvedSegments: resolvedSegments.length ? resolvedSegments : undefined,
       instructionText: `Não encontrei uma gramatura verificável nem uma média usual segura para ${firstPending.segment}. Informe somente o peso ou volume correspondente, por exemplo 20 g.`,
     });
   return { kind: "clarification", result: clarification };

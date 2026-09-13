@@ -1,0 +1,245 @@
+## Contexto
+
+Em produção, o problema de alimentos contáveis com marca continua ocorrendo após as correções da #1051 e #1054 / PR #1055.
+
+Caso observado em 13/09/2026:
+
+```text
+1,5 pão frances, 1 fatia de mussarela, 1 fatia de presunto, 40g de requeijão, 20g de manteiga Batavo com sal, 3 xícaras de café, 1 fatia de pão de forma panco Premium
+```
+
+Resposta atual para o item de pão:
+
+```text
+Não consegui comprovar a identidade comercial exata de Pão de Forma Panco Premium (Panco). Confirme a variante ou envie um rótulo legível antes de registrar os nutrientes.
+```
+
+Neste cenário a identidade comercial já está suficientemente explícita no texto (`Panco Premium`). O problema ocorre na etapa posterior de validação da referência/porção nutricional.
+
+A implementação deve partir da branch `develop`.
+
+## Fontes canônicas do repositório
+
+Esta issue corrige drift entre a implementação e regras já documentadas. Não cria uma nova política nutricional.
+
+- `docs/design-docs/nutrition-engine.md`
+  - a resolução de quantidade por pesquisa exige relação **quantidade + unidade + gramas verificável**;
+  - `researched_exact`/porção específica têm precedência sobre médias/fallbacks;
+  - gramatura e composição nutricional são decisões separadas, mas ambas devem permanecer semanticamente compatíveis com a mesma identidade comercial.
+- `docs/design-docs/whatsapp-countable-measure-passthrough.md`
+  - precedência para produto com marca: **identidade -> variante -> porção -> peso**;
+  - após identidade aceita, `resolveHouseholdMeasure` deve usar porção do produto ou relação física exata da mesma identidade;
+  - referência de outra variante/produto não pode substituir essa relação.
+- `docs/product-specs/meal-registration.md`
+  - produto com marca/variante explícita permanece fail-closed quando identidade/nutrição não forem comprovadas.
+
+Se a implementação exigir mudança de contrato além dessas regras, a documentação deve ser atualizada na mesma entrega. Caso contrário, registrar na PR que essas fontes permanecem válidas sem alteração.
+
+## Diagnóstico confirmado na `develop`
+
+O fluxo atual possui uma incompatibilidade entre pedidos em **unidades contáveis** e referências nutricionais que expressam a porção em **unidade + massa**.
+
+Em `server/commercialProductIdentity.ts`, `isCommercialProductIdentityCompatible()` rejeita o candidato quando:
+
+- o usuário não informou massa/volume explicitamente; e
+- `matchedProductName + servingLabel` contém uma medida física (`g`, `ml`, etc.).
+
+Exemplo:
+
+```text
+Pedido: 1 fatia de pão de forma Panco Premium
+Referência: Pão de Forma Panco Premium — 2 fatias (50 g)
+```
+
+A presença de `50 g` na referência não deve tornar a identidade incompatível. Ela pode sustentar a conversão somente quando a relação contável correspondente estiver realmente comprovada.
+
+O mesmo guard é consumido por `server/brandedNutritionSearch.ts` e `server/catalogSemanticSearchCore.ts`, portanto uma correção apenas no gate do WhatsApp seria insuficiente.
+
+`server/householdMeasureResolution.ts` já possui comportamento canônico para escalar relações como `2 fatias = 50 g` para a quantidade solicitada e, no caminho de pesquisa de medida, valida evidência textual da relação quantidade-unidade-gramas. A correção deve preservar esse nível de evidência e não criar uma validação paralela mais permissiva.
+
+Há ainda uma lacuna de cobertura: os testes de #1054 injetam `CatalogFood` já aceito no boundary de busca, enquanto os testes atuais de `brandedNutritionSearch` exercitam Panco com `50g` explícitos no próprio pedido. Assim, nenhum deles prova o caso real `1 fatia de ... Panco Premium` atravessando a validação comercial que hoje rejeita a referência.
+
+## Objetivo
+
+Corrigir de forma estrutural a validação de identidade/porção para que alimentos informados em unidades contáveis (`fatia`, `unidade`, `barra`, `bisnaguinha`, etc.) possam usar referência específica cuja porção permita resolver a relação entre unidade e massa/volume, sem relaxar identidade comercial, proveniência ou evidência.
+
+A solução não deve ser específica para Panco nem cadastrar gramaturas fixas por marca.
+
+## Regra funcional esperada
+
+Para:
+
+```text
+1 fatia de pão de forma Panco Premium
+```
+
+quando houver evidência verificável de:
+
+```text
+Pão de Forma Panco Premium
+2 fatias = 50 g
+```
+
+o sistema deve:
+
+1. preservar `Panco` e `Premium`;
+2. comprovar a identidade comercial pelas regras canônicas;
+3. não rejeitar a referência apenas porque o usuário não escreveu `g/ml`;
+4. comprovar a relação quantidade-unidade-gramas antes de utilizá-la;
+5. derivar `1 fatia = 25 g` e aplicar proporcionalmente a quantidade solicitada;
+6. calcular calorias/macros para a quantidade efetivamente consumida, usando referência nutricional semanticamente compatível com a mesma identidade comercial;
+7. não pedir rótulo, variante ou peso se identidade, medida e nutrição necessárias já estiverem comprovadas.
+
+### Proveniência da porção
+
+A relação contável não pode existir somente no payload estruturado produzido pelo provider/LLM.
+
+- Se a própria fonte nutricional comprovar explicitamente `2 fatias (50 g)`, essa relação pode ser reutilizada.
+- Se a fonte nutricional comprovar apenas uma porção física de `50 g`, mas não quantas fatias/unidades ela representa, o sistema **não pode** inferir `2 fatias = 50 g` apenas porque o provider retornou esse `servingLabel`.
+- Nesse caso, o resolvedor canônico de medida pode buscar uma relação física exata adicional para a **mesma identidade comercial**. Se a relação continuar sem evidência suficiente, deve clarificar peso/medida conforme o contrato existente.
+- A fonte da medida e a fonte dos macros não precisam ser a mesma URL, mas ambas devem ser verificáveis, rastreáveis e semanticamente compatíveis com o mesmo produto/marca/variante. É proibido combinar medida de um produto/variante com macros de outro.
+
+### Massa/volume explícitos
+
+Quando o usuário informar massa/volume explicitamente, essa evidência continua restritiva.
+
+- pedido apenas em massa/volume: referência fisicamente conflitante deve ser rejeitada;
+- pedido que combine unidade contável e massa, por exemplo `1 fatia (25 g)`, deve ser validado pela **relação proporcional comprovada**; `1 fatia (30 g)` não é compatível com uma relação verificada de `2 fatias = 50 g`.
+
+## Escopo técnico prioritário
+
+Revisar principalmente:
+
+- `server/commercialProductIdentity.ts`
+  - `isCommercialProductIdentityCompatible()`;
+  - distinção entre compatibilidade de identidade e compatibilidade física;
+- `server/brandedNutritionSearch.ts`
+  - `structuredIdentityIsCompatible()`;
+  - evidência de porção e source grounding;
+- `server/catalogSemanticSearchCore.ts`
+  - consumidores do mesmo guard;
+  - aceitação/persistência de `servingLabel` e `gramsPerServing`;
+- `server/brandedNutritionPersistence.ts`
+  - garantir que cache/persistência não permitam bypass da evidência de relação contável;
+- `server/householdMeasureResolution.ts`
+  - preservar/reutilizar a validação canônica da relação quantidade-unidade-gramas e o escalonamento proporcional;
+- `server/modules/whatsapp/countableFoodRegistrationGate.ts`
+  - validar o resultado final no fluxo real;
+- testes associados a #1051 e #1054.
+
+Não criar resolvedor paralelo nem uma política mais permissiva apenas para o WhatsApp.
+
+## Invariantes estruturais verificáveis
+
+- **`must_behave` — unidade contável + massa da porção são complementares.**
+  - Implementação errada que passaria no caminho feliz: aceitar apenas `2 fatias`, mas continuar rejeitando `1 fatia` porque a fonte contém `50 g`.
+  - Controle: testar 1, 2 e 3 fatias contra a mesma relação `2 fatias = 50 g`.
+
+- **`must_not_behave` — `servingLabel` produzido pelo provider não é prova autônoma da relação contável.**
+  - Implementação errada: remover a rejeição atual e confiar em `servingLabel: "2 fatias (50 g)"` mesmo quando a fonte só comprova `50 g` e macros.
+  - Controle: cenário negativo em que payload estruturado contém `2 fatias (50 g)`, mas `supportingText/sourceEvidence` não contém a relação `2 fatias <-> 50 g`; não pode derivar `25 g` dessa informação sozinha.
+
+- **`must_reuse` / `must_be_single_source` — validação de relação física deve respeitar a política canônica já usada por `householdMeasureResolution`.**
+  - Implementação errada: criar em `brandedNutritionSearch` um segundo critério mais frouxo de porção que aceite qualquer número em gramas próximo do payload do modelo.
+  - Controle: testes de source grounding positivos e negativos devem produzir a mesma decisão sem depender de regras específicas de marca.
+
+- **`must_not_behave` — sem mistura entre produtos/variantes.**
+  - Implementação errada: usar `2 fatias = 50 g` de Panco Integral e macros de Panco Premium porque ambos têm a mesma marca.
+  - Controle: fonte de outra variante ou marca deve ser rejeitada em cada decisão que a consome.
+
+- **`must_not_depend_on` — caminho principal não pode depender de hardcode de Panco/Wickbold nem de massa fixa por marca.**
+  - Controle: executar o mesmo comportamento com outra marca e com outro tipo de alimento contável.
+
+- **`precedence_invariants` — identidade -> variante -> porção -> peso.**
+  - Implementação errada: corrigir a aceitação de porção, mas voltar a pedir peso antes de tentar a relação exata da identidade já comprovada.
+  - Controle: o primeiro fallback após identidade/variante resolvidas deve ser a resolução canônica de porção; peso só vem depois do miss verificável.
+
+## Requisitos funcionais
+
+- Separar a decisão "este é o mesmo produto/marca/variante?" da decisão "esta fonte comprova a relação física necessária?".
+- Ausência de `g/ml` no pedido não é, por si só, incompatibilidade comercial.
+- Uma relação quantidade-unidade-gramas só pode ser usada se possuir evidência verificável ou vier de porção canônica já validada/persistida pelo contrato existente.
+- Resultado persistido/cacheado não pode transformar um `servingLabel` não comprovado em verdade física apenas por ter sido armazenado anteriormente.
+- Se a relação contável estiver comprovada, escalar gramas e nutrição para a quantidade consumida sem double-scaling.
+- Se a identidade estiver comprovada mas a relação contável não estiver, manter o fallback seguro de medida/peso já documentado.
+- Provider indisponível ou evidência insuficiente continua fail-closed; não usar pão genérico ou macros genéricos como exatos.
+
+## Testes obrigatórios
+
+Usar doubles determinísticos apenas nos boundaries externos de provider/web. O caminho interno de validação e resolução não pode receber um `CatalogFood` já aprovado como única prova do cenário.
+
+Cobrir no mínimo:
+
+1. `1 fatia de pão de forma Panco Premium` + fonte que comprova `2 fatias (50 g)` -> resolve `25 g`, sem clarificação, e escala nutrientes para metade da porção.
+2. `2 fatias de pão de forma Panco Premium` -> resolve `50 g` e mantém os nutrientes da porção-base sem double-scaling.
+3. `3 fatias de pão de forma Panco Premium` -> resolve `75 g` e escala nutrientes proporcionalmente.
+4. payload do provider declara `2 fatias (50 g)`, porém a fonte comprova apenas `50 g` + macros -> não pode derivar `25 g` desse `servingLabel`; deve buscar relação exata adicional ou clarificar.
+5. fonte comprova explicitamente `2 fatias (50 g)` + identidade + nutrição -> aceita.
+6. referência nutricional cacheada/persistida com `servingLabel` contável, mas sem evidência da relação na fonte -> não pode burlar a regra do cenário 4.
+7. `1 fatia de pão integral Wickbold` com evidência equivalente -> mesmo comportamento genérico.
+8. outro produto contável fora do domínio de pão -> mesma regra, provando ausência de hardcode.
+9. `1 fatia (25 g) de Panco Premium` + relação `2 fatias = 50 g` -> compatível; `1 fatia (30 g)` -> rejeita a inconsistência física.
+10. marca correta + variante incorreta na fonte de medida ou de nutrição -> rejeita.
+11. provider/pesquisa indisponível -> permanece fail-closed e não usa referência genérica como exata.
+12. cenário multi-item observado em produção -> `1 fatia de pão de forma Panco Premium` não bloqueia a refeição quando identidade, relação física e nutrição estiverem comprovadas.
+
+### Controle anti-falso-positivo
+
+Não é suficiente usar algo equivalente a:
+
+```ts
+boundary.search.mockResolvedValue(referenceJaAceita)
+```
+
+como única prova. O double deve ficar no boundary externo e fornecer payload + fontes/evidências brutas para que a implementação real decida aceitação, relação física, escala e fallback.
+
+## Critérios de aceite
+
+- [ ] `1 fatia de pão de forma Panco Premium` resolve para `25 g` quando existe relação verificável `2 fatias = 50 g` da mesma identidade comercial.
+- [ ] A ausência de massa/volume explícito no texto não invalida, por si só, uma referência que contenha massa/volume.
+- [ ] `servingLabel` estruturado sem suporte da fonte não é usado sozinho para criar relação unidade -> massa.
+- [ ] A relação unidade -> massa é escalada proporcionalmente para a quantidade informada.
+- [ ] Calorias e macros finais correspondem à quantidade consumida e não sofrem double-scaling.
+- [ ] Fontes distintas para medida e nutrição são permitidas somente quando cada uma é verificável e ambas correspondem à mesma identidade comercial; mistura entre marcas/variantes é rejeitada.
+- [ ] Massa/volume explicitamente informados continuam sendo validados; combinações unidade+massa são comparadas proporcionalmente à relação comprovada.
+- [ ] Cache/persistência não permite bypass da evidência de relação contável.
+- [ ] Não existe hardcode de Panco, Wickbold ou gramatura fixa por marca.
+- [ ] O fluxo real de pesquisa/validação é coberto por teste determinístico sem mockar o candidato já aceito no ponto crítico.
+- [ ] O cenário multi-item de produção passa sem solicitar rótulo/variante/peso quando identidade, porção e nutrição necessárias estiverem comprovadas.
+- [ ] Testes existentes de #1051 e #1054 continuam passando.
+- [ ] Type-check, lint, build e suítes focadas aplicáveis passam.
+
+## Fora de escopo
+
+- cadastrar manualmente porção fixa para Panco Premium;
+- assumir que todas as variantes da mesma marca têm a mesma gramatura;
+- relaxar compatibilidade de marca/variante;
+- aceitar fonte sem evidência nutricional verificável;
+- aceitar relação contável fabricada apenas pelo payload estruturado da LLM/provider;
+- obrigar medida e macros a virem da mesma URL quando duas fontes verificáveis da mesma identidade forem necessárias;
+- trocar a política fail-closed por fallback genérico silencioso;
+- refatorar todo o pipeline nutricional além do necessário para eliminar esta inconsistência.
+
+## Relação com trabalhos anteriores
+
+- #1051 — contrato semântico e resolução comercial/nutricional unificada;
+- #1054 — precedência identidade -> variante -> porção -> peso;
+- PR #1055 — correção anterior do gate contável e identidade comercial.
+
+Esta issue trata uma lacuna posterior: a identidade chega corretamente ao resolvedor, porém a referência pode ser rejeitada apenas por conter a massa da porção; ao corrigir isso, a implementação também deve impedir o falso positivo oposto de confiar em uma relação contável que exista somente no payload do provider.
+
+## Impacto na documentação
+
+As regras duráveis necessárias já existem em:
+
+- `docs/design-docs/nutrition-engine.md`;
+- `docs/design-docs/whatsapp-countable-measure-passthrough.md`;
+- `docs/product-specs/meal-registration.md`.
+
+A entrega deve verificar esses documentos. Atualizá-los somente se a implementação alterar ou precisar explicitar o contrato público/técnico; não criar uma segunda fonte de verdade na issue.
+
+## Definição de pronto
+
+A issue estará concluída quando o caso de produção for reproduzido no caminho real, a incompatibilidade entre unidade contável e massa da porção estiver corrigida genericamente, a evidência da relação quantidade-unidade-gramas continuar fail-closed, os cenários positivos/negativos e de cache estiverem cobertos, as validações do repositório passarem e a solução estiver pronta em PR contra `develop` para auditoria independente.
+
+`specification_version: 3`

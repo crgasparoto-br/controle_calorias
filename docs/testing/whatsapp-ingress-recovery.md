@@ -1,30 +1,40 @@
 # Recuperação de ingress do webhook do WhatsApp
 
-Issue: #1061. Este runbook complementa o lifecycle persistente quando a falha acontece **antes** de `beginInboundMessage`/persistência/claim.
+Issue: #1061. Este runbook complementa o lifecycle persistente quando a falha acontece **antes** de `beginInboundMessage`/persistência/claim e define a correlação operacional necessária para distinguir retry real, restart e perda de ingress.
 
 ## Evidência de produção de 13/09/2026
 
-O serviço Render `controle-calorias-api` estava no commit `a784cb8a00165a2be04fd735aeda9e9413fef8d5`, sem novo deploy no intervalo. Foram observados restarts da instância às 10:51:06 e 10:57:33 BRT, com respostas 502 na mesma janela. CPU permaneceu baixa fora dos picos de startup e memória ficou aproximadamente entre 232 e 265 MB; não há evidência de OOM ou saturação.
+O serviço Render `controle-calorias-api` permaneceu no mesmo commit publicado durante os restarts observados, sem novo deploy no intervalo. Foram observados restarts às 10:51:06, 10:57:33, 16:43:36 e 16:47:51 BRT. CPU e memória permaneceram abaixo dos limites observados; os logs acessíveis não mostram OOM ou saturação como causa comprovada.
 
-Os logs disponíveis do Render registram o evento `Instance ... restarted`, mas não expõem uma causa terminal mais específica. Não há stack trace de crash da aplicação, `SIGTERM`, `exit`, `kill`, OOM ou health-check failure nos logs acessíveis. Portanto, a causa raiz do restart não deve ser atribuída à aplicação sem evidência adicional.
+Na ocorrência das 16:43 BRT, o runtime registrou `ingress_received` e `request_entering_lifecycle` às 16:43:13. Houve outro POST chegando ao mesmo runtime às 16:43:21, antes do restart das 16:43:36. Depois do novo boot, outro POST atingiu o runtime às 16:47:15, antes do segundo restart das 16:47:51. A telemetria existente naquele commit registrava apenas `bootId`, método e tamanho do payload; portanto não era possível provar se esses POSTs continham o mesmo `message.id` ou mensagens/callbacks distintos.
 
-Há, porém, um amplificador controlável pela aplicação: antes desta correção, `syncFoodCatalogReference()` era aguardado antes de `server.listen()`. Na reprodução observada, o sync consumiu cerca de 15 s entre o início do processo e a abertura da porta HTTP. Como a sincronização já era best-effort e não é pré-condição para a integridade do lifecycle do WhatsApp, ela passou a executar somente **depois** de a disponibilidade HTTP estar confirmada e sem bloquear o servidor.
+Os logs disponíveis do Render registram `Instance ... restarted`, mas não expõem uma causa terminal específica. Não há, nas janelas consultadas, stack trace de crash da aplicação, OOM ou erro de startup que explique os restarts. A ausência de diagnóstico de término também impedia diferenciar um sinal enviado pela plataforma de uma exceção fatal do processo.
+
+Há um amplificador controlável pela aplicação que já foi corrigido: `syncFoodCatalogReference()` deixou de bloquear `server.listen()`. Depois dessa mudança, os boots observados voltaram a `http_ready` em aproximadamente 9–10 s e o sync de catálogo passou a ocorrer depois da abertura HTTP.
 
 ## Contrato de disponibilidade pré-claim
 
 1. Compatibilidade de schema continua sendo pré-condição de startup em produção.
 2. Assim que a aplicação estiver apta a usar o schema, o servidor HTTP deve abrir a porta antes de tarefas de startup não críticas.
 3. `syncFoodCatalogReference()` é tarefa não crítica: falha ou lentidão não deve manter o webhook indisponível.
-4. Um POST que alcance o processo registra `WhatsAppWebhook ingress_received` antes dos parsers/lifecycle, sem conteúdo da mensagem.
-5. O dispatch para o lifecycle registra `request_entering_lifecycle`.
-6. Estados pós-claim continuam pertencendo ao lifecycle persistente: `inflight_retry`, `orphan_recovered` e `processed_duplicate` não são substituídos por cache local.
-7. `request_not_reaching_runtime` é uma condição de borda, não um evento que o próprio processo consiga emitir. Ela é inferida operacionalmente quando o proxy/plataforma registra 5xx/502 para o webhook e não existe `ingress_received` correspondente durante a janela do boot.
+4. Cada POST que alcance o processo recebe um `ingressId` aleatório apenas para correlacionar os logs daquele request.
+5. `WhatsAppWebhook ingress_received` continua sendo emitido antes dos parsers/lifecycle e não contém telefone, texto, `message.id` ou payload bruto.
+6. Depois do parse, `request_entering_lifecycle` repete o mesmo `ingressId` e adiciona `messageCount` mais `messageFingerprints`.
+7. Cada `messageFingerprint` é um prefixo de SHA-256 derivado do `message.id`; ele é determinístico para permitir reconhecer redelivery da mesma mensagem, mas o identificador externo bruto nunca é gravado no log operacional.
+8. Estados pós-claim continuam pertencendo ao lifecycle persistente: `inflight_retry`, `orphan_recovered` e `processed_duplicate` não são substituídos por cache local.
+9. `request_not_reaching_runtime` continua sendo uma condição de borda: é inferida quando a plataforma registra 5xx/502 sem `ingress_received` correspondente.
 
-Os eventos `Runtime boot_started` e `Runtime http_ready` compartilham um `bootId`. Isso permite correlacionar restart, tempo até disponibilidade e requests que efetivamente alcançaram a aplicação sem registrar telefone, texto, `message.id` ou payload bruto.
+Os eventos `Runtime boot_started` e `Runtime http_ready` compartilham um `bootId`. O runtime também registra diagnósticos de término que preservam a semântica padrão do Node:
+
+- `Runtime uncaught_exception_monitor`: observação de exceção fatal pelo evento `uncaughtExceptionMonitor`, sem capturar/suprimir a exceção;
+- `Runtime termination_signal`: observação de `SIGTERM`/`SIGINT`, seguida do reenvio imediato do mesmo sinal ao próprio processo;
+- `Runtime process_exit`: saída observável pelo evento `exit`.
+
+A ausência desses eventos antes de um `Instance ... restarted` não prova sozinha a causa do restart, mas elimina classes observáveis da aplicação e melhora a distinção entre crash JavaScript, término por sinal e interrupção que não chegou ao processo.
 
 ## Redelivery do provider
 
-A documentação operacional do WhatsApp disponibilizada por provedores oficiais/BSPs descreve o webhook como entregue com sucesso somente quando recebe HTTP 200; falhas de entrega ou respostas não-200 entram em redelivery, normalmente com backoff por até 7 dias. Essa propriedade é compatível com o contrato desta aplicação: 5xx pré/pós-claim não pode ser convertido em sucesso terminal, e retries podem repetir a mesma mensagem, exigindo idempotência persistente por `message.id`.
+A documentação operacional do WhatsApp disponibilizada por provedores oficiais/BSPs descreve o webhook como entregue com sucesso somente quando recebe HTTP 200; falhas de entrega ou respostas não-200 entram em redelivery, normalmente com backoff. Essa propriedade é compatível com o contrato desta aplicação: 5xx pré/pós-claim não pode ser convertido em sucesso terminal, e retries podem repetir a mesma mensagem, exigindo idempotência persistente por `message.id`.
 
 Essa referência documental **não substitui a prova do WABA desta aplicação**. Antes de encerrar a #1061, staging/controlado deve demonstrar redelivery real da Meta após indisponibilidade pré-runtime ou resposta 5xx e comprovar que o retry percorre o mesmo `POST /api/whatsapp/webhook`.
 
@@ -35,18 +45,30 @@ Essa referência documental **não substitui a prova do WABA desta aplicação**
 3. Entregar uma pergunta `/` real de staging e confirmar por telemetria que não houve `ingress_received`, inbound persistido ou claim na primeira tentativa.
 4. Restaurar o runtime sem operação auxiliar de lifecycle, sem limpar cache/claim e sem gerar novo `message.id`.
 5. Observar o redelivery do provider no mesmo endpoint público.
-6. Confirmar `ingress_received` → `request_entering_lifecycle` → claim/lifecycle canônico.
+6. Confirmar que o retry traz o mesmo `messageFingerprint` no novo `ingressId` e percorre `request_entering_lifecycle` → claim/lifecycle canônico.
 7. Confirmar no máximo um ACK efetivamente entregue e uma resposta final efetivamente entregue.
 8. Repetir o mesmo `message.id` depois da conclusão e confirmar `processed_duplicate`, sem novo ACK/resposta/efeito.
 
 O controle falha se a primeira tentativa tiver criado inbound/claim, se o retry depender de GET/health-check, se for necessário liberar claim manualmente, se um novo `message.id` for usado ou se a evidência vier apenas de um mock que chama `releaseMessageForRetry()`.
 
+## Controle RESTART-CORR-001
+
+Este controle cobre a ocorrência pós-ingress observada às 16:43 BRT:
+
+1. registrar `ingress_received` e `request_entering_lifecycle` para uma pergunta real;
+2. capturar `bootId`, `ingressId` e `messageFingerprint` sem conteúdo/telefone/ID bruto;
+3. terminar o runtime durante o processamento;
+4. após novo `http_ready`, comprovar por `messageFingerprint` se a Meta redeliverou a mesma mensagem;
+5. se houver redelivery, correlacionar o retry com `inflight_retry`, `orphan_recovered` ou `processed_duplicate` e a entrega funcional;
+6. se não houver redelivery, registrar a ausência como evidência para decidir disponibilidade/ingestão durável conforme o critério da issue.
+
 ## Regressão automatizada
 
-`server/_core/runtimeAvailability.test.ts` prova que tarefas de startup não críticas não começam antes de a disponibilidade HTTP ser confirmada e que uma falha dessas tarefas não derruba o bootstrap já disponível.
-
-As regressões pós-claim permanecem em `server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts`, `server/whatsappPersistentContextWebhook.test.ts` e testes do `messageLifecycle`.
+- `server/_core/runtimeAvailability.test.ts` prova que tarefas de startup não críticas não começam antes da disponibilidade HTTP e que falhas dessas tarefas não derrubam o bootstrap.
+- `server/_core/runtimeTerminationDiagnostics.test.ts` prova que os diagnósticos não convertem exceção fatal em handler de recuperação e que `SIGTERM` é reenviado ao processo.
+- `server/modules/whatsapp/webhookCorrelation.test.ts` prova fingerprint determinístico, ausência de `message.id`/telefone bruto e distinção de payload sem mensagens.
+- As regressões pós-claim permanecem em `server/whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts`, `server/whatsappPersistentContextWebhook.test.ts`, `server/whatsappImageIdempotencyWebhook.processingOwnership.test.ts` e testes do `messageLifecycle`.
 
 ## Gate de fechamento
 
-A #1061 não deve ser encerrada apenas com a correção de código. Além dos gates automatizados, é obrigatório anexar evidência do `PRECLAIM-IDEM-001` em staging/ambiente controlado. Se a Meta/WABA configurada não redeliver de forma suficiente para a janela de indisponibilidade, deve ser adotada uma estratégia suportada de disponibilidade/ingestão durável antes do fechamento da issue.
+A #1061 não deve ser encerrada apenas com correções de código ou com telemetria adicional. Além dos gates automatizados, é obrigatório anexar evidência do `PRECLAIM-IDEM-001` e do `RESTART-CORR-001` em staging/ambiente controlado ou produção controlada. Se a Meta/WABA configurada não redeliver de forma suficiente para a janela de indisponibilidade, deve ser adotada uma estratégia suportada de disponibilidade/ingestão durável antes do fechamento da issue.
