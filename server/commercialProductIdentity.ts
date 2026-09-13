@@ -169,9 +169,39 @@ export function isCommercialServingMeasureCompatible(input: {
   const requestedMeasures = extractCommercialMeasures(input.foodName);
   if (!requestedMeasures.length) return true;
 
-  const candidateMeasures = extractCommercialMeasures(
-    `${input.matchedProductName ?? ""} ${input.servingLabel}`
-  );
+  const servingMeasures = extractCommercialMeasures(input.servingLabel);
+  const productMeasures = extractCommercialMeasures(input.matchedProductName ?? "");
+  const requestedCountable = extractCountableMeasure(input.foodName);
+  const candidateCountable = extractCountableMeasure(input.servingLabel);
+
+  if (
+    requestedCountable &&
+    candidateCountable &&
+    normalizeUnit(requestedCountable.unit) === normalizeUnit(candidateCountable.unit) &&
+    candidateCountable.quantity > 0
+  ) {
+    const relationMeasures = [...servingMeasures];
+    if (
+      !relationMeasures.some(measure => measure.kind === "mass") &&
+      requestedMeasures.some(measure => measure.kind === "mass") &&
+      Number.isFinite(input.gramsPerServing) &&
+      input.gramsPerServing > 0
+    ) {
+      relationMeasures.push({ kind: "mass", value: input.gramsPerServing });
+    }
+    const ratio = requestedCountable.quantity / candidateCountable.quantity;
+    const proportionalMeasures = relationMeasures.map(measure => ({
+      ...measure,
+      value: measure.value * ratio,
+    }));
+    return measuresMatch(requestedMeasures, proportionalMeasures);
+  }
+
+  if (productMeasures.length && !measuresMatch(requestedMeasures, productMeasures)) {
+    return false;
+  }
+
+  const candidateMeasures = [...servingMeasures];
   if (
     !candidateMeasures.some(measure => measure.kind === "mass") &&
     requestedMeasures.some(measure => measure.kind === "mass") &&
@@ -179,22 +209,6 @@ export function isCommercialServingMeasureCompatible(input: {
     input.gramsPerServing > 0
   ) {
     candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
-  }
-
-  const requestedCountable = extractCountableMeasure(input.foodName);
-  const candidateCountable = extractCountableMeasure(input.servingLabel);
-  if (
-    requestedCountable &&
-    candidateCountable &&
-    normalizeUnit(requestedCountable.unit) === normalizeUnit(candidateCountable.unit) &&
-    candidateCountable.quantity > 0
-  ) {
-    const ratio = requestedCountable.quantity / candidateCountable.quantity;
-    const proportionalMeasures = candidateMeasures.map(measure => ({
-      ...measure,
-      value: measure.value * ratio,
-    }));
-    return measuresMatch(requestedMeasures, proportionalMeasures);
   }
 
   return measuresMatch(requestedMeasures, candidateMeasures);
