@@ -1,7 +1,11 @@
+import { extractExplicitQuantities, normalizeUnit } from "./mealTextParsing";
+
 type CommercialMeasure = {
   kind: "mass" | "volume";
   value: number;
 };
+
+const PHYSICAL_MEASURE_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
 const COMMERCIAL_GENERIC_TOKENS = new Set([
   "a",
@@ -119,7 +123,7 @@ export function extractCommercialVariant(value: string): string | null {
   return variantTokens.length ? variantTokens.join(" ") : null;
 }
 
-function extractCommercialMeasures(value: string): CommercialMeasure[] {
+function extractCommercialMeasures(value: string) {
   const normalized = normalizeCommercialText(value);
   const measures: CommercialMeasure[] = [];
   const pattern = /\b(\d+(?:[,.]\d+)?)\s*(kg|mg|ml|g|l)\b/g;
@@ -128,11 +132,9 @@ function extractCommercialMeasures(value: string): CommercialMeasure[] {
     if (!Number.isFinite(amount)) continue;
     const unit = match[2];
     if (unit === "kg") measures.push({ kind: "mass", value: amount * 1000 });
-    else if (unit === "mg")
-      measures.push({ kind: "mass", value: amount / 1000 });
+    else if (unit === "mg") measures.push({ kind: "mass", value: amount / 1000 });
     else if (unit === "g") measures.push({ kind: "mass", value: amount });
-    else if (unit === "l")
-      measures.push({ kind: "volume", value: amount * 1000 });
+    else if (unit === "l") measures.push({ kind: "volume", value: amount * 1000 });
     else measures.push({ kind: "volume", value: amount });
   }
   return measures;
@@ -150,6 +152,80 @@ function measuresMatch(
         Math.abs(actual.value - expected.value) <= 0.05
     )
   );
+}
+
+function extractCountableMeasure(value: string) {
+  return extractExplicitQuantities(value).find(item =>
+    !PHYSICAL_MEASURE_UNITS.has(normalizeUnit(item.unit))
+  ) ?? null;
+}
+
+function servingAmountMatches(requestedValue: number, gramsPerServing: number) {
+  const tolerance = Math.max(0.05, Math.abs(requestedValue) * 0.01);
+  return Math.abs(requestedValue - gramsPerServing) <= tolerance;
+}
+
+export function isCommercialServingMeasureCompatible(input: {
+  foodName: string;
+  servingLabel: string;
+  gramsPerServing: number;
+  matchedProductName?: string;
+}) {
+  const requestedMeasures = extractCommercialMeasures(input.foodName);
+  if (!requestedMeasures.length) return true;
+
+  const servingMeasures = extractCommercialMeasures(input.servingLabel);
+  const productMeasures = extractCommercialMeasures(input.matchedProductName ?? "");
+  const requestedCountable = extractCountableMeasure(input.foodName);
+  const candidateCountable = extractCountableMeasure(input.servingLabel);
+
+  if (
+    requestedCountable &&
+    candidateCountable &&
+    normalizeUnit(requestedCountable.unit) === normalizeUnit(candidateCountable.unit) &&
+    candidateCountable.quantity > 0
+  ) {
+    const relationMeasures = [...servingMeasures];
+    if (
+      !relationMeasures.some(measure => measure.kind === "mass") &&
+      requestedMeasures.some(measure => measure.kind === "mass") &&
+      Number.isFinite(input.gramsPerServing) &&
+      input.gramsPerServing > 0
+    ) {
+      relationMeasures.push({ kind: "mass", value: input.gramsPerServing });
+    }
+    const ratio = requestedCountable.quantity / candidateCountable.quantity;
+    const proportionalMeasures = relationMeasures.map(measure => ({
+      ...measure,
+      value: measure.value * ratio,
+    }));
+    return measuresMatch(requestedMeasures, proportionalMeasures);
+  }
+
+  if (productMeasures.length && !measuresMatch(requestedMeasures, productMeasures)) {
+    return false;
+  }
+
+  const candidateMeasures = [...servingMeasures];
+  if (
+    !candidateMeasures.some(measure => measure.kind === "mass") &&
+    requestedMeasures.some(measure => measure.kind === "mass") &&
+    Number.isFinite(input.gramsPerServing) &&
+    input.gramsPerServing > 0
+  ) {
+    candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
+  }
+
+  if (
+    requestedMeasures.length === 1 &&
+    Number.isFinite(input.gramsPerServing) &&
+    input.gramsPerServing > 0 &&
+    !servingAmountMatches(requestedMeasures[0].value, input.gramsPerServing)
+  ) {
+    return false;
+  }
+
+  return measuresMatch(requestedMeasures, candidateMeasures);
 }
 
 export function isPersistedProductIdentityCompatible(input: {
@@ -177,14 +253,7 @@ export function isPersistedProductIdentityCompatible(input: {
     || [...candidateVariants].some(token => !requestedVariants.has(token))
   ) return false;
 
-  const requestedMeasures = extractCommercialMeasures(input.foodName);
-  if (!requestedMeasures.length) return true;
-
-  const candidateMeasures = extractCommercialMeasures(`${input.matchedProductName} ${input.servingLabel}`);
-  if (!candidateMeasures.length) {
-    candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
-  }
-  return measuresMatch(requestedMeasures, candidateMeasures);
+  return isCommercialServingMeasureCompatible(input);
 }
 
 export function isCommercialProductIdentityCompatible(input: {
@@ -240,16 +309,5 @@ export function isCommercialProductIdentityCompatible(input: {
     return false;
   }
 
-  const requestedMeasures = extractCommercialMeasures(input.foodName);
-  const candidateMeasures = extractCommercialMeasures(
-    `${input.matchedProductName} ${input.servingLabel}`
-  );
-  if (!requestedMeasures.length && candidateMeasures.length) return false;
-  if (
-    !candidateMeasures.length &&
-    requestedMeasures.some(measure => measure.kind === "mass")
-  ) {
-    candidateMeasures.push({ kind: "mass", value: input.gramsPerServing });
-  }
-  return measuresMatch(requestedMeasures, candidateMeasures);
+  return isCommercialServingMeasureCompatible(input);
 }

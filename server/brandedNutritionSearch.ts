@@ -112,16 +112,6 @@ function toCommercialMeasure(amountText: string, unit: string): CommercialMeasur
   }
 }
 
-function extractMeasures(value: string): CommercialMeasure[] {
-  const normalized = normalizeText(value);
-  const measures: CommercialMeasure[] = [];
-  for (const match of normalized.matchAll(/\b(\d+(?:[,.]\d+)?)\s*(kg|mg|ml|g|l)\b/g)) {
-    const measure = toCommercialMeasure(match[1], match[2]);
-    if (measure) measures.push(measure);
-  }
-  return measures;
-}
-
 function extractServingCandidateMeasures(value: string, allowBareMeasure = false): CommercialMeasure[] {
   const normalized = normalizeText(value);
   const measures: CommercialMeasure[] = [];
@@ -142,12 +132,6 @@ function approximatelyEqual(left: number, right: number) {
   return Math.abs(left - right) <= tolerance;
 }
 
-function measuresContainAll(expected: CommercialMeasure[], actual: CommercialMeasure[]) {
-  return expected.every(target => actual.some(candidate =>
-    target.kind === candidate.kind && approximatelyEqual(candidate.value, target.value),
-  ));
-}
-
 function structuredIdentityIsCompatible(foodName: string, result: SearchedNutritionResult) {
   if (!isCommercialProductIdentityCompatible({
     foodName,
@@ -159,15 +143,6 @@ function structuredIdentityIsCompatible(foodName: string, result: SearchedNutrit
 
   const expectedBrandTokens = brandTokens(result.brandName);
   if (!expectedBrandTokens.length || !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
-
-  const requestMeasures = extractMeasures(foodName);
-  const productMeasures = extractMeasures(result.matchedProductName);
-  const servingMeasures = extractMeasures(result.servingLabel);
-  if (requestMeasures.length) {
-    if (productMeasures.length && !measuresContainAll(requestMeasures, productMeasures)) return false;
-    if (!servingMeasures.length || !measuresContainAll(requestMeasures, servingMeasures)) return false;
-    if (requestMeasures.length === 1 && !approximatelyEqual(result.gramsPerServing, requestMeasures[0].value)) return false;
-  }
 
   return isFoodCandidateSemanticallyCompatible(foodName, [
     result.matchedProductName,

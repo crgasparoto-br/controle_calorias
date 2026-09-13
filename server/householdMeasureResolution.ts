@@ -768,12 +768,32 @@ export async function resolveHouseholdMeasure(
       )
         ? measures[0]
         : null;
+    const commercialServingReference: PortionReference | null = serving
+      ? {
+          matchedFoodName: food.name,
+          foodTypeName: food.name,
+          brandName: food.brandName ?? input.brand ?? "",
+          measureUnit: serving.unit,
+          measureQuantity: serving.quantity,
+          grams: food.gramsPerServing,
+          referenceKind: "exact_product",
+          describesTypicalMeasure: false,
+          sourceUrl: food.sourceUrls?.[0] ?? "",
+          evidence: food.sourceEvidence ?? "",
+        }
+      : null;
+    const sourceProvesResearchedServing = !food.researchIdentityKey || Boolean(
+      commercialServingReference &&
+      food.sourceEvidence?.trim() &&
+      evidenceSupportsMeasureRelation(food.sourceEvidence, commercialServingReference)
+    );
     if (
       serving?.quantity &&
       serving.unit &&
       normalizeCountableUnit(serving.unit) === normalizedUnit &&
       Number.isFinite(food.gramsPerServing) &&
-      food.gramsPerServing > 0
+      food.gramsPerServing > 0 &&
+      sourceProvesResearchedServing
     ) {
       return {
         kind: food.researchIdentityKey
@@ -793,7 +813,9 @@ export async function resolveHouseholdMeasure(
         referenceCount: 1,
       };
     }
-    // Do not reuse an older generic/approximate measure for a verified commercial identity.
+    // A provider servingLabel is not evidence by itself. If a researched
+    // commercial item lacks source-derived quantity/unit/grams proof, force the
+    // canonical exact-measure research path for the same commercial identity.
     return searchVerifiedMeasure(normalizedInput, runtime);
   }
   const stored = await resolveStoredPortion(normalizedInput, runtime);
