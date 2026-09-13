@@ -7,7 +7,6 @@
  */
 import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import { runWithAiUsageScope } from "../../_core/ai/usageContext";
-import { ensureCurrentIrreversibleEffectAllowed } from "../../_core/effectFenceContext";
 import type { WhatsAppPendingOperationRecord } from "../../repositories/whatsappPendingOperationRepository";
 import {
   executeWhatsappAiQuestionIntent,
@@ -162,7 +161,6 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   }
 
   if (!input.pendingOnly && isWhatsappAiQuestionText(input.text)) {
-    await ensureCurrentIrreversibleEffectAllowed();
     const acknowledgementPromise =
       input.sourcePhone
       && input.messageId
