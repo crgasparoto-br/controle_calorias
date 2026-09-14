@@ -238,14 +238,26 @@ export async function prepareCountableFoodRegistrationResolved(
     let commercialFood: CatalogFood | undefined;
     if (resolvedRequest.brand) {
       try {
-        // Preserve the original countable expression for commercial research.
-        // The exact quantity/unit is part of the evidence request (for example,
-        // "1 fatia ...") even though the canonical product identity stays in
-        // resolvedRequest.foodName for persistence and final registration.
-        commercialFood = await resolveCommercialFoodIdentity(
-          resolvedRequest.segment,
-          resolvedRequest.brand
-        );
+        try {
+          // Keep canonical identity resolution first so persisted/catalogued
+          // products and clarification resumptions preserve their old contract.
+          commercialFood = await resolveCommercialFoodIdentity(
+            resolvedRequest.foodName,
+            resolvedRequest.brand
+          );
+        } catch (canonicalError) {
+          if (
+            !(canonicalError instanceof MealInferenceError) ||
+            !canonicalError.context?.clarificationReason
+          ) throw canonicalError;
+          // If canonical research cannot prove the product, retry once with the
+          // original countable expression. Quantity/unit then enrich the web
+          // query (for example, "1 fatia ...") without becoming product identity.
+          commercialFood = await resolveCommercialFoodIdentity(
+            resolvedRequest.segment,
+            resolvedRequest.brand
+          );
+        }
       } catch (error) {
         if (
           !(error instanceof MealInferenceError) ||
