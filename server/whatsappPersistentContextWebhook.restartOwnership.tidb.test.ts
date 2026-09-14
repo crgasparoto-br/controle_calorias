@@ -469,4 +469,76 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
     await connection.end();
   }, 20_000);
+
+  it("fecha o lifecycle sem nova IA/outbound quando a final já foi persistida antes de processedAt", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    controls.crashNextDownstream = false;
+    const runtimeA = createRuntime("runtime-a-final-persisted");
+    const runtimeB = createRuntime("runtime-b-final-recovery");
+
+    const initial = await deliver(runtimeA, payload);
+    expect(initial.statusCode).toBe(200);
+    expect(controls.questionCalls).toBe(1);
+    const deliveredBeforeRecovery = outboundPayloads.length;
+    expect(
+      outboundPayloads
+        .filter(payloadItem => payloadItem.type === "text")
+        .map(payloadItem => payloadItem.text?.body),
+    ).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id FROM whatsappConversationMessages WHERE idempotencyKey = ?`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(rows).toHaveLength(1);
+    const inboundMessageId = Number(rows[0].id);
+
+    // Reconstitui exatamente a janela crash-after-final/before-processedAt:
+    // resposta funcional continua persistida, inbound volta a aberto e existe
+    // um owner antigo já fora da janela de liveness.
+    await connection.execute(
+      "UPDATE whatsappConversationMessages SET processedAt = NULL WHERE id = ?",
+      [inboundMessageId],
+    );
+    await connection.execute(
+      `INSERT INTO whatsappMessageProcessingClaims (messageId, ownerToken, claimedAt, heartbeatAt)
+       VALUES (?, ?, DATE_SUB(NOW(), INTERVAL 10 SECOND), DATE_SUB(NOW(), INTERVAL 10 SECOND))`,
+      [inboundMessageId, "dead-final-owner"],
+    );
+
+    const candidate = await findPersistedRecoveryCandidate(messageId);
+    expect(candidate).toBeTruthy();
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: { findRecoverableQuestions: async () => [candidate!] },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: inboundMessageId, outcome: "completed_existing" }],
+    });
+    expect(controls.questionCalls).toBe(1);
+    expect(outboundPayloads).toHaveLength(deliveredBeforeRecovery);
+
+    const [completedRows] = await connection.execute<RowDataPacket[]>(
+      "SELECT processedAt FROM whatsappConversationMessages WHERE id = ?",
+      [inboundMessageId],
+    );
+    expect(completedRows[0].processedAt).not.toBeNull();
+    const [claimRows] = await connection.execute<RowDataPacket[]>(
+      "SELECT messageId FROM whatsappMessageProcessingClaims WHERE messageId = ?",
+      [inboundMessageId],
+    );
+    expect(claimRows).toHaveLength(0);
+
+    await connection.end();
+  }, 20_000);
 });
