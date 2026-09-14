@@ -41,34 +41,65 @@ function classifyPath(path, repositoryPolicy) {
   if (criticalFragment) {
     return { profile: 'critical', reason: `repository-critical-fragment:${criticalFragment}:${path}` };
   }
+
   const criticalRoot = firstMatchingRoot(path, repositoryPolicy.criticalRoots);
-  if (criticalRoot) return { profile: 'critical', reason: `repository-critical-root:${criticalRoot}:${path}` };
+  if (criticalRoot) {
+    return { profile: 'critical', reason: `repository-critical-root:${criticalRoot}:${path}` };
+  }
+
   const fastRoot = firstMatchingRoot(path, repositoryPolicy.fastSafeRoots);
-  if (fastRoot) return { profile: 'fast', reason: `repository-fast-safe-root:${fastRoot}:${path}` };
+  if (fastRoot) {
+    return { profile: 'fast', reason: `repository-fast-safe-root:${fastRoot}:${path}` };
+  }
+
   const standardRoot = firstMatchingRoot(path, repositoryPolicy.standardRoots);
-  if (standardRoot) return { profile: 'standard', reason: `repository-standard-root:${standardRoot}:${path}` };
+  if (standardRoot) {
+    return { profile: 'standard', reason: `repository-standard-root:${standardRoot}:${path}` };
+  }
+
   return { profile: 'critical', reason: `unknown-path:${path}` };
 }
 
 export function resolveRequestedRiskProfile(value) {
   const resolved = String(value || 'auto').trim().toLowerCase();
-  if (!REQUESTED_SET.has(resolved)) throw new Error(`DELIVERY_RISK_PROFILE must be one of: ${REQUESTED_RISK_PROFILES.join(', ')}`);
+  if (!REQUESTED_SET.has(resolved)) {
+    throw new Error(`DELIVERY_RISK_PROFILE must be one of: ${REQUESTED_RISK_PROFILES.join(', ')}`);
+  }
   return resolved;
 }
 
 export function classifyChangedPaths(changedPaths = [], { repositoryPolicy = {} } = {}) {
   const paths = [...new Set(changedPaths.map(normalizePath).filter(Boolean))];
   const normalizedPolicy = normalizeRepositoryRiskPolicy(repositoryPolicy);
-  if (paths.length === 0) return { profile: 'critical', provisional: true, reasons: ['no-changed-paths-fail-closed'], paths: [] };
+  if (paths.length === 0) {
+    return {
+      profile: 'critical',
+      provisional: true,
+      reasons: ['no-changed-paths-fail-closed'],
+      paths: []
+    };
+  }
+
   const classified = paths.map((path) => classifyPath(path, normalizedPolicy));
-  const highest = classified.reduce((best, item) => (RANK[item.profile] > RANK[best] ? item.profile : best), 'fast');
-  return { profile: highest, provisional: false, reasons: classified.filter((item) => item.profile === highest).map((item) => item.reason), paths };
+  const highest = classified.reduce(
+    (best, item) => (RANK[item.profile] > RANK[best] ? item.profile : best),
+    'fast'
+  );
+  return {
+    profile: highest,
+    provisional: false,
+    reasons: classified.filter((item) => item.profile === highest).map((item) => item.reason),
+    paths
+  };
 }
 
 export function resolveRiskProfile({ requested = 'auto', changedPaths = [], repositoryPolicy = {} } = {}) {
   const requestedProfile = resolveRequestedRiskProfile(requested);
   const observed = classifyChangedPaths(changedPaths, { repositoryPolicy });
-  if (requestedProfile === 'auto') return { requested: requestedProfile, ...observed, promoted: false };
+  if (requestedProfile === 'auto') {
+    return { requested: requestedProfile, ...observed, promoted: false };
+  }
+
   const promoted = RANK[observed.profile] > RANK[requestedProfile];
   const profile = promoted ? observed.profile : requestedProfile;
   return {
@@ -76,7 +107,9 @@ export function resolveRiskProfile({ requested = 'auto', changedPaths = [], repo
     profile,
     provisional: observed.provisional,
     promoted,
-    reasons: promoted ? [`promoted:${requestedProfile}->${profile}`, ...observed.reasons] : [`explicit:${requestedProfile}`, ...observed.reasons],
+    reasons: promoted
+      ? [`promoted:${requestedProfile}->${profile}`, ...observed.reasons]
+      : [`explicit:${requestedProfile}`, ...observed.reasons],
     paths: observed.paths
   };
 }
