@@ -70,6 +70,12 @@ const { createDrizzleWhatsAppConversationRepository } = await import(
 const { createDrizzleWhatsAppProcessingClaimRepository } = await import(
   "./repositories/whatsappProcessingClaimRepository"
 );
+const { createDrizzleWhatsAppQuestionRecoveryRepository } = await import(
+  "./repositories/whatsappQuestionRecoveryRepository"
+);
+const { runWhatsappQuestionRecoveryCycle } = await import(
+  "./modules/whatsapp/questionRecovery"
+);
 const {
   handleWhatsAppPersistentContextWebhook,
 } = await import("./whatsappPersistentContextWebhook");
@@ -153,6 +159,28 @@ async function deliver(
   return response;
 }
 
+async function createPersistedQuestionFixture(connection: mysql.Connection) {
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const openId = `restart-idem-${suffix}`;
+  const phoneNumber = `5511${suffix.slice(-9).padStart(9, "7")}`;
+  const messageId = `wamid.restart-idem.${suffix}`;
+  const payload = createPayload(phoneNumber, messageId);
+
+  const [created] = await connection.execute<ResultSetHeader>(
+    "INSERT INTO users (openId, name) VALUES (?, ?)",
+    [openId, "Restart idempotency regression"],
+  );
+  const userId = created.insertId;
+  expect(userId).toBeGreaterThan(0);
+  await upsertUserWhatsappConnection({
+    userId,
+    phoneNumber,
+    displayName: "Restart Idempotency",
+  });
+
+  return { userId, phoneNumber, messageId, payload };
+}
+
 const describeTidb = process.env.WHATSAPP_RESTART_TIDB_REGRESSION === "1"
   ? describe
   : describe.skip;
@@ -201,23 +229,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     const databaseUrl = process.env.DATABASE_URL?.trim();
     expect(databaseUrl).toBeTruthy();
     const connection = await mysql.createConnection(databaseUrl!);
-    const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const openId = `restart-idem-${suffix}`;
-    const phoneNumber = `5511${suffix.slice(-9).padStart(9, "7")}`;
-    const messageId = `wamid.restart-idem.${suffix}`;
-    const payload = createPayload(phoneNumber, messageId);
-
-    const [created] = await connection.execute<ResultSetHeader>(
-      "INSERT INTO users (openId, name) VALUES (?, ?)",
-      [openId, "Restart idempotency regression"],
-    );
-    const userId = created.insertId;
-    expect(userId).toBeGreaterThan(0);
-    await upsertUserWhatsappConnection({
-      userId,
-      phoneNumber,
-      displayName: "Restart Idempotency",
-    });
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
 
     const runtimeA = createRuntime("runtime-a");
     const runtimeB = createRuntime("runtime-b");
@@ -297,6 +309,88 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     expect(controls.downstreamCalls).toBe(2);
     expect(controls.questionCalls).toBe(1);
     expect(outboundPayloads).toHaveLength(beforeTerminalReplay);
+
+    await connection.end();
+  }, 20_000);
+
+  it("retoma a QUESTION órfã após crash sem qualquer redelivery do provider", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    const runtimeA = createRuntime("runtime-a-no-redelivery");
+    const runtimeB = createRuntime("runtime-b-recovery");
+
+    await expect(deliver(runtimeA, payload)).rejects.toThrow(
+      "simulated abrupt runtime termination after persistent claim",
+    );
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(0);
+    expect(outboundPayloads).toHaveLength(0);
+
+    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
+
+    const realRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+      getDb,
+      onWarning: logPersistenceWarning,
+    });
+    const candidates = await realRepository.findRecoverableQuestions({
+      now: new Date(),
+      horizonMs: 20 * 60 * 1000,
+      limit: 20,
+    });
+    const candidate = candidates.find(item => item.externalMessageId === messageId);
+    expect(candidate).toBeTruthy();
+
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: {
+          findRecoverableQuestions: async () => [candidate!],
+        },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: candidate!.messageId, outcome: "recovered" }],
+    });
+    // Nenhum segundo POST foi executado: o downstream do webhook segue com uma única chamada.
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(1);
+
+    const textBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(textBodies).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [completedRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, processedAt
+         FROM whatsappConversationMessages
+        WHERE idempotencyKey = ?`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(completedRows).toHaveLength(1);
+    expect(completedRows[0].processedAt).not.toBeNull();
+    const inboundMessageId = Number(completedRows[0].id);
+
+    const [responseRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, sanitizedText
+         FROM whatsappConversationMessages
+        WHERE direction = 'outbound' AND respondsToMessageId = ?`,
+      [inboundMessageId],
+    );
+    expect(responseRows).toHaveLength(1);
+    expect(responseRows[0].sanitizedText).toBe(FINAL_TEXT);
+
+    const [claimRowsAfterCompletion] = await connection.execute<RowDataPacket[]>(
+      "SELECT messageId FROM whatsappMessageProcessingClaims WHERE messageId = ?",
+      [inboundMessageId],
+    );
+    expect(claimRowsAfterCompletion).toHaveLength(0);
 
     await connection.end();
   }, 20_000);
