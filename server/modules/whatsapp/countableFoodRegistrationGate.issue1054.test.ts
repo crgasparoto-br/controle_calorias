@@ -431,7 +431,9 @@ describe("#1054 — resolvedor real e precedência comercial", () => {
       estimatedGrams: 50,
       resolution: { productVariant: "premium", nutritionVerified: true },
     });
-    expect(boundary.extraction).toHaveBeenCalledOnce();
+    // A variante confirmada é resolvida uma vez e materializada a partir da
+    // referência comercial validada, sem reentrar no boundary de extração.
+    expect(boundary.extraction).not.toHaveBeenCalled();
     expect(
       await resolveWhatsappMealIntentRegistrationDetailsText({
         userId,
