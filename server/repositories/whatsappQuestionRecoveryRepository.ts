@@ -63,11 +63,15 @@ export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
             isNull(whatsappConversationMessages.processedAt),
             isNotNull(whatsappConversationMessages.externalMessageId),
             isNotNull(whatsappConversationMessages.sanitizedText),
-            gte(whatsappConversationMessages.occurredAt, notBefore),
+            // O timestamp do evento Meta pode ser anterior ao recebimento real.
+            // A janela de recovery mede quando o inbound foi persistido neste
+            // runtime, que é o sinal correto para decidir se o trabalho órfão
+            // ainda pertence à conversa ativa atual.
+            gte(whatsappConversationMessages.createdAt, notBefore),
             sql`TRIM(${whatsappConversationMessages.sanitizedText}) LIKE '/%'`,
           ))
           .orderBy(
-            asc(whatsappConversationMessages.occurredAt),
+            asc(whatsappConversationMessages.createdAt),
             asc(whatsappConversationMessages.id),
           )
           .limit(safeLimit);
