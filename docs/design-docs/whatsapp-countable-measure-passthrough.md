@@ -15,6 +15,7 @@ Garantir que medidas contáveis resolvidas antes da inferência nutricional, com
 7. Em mensagens `água + alimento`, a hidratação é registrada uma única vez e apenas o fragmento alimentar passa pelo gate de medida contável. O texto alimentar reescrito é o payload encaminhado ao pipeline nutricional e a resposta final permanece uma única resposta lógica composta.
 8. Comandos canônicos de adição a uma refeição, como `Adicionar 2 fatias de mussarela ao café da manhã`, continuam sob responsabilidade do fluxo de adição existente e não são desviados para um segundo pipeline nutricional. Esse produtor reutiliza a mesma precedência comercial deste contrato: marca/variante explícita é resolvida pelo contrato canônico antes de qualquer `resolveHouseholdMeasure`, média usual ou clarificação de peso.
 9. Para produto comercial resolvido por medida contável, o gate preserva também um `resolvedSegment` do item já validado. A gramatura reescrita (por exemplo, `25 g`) continua sendo usada para o cálculo, mas não é reinterpretada no registro final como se fosse uma entrada mass-only digitada pelo usuário. A identidade, marca/variante e a quantidade/unidade originais permanecem a evidência semântica do item.
+10. A resolução de um produto comercial é monotônica no restante do registro: depois que `resolveCommercialFoodIdentity` e `resolveHouseholdMeasure` comprovam identidade, variante, nutrição e relação física, o gate materializa o `resolvedSegment` diretamente a partir desse `CatalogFood` validado. O item **não volta a `processMealInput`** apenas para reconstruir a mesma identidade. Etapas downstream podem transportar/aplicar a decisão, mas não invalidá-la silenciosamente por uma segunda inferência.
 
 ## Identidade comercial antes da gramatura
 
@@ -23,6 +24,8 @@ Para medidas com marca explícita, a precedência é **identidade → variante �
 `pendingItems.identityClarification` transporta o contexto canônico: `brand_variant_unresolved` pergunta pela variante e `commercial_identity_unverified` pede comprovação da identidade informada. Indisponibilidade de pesquisa mantém essa pendência; não autoriza alimento genérico ou pergunta antecipada de peso. Somente uma identidade comprovada sem porção específica verificável pode seguir para peso/volume.
 
 Depois de aceitar a identidade, `resolveHouseholdMeasure` usa a porção do produto ou pesquisa uma relação física exata da mesma identidade. Referências de outra variante ou médias de outro produto não substituem essa porção.
+
+Quando a relação contável comercial estiver comprovada, o `resolvedSegment` deve conservar a mesma proveniência nutricional do `CatalogFood` aceito (`productVariant`, `nutritionOrigin`, `nutritionVerified`, URLs/evidência, data e confiança da fonte quando disponíveis). A gramatura proporcional altera somente a quantidade consumida; não cria uma nova identidade comercial nem uma segunda fonte nutricional.
 
 Na clarificação, a pendência existente de detalhes alimentares preserva segmentos, índice do item pendente, causa semântica, data/timezone da refeição e resultados nutricionais dos itens já resolvidos. A resposta complementa somente o item pendente. A retomada processa separadamente os itens restantes e reutiliza os resultados preservados, mesmo que o catálogo mude. Nenhum rascunho ou item de refeição é persistido parcialmente; a gravação ocorre após resolver todos os itens e reivindicar a pendência exata uma única vez.
 
@@ -34,7 +37,7 @@ A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegis
 
 A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
 
-A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial e o controle negativo em que uma massa informada diretamente segue o caminho mass-only normal sem herdar a proveniência de uma resolução contável que não ocorreu.
+A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial, prova de que o item Panco já comprovado não volta à extração/inferência nutricional geral e o controle negativo em que uma massa informada diretamente segue o caminho mass-only normal sem herdar a proveniência de uma resolução contável que não ocorreu.
 
 ## Quantidades implícitas sem verbo operacional
 
@@ -58,6 +61,8 @@ Conversões `usual_average` são explicitamente apresentadas como aproximação 
 - Uma referência nutricional genérica de `100 g` não pode substituir silenciosamente uma medida contável resolvida.
 - O passthrough normal e o fragmento alimentar de `água + alimento` devem encaminhar `registrationText`, nunca o texto contável original, quando houver resolução.
 - Uma medida contável comercial já comprovada deve chegar ao registro final com seu resultado semântico preservado; a gramatura interna não pode ser reinterpretada como nova entrada mass-only.
+- Uma identidade comercial já aceita não pode ser reenviada a `processMealInput` apenas para construir o item persistível; isso recriaria uma decisão já concluída e pode introduzir clarificação contraditória.
+- Marca, variante, macros e proveniência de uma resolução comercial aceita devem permanecer semanticamente ligados ao mesmo `CatalogFood` até a persistência.
 - Uma massa explicitamente digitada pelo usuário continua restritiva e não herda a confiança de uma resolução contável que não ocorreu.
 - O mesmo fragmento alimentar não pode executar duas resoluções lógicas de medida contável no wrapper.
 - O classificador contextual não é dependência para o caminho explícito de medidas contáveis.

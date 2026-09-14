@@ -4,7 +4,12 @@ import {
   prepareCountableFoodRegistrationResolved,
   type CountableFoodResolvedMeasure,
 } from "../../countableFoodQuantity";
-import { buildItemFromCatalog } from "../../mealItemBuilders";
+import {
+  buildItemFromCatalog,
+  clampConfidence,
+  isResearchVerifiedCatalogFood,
+} from "../../mealItemBuilders";
+import { resolveMealLabel } from "../../mealLabelResolver";
 import { buildMealSemanticContract } from "../../mealSemanticContract";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
@@ -38,35 +43,33 @@ export type CountableFoodRegistrationGateResult =
     }
   | { kind: "clarification"; result: WhatsappIntentResult };
 
-function applyResolvedCommercialMeasure(input: {
+function materializeResolvedCommercialSegment(input: {
   resolved: CountableFoodResolvedMeasure;
-  processed: MealProcessingResult;
   occurredAt?: Date;
   userTimezone: string;
 }): MealProcessingResult {
   const food = input.resolved.commercialFood;
-  const referenceItem = input.processed.items[0];
+  const request = input.resolved.request;
   const grams = input.resolved.resolution.grams;
   if (
     !food ||
-    !input.resolved.request.brand ||
-    input.processed.items.length !== 1 ||
-    !referenceItem ||
+    !request.brand ||
     !Number.isFinite(grams) ||
     grams <= 0 ||
     !Number.isFinite(food.gramsPerServing) ||
     food.gramsPerServing <= 0
   ) {
-    return input.processed;
+    throw new Error("Resolved commercial countable measure is incomplete.");
   }
 
-  const request = input.resolved.request;
+  const confidence = clampConfidence(food.sourceConfidence ?? 0.95);
   const processingInput = {
     text: request.segment,
     occurredAt: input.occurredAt,
     timeZone: input.userTimezone,
   };
-  const item = {
+  const researched = isResearchVerifiedCatalogFood(food);
+  const item: MealProcessingResult["items"][number] = {
     ...buildItemFromCatalog(food, {
       foodName: request.foodName,
       brand: request.brand,
@@ -77,10 +80,19 @@ function applyResolvedCommercialMeasure(input: {
       estimatedGrams: grams,
       estimatedCalories: 0,
       estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
-      confidence: referenceItem.confidence,
-      foodClassification: referenceItem.classification,
+      confidence,
+      foodClassification: null,
     }),
-    resolution: referenceItem.resolution,
+    resolution: {
+      productVariant: food.productVariant ?? null,
+      nutritionOrigin: researched ? "web_research" : "catalog",
+      nutritionVerified: true,
+      sourceUrls: [...(food.sourceUrls ?? [])],
+      sourceEvidence: food.sourceEvidence ?? null,
+      sourceVerifiedAt: food.sourceVerifiedAt ?? null,
+      sourceConfidence: food.sourceConfidence ?? confidence,
+      ambiguity: null,
+    },
   };
   const semanticContract = buildMealSemanticContract({
     processingInput,
@@ -89,8 +101,12 @@ function applyResolvedCommercialMeasure(input: {
   });
 
   return {
-    ...input.processed,
+    detectedMealLabel: resolveMealLabel(processingInput, request.segment),
     sourceText: request.segment,
+    confidence,
+    needsConfirmation: false,
+    reasoning:
+      "Identidade comercial, porção e nutrição reutilizadas da resolução canônica já comprovada.",
     items: [item],
     totals: calculateMealTotals([item]),
     semanticContract,
@@ -115,9 +131,9 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   );
   const resolvedSegments = [...(input.resolvedSegments ?? [])];
 
-  // A gramatura de uma medida contável comercial é uma normalização interna,
-  // não uma nova alegação mass-only do usuário. Preserve o resultado semântico
-  // já validado para que o registro final não reinterprete "25 g" isoladamente.
+  // Uma medida contável comercial já comprovada é uma decisão monotônica:
+  // materialize o item a partir do próprio CatalogFood validado e não o envie
+  // novamente ao processMealInput como se fosse uma nova alegação do usuário.
   for (const resolved of prepared.resolutions) {
     if (
       !resolved.commercialFood ||
@@ -126,16 +142,10 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
     )
       continue;
 
-    const processed = await processMealInput({
-      text: resolved.request.segment,
-      occurredAt: input.receivedAt,
-      timeZone: userTimezone,
-    });
     resolvedSegments.push({
       segmentIndex: resolved.segmentIndex,
-      processed: applyResolvedCommercialMeasure({
+      processed: materializeResolvedCommercialSegment({
         resolved,
-        processed,
         occurredAt: input.receivedAt,
         userTimezone,
       }),
