@@ -1,16 +1,16 @@
 {
-  "canonicalClassifierFingerprint": "35914f89844e0a6c35a436af1a1856e6a2b37ab7f5e0f3d3c1749e7a89d3ad24",
+  "canonicalClassifierFingerprint": "0c923371c284a71ac942cdc3b3edbde00cc578faa28c8be214c3291c89952efc",
   "contract": "delivery-v2-classifier-package",
   "files": {
     "policy.json": "cb5ffa0cab14f27a4361c815da669081401d136211a879401064b30d335cb54e",
     "repository-risk-policy.mjs": "05ca47ab7cbd9dbf8d41c9f3a5ec98cfd977758ef8e5f215b4c0f7d48e525a1f",
-    "risk-profile.mjs": "498ba7773f1887971148467500a4baf2a3b2a8072b181dd22b59ce360cee11ad",
+    "risk-profile.mjs": "10cd3aa0d209cea00e053cec876c70db9156a4eac81a05d424ba0d6a1976501e",
     "verify.mjs": "6b5b0332650a38546e6cacf3be0dda3ffcbf5c0b19f772191a46a0c10ead013e"
   },
-  "packageFingerprint": "3cd2e3867919e9ae55a72b310f7731c2fe6b2813549731ecefb6f4f4b6f69c03",
+  "packageFingerprint": "d20f3738505ff9998aa8f20feff2cea6a1466be1c0516810f30f96b6823d5008",
   "schemaVersion": 1,
   "source": {
-    "commit": "1d6185de16e3a30378a810132bb4e3cf9483f98c",
+    "commit": "00eb10545f2f7209ef649d2834300515e0b85106",
     "repository": "crgasparoto-br/delivery-orchestrator"
   },
   "target": {

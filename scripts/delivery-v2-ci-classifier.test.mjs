@@ -9,7 +9,7 @@ test("generated classifier package is intact and pinned to the orchestrator sour
   const verify = spawnSync(process.execPath, [fileURLToPath(new URL("../.delivery-v2/verify.mjs", import.meta.url))], { encoding: "utf8" });
   assert.equal(verify.status, 0, verify.stderr);
   const lock = JSON.parse(readFileSync(new URL("../.delivery-v2/lock.json", import.meta.url), "utf8"));
-  assert.equal(lock.source.commit, "1d6185de16e3a30378a810132bb4e3cf9483f98c");
+  assert.equal(lock.source.commit, "00eb10545f2f7209ef649d2834300515e0b85106");
   assert.equal(lock.target.repository, "crgasparoto-br/controle_calorias");
 });
 
