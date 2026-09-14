@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const controls = vi.hoisted(() => ({
   crashNextDownstream: true,
+  crashQuestionAfterAck: false,
   downstreamCalls: 0,
   questionCalls: 0,
 }));
@@ -28,6 +29,14 @@ vi.mock("./modules/whatsapp/aiQuestionAssistant", async () => {
     ...actual,
     executeWhatsappAiQuestionIntent: vi.fn(async () => {
       controls.questionCalls += 1;
+      if (controls.crashQuestionAfterAck) {
+        controls.crashQuestionAfterAck = false;
+        // O ACK é disparado em paralelo antes da IA. Aguardar brevemente permite
+        // que a entrega física e sua trilha idempotente sejam concluídas antes
+        // de simular a morte abrupta durante o processamento caro.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        throw new Error("simulated abrupt runtime termination after ACK delivery");
+      }
       return {
         handled: true,
         action: "ai_question_answered",
@@ -69,6 +78,12 @@ const { createDrizzleWhatsAppConversationRepository } = await import(
 );
 const { createDrizzleWhatsAppProcessingClaimRepository } = await import(
   "./repositories/whatsappProcessingClaimRepository"
+);
+const { createDrizzleWhatsAppQuestionRecoveryRepository } = await import(
+  "./repositories/whatsappQuestionRecoveryRepository"
+);
+const { runWhatsappQuestionRecoveryCycle } = await import(
+  "./modules/whatsapp/questionRecovery"
 );
 const {
   handleWhatsAppPersistentContextWebhook,
@@ -153,6 +168,41 @@ async function deliver(
   return response;
 }
 
+async function createPersistedQuestionFixture(connection: mysql.Connection) {
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const openId = `restart-idem-${suffix}`;
+  const phoneNumber = `5511${suffix.slice(-9).padStart(9, "7")}`;
+  const messageId = `wamid.restart-idem.${suffix}`;
+  const payload = createPayload(phoneNumber, messageId);
+
+  const [created] = await connection.execute<ResultSetHeader>(
+    "INSERT INTO users (openId, name) VALUES (?, ?)",
+    [openId, "Restart idempotency regression"],
+  );
+  const userId = created.insertId;
+  expect(userId).toBeGreaterThan(0);
+  await upsertUserWhatsappConnection({
+    userId,
+    phoneNumber,
+    displayName: "Restart Idempotency",
+  });
+
+  return { userId, phoneNumber, messageId, payload };
+}
+
+async function findPersistedRecoveryCandidate(messageId: string) {
+  const realRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+    getDb,
+    onWarning: logPersistenceWarning,
+  });
+  const candidates = await realRepository.findRecoverableQuestions({
+    now: new Date(),
+    horizonMs: 20 * 60 * 1000,
+    limit: 20,
+  });
+  return candidates.find(item => item.externalMessageId === messageId);
+}
+
 const describeTidb = process.env.WHATSAPP_RESTART_TIDB_REGRESSION === "1"
   ? describe
   : describe.skip;
@@ -162,6 +212,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
   beforeEach(() => {
     controls.crashNextDownstream = true;
+    controls.crashQuestionAfterAck = false;
     controls.downstreamCalls = 0;
     controls.questionCalls = 0;
     outboundPayloads = [];
@@ -201,23 +252,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     const databaseUrl = process.env.DATABASE_URL?.trim();
     expect(databaseUrl).toBeTruthy();
     const connection = await mysql.createConnection(databaseUrl!);
-    const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const openId = `restart-idem-${suffix}`;
-    const phoneNumber = `5511${suffix.slice(-9).padStart(9, "7")}`;
-    const messageId = `wamid.restart-idem.${suffix}`;
-    const payload = createPayload(phoneNumber, messageId);
-
-    const [created] = await connection.execute<ResultSetHeader>(
-      "INSERT INTO users (openId, name) VALUES (?, ?)",
-      [openId, "Restart idempotency regression"],
-    );
-    const userId = created.insertId;
-    expect(userId).toBeGreaterThan(0);
-    await upsertUserWhatsappConnection({
-      userId,
-      phoneNumber,
-      displayName: "Restart Idempotency",
-    });
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
 
     const runtimeA = createRuntime("runtime-a");
     const runtimeB = createRuntime("runtime-b");
@@ -297,6 +332,212 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     expect(controls.downstreamCalls).toBe(2);
     expect(controls.questionCalls).toBe(1);
     expect(outboundPayloads).toHaveLength(beforeTerminalReplay);
+
+    await connection.end();
+  }, 20_000);
+
+  it("retoma a QUESTION órfã após crash sem qualquer redelivery do provider", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    const runtimeA = createRuntime("runtime-a-no-redelivery");
+    const runtimeB = createRuntime("runtime-b-recovery");
+
+    await expect(deliver(runtimeA, payload)).rejects.toThrow(
+      "simulated abrupt runtime termination after persistent claim",
+    );
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(0);
+    expect(outboundPayloads).toHaveLength(0);
+
+    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
+
+    const candidate = await findPersistedRecoveryCandidate(messageId);
+    expect(candidate).toBeTruthy();
+
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: {
+          findRecoverableQuestions: async () => [candidate!],
+        },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: candidate!.messageId, outcome: "recovered" }],
+    });
+    // Nenhum segundo POST foi executado: o downstream do webhook segue com uma única chamada.
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(1);
+
+    const textBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(textBodies).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [completedRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, processedAt
+         FROM whatsappConversationMessages
+        WHERE idempotencyKey = ?`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(completedRows).toHaveLength(1);
+    expect(completedRows[0].processedAt).not.toBeNull();
+    const inboundMessageId = Number(completedRows[0].id);
+
+    const [responseRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, sanitizedText
+         FROM whatsappConversationMessages
+        WHERE direction = 'outbound' AND respondsToMessageId = ?`,
+      [inboundMessageId],
+    );
+    expect(responseRows).toHaveLength(1);
+    expect(responseRows[0].sanitizedText).toBe(FINAL_TEXT);
+
+    const [claimRowsAfterCompletion] = await connection.execute<RowDataPacket[]>(
+      "SELECT messageId FROM whatsappMessageProcessingClaims WHERE messageId = ?",
+      [inboundMessageId],
+    );
+    expect(claimRowsAfterCompletion).toHaveLength(0);
+
+    await connection.end();
+  }, 20_000);
+
+  it("não duplica ACK físico quando o runtime morre depois do ACK e o recovery envia apenas a final", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    controls.crashNextDownstream = false;
+    controls.crashQuestionAfterAck = true;
+    const runtimeA = createRuntime("runtime-a-after-ack");
+    const runtimeB = createRuntime("runtime-b-after-ack-recovery");
+
+    await expect(deliver(runtimeA, payload)).rejects.toThrow(
+      "simulated abrupt runtime termination after ACK delivery",
+    );
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(1);
+    const afterCrashBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(afterCrashBodies).toEqual([ACK_TEXT]);
+
+    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
+    const candidate = await findPersistedRecoveryCandidate(messageId);
+    expect(candidate).toBeTruthy();
+
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: {
+          findRecoverableQuestions: async () => [candidate!],
+        },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: candidate!.messageId, outcome: "recovered" }],
+    });
+    expect(controls.questionCalls).toBe(2);
+    const finalBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(finalBodies).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [responseRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, sanitizedText
+         FROM whatsappConversationMessages
+        WHERE direction = 'outbound'
+          AND respondsToMessageId = (
+            SELECT id FROM whatsappConversationMessages WHERE idempotencyKey = ? LIMIT 1
+          )`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(responseRows).toHaveLength(1);
+    expect(responseRows[0].sanitizedText).toBe(FINAL_TEXT);
+
+    await connection.end();
+  }, 20_000);
+
+  it("fecha o lifecycle sem nova IA/outbound quando a final já foi persistida antes de processedAt", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    controls.crashNextDownstream = false;
+    const runtimeA = createRuntime("runtime-a-final-persisted");
+    const runtimeB = createRuntime("runtime-b-final-recovery");
+
+    const initial = await deliver(runtimeA, payload);
+    expect(initial.statusCode).toBe(200);
+    expect(controls.questionCalls).toBe(1);
+    const deliveredBeforeRecovery = outboundPayloads.length;
+    expect(
+      outboundPayloads
+        .filter(payloadItem => payloadItem.type === "text")
+        .map(payloadItem => payloadItem.text?.body),
+    ).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id FROM whatsappConversationMessages WHERE idempotencyKey = ?`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(rows).toHaveLength(1);
+    const inboundMessageId = Number(rows[0].id);
+
+    // Reconstitui exatamente a janela crash-after-final/before-processedAt:
+    // resposta funcional continua persistida, inbound volta a aberto e existe
+    // um owner antigo já fora da janela de liveness.
+    await connection.execute(
+      "UPDATE whatsappConversationMessages SET processedAt = NULL WHERE id = ?",
+      [inboundMessageId],
+    );
+    await connection.execute(
+      `INSERT INTO whatsappMessageProcessingClaims (messageId, ownerToken, claimedAt, heartbeatAt)
+       VALUES (?, ?, DATE_SUB(NOW(), INTERVAL 10 SECOND), DATE_SUB(NOW(), INTERVAL 10 SECOND))`,
+      [inboundMessageId, "dead-final-owner"],
+    );
+
+    const candidate = await findPersistedRecoveryCandidate(messageId);
+    expect(candidate).toBeTruthy();
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: { findRecoverableQuestions: async () => [candidate!] },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: inboundMessageId, outcome: "completed_existing" }],
+    });
+    expect(controls.questionCalls).toBe(1);
+    expect(outboundPayloads).toHaveLength(deliveredBeforeRecovery);
+
+    const [completedRows] = await connection.execute<RowDataPacket[]>(
+      "SELECT processedAt FROM whatsappConversationMessages WHERE id = ?",
+      [inboundMessageId],
+    );
+    expect(completedRows[0].processedAt).not.toBeNull();
+    const [claimRows] = await connection.execute<RowDataPacket[]>(
+      "SELECT messageId FROM whatsappMessageProcessingClaims WHERE messageId = ?",
+      [inboundMessageId],
+    );
+    expect(claimRows).toHaveLength(0);
 
     await connection.end();
   }, 20_000);
