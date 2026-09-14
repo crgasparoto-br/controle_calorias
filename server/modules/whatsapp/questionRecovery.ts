@@ -20,7 +20,9 @@ import { resolveWhatsAppOperationTimeZone } from "./timeZoneContext";
 import { fingerprintWhatsAppMessageId } from "./webhookCorrelation";
 
 export const DEFAULT_QUESTION_RECOVERY_INTERVAL_MS = 15_000;
-export const DEFAULT_QUESTION_RECOVERY_HORIZON_MS = 6 * 60 * 60 * 1000;
+// Deve permanecer abaixo do TTL de 30 min da conversa: beginInboundMessage
+// precisa reutilizar a conversa original para manter a mesma identidade de resposta.
+export const DEFAULT_QUESTION_RECOVERY_HORIZON_MS = 20 * 60 * 1000;
 export const DEFAULT_QUESTION_RECOVERY_BATCH_SIZE = 10;
 
 export type WhatsappQuestionRecoveryOutcome =
