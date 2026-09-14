@@ -135,15 +135,26 @@ describe("#1061 — recovery durável de QUESTION", () => {
     expect(mocks.markProcessed).not.toHaveBeenCalled();
   });
 
-  it("finaliza processedAt sem duplicar IA/outbound quando a resposta funcional já foi persistida", async () => {
+  it("finaliza processedAt sob ownership sem duplicar IA/outbound quando a resposta funcional já foi persistida", async () => {
     mocks.wasProcessed.mockResolvedValue(true);
 
     await expect(recoverPendingWhatsappQuestion(candidate)).resolves.toBe("completed_existing");
 
-    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.claim).toHaveBeenCalledTimes(1);
     expect(mocks.resolveGate).not.toHaveBeenCalled();
     expect(mocks.sendReply).not.toHaveBeenCalled();
     expect(mocks.markProcessed).toHaveBeenCalledTimes(1);
+  });
+
+  it("não rouba owner ativo mesmo quando a resposta funcional já está persistida", async () => {
+    mocks.wasProcessed.mockResolvedValue(true);
+    mocks.claim.mockResolvedValue("inflight");
+
+    await expect(recoverPendingWhatsappQuestion(candidate)).resolves.toBe("inflight");
+
+    expect(mocks.resolveGate).not.toHaveBeenCalled();
+    expect(mocks.sendReply).not.toHaveBeenCalled();
+    expect(mocks.markProcessed).not.toHaveBeenCalled();
   });
 
   it("mantém o inbound pendente quando a resposta final não foi entregue", async () => {
