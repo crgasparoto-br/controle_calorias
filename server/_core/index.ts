@@ -22,6 +22,7 @@ import {
   handleStravaWebhookEvent,
 } from "../modules/healthIntegrations/stravaWebhookHandler";
 import { resolveWhatsAppWebhookCorrelation } from "../modules/whatsapp/webhookCorrelation";
+import { startWhatsappQuestionRecoveryScheduler } from "../modules/whatsapp/questionRecovery";
 import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
@@ -307,6 +308,7 @@ async function startServer() {
   startUsageGovernanceRetentionScheduler();
   startAsaasBillingReconciliationScheduler();
   startAsaasPixAuthorizationRecoveryScheduler();
+  startWhatsappQuestionRecoveryScheduler();
 }
 
 startServer().catch(error => {
