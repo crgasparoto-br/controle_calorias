@@ -46,6 +46,16 @@ function recoveryDetail(candidate: RecoverableWhatsappQuestion) {
   };
 }
 
+async function claimRecoverableLifecycle(
+  lifecycleHandle: NonNullable<Awaited<ReturnType<typeof beginInboundMessage>>>,
+) {
+  const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+  if (claimStatus === "inflight") return { terminal: true as const, outcome: "inflight" as const };
+  if (claimStatus === "processed") return { terminal: true as const, outcome: "processed" as const };
+  if (claimStatus === "unavailable") return { terminal: true as const, outcome: "unavailable" as const };
+  return { terminal: false as const, claimStatus };
+}
+
 /**
  * Retoma uma QUESTION já persistida sem fabricar um novo inbound da Meta.
  * O beginInboundMessage reutiliza a mesma chave externa e o claim persistente
@@ -68,18 +78,24 @@ export async function recoverPendingWhatsappQuestion(
       });
       if (!lifecycleHandle) return "unavailable";
 
-      // Uma resposta funcional já persistida é terminal mesmo que o processo
-      // anterior tenha morrido antes de preencher processedAt.
+      // Uma resposta funcional já persistida é terminal para o produto, mas a
+      // conclusão do lifecycle ainda deve respeitar ownership. Isso evita roubar
+      // um owner saudável e permite que um owner órfão seja assumido/limpo junto
+      // com processedAt, sem deixar processing claim residual.
       if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+        const completionClaim = await claimRecoverableLifecycle(lifecycleHandle);
+        if (completionClaim.terminal) return completionClaim.outcome;
         await markMessageProcessed(lifecycleHandle);
-        console.info("[WhatsAppQuestionRecovery] completed_existing", recoveryDetail(candidate));
+        console.info("[WhatsAppQuestionRecovery] completed_existing", {
+          ...recoveryDetail(candidate),
+          claimStatus: completionClaim.claimStatus,
+        });
         return "completed_existing";
       }
 
-      const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
-      if (claimStatus === "inflight") return "inflight";
-      if (claimStatus === "processed") return "processed";
-      if (claimStatus === "unavailable") return "unavailable";
+      const claim = await claimRecoverableLifecycle(lifecycleHandle);
+      if (claim.terminal) return claim.outcome;
+      const claimStatus = claim.claimStatus;
 
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(candidate.userId);
       const userTimezone = timeZoneResolution.timeZone;
