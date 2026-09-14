@@ -3,6 +3,7 @@ import {
   whatsappConversationMessages,
   whatsappConversations,
 } from "../../drizzle/schema";
+import { whatsappMessageProcessingClaims } from "../../drizzle/whatsapp-processing-schema";
 
 type DbProvider = () => Promise<any | null>;
 type PersistenceWarningHandler = (scope: string, error: unknown) => void;
@@ -15,6 +16,7 @@ export type RecoverableWhatsappQuestion = {
   externalMessageId: string;
   text: string;
   occurredAt: Date;
+  processingHeartbeatAt: Date | null;
 };
 
 export type WhatsAppQuestionRecoveryRepository = {
@@ -48,6 +50,7 @@ export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
             externalMessageId: whatsappConversationMessages.externalMessageId,
             text: whatsappConversationMessages.sanitizedText,
             occurredAt: whatsappConversationMessages.occurredAt,
+            processingHeartbeatAt: whatsappMessageProcessingClaims.heartbeatAt,
           })
           .from(whatsappConversationMessages)
           .innerJoin(
@@ -55,6 +58,13 @@ export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
             eq(
               whatsappConversations.id,
               whatsappConversationMessages.conversationId,
+            ),
+          )
+          .leftJoin(
+            whatsappMessageProcessingClaims,
+            eq(
+              whatsappMessageProcessingClaims.messageId,
+              whatsappConversationMessages.id,
             ),
           )
           .where(and(
@@ -89,6 +99,7 @@ export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
             externalMessageId,
             text,
             occurredAt: row.occurredAt,
+            processingHeartbeatAt: row.processingHeartbeatAt ?? null,
           }];
         });
       } catch (error) {
