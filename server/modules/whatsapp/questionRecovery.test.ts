@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecoverableWhatsappQuestion } from "../../repositories/whatsappQuestionRecoveryRepository";
 
 const mocks = vi.hoisted(() => ({
@@ -17,13 +17,17 @@ vi.mock("../../db", () => ({
   logPersistenceWarning: vi.fn(),
   logInferenceEvent: mocks.logInference,
 }));
-vi.mock("./messageLifecycle", () => ({
-  beginInboundMessage: mocks.begin,
-  claimMessageForProcessingState: mocks.claim,
-  markMessageProcessed: mocks.markProcessed,
-  wasMessageAlreadyProcessed: mocks.wasProcessed,
-  runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
-}));
+vi.mock("./messageLifecycle", async importOriginal => {
+  const actual = await importOriginal<typeof import("./messageLifecycle")>();
+  return {
+    ...actual,
+    beginInboundMessage: mocks.begin,
+    claimMessageForProcessingState: mocks.claim,
+    markMessageProcessed: mocks.markProcessed,
+    wasMessageAlreadyProcessed: mocks.wasProcessed,
+    runWithMessageLifecycleRequestScope: async (operation: () => Promise<unknown>) => operation(),
+  };
+});
 vi.mock("./messageRouter", () => ({
   resolveWhatsAppPrecedenceGate: mocks.resolveGate,
 }));
@@ -45,6 +49,7 @@ vi.mock("./questionLatencyContext", () => ({
 
 const {
   recoverPendingWhatsappQuestion,
+  resolveNearStaleClaimRecheckDelayMs,
   runWhatsappQuestionRecoveryCycle,
 } = await import("./questionRecovery");
 
@@ -56,6 +61,7 @@ const candidate: RecoverableWhatsappQuestion = {
   externalMessageId: "wamid.question-recovery-1061",
   text: "/ Qual opção para um jantar rico em proteínas?",
   occurredAt: new Date("2026-09-13T23:56:24.000Z"),
+  processingHeartbeatAt: null,
 };
 
 function aiQuestionResult() {
@@ -85,6 +91,10 @@ beforeEach(() => {
     result: { primaryOk: true, ok: true },
   });
   mocks.markProcessed.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("#1061 — recovery durável de QUESTION", () => {
@@ -130,9 +140,43 @@ describe("#1061 — recovery durável de QUESTION", () => {
 
     await expect(recoverPendingWhatsappQuestion(candidate)).resolves.toBe("inflight");
 
+    expect(mocks.claim).toHaveBeenCalledTimes(1);
     expect(mocks.resolveGate).not.toHaveBeenCalled();
     expect(mocks.sendReply).not.toHaveBeenCalled();
     expect(mocks.markProcessed).not.toHaveBeenCalled();
+  });
+
+  it("recheca dentro da mesma janela de boot quando o owner órfão está perto de expirar", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T02:48:34.000Z"));
+    mocks.claim
+      .mockResolvedValueOnce("inflight")
+      .mockResolvedValueOnce("recovered");
+    const nearStaleCandidate: RecoverableWhatsappQuestion = {
+      ...candidate,
+      processingHeartbeatAt: new Date("2026-09-14T02:48:15.000Z"),
+    };
+
+    const recovery = recoverPendingWhatsappQuestion(nearStaleCandidate);
+    await vi.advanceTimersByTimeAsync(11_100);
+
+    await expect(recovery).resolves.toBe("recovered");
+    expect(mocks.claim).toHaveBeenCalledTimes(2);
+    expect(mocks.resolveGate).toHaveBeenCalledTimes(1);
+    expect(mocks.sendReply).toHaveBeenCalledTimes(1);
+    expect(mocks.markProcessed).toHaveBeenCalledTimes(1);
+  });
+
+  it("só agenda recheck curto para heartbeat realmente perto do stale", () => {
+    const now = new Date("2026-09-14T02:48:34.000Z");
+    expect(resolveNearStaleClaimRecheckDelayMs(
+      new Date("2026-09-14T02:48:15.000Z"),
+      now,
+    )).toBe(11_100);
+    expect(resolveNearStaleClaimRecheckDelayMs(
+      new Date("2026-09-14T02:48:30.000Z"),
+      now,
+    )).toBeNull();
   });
 
   it("finaliza processedAt sob ownership sem duplicar IA/outbound quando a resposta funcional já foi persistida", async () => {
