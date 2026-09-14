@@ -238,8 +238,12 @@ export async function prepareCountableFoodRegistrationResolved(
     let commercialFood: CatalogFood | undefined;
     if (resolvedRequest.brand) {
       try {
+        // Preserve the original countable expression for commercial research.
+        // The exact quantity/unit is part of the evidence request (for example,
+        // "1 fatia ...") even though the canonical product identity stays in
+        // resolvedRequest.foodName for persistence and final registration.
         commercialFood = await resolveCommercialFoodIdentity(
-          resolvedRequest.foodName,
+          resolvedRequest.segment,
           resolvedRequest.brand
         );
       } catch (error) {
