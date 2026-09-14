@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const controls = vi.hoisted(() => ({
   crashNextDownstream: true,
+  crashQuestionAfterAck: false,
   downstreamCalls: 0,
   questionCalls: 0,
 }));
@@ -28,6 +29,14 @@ vi.mock("./modules/whatsapp/aiQuestionAssistant", async () => {
     ...actual,
     executeWhatsappAiQuestionIntent: vi.fn(async () => {
       controls.questionCalls += 1;
+      if (controls.crashQuestionAfterAck) {
+        controls.crashQuestionAfterAck = false;
+        // O ACK é disparado em paralelo antes da IA. Aguardar brevemente permite
+        // que a entrega física e sua trilha idempotente sejam concluídas antes
+        // de simular a morte abrupta durante o processamento caro.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        throw new Error("simulated abrupt runtime termination after ACK delivery");
+      }
       return {
         handled: true,
         action: "ai_question_answered",
@@ -181,6 +190,19 @@ async function createPersistedQuestionFixture(connection: mysql.Connection) {
   return { userId, phoneNumber, messageId, payload };
 }
 
+async function findPersistedRecoveryCandidate(messageId: string) {
+  const realRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+    getDb,
+    onWarning: logPersistenceWarning,
+  });
+  const candidates = await realRepository.findRecoverableQuestions({
+    now: new Date(),
+    horizonMs: 20 * 60 * 1000,
+    limit: 20,
+  });
+  return candidates.find(item => item.externalMessageId === messageId);
+}
+
 const describeTidb = process.env.WHATSAPP_RESTART_TIDB_REGRESSION === "1"
   ? describe
   : describe.skip;
@@ -190,6 +212,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
   beforeEach(() => {
     controls.crashNextDownstream = true;
+    controls.crashQuestionAfterAck = false;
     controls.downstreamCalls = 0;
     controls.questionCalls = 0;
     outboundPayloads = [];
@@ -331,16 +354,7 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
     await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
 
-    const realRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
-      getDb,
-      onWarning: logPersistenceWarning,
-    });
-    const candidates = await realRepository.findRecoverableQuestions({
-      now: new Date(),
-      horizonMs: 20 * 60 * 1000,
-      limit: 20,
-    });
-    const candidate = candidates.find(item => item.externalMessageId === messageId);
+    const candidate = await findPersistedRecoveryCandidate(messageId);
     expect(candidate).toBeTruthy();
 
     const cycle = await withMessageLifecycleService(runtimeB, () =>
@@ -391,6 +405,67 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
       [inboundMessageId],
     );
     expect(claimRowsAfterCompletion).toHaveLength(0);
+
+    await connection.end();
+  }, 20_000);
+
+  it("não duplica ACK físico quando o runtime morre depois do ACK e o recovery envia apenas a final", async () => {
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    expect(databaseUrl).toBeTruthy();
+    const connection = await mysql.createConnection(databaseUrl!);
+    const { messageId, payload } = await createPersistedQuestionFixture(connection);
+
+    controls.crashNextDownstream = false;
+    controls.crashQuestionAfterAck = true;
+    const runtimeA = createRuntime("runtime-a-after-ack");
+    const runtimeB = createRuntime("runtime-b-after-ack-recovery");
+
+    await expect(deliver(runtimeA, payload)).rejects.toThrow(
+      "simulated abrupt runtime termination after ACK delivery",
+    );
+    expect(controls.downstreamCalls).toBe(1);
+    expect(controls.questionCalls).toBe(1);
+    const afterCrashBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(afterCrashBodies).toEqual([ACK_TEXT]);
+
+    await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
+    const candidate = await findPersistedRecoveryCandidate(messageId);
+    expect(candidate).toBeTruthy();
+
+    const cycle = await withMessageLifecycleService(runtimeB, () =>
+      runWhatsappQuestionRecoveryCycle({
+        repository: {
+          findRecoverableQuestions: async () => [candidate!],
+        },
+        now: new Date(),
+        horizonMs: 20 * 60 * 1000,
+        limit: 1,
+      }),
+    );
+
+    expect(cycle).toEqual({
+      candidates: 1,
+      outcomes: [{ messageId: candidate!.messageId, outcome: "recovered" }],
+    });
+    expect(controls.questionCalls).toBe(2);
+    const finalBodies = outboundPayloads
+      .filter(payloadItem => payloadItem.type === "text")
+      .map(payloadItem => payloadItem.text?.body);
+    expect(finalBodies).toEqual([ACK_TEXT, FINAL_TEXT]);
+
+    const [responseRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, sanitizedText
+         FROM whatsappConversationMessages
+        WHERE direction = 'outbound'
+          AND respondsToMessageId = (
+            SELECT id FROM whatsappConversationMessages WHERE idempotencyKey = ? LIMIT 1
+          )`,
+      [`whatsapp:inbound:${messageId}`],
+    );
+    expect(responseRows).toHaveLength(1);
+    expect(responseRows[0].sanitizedText).toBe(FINAL_TEXT);
 
     await connection.end();
   }, 20_000);
