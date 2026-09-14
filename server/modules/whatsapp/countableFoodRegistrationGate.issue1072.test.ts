@@ -33,7 +33,6 @@ vi.mock("../foods/service", () => ({
 
 import { prepareWhatsappCountableFoodRegistration } from "./countableFoodRegistrationGate";
 import { createConfirmedMealRegistrationService } from "./confirmedMealRegistration";
-import { MealInferenceError } from "../../nutritionEngine";
 import { detectKnownBrand } from "../../foodBrandDetection";
 import { parseFoodText, splitFoodTextSegments } from "../../mealTextParsing";
 
@@ -75,20 +74,22 @@ function catalogFood(input: {
 }
 
 function fakeProcessedSegment(text: string): MealProcessingResult {
-  const panco = /panco premium/i.test(text);
+  if (/panco premium/i.test(text)) {
+    throw new Error("Produto comercial já resolvido não pode ser reprocessado.");
+  }
   const item = {
     foodName: text,
     canonicalName: text,
-    brand: panco ? "Panco" : null,
+    brand: null,
     quantity: 1,
     unit: "un",
     portionText: text,
     servings: 1,
-    estimatedGrams: panco ? 25 : 1,
-    calories: panco ? 63.5 : 1,
-    protein: panco ? 2 : 0,
-    carbs: panco ? 12 : 0,
-    fat: panco ? 1 : 0,
+    estimatedGrams: 1,
+    calories: 1,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
     confidence: 0.9,
     source: "catalog" as const,
   };
@@ -160,7 +161,7 @@ beforeEach(() => {
 });
 
 describe("#1072 — caminho real do gate contável do WhatsApp", () => {
-  it("resolve o cenário multi-item com 1 fatia Panco Premium sem clarificação indevida", async () => {
+  it("resolve o cenário multi-item com 1 fatia Panco Premium sem reprocessar a identidade já comprovada", async () => {
     const text = "50ml leite integral, 1 fatia de pão de forma panco Premium, 35g de requeijão catupiry, 1 fatia de presunto, 1 fatia de mussarela";
 
     const result = await prepareWhatsappCountableFoodRegistration({
@@ -198,7 +199,26 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
               protein: 2,
               carbs: 12,
               fat: 1,
+              resolution: expect.objectContaining({
+                productVariant: "premium",
+                nutritionOrigin: "web_research",
+                nutritionVerified: true,
+              }),
             })],
+            semanticContract: expect.objectContaining({
+              needsClarification: false,
+              items: [expect.objectContaining({
+                brand: "Panco",
+                productVariant: "premium",
+                estimatedGrams: 25,
+                evidence: expect.objectContaining({
+                  nutrition: expect.objectContaining({
+                    origin: "web_research",
+                    verified: true,
+                  }),
+                }),
+              })],
+            }),
           }),
         }),
       ]),
@@ -207,29 +227,18 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
       "25 g de pão de forma panco Premium",
     );
     expect(boundary.measureSearch).not.toHaveBeenCalled();
+    expect(
+      boundary.extraction.mock.calls.some(([input]) =>
+        /panco premium/i.test(String((input as { text?: string })?.text ?? ""))
+      )
+    ).toBe(false);
   });
 
-  it("atravessa o registro confirmado com o payload real sem reclassificar a normalização de 25 g como entrada mass-only", async () => {
+  it("atravessa o registro confirmado com o payload real sem reclassificar o Panco resolvido", async () => {
     const text = "1,5 pão frances, 1 fatia de mussarela, 1 fatia de presunto, 40g de requeijão, 20g de manteiga Batavo com sal, 3 xícaras de café, 1 fatia de pão de forma panco Premium";
-    const processMeal = vi.fn(async ({ text: segmentText }: { text?: string }) => {
-      const value = segmentText ?? "";
-      if (/25\s*g\s+de\s+pão de forma panco Premium/i.test(value)) {
-        throw new MealInferenceError(
-          "Não consegui comprovar a identidade comercial exata de Pão de Forma Panco Premium (Panco).",
-          {
-            code: "food_identity_clarification_required",
-            context: {
-              originalText: value,
-              foodName: "Pão de Forma Panco Premium",
-              brand: "Panco",
-              clarificationReason: "commercial_identity_unverified",
-              alternatives: [],
-            },
-          },
-        );
-      }
-      return fakeProcessedSegment(value);
-    });
+    const processMeal = vi.fn(async ({ text: segmentText }: { text?: string }) =>
+      fakeProcessedSegment(segmentText ?? "")
+    );
     const createDraft = vi.fn(() => ({ draftId: "draft-1072" }));
     const confirmMeal = vi.fn(async (input: any) => ({
       id: 1072,
@@ -259,17 +268,21 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
     expect(result.status).toBe("registered");
     expect(createDraft).toHaveBeenCalledTimes(1);
     expect(confirmMeal).toHaveBeenCalledTimes(1);
-    expect(processMeal).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringMatching(/25\s*g\s+de\s+pão de forma panco Premium/i),
-      }),
-    );
+    expect(
+      processMeal.mock.calls.some(([input]) =>
+        /panco premium/i.test(String((input as { text?: string })?.text ?? ""))
+      )
+    ).toBe(false);
     expect(confirmMeal.mock.calls[0]?.[0]?.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           brand: "Panco",
           estimatedGrams: 25,
           calories: 63.5,
+          resolution: expect.objectContaining({
+            productVariant: "premium",
+            nutritionVerified: true,
+          }),
         }),
       ]),
     );
