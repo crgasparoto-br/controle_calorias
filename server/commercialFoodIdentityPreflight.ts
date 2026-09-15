@@ -21,7 +21,7 @@ export type CanonicalCommercialIdentityPreflight = {
 };
 
 function inferUnverifiedCommercialVariant(
-  request: CommercialIdentityPreflightRequest,
+  request: CommercialIdentityPreflightRequest
 ) {
   if (/\bcom\b/i.test(request.foodName)) return null;
 
@@ -29,22 +29,27 @@ function inferUnverifiedCommercialVariant(
   if (!productVariant) return null;
 
   const variantTokens = productVariant.split(/\s+/).filter(Boolean);
-  if (variantTokens.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))) {
+  if (
+    variantTokens.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))
+  ) {
     return null;
   }
 
   const local = findCatalogFood(request.foodName);
   const localVariant = local ? extractCommercialVariant(local.name) : null;
   if (localVariant) {
-    const localVariantTokens = new Set(localVariant.split(/\s+/).filter(Boolean));
-    if (variantTokens.every(token => localVariantTokens.has(token))) return null;
+    const localVariantTokens = new Set(
+      localVariant.split(/\s+/).filter(Boolean)
+    );
+    if (variantTokens.every(token => localVariantTokens.has(token)))
+      return null;
   }
 
   return productVariant;
 }
 
 function buildUnverifiedCommercialIdentityClarification(
-  request: CommercialIdentityPreflightRequest,
+  request: CommercialIdentityPreflightRequest
 ): CanonicalCommercialIdentityPreflight {
   const identity = request.foodName.trim();
   return {
@@ -69,7 +74,7 @@ function buildUnverifiedCommercialIdentityClarification(
  */
 export async function recoverCanonicalCommercialIdentity(
   request: CommercialIdentityPreflightRequest,
-  runtime: { processMealInput: typeof processMealInput } = { processMealInput },
+  runtime: { processMealInput: typeof processMealInput } = { processMealInput }
 ): Promise<CanonicalCommercialIdentityPreflight> {
   if (request.brand) return { brand: request.brand };
 
@@ -87,8 +92,8 @@ export async function recoverCanonicalCommercialIdentity(
     return { brand: null };
   } catch (error) {
     if (
-      !(error instanceof MealInferenceError)
-      || !error.context?.clarificationReason
+      !(error instanceof MealInferenceError) ||
+      !error.context?.clarificationReason
     ) {
       return { brand: null };
     }

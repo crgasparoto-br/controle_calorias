@@ -75,18 +75,18 @@ function installAiRejectedItem() {
           unit: "porção",
           portionText: "1 porção",
           servings: 1,
-        estimatedGrams: 100,
-        estimatedCalories: 130,
-        estimatedMacros: { protein: 2.7, carbs: 28, fat: 0.3 },
-        confidence: 0.8,
-        foodClassification: {
-          processingLevel: "processed",
-          isFruit: false,
-          isVegetable: false,
-          fiberGrams: 0,
-          isPlainWater: false,
+          estimatedGrams: 100,
+          estimatedCalories: 130,
+          estimatedMacros: { protein: 2.7, carbs: 28, fat: 0.3 },
+          confidence: 0.8,
+          foodClassification: {
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+            isPlainWater: false,
+          },
         },
-      },
       ],
     }),
     raw: {},
@@ -149,6 +149,11 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
   it.each([
     "manteiga com sal",
     "iogurte natural",
+    "iogurte grego",
+    "iogurte proteico",
+    "iogurte cremoso",
+    "queijo frescal",
+    "pão sovado",
     "água tônica",
     "pão e manteiga",
     "manteiga sabor chocolate",
@@ -159,6 +164,52 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
   ])("não promove descrição genérica a marca desconhecida: %s", foodName => {
     expect(inferUnresolvedCommercialIdentityHint(foodName)).toBeNull();
   });
+
+  it.each(["iogurte grego", "iogurte proteico", "iogurte cremoso"])(
+    "mantém qualificador genérico no pipeline real sem bloquear o fallback: %s",
+    async foodName => {
+      installAiFailure();
+
+      const result = await processMealInput({ text: foodName });
+      const item = result.items[0];
+
+      expect(item).toEqual(
+        expect.objectContaining({
+          foodName: expect.stringMatching(new RegExp(foodName, "i")),
+          brand: null,
+          source: "heuristic",
+        })
+      );
+      expect(item.calories).toBe(150);
+      expect(result.semanticContract).toEqual(
+        expect.objectContaining({
+          needsClarification: false,
+          items: [
+            expect.objectContaining({
+              brand: null,
+              needsClarification: false,
+              evidence: expect.objectContaining({
+                nutrition: expect.objectContaining({
+                  origin: "heuristic",
+                  verified: false,
+                  value: expect.objectContaining({
+                    calories: 150,
+                    protein: 6,
+                    carbs: 15,
+                    fat: 5,
+                  }),
+                }),
+              }),
+            }),
+          ],
+        })
+      );
+      expect(logMealInferenceFallbackMock).toHaveBeenCalledWith(
+        "generic_nutrition_fallback",
+        1
+      );
+    }
+  );
 
   it.each([
     ["IA indisponível", installAiFailure],
@@ -300,6 +351,39 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
         expect.objectContaining({
           brand: "Batavo",
           originalText: expect.stringContaining("15g de manteiga Batavo"),
+        })
+      );
+    }
+  });
+
+  it("mantém uma segunda marca desconhecida no pipeline real até o boundary de registro", async () => {
+    installAiFailure();
+    const createDraft = vi.fn();
+    const confirmMeal = vi.fn();
+    const service = createConfirmedMealRegistrationService({
+      processMeal: processMealInput,
+      getHabits: async () => [],
+      createDraft: createDraft as never,
+      confirmMeal: confirmMeal as never,
+    });
+
+    const result = await service({
+      userId: 1088,
+      registrationText: "15g de manteiga Koala extra com sal",
+      originalText: "15g de manteiga Koala extra com sal",
+      occurredAt: NOW,
+      userTimezone: "America/Sao_Paulo",
+      inboundMessageId: "wamid-1088-koala",
+    });
+
+    expect(result.status).toBe("details_needed");
+    expect(createDraft).not.toHaveBeenCalled();
+    expect(confirmMeal).not.toHaveBeenCalled();
+    if (result.status === "details_needed") {
+      expect(result.context).toEqual(
+        expect.objectContaining({
+          brand: "Koala",
+          originalText: expect.stringContaining("15g de manteiga Koala"),
         })
       );
     }
