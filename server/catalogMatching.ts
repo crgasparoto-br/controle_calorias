@@ -99,6 +99,14 @@ const COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES = new Set([
   "sem",
 ]);
 
+const COMMERCIAL_BRAND_CONNECTOR_PREFIXES = new Set([
+  "da",
+  "das",
+  "de",
+  "do",
+  "dos",
+]);
+
 const CULINARY_COMPOSITION_CONNECTORS = new Set(["com", "sem"]);
 
 const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
@@ -137,13 +145,17 @@ const NON_BRAND_REMAINDER_TOKENS = new Set([
   "frango",
   "frances",
   "integral",
+  "leite",
   "light",
   "magra",
   "magro",
+  "manha",
+  "mineral",
   "moida",
   "natural",
   "mussarela",
   "original",
+  "pote",
   "refrigerante",
   "sabor",
   "sal",
@@ -278,14 +290,6 @@ export function inferUnresolvedCommercialIdentityHint(
   const remainderText = remainderTokens.join(" ");
   const productVariant = extractCommercialVariant(remainderText);
   const firstRemainderToken = normalizedRemainder[0];
-  if (
-    !productVariant &&
-    (COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken) ||
-      normalizedRemainder.some(token =>
-        CULINARY_COMPOSITION_CONNECTORS.has(token)
-      ))
-  )
-    return null;
   const variantTokens = new Set(normalizedWords(productVariant ?? ""));
   const brandTokens: string[] = [];
   for (const [index, token] of remainderTokens.entries()) {
@@ -308,16 +312,40 @@ export function inferUnresolvedCommercialIdentityHint(
     ? formatFoodNameTitleCase(brandTokens.join(" "))
     : null;
 
-  const normalizedProductVariant = normalizedWords(productVariant ?? "");
-  if (
-    !brand &&
-    normalizedProductVariant.length > 0 &&
-    normalizedProductVariant.every(
-      token => token === "zero" || token === "diet"
-    )
-  ) {
-    return null;
+  // A possessive/prepositional connector can introduce an unknown brand
+  // (e.g. "manteiga da Batavo"). Culinary conjunctions and other connectors
+  // remain fail-closed so preparations such as "café com leite" cannot turn
+  // the complement into a brand.
+  if (COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)) {
+    if (
+      CULINARY_COMPOSITION_CONNECTORS.has(firstRemainderToken) ||
+      !COMMERCIAL_BRAND_CONNECTOR_PREFIXES.has(firstRemainderToken) ||
+      !brand
+    ) {
+      return null;
+    }
+
+    // Without the explicit "marca" marker, a connector may introduce only
+    // one immediate brand token. This prevents descriptions such as
+    // "bolo de pote ninho cremoso" from being read as brand "Pote Ninho".
+    const firstRemainderIdentityIndex = normalizedRemainder.findIndex(
+      (token, index) => index > 0 && !MATCHING_STOP_WORDS.has(token)
+    );
+    if (
+      !hasExplicitBrandMarker &&
+      (brandTokens.length !== 1 ||
+        firstRemainderIdentityIndex < 0 ||
+        normalizedRemainder[firstRemainderIdentityIndex] !==
+          normalizeText(brandTokens[0]))
+    ) {
+      return null;
+    }
   }
+
+  const normalizedProductVariant = normalizedWords(productVariant ?? "");
+  // A flavor/qualifier without a brand is still a generic food description;
+  // it is not sufficient evidence for a commercial identity.
+  if (!brand && normalizedProductVariant.length > 0) return null;
 
   if (!brand && !productVariant) return null;
   return { brand, productVariant };

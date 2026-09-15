@@ -1,6 +1,7 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
   findCatalogFood,
+  inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
 } from "./catalogMatching";
@@ -215,7 +216,14 @@ export function recoverExplicitBrandFromSource(
     sourceText
   );
   const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
-  return sourceBrand ? { ...item, brand: sourceBrand } : item;
+  if (sourceBrand) return { ...item, brand: sourceBrand };
+
+  const commercialHint = inferUnresolvedCommercialIdentityHint(
+    sourceFoodName ?? ""
+  );
+  return commercialHint?.brand
+    ? { ...item, brand: commercialHint.brand }
+    : item;
 }
 
 function buildCatalogSearchCandidates(

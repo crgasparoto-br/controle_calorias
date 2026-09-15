@@ -165,6 +165,11 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     "manteiga sabor chocolate",
     "queijo mussarela",
     "carne moída suína",
+    "iogurte de baunilha",
+    "iogurte sabor baunilha",
+    "refrigerante de laranja",
+    "pão multigrãos",
+    "manteiga premium",
     "ZERO AÇÚCAR ÁGUA TÔNICA",
     "Iogurte sabor refrigerante zero açúcar",
   ])("não promove descrição genérica a marca desconhecida: %s", foodName => {
@@ -268,6 +273,26 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
       );
     }
   );
+
+  it("preserva marca desconhecida com conector de posse", async () => {
+    installAiFailure();
+
+    await expect(
+      processMealInput({ text: "15g de manteiga da Batavo extra com sal" })
+    ).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: "Manteiga da Batavo Extra com Sal",
+        brand: "Batavo",
+        clarificationReason: "brand_variant_unresolved",
+      }),
+    });
+
+    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith(
+      "generic_nutrition_fallback",
+      expect.anything()
+    );
+  });
 
   it("usa a referência comercial verificada e escala a quantidade original de 15 g", async () => {
     installAiFailure();
