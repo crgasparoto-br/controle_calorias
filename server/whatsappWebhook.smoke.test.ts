@@ -71,6 +71,7 @@ vi.mock("./_core/voiceTranscription", () => ({
 }));
 
 const { __resetWhatsAppWebhookDeduplicationForTests, handleWhatsAppWebhook } = await import("./whatsappWebhook");
+const { setWhatsAppDeferredLogicalReply } = await import("./modules/whatsapp/deferredLogicalReply");
 
 type MockResponse = {
   statusCode: number;
@@ -304,6 +305,59 @@ describe("whatsappWebhook smoke", () => {
     expect(beginInboundMessageMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 123,
       contentType: "text",
+    }));
+    expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+  });
+
+  it("reutiliza o segmento comercial materializado e não chama processMealInput novamente", async () => {
+    const messageId = "wamid.smoke-countable-provenance";
+    const req = { body: createMetaTextPayload("25 g de pão de forma Panco Premium") };
+    req.body.entry[0].changes[0].value.messages[0].id = messageId;
+    const res = createResponse();
+    const processedSegment = {
+      detectedMealLabel: "Café da manhã",
+      sourceText: "1 fatia de pão de forma Panco Premium",
+      confidence: 0.96,
+      needsConfirmation: false,
+      reasoning: "Segmento comercial já comprovado pelo gate.",
+      items: [{
+        foodName: "pão de forma Panco Premium",
+        canonicalName: "Pão de Forma Panco Premium",
+        brand: "Panco",
+        quantity: 1,
+        unit: "fatia",
+        portionText: "1 fatia",
+        servings: 0.5,
+        estimatedGrams: 25,
+        calories: 63.5,
+        protein: 2,
+        carbs: 12,
+        fat: 1,
+        confidence: 0.96,
+        source: "catalog" as const,
+      }],
+      totals: { calories: 63.5, protein: 2, carbs: 12, fat: 1 },
+    };
+    setWhatsAppDeferredLogicalReply(req, messageId, {
+      prefixBlocks: [],
+      domainLinks: [],
+      resolvedSegments: [{ segmentIndex: 0, processed: processedSegment }],
+    });
+    processMealInputMock.mockRejectedValueOnce(
+      new Error("segmento comercial comprovado não pode ser reprocessado"),
+    );
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).toHaveBeenCalledWith(expect.objectContaining({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          brand: "Panco",
+          estimatedGrams: 25,
+          calories: 63.5,
+        }),
+      ]),
     }));
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
   });
