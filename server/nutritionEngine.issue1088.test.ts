@@ -152,6 +152,7 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     "água tônica",
     "pão e manteiga",
     "manteiga sabor chocolate",
+    "queijo mussarela",
   ])("não promove descrição genérica a marca desconhecida: %s", foodName => {
     expect(inferUnresolvedCommercialIdentityHint(foodName)).toBeNull();
   });

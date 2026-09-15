@@ -148,6 +148,7 @@ type UnresolvedCommercialIdentityHint = {
 
 function normalizedWords(value: string) {
   return normalizeText(value)
+    .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")
     .replace(/-/g, " ")
     .split(/\s+/)
     .filter(Boolean);
@@ -203,7 +204,7 @@ export function inferUnresolvedCommercialIdentityHint(
   foodName: string,
 ): UnresolvedCommercialIdentityHint | null {
   const originalTokens = cleanFoodName(foodName).split(/\s+/).filter(Boolean);
-  const sourceTokens = originalTokens.map(token => normalizeText(token));
+  const sourceTokens = normalizedWords(cleanFoodName(foodName));
   if (!sourceTokens.length) return null;
 
   let bestMatch: { indexes: number[]; length: number } | null = null;
