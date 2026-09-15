@@ -93,6 +93,21 @@ export type MealItemResolutionMetadata = {
   sourceEvidence?: string | null;
   sourceVerifiedAt?: Date | null;
   sourceConfidence?: number | null;
+  /**
+   * Proveniência da relação física usada para converter uma medida contável
+   * em gramas. Pode ser diferente da fonte nutricional, mas permanece ligada
+   * ao mesmo produto/variante no item persistido.
+   */
+  measureResolution?: {
+    kind: string;
+    grams: number;
+    requestedQuantity: number;
+    requestedUnit: string;
+    sourceUrls: string[];
+    sourceEvidence: string | null;
+    referenceCount: number;
+    verified: boolean;
+  };
   ambiguity?: {
     reason: MealSemanticClarificationCode;
     alternatives: MealSemanticAlternative[];

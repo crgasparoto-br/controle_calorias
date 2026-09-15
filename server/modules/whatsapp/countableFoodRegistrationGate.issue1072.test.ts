@@ -203,6 +203,16 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
                 productVariant: "premium",
                 nutritionOrigin: "web_research",
                 nutritionVerified: true,
+                measureResolution: expect.objectContaining({
+                  kind: "researched_exact",
+                  grams: 25,
+                  requestedQuantity: 1,
+                  requestedUnit: "fatia",
+                  sourceUrls: expect.any(Array),
+                  sourceEvidence: expect.stringContaining("2 fatias"),
+                  referenceCount: 1,
+                  verified: true,
+                }),
               }),
             })],
             semanticContract: expect.objectContaining({
@@ -282,6 +292,12 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
           resolution: expect.objectContaining({
             productVariant: "premium",
             nutritionVerified: true,
+            measureResolution: expect.objectContaining({
+              grams: 25,
+              requestedQuantity: 1,
+              requestedUnit: "fatia",
+              verified: true,
+            }),
           }),
         }),
       ]),
