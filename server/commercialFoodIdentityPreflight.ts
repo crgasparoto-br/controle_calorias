@@ -74,7 +74,10 @@ export async function recoverCanonicalCommercialIdentity(
   if (request.brand) return { brand: request.brand };
 
   try {
-    const processed = await runtime.processMealInput({ text: request.segment });
+    const processed = await runtime.processMealInput({
+      text: request.segment,
+      skipCommercialNutritionSearch: true,
+    });
     if (processed.items.length !== 1) return { brand: null };
     const brand = processed.items[0].brand?.trim() || null;
     if (brand) return { brand };

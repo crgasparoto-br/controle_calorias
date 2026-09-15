@@ -347,6 +347,10 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
     return { catalog, isExactMatch: true, alternatives, semanticSource };
   }
 
+  if (options.skipCommercialNutritionSearch) {
+    return { catalog: undefined, isExactMatch: false, alternatives, semanticSource };
+  }
+
   for (const [index, candidate] of candidates.entries()) {
     if (item.brand && index > 0) break;
     const catalog =
@@ -786,6 +790,44 @@ function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extrac
   return Boolean(sourceText && extraction && extraction.items.length === 0);
 }
 
+function mealDraftItemToInferenceItem(item: MealDraftItem): LlmItem {
+  return {
+    foodName: item.foodName,
+    brand: item.brand ?? null,
+    quantity: item.quantity,
+    unit: item.unit,
+    portionText: item.portionText,
+    servings: item.servings,
+    estimatedGrams: item.estimatedGrams,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+    confidence: item.confidence,
+    foodClassification: item.classification ?? null,
+  };
+}
+
+/** Branded text fallback reuses the verified catalog/web resolver. */
+async function resolveCommercialItemsFromTextFallback(
+  items: MealDraftItem[],
+  sourceText: string,
+  options: Pick<BuildItemsOptions, "skipCommercialNutritionSearch"> = {},
+) {
+  const resolved: MealDraftItem[] = [];
+  for (const item of items) {
+    if (!item.brand?.trim() || !item.resolution?.ambiguity) {
+      resolved.push(item);
+      continue;
+    }
+
+    const [resolvedItem] = await buildItemsFromInference(
+      [mealDraftItemToInferenceItem(item)],
+      { sourceText, ...options },
+    );
+    resolved.push(resolvedItem ?? item);
+  }
+  return resolved;
+}
+
 function createFallbackReasonCollector() {
   const counts = new Map<MealInferenceFallbackReason, number>();
   return {
@@ -845,7 +887,11 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
     rawItems = [explicitSugarCoffee];
     usedSourceTextFallback = true;
   } else if (usedSourceTextFallback || !extraction) {
-    rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
+    rawItems = await resolveCommercialItemsFromTextFallback(
+      fallbackFromText(sourceText, reason => fallbackReasons.observe(reason)),
+      sourceText,
+      { skipCommercialNutritionSearch: Boolean(input.skipCommercialNutritionSearch) },
+    );
   } else {
     const confirmedExtraction = extraction;
     const inferenceItems = shouldConstrainAiItemsToText(input, sourceText)
@@ -856,12 +902,17 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
       rejectedAllAiItems = true;
       usedSourceTextFallback = true;
       fallbackReasons.observe("ai_items_rejected");
-      rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
+      rawItems = await resolveCommercialItemsFromTextFallback(
+        fallbackFromText(sourceText, reason => fallbackReasons.observe(reason)),
+        sourceText,
+        { skipCommercialNutritionSearch: Boolean(input.skipCommercialNutritionSearch) },
+      );
     } else {
       rawItems = applyExplicitQuantities(await buildItemsFromInference(
         inferenceItems,
         {
           preferInferredNutrition: Boolean(input.imageUrl),
+          skipCommercialNutritionSearch: Boolean(input.skipCommercialNutritionSearch && usedSourceTextFallback),
           nutritionLabelEvidenceText: input.imageUrl ? confirmedExtraction.reasoning : null,
           sourceText,
         },
