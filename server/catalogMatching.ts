@@ -260,6 +260,15 @@ export function inferUnresolvedCommercialIdentityHint(
     ? formatFoodNameTitleCase(brandTokens.join(" "))
     : null;
 
+  const normalizedProductVariant = normalizedWords(productVariant ?? "");
+  if (
+    !brand
+    && normalizedProductVariant.length > 0
+    && normalizedProductVariant.every(token => token === "zero" || token === "diet")
+  ) {
+    return null;
+  }
+
   if (!brand && !productVariant) return null;
   return { brand, productVariant };
 }
