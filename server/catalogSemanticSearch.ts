@@ -49,9 +49,11 @@ export async function findCatalogFoodSemantic(
 ): Promise<CatalogFood | null> {
   if (options.searchSpecificProduct && !options.skipNutritionSearch) {
     return preserveLiveResearchProvenance(
-      await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime, {
-        telemetry: options.nutritionSearchTelemetry,
-      }),
+      options.nutritionSearchTelemetry
+        ? await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime, {
+            telemetry: options.nutritionSearchTelemetry,
+          })
+        : await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime),
     );
   }
 

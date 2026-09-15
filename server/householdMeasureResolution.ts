@@ -595,7 +595,8 @@ function buildSearchResolution(
   guards: Parameters<typeof logNutritionSearchDecision>[0]["guards"];
 } {
   const baseGuards = {
-    identity: false,
+    productIdentity: false,
+    brandIdentity: false,
     variant: false,
     portion: false,
     numericGrounding: false,
@@ -612,7 +613,14 @@ function buildSearchResolution(
       return {
         resolution: null,
         reason: "grounding_conflict",
-        guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+        guards: {
+          productIdentity: true,
+          brandIdentity: Boolean(input.brand),
+          variant: true,
+          portion: true,
+          numericGrounding: true,
+          sourceGrounding: true,
+        },
       };
     }
     const selected = exact[0];
@@ -627,7 +635,14 @@ function buildSearchResolution(
         referenceCount: 1,
       },
       reason: "accepted",
-      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+      guards: {
+        productIdentity: true,
+        brandIdentity: Boolean(input.brand),
+        variant: true,
+        portion: true,
+        numericGrounding: true,
+        sourceGrounding: true,
+      },
     };
   }
 
@@ -635,7 +650,14 @@ function buildSearchResolution(
     return {
       resolution: null,
       reason: "portion_incompatible",
-      guards: { identity: true, variant: true, portion: false, numericGrounding: true, sourceGrounding: true },
+      guards: {
+        productIdentity: true,
+        brandIdentity: Boolean(input.brand),
+        variant: true,
+        portion: false,
+        numericGrounding: true,
+        sourceGrounding: true,
+      },
     };
   }
   const usual = uniqueReferencesBySource(
@@ -647,7 +669,14 @@ function buildSearchResolution(
       return {
         resolution: null,
         reason: "portion_incompatible",
-        guards: { identity: true, variant: true, portion: false, numericGrounding: true, sourceGrounding: true },
+        guards: {
+          productIdentity: true,
+          brandIdentity: Boolean(input.brand),
+          variant: true,
+          portion: false,
+          numericGrounding: true,
+          sourceGrounding: true,
+        },
       };
     }
     return {
@@ -661,7 +690,14 @@ function buildSearchResolution(
         referenceCount: 1,
       },
       reason: "accepted",
-      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+      guards: {
+        productIdentity: true,
+        brandIdentity: Boolean(input.brand),
+        variant: true,
+        portion: true,
+        numericGrounding: true,
+        sourceGrounding: true,
+      },
     };
   }
 
@@ -676,7 +712,14 @@ function buildSearchResolution(
     return {
       resolution: null,
       reason: "grounding_conflict",
-      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+      guards: {
+        productIdentity: true,
+        brandIdentity: Boolean(input.brand),
+        variant: true,
+        portion: true,
+        numericGrounding: true,
+        sourceGrounding: true,
+      },
     };
   }
   const grams = median(values);
@@ -691,7 +734,14 @@ function buildSearchResolution(
       referenceCount: usual.length,
     },
     reason: "accepted",
-    guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+    guards: {
+      productIdentity: true,
+      brandIdentity: Boolean(input.brand),
+      variant: true,
+      portion: true,
+      numericGrounding: true,
+      sourceGrounding: true,
+    },
   };
 }
 
@@ -710,7 +760,8 @@ async function searchVerifiedMeasure(
     webSearchExecuted: false,
     sourceCount: 0,
     guards: {
-      identity: false,
+      productIdentity: false,
+      brandIdentity: false,
       variant: false,
       portion: false,
       numericGrounding: false,
@@ -766,6 +817,7 @@ async function searchVerifiedMeasure(
         );
         return { parsed: parseProviderOutput(response.outputText), webSearch: response.webSearch };
       },
+      { observability: trace.observability },
     );
     const decision = buildSearchResolution(input, execution.value.parsed, execution.value.webSearch);
     logNutritionSearchDecision({
@@ -905,7 +957,8 @@ export async function resolveHouseholdMeasure(
         webSearchExecuted: false,
         sourceCount: 0,
         guards: {
-          identity: true,
+          productIdentity: true,
+          brandIdentity: true,
           variant: true,
           portion: true,
           numericGrounding: true,
@@ -946,7 +999,8 @@ export async function resolveHouseholdMeasure(
       webSearchExecuted: false,
       sourceCount: 0,
       guards: {
-        identity: true,
+        productIdentity: true,
+        brandIdentity: true,
         variant: true,
         portion: false,
         numericGrounding: true,

@@ -35,7 +35,8 @@ export type NutritionSearchTelemetryContext = {
 };
 
 export type NutritionSearchDecisionGuards = {
-  identity: boolean;
+  productIdentity: boolean;
+  brandIdentity: boolean;
   variant: boolean;
   portion: boolean;
   numericGrounding: boolean;
@@ -76,7 +77,7 @@ export function createNutritionSearchTrace(
     },
   };
 
-  return { traceId, userId, observability };
+  return { traceId, userId, origin, observability };
 }
 
 export function nutritionSearchSourceCount(value: unknown) {
@@ -135,8 +136,8 @@ export function logNutritionSearchDecision(
       webSearchExecuted: Boolean(input.webSearchExecuted),
       sourceCount,
       guards: {
-        productIdentity: Boolean(input.guards.identity),
-        brandIdentity: Boolean(input.guards.identity),
+        productIdentity: Boolean(input.guards.productIdentity),
+        brandIdentity: Boolean(input.guards.brandIdentity),
         variant: Boolean(input.guards.variant),
         portion: Boolean(input.guards.portion),
         numericGrounding: Boolean(input.guards.numericGrounding),

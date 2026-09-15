@@ -304,6 +304,54 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
     );
   });
 
+  it("pesquisa o produto uma única vez quando o catálogo local está vazio", async () => {
+    boundary.catalog = boundary.catalog.filter(item => item.brandName !== "Panco");
+    const researched = catalogFood({
+      name: "Pão de Forma Panco Premium",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      brandName: "Panco",
+      calories: 125,
+      protein: 4,
+      carbs: 24,
+      fat: 1.5,
+    });
+    boundary.search.mockImplementation(async (query: string, options: unknown) => {
+      expect(query).toMatch(/^1 fatia de pão de forma panco Premium$/iu);
+      expect(options).toMatchObject({
+        searchSpecificProduct: true,
+        nutritionSearchTelemetry: expect.objectContaining({
+          userId: 1072,
+          origin: "whatsapp",
+          traceId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        }),
+      });
+      return researched;
+    });
+
+    const result = await prepareWhatsappCountableFoodRegistration({
+      userId: 1072,
+      text: "1 fatia de pão de forma panco Premium",
+      originalText: "1 fatia de pão de forma panco Premium",
+      receivedAt: now,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      registrationText: "25 g de pão de forma panco Premium",
+      resolutions: [
+        expect.objectContaining({
+          resolution: expect.objectContaining({ kind: "researched_exact", grams: 25 }),
+        }),
+      ],
+    });
+    expect(boundary.search).toHaveBeenCalledTimes(1);
+    expect(boundary.extraction.mock.calls.some(([input]) =>
+      /panco premium/i.test(String((input as { text?: string })?.text ?? ""))
+    )).toBe(false);
+  });
+
   it("não concede proveniência contável a uma massa informada diretamente pelo usuário", async () => {
     const text = "25 g de pão de forma Panco Premium";
     const result = await prepareWhatsappCountableFoodRegistration({
@@ -319,5 +367,37 @@ describe("#1072 — caminho real do gate contável do WhatsApp", () => {
       registrationText: text,
       resolutions: [],
     });
+  });
+
+  it("bloqueia a mutação do lote quando um item ainda exige clarificação", async () => {
+    const prepareCountableFoodRegistration = vi.fn(async () => ({
+      kind: "clarification" as const,
+      result: {
+        handled: true,
+        action: "clarification_needed",
+        reply: "Informe o peso do item.",
+        eventType: "whatsapp.food_clarification.requested",
+        detail: "item pendente",
+      },
+    }));
+    const createDraft = vi.fn();
+    const confirmMeal = vi.fn();
+    const service = createConfirmedMealRegistrationService({
+      prepareCountableFoodRegistration: prepareCountableFoodRegistration as any,
+      createDraft: createDraft as any,
+      confirmMeal: confirmMeal as any,
+    });
+
+    const result = await service({
+      userId: 1072,
+      registrationText: "1 fatia de pão de forma panco Premium, alimento sem medida",
+      originalText: "1 fatia de pão de forma panco Premium, alimento sem medida",
+      occurredAt: now,
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toMatchObject({ status: "clarification_requested" });
+    expect(createDraft).not.toHaveBeenCalled();
+    expect(confirmMeal).not.toHaveBeenCalled();
   });
 });

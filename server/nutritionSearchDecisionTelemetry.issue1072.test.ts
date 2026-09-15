@@ -251,6 +251,53 @@ describe("issue #1072 — diagnóstico seguro de NUTRITION_SEARCH", () => {
     });
   });
 
+  it("preserva origem WhatsApp e separa marca de identidade do produto", async () => {
+    installExecution({
+      outputText: providerOutput({
+        matchedProductName: "Pão de Forma Panco Integral",
+      }),
+      sourceText:
+        "Porção: 50 g (2 fatias). Pão de Forma Panco Integral: 120 kcal, 4 g proteínas, 22 g carboidratos e 2 g gorduras.",
+      sourceTitle: "Pão de Forma Panco Integral",
+      sourceUrl: "https://panco.example/integral",
+    });
+
+    await expect(
+      findBrandedNutritionByWebSearch(
+        PRODUCT,
+        {
+          resolveCapabilityConfig: mocks.resolveCapabilityConfig,
+          executeResolvedCapability: mocks.executeResolvedCapability,
+        },
+        {
+          telemetry: {
+            userId: 1072,
+            origin: "whatsapp",
+            traceId: "00000000-0000-4000-8000-000000001072",
+          },
+        },
+      )
+    ).resolves.toBeNull();
+
+    const event = mocks.logInferenceEvent.mock.calls.at(-1)?.[0] as {
+      origin?: string;
+      userId?: number;
+    };
+    expect(event).toMatchObject({
+      origin: "whatsapp",
+      userId: 1072,
+    });
+    expect(lastDecision()).toMatchObject({
+      traceId: "00000000-0000-4000-8000-000000001072",
+      reason: "variant_incompatible",
+      guards: {
+        productIdentity: false,
+        brandIdentity: true,
+        variant: false,
+      },
+    });
+  });
+
   it("não persiste nomes, consulta, URL, evidência ou erro bruto no diagnóstico", async () => {
     installExecution({
       sourceText:

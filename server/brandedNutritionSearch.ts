@@ -334,7 +334,14 @@ function toCatalogFood(
     guards: Parameters<typeof logNutritionSearchDecision>[0]["guards"];
   }) => void,
 ): CatalogFood | null {
-  const emptyGuards = { identity: false, variant: false, portion: false, numericGrounding: false, sourceGrounding: false };
+  const emptyGuards = {
+    productIdentity: false,
+    brandIdentity: false,
+    variant: false,
+    portion: false,
+    numericGrounding: false,
+    sourceGrounding: false,
+  };
   if (!result.found) {
     onDecision({ reason: "found_false", guards: emptyGuards });
     return null;
@@ -350,9 +357,20 @@ function toCatalogFood(
   if (!structuredIdentityIsCompatible(foodName, result)) {
     const requestedVariant = extractCommercialVariant(foodName);
     const candidateVariant = extractCommercialVariant(result.matchedProductName);
+    const brandIdentity = Boolean(
+      brandTokens(result.brandName).length
+      && textContainsAllTokens(foodName, brandTokens(result.brandName)),
+    );
     onDecision({
       reason: requestedVariant && candidateVariant !== requestedVariant ? "variant_incompatible" : "identity_incompatible",
-      guards: { identity: false, variant: !requestedVariant || candidateVariant === requestedVariant, portion: false, numericGrounding: false, sourceGrounding: false },
+      guards: {
+        productIdentity: false,
+        brandIdentity,
+        variant: !requestedVariant || candidateVariant === requestedVariant,
+        portion: false,
+        numericGrounding: false,
+        sourceGrounding: false,
+      },
     });
     return null;
   }
@@ -364,11 +382,28 @@ function toCatalogFood(
     const hasIdentity = sources.some(source => sourceSupportsCommercialIdentity(source, foodName, result));
     onDecision({
       reason: !sources.length ? "source_grounding_unavailable" : !hasIdentity ? "source_identity_mismatch" : !hasServing ? "portion_incompatible" : !hasNumeric ? "numeric_grounding_insufficient" : "grounding_conflict",
-      guards: { identity: true, variant: true, portion: hasServing, numericGrounding: hasNumeric, sourceGrounding: false },
+      guards: {
+        productIdentity: true,
+        brandIdentity: true,
+        variant: true,
+        portion: hasServing,
+        numericGrounding: hasNumeric,
+        sourceGrounding: false,
+      },
     });
     return null;
   }
-  onDecision({ reason: "accepted", guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true } });
+  onDecision({
+    reason: "accepted",
+    guards: {
+      productIdentity: true,
+      brandIdentity: true,
+      variant: true,
+      portion: true,
+      numericGrounding: true,
+      sourceGrounding: true,
+    },
+  });
   return {
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
@@ -402,12 +437,31 @@ export async function findBrandedNutritionByWebSearch(
     hasStructuredCandidate: false,
     webSearchExecuted: false,
     sourceCount: 0,
-    guards: { identity: false, variant: false, portion: false, numericGrounding: false, sourceGrounding: false },
+    guards: {
+      productIdentity: false,
+      brandIdentity: false,
+      variant: false,
+      portion: false,
+      numericGrounding: false,
+      sourceGrounding: false,
+    },
   };
   const decide = (input: Parameters<typeof logNutritionSearchDecision>[0]) => logNutritionSearchDecision(input, trace);
   const cached = await runtime.persistence?.findByIdentity(foodName);
   if (cached) {
-    decide({ ...baseDecision, reason: "accepted", hasStructuredCandidate: true, guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true } });
+    decide({
+      ...baseDecision,
+      reason: "accepted",
+      hasStructuredCandidate: true,
+      guards: {
+        productIdentity: true,
+        brandIdentity: true,
+        variant: true,
+        portion: true,
+        numericGrounding: true,
+        sourceGrounding: true,
+      },
+    });
     return cached;
   }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createNutritionResearchPersistence } from "./brandedNutritionPersistence";
 
 const resolveCapabilityConfigMock = vi.fn();
 const executeResolvedCapabilityMock = vi.fn();
@@ -255,6 +256,60 @@ describe("branded nutrition evidence consistency", () => {
     expect(result).toBe(cached);
     expect(findByIdentity).toHaveBeenCalledWith("Pão de Forma Panco Premium 50g");
     expect(executeResolvedCapabilityMock).not.toHaveBeenCalled();
+  });
+
+  it("ignora candidato persistido de variante incompatível antes de pesquisar uma única vez", async () => {
+    installExecution(providerResult({
+      matchedProductName: "Pão de Forma Panco Premium",
+      brandName: "Panco",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+      calories: 125,
+      protein: 4,
+      carbs: 24,
+      fat: 1.5,
+      sourceUrl: "https://panco.example/premium",
+      evidence: "2 fatias (50 g): 125 kcal, 4 g proteínas, 24 g carboidratos e 1,5 g gorduras.",
+    }), {
+      url: "https://panco.example/premium",
+      title: "Pão de Forma Panco Premium",
+      supportingText: ["2 fatias (50 g): 125 kcal, 4 g proteínas, 24 g carboidratos e 1,5 g gorduras."],
+    });
+    const repository = {
+      findResearchedByIdentity: vi.fn(async () => null),
+      findResearchedCandidates: vi.fn(async () => [{
+        name: "Pão de Forma Panco Integral",
+        brandName: "Panco",
+        servingLabel: "2 fatias (50 g)",
+        gramsPerServing: 50,
+        sourceVerifiedAt: new Date("2026-09-13T12:00:00.000Z"),
+      }]),
+    };
+    const persistence = createNutritionResearchPersistence({
+      repository: repository as any,
+      now: () => new Date("2026-09-13T12:00:00.000Z"),
+    });
+    const runtime = {
+      resolveCapabilityConfig: resolveCapabilityConfigMock,
+      executeResolvedCapability: executeResolvedCapabilityMock,
+      persistence,
+    };
+
+    const result = await findBrandedNutritionByWebSearch(
+      "Pão de Forma Panco Premium 50g",
+      runtime,
+    );
+
+    expect(result).toEqual(expect.objectContaining({
+      name: "Pão de Forma Panco Premium",
+      productVariant: "premium",
+      calories: 125,
+    }));
+    expect(repository.findResearchedCandidates).toHaveBeenCalledWith({
+      brandName: "Panco",
+      limit: 50,
+    });
+    expect(executeResolvedCapabilityMock).toHaveBeenCalledTimes(1);
   });
 
   it("salva somente o resultado validado com fonte e evidência", async () => {
