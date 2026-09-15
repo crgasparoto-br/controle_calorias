@@ -812,6 +812,7 @@ async function tryHandleTextIntent(
       setWhatsAppDeferredLogicalReply(req, message.id, {
         prefixBlocks,
         domainLinks,
+        resolvedSegments: countableGate.resolvedSegments,
       });
       logInferenceEvent({
         userId,
@@ -1030,7 +1031,8 @@ async function tryHandleTextIntent(
         ? countableGate.registrationText
         : textForIntent;
     const hasCountableResolution =
-      countableGate?.kind === "ready" && countableGate.resolutions.length > 0;
+      countableGate?.kind === "ready"
+      && (countableGate.resolutions.length > 0 || Boolean(countableGate.resolvedSegments?.length));
     const countableResolutionPrefix =
       countableGate?.kind === "ready"
         ? buildCountableResolutionPrefixBlock(countableGate.resolutions)
@@ -1046,12 +1048,11 @@ async function tryHandleTextIntent(
     // O classificador contextual não pode rebaixar essa decisão determinística
     // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
     if (!result && hasCountableResolution && countableGate?.kind === "ready") {
-      if (countableResolutionPrefix) {
-        setWhatsAppDeferredLogicalReply(req, message.id, {
-          prefixBlocks: [countableResolutionPrefix],
-          domainLinks: [],
-        });
-      }
+      setWhatsAppDeferredLogicalReply(req, message.id, {
+        prefixBlocks: countableResolutionPrefix ? [countableResolutionPrefix] : [],
+        domainLinks: [],
+        resolvedSegments: countableGate.resolvedSegments,
+      });
       return { passthroughText: countableGate.registrationText };
     }
 
