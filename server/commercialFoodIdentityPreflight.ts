@@ -98,8 +98,16 @@ export async function recoverCanonicalCommercialIdentity(
       return { brand: null };
     }
 
+    // O preflight deliberadamente desabilita NUTRITION_SEARCH. Quando o
+    // pipeline já conseguiu extrair uma marca, a clarificação significa apenas
+    // que a comprovação específica ainda não foi tentada. Devolva a marca ao
+    // chamador para que resolveCommercialFoodIdentity faça a única pesquisa
+    // canônica, sem transformar o preflight em um bloqueio definitivo.
+    const brand = error.context.brand?.trim() || null;
+    if (brand && !error.context.usedSourceTextFallback) return { brand };
+
     return {
-      brand: error.context.brand?.trim() || null,
+      brand,
       identityClarification: {
         message: error.message,
         context: error.context,

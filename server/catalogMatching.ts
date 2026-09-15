@@ -233,7 +233,12 @@ function findOrderedTokenSequence(haystack: string[], needle: string[]) {
 export function inferUnresolvedCommercialIdentityHint(
   foodName: string
 ): UnresolvedCommercialIdentityHint | null {
-  const originalTokens = cleanFoodName(foodName).split(/\s+/).filter(Boolean);
+  // `normalizedWords` trata hífen como separador. Use a mesma segmentação na
+  // representação que conserva a grafia para que os índices do match genérico
+  // continuem alinhados ao texto original: "Koala-extra" -> ["Koala", "extra"].
+  const originalTokens = cleanFoodName(foodName)
+    .split(/\s+/)
+    .flatMap(token => token.split("-").filter(Boolean));
   const sourceTokens = normalizedWords(cleanFoodName(foodName));
   if (!sourceTokens.length) return null;
 

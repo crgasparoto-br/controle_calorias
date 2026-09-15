@@ -144,6 +144,12 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
       brand: "Koala",
       productVariant: null,
     });
+    expect(
+      inferUnresolvedCommercialIdentityHint("manteiga Koala-extra com sal")
+    ).toEqual({
+      brand: "Koala",
+      productVariant: null,
+    });
   });
 
   it.each([
@@ -395,6 +401,25 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
         })
       );
     }
+  });
+
+  it("bloqueia marca hifenizada antes do fallback nutricional genérico", async () => {
+    installAiFailure();
+
+    await expect(
+      processMealInput({ text: "15g de manteiga Koala-extra com sal" })
+    ).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        brand: "Koala",
+        foodName: expect.stringMatching(/Manteiga Koala-?Extra com Sal/i),
+      }),
+    });
+
+    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith(
+      "generic_nutrition_fallback",
+      expect.anything()
+    );
   });
 
   it("mantém pão francês resolvido quando o produto comercial do lote é comprovado", async () => {

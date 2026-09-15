@@ -128,7 +128,7 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
         },
       },
     ]);
-    expect(boundary.search).toHaveBeenCalled();
+    expect(boundary.search).toHaveBeenCalledTimes(1);
     expect(boundary.measureSearch).not.toHaveBeenCalled();
   });
 

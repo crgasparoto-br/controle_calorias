@@ -86,6 +86,8 @@ export type MealInferenceErrorContext = {
   acceptedUnits?: string[];
   foodName?: string;
   brand?: string | null;
+  /** Indica que a identidade veio do fallback textual, sem extração da IA. */
+  usedSourceTextFallback?: boolean;
   clarificationReason?: MealSemanticClarificationCode;
   alternatives?: MealSemanticAlternative[];
   semanticContract?: MealSemanticContract;
@@ -1150,7 +1152,7 @@ export async function processMealInput(
           {
             preferInferredNutrition: Boolean(input.imageUrl),
             skipCommercialNutritionSearch: Boolean(
-              input.skipCommercialNutritionSearch && usedSourceTextFallback
+              input.skipCommercialNutritionSearch
             ),
             nutritionLabelEvidenceText: input.imageUrl
               ? confirmedExtraction.reasoning
@@ -1209,6 +1211,7 @@ export async function processMealInput(
         originalText: sourceText,
         foodName: semanticItem?.commercialName,
         brand: semanticItem?.brand ?? null,
+        usedSourceTextFallback,
         clarificationReason: clarification.code,
         alternatives: [...clarification.alternatives],
         semanticContract,
