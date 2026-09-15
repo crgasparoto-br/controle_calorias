@@ -38,15 +38,18 @@ describe("issue #1072 — contexto contável na pesquisa comercial", () => {
       "1 fatia de pão de forma Panco Premium",
     );
 
-    expect(findCatalogFoodSemanticMock).toHaveBeenNthCalledWith(
-      1,
-      "pão de forma Panco Premium",
-      expect.objectContaining({ searchSpecificProduct: true }),
-    );
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
       "1 fatia de pão de forma Panco Premium",
-      expect.objectContaining({ searchSpecificProduct: true }),
+      expect.objectContaining({
+        searchSpecificProduct: true,
+        nutritionSearchTelemetry: expect.objectContaining({
+          userId: 42,
+          origin: "whatsapp",
+          traceId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        }),
+      }),
     );
+    expect(findCatalogFoodSemanticMock).toHaveBeenCalledTimes(1);
     expect(prepared).toMatchObject({
       pendingItems: [],
       registrationText: "25 g de pão de forma Panco Premium",

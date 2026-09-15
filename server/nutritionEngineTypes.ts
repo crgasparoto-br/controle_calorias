@@ -316,4 +316,12 @@ export type BuildItemsOptions = {
   nutritionLabelEvidenceText?: string | null;
   /** Texto/transcrição original usado para montar candidatos de busca mais específicos. */
   sourceText?: string;
+  /** Texto técnico do item usado na única consulta específica ao provider. */
+  nutritionSearchQuery?: string;
+  /** Correlação opaca usada somente na telemetria da pesquisa nutricional. */
+  nutritionSearchTelemetry?: {
+    userId?: number;
+    traceId?: string;
+    origin?: "web" | "whatsapp" | "admin" | "system";
+  };
 };
