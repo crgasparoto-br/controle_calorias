@@ -92,7 +92,7 @@ const {
   __resetWhatsAppImageIdempotencyForTests,
 } = await import("./whatsappImageIdempotencyWebhook");
 
-const ACK_TEXT = "✅ Recebi sua pergunta. Estou preparando a resposta…";
+const ACK_TEXT = "✅ Recebi sua mensagem. Estou preparando a resposta…";
 const FINAL_TEXT = "Resposta final única após recuperar o owner órfão.";
 const HEARTBEAT_TIMEOUT_MS = 1_500;
 const HEARTBEAT_INTERVAL_MS = 250;

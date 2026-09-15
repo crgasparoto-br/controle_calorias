@@ -3,7 +3,7 @@ import { logicalReplyFromLegacyText } from "./replyContract";
 import { sendWhatsAppLogicalReply } from "./replyTransport";
 import { recordCurrentQuestionAcknowledgementOutcome } from "./questionLatencyContext";
 
-export const WHATSAPP_AI_QUESTION_ACK_REPLY = "✅ Recebi sua pergunta. Estou preparando a resposta…";
+export const WHATSAPP_AI_QUESTION_ACK_REPLY = "✅ Recebi sua mensagem. Estou preparando a resposta…";
 
 export async function sendWhatsAppAiQuestionAcknowledgement(input: {
   to: string;
