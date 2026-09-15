@@ -3,7 +3,7 @@ import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibili
 import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
 import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
-import { findTacoFood, getTacoCatalog } from "./tacoLookup";
+import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
 const CRITICAL_VARIATION_TERMS = [
@@ -128,6 +128,7 @@ const NON_BRAND_REMAINDER_TOKENS = new Set([
   "integral",
   "light",
   "natural",
+  "mussarela",
   "original",
   "refrigerante",
   "sabor",
@@ -154,17 +155,22 @@ function normalizedWords(value: string) {
     .filter(Boolean);
 }
 
-function genericIdentityCandidates() {
+function genericIdentityCandidates(foodName: string) {
   const candidates: string[][] = [];
   const seen = new Set<string>();
-  const genericFoods = [
-    ...(getCatalogCache() as CatalogFood[]),
-    ...getTacoCatalog().map(food => ({
-      ...food,
-      brandName: null,
-      isBrandedProduct: false,
-    })),
-  ].filter(food => !food.isBrandedProduct && !food.brandName?.trim());
+  const genericFoods = (getCatalogCache() as CatalogFood[]).filter(
+    food => !food.isBrandedProduct && !food.brandName?.trim(),
+  );
+
+  const sourceTokens = normalizedWords(foodName);
+  for (let start = 0; start < sourceTokens.length; start += 1) {
+    for (let length = 1; length <= sourceTokens.length - start; length += 1) {
+      const tacoFood = findTacoFood(sourceTokens.slice(start, start + length).join(" "));
+      if (tacoFood) {
+        genericFoods.push(tacoFood as CatalogFood);
+      }
+    }
+  }
 
   for (const food of genericFoods) {
     for (const candidate of [food.name, ...food.aliases]) {
@@ -208,7 +214,7 @@ export function inferUnresolvedCommercialIdentityHint(
   if (!sourceTokens.length) return null;
 
   let bestMatch: { indexes: number[]; length: number } | null = null;
-  for (const candidateTokens of genericIdentityCandidates()) {
+  for (const candidateTokens of genericIdentityCandidates(foodName)) {
     const indexes = findOrderedTokenSequence(sourceTokens, candidateTokens);
     if (!indexes) continue;
     if (!bestMatch || candidateTokens.length > bestMatch.length) {
