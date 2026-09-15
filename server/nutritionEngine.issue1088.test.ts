@@ -256,6 +256,10 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
         "generic_nutrition_fallback",
         expect.anything()
       );
+      expect(logMealInferenceFallbackMock).toHaveBeenCalledWith(
+        "catalog_miss",
+        expect.any(Number)
+      );
     }
   );
 
@@ -319,6 +323,10 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     );
     expect(logMealInferenceFallbackMock).toHaveBeenCalledWith(
       "generic_nutrition_fallback",
+      1
+    );
+    expect(logMealInferenceFallbackMock).toHaveBeenCalledWith(
+      "catalog_miss",
       1
     );
   });

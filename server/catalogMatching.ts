@@ -257,6 +257,19 @@ export function inferUnresolvedCommercialIdentityHint(
     normalizeText(token)
   );
 
+  const hasExplicitBrandMarker = normalizedRemainder.includes("marca");
+  // Um match genérico de uma única palavra não comprova que os tokens
+  // restantes sejam uma marca. Em descrições como "sleepy koala chocolate",
+  // o prefixo pode ser apenas o nome específico informado pelo usuário para
+  // o alimento genérico. A forma explícita "marca X" continua autorizada.
+  if (bestMatch.length === 1 && !hasExplicitBrandMarker) {
+    const firstMatchedIndex = Math.min(...bestMatch.indexes);
+    const lastMatchedIndex = Math.max(...bestMatch.indexes);
+    const genericIdentityIsLeading = firstMatchedIndex === 0;
+    const remainderFollowsIdentity = lastMatchedIndex < sourceTokens.length - 1;
+    if (!genericIdentityIsLeading || !remainderFollowsIdentity) return null;
+  }
+
   const remainderText = remainderTokens.join(" ");
   const productVariant = extractCommercialVariant(remainderText);
   const firstRemainderToken = normalizedRemainder[0];
