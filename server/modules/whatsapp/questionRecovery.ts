@@ -7,6 +7,7 @@ import {
 } from "../../repositories/whatsappQuestionRecoveryRepository";
 import { sendWhatsAppLogicalDomainReply } from "./logicalReplyDelivery";
 import {
+  DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS,
   beginInboundMessage,
   claimMessageForProcessingState,
   markMessageProcessed,
@@ -20,6 +21,10 @@ import { resolveWhatsAppOperationTimeZone } from "./timeZoneContext";
 import { fingerprintWhatsAppMessageId } from "./webhookCorrelation";
 
 export const DEFAULT_QUESTION_RECOVERY_INTERVAL_MS = 15_000;
+// Só aguardamos dentro do ciclo quando o owner já está perto de ficar stale.
+// Owners saudáveis, renovados a cada 5 s, não bloqueiam o batch por 30 s.
+export const MAX_NEAR_STALE_CLAIM_RECHECK_DELAY_MS = 12_000;
+export const CLAIM_RECHECK_GRACE_MS = 100;
 // Deve permanecer abaixo do TTL de 30 min da conversa: beginInboundMessage
 // precisa reutilizar a conversa original para manter a mesma identidade de resposta.
 export const DEFAULT_QUESTION_RECOVERY_HORIZON_MS = 20 * 60 * 1000;
@@ -46,10 +51,47 @@ function recoveryDetail(candidate: RecoverableWhatsappQuestion) {
   };
 }
 
+export function resolveNearStaleClaimRecheckDelayMs(
+  heartbeatAt: Date | null,
+  now = new Date(),
+) {
+  if (!heartbeatAt) return null;
+  const heartbeatMs = heartbeatAt.getTime();
+  if (!Number.isFinite(heartbeatMs)) return null;
+  const remainingMs = heartbeatMs
+    + DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS
+    - now.getTime();
+  if (
+    remainingMs <= 0
+    || remainingMs > MAX_NEAR_STALE_CLAIM_RECHECK_DELAY_MS
+  ) return null;
+  return remainingMs + CLAIM_RECHECK_GRACE_MS;
+}
+
+function waitForClaimRecheck(delayMs: number) {
+  return new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, delayMs);
+    if (typeof timer === "object" && "unref" in timer) timer.unref();
+  });
+}
+
 async function claimRecoverableLifecycle(
   lifecycleHandle: NonNullable<Awaited<ReturnType<typeof beginInboundMessage>>>,
+  candidate: RecoverableWhatsappQuestion,
 ) {
-  const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+  let claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+  if (claimStatus === "inflight") {
+    const recheckDelayMs = resolveNearStaleClaimRecheckDelayMs(
+      candidate.processingHeartbeatAt,
+    );
+    if (recheckDelayMs !== null) {
+      await waitForClaimRecheck(recheckDelayMs);
+      // O segundo claim continua sendo a autoridade. Se um owner saudável
+      // renovou o heartbeat durante a espera, ele permanece inflight; se o
+      // runtime anterior morreu, o compare-and-swap assume o owner stale.
+      claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+    }
+  }
   if (claimStatus === "inflight") return { terminal: true as const, outcome: "inflight" as const };
   if (claimStatus === "processed") return { terminal: true as const, outcome: "processed" as const };
   if (claimStatus === "unavailable") return { terminal: true as const, outcome: "unavailable" as const };
@@ -83,7 +125,7 @@ export async function recoverPendingWhatsappQuestion(
       // um owner saudável e permite que um owner órfão seja assumido/limpo junto
       // com processedAt, sem deixar processing claim residual.
       if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
-        const completionClaim = await claimRecoverableLifecycle(lifecycleHandle);
+        const completionClaim = await claimRecoverableLifecycle(lifecycleHandle, candidate);
         if (completionClaim.terminal) return completionClaim.outcome;
         await markMessageProcessed(lifecycleHandle);
         console.info("[WhatsAppQuestionRecovery] completed_existing", {
@@ -93,7 +135,7 @@ export async function recoverPendingWhatsappQuestion(
         return "completed_existing";
       }
 
-      const claim = await claimRecoverableLifecycle(lifecycleHandle);
+      const claim = await claimRecoverableLifecycle(lifecycleHandle, candidate);
       if (claim.terminal) return claim.outcome;
       const claimStatus = claim.claimStatus;
 
