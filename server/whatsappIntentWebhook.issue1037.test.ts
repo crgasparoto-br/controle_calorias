@@ -191,6 +191,34 @@ const usualAverageResolution = {
   },
 };
 
+const resolvedCommercialSegment = {
+  segmentIndex: 0,
+  processed: {
+    detectedMealLabel: "Café da manhã",
+    sourceText: "1 fatia de pão de forma Panco Premium",
+    confidence: 0.96,
+    needsConfirmation: false,
+    reasoning: "Segmento comercial já comprovado pelo gate.",
+    items: [{
+      foodName: "pão de forma Panco Premium",
+      canonicalName: "Pão de Forma Panco Premium",
+      brand: "Panco",
+      quantity: 1,
+      unit: "fatia",
+      portionText: "1 fatia",
+      servings: 0.5,
+      estimatedGrams: 25,
+      calories: 63.5,
+      protein: 2,
+      carbs: 12,
+      fat: 1,
+      confidence: 0.96,
+      source: "catalog" as const,
+    }],
+    totals: { calories: 63.5, protein: 2, carbs: 12, fat: 1 },
+  },
+};
+
 describe("issue #1037 — passthrough de medidas contáveis no WhatsApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -229,6 +257,25 @@ describe("issue #1037 — passthrough de medidas contáveis no WhatsApp", () => 
     const deferred = getWhatsAppDeferredLogicalReply(forwardedReq, "wamid-1037-normal");
     expect(deferred?.prefixBlocks.join("\n")).toContain("2 fatia → aprox. 41 g");
     expect(deferred?.prefixBlocks.join("\n")).toContain("média usual estimada");
+  });
+
+  it("transporta o segmento comercial materializado até o webhook nutricional", async () => {
+    mocks.countableGate.mockResolvedValue({
+      kind: "ready",
+      registrationText: "25 g de pão de forma Panco Premium",
+      resolutions: [],
+      resolvedSegments: [resolvedCommercialSegment],
+    });
+    mocks.executeTextIntent.mockResolvedValue(null);
+
+    const req = createRequest("1 fatia de pão de forma Panco Premium", "wamid-1037-commercial");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    const forwardedReq = mocks.handleBaseWebhook.mock.calls[0][0];
+    const deferred = getWhatsAppDeferredLogicalReply(forwardedReq, "wamid-1037-commercial");
+    expect(deferred?.resolvedSegments).toEqual([resolvedCommercialSegment]);
   });
 
   it("resolve somente o fragmento alimentar em água + alimento e não duplica o preflight", async () => {

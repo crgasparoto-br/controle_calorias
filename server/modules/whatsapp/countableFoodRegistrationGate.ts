@@ -51,6 +51,7 @@ function materializeResolvedCommercialSegment(input: {
   const food = input.resolved.commercialFood;
   const request = input.resolved.request;
   const grams = input.resolved.resolution.grams;
+  const measure = input.resolved.resolution;
   if (
     !food ||
     !request.brand ||
@@ -92,6 +93,20 @@ function materializeResolvedCommercialSegment(input: {
       sourceVerifiedAt: food.sourceVerifiedAt ?? null,
       sourceConfidence: food.sourceConfidence ?? confidence,
       ambiguity: null,
+      measureResolution: {
+        kind: measure.kind,
+        grams,
+        requestedQuantity: "requestedQuantity" in measure
+          ? measure.requestedQuantity
+          : request.count,
+        requestedUnit: "requestedUnit" in measure
+          ? measure.requestedUnit
+          : request.requestedUnit,
+        sourceUrls: "sourceUrls" in measure ? [...measure.sourceUrls] : [],
+        sourceEvidence: "evidence" in measure ? measure.evidence : null,
+        referenceCount: "referenceCount" in measure ? measure.referenceCount : 1,
+        verified: true,
+      },
     },
   };
   const semanticContract = buildMealSemanticContract({

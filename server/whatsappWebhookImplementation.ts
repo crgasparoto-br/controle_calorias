@@ -96,6 +96,7 @@ import {
   MealProcessingResult,
   processMealInput,
 } from "./nutritionEngine";
+import { splitFoodTextSegments } from "./mealTextParsing";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
@@ -762,15 +763,57 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const occurredAt = resolveWhatsAppMessageOccurredAt(message);
-      const processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
-        text: prepared.text,
-        transcript: prepared.transcript,
-        imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-        audioUrl: prepared.audioUrl,
-        habits: await getHabitSnapshots(userId),
-        occurredAt,
-        timeZone: userTimezone,
-      }));
+      const resolvedSegments = deferredReply?.resolvedSegments ?? [];
+      const habits = await getHabitSnapshots(userId);
+      let processed: MealProcessingResult;
+      if (resolvedSegments.length > 0 && prepared.text?.trim()) {
+        const textSegments = splitFoodTextSegments(prepared.text);
+        if (textSegments.length === 0) {
+          processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
+            text: prepared.text,
+            transcript: prepared.transcript,
+            imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+            audioUrl: prepared.audioUrl,
+            habits,
+            occurredAt,
+            timeZone: userTimezone,
+          }));
+        } else {
+          const parts: MealProcessingResult[] = [];
+          for (const [segmentIndex, segment] of textSegments.entries()) {
+            const saved = resolvedSegments.find(item => item.segmentIndex === segmentIndex);
+            parts.push(
+              saved?.processed
+                ?? (await runWithAiUsageScope(
+                  { userId, conversationId: message.id },
+                  () => processMealInput({
+                    text: segment,
+                    habits,
+                    occurredAt,
+                    timeZone: userTimezone,
+                  }),
+                )),
+            );
+          }
+          const items = parts.flatMap(part => part.items);
+          processed = {
+            ...parts[0],
+            sourceText: prepared.text,
+            items,
+            totals: calculateMealTotals(items),
+          };
+        }
+      } else {
+        processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
+          text: prepared.text,
+          transcript: prepared.transcript,
+          imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+          audioUrl: prepared.audioUrl,
+          habits,
+          occurredAt,
+          timeZone: userTimezone,
+        }));
+      }
 
       if (message.image?.id) {
         const waterSplit = splitMealItemsForWaterHydration(processed.items);
