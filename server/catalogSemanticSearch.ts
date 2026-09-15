@@ -8,9 +8,14 @@ import {
 import { findBrandedNutritionByWebSearch } from "./brandedNutritionSearch";
 import { getDefaultNutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
+import type { NutritionSearchTelemetryContext } from "./nutritionSearchDecisionTelemetry";
 
 type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
-type SemanticSearchOptions = { searchSpecificProduct?: boolean; skipNutritionSearch?: boolean };
+type SemanticSearchOptions = {
+  searchSpecificProduct?: boolean;
+  skipNutritionSearch?: boolean;
+  nutritionSearchTelemetry?: NutritionSearchTelemetryContext;
+};
 
 const brandedNutritionRuntime = {
   resolveCapabilityConfig,
@@ -44,7 +49,9 @@ export async function findCatalogFoodSemantic(
 ): Promise<CatalogFood | null> {
   if (options.searchSpecificProduct && !options.skipNutritionSearch) {
     return preserveLiveResearchProvenance(
-      await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime),
+      await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime, {
+        telemetry: options.nutritionSearchTelemetry,
+      }),
     );
   }
 

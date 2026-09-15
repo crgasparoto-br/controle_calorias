@@ -176,7 +176,7 @@ export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: strin
   return sourceBrand ? { ...item, brand: sourceBrand } : item;
 }
 
-function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
+function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string, nutritionSearchQuery?: string) {
   const candidates: string[] = [];
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
   const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
@@ -186,6 +186,7 @@ function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string) {
     ? `${item.foodName} ${item.brand}`
     : item.foodName;
 
+  addCatalogCandidate(candidates, nutritionSearchQuery);
   addCatalogCandidate(candidates, sourceFoodName);
   addCatalogCandidate(candidates, explicitBrandedVariantIdentity);
   if (item.brand) {
@@ -318,7 +319,7 @@ function findBrandedCatalogAlternatives(
 }
 
 async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
-  const candidates = buildCatalogSearchCandidates(item, options.sourceText);
+  const candidates = buildCatalogSearchCandidates(item, options.sourceText, options.nutritionSearchQuery);
   const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
   const alternatives = item.brand
     ? findBrandedCatalogAlternatives(semanticSource, item.brand)
@@ -352,6 +353,9 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
       (await findCatalogFoodSemantic(candidate, {
         searchSpecificProduct: Boolean(item.brand) && index === 0,
         skipNutritionSearch: index > 0,
+        ...(options.nutritionSearchTelemetry
+          ? { nutritionSearchTelemetry: options.nutritionSearchTelemetry }
+          : {}),
       }).catch(() => null)) ?? undefined;
     if (
       !catalog ||
@@ -420,7 +424,8 @@ function unresolvedBrandedResolution(input: {
 /** The countable preflight uses the same identity, evidence and ambiguity policy as nutrition. */
 export async function resolveCommercialFoodIdentity(
   foodName: string,
-  brand: string
+  brand: string,
+  options: Pick<BuildItemsOptions, "nutritionSearchQuery" | "nutritionSearchTelemetry"> = {},
 ) {
   const item: LlmItem = {
     foodName,
@@ -434,7 +439,7 @@ export async function resolveCommercialFoodIdentity(
     estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
     confidence: 0.5,
   };
-  const found = await findMostSpecificCatalogForInferenceItem(item, {});
+  const found = await findMostSpecificCatalogForInferenceItem(item, options);
   if (found.catalog && isVerifiedBrandedCatalogFood(found.catalog))
     return found.catalog;
   const unresolved = {

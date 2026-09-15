@@ -23,6 +23,13 @@ import {
   getGlobalFoodCatalogItem,
   searchGlobalFoodCatalog,
 } from "./modules/foods/service";
+import {
+  classifyNutritionSearchOperationalOutcome,
+  createNutritionSearchTrace,
+  logNutritionSearchDecision,
+  nutritionSearchSourceCount,
+  type NutritionSearchTelemetryContext,
+} from "./nutritionSearchDecisionTelemetry";
 
 const MAX_REFERENCE_SPREAD_RATIO = 0.35;
 const MIN_MULTISOURCE_REFERENCES = 2;
@@ -103,6 +110,8 @@ export type HouseholdMeasureResolutionInput = {
   unit: string;
   /** Identity already accepted by the canonical nutrition resolver. */
   commercialFood?: CatalogFood;
+  /** Correlation shared with the single commercial nutrition search attempt. */
+  nutritionSearchTelemetry?: NutritionSearchTelemetryContext;
 };
 
 type CatalogSearchResult = Awaited<ReturnType<typeof searchGlobalFoodCatalog>>[number];
@@ -580,57 +589,109 @@ function buildSearchResolution(
   input: HouseholdMeasureResolutionInput,
   result: SearchedPortionResult,
   webSearch: AiWebSearchResult | undefined,
-): HouseholdMeasureResolution | null {
-  if (!result.found) return null;
+): {
+  resolution: HouseholdMeasureResolution | null;
+  reason: Parameters<typeof logNutritionSearchDecision>[0]["reason"];
+  guards: Parameters<typeof logNutritionSearchDecision>[0]["guards"];
+} {
+  const baseGuards = {
+    identity: false,
+    variant: false,
+    portion: false,
+    numericGrounding: false,
+    sourceGrounding: false,
+  };
+  if (!result.found) return { resolution: null, reason: "found_false", guards: baseGuards };
   const verified = result.references.filter(reference => verifiedReference(input, reference, webSearch));
   const exact = uniqueReferencesBySource(
     verified.filter(reference => reference.referenceKind === "exact_product"),
   );
   if (exact.length) {
     const values = exact.map(reference => gramsForRequestedQuantity(reference, input.quantity));
-    if (exact.length >= MIN_MULTISOURCE_REFERENCES && !averageIsCoherent(values)) return null;
+    if (exact.length >= MIN_MULTISOURCE_REFERENCES && !averageIsCoherent(values)) {
+      return {
+        resolution: null,
+        reason: "grounding_conflict",
+        guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+      };
+    }
     const selected = exact[0];
     return {
-      kind: "researched_exact",
-      grams: Number(gramsForRequestedQuantity(selected, input.quantity).toFixed(2)),
-      requestedQuantity: input.quantity,
-      requestedUnit: normalizeCountableUnit(input.unit),
-      evidence: selected.evidence.trim() || null,
-      sourceUrls: [selected.sourceUrl],
-      referenceCount: 1,
+      resolution: {
+        kind: "researched_exact",
+        grams: Number(gramsForRequestedQuantity(selected, input.quantity).toFixed(2)),
+        requestedQuantity: input.quantity,
+        requestedUnit: normalizeCountableUnit(input.unit),
+        evidence: selected.evidence.trim() || null,
+        sourceUrls: [selected.sourceUrl],
+        referenceCount: 1,
+      },
+      reason: "accepted",
+      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
     };
   }
 
-  if (input.commercialFood) return null;
+  if (input.commercialFood) {
+    return {
+      resolution: null,
+      reason: "portion_incompatible",
+      guards: { identity: true, variant: true, portion: false, numericGrounding: true, sourceGrounding: true },
+    };
+  }
   const usual = uniqueReferencesBySource(
     verified.filter(reference => reference.referenceKind === "same_food_type"),
   );
   if (usual.length === 1) {
     const selected = usual[0];
-    if (!selected.describesTypicalMeasure && !supportsContextualEstimate(input)) return null;
+    if (!selected.describesTypicalMeasure && !supportsContextualEstimate(input)) {
+      return {
+        resolution: null,
+        reason: "portion_incompatible",
+        guards: { identity: true, variant: true, portion: false, numericGrounding: true, sourceGrounding: true },
+      };
+    }
     return {
-      kind: selected.describesTypicalMeasure ? "usual_average" : "contextual_estimate",
-      grams: Number(gramsForRequestedQuantity(selected, input.quantity).toFixed(2)),
-      requestedQuantity: input.quantity,
-      requestedUnit: normalizeCountableUnit(input.unit),
-      evidence: selected.evidence.trim() || null,
-      sourceUrls: [selected.sourceUrl],
-      referenceCount: 1,
+      resolution: {
+        kind: selected.describesTypicalMeasure ? "usual_average" : "contextual_estimate",
+        grams: Number(gramsForRequestedQuantity(selected, input.quantity).toFixed(2)),
+        requestedQuantity: input.quantity,
+        requestedUnit: normalizeCountableUnit(input.unit),
+        evidence: selected.evidence.trim() || null,
+        sourceUrls: [selected.sourceUrl],
+        referenceCount: 1,
+      },
+      reason: "accepted",
+      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
     };
   }
 
-  if (usual.length < MIN_MULTISOURCE_REFERENCES) return null;
+  if (usual.length < MIN_MULTISOURCE_REFERENCES) {
+    const reason = webSearch?.executed && webSearch.sources?.length
+      ? "source_identity_mismatch"
+      : "source_grounding_unavailable";
+    return { resolution: null, reason, guards: baseGuards };
+  }
   const values = usual.map(reference => gramsForRequestedQuantity(reference, input.quantity));
-  if (!averageIsCoherent(values)) return null;
+  if (!averageIsCoherent(values)) {
+    return {
+      resolution: null,
+      reason: "grounding_conflict",
+      guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
+    };
+  }
   const grams = median(values);
   return {
-    kind: "usual_average",
-    grams: Number(grams.toFixed(2)),
-    requestedQuantity: input.quantity,
-    requestedUnit: normalizeCountableUnit(input.unit),
-    evidence: usual.map(reference => reference.evidence.trim()).filter(Boolean).join(" | ") || null,
-    sourceUrls: usual.map(reference => reference.sourceUrl),
-    referenceCount: usual.length,
+    resolution: {
+      kind: "usual_average",
+      grams: Number(grams.toFixed(2)),
+      requestedQuantity: input.quantity,
+      requestedUnit: normalizeCountableUnit(input.unit),
+      evidence: usual.map(reference => reference.evidence.trim()).filter(Boolean).join(" | ") || null,
+      sourceUrls: usual.map(reference => reference.sourceUrl),
+      referenceCount: usual.length,
+    },
+    reason: "accepted",
+    guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true },
   };
 }
 
@@ -638,8 +699,29 @@ async function searchVerifiedMeasure(
   input: HouseholdMeasureResolutionInput,
   runtime: HouseholdMeasureResolutionRuntime,
 ): Promise<HouseholdMeasureResolution | null> {
+  const trace = createNutritionSearchTrace(input.nutritionSearchTelemetry ?? {
+    userId: input.userId,
+    origin: "system",
+  });
+  const baseDecision = {
+    stage: "household_measure" as const,
+    traceId: trace.traceId,
+    hasStructuredCandidate: false,
+    webSearchExecuted: false,
+    sourceCount: 0,
+    guards: {
+      identity: false,
+      variant: false,
+      portion: false,
+      numericGrounding: false,
+      sourceGrounding: false,
+    },
+  };
   const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
-  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) return null;
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    logNutritionSearchDecision({ ...baseDecision, reason: "capability_unavailable" }, trace);
+    return null;
+  }
   try {
     const execution = await runtime.executeResolvedCapability(
       policy,
@@ -685,8 +767,24 @@ async function searchVerifiedMeasure(
         return { parsed: parseProviderOutput(response.outputText), webSearch: response.webSearch };
       },
     );
-    return buildSearchResolution(input, execution.value.parsed, execution.value.webSearch);
-  } catch {
+    const decision = buildSearchResolution(input, execution.value.parsed, execution.value.webSearch);
+    logNutritionSearchDecision({
+      ...baseDecision,
+      reason: decision.reason,
+      hasStructuredCandidate: execution.value.parsed.found,
+      webSearchExecuted: Boolean(execution.value.webSearch?.executed),
+      sourceCount: execution.value.webSearch?.executed
+        ? nutritionSearchSourceCount(execution.value.webSearch.sources)
+        : 0,
+      guards: decision.guards,
+    }, trace);
+    return decision.resolution;
+  } catch (error) {
+    logNutritionSearchDecision({
+      ...baseDecision,
+      reason: "execution_failed",
+      operationalOutcome: classifyNutritionSearchOperationalOutcome(error),
+    }, trace);
     return null;
   }
 }
@@ -795,6 +893,25 @@ export async function resolveHouseholdMeasure(
       food.gramsPerServing > 0 &&
       sourceProvesResearchedServing
     ) {
+      const trace = createNutritionSearchTrace(input.nutritionSearchTelemetry ?? {
+        userId: input.userId,
+        origin: "system",
+      });
+      logNutritionSearchDecision({
+        stage: "household_measure",
+        reason: "accepted",
+        traceId: trace.traceId,
+        hasStructuredCandidate: true,
+        webSearchExecuted: false,
+        sourceCount: 0,
+        guards: {
+          identity: true,
+          variant: true,
+          portion: true,
+          numericGrounding: true,
+          sourceGrounding: Boolean(food.sourceEvidence?.trim()),
+        },
+      }, trace);
       return {
         kind: food.researchIdentityKey
           ? "researched_exact"
@@ -813,10 +930,30 @@ export async function resolveHouseholdMeasure(
         referenceCount: 1,
       };
     }
-    // A provider servingLabel is not evidence by itself. If a researched
-    // commercial item lacks source-derived quantity/unit/grams proof, force the
-    // canonical exact-measure research path for the same commercial identity.
-    return searchVerifiedMeasure(normalizedInput, runtime);
+    // A provider servingLabel is not evidence by itself. The identity search
+    // already consumed the single NUTRITION_SEARCH operation for this item;
+    // without a source-derived countable relation, remain fail-closed instead
+    // of issuing a second search with the same commercial identity.
+    const trace = createNutritionSearchTrace(input.nutritionSearchTelemetry ?? {
+      userId: input.userId,
+      origin: "system",
+    });
+    logNutritionSearchDecision({
+      stage: "household_measure",
+      reason: "portion_incompatible",
+      traceId: trace.traceId,
+      hasStructuredCandidate: true,
+      webSearchExecuted: false,
+      sourceCount: 0,
+      guards: {
+        identity: true,
+        variant: true,
+        portion: false,
+        numericGrounding: true,
+        sourceGrounding: Boolean(food.sourceEvidence?.trim()),
+      },
+    }, trace);
+    return null;
   }
   const stored = await resolveStoredPortion(normalizedInput, runtime);
   if (stored) return stored;

@@ -7,6 +7,13 @@ import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibili
 import { extractCommercialVariant, isCommercialProductIdentityCompatible } from "./commercialProductIdentity";
 import type { NutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
+import {
+  classifyNutritionSearchOperationalOutcome,
+  createNutritionSearchTrace,
+  logNutritionSearchDecision,
+  nutritionSearchSourceCount,
+  type NutritionSearchTelemetryContext,
+} from "./nutritionSearchDecisionTelemetry";
 
 const WEB_NUTRITION_CONFIDENCE_THRESHOLD = 0.72;
 
@@ -31,6 +38,10 @@ export type BrandedNutritionSearchRuntime = {
   resolveCapabilityConfig: typeof resolveCapabilityConfig;
   executeResolvedCapability: typeof executeResolvedCapability;
   persistence?: NutritionResearchPersistence;
+};
+
+type BrandedNutritionSearchOptions = {
+  telemetry?: NutritionSearchTelemetryContext;
 };
 
 const defaultBrandedNutritionRuntime: BrandedNutritionSearchRuntime = {
@@ -225,6 +236,9 @@ function sourceSupportsCommercialIdentity(
   const requiredBrandTokens = brandTokens(result.brandName);
   if (!requiredBrandTokens.length || !textContainsAllTokens(sourceText, requiredBrandTokens)) return false;
 
+  const requiredVariantTokens = brandTokens(extractCommercialVariant(result.matchedProductName) ?? "");
+  if (requiredVariantTokens.length && !textContainsAllTokens(sourceText, requiredVariantTokens)) return false;
+
   const requestTokens = compactTokens(foodName).filter(token => !requiredBrandTokens.includes(token));
   const candidateTokens = new Set(compactTokens(result.matchedProductName));
   const discriminants = requestTokens.filter(token => candidateTokens.has(token));
@@ -311,12 +325,50 @@ function parseProviderOutput(outputText: string): SearchedNutritionResult {
   return result as SearchedNutritionResult;
 }
 
-function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSearch: AiWebSearchResult | undefined): CatalogFood | null {
-  if (!result.found || result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) return null;
-  if (result.gramsPerServing <= 0 || [result.calories, result.protein, result.carbs, result.fat].some(value => value < 0)) return null;
-  if (!structuredIdentityIsCompatible(foodName, result)) return null;
+function toCatalogFood(
+  foodName: string,
+  result: SearchedNutritionResult,
+  webSearch: AiWebSearchResult | undefined,
+  onDecision: (input: {
+    reason: Parameters<typeof logNutritionSearchDecision>[0]["reason"];
+    guards: Parameters<typeof logNutritionSearchDecision>[0]["guards"];
+  }) => void,
+): CatalogFood | null {
+  const emptyGuards = { identity: false, variant: false, portion: false, numericGrounding: false, sourceGrounding: false };
+  if (!result.found) {
+    onDecision({ reason: "found_false", guards: emptyGuards });
+    return null;
+  }
+  if (result.confidence < WEB_NUTRITION_CONFIDENCE_THRESHOLD) {
+    onDecision({ reason: "numeric_grounding_insufficient", guards: emptyGuards });
+    return null;
+  }
+  if (result.gramsPerServing <= 0 || [result.calories, result.protein, result.carbs, result.fat].some(value => value < 0)) {
+    onDecision({ reason: "numeric_grounding_insufficient", guards: emptyGuards });
+    return null;
+  }
+  if (!structuredIdentityIsCompatible(foodName, result)) {
+    const requestedVariant = extractCommercialVariant(foodName);
+    const candidateVariant = extractCommercialVariant(result.matchedProductName);
+    onDecision({
+      reason: requestedVariant && candidateVariant !== requestedVariant ? "variant_incompatible" : "identity_incompatible",
+      guards: { identity: false, variant: !requestedVariant || candidateVariant === requestedVariant, portion: false, numericGrounding: false, sourceGrounding: false },
+    });
+    return null;
+  }
   const verifiedSource = findVerifiedSource(webSearch, foodName, result);
-  if (!verifiedSource) return null;
+  if (!verifiedSource) {
+    const sources = webSearch?.executed ? (webSearch.sources ?? []) : [];
+    const hasServing = sources.some(source => sourceSupportsServing(source, result));
+    const hasNumeric = sources.some(source => numericEvidenceSupportsResult(sourceNutritionEvidenceText(source), result));
+    const hasIdentity = sources.some(source => sourceSupportsCommercialIdentity(source, foodName, result));
+    onDecision({
+      reason: !sources.length ? "source_grounding_unavailable" : !hasIdentity ? "source_identity_mismatch" : !hasServing ? "portion_incompatible" : !hasNumeric ? "numeric_grounding_insufficient" : "grounding_conflict",
+      guards: { identity: true, variant: true, portion: hasServing, numericGrounding: hasNumeric, sourceGrounding: false },
+    });
+    return null;
+  }
+  onDecision({ reason: "accepted", guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true } });
   return {
     slug: `web-nutrition-${normalizeText(result.matchedProductName).replace(/\s+/g, "-") || "product"}`,
     name: result.matchedProductName.trim(),
@@ -341,12 +393,29 @@ function toCatalogFood(foodName: string, result: SearchedNutritionResult, webSea
 export async function findBrandedNutritionByWebSearch(
   foodName: string,
   runtime: BrandedNutritionSearchRuntime = defaultBrandedNutritionRuntime,
+  options: BrandedNutritionSearchOptions = {},
 ): Promise<CatalogFood | null> {
+  const trace = createNutritionSearchTrace(options.telemetry);
+  const baseDecision = {
+    stage: "product_identity" as const,
+    traceId: trace.traceId,
+    hasStructuredCandidate: false,
+    webSearchExecuted: false,
+    sourceCount: 0,
+    guards: { identity: false, variant: false, portion: false, numericGrounding: false, sourceGrounding: false },
+  };
+  const decide = (input: Parameters<typeof logNutritionSearchDecision>[0]) => logNutritionSearchDecision(input, trace);
   const cached = await runtime.persistence?.findByIdentity(foodName);
-  if (cached) return cached;
+  if (cached) {
+    decide({ ...baseDecision, reason: "accepted", hasStructuredCandidate: true, guards: { identity: true, variant: true, portion: true, numericGrounding: true, sourceGrounding: true } });
+    return cached;
+  }
 
   const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
-  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) return null;
+  if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
+    decide({ ...baseDecision, reason: "capability_unavailable" });
+    return null;
+  }
   try {
     const execution = await runtime.executeResolvedCapability(
       policy,
@@ -384,8 +453,16 @@ export async function findBrandedNutritionByWebSearch(
         );
         return { parsed: parseProviderOutput(response.outputText), webSearch: response.webSearch };
       },
+      { observability: trace.observability },
     );
-    const candidate = toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch);
+    const candidate = toCatalogFood(foodName, execution.value.parsed, execution.value.webSearch, decision => decide({
+      ...baseDecision,
+      reason: decision.reason,
+      hasStructuredCandidate: true,
+      webSearchExecuted: Boolean(execution.value.webSearch?.executed),
+      sourceCount: execution.value.webSearch?.executed ? nutritionSearchSourceCount(execution.value.webSearch.sources) : 0,
+      guards: decision.guards,
+    }));
     if (!candidate) return null;
     if (!runtime.persistence) return candidate;
     try {
@@ -393,7 +470,8 @@ export async function findBrandedNutritionByWebSearch(
     } catch {
       return candidate;
     }
-  } catch {
+  } catch (error) {
+    decide({ ...baseDecision, reason: "execution_failed", operationalOutcome: classifyNutritionSearchOperationalOutcome(error) });
     return null;
   }
 }

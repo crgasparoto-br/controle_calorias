@@ -323,7 +323,7 @@ describe("#1072 — relação quantidade/unidade/gramas precisa ser comprovada p
     }, runtime as any)).resolves.toBeNull();
   });
 
-  it("pesquisa a medida exata em outra fonte quando a fonte nutricional não prova a relação em fatias", async () => {
+  it("mantém fail-closed sem pesquisar novamente quando a fonte nutricional não prova a relação em fatias", async () => {
     const food = await researchedFood("1 fatia de pão de forma Panco Premium", {
       sourceUrl: "https://nutricao.example/panco-premium",
       sourceText: "Pão de Forma Panco Premium. Porção de 50 g: 127 kcal, proteínas 4 g, carboidratos 24 g, gorduras totais 2 g.",
@@ -340,11 +340,8 @@ describe("#1072 — relação quantidade/unidade/gramas precisa ser comprovada p
       quantity: 1,
       unit: "fatia",
       commercialFood: food,
-    }, runtime as any)).resolves.toEqual(expect.objectContaining({
-      kind: "researched_exact",
-      grams: 25,
-      sourceUrls: ["https://medidas.example/panco-premium"],
-    }));
+    }, runtime as any)).resolves.toBeNull();
+    expect(runtime.createDomainTextResponse).not.toHaveBeenCalled();
     expect(food.sourceUrls).toEqual(["https://nutricao.example/panco-premium"]);
   });
 
@@ -390,7 +387,7 @@ describe("#1072 — relação quantidade/unidade/gramas precisa ser comprovada p
     }, runtime as any)).resolves.toBeNull();
   });
 
-  it("mantém fail-closed quando a segunda pesquisa fica indisponível", async () => {
+  it("mantém fail-closed sem emitir uma segunda pesquisa quando a relação não foi comprovada", async () => {
     const food = await researchedFood("1 fatia de pão de forma Panco Premium", {
       sourceText: "Pão de Forma Panco Premium. Porção de 50 g: 127 kcal, proteínas 4 g, carboidratos 24 g, gorduras totais 2 g.",
     });
@@ -404,6 +401,7 @@ describe("#1072 — relação quantidade/unidade/gramas precisa ser comprovada p
       unit: "fatia",
       commercialFood: food,
     }, runtime as any)).resolves.toBeNull();
+    expect(runtime.createDomainTextResponse).not.toHaveBeenCalled();
   });
 
   it("aplica a mesma regra a outra marca de pão", async () => {
