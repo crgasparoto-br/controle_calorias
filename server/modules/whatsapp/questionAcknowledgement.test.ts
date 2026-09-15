@@ -22,6 +22,12 @@ describe("sendWhatsAppAiQuestionAcknowledgement", () => {
     recordCurrentQuestionAcknowledgementOutcomeMock.mockReset();
   });
 
+  it("usa uma confirmação genérica para qualquer interação de IA", () => {
+    expect(WHATSAPP_AI_QUESTION_ACK_REPLY).toBe(
+      "✅ Recebi sua mensagem. Estou preparando a resposta…",
+    );
+  });
+
   it("usa posição idempotente própria e registra sucesso do ACK", async () => {
     sendWhatsAppLogicalReplyMock.mockResolvedValue({ primaryOk: true });
 
