@@ -165,6 +165,59 @@ function servingAmountMatches(requestedValue: number, gramsPerServing: number) {
   return Math.abs(requestedValue - gramsPerServing) <= tolerance;
 }
 
+type CommercialIdentityComparison = {
+  requestedTokens: string[];
+  requestedTokenSet: Set<string>;
+  requestedCompact: string;
+  candidateTokens: Set<string>;
+  candidateCompact: string;
+  brandTokens: Set<string>;
+  candidateProductTokens: string[];
+  requestedVariants: Set<string>;
+  candidateVariants: Set<string>;
+};
+
+/**
+ * Shared lexical material for both commercial identity guards.
+ *
+ * The guards intentionally remain separate: persisted identities use a strict
+ * equivalence policy, while a new commercial candidate also rejects
+ * unexpected product tokens. Keeping this comparison in one owner prevents
+ * normalization, token and variant rules from drifting between them.
+ */
+function compareCommercialIdentity(input: {
+  foodName: string;
+  matchedProductName: string;
+  brandName: string | null;
+}) : CommercialIdentityComparison {
+  const requestedTokens = extractCommercialTokens(input.foodName);
+  const candidateProductTokens = extractCommercialTokens(input.matchedProductName);
+  const candidateIdentity = `${input.matchedProductName} ${input.brandName ?? ""}`;
+  const candidateTokens = new Set(extractCommercialTokens(candidateIdentity));
+  const candidateCompact = normalizeCommercialText(candidateIdentity).replace(/[^a-z0-9]/g, "");
+  const requestedCompact = requestedTokens.join("");
+  const brandTokens = new Set(extractCommercialTokens(input.brandName ?? ""));
+  const requestedTokenSet = new Set(requestedTokens);
+  const requestedVariants = new Set(
+    requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
+  );
+  const candidateVariants = new Set(
+    candidateProductTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
+  );
+
+  return {
+    requestedTokens,
+    requestedTokenSet,
+    requestedCompact,
+    candidateTokens,
+    candidateCompact,
+    brandTokens,
+    candidateProductTokens,
+    requestedVariants,
+    candidateVariants,
+  };
+}
+
 export function isCommercialServingMeasureCompatible(input: {
   foodName: string;
   servingLabel: string;
@@ -235,22 +288,21 @@ export function isPersistedProductIdentityCompatible(input: {
   servingLabel: string;
   gramsPerServing: number;
 }) {
-  const requestedTokens = extractCommercialTokens(input.foodName);
-  const candidateIdentity = `${input.matchedProductName} ${input.brandName ?? ""}`;
-  const candidateTokens = new Set(extractCommercialTokens(candidateIdentity));
-  const candidateCompact = normalizeCommercialText(candidateIdentity).replace(/[^a-z0-9]/g, "");
-  const requestedCompact = requestedTokens.join("");
+  const comparison = compareCommercialIdentity(input);
 
-  if (!requestedTokens.every(token => candidateTokens.has(token) || candidateCompact.includes(token))) {
-    return Boolean(requestedCompact && candidateCompact.includes(requestedCompact));
+  if (!comparison.requestedTokens.every(token =>
+    comparison.candidateTokens.has(token) || comparison.candidateCompact.includes(token)
+  )) {
+    return Boolean(
+      comparison.requestedCompact
+      && comparison.candidateCompact.includes(comparison.requestedCompact),
+    );
   }
 
-  const requestedVariants = new Set(requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
-  const candidateVariants = new Set(extractCommercialTokens(input.matchedProductName).filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)));
-  if (requestedVariants.size === 0 && candidateVariants.size > 0) return false;
+  if (comparison.requestedVariants.size === 0 && comparison.candidateVariants.size > 0) return false;
   if (
-    [...requestedVariants].some(token => !candidateVariants.has(token))
-    || [...candidateVariants].some(token => !requestedVariants.has(token))
+    [...comparison.requestedVariants].some(token => !comparison.candidateVariants.has(token))
+    || [...comparison.candidateVariants].some(token => !comparison.requestedVariants.has(token))
   ) return false;
 
   return isCommercialServingMeasureCompatible(input);
@@ -263,48 +315,30 @@ export function isCommercialProductIdentityCompatible(input: {
   servingLabel: string;
   gramsPerServing: number;
 }) {
-  const requestedTokens = extractCommercialTokens(input.foodName);
-  const candidateIdentity = `${input.matchedProductName} ${input.brandName ?? ""}`;
-  const candidateTokens = new Set(extractCommercialTokens(candidateIdentity));
-  const candidateCompact = normalizeCommercialText(candidateIdentity).replace(
-    /[^a-z0-9]/g,
-    ""
-  );
-  const requestedCompact = requestedTokens.join("");
+  const comparison = compareCommercialIdentity(input);
 
-  const hasAllRequestedTokens = requestedTokens.every(
-    token => candidateTokens.has(token) || candidateCompact.includes(token)
+  const hasAllRequestedTokens = comparison.requestedTokens.every(
+    token => comparison.candidateTokens.has(token) || comparison.candidateCompact.includes(token)
   );
   if (
     !hasAllRequestedTokens &&
-    (!requestedCompact || !candidateCompact.includes(requestedCompact))
+    (!comparison.requestedCompact || !comparison.candidateCompact.includes(comparison.requestedCompact))
   ) {
     return false;
   }
 
-  const requestedTokenSet = new Set(requestedTokens);
-  const brandTokens = new Set(extractCommercialTokens(input.brandName ?? ""));
-  const candidateProductTokens = extractCommercialTokens(
-    input.matchedProductName
-  );
-  const unexpectedCandidateTokens = candidateProductTokens.filter(
+  const unexpectedCandidateTokens = comparison.candidateProductTokens.filter(
     token =>
-      !requestedTokenSet.has(token) &&
-      !brandTokens.has(token) &&
-      token !== requestedCompact &&
-      !requestedCompact.includes(token)
+      !comparison.requestedTokenSet.has(token) &&
+      !comparison.brandTokens.has(token) &&
+      token !== comparison.requestedCompact &&
+      !comparison.requestedCompact.includes(token)
   );
   if (unexpectedCandidateTokens.length > 0) return false;
 
-  const requestedVariants = new Set(
-    requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token))
-  );
-  const candidateVariants = new Set(
-    candidateProductTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token))
-  );
   if (
-    [...requestedVariants].some(token => !candidateVariants.has(token)) ||
-    [...candidateVariants].some(token => !requestedVariants.has(token))
+    [...comparison.requestedVariants].some(token => !comparison.candidateVariants.has(token)) ||
+    [...comparison.candidateVariants].some(token => !comparison.requestedVariants.has(token))
   ) {
     return false;
   }

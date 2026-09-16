@@ -12,9 +12,14 @@ import {
   processMealInput,
   resolveCommercialFoodIdentity,
 } from "../../../nutritionEngine";
+import { buildItemFromResolvedCommercialFood } from "../../../mealItemBuilders";
 import type { MealItemInput } from "../../meals/schemas";
 import type { FoodAdditionIntent } from "./types";
-import { buildUnsweetenedCoffeeItem, toMealItemInputs } from "./mealItemHelpers";
+import {
+  buildUnsweetenedCoffeeItem,
+  toMealItemInput,
+  toMealItemInputs,
+} from "./mealItemHelpers";
 
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
@@ -153,6 +158,7 @@ export async function resolveCanonicalFoodAdditionItems(
     let processingText = originalFoodText;
     let quantityResolution: FoodAdditionQuantityResolution | undefined;
     let householdMeasure: HouseholdMeasureResolution | null = null;
+    let commercialFood: Awaited<ReturnType<typeof resolveCommercialFoodIdentity>> | undefined;
     let resolvedBrand = item.brand?.trim() || null;
 
     if (isMassOrVolume(normalizedUnit)) {
@@ -187,7 +193,6 @@ export async function resolveCanonicalFoodAdditionItems(
         }
       }
 
-      let commercialFood: Awaited<ReturnType<typeof resolveCommercialFoodIdentity>> | undefined;
       if (resolvedBrand) {
         try {
           commercialFood = await runtime.resolveCommercialFoodIdentity(
@@ -233,12 +238,35 @@ export async function resolveCanonicalFoodAdditionItems(
       };
     }
 
-    const processed = await runtime.processMealInput({
-      text: processingText,
-      occurredAt: input.occurredAt,
-      timeZone: input.timeZone,
-    });
-    const resolved = findSingleResolvedItem(toMealItemInputs(processed.items));
+    let resolved: MealItemInput | null = null;
+    if (commercialFood && householdMeasure) {
+      // The accepted CatalogFood is already the canonical identity. Build the
+      // persistible item directly instead of turning it back into text and
+      // asking processMealInput to rediscover the same product/variant.
+      resolved = toMealItemInput(buildItemFromResolvedCommercialFood({
+        food: commercialFood,
+        foodName: item.foodName.trim(),
+        brand: resolvedBrand ?? commercialFood.brandName ?? "",
+        quantity: item.quantity,
+        unit: normalizedUnit,
+        grams: householdMeasure.grams,
+        measureResolution: {
+          kind: householdMeasure.kind,
+          requestedQuantity: householdMeasure.requestedQuantity,
+          requestedUnit: householdMeasure.requestedUnit,
+          sourceUrls: householdMeasure.sourceUrls,
+          evidence: householdMeasure.evidence,
+          referenceCount: householdMeasure.referenceCount,
+        },
+      }));
+    } else {
+      const processed = await runtime.processMealInput({
+        text: processingText,
+        occurredAt: input.occurredAt,
+        timeZone: input.timeZone,
+      });
+      resolved = findSingleResolvedItem(toMealItemInputs(processed.items));
+    }
     if (!resolved) {
       throw new Error(`A resolução canônica não produziu um único alimento para: ${originalFoodText}`);
     }

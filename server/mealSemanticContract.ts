@@ -133,6 +133,12 @@ function clampEvidenceConfidence(value: number) {
   return Math.min(Math.max(Number.isFinite(value) ? value : 0.5, 0.05), 0.99);
 }
 
+function serializeVerifiedAt(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function clarificationMessage(
   item: MealDraftItem,
   code: MealSemanticClarificationCode,
@@ -265,7 +271,7 @@ function buildSemanticItem(
           fat: item.fat,
           sourceUrls: [...(resolution?.sourceUrls ?? [])],
           sourceEvidence: resolution?.sourceEvidence?.trim() || null,
-          sourceVerifiedAt: resolution?.sourceVerifiedAt?.toISOString() ?? null,
+          sourceVerifiedAt: serializeVerifiedAt(resolution?.sourceVerifiedAt),
         },
         origin: nutritionOrigin,
         confidence: sourceConfidence,
