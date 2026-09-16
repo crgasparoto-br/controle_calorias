@@ -86,6 +86,7 @@ const state = vi.hoisted(() => {
     mealProcessingResults: 0,
     nutritionSearchAttempts: 0,
     nutritionSearchOutbound: 0,
+    webNutritionCacheLookups: 0,
     nutritionSearchByItem: {} as Record<
       string,
       { attempts: number; outbound: number }
@@ -141,6 +142,7 @@ const state = vi.hoisted(() => {
       | "unavailable",
     transcript: "100 g de arroz branco",
     visionFoodText: null as string | null,
+    webNutritionCache: null as CatalogFood | null,
     visionRequestObserved: false,
     pendingCreateFailure: false,
     sendReplyFailure: false,
@@ -164,6 +166,7 @@ const state = vi.hoisted(() => {
       this.searchMode = "accepted";
       this.transcript = "100 g de arroz branco";
       this.visionFoodText = null;
+      this.webNutritionCache = null;
       this.visionRequestObserved = false;
       this.pendingCreateFailure = false;
       this.sendReplyFailure = false;
@@ -600,13 +603,59 @@ function measureMealTextRoundTrip(facts: SemanticFactSnapshot[]) {
           Math.abs(parsed.estimatedGrams - original.estimatedGrams) < 0.01)
       );
     });
-  const envelope = JSON.parse(
-    JSON.stringify({ text: serializedText, facts })
-  ) as { text: string; facts: SemanticFactSnapshot[] };
+  // Round-trip semântico independente: os fatos são codificados em texto
+  // delimitado e reconstruídos exclusivamente a partir desse texto. O fato
+  // original não é mantido em um envelope, evitando uma comparação da
+  // estrutura consigo mesma que não detectaria perda de semântica.
+  const semanticText = facts
+    .map(fact =>
+      [
+        fact.originalText,
+        fact.foodName,
+        fact.brand ?? "",
+        fact.productVariant ?? "",
+        fact.quantity,
+        fact.unit,
+        fact.estimatedGrams,
+        fact.calories,
+        fact.protein,
+        fact.carbs,
+        fact.fat,
+        fact.nutritionOrigin,
+        fact.nutritionVerified ? "1" : "0",
+        JSON.stringify(fact.sourceUrls),
+      ]
+        .map(value => encodeURIComponent(String(value)))
+        .join("\t")
+    )
+    .join("\n");
+  const reconstructedFacts = semanticText
+    .split("\n")
+    .filter(Boolean)
+    .map(line => {
+      const fields = line.split("\t").map(value => decodeURIComponent(value));
+      if (fields.length !== 14) throw new Error("Invalid semantic text payload");
+      return {
+        originalText: fields[0],
+        foodName: fields[1],
+        brand: fields[2] || null,
+        productVariant: fields[3] || null,
+        quantity: Number(fields[4]),
+        unit: fields[5],
+        estimatedGrams: Number(fields[6]),
+        calories: Number(fields[7]),
+        protein: Number(fields[8]),
+        carbs: Number(fields[9]),
+        fat: Number(fields[10]),
+        nutritionOrigin: fields[11],
+        nutritionVerified: fields[12] === "1",
+        sourceUrls: JSON.parse(fields[13]) as string[],
+      } satisfies SemanticFactSnapshot;
+    });
   const fullSemanticRoundTripOk =
-    envelope.text === serializedText &&
-    envelope.facts.length === facts.length &&
-    envelope.facts.every((fact, index) => {
+    semanticText.length > 0 &&
+    reconstructedFacts.length === facts.length &&
+    reconstructedFacts.every((fact, index) => {
       const expected = facts[index];
       return (
         fact.originalText === expected.originalText &&
@@ -941,7 +990,10 @@ vi.mock("./brandedNutritionPersistence", async () => {
   return {
     ...actual,
     getDefaultNutritionResearchPersistence: () => ({
-      findByIdentity: async () => null,
+      findByIdentity: async () => {
+        state.metrics.webNutritionCacheLookups += 1;
+        return state.webNutritionCache;
+      },
       save: async (_key: string, food: CatalogFood) => food,
     }),
   };
@@ -1480,10 +1532,12 @@ function configureScenario(input: {
   sendReplyFailure?: boolean;
   visionFoodText?: string | null;
   pendingStorePath?: string;
+  webNutritionCache?: CatalogFood | null;
 }) {
   state.catalog = input.catalog ?? defaultCatalog();
   state.searchMode = input.searchMode ?? "accepted";
   state.transcript = input.transcript ?? "100 g de arroz branco";
+  state.webNutritionCache = input.webNutritionCache ?? null;
   state.pendingCreateFailure = input.pendingCreateFailure ?? false;
   state.sendReplyFailure = input.sendReplyFailure ?? false;
   state.visionFoodText = input.visionFoodText ?? null;
@@ -1671,6 +1725,7 @@ function makeEmptyMetrics() {
     mealProcessingResults: 0,
     nutritionSearchAttempts: 0,
     nutritionSearchOutbound: 0,
+    webNutritionCacheLookups: 0,
     nutritionSearchByItem: {} as Record<
       string,
       { attempts: number; outbound: number }
@@ -2244,7 +2299,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       carbs: 22,
       fat: 2,
     });
-    await startScenario({ catalog: [incompatible], searchMode: "accepted" });
+    await startScenario({
+      catalog: [],
+      searchMode: "accepted",
+      webNutritionCache: incompatible,
+    });
     const response = await post(
       activeUrl,
       payload({
@@ -2258,6 +2317,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(response.status).toBe(200);
     expect(state.metrics.nutritionSearchAttempts).toBe(1);
     expect(state.metrics.nutritionSearchOutbound).toBe(1);
+    expect(state.metrics.webNutritionCacheLookups).toBe(1);
     expect(meals).toHaveLength(1);
     expect(meals[0].items[0]).toEqual(
       expect.objectContaining({
