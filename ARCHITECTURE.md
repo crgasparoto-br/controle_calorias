@@ -95,7 +95,11 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 ### Fronteiras do webhook do WhatsApp
 
-`server/whatsappWebhook.ts` é o orquestrador HTTP do canal (deduplicação, roteamento do fluxo por mensagem, chamada aos módulos de domínio) e deve continuar magro. Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
+`server/whatsappWebhook.ts` é a fachada pública de compatibilidade do fallback nutricional final e da implementação de processamento de refeição. A rota Express produtiva é composta nesta ordem: `server/_core/index.ts` -> `server/whatsappPersistentContextWebhook.ts` -> `server/whatsappImageIdempotencyWebhook.ts` -> `server/whatsappIntentWebhook.ts` -> `server/whatsappAnnotatedImageWebhook.ts` -> `server/whatsappWebhook.ts`. Portanto, lifecycle, claims persistentes, gate de escrita suspensa, correlação de mídia e contexto de meta pertencem aos wrappers anteriores à fachada; `whatsappWebhook.ts` não deve ser tratado como dono único do HTTP.
+
+`server/whatsappWebhook.ts` permanece um entrypoint exportado de compatibilidade para consumidores e testes existentes. Sua assinatura e seus exports são estáveis até que os golden flows e a migração da #1090 provem que os wrappers podem ser consolidados sem alterar precedência, idempotência, source grounding, privacidade ou entrega de resposta.
+
+Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
 
 - `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
 - `webhookMediaPipeline.ts` -> download/persistência de mídia recebida (imagem/áudio) e preparo de texto/transcrição para inferência.

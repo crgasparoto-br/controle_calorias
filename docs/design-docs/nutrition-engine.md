@@ -145,3 +145,64 @@ A classificação NOVA permanece no objeto `foodClassification` da mesma respost
 - Para identidade comercial explícita, `null` ou miss após a tentativa segura não inventa dado nem libera `hybrid`: o contrato semântico marca a pendência e o motor exige clarificação antes de mutação. Para alimento sem marca/variante, os fallbacks transparentes existentes continuam disponíveis.
 
 A busca semântica de catálogo usa a capacidade `EMBEDDING` (default OpenAI `text-embedding-3-small`) para gerar o vetor da consulta e comparar por similaridade de cosseno com o catálogo pré-embebido. O cache registra o provider/modelo efetivamente usado pelo executor; se a consulta vier de outro modelo efetivo, o cache é invalidado e a chamada degrada para a busca textual/canônica, sem comparar espaços vetoriais diferentes. Quando `EMBEDDING` está `disabled`/`invalid`, a busca semântica é pulada sem chamar rede — mesma política de "nunca substituir geração de texto por embeddings ausentes" coberta em `catalogSemanticSearch.test.ts`.
+
+## Auditoria incremental da issue #1090 — ownership nutricional e baseline
+
+A baseline auditável desta fase é a `develop` no SHA `34b210e8ed8a4f9169bc2cb11c1db5cecf367b5c`. O fluxo alimentar deve transportar decisões estruturadas e manter evidência original separada de fatos derivados. Esta seção registra o inventário inicial e as disposições obrigatórias da Fase 0; não autoriza uma refatoração funcional ampla antes dos golden flows da Fase 1.
+
+### Inventário mínimo de informação e ownership
+
+| Informação | Origem na entrada | Owner atual | Transformações permitidas | Verificação/imutabilidade | Destino |
+| --- | --- | --- | --- | --- | --- |
+| Texto/segmento original | WhatsApp/web/transcrição/OCR | `whatsappPersistentContextWebhook`, `processMealInput` e `semanticContract.originalText` | Normalização para matching sem sobrescrever o original | Imutável como evidência do turno; conteúdo sensível | Lifecycle, contrato semântico, `sourceText`/notes quando aplicável |
+| Nome/candidato do alimento | Extração e parser | `processMealInput` + `mealTextParsing` | Canonicalização e alias somente após validação | Candidato não é fato verificado por si | Item e `semanticContract.commercialName` |
+| Marca | Texto/IA/OCR/catalog/search | `processMealInput` e resolvedor comercial | Normalização; não inventar quando ausente | Verificada somente com identidade comercial aceita | Item, contrato, identidade de pesquisa |
+| Variante | Texto/IA/OCR/catalog/search | `commercialProductIdentity` + guard semântico do engine | Extrair tokens e comparar em ambas as direções | Divergência mantém fail-closed/clarificação | `item.resolution.productVariant`, contrato e catálogo |
+| Quantidade/unidade originais | Parser do segmento/IA | `mealTextParsing` + `countableFoodQuantity` | Normalizar unidade; não converter massa-volume sem densidade | Preservar expressão original; decisão derivada separada | Item, pendência ou resolução de medida |
+| Gramatura resolvida | Porção canônica, pesquisa ou medida doméstica | `householdMeasureResolution` e `countableFoodQuantity` | Converter para gramas com fonte e relação verificáveis | `measureResolution.verified` e origem explícita | Item, contrato e persistência nutricional |
+| Origem/tipo da gramatura | Catálogo, pesquisa, média ou usuário | `householdMeasureResolution`/contrato semântico | Apenas classificação canônica de origem | Não reduzir `researched_exact`, `usual_average` e `contextual_estimate` ao mesmo tipo | `measureResolution.kind`, evidência e resposta |
+| Identidade comercial aceita | Catálogo/cache/pesquisa | `resolveCommercialFoodIdentity` e guard compartilhado | Transporte estruturado downstream; sem reconstrução textual para nova inferência | Aceita somente compatibilidade de produto, marca, variante e medida | `CatalogFood`, `MealProcessingResult`, contrato e item persistido |
+| Calorias/macros | Catálogo, rótulo ou pesquisa grounding | `nutritionEngine`/builders | Escala proporcional à gramatura; sem macros genéricos para marca pendente | `nutritionVerified`, origem e evidência | Item, totais e snapshot persistido |
+| URLs/evidência/data/confiança | Boundary de catálogo/pesquisa | `CatalogFood` e `MealItemResolutionMetadata` | Copiar sem ampliar ou fabricar grounding | Evidência vinculada à fonte aceita | Contrato, item e auditoria operacional permitida |
+| Estado de verificação | Guard de identidade e fonte | `nutritionEngine` + `buildMealSemanticContract` | Derivar somente de decisões comprovadas | `verified`/clarificação antes da mutação | Contrato e persistência |
+| Razão de clarificação/rejeição | Guard, `MealInferenceError`, pendência | Engine e repositório de operações WhatsApp | Mapear para reason code estruturado | Pendência deve bloquear mutação até resolução | Usuário via mensagem canônica e lifecycle |
+| Correlação técnica sanitizada | Inbound/lifecycle/telemetria | `messageLifecycle` e observabilidade | Somente identificadores técnicos permitidos | Nunca incluir conteúdo, segredo, URL assinada ou telefone completo | Logs/telemetria de baixa cardinalidade |
+
+### Findings com disposição obrigatória
+
+Cada finding abaixo possui uma única disposição, conforme o contrato da issue. A disposição se refere ao próximo trabalho autorizado, não a uma afirmação de que a remoção já ocorreu.
+
+| ID | Finding e evidência | Categoria | Disposição | Owner/condição de encerramento |
+| --- | --- | --- | --- | --- |
+| F0-01 | `isPersistedProductIdentityCompatible` e `isCommercialProductIdentityCompatible` compartilham normalização, tokens, variantes e medida, mas têm invariantes diferentes para identidade persistida e candidato comercial novo. | Duplicação aparente | `keep` | `commercialProductIdentity.ts` continua owner temporário; Fase 2 deve extrair predicados comuns somente com testes bidirecionais e preservar os guardas distintos. |
+| F0-02 | `prepareCountableFoodRegistration` e `prepareCountableFoodRegistrationResolved` duplicam segmentação/parsing e reescrita, enquanto a segunda adiciona pesquisa, medida e proveniência. | Duplicação/intermediação | `consolidate` | Fase 2 deve definir uma função canônica de preparação; a função histórica só pode permanecer como adaptador compatível se consumidores forem comprovados. |
+| F0-03 | A resolução contável produz estrutura validada e o gate materializa novamente um `MealProcessingResult`/`semanticContract` a partir de `CatalogFood`. | Responsabilidade no lugar errado | `defer` | Fase 1 deve medir o contrato do passthrough; Fase 2 deve escolher builder canônico de domínio ou justificar o builder de canal sem perder proveniência. |
+| F0-04 | `recoverCanonicalCommercialIdentity` executa `processMealInput` com `skipCommercialNutritionSearch` para recuperar marca antes de outra resolução. | Intermediação/re-resolução | `defer` | Fase 1 deve contar chamadas por item; Fase 2 só pode eliminar o preflight quando a marca/variante estruturada puder ser transportada com segurança. |
+| F0-05 | `server/whatsappWebhook.ts` é fachada fina, mas a rota Express passa por quatro wrappers anteriores e duas implementações de mídia/fallback. | Drift de código/documentação | `keep` | A composição real foi documentada em `ARCHITECTURE.md` e `whatsapp-ingestion.md`; consolidação fica para subissue específica após caracterização. |
+| F0-06 | Há implementações paralelas `whatsappWebhook*`, `whatsappIntentWebhook*`, `whatsappAnnotatedImageWebhook*` e `whatsappImageIdempotencyWebhook*`, com precedência e lifecycle distintos. | Responsabilidade/wrappers | `defer` | Fase 1 deve cobrir o POST real; Fase 3 poderá remover bridges apenas com prova de reachability e regressão equivalente. |
+| F0-07 | Testes de #1072 cobrem Panco, catálogo vazio, limite de pesquisa e passthrough; a cobertura do entrypoint público ainda não é uma matriz completa e não deve depender apenas de Panco. | Teste frágil/incompleto | `consolidate` | Fase 1 adiciona golden flows parametrizados para Wickbold, comercial não-pão, genérico, massa, variante, grounding, cache, clarificação, áudio e imagem. |
+| F0-08 | Código morto ou bridge seguro não foi removido nesta fase porque a reachability dos wrappers e consumidores não está fechada somente por inspeção textual. | Código morto/obsoleto | `defer` | Fase 3 deve anexar consumidores migrados, substituto e teste de regressão antes de cada remoção. |
+
+### Invariantes de transporte
+
+A partir desta baseline, a decisão de identidade comercial aceita e a decisão de medida resolvida são fatos derivados imutáveis para as etapas downstream. O texto, quantidade e unidade originais permanecem disponíveis como evidência. Um consumidor não pode transformar um `CatalogFood` já validado novamente em texto para que outro pipeline redescubra identidade, porção ou marca. Se a etapa seguinte exigir `MealProcessingResult`, a construção deverá receber a decisão estruturada e a proveniência como entrada, nunca inferi-las novamente.
+
+A preparação contável deve preservar o limite canônico: no máximo uma operação específica de `NUTRITION_SEARCH` por item, sem segunda tentativa oculta para outra representação textual. `NUTRITION_SEARCH` indisponível, grounding insuficiente, identidade incompatível ou cache incompatível devem permanecer fail-closed para produtos comerciais. Código compartilhado não pode relaxar privacidade, atomicidade, idempotência, source grounding ou a política de estimativa genérica.
+
+### Owners canônicos provisórios por decisão
+
+Para evitar que “owner atual” seja interpretado como múltiplos decisores concorrentes, a Fase 0 fixa a seguinte leitura até a Fase 2. Módulos de transporte podem carregar os valores, mas não podem tomar a decisão novamente.
+
+| Decisão | Owner canônico provisório | Componentes auxiliares permitidos | Não pertence a |
+| --- | --- | --- | --- |
+| Preservação da evidência original do inbound | `messageLifecycle` para o turno e `processMealInput`/`buildMealSemanticContract` para o contrato semântico | `whatsappPersistentContextWebhook`, builders de persistência e pendências podem copiar sem sobrescrever | `countableFoodRegistrationGate` não pode substituir o texto original pelo texto reescrito |
+| Parsing de quantidade/unidade | `mealTextParsing` e vocabulário compartilhado | `countableFoodQuantity` pode selecionar o segmento contável e normalizar a unidade | handlers WhatsApp não mantêm parser ou tabela de unidade concorrente |
+| Identidade comercial aceita | `resolveCommercialFoodIdentity` dentro do `nutritionEngine` | catálogo/cache/search e `commercialProductIdentity` apenas fornecem candidatos/predicados de compatibilidade; preflight é bridge transitório | `processMealInput` no preflight e canal não podem re-resolver identidade já aceita |
+| Compatibilidade de produto, variante e medida | guard compartilhado de identidade comercial, atualmente exposto por `commercialProductIdentity.ts` | resolvers podem chamar o guard com o contrato completo | não manter dois validadores materialmente iguais sincronizados manualmente |
+| Gramatura/porção resolvida | `resolveHouseholdMeasure`/`householdMeasureResolution` | `countableFoodQuantity` transporta request, origem e resultado; catálogos fornecem referências | WhatsApp não define médias, densidades ou fallback de medida próprio |
+| Contrato semântico | `buildMealSemanticContract` no domínio nutricional | `materializeResolvedCommercialSegment` pode construir um resultado transitório a partir de decisão estruturada | o gate não pode inferir novamente marca, variante, quantidade ou origem |
+| Construção de item persistível e totais | `mealItemBuilders` + `calculateMealTotals` | gate contável pode adaptar o contrato enquanto F0-03 estiver `defer` | wrappers de canal não podem criar fórmulas ou totals paralelos |
+| Clarificação e retomada | `MealInferenceError` + repositório de operações/continuação WhatsApp | handlers apenas traduzem o reason code e retomam o contrato persistido | nenhuma etapa pode persistir parcialmente antes da clarificação |
+| Pesquisa nutricional externa | `catalogSemanticSearch` via capacidade `NUTRITION_SEARCH` | `createNutritionSearchTrace` e telemetria sanitizada | preflight/fallback não pode emitir segunda pesquisa por representação alternativa |
+
+Esses owners são uma decisão de leitura da baseline, não uma mudança de implementação. Findings F0-01 a F0-04 permanecem abertos para a Fase 2 porque a consolidação deve provar equivalência e preservar os invariantes antes de transformar o owner provisório em uma API única.
