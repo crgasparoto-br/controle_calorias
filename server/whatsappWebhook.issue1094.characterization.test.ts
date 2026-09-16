@@ -92,6 +92,8 @@ const state = vi.hoisted(() => {
     >,
     roundTrips: 0,
     roundTripFailures: 0,
+    fullSemanticRoundTrips: 0,
+    fullSemanticRoundTripFailures: 0,
     monotonicChecks: 0,
     monotonicViolations: 0,
     pendingReplyOrderChecks: 0,
@@ -143,6 +145,8 @@ const state = vi.hoisted(() => {
     pendingCreateFailure: false,
     sendReplyFailure: false,
     pendingStorePath: null as string | null,
+    lifecycleStorePath: null as string | null,
+    pendingDb: null as any,
     reset() {
       this.users.clear();
       this.catalog = [];
@@ -164,6 +168,8 @@ const state = vi.hoisted(() => {
       this.pendingCreateFailure = false;
       this.sendReplyFailure = false;
       this.pendingStorePath = null;
+      this.lifecycleStorePath = null;
+      this.pendingDb = null;
     },
   };
 });
@@ -196,10 +202,203 @@ function writePendingRows(rows: any[]) {
 }
 
 function cleanupPendingStore() {
-  if (!state.pendingStorePath) return;
-  rmSync(state.pendingStorePath, { force: true });
-  rmSync(dirname(state.pendingStorePath), { force: true, recursive: true });
+  const storePath = state.pendingStorePath ?? state.lifecycleStorePath;
+  if (!storePath) return;
+  rmSync(storePath, { force: true });
+  rmSync(dirname(storePath), { force: true, recursive: true });
   state.pendingStorePath = null;
+  state.lifecycleStorePath = null;
+}
+
+function reviveStoredMessage(message: any): StoredMessage {
+  return {
+    ...message,
+    occurredAt: new Date(message.occurredAt),
+    createdAt: new Date(message.createdAt),
+    updatedAt: new Date(message.updatedAt),
+    processedAt: message.processedAt ? new Date(message.processedAt) : null,
+  };
+}
+
+function persistLifecycleState(shared: SharedLifecycleState) {
+  if (!state.lifecycleStorePath) return;
+  writeFileSync(
+    state.lifecycleStorePath,
+    JSON.stringify({
+      messages: shared.messages,
+      domainLinks: shared.domainLinks,
+      nextMessageId: shared.nextMessageId,
+    }),
+    "utf8"
+  );
+}
+
+type QueryToken =
+  | { kind: "column"; name: string }
+  | { kind: "operator"; value: string }
+  | { kind: "param"; value: unknown };
+
+function queryTokens(value: unknown): QueryToken[] {
+  if (Array.isArray(value)) return value.flatMap(queryTokens);
+  if (!value || typeof value !== "object") return [];
+
+  const object = value as Record<string, any>;
+  const constructorName = (value as object).constructor?.name ?? "";
+  if (constructorName === "SQL") return queryTokens(object.queryChunks);
+  if (constructorName === "StringChunk") {
+    const text = Array.isArray(object.value)
+      ? object.value.join("")
+      : String(object.value ?? "");
+    return [{ kind: "operator", value: text }];
+  }
+  if (constructorName === "Param") {
+    return [{ kind: "param", value: object.value }];
+  }
+  if (constructorName.startsWith("MySql") && typeof object.name === "string") {
+    return [{ kind: "column", name: object.name }];
+  }
+  return [];
+}
+
+function queryComparisons(condition: unknown) {
+  const tokens = queryTokens(condition);
+  const comparisons: Array<{
+    name: string;
+    operator: "=" | "<>" | "<";
+    value: unknown;
+  }> = [];
+  for (let index = 0; index < tokens.length - 2; index += 1) {
+    const column = tokens[index];
+    const operator = tokens[index + 1];
+    const parameter = tokens[index + 2];
+    if (
+      column.kind !== "column" ||
+      operator.kind !== "operator" ||
+      parameter.kind !== "param"
+    )
+      continue;
+    const match = operator.value.match(/(<>|=|<)/u)?.[1] as
+      | "="
+      | "<>"
+      | "<"
+      | undefined;
+    if (match) comparisons.push({ name: column.name, operator: match, value: parameter.value });
+  }
+  return comparisons;
+}
+
+function pendingDateValue(value: unknown) {
+  return value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+}
+
+function matchesPendingRow(row: any, condition: unknown) {
+  return queryComparisons(condition).every(comparison => {
+    const actual = row[comparison.name];
+    if (comparison.name === "updatedAt" || comparison.name === "expiresAt") {
+      const left = pendingDateValue(actual);
+      const right = pendingDateValue(comparison.value);
+      if (comparison.operator === "<") return left < right;
+      if (comparison.operator === "=") return left === right;
+      return left !== right;
+    }
+    if (comparison.operator === "=") return actual === comparison.value;
+    if (comparison.operator === "<>") return actual !== comparison.value;
+    return actual < (comparison.value as any);
+  });
+}
+
+function clonePendingRow(row: any) {
+  return {
+    ...row,
+    target: structuredClone(row.target),
+    createdAt: new Date(row.createdAt),
+    expiresAt: new Date(row.expiresAt),
+    updatedAt: new Date(row.updatedAt),
+    consumedAt: row.consumedAt ? new Date(row.consumedAt) : null,
+  };
+}
+
+function createProductionPendingDb() {
+  const load = () => readPendingRows().map(clonePendingRow);
+  const save = (rows: any[]) => writePendingRows(rows.map(clonePendingRow));
+  const select = vi.fn(() => {
+    let whereCondition: unknown;
+    let orderByCondition: unknown;
+    let limitValue: number | undefined;
+    const chain: any = {
+      from: vi.fn(() => chain),
+      where: vi.fn((condition: unknown) => {
+        whereCondition = condition;
+        return chain;
+      }),
+      orderBy: vi.fn((condition: unknown) => {
+        orderByCondition = condition;
+        return chain;
+      }),
+      limit: vi.fn((value: number) => {
+        limitValue = value;
+        let rows = load().filter(row => matchesPendingRow(row, whereCondition));
+        if (queryTokens(orderByCondition).some(token => token.kind === "operator" && /desc/u.test(token.value))) {
+          rows = rows.sort((left, right) => right.id - left.id);
+        }
+        return Promise.resolve(rows.slice(0, limitValue).map(clonePendingRow));
+      }),
+    };
+    return chain;
+  });
+
+  return {
+    select,
+    insert: vi.fn(() => ({
+      values: vi.fn(async (payload: any) => {
+        if (state.pendingCreateFailure) throw new Error("pending persistence failure");
+        const rows = load();
+        const now = new Date();
+        const id = Math.max(0, ...rows.map(row => Number(row.id))) + 1;
+        const row = {
+          id,
+          ...payload,
+          createdAt: now,
+          updatedAt: now,
+          consumedAt: null,
+        };
+        save([...rows, row]);
+        state.metrics.pendingCreated += 1;
+        state.sequence.push("pending-created");
+        return { insertId: id };
+      }),
+    })),
+    update: vi.fn(() => {
+      let setPayload: any = {};
+      return {
+        set: vi.fn((payload: any) => {
+          setPayload = payload;
+          return {
+            where: vi.fn(async (condition: unknown) => {
+              const rows = load();
+              const matching = rows.filter(row => matchesPendingRow(row, condition));
+              for (const row of matching) Object.assign(row, setPayload);
+              save(rows);
+              if (setPayload.state === "consumed" && matching.length > 0) {
+                state.metrics.pendingClaimed += 1;
+                state.metrics.pendingConsumed += 1;
+                state.sequence.push("pending-claimed");
+              }
+              return { affectedRows: matching.length };
+            }),
+          };
+        }),
+      };
+    }),
+    delete: vi.fn(() => ({
+      where: vi.fn(async (condition: unknown) => {
+        const rows = load();
+        const remaining = rows.filter(row => !matchesPendingRow(row, condition));
+        save(remaining);
+        return { affectedRows: rows.length - remaining.length };
+      }),
+    })),
+  };
 }
 
 const readyPolicy = (capability: string) => ({
@@ -387,7 +586,7 @@ function measureMealTextRoundTrip(facts: SemanticFactSnapshot[]) {
   });
   const serializedText = serializedLines.join("\n");
   const reconstructed = serializedLines.map(parseFoodText);
-  const roundTripOk =
+  const textRoundTripOk =
     reconstructed.length === facts.length &&
     reconstructed.every((parsed, index) => {
       const original = facts[index];
@@ -401,9 +600,41 @@ function measureMealTextRoundTrip(facts: SemanticFactSnapshot[]) {
           Math.abs(parsed.estimatedGrams - original.estimatedGrams) < 0.01)
       );
     });
-  if (roundTripOk) state.metrics.roundTrips += 1;
+  const envelope = JSON.parse(
+    JSON.stringify({ text: serializedText, facts })
+  ) as { text: string; facts: SemanticFactSnapshot[] };
+  const fullSemanticRoundTripOk =
+    envelope.text === serializedText &&
+    envelope.facts.length === facts.length &&
+    envelope.facts.every((fact, index) => {
+      const expected = facts[index];
+      return (
+        fact.originalText === expected.originalText &&
+        fact.foodName === expected.foodName &&
+        fact.brand === expected.brand &&
+        fact.productVariant === expected.productVariant &&
+        fact.quantity === expected.quantity &&
+        fact.unit === expected.unit &&
+        fact.estimatedGrams === expected.estimatedGrams &&
+        fact.calories === expected.calories &&
+        fact.protein === expected.protein &&
+        fact.carbs === expected.carbs &&
+        fact.fat === expected.fat &&
+        fact.nutritionOrigin === expected.nutritionOrigin &&
+        fact.nutritionVerified === expected.nutritionVerified &&
+        JSON.stringify(fact.sourceUrls) === JSON.stringify(expected.sourceUrls)
+      );
+    });
+  if (textRoundTripOk) state.metrics.roundTrips += 1;
   else state.metrics.roundTripFailures += 1;
-  return { serializedText, reconstructed, roundTripOk };
+  if (fullSemanticRoundTripOk) state.metrics.fullSemanticRoundTrips += 1;
+  else state.metrics.fullSemanticRoundTripFailures += 1;
+  return {
+    serializedText,
+    reconstructed,
+    roundTripOk: textRoundTripOk && fullSemanticRoundTripOk,
+    fullSemanticRoundTripOk,
+  };
 }
 
 function recordSemanticContract(contract: any) {
@@ -767,98 +998,29 @@ vi.mock("./modules/whatsapp/userMeasurementReplyContext", async () => {
   };
 });
 
-vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
-  createDrizzleWhatsAppPendingOperationRepository: () => ({
-    async createPendingOperation(input: any) {
-      if (state.pendingCreateFailure) {
-        throw new Error();
-      }
-      const now = input.now ?? new Date();
-      const rows = readPendingRows();
-      const row = {
-        id: state.pendingStorePath
-          ? Math.max(0, ...rows.map(candidate => Number(candidate.id))) + 1
-          : state.nextPendingId++,
-        userId: input.userId,
-        type: input.type,
-        target: input.target,
-        origin: input.origin,
-        state: "active",
-        version: 1,
-        createdAt: now,
-        expiresAt: new Date(now.getTime() + input.ttlMs),
-        updatedAt: now,
-        consumedAt: null,
-      };
-      writePendingRows([...rows, row]);
-      state.metrics.pendingCreated += 1;
-      state.sequence.push("pending-created");
-      return row;
-    },
-    async getActivePendingOperation(userId: number, now = new Date()) {
-      return (
-        readPendingRows()
-          .filter(
-            row =>
-              row.userId === userId &&
-              row.state === "active" &&
-              new Date(row.expiresAt).getTime() >= now.getTime()
-          )
-          .sort((a, b) => b.id - a.id)[0] ?? null
-      );
-    },
-    async getLatestPendingOperation(userId: number) {
-      return (
-        readPendingRows()
-          .filter(row => row.userId === userId)
-          .sort((a, b) => b.id - a.id)[0] ?? null
-      );
-    },
-    async getPendingOperationById(id: number) {
-      return readPendingRows().find(row => row.id === id) ?? null;
-    },
-    async claimPendingOperation({ id, expectedVersion }: any) {
-      const rows = readPendingRows();
-      const row = rows.find(candidate => candidate.id === id);
-      if (!row || row.state !== "active" || row.version !== expectedVersion)
-        return { claimed: false };
-      row.state = "consumed";
-      row.version += 1;
-      row.consumedAt = new Date();
-      writePendingRows(rows);
-      state.metrics.pendingClaimed += 1;
-      state.metrics.pendingConsumed += 1;
-      state.sequence.push("pending-claimed");
-      return { claimed: true };
-    },
-    async cancelPendingOperation(id: number) {
-      const rows = readPendingRows();
-      const row = rows.find(candidate => candidate.id === id);
-      if (!row || row.state !== "active") return { cancelled: false };
-      row.state = "cancelled";
-      row.version += 1;
-      writePendingRows(rows);
-      return { cancelled: true };
-    },
-    async supersedePendingOperation(id: number) {
-      const rows = readPendingRows();
-      const row = rows.find(candidate => candidate.id === id);
-      if (!row || row.state !== "active") return { superseded: false };
-      row.state = "superseded";
-      row.version += 1;
-      writePendingRows(rows);
-      return { superseded: true };
-    },
-    async purgeInactiveOperations() {
-      return 0;
-    },
-  }),
+vi.mock("./modules/whatsapp/goalProgressService", () => ({
+  getWhatsAppMealGoalProgress: vi.fn(async () => null),
 }));
+
+vi.mock("./repositories/whatsappPendingOperationRepository", async () => {
+  const actual = await vi.importActual<
+    typeof import("./repositories/whatsappPendingOperationRepository")
+  >("./repositories/whatsappPendingOperationRepository");
+  return {
+    ...actual,
+    createDrizzleWhatsAppPendingOperationRepository: (deps: any) =>
+      actual.createDrizzleWhatsAppPendingOperationRepository({
+        ...deps,
+        getDb: async () => state.pendingDb,
+      }),
+  };
+});
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
   return {
     ...actual,
+    getDb: vi.fn(async () => null),
     getUserIdByWhatsappPhone: vi.fn(
       async (phone: string) => state.users.get(phone) ?? null
     ),
@@ -1022,6 +1184,14 @@ interface SharedLifecycleState {
 }
 
 function createLifecycleState(): SharedLifecycleState {
+  if (state.lifecycleStorePath && existsSync(state.lifecycleStorePath)) {
+    const stored = JSON.parse(readFileSync(state.lifecycleStorePath, "utf8"));
+    return {
+      messages: (stored.messages ?? []).map(reviveStoredMessage),
+      domainLinks: stored.domainLinks ?? [],
+      nextMessageId: stored.nextMessageId ?? 1,
+    };
+  }
   return { messages: [], domainLinks: [], nextMessageId: 1 };
 }
 
@@ -1082,6 +1252,7 @@ function createConversationRepository(
         updatedAt: now,
       };
       shared.messages.push(message);
+      persistLifecycleState(shared);
       return { message: message as never, wasNewInsert: true };
     },
     async findByIdempotencyKey(key) {
@@ -1095,6 +1266,7 @@ function createConversationRepository(
     async linkDomainRecord(messageId, link) {
       shared.domainLinks.push({ messageId, link });
       state.metrics.domainLinks += 1;
+      persistLifecycleState(shared);
     },
     async findRecentMessages(conversationId, limit = 20) {
       return shared.messages
@@ -1136,6 +1308,7 @@ function createConversationRepository(
       if (message) {
         message.processedAt = processedAt;
         message.updatedAt = processedAt;
+        persistLifecycleState(shared);
       }
     },
     async insertConversationSummary() {},
@@ -1170,6 +1343,7 @@ function createEnrichmentRepository(
         message.mediaStorageKey = input.mediaStorageKey;
       if (input.mediaMimeType) message.mediaMimeType = input.mediaMimeType;
       message.updatedAt = new Date();
+      persistLifecycleState(shared);
       return true;
     },
   };
@@ -1315,6 +1489,10 @@ function configureScenario(input: {
   state.visionFoodText = input.visionFoodText ?? null;
   activeVisionFixtureText = input.visionFoodText ?? null;
   state.pendingStorePath = input.pendingStorePath ?? null;
+  state.lifecycleStorePath = input.pendingStorePath
+    ? join(dirname(input.pendingStorePath), "lifecycle.json")
+    : null;
+  state.pendingDb = createProductionPendingDb();
 }
 
 function assertOpaqueSearchKeys(expectedItems: RegExp[]) {
@@ -1346,6 +1524,7 @@ function assertSanitizedEvidence(shared: SharedLifecycleState) {
     "whatsapp.processing_error",
     "whatsapp.reply_failed",
     "whatsapp.food_clarification.requested",
+    "whatsapp.food_clarification.persistence_unavailable",
     "whatsapp.message_processed",
     "whatsapp.interactive_callback.unavailable",
   ]);
@@ -1482,6 +1661,8 @@ type EvidenceRow = {
 function makeEmptyMetrics() {
   return {
     roundTripFailures: 0,
+    fullSemanticRoundTrips: 0,
+    fullSemanticRoundTripFailures: 0,
     monotonicChecks: 0,
     monotonicViolations: 0,
     pendingReplyOrderChecks: 0,
@@ -1570,6 +1751,7 @@ async function startScenario(input: {
   sendReplyFailure?: boolean;
   visionFoodText?: string | null;
   pendingStorePath?: string;
+  lifecycleStorePath?: string;
 }) {
   cleanupPendingStore();
   state.reset();
@@ -1691,6 +1873,12 @@ afterAll(() => {
   expect(contractRows.every(row => row.metrics.roundTripFailures === 0)).toBe(
     true
   );
+  expect(
+    contractRows.every(row => row.metrics.fullSemanticRoundTrips > 0)
+  ).toBe(true);
+  expect(
+    contractRows.every(row => row.metrics.fullSemanticRoundTripFailures === 0)
+  ).toBe(true);
   expect(evidenceRows.every(row => row.metrics.monotonicViolations === 0)).toBe(
     true
   );
@@ -2343,23 +2531,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     await finishScenario("13-audio-convergent", "registered");
   });
 
-  it("14 — converge imagem pela mesma fronteira de identidade/resolução e mantém mídia opaca", async () => {
+  it("14 — converge imagem comercial pela mesma fronteira de identidade/resolução e mantém mídia opaca", async () => {
     await startScenario({
-      catalog: defaultCatalog(),
-      visionFoodText: "100 g de arroz branco",
+      catalog: [],
+      visionFoodText: "2 fatias de pão de forma Panco Premium",
     });
-    const { extractWithAi } = await import("./mealAiExtraction");
-    await expect(
-      extractWithAi({ imageUrl: "data:image/jpeg;base64,visual-fixture" })
-    ).resolves.toEqual(
-      expect.objectContaining({
-        items: expect.arrayContaining([
-          expect.objectContaining({
-            foodName: expect.stringMatching(/arroz/i),
-          }),
-        ]),
-      })
-    );
     const response = await post(
       activeUrl,
       payload({
@@ -2369,6 +2545,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
         image: {
           id: "image-1094-14",
           mime_type: "image/jpeg",
+          caption: "2 fatias de pão de forma Panco Premium",
         },
       })
     );
@@ -2382,22 +2559,27 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(inbound[0]).toEqual(
       expect.objectContaining({
         contentType: "image",
-        captionText: null,
+        captionText: "2 fatias de pão de forma Panco Premium",
         mediaMimeType: "image/jpeg",
       })
     );
     expect(state.visionRequestObserved).toBe(true);
+    expect(state.metrics.nutritionSearchAttempts).toBe(1);
+    expect(state.metrics.nutritionSearchOutbound).toBe(1);
+    expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
+      { attempts: 1, outbound: 1 },
+    ]);
     expect(inbound[0].mediaStorageKey).toMatch(/^private\/media\//u);
     expect(state.metrics.persistedMeals).toBe(1);
     expect(meals[0].items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          foodName: expect.stringMatching(/arroz/i),
-          estimatedGrams: 100,
-          quantity: 100,
-          unit: "g",
-          portionText: "100 g",
-          brand: null,
+          foodName: expect.stringMatching(/pão de forma panco premium/i),
+          estimatedGrams: 50,
+          quantity: 2,
+          unit: "fatia",
+          portionText: "2 fatia",
+          brand: "Panco",
         }),
       ])
     );
@@ -2444,6 +2626,32 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(readPendingRows().find(row => row.id === 1)).toEqual(
       expect.objectContaining({ state: "active", version: 1 })
     );
+    const outboundBeforeDurableRetry = state.outboundReplies.length;
+    const pendingCreatedBeforeDurableRetry = state.metrics.pendingCreated;
+    const searchAttemptsBeforeDurableRetry = state.metrics.nutritionSearchAttempts;
+    const durableRetry = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-15-a",
+        timestamp: "1789557360",
+        type: "text",
+        text: {
+          body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
+        },
+      })
+    );
+    expect(durableRetry.status).toBe(200);
+    expect(state.outboundReplies).toHaveLength(outboundBeforeDurableRetry);
+    expect(state.metrics.pendingCreated).toBe(pendingCreatedBeforeDurableRetry);
+    expect(state.metrics.nutritionSearchAttempts).toBe(searchAttemptsBeforeDurableRetry);
+    expect(readPendingRows().find(row => row.id === 1)).toEqual(
+      expect.objectContaining({ state: "active", version: 1 })
+    );
+    expect(
+      activeLifecycle.messages.filter(
+        message => message.direction === "inbound"
+      )
+    ).toHaveLength(1);
     const resumed = await post(
       activeUrl,
       payload({
@@ -2465,7 +2673,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       activeLifecycle.messages.filter(
         message => message.direction === "inbound"
       )
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     await finishScenario("15-durable-restart-resume", "registered");
   });
 
@@ -2484,11 +2692,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
         text: { body: "1 fatia de pão de forma Panco Premium" },
       })
     );
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     expect(state.pendingRows.size).toBe(0);
     expect(state.metrics.pendingCreated).toBe(0);
     expect(state.metrics.persistedMeals).toBe(0);
-    expect(state.outboundReplies).toHaveLength(0);
+    expect(state.outboundReplies).toHaveLength(1);
     expect(
       state.events.some(event => event.eventType === "whatsapp.reply_failed")
     ).toBe(false);
