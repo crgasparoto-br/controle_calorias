@@ -228,11 +228,15 @@ function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
   const normalizedSource = normalizeForMatching(sourceFoodName).trim();
   const normalizedItem = normalizeForMatching(item.foodName).trim();
   const genericTacoFood = findTacoFood(sourceFoodName);
+  const isNaturalFoodIdentity =
+    classification.isFruit ||
+    classification.isVegetable ||
+    Boolean(genericTacoFood && !genericTacoFood.brandName);
 
   return (
     classification.processingLevel === "natural_or_minimally_processed" &&
-    (normalizedSource === normalizedItem ||
-      Boolean(genericTacoFood && !genericTacoFood.brandName))
+    isNaturalFoodIdentity &&
+    (normalizedSource === normalizedItem || Boolean(genericTacoFood))
   );
 }
 
