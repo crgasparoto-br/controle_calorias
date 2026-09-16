@@ -80,9 +80,11 @@ describe("AI observability log sink", () => {
       })
     );
     const detail = JSON.parse(logInferenceEventMock.mock.calls[0][0].detail);
-    expect(detail).toEqual(expect.objectContaining({
-      executionId: "execution-1088",
-      capability: "MEAL_TEXT",
-    }));
+    expect(detail).toEqual(
+      expect.objectContaining({
+        executionId: "execution-1088",
+        capability: "MEAL_TEXT",
+      })
+    );
   });
 });

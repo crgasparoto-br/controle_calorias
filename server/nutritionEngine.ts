@@ -42,6 +42,7 @@ import {
   normalizeForMatching,
   normalizeLlmItem,
   normalizeUnit,
+  parseFoodText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
@@ -184,6 +185,20 @@ function findSourceFoodSegmentForInferenceItem(
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
+function findSourceTextSegmentForInferenceItem(
+  item: LlmItem,
+  sourceText?: string
+) {
+  const source = sourceText?.trim();
+  if (!source) return null;
+
+  const matches = splitSourceFoodSegments(source).filter(segment => {
+    const parsedFoodName = parseFoodText(segment).foodName;
+    return sourceSegmentMatchesInferenceItem(parsedFoodName, item);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function findExplicitBrandedVariantIdentity(
   item: LlmItem,
   sourceText?: string
@@ -206,6 +221,21 @@ function findExplicitBrandedVariantIdentity(
   return `${item.foodName} ${brand} ${variant}`.trim();
 }
 
+function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
+  const classification = item.foodClassification;
+  if (!classification || !sourceFoodName) return false;
+
+  const normalizedSource = normalizeForMatching(sourceFoodName).trim();
+  const normalizedItem = normalizeForMatching(item.foodName).trim();
+  const genericTacoFood = findTacoFood(sourceFoodName);
+
+  return (
+    classification.processingLevel === "natural_or_minimally_processed" &&
+    (normalizedSource === normalizedItem ||
+      Boolean(genericTacoFood && !genericTacoFood.brandName))
+  );
+}
+
 export function recoverExplicitBrandFromSource(
   item: LlmItem,
   sourceText?: string
@@ -221,6 +251,13 @@ export function recoverExplicitBrandFromSource(
   const commercialHint = inferUnresolvedCommercialIdentityHint(
     sourceFoodName ?? ""
   );
+  if (commercialHint?.brand && isNaturalProduceVariant(item, sourceFoodName)) {
+    // A residual token in a naturally classified fruit/vegetable is more likely
+    // to be a cultivar or variety (e.g. "laranja pêra") than a commercial
+    // brand. Structured brands remain authoritative because this guard only
+    // applies when the extractor omitted the brand.
+    return item;
+  }
   return commercialHint?.brand
     ? { ...item, brand: commercialHint.brand }
     : item;
@@ -232,6 +269,10 @@ function buildCatalogSearchCandidates(
   nutritionSearchQuery?: string
 ) {
   const candidates: string[] = [];
+  const sourceTextSegment = findSourceTextSegmentForInferenceItem(
+    item,
+    sourceText
+  );
   const sourceFoodName = findSourceFoodSegmentForInferenceItem(
     item,
     sourceText
@@ -248,6 +289,7 @@ function buildCatalogSearchCandidates(
       : item.foodName;
 
   addCatalogCandidate(candidates, nutritionSearchQuery);
+  addCatalogCandidate(candidates, sourceTextSegment);
   addCatalogCandidate(candidates, sourceFoodName);
   addCatalogCandidate(candidates, explicitBrandedVariantIdentity);
   if (item.brand) {

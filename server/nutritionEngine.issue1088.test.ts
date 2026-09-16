@@ -329,7 +329,7 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
       expect.anything()
     );
     expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      expect.stringMatching(/manteiga Batavo extra com sal/i),
+      expect.stringMatching(/15\s*g\s+de\s+manteiga Batavo extra com sal/i),
       expect.objectContaining({ searchSpecificProduct: true })
     );
   });

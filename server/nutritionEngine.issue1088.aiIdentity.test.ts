@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+const testInput = vi.hoisted(() => ({
+  foodName: "manteiga",
+  processingLevel: "processed_culinary_ingredient" as const,
+  isFruit: false,
+  isVegetable: false,
+}));
+
 vi.mock("./mealAiExtraction", () => ({
   extractWithAi: vi.fn(async () => ({
     mealLabel: "Lanche",
@@ -7,7 +14,7 @@ vi.mock("./mealAiExtraction", () => ({
     reasoning: "Item identificado.",
     items: [
       {
-        foodName: "manteiga",
+        foodName: testInput.foodName,
         brand: null,
         quantity: 15,
         unit: "g",
@@ -18,9 +25,9 @@ vi.mock("./mealAiExtraction", () => ({
         estimatedMacros: { protein: 0.9, carbs: 2.25, fat: 0.75 },
         confidence: 0.8,
         foodClassification: {
-          processingLevel: "processed_culinary_ingredient",
-          isFruit: false,
-          isVegetable: false,
+          processingLevel: testInput.processingLevel,
+          isFruit: testInput.isFruit,
+          isVegetable: testInput.isVegetable,
           fiberGrams: 0,
           isPlainWater: false,
         },
@@ -49,4 +56,24 @@ describe("issue #1088 — identidade comercial com IA não vazia", () => {
       }),
     });
   });
+
+  it.each(["laranja pêra", "mamão formosa", "feijão preto"])(
+    "não promove variante natural a marca desconhecida: %s",
+    async foodName => {
+      testInput.foodName = foodName;
+      testInput.processingLevel = "natural_or_minimally_processed";
+      testInput.isFruit = /laranja|mamão/u.test(foodName);
+      testInput.isVegetable = false;
+
+      const result = await processMealInput({ text: `15 g de ${foodName}` });
+
+      expect(result.items[0]).toEqual(
+        expect.objectContaining({
+          foodName: expect.stringMatching(new RegExp(foodName, "i")),
+          brand: null,
+        })
+      );
+      expect(result.semanticContract.needsClarification).toBe(false);
+    }
+  );
 });
