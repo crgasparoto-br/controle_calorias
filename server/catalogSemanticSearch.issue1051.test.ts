@@ -41,7 +41,7 @@ describe("issue #1051 — fallback seguro para produto com marca", () => {
 
     expect(brandedNutritionSearchMock).toHaveBeenCalledWith(
       "pão de forma Panco",
-      expect.anything()
+      expect.anything(),
     );
     expect(catalogSemanticSearchCoreMock).not.toHaveBeenCalled();
   });

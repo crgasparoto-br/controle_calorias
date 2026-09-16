@@ -48,6 +48,14 @@ Os motivos de baixa cardinalidade suportados são:
 
 O detalhe contém somente `schemaVersion`, `reason`, `stage` e `count`. Não deve incluir texto fonte, transcrição, prompt, nome livre de alimento, mídia/URL, reasoning, payload ou erro bruto. A escrita é best effort: falha de observabilidade não pode bloquear nem alterar o rascunho nutricional produzido.
 
+## Diagnóstico da decisão comercial contável
+
+O fluxo de produto industrializado com marca registra uma decisão adicional com `eventType=nutrition.search_decision`. O evento existe para separar falha operacional do provider, resposta sem candidato e rejeição pelos guards do domínio. Ele reutiliza `logInferenceEvent` e não substitui `ai.inference_call`, que continua sendo a única fonte para provider, modelo, tentativas, uso e custo.
+
+O detalhe versionado contém apenas `schemaVersion`, `stage`, `reason`, `traceId`, `hasStructuredCandidate`, `webSearchExecuted`, `sourceCount`, `guards` e, quando aplicável, `operationalOutcome`. Os `reason` suportados são `capability_unavailable`, `execution_failed`, `found_false`, `identity_incompatible`, `variant_incompatible`, `portion_incompatible`, `numeric_grounding_insufficient`, `source_identity_mismatch`, `source_grounding_unavailable`, `grounding_conflict` e `accepted`. Os guards registram somente booleanos para `productIdentity`, `brandIdentity`, `variant`, `portion`, `numericGrounding` e `sourceGrounding`.
+
+O `traceId` é opaco e pode correlacionar a decisão de domínio com os eventos `ai.inference_call` da mesma tentativa. O evento não copia nome de alimento, marca, variante, query, porção textual, URL, evidência, resposta, erro bruto ou mídia. A decisão continua fail-closed: depois que a identidade comercial já consumiu a pesquisa específica, uma relação contável não comprovada retorna à clarificação sem emitir uma segunda pesquisa externa.
+
 ## Catálogo versionado
 
 `server/_core/ai/pricingCatalog.ts` é a fonte versionada. Cada entrada registra provider, snapshot/modelo canônico, aliases, unidade, preço USD e fonte oficial. A versão atual é `2026-08-05.3`, efetiva em `2026-08-05`.

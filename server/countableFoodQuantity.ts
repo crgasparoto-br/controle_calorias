@@ -15,6 +15,7 @@ import {
   recoverCanonicalCommercialIdentity,
   type CommercialIdentityClarification,
 } from "./commercialFoodIdentityPreflight";
+import { createNutritionSearchTrace } from "./nutritionSearchDecisionTelemetry";
 import {
   COUNTABLE_QUANTITY_PATTERN,
   parseCountableQuantity,
@@ -211,7 +212,11 @@ export async function prepareCountableFoodRegistrationResolved(
       ? { ...request, brand: canonicalIdentity.brand }
       : request;
 
-    if (canonicalIdentity.identityClarification) {
+    // A clarificação produzida pelo preflight pode significar apenas que a
+    // IA degradou antes da tentativa canônica de NUTRITION_SEARCH. Quando a
+    // marca foi preservada, ainda devemos executar a única pesquisa específica
+    // antes de transformar a pendência em clarificação final.
+    if (canonicalIdentity.identityClarification && !resolvedRequest.brand) {
       pendingItems.push({
         ...resolvedRequest,
         segmentIndex,
@@ -236,28 +241,30 @@ export async function prepareCountableFoodRegistrationResolved(
     }
 
     let commercialFood: CatalogFood | undefined;
+    let nutritionSearchTelemetry:
+      | { userId: number; origin: "whatsapp"; traceId: string }
+      | undefined;
     if (resolvedRequest.brand) {
+      const nutritionSearchTrace = createNutritionSearchTrace({
+        userId,
+        origin: "whatsapp",
+      });
+      nutritionSearchTelemetry = {
+        userId,
+        origin: "whatsapp",
+        traceId: nutritionSearchTrace.traceId,
+      };
       try {
-        try {
-          // Keep canonical identity resolution first so persisted/catalogued
-          // products and clarification resumptions preserve their old contract.
-          commercialFood = await resolveCommercialFoodIdentity(
-            resolvedRequest.foodName,
-            resolvedRequest.brand
-          );
-        } catch (canonicalError) {
-          if (
-            !(canonicalError instanceof MealInferenceError) ||
-            !canonicalError.context?.clarificationReason
-          ) throw canonicalError;
-          // If canonical research cannot prove the product, retry once with the
-          // original countable expression. Quantity/unit then enrich the web
-          // query (for example, "1 fatia ...") without becoming product identity.
-          commercialFood = await resolveCommercialFoodIdentity(
-            resolvedRequest.segment,
-            resolvedRequest.brand
-          );
-        }
+        // Keep canonical identity as the semantic contract while carrying the
+        // original countable expression into the single external search.
+        commercialFood = await resolveCommercialFoodIdentity(
+          resolvedRequest.foodName,
+          resolvedRequest.brand,
+          {
+            nutritionSearchQuery: resolvedRequest.segment,
+            nutritionSearchTelemetry,
+          },
+        );
       } catch (error) {
         if (
           !(error instanceof MealInferenceError) ||
@@ -282,6 +289,7 @@ export async function prepareCountableFoodRegistrationResolved(
       quantity: resolvedRequest.count,
       unit: resolvedRequest.requestedUnit,
       ...(commercialFood ? { commercialFood } : {}),
+      ...(nutritionSearchTelemetry ? { nutritionSearchTelemetry } : {}),
     });
     if (resolved) {
       rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;

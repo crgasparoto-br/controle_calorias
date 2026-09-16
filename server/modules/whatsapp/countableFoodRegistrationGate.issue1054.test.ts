@@ -238,7 +238,7 @@ describe("#1054 — resolvedor real e precedência comercial", () => {
     expect(boundary.confirm).not.toHaveBeenCalled();
   });
 
-  it("identidade comprovada sem porção verificável permite pedir peso", async () => {
+  it("identidade comprovada sem porção verificável permite pedir peso sem nova pesquisa", async () => {
     boundary.search.mockResolvedValue({
       ...premium(),
       servingLabel: "100 g",
@@ -250,7 +250,7 @@ describe("#1054 — resolvedor real e precedência comercial", () => {
       throw new Error("Missing clarification");
     expect(result.result.reply).toContain("Informe somente o peso");
     expect(boundary.search).toHaveBeenCalled();
-    expect(boundary.measureSearch).toHaveBeenCalled();
+    expect(boundary.measureSearch).not.toHaveBeenCalled();
   });
 
   it("alimento sem marca mantém a porção genérica existente", async () => {

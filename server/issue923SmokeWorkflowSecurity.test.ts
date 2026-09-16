@@ -109,7 +109,7 @@ describe("issue 923 live-provider smoke security boundary", () => {
     expect(productionBlock.match(/createDomainTextResponse\(/g)).toHaveLength(1);
     expect(productionBlock).not.toMatch(/\bfor\s*\(|\bwhile\s*\(/);
     expect(brandedSearch).toContain("const verifiedSource = findVerifiedSource(webSearch, foodName, result);");
-    expect(brandedSearch).toContain("if (!verifiedSource) return null;");
+    expect(brandedSearch).toMatch(/if \(!verifiedSource\) \{[\s\S]*?return null;\s*\}/);
     expect(brandedSearch).toContain("const evidenceText = sourceNutritionEvidenceText(source);");
     expect(brandedSearch).toContain("if (!numericEvidenceSupportsResult(evidenceText, result)) continue;");
     expect(brandedSearch).toContain("sourceEvidence: verifiedSource.evidence");

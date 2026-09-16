@@ -163,7 +163,10 @@ export function cleanMealItems(items: MealDraftItem[]) {
   const deduplicated = new Map<string, MealDraftItem>();
 
   for (const item of items) {
-    if (item.confidence < 0.25 || isLikelyNonFoodNoise(item)) {
+    if (
+      (!item.resolution?.ambiguity && item.confidence < 0.25) ||
+      isLikelyNonFoodNoise(item)
+    ) {
       continue;
     }
 

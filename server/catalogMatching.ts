@@ -2,7 +2,13 @@ import { getCatalogCache } from "./catalogRuntime";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
 import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
-import { cleanFoodName, formatFoodNameTitleCase, normalizeForMatching, normalizedTokenIncludes, normalizeText } from "./mealTextParsing";
+import {
+  cleanFoodName,
+  formatFoodNameTitleCase,
+  normalizeForMatching,
+  normalizedTokenIncludes,
+  normalizeText,
+} from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
 
@@ -88,7 +94,17 @@ const COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES = new Set([
   "de",
   "do",
   "dos",
+  "em",
+  "e",
   "sem",
+]);
+
+const COMMERCIAL_BRAND_CONNECTOR_PREFIXES = new Set([
+  "da",
+  "das",
+  "de",
+  "do",
+  "dos",
 ]);
 
 const CULINARY_COMPOSITION_CONNECTORS = new Set(["com", "sem"]);
@@ -110,6 +126,50 @@ const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "torrado",
 ]);
 
+/** Tokens that complete generic food descriptions but are not brand evidence. */
+const NON_BRAND_REMAINDER_TOKENS = new Set([
+  "acucar",
+  "agua",
+  "caseira",
+  "caseiro",
+  "chocolate",
+  "com",
+  "bovina",
+  "bovino",
+  "crua",
+  "cru",
+  "desnatada",
+  "desnatado",
+  "extra",
+  "forma",
+  "frango",
+  "frances",
+  "integral",
+  "leite",
+  "light",
+  "magra",
+  "magro",
+  "manha",
+  "mineral",
+  "moida",
+  "natural",
+  "mussarela",
+  "original",
+  "pote",
+  "refrigerante",
+  "sabor",
+  "sal",
+  "salgada",
+  "salgado",
+  "sem",
+  "suina",
+  "suino",
+  "tipo",
+  "tonica",
+  "tradicional",
+  "zero",
+]);
+
 type UnresolvedCommercialIdentityHint = {
   brand: string | null;
   productVariant: string | null;
@@ -117,19 +177,63 @@ type UnresolvedCommercialIdentityHint = {
 
 function normalizedWords(value: string) {
   return normalizeText(value)
+    .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")
     .replace(/-/g, " ")
     .split(/\s+/)
     .filter(Boolean);
 }
 
-function findTokenSequence(haystack: string[], needle: string[]) {
-  if (!needle.length || needle.length > haystack.length) return -1;
-  for (let start = 0; start <= haystack.length - needle.length; start++) {
-    if (needle.every((token, offset) => haystack[start + offset] === token)) {
-      return start;
+/** Reuse critical-variation policy so qualifiers cannot become brand evidence. */
+const NON_BRAND_VARIATION_TOKENS = new Set(
+  CRITICAL_VARIATION_TERMS.flatMap(term => normalizedWords(term))
+);
+
+function genericIdentityCandidates(foodName: string) {
+  const candidates: string[][] = [];
+  const seen = new Set<string>();
+  const genericFoods = (getCatalogCache() as CatalogFood[]).filter(
+    food => !food.isBrandedProduct && !food.brandName?.trim()
+  );
+
+  const sourceTokens = normalizedWords(foodName);
+  for (let start = 0; start < sourceTokens.length; start += 1) {
+    for (let length = 1; length <= sourceTokens.length - start; length += 1) {
+      const tacoFood = findTacoFood(
+        sourceTokens.slice(start, start + length).join(" ")
+      );
+      if (tacoFood) {
+        genericFoods.push(tacoFood as CatalogFood);
+      }
     }
   }
-  return -1;
+
+  for (const food of genericFoods) {
+    for (const candidate of [food.name, ...food.aliases]) {
+      const tokens = normalizedWords(candidate);
+      if (!tokens.length || (tokens.length === 1 && tokens[0].length < 3))
+        continue;
+      const key = tokens.join(" ");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push(tokens);
+    }
+  }
+
+  return candidates;
+}
+
+function findOrderedTokenSequence(haystack: string[], needle: string[]) {
+  if (!needle.length || needle.length > haystack.length) return null;
+
+  const indexes: number[] = [];
+  let nextIndex = 0;
+  for (const token of needle) {
+    const index = haystack.indexOf(token, nextIndex);
+    if (index < 0) return null;
+    indexes.push(index);
+    nextIndex = index + 1;
+  }
+  return indexes;
 }
 
 /**
@@ -139,62 +243,123 @@ function findTokenSequence(haystack: string[], needle: string[]) {
  * heuristic so they can continue through the normal measure fallback.
  */
 export function inferUnresolvedCommercialIdentityHint(
-  foodName: string,
+  foodName: string
 ): UnresolvedCommercialIdentityHint | null {
-  const originalTokens = cleanFoodName(foodName).split(/\s+/).filter(Boolean);
-  const sourceTokens = originalTokens.map(token => normalizeText(token));
+  // `normalizedWords` trata hífen como separador. Use a mesma segmentação na
+  // representação que conserva a grafia para que os índices do match genérico
+  // continuem alinhados ao texto original: "Koala-extra" -> ["Koala", "extra"].
+  const originalTokens = cleanFoodName(foodName)
+    .split(/\s+/)
+    .flatMap(token => token.split("-").filter(Boolean));
+  const sourceTokens = normalizedWords(cleanFoodName(foodName));
   if (!sourceTokens.length) return null;
 
-  let bestMatch: { start: number; length: number } | null = null;
-  for (const food of getCatalogCache() as CatalogFood[]) {
-    if (food.isBrandedProduct || food.brandName?.trim()) continue;
-    for (const candidate of [food.name, ...food.aliases]) {
-      const candidateTokens = normalizedWords(candidate);
-      const start = findTokenSequence(sourceTokens, candidateTokens);
-      if (start < 0) continue;
-      if (!bestMatch || candidateTokens.length > bestMatch.length) {
-        bestMatch = { start, length: candidateTokens.length };
-      }
+  let bestMatch: { indexes: number[]; length: number } | null = null;
+  for (const candidateTokens of genericIdentityCandidates(foodName)) {
+    const indexes = findOrderedTokenSequence(sourceTokens, candidateTokens);
+    if (!indexes) continue;
+    if (!bestMatch || candidateTokens.length > bestMatch.length) {
+      bestMatch = { indexes, length: candidateTokens.length };
     }
   }
   if (!bestMatch) return null;
 
-  const remainderTokens = originalTokens.filter((_, index) =>
-    index < bestMatch!.start || index >= bestMatch!.start + bestMatch!.length
+  const matchedIndexes = new Set(bestMatch.indexes);
+  const remainderTokens = originalTokens.filter(
+    (_, index) => !matchedIndexes.has(index)
   );
   if (!remainderTokens.length) return null;
 
-  const normalizedRemainder = remainderTokens.map(token => normalizeText(token));
+  const normalizedRemainder = remainderTokens.map(token =>
+    normalizeText(token)
+  );
+
   const hasExplicitBrandMarker = normalizedRemainder.includes("marca");
-  // Um match genérico de apenas uma palavra (ex.: "água" ou "iogurte") não
-  // comprova que o restante da frase seja marca: ele pode apenas completar a
-  // identidade do alimento ("água tônica", "iogurte sabor ..."). Sem um
-  // marcador explícito de marca, preserve o caminho genérico em vez de
-  // fabricar uma identidade comercial durante indisponibilidade da IA.
-  if (bestMatch.length === 1 && !hasExplicitBrandMarker) return null;
+  // Um match genérico de uma única palavra não comprova que os tokens
+  // restantes sejam uma marca. Em descrições como "sleepy koala chocolate",
+  // o prefixo pode ser apenas o nome específico informado pelo usuário para
+  // o alimento genérico. A forma explícita "marca X" continua autorizada.
+  if (bestMatch.length === 1 && !hasExplicitBrandMarker) {
+    const firstMatchedIndex = Math.min(...bestMatch.indexes);
+    const lastMatchedIndex = Math.max(...bestMatch.indexes);
+    const genericIdentityIsLeading = firstMatchedIndex === 0;
+    const remainderFollowsIdentity = lastMatchedIndex < sourceTokens.length - 1;
+    if (!genericIdentityIsLeading || !remainderFollowsIdentity) return null;
+  }
 
   const remainderText = remainderTokens.join(" ");
   const productVariant = extractCommercialVariant(remainderText);
   const firstRemainderToken = normalizedRemainder[0];
-  if (
-    !productVariant
-    && (
-      COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)
-      || normalizedRemainder.some(token => CULINARY_COMPOSITION_CONNECTORS.has(token))
-    )
-  ) return null;
   const variantTokens = new Set(normalizedWords(productVariant ?? ""));
-  const brandTokens = remainderTokens.filter((token, index) => {
+  const brandTokens: string[] = [];
+  for (const [index, token] of remainderTokens.entries()) {
     const normalized = normalizedRemainder[index];
-    return normalized
-      && normalized !== "marca"
-      && !variantTokens.has(normalized)
-      && !MATCHING_STOP_WORDS.has(normalized)
-      && !NON_BRAND_PRODUCT_DESCRIPTORS.has(normalized);
-  });
+    if (!normalized || normalized === "marca") continue;
+    if (
+      variantTokens.has(normalized) ||
+      MATCHING_STOP_WORDS.has(normalized) ||
+      NON_BRAND_PRODUCT_DESCRIPTORS.has(normalized) ||
+      NON_BRAND_REMAINDER_TOKENS.has(normalized) ||
+      NON_BRAND_VARIATION_TOKENS.has(normalized)
+    ) {
+      if (brandTokens.length) break;
+      continue;
+    }
+    if (normalized.length < 3) continue;
+    brandTokens.push(token);
+  }
   const brand = brandTokens.length
     ? formatFoodNameTitleCase(brandTokens.join(" "))
     : null;
+
+  // A possessive/prepositional connector can introduce an unknown brand
+  // (e.g. "manteiga da Batavo"). Culinary conjunctions and other connectors
+  // remain fail-closed so preparations such as "café com leite" cannot turn
+  // the complement into a brand.
+  if (COMMERCIAL_IDENTITY_CONNECTOR_PREFIXES.has(firstRemainderToken)) {
+    if (
+      CULINARY_COMPOSITION_CONNECTORS.has(firstRemainderToken) ||
+      !COMMERCIAL_BRAND_CONNECTOR_PREFIXES.has(firstRemainderToken) ||
+      !brand
+    ) {
+      return null;
+    }
+
+    // A preposição "de" também introduz composições alimentares ("manteiga
+    // de amendoim", "queijo de cabra"). Se o primeiro complemento é um
+    // alimento reconhecido, ele não é evidência de uma marca desconhecida.
+    if (
+      !hasExplicitBrandMarker &&
+      firstRemainderToken === "de" &&
+      remainderTokens.slice(1).some((_, index) => {
+        const candidate = remainderTokens.slice(1, index + 2).join(" ");
+        return Boolean(candidate && findTacoFood(candidate));
+      })
+    ) {
+      return null;
+    }
+
+    // Without the explicit "marca" marker, a connector may introduce only
+    // one immediate brand token. This prevents descriptions such as
+    // "bolo de pote ninho cremoso" from being read as brand "Pote Ninho".
+    const firstRemainderIdentityIndex = normalizedRemainder.findIndex(
+      (token, index) => index > 0 && !MATCHING_STOP_WORDS.has(token)
+    );
+    if (
+      !hasExplicitBrandMarker &&
+      (brandTokens.length !== 1 ||
+        firstRemainderIdentityIndex < 0 ||
+        normalizedRemainder[firstRemainderIdentityIndex] !==
+          normalizeText(brandTokens[0]))
+    ) {
+      return null;
+    }
+  }
+
+  const normalizedProductVariant = normalizedWords(productVariant ?? "");
+  // A flavor/qualifier without a brand is still a generic food description;
+  // it is not sufficient evidence for a commercial identity.
+  if (!brand && normalizedProductVariant.length > 0) return null;
 
   if (!brand && !productVariant) return null;
   return { brand, productVariant };
@@ -206,24 +371,30 @@ export function normalizeBrandName(value: string | null | undefined) {
 }
 
 function detectCatalogBrand(food: CatalogFood, normalizedQuery: string) {
-  return food.brandName && normalizedTokenIncludes(normalizedQuery, food.brandName) ? food.brandName : null;
+  return food.brandName &&
+    normalizedTokenIncludes(normalizedQuery, food.brandName)
+    ? food.brandName
+    : null;
 }
 
 export function detectCriticalVariations(value: string) {
   const normalized = normalizeForMatching(value);
-  return CRITICAL_VARIATION_TERMS.filter(term => normalizedTokenIncludes(normalized, term));
+  return CRITICAL_VARIATION_TERMS.filter(term =>
+    normalizedTokenIncludes(normalized, term)
+  );
 }
 
 function catalogHasVariation(food: CatalogFood, variation: string) {
-  const searchable = normalizeForMatching([
-    food.name,
-    ...food.aliases,
-    ...(food.variants ?? []),
-  ].join(" "));
+  const searchable = normalizeForMatching(
+    [food.name, ...food.aliases, ...(food.variants ?? [])].join(" ")
+  );
   return normalizedTokenIncludes(searchable, variation);
 }
 
-export function isCatalogFoodSemanticallyCompatible(food: CatalogFood, sourceText: string) {
+export function isCatalogFoodSemanticallyCompatible(
+  food: CatalogFood,
+  sourceText: string
+) {
   return isFoodCandidateSemanticallyCompatible(sourceText, [
     food.name,
     ...food.aliases,
@@ -238,17 +409,27 @@ function getSignificantWords(value: string) {
     .filter(word => word.length >= 3 && !MATCHING_STOP_WORDS.has(word));
 }
 
-function catalogCoversSignificantWords(food: CatalogFood, normalizedRawQuery: string, mentionedBrand: string | null) {
-  const brandWords = new Set(mentionedBrand ? getSignificantWords(mentionedBrand) : []);
-  const queryWords = getSignificantWords(normalizedRawQuery).filter(word => !brandWords.has(word));
+function catalogCoversSignificantWords(
+  food: CatalogFood,
+  normalizedRawQuery: string,
+  mentionedBrand: string | null
+) {
+  const brandWords = new Set(
+    mentionedBrand ? getSignificantWords(mentionedBrand) : []
+  );
+  const queryWords = getSignificantWords(normalizedRawQuery).filter(
+    word => !brandWords.has(word)
+  );
   if (queryWords.length <= 1) return true;
 
-  const searchable = normalizeForMatching([
-    food.name,
-    ...food.aliases,
-    ...(food.variants ?? []),
-    food.brandName ?? "",
-  ].join(" "));
+  const searchable = normalizeForMatching(
+    [
+      food.name,
+      ...food.aliases,
+      ...(food.variants ?? []),
+      food.brandName ?? "",
+    ].join(" ")
+  );
 
   return queryWords.every(word => normalizedTokenIncludes(searchable, word));
 }
@@ -266,7 +447,8 @@ export function sourceMentionsFood(sourceText: string, foodName: string) {
   const candidates = new Set<string>();
   const cleanedFoodName = cleanFoodName(foodName);
 
-  const catalogFood = findCatalogFood(cleanedFoodName) ?? findTacoFood(cleanedFoodName);
+  const catalogFood =
+    findCatalogFood(cleanedFoodName) ?? findTacoFood(cleanedFoodName);
   candidates.add(cleanedFoodName);
   if (catalogFood) {
     candidates.add(catalogFood.name);
@@ -275,11 +457,16 @@ export function sourceMentionsFood(sourceText: string, foodName: string) {
 
   const phraseMatch = Array.from(candidates).some(candidate => {
     const normalizedCandidate = normalizeForMatching(candidate).trim();
-    return normalizedCandidate.length >= 2 && source.includes(` ${normalizedCandidate} `);
+    return (
+      normalizedCandidate.length >= 2 &&
+      source.includes(` ${normalizedCandidate} `)
+    );
   });
   if (phraseMatch) return true;
 
-  const keywords = normalizeText(cleanedFoodName).split(/\s+/).filter(w => w.length >= 3);
+  const keywords = normalizeText(cleanedFoodName)
+    .split(/\s+/)
+    .filter(w => w.length >= 3);
   if (keywords.length > 0 && keywords.every(word => source.includes(word))) {
     return true;
   }
@@ -287,16 +474,27 @@ export function sourceMentionsFood(sourceText: string, foodName: string) {
   return false;
 }
 
-function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, normalizedRawQuery: string) {
+function scoreCatalogFoodMatch(
+  food: CatalogFood,
+  normalizedQuery: string,
+  normalizedRawQuery: string
+) {
   if (!isCatalogFoodSemanticallyCompatible(food, normalizedRawQuery)) return 0;
 
   const catalogBrand = detectCatalogBrand(food, normalizedRawQuery);
   const mentionedBrand = catalogBrand ?? detectKnownBrand(normalizedRawQuery);
   const queryVariations = detectCriticalVariations(normalizedRawQuery);
-  const queryMentionsFullAlias = (alias: string) => normalizedTokenIncludes(normalizedQuery, alias);
+  const queryMentionsFullAlias = (alias: string) =>
+    normalizedTokenIncludes(normalizedQuery, alias);
   const queryText = normalizedQuery.trim();
-  const brandWords = new Set(mentionedBrand ? getSignificantWords(mentionedBrand) : []);
-  const queryWordSet = new Set(getSignificantWords(normalizedRawQuery).filter(word => !brandWords.has(word)));
+  const brandWords = new Set(
+    mentionedBrand ? getSignificantWords(mentionedBrand) : []
+  );
+  const queryWordSet = new Set(
+    getSignificantWords(normalizedRawQuery).filter(
+      word => !brandWords.has(word)
+    )
+  );
   let bestScore = 0;
 
   for (const candidate of [food.name, ...food.aliases]) {
@@ -308,13 +506,21 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
       continue;
     }
 
-    if (queryMentionsFullAlias(candidate) && !(isGenericSingleWordAlias(alias) && queryText !== alias)) {
+    if (
+      queryMentionsFullAlias(candidate) &&
+      !(isGenericSingleWordAlias(alias) && queryText !== alias)
+    ) {
       bestScore = Math.max(bestScore, 700 + alias.length);
       continue;
     }
 
-    const aliasWords = getSignificantWords(alias).filter(word => !brandWords.has(word));
-    if (aliasWords.length > 1 && aliasWords.every(word => queryWordSet.has(word))) {
+    const aliasWords = getSignificantWords(alias).filter(
+      word => !brandWords.has(word)
+    );
+    if (
+      aliasWords.length > 1 &&
+      aliasWords.every(word => queryWordSet.has(word))
+    ) {
       bestScore = Math.max(bestScore, 600 + alias.length);
       continue;
     }
@@ -326,18 +532,27 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
 
   if (!bestScore) return 0;
 
-  if (!catalogCoversSignificantWords(food, normalizedRawQuery, mentionedBrand)) {
+  if (
+    !catalogCoversSignificantWords(food, normalizedRawQuery, mentionedBrand)
+  ) {
     return 0;
   }
 
-  if (queryVariations.length > 0 && queryVariations.some(variation => !catalogHasVariation(food, variation))) {
+  if (
+    queryVariations.length > 0 &&
+    queryVariations.some(variation => !catalogHasVariation(food, variation))
+  ) {
     return 0;
   }
 
   if (food.isBrandedProduct) {
     if (food.brandName && catalogBrand) {
       bestScore += 220;
-    } else if (food.brandName && mentionedBrand && mentionedBrand !== food.brandName) {
+    } else if (
+      food.brandName &&
+      mentionedBrand &&
+      mentionedBrand !== food.brandName
+    ) {
       bestScore -= 300;
     }
   } else if (mentionedBrand) {
@@ -349,18 +564,30 @@ function scoreCatalogFoodMatch(food: CatalogFood, normalizedQuery: string, norma
   return Math.max(bestScore, 0);
 }
 
-export function findCatalogFood(foodName: string, userId?: number): CatalogFood | undefined {
+export function findCatalogFood(
+  foodName: string,
+  userId?: number
+): CatalogFood | undefined {
   // Consulta aliases pessoais do usuário antes do catálogo global.
   if (userId != null) {
     try {
       // Import síncrono via require para evitar async no hot path.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { resolvePersonalFoodAlias } = require("./modules/whatsapp/personalFoodAliasStore") as typeof import("./modules/whatsapp/personalFoodAliasStore");
-      const personalAlias = resolvePersonalFoodAlias({ userId, foodText: foodName });
+      const { resolvePersonalFoodAlias } =
+        require("./modules/whatsapp/personalFoodAliasStore") as typeof import("./modules/whatsapp/personalFoodAliasStore");
+      const personalAlias = resolvePersonalFoodAlias({
+        userId,
+        foodText: foodName,
+      });
       if (personalAlias) {
         // O alias aprendido não pode contornar o guard aplicado ao texto original.
-        const resolvedFood: CatalogFood | undefined = findCatalogFood(personalAlias.canonicalName);
-        if (resolvedFood && isCatalogFoodSemanticallyCompatible(resolvedFood, foodName)) {
+        const resolvedFood: CatalogFood | undefined = findCatalogFood(
+          personalAlias.canonicalName
+        );
+        if (
+          resolvedFood &&
+          isCatalogFoodSemanticallyCompatible(resolvedFood, foodName)
+        ) {
           return resolvedFood;
         }
       }
@@ -387,6 +614,14 @@ export function findCatalogFood(foodName: string, userId?: number): CatalogFood 
   return bestFood;
 }
 
-export function inferItemBrand(food: CatalogFood, foodName: string, explicitBrand?: string | null) {
-  return food.brandName?.trim() || normalizeBrandName(explicitBrand) || detectKnownBrand(foodName);
+export function inferItemBrand(
+  food: CatalogFood,
+  foodName: string,
+  explicitBrand?: string | null
+) {
+  return (
+    food.brandName?.trim() ||
+    normalizeBrandName(explicitBrand) ||
+    detectKnownBrand(foodName)
+  );
 }

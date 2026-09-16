@@ -85,6 +85,20 @@ describe("resolveHouseholdMeasure (#1043)", () => {
       kind: "contextual_estimate",
       grams: 54,
     }));
+    expect(runtime.executeResolvedCapability).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        observability: expect.objectContaining({
+          origin: "system",
+          flow: "nutrition_product_web_search",
+          correlation: expect.objectContaining({
+            userId: 71,
+            traceId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          }),
+        }),
+      }),
+    );
   });
 
   it("mantém clarificação quando a referência é ampla ou semanticamente incompatível", async () => {
