@@ -1,5 +1,6 @@
 import express from "express";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import type { Server } from "node:http";
 import { createServer } from "node:http";
 import {
@@ -24,16 +25,48 @@ import type {
   MealProcessingInput,
   MealProcessingResult,
 } from "./nutritionEngineTypes";
+import {
+  normalizeForMatching,
+  parseFoodText,
+  splitFoodTextSegments,
+} from "./mealTextParsing";
 import { RATE_LIMITS, createExpressRateLimit } from "./_core/rateLimit";
 import { registerWhatsAppPublicPostRoute } from "./whatsappPublicRoute";
 
+type SemanticFactSnapshot = {
+  originalText: string;
+  foodName: string;
+  brand: string | null;
+  productVariant: string | null;
+  quantity: number;
+  unit: string;
+  estimatedGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  nutritionOrigin: string;
+  nutritionVerified: boolean;
+  sourceUrls: string[];
+};
+
 const nativeFetch = globalThis.fetch.bind(globalThis);
-const DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
+const BASELINE_DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
+const CHARACTERIZATION_DEVELOP_SHA = (() => {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "unavailable";
+  }
+})();
 const TEST_PHONE = "5511999999999";
 const CHANNEL_PHONE_NUMBER_ID = "phone-number-test";
 
 const state = vi.hoisted(() => {
   const metrics = () => ({
+    // primary metrics
     processMealInput: 0,
     mealProcessingResults: 0,
     nutritionSearchAttempts: 0,
@@ -43,6 +76,11 @@ const state = vi.hoisted(() => {
       { attempts: number; outbound: number }
     >,
     roundTrips: 0,
+    roundTripFailures: 0,
+    monotonicChecks: 0,
+    monotonicViolations: 0,
+    pendingReplyOrderChecks: 0,
+    pendingReplyOrderViolations: 0,
     semanticContracts: 0,
     drafts: 0,
     persistedMeals: 0,
@@ -59,12 +97,7 @@ const state = vi.hoisted(() => {
     events: [] as Array<{ eventType?: string; detail?: string }>,
     contracts: [] as Array<{
       originalText: string;
-      items: Array<{
-        originalText: string;
-        quantity: number;
-        unit: string;
-        estimatedGrams: number;
-      }>;
+      items: SemanticFactSnapshot[];
     }>,
     outboundReplies: [] as string[],
     nutritionSearchItems: {} as Record<string, string>,
@@ -80,6 +113,8 @@ const state = vi.hoisted(() => {
     pendingRows: new Map<number, any>(),
     nextPendingId: 1,
     claims: new Map<number, { ownerToken: string; heartbeatAt: Date }>(),
+    semanticSnapshots: new Map<string, SemanticFactSnapshot[]>(),
+    sequence: [] as string[],
     metrics: metrics(),
     searchMode: "accepted" as
       | "accepted"
@@ -95,6 +130,8 @@ const state = vi.hoisted(() => {
       this.catalog = [];
       this.events = [];
       this.contracts = [];
+      this.semanticSnapshots.clear();
+      this.sequence = [];
       this.outboundReplies = [];
       this.nutritionSearchItems = {};
       this.nutritionSearchResults = {};
@@ -230,6 +267,166 @@ function extractMealText(request: any) {
       : null;
   const value = match?.[1]?.trim() ?? "";
   return value === "não informado" ? "" : value;
+}
+
+function factFromContractItem(item: any): SemanticFactSnapshot {
+  const nutrition = item.evidence.nutrition;
+  return {
+    originalText: item.originalText,
+    foodName: item.commercialName,
+    brand: item.brand,
+    productVariant: item.productVariant,
+    quantity: item.quantity,
+    unit: item.unit,
+    estimatedGrams: item.estimatedGrams,
+    calories: nutrition.value.calories,
+    protein: nutrition.value.protein,
+    carbs: nutrition.value.carbs,
+    fat: nutrition.value.fat,
+    nutritionOrigin: nutrition.origin,
+    nutritionVerified: nutrition.verified,
+    sourceUrls: [...nutrition.value.sourceUrls],
+  };
+}
+
+function factFromPersistedItem(item: any): SemanticFactSnapshot {
+  const resolution = item.resolution ?? {};
+  return {
+    originalText: item.originalText ?? item.foodName,
+    foodName: item.foodName,
+    brand: item.brand ?? null,
+    productVariant: resolution.productVariant ?? null,
+    quantity: item.quantity,
+    unit: item.unit,
+    estimatedGrams: item.estimatedGrams,
+    calories: item.calories,
+    protein: item.protein,
+    carbs: item.carbs,
+    fat: item.fat,
+    nutritionOrigin: resolution.nutritionOrigin ?? item.source,
+    nutritionVerified:
+      resolution.nutritionVerified ?? item.source === "catalog",
+    sourceUrls: [...(resolution.sourceUrls ?? [])],
+  };
+}
+
+function semanticFactKey(
+  fact: Pick<SemanticFactSnapshot, "foodName" | "brand" | "productVariant">
+) {
+  return createHash("sha256")
+    .update(
+      [fact.foodName, fact.brand ?? "", fact.productVariant ?? ""]
+        .map(normalizeForMatching)
+        .join("|")
+    )
+    .digest("hex")
+    .slice(0, 12);
+}
+
+function measureMealTextRoundTrip(facts: SemanticFactSnapshot[]) {
+  const serializedLines = facts.map(fact => {
+    const quantity = Number.isInteger(fact.quantity)
+      ? String(fact.quantity)
+      : `${Math.round(fact.quantity * 10)} / 10`;
+    return `${quantity} ${fact.unit} de ${fact.foodName}`;
+  });
+  const serializedText = serializedLines.join("\n");
+  const reconstructed = serializedLines.map(parseFoodText);
+  const roundTripOk =
+    reconstructed.length === facts.length &&
+    reconstructed.every((parsed, index) => {
+      const original = facts[index];
+      return (
+        normalizeForMatching(parsed.foodName) ===
+          normalizeForMatching(original.foodName) &&
+        parsed.quantity === original.quantity &&
+        parsed.unit === original.unit &&
+        (parsed.estimatedGrams === undefined ||
+          original.estimatedGrams === undefined ||
+          Math.abs(parsed.estimatedGrams - original.estimatedGrams) < 0.01)
+      );
+    });
+  if (roundTripOk) state.metrics.roundTrips += 1;
+  else state.metrics.roundTripFailures += 1;
+  return { serializedText, reconstructed, roundTripOk };
+}
+
+function recordSemanticContract(contract: any) {
+  const facts = contract.items.map(factFromContractItem);
+  measureMealTextRoundTrip(facts);
+  for (const fact of facts) {
+    const key = semanticFactKey(fact);
+    const snapshots = state.semanticSnapshots.get(key) ?? [];
+    snapshots.push(fact);
+    state.semanticSnapshots.set(key, snapshots);
+  }
+  return facts;
+}
+
+function assertPersistedFactsMatchSnapshots(meal: any) {
+  for (const item of meal.items ?? []) {
+    const actual = factFromPersistedItem(item);
+    const snapshots = [...state.semanticSnapshots.values()].flat();
+    const expected = snapshots.find(
+      snapshot =>
+        (normalizeForMatching(snapshot.foodName) ===
+          normalizeForMatching(actual.foodName) ||
+          normalizeForMatching(snapshot.foodName).includes(
+            normalizeForMatching(actual.foodName)
+          ) ||
+          normalizeForMatching(actual.foodName).includes(
+            normalizeForMatching(snapshot.foodName)
+          )) &&
+        snapshot.brand === actual.brand &&
+        snapshot.quantity === actual.quantity &&
+        snapshot.unit === actual.unit &&
+        Math.abs(snapshot.estimatedGrams - actual.estimatedGrams) < 0.01
+    );
+    state.metrics.monotonicChecks += 1;
+    expect(expected).toBeDefined();
+    if (!expected) {
+      state.metrics.monotonicViolations += 1;
+      continue;
+    }
+    const fields: Array<keyof SemanticFactSnapshot> = [
+      "foodName",
+      "brand",
+      "quantity",
+      "unit",
+      "estimatedGrams",
+      "calories",
+      "protein",
+      "carbs",
+      "fat",
+      "nutritionOrigin",
+      "nutritionVerified",
+    ];
+    for (const field of fields) {
+      expect(actual[field]).toEqual(expected[field]);
+      if (actual[field] !== expected[field])
+        state.metrics.monotonicViolations += 1;
+    }
+    if (actual.brand) {
+      expect(actual.productVariant).toEqual(expected.productVariant);
+      if (actual.productVariant !== expected.productVariant)
+        state.metrics.monotonicViolations += 1;
+    }
+    if (expected.sourceUrls.length > 0) {
+      expect(actual.sourceUrls).toEqual(expected.sourceUrls);
+    }
+  }
+}
+
+function assertPendingWasPersistedBeforeReply() {
+  const pendingIndex = state.sequence.indexOf("pending-created");
+  const replyIndex = state.sequence.indexOf("reply-attempt");
+  state.metrics.pendingReplyOrderChecks += 1;
+  expect(pendingIndex).toBeGreaterThanOrEqual(0);
+  expect(replyIndex).toBeGreaterThanOrEqual(0);
+  expect(pendingIndex).toBeLessThan(replyIndex);
+  if (pendingIndex < 0 || replyIndex < 0 || pendingIndex >= replyIndex) {
+    state.metrics.pendingReplyOrderViolations += 1;
+  }
 }
 
 function classificationFor(foodName: string) {
@@ -532,6 +729,7 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
       };
       state.pendingRows.set(row.id, row);
       state.metrics.pendingCreated += 1;
+      state.sequence.push("pending-created");
       return row;
     },
     async getActivePendingOperation(userId: number, now = new Date()) {
@@ -565,6 +763,7 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
       row.consumedAt = new Date();
       state.metrics.pendingClaimed += 1;
       state.metrics.pendingConsumed += 1;
+      state.sequence.push("pending-claimed");
       return { claimed: true };
     },
     async cancelPendingOperation(id: number) {
@@ -647,8 +846,6 @@ vi.mock("./nutritionEngine", async () => {
       state.metrics.processMealInput += 1;
       const result = await actual.processMealInput(input);
       state.metrics.mealProcessingResults += 1;
-      if (result.semanticContract?.originalText === result.sourceText)
-        state.metrics.roundTrips += 1;
       return result;
     }),
   };
@@ -665,12 +862,7 @@ vi.mock("./mealSemanticContract", async () => {
       const contract = actual.buildMealSemanticContract(...args);
       state.contracts.push({
         originalText: contract.originalText,
-        items: contract.items.map((item: any) => ({
-          originalText: item.originalText,
-          quantity: item.quantity,
-          unit: item.unit,
-          estimatedGrams: item.estimatedGrams,
-        })),
+        items: recordSemanticContract(contract),
       });
       return contract;
     }),
@@ -1086,7 +1278,8 @@ function assertSanitizedEvidence(shared: SharedLifecycleState) {
     );
   }
   const evidence = JSON.stringify({
-    sha: DEVELOP_SHA,
+    baselineDevelopSha: BASELINE_DEVELOP_SHA,
+    characterizationDevelopSha: CHARACTERIZATION_DEVELOP_SHA,
     metrics: state.metrics,
     events: eventEvidenceOnly(),
     inbound: shared.messages
@@ -1186,6 +1379,11 @@ type EvidenceRow = {
 
 function makeEmptyMetrics() {
   return {
+    roundTripFailures: 0,
+    monotonicChecks: 0,
+    monotonicViolations: 0,
+    pendingReplyOrderChecks: 0,
+    pendingReplyOrderViolations: 0,
     processMealInput: 0,
     mealProcessingResults: 0,
     nutritionSearchAttempts: 0,
@@ -1217,6 +1415,7 @@ function installNetworkBoundary() {
     const url = String(input);
     if (url.includes("/messages")) {
       state.outboundReplies.push(url);
+      state.sequence.push("reply-attempt");
       if (state.sendReplyFailure) {
         return new Response(null, {
           status: 503,
@@ -1310,6 +1509,13 @@ async function finishScenario(
   );
   expect(definition).toBeDefined();
   expect(result).toBe(definition?.expectedResult);
+  if (result === "registered") {
+    const meals = await listUserMeals(nextUserId - 1);
+    for (const meal of meals) assertPersistedFactsMatchSnapshots(meal);
+  }
+  if (state.metrics.pendingCreated > 0) {
+    assertPendingWasPersistedBeforeReply();
+  }
   assertSanitizedEvidence(activeLifecycle);
   evidenceRows.push({ scenarioId, result, metrics: { ...state.metrics } });
   if (activeServer) await close(activeServer);
@@ -1336,10 +1542,25 @@ afterAll(() => {
   expect(evidenceRows.map(row => row.scenarioId)).toEqual(
     scenarioDefinitions.map(scenario => scenario.id)
   );
+  const contractRows = evidenceRows.filter(
+    row => row.metrics.semanticContracts > 0
+  );
+  expect(contractRows.length).toBeGreaterThan(0);
+  expect(contractRows.every(row => row.metrics.roundTrips > 0)).toBe(true);
+  expect(contractRows.every(row => row.metrics.roundTripFailures === 0)).toBe(
+    true
+  );
+  expect(evidenceRows.every(row => row.metrics.monotonicViolations === 0)).toBe(
+    true
+  );
+  expect(
+    evidenceRows.every(row => row.metrics.pendingReplyOrderViolations === 0)
+  ).toBe(true);
   const evidence = {
     schemaVersion: 1,
     issue: 1094,
-    developSha: DEVELOP_SHA,
+    baselineDevelopSha: BASELINE_DEVELOP_SHA,
+    characterizationDevelopSha: CHARACTERIZATION_DEVELOP_SHA,
     entrypoint: "POST /api/whatsapp/webhook",
     scenarios: evidenceRows,
   };
@@ -1638,6 +1859,23 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       }),
     ]);
     assertOpaqueSearchKeys([/Panco Premium/u]);
+    const outboundBeforeRetry = state.outboundReplies.length;
+    resetCaches();
+    const duplicate = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-09",
+        timestamp: "1789556880",
+        type: "text",
+        text: { body: "1 fatia de pão de forma Panco Premium" },
+      })
+    );
+    expect(duplicate.status).toBe(200);
+    expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
+    expect(state.metrics.nutritionSearchAttempts).toBe(1);
+    expect(state.metrics.nutritionSearchOutbound).toBe(1);
+    expect(state.metrics.pendingCreated).toBe(0);
+    expect(state.outboundReplies).toHaveLength(outboundBeforeRetry);
     await finishScenario("09-empty-cache", "registered");
   });
 
@@ -1764,7 +2002,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
   });
 
   it("12 — persiste clarificação antes da pergunta, preserva irmão, rejeita resposta incompatível e retoma idempotentemente", async () => {
-    await startScenario({});
+    await startScenario({
+      catalog: defaultCatalog().filter(
+        food => food.name !== "Pão de Forma Panco Premium"
+      ),
+    });
     const initial = await post(
       activeUrl,
       payload({
@@ -1777,8 +2019,14 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       })
     );
     expect(initial.status).toBe(200);
+    expect(state.metrics.nutritionSearchAttempts).toBe(2);
+    expect(state.metrics.nutritionSearchOutbound).toBe(1);
     expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(0);
+    expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
+      { attempts: 1, outbound: 1 },
+    ]);
+    assertOpaqueSearchKeys([/Panco Premium/u]);
     expect(state.pendingRows.get(1)).toEqual(
       expect.objectContaining({
         userId: nextUserId - 1,
@@ -1809,6 +2057,25 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       })
     );
 
+    const outboundBeforeInitialRetry = state.outboundReplies.length;
+    resetCaches();
+    const initialRetry = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-12-a",
+        timestamp: "1789557060",
+        type: "text",
+        text: {
+          body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
+        },
+      })
+    );
+    expect(initialRetry.status).toBe(200);
+    expect(state.metrics.pendingCreated).toBe(1);
+    expect(state.metrics.nutritionSearchAttempts).toBe(2);
+    expect(state.metrics.nutritionSearchOutbound).toBe(1);
+    expect(state.outboundReplies).toHaveLength(outboundBeforeInitialRetry);
+
     const incompatible = await post(
       activeUrl,
       payload({
@@ -1833,6 +2100,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(resumed.status).toBe(200);
     expect(state.metrics.pendingConsumed).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
+    expect(state.metrics.nutritionSearchAttempts).toBe(2);
+    expect(state.metrics.nutritionSearchOutbound).toBe(1);
+    expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
+      { attempts: 1, outbound: 1 },
+    ]);
     const afterResume = await listUserMeals(nextUserId - 1);
     expect(afterResume).toHaveLength(1);
     expect(afterResume[0].items.length).toBeGreaterThanOrEqual(2);
@@ -1855,11 +2127,13 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       })
     );
 
+    const outboundBeforeResumeRetry = state.outboundReplies.length;
     resetCaches();
     const retry = await post(activeUrl, payload(resumedMessage));
     expect(retry.status).toBe(200);
     expect(state.metrics.pendingConsumed).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
+    expect(state.outboundReplies).toHaveLength(outboundBeforeResumeRetry);
     expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
     await finishScenario("12-clarification-resume", "registered");
   });
