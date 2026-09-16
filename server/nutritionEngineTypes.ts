@@ -165,6 +165,8 @@ export type MealProcessingInput = {
   transcript?: string;
   imageUrl?: string;
   audioUrl?: string;
+  /** Preflight interno: recupera identidade sem iniciar pesquisa nutricional duplicada. */
+  skipCommercialNutritionSearch?: boolean;
   /**
    * Proveniência opcional já conhecida pelo produtor para campos específicos.
    * Ex.: OCR estruturado ou memória pessoal resolvida antes do motor nutricional.
@@ -308,6 +310,7 @@ export type ExplicitQuantity = {
 
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
+  skipCommercialNutritionSearch?: boolean;
   /**
    * Evidência textual estruturada emitida pelo extrator visual. O motor só a
    * promove a `nutrition_label` quando a porção-base e os quatro valores

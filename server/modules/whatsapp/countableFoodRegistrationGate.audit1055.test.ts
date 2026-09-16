@@ -94,7 +94,7 @@ describe("audit #1055 — falha da extração antes da identidade", () => {
     if (result.kind !== "clarification") throw new Error("Missing clarification");
     expect(result.result.reply).toMatch(/Seven Boys/);
     expect(result.result.reply).not.toMatch(/Informe somente o peso/);
-    expect(boundary.search).not.toHaveBeenCalled();
+    expect(boundary.search).toHaveBeenCalledTimes(1);
     expect(boundary.measureSearch).not.toHaveBeenCalled();
     expect(boundary.quantityClarification).not.toHaveBeenCalled();
   });
