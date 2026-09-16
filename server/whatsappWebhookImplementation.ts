@@ -208,6 +208,14 @@ function getPreparedTextModality(
   return "text";
 }
 
+function getOriginalInboundText(req: Request, message: WhatsAppWebhookMessage) {
+  const byMessageId = (req as any).__originalInboundTextByMessageId;
+  if (message.id && byMessageId instanceof Map && byMessageId.has(message.id)) {
+    return String(byMessageId.get(message.id)).trim();
+  }
+  return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
 function inspectPreparedMessageSafety(
   message: WhatsAppWebhookMessage,
   prepared: PreparedMessageInput
@@ -993,7 +1001,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
         occurredAt: occurredAt.toISOString(),
         notes:
-          prepared.text?.trim() || prepared.transcript?.trim() || undefined,
+          getOriginalInboundText(req, message) ||
+          prepared.transcript?.trim() ||
+          undefined,
         items: processedForPersistence.items,
       });
 
