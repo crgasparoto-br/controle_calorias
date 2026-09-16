@@ -23,7 +23,6 @@ import type { WhatsAppProcessingClaimRepository } from "./repositories/whatsappP
 import type {
   CatalogFood,
   MealProcessingInput,
-  MealProcessingResult,
 } from "./nutritionEngineTypes";
 import {
   normalizeForMatching,
@@ -52,6 +51,15 @@ type SemanticFactSnapshot = {
 
 const nativeFetch = globalThis.fetch.bind(globalThis);
 const BASELINE_DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
+const F0_07_REVALIDATION = {
+  status: "revalidated" as const,
+  baselineSha: BASELINE_DEVELOP_SHA,
+  affectedPaths: [
+    "POST /api/whatsapp/webhook",
+    "server/whatsappPersistentContextWebhook.ts",
+    "server/whatsappWebhook.ts::handleWhatsAppWebhook",
+  ],
+};
 const CHARACTERIZATION_DEVELOP_SHA = (() => {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
@@ -63,6 +71,7 @@ const CHARACTERIZATION_DEVELOP_SHA = (() => {
 })();
 const TEST_PHONE = "5511999999999";
 const CHANNEL_PHONE_NUMBER_ID = "phone-number-test";
+let activeVisionFixtureText: string | null = null;
 
 const state = vi.hoisted(() => {
   const metrics = () => ({
@@ -123,6 +132,8 @@ const state = vi.hoisted(() => {
       | "failed"
       | "unavailable",
     transcript: "100 g de arroz branco",
+    visionFoodText: null as string | null,
+    visionRequestObserved: false,
     pendingCreateFailure: false,
     sendReplyFailure: false,
     reset() {
@@ -141,6 +152,8 @@ const state = vi.hoisted(() => {
       this.metrics = metrics();
       this.searchMode = "accepted";
       this.transcript = "100 g de arroz branco";
+      this.visionFoodText = null;
+      this.visionRequestObserved = false;
       this.pendingCreateFailure = false;
       this.sendReplyFailure = false;
     },
@@ -449,8 +462,6 @@ function classificationFor(foodName: string) {
 }
 
 function buildExtraction(sourceText: string) {
-  const { parseFoodText, splitFoodTextSegments } =
-    require("./mealTextParsing") as typeof import("./mealTextParsing");
   const segments = splitFoodTextSegments(sourceText).filter(Boolean);
   const items = segments.map(segment => {
     const parsed = parseFoodText(segment);
@@ -632,9 +643,16 @@ vi.mock("./_core/ai/domainTextResponse", () => ({
         },
       };
     }
+    const hasImage = JSON.stringify(request ?? "").includes(
+      '\"type\":\"input_image\"'
+    );
+    if (hasImage) state.visionRequestObserved = true;
+    const extractionPayload = buildExtraction(
+      activeVisionFixtureText || extractMealText(request)
+    );
     return {
       id: "meal-response-redacted",
-      outputText: JSON.stringify(buildExtraction(extractMealText(request))),
+      outputText: JSON.stringify(extractionPayload),
     };
   },
 }));
@@ -917,6 +935,9 @@ const { resetAllMessageDeduplicationCachesForTests } = await import(
 );
 const { __resetWhatsAppImageIdempotencyForTests } = await import(
   "./whatsappImageIdempotencyWebhook"
+);
+const { __resetWhatsAppAnnotatedImageDeduplicationForTests } = await import(
+  "./whatsappAnnotatedImageWebhook"
 );
 const { __resetWhatsAppWebhookDeduplicationForTests } = await import(
   "./whatsappWebhook"
@@ -1222,6 +1243,7 @@ async function post(url: string, body: unknown) {
 function resetCaches() {
   resetAllMessageDeduplicationCachesForTests();
   __resetWhatsAppImageIdempotencyForTests();
+  __resetWhatsAppAnnotatedImageDeduplicationForTests();
   __resetWhatsAppWebhookDeduplicationForTests();
 }
 
@@ -1231,12 +1253,15 @@ function configureScenario(input: {
   transcript?: string;
   pendingCreateFailure?: boolean;
   sendReplyFailure?: boolean;
+  visionFoodText?: string | null;
 }) {
   state.catalog = input.catalog ?? defaultCatalog();
   state.searchMode = input.searchMode ?? "accepted";
   state.transcript = input.transcript ?? "100 g de arroz branco";
   state.pendingCreateFailure = input.pendingCreateFailure ?? false;
   state.sendReplyFailure = input.sendReplyFailure ?? false;
+  state.visionFoodText = input.visionFoodText ?? null;
+  activeVisionFixtureText = input.visionFoodText ?? null;
 }
 
 function assertOpaqueSearchKeys(expectedItems: RegExp[]) {
@@ -1298,6 +1323,20 @@ function assertSanitizedEvidence(shared: SharedLifecycleState) {
   );
 }
 
+function assertPersistedOriginalText(meal: any) {
+  const expectedOriginalTexts = activeLifecycle.messages
+    .filter(message => message.direction === "inbound")
+    .flatMap(message => [message.text, message.captionText, message.transcript])
+    .filter((value): value is string => Boolean(value))
+    .concat(
+      [...state.pendingRows.values()]
+        .map(row => row.target?.originalText)
+        .filter((value): value is string => Boolean(value))
+    );
+  if (expectedOriginalTexts.length === 0) return;
+  expect(expectedOriginalTexts).toContain(meal.notes);
+}
+
 const scenarioDefinitions = [
   {
     id: "01-panco-premium",
@@ -1340,6 +1379,11 @@ const scenarioDefinitions = [
     expectedResult: "clarification",
   },
   {
+    id: "08-search-unavailable",
+    title: "NUTRITION_SEARCH sem configuração disponível",
+    expectedResult: "clarification",
+  },
+  {
     id: "09-empty-cache",
     title: "Cache web_nutrition vazio",
     expectedResult: "registered",
@@ -1367,6 +1411,11 @@ const scenarioDefinitions = [
   {
     id: "14-image-convergent",
     title: "Imagem convergente",
+    expectedResult: "registered",
+  },
+  {
+    id: "15-durable-restart-resume",
+    title: "Retomada da clarificação após reinicialização do runtime",
     expectedResult: "registered",
   },
 ] as const;
@@ -1466,6 +1515,7 @@ async function startScenario(input: {
   transcript?: string;
   pendingCreateFailure?: boolean;
   sendReplyFailure?: boolean;
+  visionFoodText?: string | null;
 }) {
   state.reset();
   configureScenario(input);
@@ -1500,6 +1550,35 @@ async function startScenario(input: {
   return userId;
 }
 
+async function restartScenarioRuntime() {
+  if (activeServer) await close(activeServer);
+  resetCaches();
+  activeLifecycle = createLifecycleState();
+  const app = express();
+  registerWhatsAppPublicPostRoute(app, {
+    runtimeBootId: "test-issue-1094-restarted",
+    webhookRateLimit: createExpressRateLimit(RATE_LIMITS.whatsappWebhook),
+    handle: (req, res) =>
+      withMessageLifecycleService(createRuntime(activeLifecycle), () =>
+        handleWhatsAppPersistentContextWebhook(req as never, res as never)
+      ),
+  });
+  app.use(
+    (
+      error: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      if (!res.headersSent) res.status(500).json({ ok: false });
+      void error;
+    }
+  );
+  const listening = await listen(app);
+  activeServer = listening.server;
+  activeUrl = listening.url;
+}
+
 async function finishScenario(
   scenarioId: string,
   result: EvidenceRow["result"]
@@ -1511,7 +1590,10 @@ async function finishScenario(
   expect(result).toBe(definition?.expectedResult);
   if (result === "registered") {
     const meals = await listUserMeals(nextUserId - 1);
-    for (const meal of meals) assertPersistedFactsMatchSnapshots(meal);
+    for (const meal of meals) {
+      assertPersistedOriginalText(meal);
+      assertPersistedFactsMatchSnapshots(meal);
+    }
   }
   if (state.metrics.pendingCreated > 0) {
     assertPendingWasPersistedBeforeReply();
@@ -1561,6 +1643,7 @@ afterAll(() => {
     issue: 1094,
     baselineDevelopSha: BASELINE_DEVELOP_SHA,
     characterizationDevelopSha: CHARACTERIZATION_DEVELOP_SHA,
+    f0_07Revalidation: F0_07_REVALIDATION,
     entrypoint: "POST /api/whatsapp/webhook",
     scenarios: evidenceRows,
   };
@@ -1815,6 +1898,28 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     );
     expect(replyFailure?.detail).not.toContain(TEST_PHONE);
     await finishScenario("08-search-failure", "clarification");
+  });
+
+  it("08b — configuração indisponível de NUTRITION_SEARCH permanece fail-closed", async () => {
+    await startScenario({
+      catalog: [],
+      searchMode: "unavailable",
+    });
+    const response = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-08b",
+        timestamp: "1789556850",
+        type: "text",
+        text: { body: "1 fatia de pão de forma Panco Premium" },
+      })
+    );
+    expect(response.status).toBe(200);
+    expect(state.metrics.nutritionSearchAttempts).toBe(0);
+    expect(state.metrics.nutritionSearchOutbound).toBe(0);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.metrics.pendingCreated).toBe(1);
+    await finishScenario("08-search-unavailable", "clarification");
   });
 
   it("09 — pesquisa uma única vez com cache web_nutrition vazio e persiste a proveniência", async () => {
@@ -2180,7 +2285,18 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
   });
 
   it("14 — converge imagem pela mesma fronteira de identidade/resolução e mantém mídia opaca", async () => {
-    await startScenario({});
+    await startScenario({
+      catalog: defaultCatalog(),
+      visionFoodText: "100 g de arroz branco",
+    });
+    const { extractWithAi } = await import("./mealAiExtraction");
+    await expect(
+      extractWithAi({ imageUrl: "data:image/jpeg;base64,visual-fixture" })
+    ).resolves.toEqual(expect.objectContaining({
+      items: expect.arrayContaining([
+        expect.objectContaining({ foodName: expect.stringMatching(/arroz/i) }),
+      ]),
+    }));
     const response = await post(
       activeUrl,
       payload({
@@ -2190,7 +2306,6 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
         image: {
           id: "image-1094-14",
           mime_type: "image/jpeg",
-          caption: "100 g de arroz branco",
         },
       })
     );
@@ -2204,10 +2319,11 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(inbound[0]).toEqual(
       expect.objectContaining({
         contentType: "image",
-        captionText: "100 g de arroz branco",
+        captionText: null,
         mediaMimeType: "image/jpeg",
       })
     );
+    expect(state.visionRequestObserved).toBe(true);
     expect(inbound[0].mediaStorageKey).toMatch(/^private\/media\//u);
     expect(state.metrics.persistedMeals).toBe(1);
     expect(meals[0].items).toEqual(
@@ -2223,6 +2339,58 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       ])
     );
     await finishScenario("14-image-convergent", "registered");
+  });
+
+  it("15 — retoma clarificação persistida depois de reiniciar o runtime sem duplicar o inbound", async () => {
+    await startScenario({
+      catalog: defaultCatalog().filter(
+        food => food.name !== "Pão de Forma Panco Premium"
+      ),
+    });
+    const initialLifecycle = activeLifecycle;
+    const initial = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-15-a",
+        timestamp: "1789557360",
+        type: "text",
+        text: {
+          body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
+        },
+      })
+    );
+    expect(initial.status).toBe(200);
+    expect(state.metrics.pendingCreated).toBe(1);
+    expect(state.metrics.persistedMeals).toBe(0);
+    expect(state.pendingRows.get(1)).toEqual(
+      expect.objectContaining({
+        state: "active",
+        origin: "foodClarification",
+      })
+    );
+
+    await restartScenarioRuntime();
+    expect(activeLifecycle).not.toBe(initialLifecycle);
+    const resumed = await post(
+      activeUrl,
+      payload({
+        id: "wamid-1094-15-b",
+        timestamp: "1789557420",
+        type: "text",
+        text: { body: "170 g" },
+      })
+    );
+    expect(resumed.status).toBe(200);
+    expect(state.metrics.pendingConsumed).toBe(1);
+    expect(state.metrics.persistedMeals).toBe(1);
+    expect(state.pendingRows.get(1)).toEqual(
+      expect.objectContaining({ state: "consumed", version: 2 })
+    );
+    expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
+    expect(
+      activeLifecycle.messages.filter(message => message.direction === "inbound")
+    ).toHaveLength(1);
+    await finishScenario("15-durable-restart-resume", "registered");
   });
 
   it("controle — falha ao persistir clarificação não emite pergunta órfã nem mutação parcial", async () => {

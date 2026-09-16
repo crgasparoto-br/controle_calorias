@@ -89,6 +89,10 @@ function markAnnotatedImageMessageHandled(messageId?: string) {
   annotatedImageMessageDeduplicationCache.markHandled(messageId);
 }
 
+export function __resetWhatsAppAnnotatedImageDeduplicationForTests() {
+  annotatedImageMessageDeduplicationCache.clear();
+}
+
 async function prepareImageMessage(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedImageMessage> {
   const imageId = message.image?.id;
   if (!imageId) {
@@ -482,7 +486,7 @@ async function tryHandleAnnotatedImageMessage(
       userId,
       mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
       occurredAt: occurredAt.toISOString(),
-      notes: prepared.text?.trim() || undefined,
+      notes: getTextBody(message) || undefined,
       items: processedForPersistence.items,
     });
 
