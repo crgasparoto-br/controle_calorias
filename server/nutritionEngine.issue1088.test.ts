@@ -93,6 +93,39 @@ function installAiRejectedItem() {
   });
 }
 
+function installAiLowConfidenceCommercialItem() {
+  createTextResponseMock.mockResolvedValue({
+    id: "response-low-confidence-commercial-1088",
+    outputText: JSON.stringify({
+      mealLabel: "Lanche",
+      confidence: 0.8,
+      reasoning: "Item identificado com baixa confiança.",
+      items: [
+        {
+          foodName: "manteiga",
+          brand: null,
+          quantity: 15,
+          unit: "g",
+          portionText: "15 g",
+          servings: 0.15,
+          estimatedGrams: 15,
+          estimatedCalories: 22.5,
+          estimatedMacros: { protein: 0.9, carbs: 2.25, fat: 0.75 },
+          confidence: 0.2,
+          foodClassification: {
+            processingLevel: "processed_culinary_ingredient",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+            isPlainWater: false,
+          },
+        },
+      ],
+    }),
+    raw: {},
+  });
+}
+
 function verifiedCommercialFood(): CatalogFood {
   return {
     slug: "web-nutrition-manteiga-batavo-extra-com-sal",
@@ -154,6 +187,9 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
 
   it.each([
     "manteiga com sal",
+    "manteiga de amendoim",
+    "manteiga de cacau",
+    "manteiga de alho",
     "iogurte natural",
     "iogurte grego",
     "iogurte proteico",
@@ -164,6 +200,7 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     "pão e manteiga",
     "manteiga sabor chocolate",
     "queijo mussarela",
+    "queijo de cabra",
     "carne moída suína",
     "iogurte de baunilha",
     "iogurte sabor baunilha",
@@ -176,7 +213,14 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     expect(inferUnresolvedCommercialIdentityHint(foodName)).toBeNull();
   });
 
-  it.each(["iogurte grego", "iogurte proteico", "iogurte cremoso"])(
+  it.each([
+    "iogurte grego",
+    "iogurte proteico",
+    "iogurte cremoso",
+    "manteiga de amendoim",
+    "manteiga de cacau",
+    "manteiga de alho",
+  ])(
     "mantém qualificador genérico no pipeline real sem bloquear o fallback: %s",
     async foodName => {
       installAiFailure();
@@ -273,6 +317,26 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
       );
     }
   );
+
+  it("preserva a clarificação comercial quando a IA retorna o item com baixa confiança", async () => {
+    installAiLowConfidenceCommercialItem();
+
+    await expect(
+      processMealInput({ text: COMMERCIAL_TEXT })
+    ).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: expect.stringMatching(/Manteiga Batavo Extra com Sal/i),
+        brand: "Batavo",
+        clarificationReason: "brand_variant_unresolved",
+      }),
+    });
+
+    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith(
+      "generic_nutrition_fallback",
+      expect.anything()
+    );
+  });
 
   it("preserva marca desconhecida com conector de posse", async () => {
     installAiFailure();

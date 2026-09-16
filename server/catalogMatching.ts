@@ -325,6 +325,20 @@ export function inferUnresolvedCommercialIdentityHint(
       return null;
     }
 
+    // A preposição "de" também introduz composições alimentares ("manteiga
+    // de amendoim", "queijo de cabra"). Se o primeiro complemento é um
+    // alimento reconhecido, ele não é evidência de uma marca desconhecida.
+    if (
+      !hasExplicitBrandMarker &&
+      firstRemainderToken === "de" &&
+      remainderTokens.slice(1).some((_, index) => {
+        const candidate = remainderTokens.slice(1, index + 2).join(" ");
+        return Boolean(candidate && findTacoFood(candidate));
+      })
+    ) {
+      return null;
+    }
+
     // Without the explicit "marca" marker, a connector may introduce only
     // one immediate brand token. This prevents descriptions such as
     // "bolo de pote ninho cremoso" from being read as brand "Pote Ninho".
