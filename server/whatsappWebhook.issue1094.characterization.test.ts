@@ -1,8 +1,17 @@
 import express from "express";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import type { Server } from "node:http";
 import { createServer } from "node:http";
+import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   afterAll,
   afterEach,
@@ -20,10 +29,7 @@ import type {
 } from "./repositories/whatsappConversationRepository";
 import type { WhatsAppConversationMessageEnrichmentRepository } from "./repositories/whatsappConversationMessageEnrichmentRepository";
 import type { WhatsAppProcessingClaimRepository } from "./repositories/whatsappProcessingClaimRepository";
-import type {
-  CatalogFood,
-  MealProcessingInput,
-} from "./nutritionEngineTypes";
+import type { CatalogFood, MealProcessingInput } from "./nutritionEngineTypes";
 import {
   normalizeForMatching,
   parseFoodText,
@@ -136,6 +142,7 @@ const state = vi.hoisted(() => {
     visionRequestObserved: false,
     pendingCreateFailure: false,
     sendReplyFailure: false,
+    pendingStorePath: null as string | null,
     reset() {
       this.users.clear();
       this.catalog = [];
@@ -156,9 +163,44 @@ const state = vi.hoisted(() => {
       this.visionRequestObserved = false;
       this.pendingCreateFailure = false;
       this.sendReplyFailure = false;
+      this.pendingStorePath = null;
     },
   };
 });
+
+function revivePendingRow(row: any) {
+  return {
+    ...row,
+    createdAt: new Date(row.createdAt),
+    expiresAt: new Date(row.expiresAt),
+    updatedAt: new Date(row.updatedAt),
+    consumedAt: row.consumedAt ? new Date(row.consumedAt) : null,
+  };
+}
+
+function readPendingRows() {
+  if (!state.pendingStorePath) return [...state.pendingRows.values()];
+  if (!existsSync(state.pendingStorePath)) return [];
+  return JSON.parse(readFileSync(state.pendingStorePath, "utf8")).map(
+    revivePendingRow
+  );
+}
+
+function writePendingRows(rows: any[]) {
+  if (!state.pendingStorePath) {
+    state.pendingRows.clear();
+    for (const row of rows) state.pendingRows.set(row.id, row);
+    return;
+  }
+  writeFileSync(state.pendingStorePath, JSON.stringify(rows), "utf8");
+}
+
+function cleanupPendingStore() {
+  if (!state.pendingStorePath) return;
+  rmSync(state.pendingStorePath, { force: true });
+  rmSync(dirname(state.pendingStorePath), { force: true, recursive: true });
+  state.pendingStorePath = null;
+}
 
 const readyPolicy = (capability: string) => ({
   capability,
@@ -732,8 +774,11 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
         throw new Error();
       }
       const now = input.now ?? new Date();
+      const rows = readPendingRows();
       const row = {
-        id: state.nextPendingId++,
+        id: state.pendingStorePath
+          ? Math.max(0, ...rows.map(candidate => Number(candidate.id))) + 1
+          : state.nextPendingId++,
         userId: input.userId,
         type: input.type,
         target: input.target,
@@ -745,14 +790,14 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
         updatedAt: now,
         consumedAt: null,
       };
-      state.pendingRows.set(row.id, row);
+      writePendingRows([...rows, row]);
       state.metrics.pendingCreated += 1;
       state.sequence.push("pending-created");
       return row;
     },
     async getActivePendingOperation(userId: number, now = new Date()) {
       return (
-        [...state.pendingRows.values()]
+        readPendingRows()
           .filter(
             row =>
               row.userId === userId &&
@@ -764,38 +809,44 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
     },
     async getLatestPendingOperation(userId: number) {
       return (
-        [...state.pendingRows.values()]
+        readPendingRows()
           .filter(row => row.userId === userId)
           .sort((a, b) => b.id - a.id)[0] ?? null
       );
     },
     async getPendingOperationById(id: number) {
-      return state.pendingRows.get(id) ?? null;
+      return readPendingRows().find(row => row.id === id) ?? null;
     },
     async claimPendingOperation({ id, expectedVersion }: any) {
-      const row = state.pendingRows.get(id);
+      const rows = readPendingRows();
+      const row = rows.find(candidate => candidate.id === id);
       if (!row || row.state !== "active" || row.version !== expectedVersion)
         return { claimed: false };
       row.state = "consumed";
       row.version += 1;
       row.consumedAt = new Date();
+      writePendingRows(rows);
       state.metrics.pendingClaimed += 1;
       state.metrics.pendingConsumed += 1;
       state.sequence.push("pending-claimed");
       return { claimed: true };
     },
     async cancelPendingOperation(id: number) {
-      const row = state.pendingRows.get(id);
+      const rows = readPendingRows();
+      const row = rows.find(candidate => candidate.id === id);
       if (!row || row.state !== "active") return { cancelled: false };
       row.state = "cancelled";
       row.version += 1;
+      writePendingRows(rows);
       return { cancelled: true };
     },
     async supersedePendingOperation(id: number) {
-      const row = state.pendingRows.get(id);
+      const rows = readPendingRows();
+      const row = rows.find(candidate => candidate.id === id);
       if (!row || row.state !== "active") return { superseded: false };
       row.state = "superseded";
       row.version += 1;
+      writePendingRows(rows);
       return { superseded: true };
     },
     async purgeInactiveOperations() {
@@ -1254,6 +1305,7 @@ function configureScenario(input: {
   pendingCreateFailure?: boolean;
   sendReplyFailure?: boolean;
   visionFoodText?: string | null;
+  pendingStorePath?: string;
 }) {
   state.catalog = input.catalog ?? defaultCatalog();
   state.searchMode = input.searchMode ?? "accepted";
@@ -1262,6 +1314,7 @@ function configureScenario(input: {
   state.sendReplyFailure = input.sendReplyFailure ?? false;
   state.visionFoodText = input.visionFoodText ?? null;
   activeVisionFixtureText = input.visionFoodText ?? null;
+  state.pendingStorePath = input.pendingStorePath ?? null;
 }
 
 function assertOpaqueSearchKeys(expectedItems: RegExp[]) {
@@ -1329,7 +1382,7 @@ function assertPersistedOriginalText(meal: any) {
     .flatMap(message => [message.text, message.captionText, message.transcript])
     .filter((value): value is string => Boolean(value))
     .concat(
-      [...state.pendingRows.values()]
+      [...state.pendingRows.values(), ...readPendingRows()]
         .map(row => row.target?.originalText)
         .filter((value): value is string => Boolean(value))
     );
@@ -1516,7 +1569,9 @@ async function startScenario(input: {
   pendingCreateFailure?: boolean;
   sendReplyFailure?: boolean;
   visionFoodText?: string | null;
+  pendingStorePath?: string;
 }) {
+  cleanupPendingStore();
   state.reset();
   configureScenario(input);
   resetCaches();
@@ -1553,6 +1608,9 @@ async function startScenario(input: {
 async function restartScenarioRuntime() {
   if (activeServer) await close(activeServer);
   resetCaches();
+  state.pendingRows.clear();
+  state.claims.clear();
+  state.nextPendingId = 1;
   activeLifecycle = createLifecycleState();
   const app = express();
   registerWhatsAppPublicPostRoute(app, {
@@ -1617,6 +1675,7 @@ afterEach(async () => {
   if (activeServer) await close(activeServer);
   activeServer = null;
   activeUrl = "";
+  cleanupPendingStore();
 });
 
 afterAll(() => {
@@ -2292,11 +2351,15 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     const { extractWithAi } = await import("./mealAiExtraction");
     await expect(
       extractWithAi({ imageUrl: "data:image/jpeg;base64,visual-fixture" })
-    ).resolves.toEqual(expect.objectContaining({
-      items: expect.arrayContaining([
-        expect.objectContaining({ foodName: expect.stringMatching(/arroz/i) }),
-      ]),
-    }));
+    ).resolves.toEqual(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            foodName: expect.stringMatching(/arroz/i),
+          }),
+        ]),
+      })
+    );
     const response = await post(
       activeUrl,
       payload({
@@ -2342,10 +2405,15 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
   });
 
   it("15 — retoma clarificação persistida depois de reiniciar o runtime sem duplicar o inbound", async () => {
+    const pendingStorePath = join(
+      mkdtempSync(join(tmpdir(), "issue-1094-pending-")),
+      "pending.json"
+    );
     await startScenario({
       catalog: defaultCatalog().filter(
         food => food.name !== "Pão de Forma Panco Premium"
       ),
+      pendingStorePath,
     });
     const initialLifecycle = activeLifecycle;
     const initial = await post(
@@ -2362,7 +2430,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(initial.status).toBe(200);
     expect(state.metrics.pendingCreated).toBe(1);
     expect(state.metrics.persistedMeals).toBe(0);
-    expect(state.pendingRows.get(1)).toEqual(
+    expect(state.pendingRows.size).toBe(0);
+    expect(readPendingRows().find(row => row.id === 1)).toEqual(
       expect.objectContaining({
         state: "active",
         origin: "foodClarification",
@@ -2371,6 +2440,10 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
 
     await restartScenarioRuntime();
     expect(activeLifecycle).not.toBe(initialLifecycle);
+    expect(state.pendingRows.size).toBe(0);
+    expect(readPendingRows().find(row => row.id === 1)).toEqual(
+      expect.objectContaining({ state: "active", version: 1 })
+    );
     const resumed = await post(
       activeUrl,
       payload({
@@ -2383,12 +2456,15 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(resumed.status).toBe(200);
     expect(state.metrics.pendingConsumed).toBe(1);
     expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.pendingRows.get(1)).toEqual(
+    expect(state.pendingRows.size).toBe(0);
+    expect(readPendingRows().find(row => row.id === 1)).toEqual(
       expect.objectContaining({ state: "consumed", version: 2 })
     );
     expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
     expect(
-      activeLifecycle.messages.filter(message => message.direction === "inbound")
+      activeLifecycle.messages.filter(
+        message => message.direction === "inbound"
+      )
     ).toHaveLength(1);
     await finishScenario("15-durable-restart-resume", "registered");
   });

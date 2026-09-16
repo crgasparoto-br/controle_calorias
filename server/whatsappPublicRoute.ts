@@ -52,16 +52,25 @@ export function registerWhatsAppPublicPostRoute(
     }),
     (req, res) => {
       const originalInboundTextByMessageId = new Map<string, string>();
-      for (const entry of Array.isArray(req.body?.entry) ? req.body.entry : []) {
-        for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
-          for (const message of Array.isArray(change?.value?.messages) ? change.value.messages : []) {
+      for (const entry of Array.isArray(req.body?.entry)
+        ? req.body.entry
+        : []) {
+        for (const change of Array.isArray(entry?.changes)
+          ? entry.changes
+          : []) {
+          for (const message of Array.isArray(change?.value?.messages)
+            ? change.value.messages
+            : []) {
             if (typeof message?.id !== "string") continue;
-            const originalText = message.text?.body?.trim() || message.image?.caption?.trim();
-            if (originalText) originalInboundTextByMessageId.set(message.id, originalText);
+            const originalText =
+              message.text?.body?.trim() || message.image?.caption?.trim();
+            if (originalText)
+              originalInboundTextByMessageId.set(message.id, originalText);
           }
         }
       }
-      (req as any).__originalInboundTextByMessageId = originalInboundTextByMessageId;
+      (req as any).__originalInboundTextByMessageId =
+        originalInboundTextByMessageId;
       const correlation = resolveWhatsAppWebhookCorrelation(req.body);
       console.info("[WhatsAppWebhook] lifecycle_dispatch", {
         bootId: options.runtimeBootId,

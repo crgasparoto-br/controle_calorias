@@ -7,10 +7,10 @@ import { runWithImageAnnotationTelemetryContext } from "./modules/whatsapp/image
 
 export function handleWhatsAppWebhookWithAnnotatedImages(
   req: Request,
-  res: Response,
+  res: Response
 ) {
-  return runWithImageAnnotationTelemetryContext(
-    () => handleWhatsAppWebhookWithAnnotatedImagesImplementation(req, res),
+  return runWithImageAnnotationTelemetryContext(() =>
+    handleWhatsAppWebhookWithAnnotatedImagesImplementation(req, res)
   );
 }
 
