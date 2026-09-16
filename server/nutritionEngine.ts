@@ -1,6 +1,7 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
   findCatalogFood,
+  inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
 } from "./catalogMatching";
@@ -16,7 +17,10 @@ import {
   shouldRequestSugarQuantity,
 } from "./coffeeSugarNutrition";
 import { extractWithAi } from "./mealAiExtraction";
-import { logMealInferenceFallback, type MealInferenceFallbackReason } from "./mealInferenceFallbackTelemetry";
+import {
+  logMealInferenceFallback,
+  type MealInferenceFallbackReason,
+} from "./mealInferenceFallbackTelemetry";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
   applyExplicitQuantities,
@@ -38,6 +42,7 @@ import {
   normalizeForMatching,
   normalizeLlmItem,
   normalizeUnit,
+  parseFoodText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type {
@@ -83,6 +88,8 @@ export type MealInferenceErrorContext = {
   acceptedUnits?: string[];
   foodName?: string;
   brand?: string | null;
+  /** Indica que a identidade veio do fallback textual, sem extração da IA. */
+  usedSourceTextFallback?: boolean;
   clarificationReason?: MealSemanticClarificationCode;
   alternatives?: MealSemanticAlternative[];
   semanticContract?: MealSemanticContract;
@@ -97,7 +104,7 @@ export class MealInferenceError extends Error {
     options: {
       code?: MealInferenceErrorCode;
       context?: MealInferenceErrorContext;
-    } = {},
+    } = {}
   ) {
     super(message);
     this.name = "MealInferenceError";
@@ -110,48 +117,92 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
-function addCatalogCandidate(candidates: string[], value: string | null | undefined) {
+function addCatalogCandidate(
+  candidates: string[],
+  value: string | null | undefined
+) {
   const normalized = normalizeForMatching(value ?? "").trim();
   if (!normalized) return;
-  if (candidates.some(candidate => normalizeForMatching(candidate).trim() === normalized)) return;
+  if (
+    candidates.some(
+      candidate => normalizeForMatching(candidate).trim() === normalized
+    )
+  )
+    return;
   candidates.push(value!.trim());
 }
 
-function sourceSegmentMatchesInferenceItem(segmentFoodName: string, item: LlmItem) {
+function sourceSegmentMatchesInferenceItem(
+  segmentFoodName: string,
+  item: LlmItem
+) {
   const normalizedSegment = normalizeForMatching(segmentFoodName).trim();
   const normalizedItem = normalizeForMatching(item.foodName).trim();
-  const normalizedBrand = item.brand ? normalizeForMatching(item.brand).trim() : "";
+  const normalizedBrand = item.brand
+    ? normalizeForMatching(item.brand).trim()
+    : "";
 
   if (!normalizedSegment || !normalizedItem) return false;
 
-  const foodMatches = sourceMentionsFood(segmentFoodName, item.foodName)
-    || normalizedSegment.includes(normalizedItem)
-    || normalizedItem.split(/\s+/).filter(word => word.length >= 3).every(word => normalizedSegment.includes(word));
+  const foodMatches =
+    sourceMentionsFood(segmentFoodName, item.foodName) ||
+    normalizedSegment.includes(normalizedItem) ||
+    normalizedItem
+      .split(/\s+/)
+      .filter(word => word.length >= 3)
+      .every(word => normalizedSegment.includes(word));
 
   if (!foodMatches) return false;
   return !normalizedBrand || normalizedSegment.includes(normalizedBrand);
 }
 
-function findSourceFoodSegmentForInferenceItem(item: LlmItem, sourceText?: string) {
+function findSourceFoodSegmentForInferenceItem(
+  item: LlmItem,
+  sourceText?: string
+) {
   const source = sourceText?.trim();
   if (!source) return null;
 
   const explicitSegments = extractExplicitQuantityFoodSegments(source);
   if (explicitSegments.length) {
-    const matches = explicitSegments.filter(segment => sourceSegmentMatchesInferenceItem(segment.foodName, item));
+    const matches = explicitSegments.filter(segment =>
+      sourceSegmentMatchesInferenceItem(segment.foodName, item)
+    );
     if (matches.length === 1) return matches[0].foodName;
 
-    if (!item.brand && explicitSegments.length === 1 && sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)) {
+    if (
+      !item.brand &&
+      explicitSegments.length === 1 &&
+      sourceSegmentMatchesInferenceItem(explicitSegments[0].foodName, item)
+    ) {
       return explicitSegments[0].foodName;
     }
   }
 
-  const unquantifiedMatches = splitSourceFoodSegments(source)
-    .filter(segment => sourceSegmentMatchesInferenceItem(segment, item));
+  const unquantifiedMatches = splitSourceFoodSegments(source).filter(segment =>
+    sourceSegmentMatchesInferenceItem(segment, item)
+  );
   return unquantifiedMatches.length === 1 ? unquantifiedMatches[0] : null;
 }
 
-function findExplicitBrandedVariantIdentity(item: LlmItem, sourceText?: string) {
+function findSourceTextSegmentForInferenceItem(
+  item: LlmItem,
+  sourceText?: string
+) {
+  const source = sourceText?.trim();
+  if (!source) return null;
+
+  const matches = splitSourceFoodSegments(source).filter(segment => {
+    const parsedFoodName = parseFoodText(segment).foodName;
+    return sourceSegmentMatchesInferenceItem(parsedFoodName, item);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function findExplicitBrandedVariantIdentity(
+  item: LlmItem,
+  sourceText?: string
+) {
   const brand = item.brand?.trim();
   const source = sourceText?.trim();
   if (!brand || !source) return null;
@@ -159,8 +210,9 @@ function findExplicitBrandedVariantIdentity(item: LlmItem, sourceText?: string) 
   const normalizedBrand = normalizeForMatching(brand).trim();
   if (!normalizedBrand) return null;
 
-  const brandSegments = splitSourceFoodSegments(source)
-    .filter(segment => normalizeForMatching(segment).includes(` ${normalizedBrand} `));
+  const brandSegments = splitSourceFoodSegments(source).filter(segment =>
+    normalizeForMatching(segment).includes(` ${normalizedBrand} `)
+  );
   if (brandSegments.length !== 1) return null;
 
   const variant = extractCommercialVariant(brandSegments[0]);
@@ -169,54 +221,125 @@ function findExplicitBrandedVariantIdentity(item: LlmItem, sourceText?: string) 
   return `${item.foodName} ${brand} ${variant}`.trim();
 }
 
-export function recoverExplicitBrandFromSource(item: LlmItem, sourceText?: string): LlmItem {
-  if (item.brand || !sourceText?.trim()) return item;
-  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
-  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
-  return sourceBrand ? { ...item, brand: sourceBrand } : item;
+function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
+  const classification = item.foodClassification;
+  if (!classification || !sourceFoodName) return false;
+
+  const normalizedSource = normalizeForMatching(sourceFoodName).trim();
+  const normalizedItem = normalizeForMatching(item.foodName).trim();
+  const genericTacoFood = findTacoFood(sourceFoodName);
+  const isNaturalFoodIdentity =
+    classification.isFruit ||
+    classification.isVegetable ||
+    Boolean(genericTacoFood && !genericTacoFood.brandName);
+
+  return (
+    classification.processingLevel === "natural_or_minimally_processed" &&
+    isNaturalFoodIdentity &&
+    (normalizedSource === normalizedItem || Boolean(genericTacoFood))
+  );
 }
 
-function buildCatalogSearchCandidates(item: LlmItem, sourceText?: string, nutritionSearchQuery?: string) {
+export function recoverExplicitBrandFromSource(
+  item: LlmItem,
+  sourceText?: string
+): LlmItem {
+  if (item.brand || !sourceText?.trim()) return item;
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(
+    item,
+    sourceText
+  );
+  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
+  if (sourceBrand) return { ...item, brand: sourceBrand };
+
+  const commercialHint = inferUnresolvedCommercialIdentityHint(
+    sourceFoodName ?? ""
+  );
+  if (commercialHint?.brand && isNaturalProduceVariant(item, sourceFoodName)) {
+    // A residual token in a naturally classified fruit/vegetable is more likely
+    // to be a cultivar or variety (e.g. "laranja pêra") than a commercial
+    // brand. Structured brands remain authoritative because this guard only
+    // applies when the extractor omitted the brand.
+    return item;
+  }
+  return commercialHint?.brand
+    ? { ...item, brand: commercialHint.brand }
+    : item;
+}
+
+function buildCatalogSearchCandidates(
+  item: LlmItem,
+  sourceText?: string,
+  nutritionSearchQuery?: string
+) {
   const candidates: string[] = [];
-  const sourceFoodName = findSourceFoodSegmentForInferenceItem(item, sourceText);
-  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
+  const sourceTextSegment = findSourceTextSegmentForInferenceItem(
+    item,
+    sourceText
+  );
+  const sourceFoodName = findSourceFoodSegmentForInferenceItem(
+    item,
+    sourceText
+  );
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(
+    item,
+    sourceText
+  );
   const normalizedFoodName = normalizeForMatching(item.foodName);
   const normalizedBrand = normalizeForMatching(item.brand ?? "").trim();
-  const commercialIdentity = normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
-    ? `${item.foodName} ${item.brand}`
-    : item.foodName;
+  const commercialIdentity =
+    normalizedBrand && !normalizedFoodName.includes(` ${normalizedBrand} `)
+      ? `${item.foodName} ${item.brand}`
+      : item.foodName;
 
   addCatalogCandidate(candidates, nutritionSearchQuery);
+  addCatalogCandidate(candidates, sourceTextSegment);
   addCatalogCandidate(candidates, sourceFoodName);
   addCatalogCandidate(candidates, explicitBrandedVariantIdentity);
   if (item.brand) {
-    addCatalogCandidate(candidates, `${commercialIdentity} ${item.portionText}`);
+    addCatalogCandidate(
+      candidates,
+      `${commercialIdentity} ${item.portionText}`
+    );
     addCatalogCandidate(candidates, commercialIdentity);
     addCatalogCandidate(candidates, `${item.brand} ${item.foodName}`);
   }
   if (
-    Number.isFinite(item.estimatedGrams)
-    && item.estimatedGrams > 0
-    && !/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/iu.test(item.foodName)
+    Number.isFinite(item.estimatedGrams) &&
+    item.estimatedGrams > 0 &&
+    !/\b\d+(?:[,.]\d+)?\s*(?:kg|mg|ml|g|l)\b/iu.test(item.foodName)
   ) {
-    addCatalogCandidate(candidates, `${item.foodName} ${item.estimatedGrams} g`);
+    addCatalogCandidate(
+      candidates,
+      `${item.foodName} ${item.estimatedGrams} g`
+    );
   }
   addCatalogCandidate(candidates, item.foodName);
 
   return candidates;
 }
 
-function resolveSemanticSourceForInferenceItem(item: LlmItem, sourceText?: string) {
-  const explicitSource = findSourceFoodSegmentForInferenceItem(item, sourceText);
+function resolveSemanticSourceForInferenceItem(
+  item: LlmItem,
+  sourceText?: string
+) {
+  const explicitSource = findSourceFoodSegmentForInferenceItem(
+    item,
+    sourceText
+  );
   if (explicitSource) return explicitSource;
 
-  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(item, sourceText);
+  const explicitBrandedVariantIdentity = findExplicitBrandedVariantIdentity(
+    item,
+    sourceText
+  );
   if (explicitBrandedVariantIdentity) return explicitBrandedVariantIdentity;
 
   const source = sourceText?.trim();
   if (!source) return item.foodName;
-  const matchingSegments = splitSourceFoodSegments(source)
-    .filter(segment => sourceSegmentMatchesInferenceItem(segment, item));
+  const matchingSegments = splitSourceFoodSegments(source).filter(segment =>
+    sourceSegmentMatchesInferenceItem(segment, item)
+  );
   return matchingSegments.length === 1 ? matchingSegments[0] : item.foodName;
 }
 
@@ -224,13 +347,15 @@ function catalogMatchesExplicitBrand(item: LlmItem, catalog: CatalogFood) {
   if (!item.brand) return true;
   const requestedBrand = normalizeForMatching(item.brand).trim();
   const candidateBrand = normalizeForMatching(catalog.brandName ?? "").trim();
-  return Boolean(requestedBrand && candidateBrand && requestedBrand === candidateBrand);
+  return Boolean(
+    requestedBrand && candidateBrand && requestedBrand === candidateBrand
+  );
 }
 
 function catalogMatchesCommercialIdentity(
   item: LlmItem,
   catalog: CatalogFood,
-  semanticSource: string,
+  semanticSource: string
 ) {
   if (!catalogMatchesExplicitBrand(item, catalog)) return false;
   if (!item.brand) return true;
@@ -243,33 +368,53 @@ function catalogMatchesCommercialIdentity(
   });
 }
 
-function isCatalogFoodNameIdentityMatch(catalog: CatalogFood, semanticSource: string) {
+function isCatalogFoodNameIdentityMatch(
+  catalog: CatalogFood,
+  semanticSource: string
+) {
   const normalizedSource = normalizeForMatching(semanticSource).trim();
   if (!normalizedSource) return false;
 
   return [catalog.name, ...catalog.aliases].some(
-    candidate => normalizeForMatching(candidate).trim() === normalizedSource,
+    candidate => normalizeForMatching(candidate).trim() === normalizedSource
   );
 }
 
 const ALTERNATIVE_IDENTITY_STOP_WORDS = new Set([
-  "com", "das", "de", "do", "dos", "em", "fatia", "fatias", "g", "grama", "gramas",
-  "kg", "l", "ml", "porcao", "porcoes", "unidade", "unidades",
+  "com",
+  "das",
+  "de",
+  "do",
+  "dos",
+  "em",
+  "fatia",
+  "fatias",
+  "g",
+  "grama",
+  "gramas",
+  "kg",
+  "l",
+  "ml",
+  "porcao",
+  "porcoes",
+  "unidade",
+  "unidades",
 ]);
 
 function significantIdentityTokens(value: string, brandName: string) {
   const brandTokens = new Set(
-    normalizeForMatching(brandName).trim().split(/\s+/).filter(Boolean),
+    normalizeForMatching(brandName).trim().split(/\s+/).filter(Boolean)
   );
   return normalizeForMatching(value)
     .trim()
     .split(/\s+/)
     .map(token => token.replace(/[^a-z0-9]/g, ""))
-    .filter(token =>
-      token.length >= 3
-      && !brandTokens.has(token)
-      && !ALTERNATIVE_IDENTITY_STOP_WORDS.has(token)
-      && !/^\d+$/.test(token)
+    .filter(
+      token =>
+        token.length >= 3 &&
+        !brandTokens.has(token) &&
+        !ALTERNATIVE_IDENTITY_STOP_WORDS.has(token) &&
+        !/^\d+$/.test(token)
     );
 }
 
@@ -285,7 +430,7 @@ function toSemanticAlternative(food: CatalogFood): MealSemanticAlternative {
 
 function findBrandedCatalogAlternatives(
   semanticSource: string,
-  brandName: string | null | undefined,
+  brandName: string | null | undefined
 ) {
   const brand = brandName?.trim();
   if (!brand) return [];
@@ -297,20 +442,28 @@ function findBrandedCatalogAlternatives(
   return (getCatalogCache() as CatalogFood[])
     .filter(food => {
       if (!food.isBrandedProduct && !food.brandName) return false;
-      if (normalizeForMatching(food.brandName ?? "").trim() !== normalizedBrand) return false;
-      const searchable = normalizeForMatching([
-        food.name,
-        ...food.aliases,
-        ...(food.variants ?? []),
-      ].join(" "));
-      if (!requestTokens.every(token => searchable.includes(token))) return false;
-      const candidateVariant = food.productVariant ?? extractCommercialVariant(food.name);
-      if (requestedVariant && candidateVariant && candidateVariant !== requestedVariant) return false;
+      if (normalizeForMatching(food.brandName ?? "").trim() !== normalizedBrand)
+        return false;
+      const searchable = normalizeForMatching(
+        [food.name, ...food.aliases, ...(food.variants ?? [])].join(" ")
+      );
+      if (!requestTokens.every(token => searchable.includes(token)))
+        return false;
+      const candidateVariant =
+        food.productVariant ?? extractCommercialVariant(food.name);
+      if (
+        requestedVariant &&
+        candidateVariant &&
+        candidateVariant !== requestedVariant
+      )
+        return false;
       return true;
     })
     .map(toSemanticAlternative)
     .filter(candidate => {
-      const key = normalizeForMatching(`${candidate.name}|${candidate.servingLabel}`).trim();
+      const key = normalizeForMatching(
+        `${candidate.name}|${candidate.servingLabel}`
+      ).trim();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -318,9 +471,19 @@ function findBrandedCatalogAlternatives(
     .slice(0, 8);
 }
 
-async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: BuildItemsOptions) {
-  const candidates = buildCatalogSearchCandidates(item, options.sourceText, options.nutritionSearchQuery);
-  const semanticSource = resolveSemanticSourceForInferenceItem(item, options.sourceText);
+async function findMostSpecificCatalogForInferenceItem(
+  item: LlmItem,
+  options: BuildItemsOptions
+) {
+  const candidates = buildCatalogSearchCandidates(
+    item,
+    options.sourceText,
+    options.nutritionSearchQuery
+  );
+  const semanticSource = resolveSemanticSourceForInferenceItem(
+    item,
+    options.sourceText
+  );
   const alternatives = item.brand
     ? findBrandedCatalogAlternatives(semanticSource, item.brand)
     : [];
@@ -345,6 +508,15 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
       continue;
     if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
     return { catalog, isExactMatch: true, alternatives, semanticSource };
+  }
+
+  if (options.skipCommercialNutritionSearch) {
+    return {
+      catalog: undefined,
+      isExactMatch: false,
+      alternatives,
+      semanticSource,
+    };
   }
 
   for (const [index, candidate] of candidates.entries()) {
@@ -373,10 +545,17 @@ async function findMostSpecificCatalogForInferenceItem(item: LlmItem, options: B
     };
   }
 
-  return { catalog: undefined, isExactMatch: false, alternatives, semanticSource };
+  return {
+    catalog: undefined,
+    isExactMatch: false,
+    alternatives,
+    semanticSource,
+  };
 }
 
-type NutritionFallbackObserver = (reason: "catalog_miss" | "generic_nutrition_fallback") => void;
+type NutritionFallbackObserver = (
+  reason: "catalog_miss" | "generic_nutrition_fallback"
+) => void;
 
 function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
   if (!food?.isBrandedProduct) return false;
@@ -390,7 +569,9 @@ function catalogResolution(food: CatalogFood): MealItemResolutionMetadata {
   return {
     productVariant: food.productVariant ?? extractCommercialVariant(food.name),
     nutritionOrigin: researched ? "web_research" : "catalog",
-    nutritionVerified: food.isBrandedProduct ? isVerifiedBrandedCatalogFood(food) : true,
+    nutritionVerified: food.isBrandedProduct
+      ? isVerifiedBrandedCatalogFood(food)
+      : true,
     sourceUrls: [...(food.sourceUrls ?? [])],
     sourceEvidence: food.sourceEvidence ?? null,
     sourceVerifiedAt: food.sourceVerifiedAt ?? null,
@@ -425,7 +606,10 @@ function unresolvedBrandedResolution(input: {
 export async function resolveCommercialFoodIdentity(
   foodName: string,
   brand: string,
-  options: Pick<BuildItemsOptions, "nutritionSearchQuery" | "nutritionSearchTelemetry"> = {},
+  options: Pick<
+    BuildItemsOptions,
+    "nutritionSearchQuery" | "nutritionSearchTelemetry"
+  > = {}
 ) {
   const item: LlmItem = {
     foodName,
@@ -475,13 +659,16 @@ type ParsedNutritionLabelEvidence = {
   raw: string;
 };
 
-const NUTRITION_LABEL_EVIDENCE_PATTERN = /NUTRITION_LABEL_EVIDENCE:\s*serving=(\d+(?:[.,]\d+)?)\s*([^;]+?)\s*;\s*kcal=(\d+(?:[.,]\d+)?)\s*;\s*protein_g=(\d+(?:[.,]\d+)?)\s*;\s*carbs_g=(\d+(?:[.,]\d+)?)\s*;\s*fat_g=(\d+(?:[.,]\d+)?)(?=\s*(?:[.;]|$))/iu;
+const NUTRITION_LABEL_EVIDENCE_PATTERN =
+  /NUTRITION_LABEL_EVIDENCE:\s*serving=(\d+(?:[.,]\d+)?)\s*([^;]+?)\s*;\s*kcal=(\d+(?:[.,]\d+)?)\s*;\s*protein_g=(\d+(?:[.,]\d+)?)\s*;\s*carbs_g=(\d+(?:[.,]\d+)?)\s*;\s*fat_g=(\d+(?:[.,]\d+)?)(?=\s*(?:[.;]|$))/iu;
 
 function parseEvidenceDecimal(value: string) {
   return Number(value.replace(",", "."));
 }
 
-function parseNutritionLabelEvidence(value?: string | null): ParsedNutritionLabelEvidence | null {
+function parseNutritionLabelEvidence(
+  value?: string | null
+): ParsedNutritionLabelEvidence | null {
   const match = value?.match(NUTRITION_LABEL_EVIDENCE_PATTERN);
   if (!match) return null;
 
@@ -493,7 +680,11 @@ function parseNutritionLabelEvidence(value?: string | null): ParsedNutritionLabe
   const servingUnit = match[2].trim();
   const numericValues = [servingQuantity, calories, protein, carbs, fat];
 
-  if (!servingUnit || numericValues.some(number => !Number.isFinite(number) || number < 0)) return null;
+  if (
+    !servingUnit ||
+    numericValues.some(number => !Number.isFinite(number) || number < 0)
+  )
+    return null;
   if (servingQuantity <= 0) return null;
 
   return {
@@ -507,32 +698,42 @@ function parseNutritionLabelEvidence(value?: string | null): ParsedNutritionLabe
   };
 }
 
-function nutritionValueMatches(actual: number, expected: number, kind: "calories" | "macro") {
+function nutritionValueMatches(
+  actual: number,
+  expected: number,
+  kind: "calories" | "macro"
+) {
   if (!Number.isFinite(actual) || !Number.isFinite(expected)) return false;
   const absoluteTolerance = kind === "calories" ? 1 : 0.15;
   const relativeTolerance = Math.abs(expected) * 0.02;
-  return Math.abs(actual - expected) <= Math.max(absoluteTolerance, relativeTolerance);
+  return (
+    Math.abs(actual - expected) <=
+    Math.max(absoluteTolerance, relativeTolerance)
+  );
 }
 
-function resolveNutritionLabelScale(item: LlmItem, evidence: ParsedNutritionLabelEvidence) {
+function resolveNutritionLabelScale(
+  item: LlmItem,
+  evidence: ParsedNutritionLabelEvidence
+) {
   const itemQuantity = Number(item.quantity);
   const itemUnit = normalizeUnit(item.unit ?? "");
   const servingUnit = normalizeUnit(evidence.servingUnit);
 
   if (
-    Number.isFinite(itemQuantity)
-    && itemQuantity > 0
-    && itemUnit
-    && servingUnit
-    && itemUnit === servingUnit
+    Number.isFinite(itemQuantity) &&
+    itemQuantity > 0 &&
+    itemUnit &&
+    servingUnit &&
+    itemUnit === servingUnit
   ) {
     return itemQuantity / evidence.servingQuantity;
   }
 
   if (
-    servingUnit === "g"
-    && Number.isFinite(item.estimatedGrams)
-    && item.estimatedGrams > 0
+    servingUnit === "g" &&
+    Number.isFinite(item.estimatedGrams) &&
+    item.estimatedGrams > 0
   ) {
     return item.estimatedGrams / evidence.servingQuantity;
   }
@@ -540,7 +741,10 @@ function resolveNutritionLabelScale(item: LlmItem, evidence: ParsedNutritionLabe
   return null;
 }
 
-function verifyNutritionLabelEvidence(item: LlmItem, evidenceText?: string | null) {
+function verifyNutritionLabelEvidence(
+  item: LlmItem,
+  evidenceText?: string | null
+) {
   const evidence = parseNutritionLabelEvidence(evidenceText);
   if (!evidence) return null;
 
@@ -552,10 +756,24 @@ function verifyNutritionLabelEvidence(item: LlmItem, evidenceText?: string | nul
   const expectedCarbs = evidence.carbs * scale;
   const expectedFat = evidence.fat * scale;
 
-  if (!nutritionValueMatches(item.estimatedCalories, expectedCalories, "calories")) return null;
-  if (!nutritionValueMatches(item.estimatedMacros.protein, expectedProtein, "macro")) return null;
-  if (!nutritionValueMatches(item.estimatedMacros.carbs, expectedCarbs, "macro")) return null;
-  if (!nutritionValueMatches(item.estimatedMacros.fat, expectedFat, "macro")) return null;
+  if (
+    !nutritionValueMatches(item.estimatedCalories, expectedCalories, "calories")
+  )
+    return null;
+  if (
+    !nutritionValueMatches(
+      item.estimatedMacros.protein,
+      expectedProtein,
+      "macro"
+    )
+  )
+    return null;
+  if (
+    !nutritionValueMatches(item.estimatedMacros.carbs, expectedCarbs, "macro")
+  )
+    return null;
+  if (!nutritionValueMatches(item.estimatedMacros.fat, expectedFat, "macro"))
+    return null;
 
   return evidence;
 }
@@ -563,29 +781,38 @@ function verifyNutritionLabelEvidence(item: LlmItem, evidenceText?: string | nul
 async function buildItemsFromInference(
   items: LlmItem[],
   options: BuildItemsOptions = {},
-  observeFallback?: NutritionFallbackObserver,
+  observeFallback?: NutritionFallbackObserver
 ): Promise<MealDraftItem[]> {
   const results: MealDraftItem[] = [];
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
-    const sourceFoodName = findSourceFoodSegmentForInferenceItem(normalizedItem, options.sourceText);
-    const resolvedItem = recoverExplicitBrandFromSource(normalizedItem, options.sourceText);
+    const sourceFoodName = findSourceFoodSegmentForInferenceItem(
+      normalizedItem,
+      options.sourceText
+    );
+    const resolvedItem = recoverExplicitBrandFromSource(
+      normalizedItem,
+      options.sourceText
+    );
     const { catalog, isExactMatch, alternatives, semanticSource } =
       await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
     const verifiedNutritionLabelEvidence = options.preferInferredNutrition
-      ? verifyNutritionLabelEvidence(resolvedItem, options.nutritionLabelEvidenceText)
+      ? verifyNutritionLabelEvidence(
+          resolvedItem,
+          options.nutritionLabelEvidenceText
+        )
       : null;
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
     const canUseCatalog = Boolean(
-      catalog
-      && (isExactMatch || resolvedItem.brand || hasUsableNutrition(resolvedItem))
-      && (
-        !options.preferInferredNutrition
-        || isVerifiedBrandedCatalogFood(catalog)
-        || (!catalog.isBrandedProduct && !verifiedNutritionLabelEvidence)
-      )
+      catalog &&
+        (isExactMatch ||
+          resolvedItem.brand ||
+          hasUsableNutrition(resolvedItem)) &&
+        (!options.preferInferredNutrition ||
+          isVerifiedBrandedCatalogFood(catalog) ||
+          (!catalog.isBrandedProduct && !verifiedNutritionLabelEvidence))
     );
     if (canUseCatalog && catalog) {
       results.push({
@@ -597,16 +824,19 @@ async function buildItemsFromInference(
 
     const requestedVariant = extractCommercialVariant(semanticSource);
     const canUseVerifiedNutritionLabel = Boolean(
-      resolvedItem.brand
-      && options.preferInferredNutrition
-      && verifiedNutritionLabelEvidence
-      && requestedVariant
+      resolvedItem.brand &&
+        options.preferInferredNutrition &&
+        verifiedNutritionLabelEvidence &&
+        requestedVariant
     );
 
     if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
       results.push({
         ...buildUnresolvedBrandedNutritionItem(resolvedItem),
-        resolution: unresolvedBrandedResolution({ semanticSource, alternatives }),
+        resolution: unresolvedBrandedResolution({
+          semanticSource,
+          alternatives,
+        }),
       });
       continue;
     }
@@ -668,7 +898,10 @@ async function buildItemsFromInference(
   return results;
 }
 
-function shouldConstrainAiItemsToText(input: MealProcessingInput, sourceText: string) {
+function shouldConstrainAiItemsToText(
+  input: MealProcessingInput,
+  sourceText: string
+) {
   return Boolean(sourceText) && !input.imageUrl && !input.audioUrl;
 }
 
@@ -685,31 +918,44 @@ function includesNormalizedPhrase(haystack: string, needle: string) {
   return normalizeForMatching(haystack).includes(` ${normalizedNeedle} `);
 }
 
-function isLikelyPreparationIngredientReduction(sourceText: string, foodName: string) {
+function isLikelyPreparationIngredientReduction(
+  sourceText: string,
+  foodName: string
+) {
   const normalizedFood = normalizeForMatching(foodName).trim();
   if (!normalizedFood) return false;
 
   return splitSourceFoodSegments(sourceText).some(segment => {
     const normalizedSegment = normalizeForMatching(segment).trim();
-    if (!normalizedSegment || normalizedSegment === normalizedFood) return false;
+    if (!normalizedSegment || normalizedSegment === normalizedFood)
+      return false;
     if (!includesNormalizedPhrase(segment, foodName)) return false;
 
     const connectorIndex = normalizedSegment.indexOf(" com ");
     if (connectorIndex < 0) return false;
 
     const beforeConnector = normalizedSegment.slice(0, connectorIndex).trim();
-    const afterConnector = normalizedSegment.slice(connectorIndex + " com ".length).trim();
-    return Boolean(beforeConnector)
-      && afterConnector.includes(normalizedFood)
-      && !beforeConnector.includes(normalizedFood);
+    const afterConnector = normalizedSegment
+      .slice(connectorIndex + " com ".length)
+      .trim();
+    return (
+      Boolean(beforeConnector) &&
+      afterConnector.includes(normalizedFood) &&
+      !beforeConnector.includes(normalizedFood)
+    );
   });
 }
 
 function filterAiItemsBySourceText(items: LlmItem[], sourceText: string) {
   return items.filter(item => {
     const normalizedItem = normalizeLlmItem(item);
-    return sourceMentionsFood(sourceText, normalizedItem.foodName)
-      && !isLikelyPreparationIngredientReduction(sourceText, normalizedItem.foodName);
+    return (
+      sourceMentionsFood(sourceText, normalizedItem.foodName) &&
+      !isLikelyPreparationIngredientReduction(
+        sourceText,
+        normalizedItem.foodName
+      )
+    );
   });
 }
 
@@ -720,19 +966,34 @@ function sourceSegmentOnlyAddsStructuredBrand(input: {
   normalizedItem: string;
   normalizedCanonical: string;
 }) {
-  const normalizedBrand = input.item.brand ? normalizeForMatching(input.item.brand).trim() : "";
+  const normalizedBrand = input.item.brand
+    ? normalizeForMatching(input.item.brand).trim()
+    : "";
   if (!normalizedBrand) return false;
 
   const segmentWithoutBrand = input.normalizedSegment
-    .replace(new RegExp(`(^| )${normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`, "g"), " ")
+    .replace(
+      new RegExp(
+        `(^| )${normalizedBrand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( |$)`,
+        "g"
+      ),
+      " "
+    )
     .replace(/\s+/g, " ")
     .trim();
 
-  return Boolean(segmentWithoutBrand)
-    && (segmentWithoutBrand === input.normalizedItem || segmentWithoutBrand === input.normalizedCanonical);
+  return (
+    Boolean(segmentWithoutBrand) &&
+    (segmentWithoutBrand === input.normalizedItem ||
+      segmentWithoutBrand === input.normalizedCanonical)
+  );
 }
 
-function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: string, usedSegments: Set<number>) {
+function findSpecificSourceFoodNameForItem(
+  item: MealDraftItem,
+  sourceText: string,
+  usedSegments: Set<number>
+) {
   const explicitSegments = extractExplicitQuantityFoodSegments(sourceText);
   if (!explicitSegments.length) return null;
 
@@ -745,18 +1006,24 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
     const normalizedSegment = normalizeForMatching(segment.foodName).trim();
     if (!normalizedSegment || normalizedSegment === normalizedItem) continue;
 
-    if (sourceSegmentOnlyAddsStructuredBrand({
-      item,
-      segmentFoodName: segment.foodName,
-      normalizedSegment,
-      normalizedItem,
-      normalizedCanonical,
-    })) continue;
+    if (
+      sourceSegmentOnlyAddsStructuredBrand({
+        item,
+        segmentFoodName: segment.foodName,
+        normalizedSegment,
+        normalizedItem,
+        normalizedCanonical,
+      })
+    )
+      continue;
 
-    const segmentMatchesItem = sourceMentionsFood(segment.foodName, item.foodName)
-      || sourceMentionsFood(segment.foodName, item.canonicalName)
-      || Boolean(normalizedItem && normalizedSegment.includes(normalizedItem))
-      || Boolean(normalizedCanonical && normalizedSegment.includes(normalizedCanonical));
+    const segmentMatchesItem =
+      sourceMentionsFood(segment.foodName, item.foodName) ||
+      sourceMentionsFood(segment.foodName, item.canonicalName) ||
+      Boolean(normalizedItem && normalizedSegment.includes(normalizedItem)) ||
+      Boolean(
+        normalizedCanonical && normalizedSegment.includes(normalizedCanonical)
+      );
 
     if (segmentMatchesItem) {
       usedSegments.add(index);
@@ -767,12 +1034,19 @@ function findSpecificSourceFoodNameForItem(item: MealDraftItem, sourceText: stri
   return null;
 }
 
-function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: string) {
+function preserveSpecificSourceFoodNames(
+  items: MealDraftItem[],
+  sourceText: string
+) {
   if (!sourceText.trim()) return items;
 
   const usedSegments = new Set<number>();
   return items.map(item => {
-    const sourceFoodName = findSpecificSourceFoodNameForItem(item, sourceText, usedSegments);
+    const sourceFoodName = findSpecificSourceFoodNameForItem(
+      item,
+      sourceText,
+      usedSegments
+    );
     if (!sourceFoodName) return item;
 
     return {
@@ -782,8 +1056,49 @@ function preserveSpecificSourceFoodNames(items: MealDraftItem[], sourceText: str
   });
 }
 
-function shouldFallbackToSourceText(extraction: Awaited<ReturnType<typeof extractWithAi>>, sourceText: string) {
+function shouldFallbackToSourceText(
+  extraction: Awaited<ReturnType<typeof extractWithAi>>,
+  sourceText: string
+) {
   return Boolean(sourceText && extraction && extraction.items.length === 0);
+}
+
+function mealDraftItemToInferenceItem(item: MealDraftItem): LlmItem {
+  return {
+    foodName: item.foodName,
+    brand: item.brand ?? null,
+    quantity: item.quantity,
+    unit: item.unit,
+    portionText: item.portionText,
+    servings: item.servings,
+    estimatedGrams: item.estimatedGrams,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+    confidence: item.confidence,
+    foodClassification: item.classification ?? null,
+  };
+}
+
+/** Branded text fallback reuses the verified catalog/web resolver. */
+async function resolveCommercialItemsFromTextFallback(
+  items: MealDraftItem[],
+  sourceText: string,
+  options: Pick<BuildItemsOptions, "skipCommercialNutritionSearch"> = {}
+) {
+  const resolved: MealDraftItem[] = [];
+  for (const item of items) {
+    if (!item.brand?.trim() || !item.resolution?.ambiguity) {
+      resolved.push(item);
+      continue;
+    }
+
+    const [resolvedItem] = await buildItemsFromInference(
+      [mealDraftItemToInferenceItem(item)],
+      { sourceText, ...options }
+    );
+    resolved.push(resolvedItem ?? item);
+  }
+  return resolved;
 }
 
 function createFallbackReasonCollector() {
@@ -800,10 +1115,16 @@ function createFallbackReasonCollector() {
   };
 }
 
-export async function processMealInput(input: MealProcessingInput): Promise<CanonicalMealProcessingResult> {
-  const sourceText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n").trim();
+export async function processMealInput(
+  input: MealProcessingInput
+): Promise<CanonicalMealProcessingResult> {
+  const sourceText = [input.text?.trim(), input.transcript?.trim()]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
   const quantityClarification = getQuantityExpressionClarification(sourceText);
-  if (quantityClarification) throw new MealInferenceError(quantityClarification);
+  if (quantityClarification)
+    throw new MealInferenceError(quantityClarification);
 
   const detectedMealLabel = resolveMealLabel(input, sourceText);
   const fallbackReasons = createFallbackReasonCollector();
@@ -832,11 +1153,12 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
           originalText: sourceText,
           acceptedUnits: ["g", "colher de chá", "colher de sopa", "sachê"],
         },
-      },
+      }
     );
   }
 
-  let usedSourceTextFallback = !extraction || shouldFallbackToSourceText(extraction, sourceText);
+  let usedSourceTextFallback =
+    !extraction || shouldFallbackToSourceText(extraction, sourceText);
   let rejectedAllAiItems = false;
   let rawItems: MealDraftItem[];
   const explicitSugarCoffee = buildCoffeeWithExplicitSugarItem(sourceText);
@@ -845,28 +1167,56 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
     rawItems = [explicitSugarCoffee];
     usedSourceTextFallback = true;
   } else if (usedSourceTextFallback || !extraction) {
-    rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
+    rawItems = await resolveCommercialItemsFromTextFallback(
+      fallbackFromText(sourceText, reason => fallbackReasons.observe(reason)),
+      sourceText,
+      {
+        skipCommercialNutritionSearch: Boolean(
+          input.skipCommercialNutritionSearch
+        ),
+      }
+    );
   } else {
     const confirmedExtraction = extraction;
     const inferenceItems = shouldConstrainAiItemsToText(input, sourceText)
       ? filterAiItemsBySourceText(confirmedExtraction.items, sourceText)
       : confirmedExtraction.items;
 
-    if (sourceText && confirmedExtraction.items.length > 0 && inferenceItems.length === 0) {
+    if (
+      sourceText &&
+      confirmedExtraction.items.length > 0 &&
+      inferenceItems.length === 0
+    ) {
       rejectedAllAiItems = true;
       usedSourceTextFallback = true;
       fallbackReasons.observe("ai_items_rejected");
-      rawItems = fallbackFromText(sourceText, reason => fallbackReasons.observe(reason));
-    } else {
-      rawItems = applyExplicitQuantities(await buildItemsFromInference(
-        inferenceItems,
+      rawItems = await resolveCommercialItemsFromTextFallback(
+        fallbackFromText(sourceText, reason => fallbackReasons.observe(reason)),
+        sourceText,
         {
-          preferInferredNutrition: Boolean(input.imageUrl),
-          nutritionLabelEvidenceText: input.imageUrl ? confirmedExtraction.reasoning : null,
-          sourceText,
-        },
-        reason => fallbackReasons.observe(reason),
-      ), sourceText);
+          skipCommercialNutritionSearch: Boolean(
+            input.skipCommercialNutritionSearch
+          ),
+        }
+      );
+    } else {
+      rawItems = applyExplicitQuantities(
+        await buildItemsFromInference(
+          inferenceItems,
+          {
+            preferInferredNutrition: Boolean(input.imageUrl),
+            skipCommercialNutritionSearch: Boolean(
+              input.skipCommercialNutritionSearch
+            ),
+            nutritionLabelEvidenceText: input.imageUrl
+              ? confirmedExtraction.reasoning
+              : null,
+            sourceText,
+          },
+          reason => fallbackReasons.observe(reason)
+        ),
+        sourceText
+      );
     }
   }
 
@@ -874,7 +1224,10 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
   const sourceNamedItems = shouldConstrainAiItemsToText(input, sourceText)
     ? preserveSpecificSourceFoodNames(cleanedItems, sourceText)
     : cleanedItems;
-  const items = normalizeSweetenedCoffeeDraftItems(sourceNamedItems, sourceText);
+  const items = normalizeSweetenedCoffeeDraftItems(
+    sourceNamedItems,
+    sourceText
+  );
 
   if (!items.length) {
     fallbackReasons.flush();
@@ -882,14 +1235,20 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
   }
 
   const totals = sumTotals(items);
-  const confidence = extraction && !usedSourceTextFallback ? clampConfidence(extraction.confidence) : items.length ? 0.45 : 0.2;
+  const confidence =
+    extraction && !usedSourceTextFallback
+      ? clampConfidence(extraction.confidence)
+      : items.length
+        ? 0.45
+        : 0.2;
   const reasoning = explicitSugarCoffee
     ? "A quantidade explícita de açúcar foi incorporada uma única vez à referência de café, preservando a preparação informada."
     : usedSourceTextFallback
       ? rejectedAllAiItems
         ? "A IA retornou itens incompatíveis com o texto informado; foi aplicada uma heurística a partir da descrição completa para preservar o alimento e sua preparação. Recomenda-se confirmar a inferência antes de salvar."
         : "A análise visual não identificou itens com segurança; foi aplicada uma heurística a partir do texto informado pelo usuário. Recomenda-se confirmar a inferência antes de salvar."
-      : extraction?.reasoning || "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
+      : extraction?.reasoning ||
+        "Foi aplicada uma heurística de catálogo para estruturar a refeição. Recomenda-se confirmar a inferência antes de salvar.";
 
   const semanticContract = buildMealSemanticContract({
     processingInput: input,
@@ -906,6 +1265,7 @@ export async function processMealInput(input: MealProcessingInput): Promise<Cano
         originalText: sourceText,
         foodName: semanticItem?.commercialName,
         brand: semanticItem?.brand ?? null,
+        usedSourceTextFallback,
         clarificationReason: clarification.code,
         alternatives: [...clarification.alternatives],
         semanticContract,

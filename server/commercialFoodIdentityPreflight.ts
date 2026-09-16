@@ -21,7 +21,7 @@ export type CanonicalCommercialIdentityPreflight = {
 };
 
 function inferUnverifiedCommercialVariant(
-  request: CommercialIdentityPreflightRequest,
+  request: CommercialIdentityPreflightRequest
 ) {
   if (/\bcom\b/i.test(request.foodName)) return null;
 
@@ -29,22 +29,27 @@ function inferUnverifiedCommercialVariant(
   if (!productVariant) return null;
 
   const variantTokens = productVariant.split(/\s+/).filter(Boolean);
-  if (variantTokens.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))) {
+  if (
+    variantTokens.some(token => GENERIC_ZERO_COMMERCIAL_VARIANTS.has(token))
+  ) {
     return null;
   }
 
   const local = findCatalogFood(request.foodName);
   const localVariant = local ? extractCommercialVariant(local.name) : null;
   if (localVariant) {
-    const localVariantTokens = new Set(localVariant.split(/\s+/).filter(Boolean));
-    if (variantTokens.every(token => localVariantTokens.has(token))) return null;
+    const localVariantTokens = new Set(
+      localVariant.split(/\s+/).filter(Boolean)
+    );
+    if (variantTokens.every(token => localVariantTokens.has(token)))
+      return null;
   }
 
   return productVariant;
 }
 
 function buildUnverifiedCommercialIdentityClarification(
-  request: CommercialIdentityPreflightRequest,
+  request: CommercialIdentityPreflightRequest
 ): CanonicalCommercialIdentityPreflight {
   const identity = request.foodName.trim();
   return {
@@ -69,12 +74,15 @@ function buildUnverifiedCommercialIdentityClarification(
  */
 export async function recoverCanonicalCommercialIdentity(
   request: CommercialIdentityPreflightRequest,
-  runtime: { processMealInput: typeof processMealInput } = { processMealInput },
+  runtime: { processMealInput: typeof processMealInput } = { processMealInput }
 ): Promise<CanonicalCommercialIdentityPreflight> {
   if (request.brand) return { brand: request.brand };
 
   try {
-    const processed = await runtime.processMealInput({ text: request.segment });
+    const processed = await runtime.processMealInput({
+      text: request.segment,
+      skipCommercialNutritionSearch: true,
+    });
     if (processed.items.length !== 1) return { brand: null };
     const brand = processed.items[0].brand?.trim() || null;
     if (brand) return { brand };
@@ -84,14 +92,22 @@ export async function recoverCanonicalCommercialIdentity(
     return { brand: null };
   } catch (error) {
     if (
-      !(error instanceof MealInferenceError)
-      || !error.context?.clarificationReason
+      !(error instanceof MealInferenceError) ||
+      !error.context?.clarificationReason
     ) {
       return { brand: null };
     }
 
+    // O preflight deliberadamente desabilita NUTRITION_SEARCH. Quando o
+    // pipeline já conseguiu extrair uma marca, a clarificação significa apenas
+    // que a comprovação específica ainda não foi tentada. Devolva a marca ao
+    // chamador para que resolveCommercialFoodIdentity faça a única pesquisa
+    // canônica, sem transformar o preflight em um bloqueio definitivo.
+    const brand = error.context.brand?.trim() || null;
+    if (brand && !error.context.usedSourceTextFallback) return { brand };
+
     return {
-      brand: error.context.brand?.trim() || null,
+      brand,
       identityClarification: {
         message: error.message,
         context: error.context,
