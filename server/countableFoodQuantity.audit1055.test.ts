@@ -164,6 +164,49 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
         },
       },
     });
+    expect(boundary.search).toHaveBeenCalledTimes(1);
+    expect(boundary.measureSearch).not.toHaveBeenCalled();
+  });
+
+  it("pesquisa a marca preservada pelo fallback antes da clarificação contável", async () => {
+    const brand = "Seven Boys";
+    const product = reference(brand);
+    expect(detectKnownBrand(`pão de forma ${brand}`)).toBeNull();
+    boundary.catalog = [{
+      ...reference(""),
+      name: "Pão de forma",
+      aliases: ["Pão de forma"],
+      brandName: "",
+      isBrandedProduct: false,
+      researchIdentityKey: undefined,
+      sourceUrls: [],
+      sourceEvidence: null,
+    }];
+    boundary.extraction.mockRejectedValue(new Error("extraction unavailable"));
+    boundary.search.mockResolvedValue(product);
+
+    const result = await prepareCountableFoodRegistrationResolved(
+      105506,
+      `2 fatias de pão de forma ${brand}`
+    );
+
+    expect(result.pendingItems).toEqual([]);
+    expect(result.registrationText).toBe(`50 g de pão de forma ${brand}`);
+    expect(result.resolutions).toMatchObject([
+      {
+        request: { brand },
+        resolution: {
+          kind: "researched_exact",
+          grams: 50,
+          sourceUrls: product.sourceUrls,
+        },
+      },
+    ]);
+    expect(boundary.search).toHaveBeenCalledTimes(1);
+    expect(boundary.search).toHaveBeenCalledWith(
+      expect.stringMatching(/^2 fatias de pão de forma Seven Boys$/iu),
+      expect.objectContaining({ searchSpecificProduct: true })
+    );
     expect(boundary.measureSearch).not.toHaveBeenCalled();
   });
 
@@ -200,7 +243,7 @@ describe("audit #1055 — marca explícita fora da allowlist", () => {
           },
         },
       });
-      expect(boundary.search).not.toHaveBeenCalled();
+      expect(boundary.search).toHaveBeenCalledTimes(1);
       expect(boundary.measureSearch).not.toHaveBeenCalled();
     }
   );

@@ -212,7 +212,11 @@ export async function prepareCountableFoodRegistrationResolved(
       ? { ...request, brand: canonicalIdentity.brand }
       : request;
 
-    if (canonicalIdentity.identityClarification) {
+    // A clarificação produzida pelo preflight pode significar apenas que a
+    // IA degradou antes da tentativa canônica de NUTRITION_SEARCH. Quando a
+    // marca foi preservada, ainda devemos executar a única pesquisa específica
+    // antes de transformar a pendência em clarificação final.
+    if (canonicalIdentity.identityClarification && !resolvedRequest.brand) {
       pendingItems.push({
         ...resolvedRequest,
         segmentIndex,
