@@ -232,3 +232,109 @@ A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingesti
 A entrada canônica cria um escopo temporal request-scoped. Após identificar o usuário e confirmar que a mensagem não é uma reentrega já processada, o sistema resolve o timezone efetivo uma vez e o propaga por todo o pipeline. O timestamp recebido permanece absoluto; data lógica, rótulo de refeição, água, peso, relatórios, perguntas com `/` e agrupamentos usam o timezone resolvido.
 
 Falha técnica ao consultar o perfil interrompe a mensagem com erro recuperável e não aciona o fallback nutricional. A ordem de idempotência e os vínculos de domínio permanecem inalterados.
+
+## Auditoria incremental da issue #1090 — Fase 0: baseline e mapa real
+
+A Fase 0 da issue #1090 foi caracterizada contra a `develop` no SHA `34b210e8ed8a4f9169bc2cb11c1db5cecf367b5c`. Este registro é parte do contrato de ingestão e não substitui esta especificação por um documento paralelo. O objetivo desta fase é reconciliar o entrypoint descrito historicamente com a composição que realmente recebe o POST de produção, sem alterar ainda as responsabilidades funcionais antes dos golden flows.
+
+### Entry point e composição efetiva
+
+O entrypoint HTTP produtivo é `POST /api/whatsapp/webhook`, registrado em `server/_core/index.ts`. A cadeia observada na baseline é:
+
+```text
+server/_core/index.ts
+  -> handleWhatsAppPersistentContextWebhook
+     -> gateSuspendedWhatsAppWrites
+     -> withStoragePersistenceCorrelations
+     -> handleWhatsAppWebhookWithImageIdempotency
+        -> claim persistente / onboarding / billing / água por imagem
+        -> resolveGoalProgressContext
+        -> handleWhatsAppWebhookWithTextIntent
+           -> precedência de callbacks, pendências, comandos e intents
+           -> prepareWhatsappCountableFoodRegistration (quando aplicável)
+           -> handleWhatsAppWebhookWithAnnotatedImages
+              -> processamento de imagem anotada e fallback visual
+              -> handleWhatsAppWebhook (compatibilidade)
+                 -> runWithQuestionLatencyContext
+                 -> runWithImageAnnotationTelemetryContext
+                 -> handleWhatsAppWebhookImplementation
+                    -> prepareMessageInput / processMealInput
+                    -> criação e confirmação da refeição
+                    -> consolidação, lifecycle e resposta pelo transporte central
+```
+
+`server/whatsappWebhook.ts::handleWhatsAppWebhook` continua sendo uma exportação pública de compatibilidade e o ponto do fallback nutricional final. Entretanto, ele não é o primeiro handler chamado pela rota Express. A documentação anterior que o chamava isoladamente de “orquestrador HTTP do canal” estava incompleta; a responsabilidade de lifecycle, gate comercial, correlação de mídia e claim persistente pertence ao caminho anterior. A exportação deve ser preservada enquanto consumidores de teste e wrappers históricos existirem. A decisão de mover ou consolidar essa fachada fica deferida até a caracterização dos fluxos públicos.
+
+| Etapa | Fonte canônica na baseline | Responsabilidade observada | Efeitos/boundaries | Estado da Fase 0 |
+| --- | --- | --- | --- | --- |
+| HTTP e verificação | `server/_core/index.ts`, `server/whatsappWebhook.ts` | Parser, rate limit, verificação do token e dispatch assíncrono | Meta/Express; nenhum dado nutricional | `keep`; contrato público preservado |
+| Contexto persistente | `server/whatsappPersistentContextWebhook.ts` | Gate de escrita suspensa, escopo de lifecycle/timezone e correlação de mídia | Banco/contexto e storage | `keep`; owner real documentado |
+| Idempotência externa | `server/whatsappImageIdempotencyWebhook.ts` | Claim persistente, onboarding, billing, hidratação de imagem e remoção de mensagens já tratadas | Banco, resposta WhatsApp | `keep`; regras de precedência devem ser caracterizadas |
+| Intenção textual | `server/whatsappIntentWebhook.ts` | Pendências, callbacks, comandos, água/peso, adições e gate contável | Banco, `WHATSAPP_INTENT`, domínio nutricional | `defer` consolidação; manter precedência até golden flows |
+| Medida contável | `server/countableFoodQuantity.ts` e `server/modules/whatsapp/countableFoodRegistrationGate.ts` | Parse, resolução de porção, pesquisa comercial, clarificação e passthrough | `countableFoodQuantity::prepareCountableFoodRegistrationResolved` é o owner provisório da decisão; o gate apenas orquestra/transporte | `defer` consolidação de implementação, sem owner concorrente |
+| Imagem anotada | `server/whatsappAnnotatedImageWebhook.ts` e implementação | Mídia inline, análise visual, geração opcional e resposta auxiliar | Meta, storage, `MEAL_VISION`/`IMAGE_ANNOTATION` | `keep` até provar convergência |
+| Inferência final | `server/whatsappWebhookImplementation.ts` | Montagem do resultado, persistência, consolidação e resposta | `processMealInput`, banco, transporte WhatsApp | `keep` como implementação atual; avaliar extração depois |
+| Transporte | `server/modules/whatsapp/logicalReplyDelivery.ts` e contrato central | Serialização e envio da resposta lógica | WhatsApp Cloud API | `keep`; fora do escopo funcional da Fase 0 |
+
+### Boundaries e invariantes preservados
+
+As fronteiras externas da baseline são: payload/Meta e Cloud API do WhatsApp; banco e repositórios de lifecycle, pendências, catálogo e refeições; storage de mídia; capacidades `MEAL_TEXT`, `MEAL_VISION`, `WHATSAPP_INTENT`, `TRANSCRIPTION`, `NUTRITION_SEARCH` e `IMAGE_ANNOTATION`; além do relógio/timezone efetivo do usuário. O domínio não deve receber segredo, telefone completo em telemetria, payload cru, URL assinada, foto, áudio ou objeto bruto de SDK.
+
+O domínio não recebe segredos, telefone completo em telemetria, payload cru, URL assinada indevida ou objeto bruto de SDK. Referências de mídia são exceção contratual controlada: `webhookMediaPipeline.ts`/`whatsappAnnotatedImageWebhookImplementation.ts` podem fornecer `imageUrl`/`audioUrl` de storage quando disponíveis e data URLs inline efêmeras para `processMealInput`/transcrição; essas referências não são evidência para logs e não substituem a mídia persistida original.
+
+A Fase 0 não altera fail-closed para identidade comercial, source grounding, privacidade, atomicidade, idempotência ou transporte. A regra operacional de no máximo uma pesquisa nutricional específica por item continua canônica em `docs/RELIABILITY.md`; os testes existentes de #1072 registram uma chamada de `NUTRITION_SEARCH` no caso de catálogo vazio e rejeitam reprocessamento do produto já resolvido.
+
+### Golden-flow baseline e lacunas para a Fase 1
+
+A caracterização executada na baseline foi feita com doubles somente nos boundaries externos e cobriu o entrypoint público persistente para texto, imagem, água, clarificação, falha de envio e reentrega, além da regressão contável Panco e da pesquisa específica única. Os testes são `server/whatsappResponseBaseline.characterization.test.ts`, `server/whatsappWebhook.smoke.test.ts`, `server/countableFoodQuantity.issue1072.searchContext.test.ts` e `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`; o resultado foi 4 arquivos e 22 testes aprovados.
+
+A matriz completa da issue 1090 permanece uma dependência explícita da Fase 1. Ela deverá atravessar a cadeia acima e registrar, para cada cenário, resultado, identidade, quantidade, gramas, proveniência, `processMealInput`, `NUTRITION_SEARCH`, round-trips estrutura-texto-estrutura, persistências intermediárias, idempotência e ausência de persistência parcial:
+
+| Cenário obrigatório | Cobertura baseline | Próxima ação |
+| --- | --- | --- |
+| Panco Premium com medida contável | Coberto em helpers/gate e smoke de passthrough | Repetir no POST persistente com pesquisa instrumentada |
+| Marca comercial não-Panco, como Wickbold | Não discriminado no entrypoint público | Adicionar golden flow parametrizado |
+| Comercial não-pão contável | Não discriminado | Adicionar golden flow |
+| Genérico com porção canônica | Parcial em testes de domínio | Atravessar o entrypoint público |
+| Massa explícita | Parcial; não deve ganhar provenance contável | Adicionar assert de preservação |
+| Variante divergente | Cobertura de compatibilidade existe fora do entrypoint | Atravessar clarificação pública |
+| Grounding insuficiente | Cobertura de busca/engine existe | Atravessar fail-closed e ausência de mutação |
+| `NUTRITION_SEARCH` indisponível | Cobertura de capacidade existe | Atravessar clarificação pública |
+| Cache vazio/incompatível | Cobertura de search/gate existe | Registrar contadores no fluxo público |
+| Refeição multi-item | Cobertura de #1072 existe | Parametrizar genérico, comercial e medidas |
+| Clarificação e retomada | Cobertura de pendência existe | Provar irmãos preservados e decisões monotônicas |
+| Áudio/transcrição e imagem | Smoke público existente | Verificar convergência para o mesmo contrato |
+
+### Decisão de leitura documental
+
+A rota de leitura para ingestão começa agora por este documento e por `ARCHITECTURE.md`, que descrevem a composição real. `server/whatsappWebhook.ts` permanece referência para a API pública compatível e para o último fallback, mas não deve voltar a ser descrito como único dono do lifecycle. Alterações futuras de ownership devem atualizar esta seção, os testes do entrypoint público e o contrato de produto somente se o comportamento observável mudar.
+A existência da cobertura parcial não é autorização para remover testes atuais nem para declarar a matriz final verde. As lacunas acima são dependências de #1094 e devem falhar de forma discriminante quando identidade, quantidade, gramas ou proveniência forem degradadas.
+
+### Mapa rastreável de símbolos e efeitos
+
+A tabela abaixo é o nível mínimo de rastreabilidade para iniciar a Fase 1. “Owner” significa o módulo que pode decidir ou alterar o fato; wrappers podem transportar o fato, mas não reinterpretá-lo.
+
+| Símbolo | Entrada/saída | Efeito e boundary | Owner canônico provisório | Disposição |
+| --- | --- | --- | --- | --- |
+| `server/_core/index.ts::observeWhatsAppIngress` | `Request` HTTP | Gera `ingressId` técnico e registra apenas metadados sanitizados antes do handler | Runtime HTTP | `keep` |
+| `server/_core/index.ts::POST /api/whatsapp/webhook` | payload Meta | Rate limit, parser JSON/urlencoded e dispatch para o contexto persistente; erro assíncrono responde retryável | Runtime HTTP | `keep` |
+| `whatsappPersistentContextWebhook::handleWhatsAppPersistentContextWebhook` | payload Meta | `gateSuspendedWhatsAppWrites`, escopos de lifecycle/timezone, correlação de mídia e delegação | Lifecycle/contexto persistente | `keep` |
+| `buildMediaCorrelations` + `enrichInboundMessage` | `message.id` + mídia | Enriquecem a mesma mensagem inbound com referência opaca de storage e MIME; não criam segundo turno | `messageLifecycle` | `keep` |
+| `whatsappImageIdempotencyWebhook::claimIndexedMessage` | mensagem indexada | Claim persistente, estados duplicate/inflight/unavailable e bloqueio de reprocessamento | `messageLifecycle`/processing-claim repository | `keep` |
+| `handleWaterImageMessage` e `handleBillingAccessPending` | imagem/pagamento | Encerram casos de precedência sem inferência nutricional; podem criar hidratação ou resposta operacional | `whatsappImageIdempotencyWebhook` é owner da precedência de canal; serviços de água/billing são auxiliares de domínio | `keep`; testar precedência em #1094 |
+| `resolveGoalProgressContext` | telefone/usuário | Carrega exercício/meta de contexto com falha degradável, sem decidir identidade nutricional | `goalProgressService` é owner do contexto; o wrapper apenas propaga | `keep` |
+| `whatsappIntentWebhook::handleWhatsAppWebhookWithTextIntent` | texto/callback | Resolve callbacks, pendências, comandos e intents antes do fallback alimentar; pode filtrar/clonar payload | `messageRouter`/handlers de intent | `keep`; consolidação `defer` |
+| `prepareWhatsappCountableFoodRegistration` | texto segmentado | Orquestra a decisão contável, clarificação e passthrough; pode persistir pendência | `countableFoodQuantity::prepareCountableFoodRegistrationResolved` decide; o gate é adaptador de canal | `defer` |
+| `countableFoodQuantity::parseCountableFoodQuantitySegment` | segmento | Extrai quantidade/unidade e conserva `segment` original | `mealTextParsing` é owner do parsing; vocabulary é auxiliar | `consolidate` em #1095 |
+| `recoverCanonicalCommercialIdentity` | request contável | Preflight chama `processMealInput(skipCommercialNutritionSearch)` para recuperar marca; risco de re-resolução | `nutritionEngine::resolveCommercialFoodIdentity` é owner da identidade; preflight é bridge não decisor | `defer` |
+| `resolveCommercialFoodIdentity`/`findCatalogFoodSemantic` | candidato comercial | Catálogo/cache/pesquisa específica com grounding, identidade e medida compatíveis | `nutritionEngine::resolveCommercialFoodIdentity` é owner; `catalogSemanticSearch` é boundary auxiliar | `keep` até #1095 |
+| `resolveHouseholdMeasure` | alimento + count/unit | Decide gramas e `measureResolution` com origem, evidência e verificação | `householdMeasureResolution::resolveHouseholdMeasure` é owner | `keep` |
+| `materializeResolvedCommercialSegment` | `CountableFoodResolvedMeasure` | Adapta `CatalogFood` já validado a `MealProcessingResult`/`semanticContract`, sem chamar `processMealInput`; não decide identidade, medida ou origem | `countableFoodRegistrationGate` é owner do adaptador transitório; encerra quando #1095 resolver F0-03 e migrar consumidores para o builder canônico | `defer` |
+| `handleWhatsAppWebhookWithAnnotatedImages` | imagem/caption | Faz download, mídia inline, análise visual, imagem anotada opcional e delega o restante | Wrapper de mídia + `annotatedImage` | `keep`; convergência `defer` |
+| `whatsappWebhookImplementation::processMealInput` | texto/transcrição/URL inline | Resolve identidade/nutrição multimodal; cria o contrato semântico final | `nutritionEngine` | `keep` |
+| `createPendingMealInference` | `MealProcessingResult` | Cria rascunho/inferência pendente e mídia vinculada | `db`/meal persistence | `keep` |
+| `confirmPendingMeal` | draft + itens | Confirma/persiste refeição e itens; deve ocorrer somente após todas as clarificações | `db`/meal persistence | `keep` |
+| `consolidateWhatsAppMealAfterSave` | refeição salva | Recarrega/consolida refeição lógica por usuário/dia/origem/rótulo | `mealConsolidationService` | `keep` |
+| `sendWhatsAppLogicalDomainReply` + `markMessageProcessed` | resposta/lifecycle | Entrega transporte central e marca inbound após resposta funcional | `logicalReplyDelivery` + lifecycle | `keep` |
+
+O mapa identifica também uma duplicação de escopo: `whatsappPersistentContextWebhook` e `whatsappWebhook` aplicam `runWithQuestionLatencyContext` em níveis diferentes, enquanto `runWithImageAnnotationTelemetryContext` aparece na fachada e o caminho de imagem possui wrapper próprio. Isso é uma hipótese de intermediação, não uma autorização para remover contexto; a Fase 1 deve medir se os escopos são aninhados deliberadamente e quais correlações cada um possui.
