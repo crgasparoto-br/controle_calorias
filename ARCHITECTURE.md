@@ -97,7 +97,7 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 `server/whatsappWebhook.ts` é a fachada pública de compatibilidade do fallback nutricional final e da implementação de processamento de refeição. A rota Express produtiva é composta nesta ordem: `server/_core/index.ts` -> `server/whatsappPersistentContextWebhook.ts` -> `server/whatsappImageIdempotencyWebhook.ts` -> `server/whatsappIntentWebhook.ts` -> `server/whatsappAnnotatedImageWebhook.ts` -> `server/whatsappWebhook.ts`. Portanto, lifecycle, claims persistentes, gate de escrita suspensa, correlação de mídia e contexto de meta pertencem aos wrappers anteriores à fachada; `whatsappWebhook.ts` não deve ser tratado como dono único do HTTP.
 
-`server/whatsappWebhook.ts` permanece um entrypoint exportado de compatibilidade para consumidores e testes existentes. Sua assinatura e seus exports são estáveis até que os golden flows e a migração da #1090 provem que os wrappers podem ser consolidados sem alterar precedência, idempotência, source grounding, privacidade ou entrega de resposta.
+`server/whatsappWebhook.ts` permanece um entrypoint exportado de compatibilidade para consumidores e testes existentes. A caracterização pública da #1094 e a auditoria de reachability da #1096 confirmaram que sua fachada ainda é alcançada pelo fallback de imagem e por consumidores históricos. Sua assinatura e seus exports continuam estáveis; qualquer consolidação futura exige a matriz de substituto, consumidores migrados e golden flows registrada em `docs/testing/issue-1096-bridge-reachability.md`, sem alterar precedência, idempotência, source grounding, privacidade ou entrega de resposta.
 
 Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
 
