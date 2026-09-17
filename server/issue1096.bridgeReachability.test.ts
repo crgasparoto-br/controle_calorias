@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "..");
+const auditedDevelopSha =
+  "dacff30479007a0413232c2a22ebf7ac9a9c191d";
 
 function source(relativePath: string) {
   const absolutePath = resolve(root, relativePath);
@@ -119,6 +121,9 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     const ingestion = source("docs/design-docs/whatsapp-ingestion.md");
     const nutritionEngine = source("docs/design-docs/nutrition-engine.md");
     const architecture = source("ARCHITECTURE.md");
+    const independentAudit = source(
+      "docs/testing/issue-1096-independent-audit.md"
+    );
     const characterization = source(
       "server/whatsappWebhook.issue1094.characterization.test.ts"
     );
@@ -126,7 +131,7 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(evidence).toContain("b3156bcf28cf854b14a657f4750a3f78b2a5ac67");
     expect(evidence).toContain("24cac382d9aa9e5b0c7a5f79dd94c70f10d56728");
     expect(evidence).toContain("4d86cb814ff57164ff16cd7626ea21be46719fce");
-    expect(evidence).toContain("88848424a7dceee0c84f92fde636c3142bc919fa");
+    expect(evidence).toContain(auditedDevelopSha);
     expect(evidence).toContain("O conjunto de remoções aprovado é vazio");
     expect(evidence).toContain("F0-05 permanece `keep`");
     expect(evidence).toContain("F0-06 e F0-08 permanecem `defer`");
@@ -142,6 +147,9 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(evidence).toContain(
       "whatsappWebhook.issue1094.characterization.test.ts"
     );
+    expect(independentAudit).toContain(auditedDevelopSha);
+    expect(independentAudit).toContain("Rodada 3");
+    expect(independentAudit).toContain("Resultado final: APROVADO.");
     expect(ingestion).toContain("POST /api/whatsapp/webhook");
     expect(ingestion).toContain("handleWhatsAppPersistentContextWebhook");
     expect(nutritionEngine).toContain(
@@ -150,9 +158,7 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(nutritionEngine).toContain(
       "24cac382d9aa9e5b0c7a5f79dd94c70f10d56728"
     );
-    expect(nutritionEngine).toContain(
-      "88848424a7dceee0c84f92fde636c3142bc919fa"
-    );
+    expect(nutritionEngine).toContain(auditedDevelopSha);
     expect(nutritionEngine).toContain("F0-05 = `keep`");
     expect(nutritionEngine).toContain("F0-06 = `defer`");
     expect(nutritionEngine).toContain("F0-08 = `defer`");

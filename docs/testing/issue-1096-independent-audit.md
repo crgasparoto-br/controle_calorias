@@ -2,7 +2,7 @@
 
 ## Identificação da auditoria
 
-Esta auditoria foi executada por um revisor independente da implementação, sem alterações no repositório durante a inspeção inicial. O alvo foi a branch baseada em `origin/develop`, cujo snapshot era `develop@88848424a7dceee0c84f92fde636c3142bc919fa`. A auditoria verificou a issue #1096, a documentação de reachability, o teste complementar, a composição dos handlers e os testes reproduzíveis das issues #1094, #1095 e #1072.
+Esta rodada inicial foi executada por um revisor independente da implementação, sem alterações no repositório durante a inspeção. O snapshot histórico da rodada 1 era `develop@88848424a7dceee0c84f92fde636c3142bc919fa`. A auditoria verificou a issue #1096, a documentação de reachability, o teste complementar, a composição dos handlers e os testes reproduzíveis das issues #1094, #1095 e #1072.
 
 ## Rodada 1 — parecer inicial
 
@@ -42,3 +42,11 @@ A reauditoria independente foi executada sobre o commit versionado `b85002287df0
 ### Evidências da aprovação
 
 O auditor confirmou `4 arquivos/8 testes` nos testes da #1096, `17/17` na caracterização #1094, `12/12` na matriz #1095, `30/30` nas regressões #1072, `54/54` nos wrappers/intents/mídia/idempotência e `pnpm check` verde. Também confirmou `git diff --check`, a rastreabilidade dos oito artefatos e o delta operacional zero do relatório de métricas.
+
+## Rodada 3 — revalidação da correção documental
+
+Após a auditoria independente identificar que os artefatos não apontavam para o snapshot corrente, foram atualizados a matriz de reachability, o relatório de métricas, o design do motor nutricional e o teste estrutural. A revalidação desta rodada foi executada contra `develop@dacff30479007a0413232c2a22ebf7ac9a9c191d`, capturado em `2026-09-17T12:29:22Z` por `git rev-parse origin/develop`. O teste estrutural agora exige esse SHA no conjunto de evidências e no design do motor nutricional.
+
+Os testes específicos da #1096, os golden flows da #1094, as regressões da #1072, as suítes da #1095, a suíte focada de WhatsApp, o typecheck, os checks de arquitetura e documentação e a suíte completa foram reexecutados. Não foram observadas novas pendências.
+
+**Resultado final: APROVADO.** A pendência documental da rodada anterior foi corrigida e os artefatos agora registram o snapshot correto da `develop` auditada. A aprovação permanece limitada à preservação dos wrappers e à evidência de reachability; não autoriza remover a fachada F0-05 ou os adaptadores históricos sem nova prova.

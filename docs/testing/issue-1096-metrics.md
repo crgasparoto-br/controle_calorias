@@ -2,7 +2,7 @@
 
 ## Escopo e snapshots
 
-Este relatório compara a caracterização pública da issue #1094 no snapshot de `develop` que já continha a implementação da #1096 com a mesma caracterização após as correções documentais e os testes runtime desta auditoria. O snapshot de referência é `develop@88848424a7dceee0c84f92fde636c3142bc919fa`, capturado em `2026-09-17T11:34:43Z`. A Fase 3 não altera código de produção: o candidato acrescenta somente testes de reachability e documentação; por isso, a comparação operacional deve ser exatamente nula.
+Este relatório compara a caracterização pública da issue #1094 no snapshot de `develop` que já continha a implementação da #1096 com a mesma caracterização após as correções documentais e os testes runtime desta auditoria. O snapshot de referência é `develop@dacff30479007a0413232c2a22ebf7ac9a9c191d`, capturado em `2026-09-17T12:29:22Z`. A Fase 3 não altera código de produção: o candidato acrescenta somente testes de reachability e documentação; por isso, a comparação operacional deve ser exatamente nula.
 
 A captura foi feita pelo teste `server/whatsappWebhook.issue1094.characterization.test.ts`, que imprime uma linha `[issue-1094-evidence]` com uma linha de métricas por cenário. A suíte possui **17 testes aprovados** e produz **16 linhas de evidência de cenário**: o teste de controle de falha de persistência não é incluído na lista declarada de cenários, embora também seja executado. A distinção evita confundir contagem de testes com contagem de cenários.
 
