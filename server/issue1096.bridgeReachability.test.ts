@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "..");
 const auditedDevelopSha =
-  "394337d1166c4d12df3c78010246f65a63037eee";
+  "8851ad166a227c810d3b23954caa5d9f06d50cbc";
 
 function gitRevision(reference: string) {
   return execFileSync("git", ["rev-parse", "--verify", `${reference}^{commit}`], {

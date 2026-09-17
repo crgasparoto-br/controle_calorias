@@ -211,6 +211,7 @@ async function startServer() {
   registerWhatsAppPublicPostRoute(app, {
     webhookRateLimit,
     runtimeBootId,
+    runtimeCommit,
     handle: handleWhatsAppPersistentContextWebhook,
   });
   app.post(

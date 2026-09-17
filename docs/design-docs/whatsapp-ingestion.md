@@ -338,3 +338,10 @@ A tabela abaixo é o nível mínimo de rastreabilidade para iniciar a Fase 1. �
 | `sendWhatsAppLogicalDomainReply` + `markMessageProcessed` | resposta/lifecycle | Entrega transporte central e marca inbound após resposta funcional | `logicalReplyDelivery` + lifecycle | `keep` |
 
 O mapa identifica também uma duplicação de escopo: `whatsappPersistentContextWebhook` e `whatsappWebhook` aplicam `runWithQuestionLatencyContext` em níveis diferentes, enquanto `runWithImageAnnotationTelemetryContext` aparece na fachada e o caminho de imagem possui wrapper próprio. A caracterização da #1094 e a revalidação da #1096 confirmaram que os escopos são aninhados deliberadamente: cada helper é no-op quando já existe um contexto ativo, e a fachada continua protegendo consumidores diretos históricos. Nenhum contexto foi removido nesta fase. A matriz de reachability, owners, substitutos e condições de aposentadoria está em `docs/testing/issue-1096-bridge-reachability.md`.
+
+
+## Validação final da issue #1097
+
+A matriz final é reexecutada pelo `POST /api/whatsapp/webhook` através de `pnpm issue-1097:validate`, preservando a composição de lifecycle, claims, precedência, identidade comercial, medida e fallback descrita neste documento. A validação compara `processMealInput`, pesquisas `NUTRITION_SEARCH`, contratos semânticos, round-trips, persistências, pendências e links de domínio com a baseline registrada, exigindo que variante, medida ou source grounding incompatíveis permaneçam em clarificação sem persistência parcial.
+
+O smoke pós-deploy usa `pnpm smoke:issue-1097:post-deploy` com Panco e uma marca comercial não-Panco e repete cada `message.id`. O cabeçalho `x-runtime-commit` é a correlação sanitizada do candidato publicado; sem correspondência com o SHA esperado, o smoke falha em vez de aceitar uma revisão diferente. O corpo e os logs do procedimento não carregam telefone, texto alimentar, query, URL, prompt, resposta de provider ou erro bruto.
