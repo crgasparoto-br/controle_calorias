@@ -58,3 +58,8 @@ A auditoria do estado `develop@394337d1166c4d12df3c78010246f65a63037eee` identif
 Foram reexecutados os testes específicos da #1096, os golden flows da #1094, a matriz da #1095, as regressões da #1072, a suíte focada de WhatsApp, `pnpm check`, `pnpm architecture:check`, `pnpm docs:check`, `git diff --check` e a suíte completa. Os resultados foram, respectivamente, `9/9`, `17/17`, `12/12`, `30/30`, `54/54`, typecheck aprovado, arquitetura aprovada, documentação aprovada, diff limpo e `4404` testes aprovados com `4` ignorados.
 
 **Resultado final: APROVADO.** Os onze critérios de aceite estão atendidos para o escopo da issue: o snapshot da `develop` está rastreável, F0-05 permanece `keep`, F0-06/F0-08 permanecem `defer`, não houve remoção insegura, os wrappers mantidos têm owners e condições de aposentadoria, os golden flows permanecem verdes e as métricas não apresentam delta operacional. A aprovação continua não autorizando a remoção da fachada F0-05 ou dos adaptadores históricos sem nova prova discriminante.
+
+
+## Rodada 5 — revalidação solicitada pela issue #1097
+
+A validação cruzada da Fase 4 observou que `origin/develop` avançou para `8851ad166a227c810d3b23954caa5d9f06d50cbc`. O teste estrutural e a matriz de reachability foram revalidados contra esse snapshot, capturado em `2026-09-17T15:28:14Z` por `git rev-parse origin/develop`; a composição, as decisões F0-05/F0-06/F0-08 e os artefatos executáveis permanecem aprovados.
