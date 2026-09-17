@@ -1,0 +1,110 @@
+name: Issue 1097 final validation
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      webhook_url:
+        description: "Published POST /api/whatsapp/webhook URL"
+        required: false
+        type: string
+      expected_commit:
+        description: "Full candidate SHA deployed to the published runtime"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  final-validation:
+    name: Issue 1097 final validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_OPTIONS: --max-old-space-size=4096
+      PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
+      ISSUE_1097_REPORT_PATH: artifacts/issue-1097-final-validation.json
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run final validation
+        run: |
+          mkdir -p artifacts
+          pnpm issue-1097:validate
+
+      - name: Upload final validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1097-final-validation-${{ github.sha }}
+          path: artifacts/issue-1097-final-validation.json
+          if-no-files-found: error
+          retention-days: 14
+
+  post-deploy-smoke:
+    name: Issue 1097 post-deploy smoke
+    if: github.event_name == 'workflow_dispatch' && inputs.webhook_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ISSUE_1097_WEBHOOK_URL: ${{ inputs.webhook_url }}
+      ISSUE_1097_EXPECTED_COMMIT: ${{ inputs.expected_commit || github.sha }}
+      ISSUE_1097_CHANNEL_PHONE_NUMBER_ID: ${{ secrets.ISSUE_1097_CHANNEL_PHONE_NUMBER_ID }}
+      ISSUE_1097_TEST_PHONE: ${{ secrets.ISSUE_1097_TEST_PHONE }}
+      ISSUE_1097_SMOKE_REPORT_PATH: artifacts/issue-1097-post-deploy-smoke.json
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run post-deploy smoke
+        run: |
+          mkdir -p artifacts
+          pnpm smoke:issue-1097:post-deploy
+
+      - name: Upload post-deploy smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1097-post-deploy-smoke-${{ github.sha }}
+          path: artifacts/issue-1097-post-deploy-smoke.json
+          if-no-files-found: error
+          retention-days: 14

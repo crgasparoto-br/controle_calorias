@@ -45,6 +45,7 @@ import {
   sendWhatsAppStandaloneReply,
   type WhatsAppAuxiliaryImage,
 } from "./modules/whatsapp/logicalReplyDelivery";
+import { setWhatsAppWebhookOutcome } from "./whatsappWebhookOutcome";
 import {
   composeWhatsAppDeferredReplyText,
   getWhatsAppDeferredLogicalReply,
@@ -1030,6 +1031,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const replyMeal = consolidationResult.meal;
       await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
+      setWhatsAppWebhookOutcome(res, "meal_registered");
 
       logInferenceEvent({
         userId,
