@@ -156,9 +156,16 @@ export function resolveSafeCountableCatalogGrams(
 }
 
 /**
- * The synchronous public API is a compatibility adapter. All local countable
- * decisions are owned by prepareLocalCountableFoodRegistration, which is also
- * the first stage of the canonical asynchronous preparation below.
+ * @deprecated Compatibility adapter for the historical synchronous API.
+ *
+ * Production callers use `prepareCountableFoodRegistrationResolved`; this
+ * export remains for legacy consumers such as the #997 compatibility suite and
+ * external imports. It can be removed after a repository/package consumer scan
+ * confirms zero remaining synchronous callers.
+ *
+ * All local countable decisions are owned by
+ * `prepareLocalCountableFoodRegistration`, which is also the first stage of
+ * the canonical asynchronous preparation below.
  */
 export function prepareCountableFoodRegistration(registrationText: string) {
   return prepareLocalCountableFoodRegistration(registrationText);

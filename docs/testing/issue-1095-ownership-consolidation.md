@@ -40,3 +40,14 @@ A primeira auditoria encontrou uma falha bloqueadora em `confirmedMealRegistrati
 Durante a revalidação apareceu uma incompatibilidade de restart que a auditoria de ciclo também capturou: `sourceVerifiedAt` persistido em JSON retorna como string. `mealSemanticContract.ts` passou a normalizar `Date|string` de forma fail-safe antes de serializar a evidência, sem alterar o valor da proveniência. O cenário 15 da #1094 voltou a passar com `pendingConsumed=1`, `persistedMeals=1` e sem duplicação do inbound.
 
 Após essas correções, a caracterização pública da #1094 passou novamente **17/17**, a suíte regressiva contável/adição passou **34/34**, a suíte de confirmação/contrato passou **8/8**, a suíte focada de ownership passou **4/4** e `pnpm run check` passou. A auditoria independente final deve confirmar que não restam pendências bloqueadoras.
+
+## Remediação da auditoria independente
+
+A auditoria posterior à implementação confirmou o comportamento funcional, mas apontou duas pendências de rastreabilidade. Elas foram fechadas sem alterar a política nutricional:
+
+- `canonicalFoodAdditionResolution.ts` foi migrado de `recoverCanonicalCommercialIdentity` para `resolveStructuredCommercialIdentity`, eliminando o último consumidor produtivo interno do adaptador histórico e mantendo a resolução de identidade fora do pipeline geral;
+- `recoverCanonicalCommercialIdentity` permanece somente como adaptador de compatibilidade externa, com o segundo parâmetro legado explicitamente não consultado; sua aposentadoria depende de varredura externa confirmar zero consumidores da assinatura histórica;
+- `prepareCountableFoodRegistration` permanece somente para a suíte/consumidores síncronos históricos, com condição objetiva de remoção definida como zero chamadas síncronas após varredura de consumidores do repositório/package;
+- `nutrition-engine.md` agora usa o símbolo implementado `materializeResolvedCommercialMeal` e registra consumidor, motivo e condição de aposentadoria de cada adaptador.
+
+A evidência de regressão permanece a mesma: o caminho canônico de adição continua sem chamar `processMealInput` para re-resolver identidade comercial já aceita, conforme a suíte #1016, e a matriz pública da #1094 continua sendo o gate de contadores e monotonicidade.
