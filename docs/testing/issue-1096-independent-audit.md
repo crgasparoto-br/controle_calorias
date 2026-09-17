@@ -35,4 +35,10 @@ Foram aplicadas somente correções de evidência e testes, sem remover wrappers
 
 ## Rodada 2 — reauditoria de aprovação
 
-**Status: PENDENTE DE EXECUÇÃO.** A aprovação final deste ciclo somente será registrada após uma nova inspeção independente da branch corrigida, execução dos testes runtime, repetição dos golden flows e confirmação de que todos os onze critérios estão `PASS`.
+A reauditoria independente foi executada sobre o commit versionado `b85002287df055f1bdfb700e8f54efb066792a42`, cujo pai é `develop@88848424a7dceee0c84f92fde636c3142bc919fa`. O auditor confirmou que os artefatos estavam rastreados, que a branch não possuía alterações locais e que os testes focados, golden flows e typecheck foram reproduzidos sem serviços externos.
+
+**Resultado final: APROVADO.** Os onze critérios de aceite foram avaliados como `PASS`, sem pendência bloqueadora. A limitação dos testes runtime — doubles determinísticos nos limites de provider, banco, Cloud API e efeitos externos — é não bloqueadora porque os golden flows locais da #1094 cobrem o comportamento produtivo e os testes específicos cobrem os wrappers e seus contratos. A aprovação vale para o escopo versionado: preservação dos wrappers, evidência de reachability e correções documentais/testes da Fase 3; não autoriza remover a fachada F0-05 nem os adaptadores históricos sem nova prova.
+
+### Evidências da aprovação
+
+O auditor confirmou `4 arquivos/8 testes` nos testes da #1096, `17/17` na caracterização #1094, `12/12` na matriz #1095, `30/30` nas regressões #1072, `54/54` nos wrappers/intents/mídia/idempotência e `pnpm check` verde. Também confirmou `git diff --check`, a rastreabilidade dos oito artefatos e o delta operacional zero do relatório de métricas.
