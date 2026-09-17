@@ -1,6 +1,7 @@
-import { findCatalogFood } from "./catalogMatching";
+import { findCatalogFood, inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
 import { extractCommercialVariant } from "./commercialProductIdentity";
-import { MealInferenceError, processMealInput } from "./nutritionEngine";
+import { detectKnownBrand } from "./foodBrandDetection";
+import type { MealInferenceError } from "./nutritionEngine";
 
 const GENERIC_ZERO_COMMERCIAL_VARIANTS = new Set(["zero", "diet"]);
 
@@ -68,50 +69,40 @@ function buildUnverifiedCommercialIdentityClarification(
 }
 
 /**
- * Shared commercial identity preflight for countable WhatsApp producers.
- * It reuses the canonical nutrition processor and its clarification taxonomy
- * before any generic household-measure fallback is allowed to run.
+ * Resolve somente fatos de identidade já presentes no segmento.
+ *
+ * A função histórica continua exportada para consumidores antigos, mas deixou
+ * de chamar processMealInput. O canal não precisa executar o pipeline geral
+ * para redescobrir marca/variante: marcas conhecidas e a heurística de
+ * identidade comercial compartilham a mesma evidência textual estruturada.
+ */
+export function resolveStructuredCommercialIdentity(
+  request: CommercialIdentityPreflightRequest
+): CanonicalCommercialIdentityPreflight {
+  if (request.brand) return { brand: request.brand };
+
+  const knownBrand = detectKnownBrand(request.foodName);
+  if (knownBrand) return { brand: knownBrand };
+
+  const hint = inferUnresolvedCommercialIdentityHint(request.foodName);
+  if (hint?.brand) return { brand: hint.brand };
+
+  if (inferUnverifiedCommercialVariant(request)) {
+    return buildUnverifiedCommercialIdentityClarification(request);
+  }
+
+  return { brand: null };
+}
+
+/**
+ * Compatibilidade para consumidores históricos. O segundo parâmetro é aceito
+ * deliberadamente como legado, mas não é consultado nem reabre o pipeline.
  */
 export async function recoverCanonicalCommercialIdentity(
   request: CommercialIdentityPreflightRequest,
-  runtime: { processMealInput: typeof processMealInput } = { processMealInput }
+  _legacyRuntime?: unknown,
 ): Promise<CanonicalCommercialIdentityPreflight> {
-  if (request.brand) return { brand: request.brand };
-
-  try {
-    const processed = await runtime.processMealInput({
-      text: request.segment,
-      skipCommercialNutritionSearch: true,
-    });
-    if (processed.items.length !== 1) return { brand: null };
-    const brand = processed.items[0].brand?.trim() || null;
-    if (brand) return { brand };
-    if (inferUnverifiedCommercialVariant(request)) {
-      return buildUnverifiedCommercialIdentityClarification(request);
-    }
-    return { brand: null };
-  } catch (error) {
-    if (
-      !(error instanceof MealInferenceError) ||
-      !error.context?.clarificationReason
-    ) {
-      return { brand: null };
-    }
-
-    // O preflight deliberadamente desabilita NUTRITION_SEARCH. Quando o
-    // pipeline já conseguiu extrair uma marca, a clarificação significa apenas
-    // que a comprovação específica ainda não foi tentada. Devolva a marca ao
-    // chamador para que resolveCommercialFoodIdentity faça a única pesquisa
-    // canônica, sem transformar o preflight em um bloqueio definitivo.
-    const brand = error.context.brand?.trim() || null;
-    if (brand && !error.context.usedSourceTextFallback) return { brand };
-
-    return {
-      brand,
-      identityClarification: {
-        message: error.message,
-        context: error.context,
-      },
-    };
-  }
+  return resolveStructuredCommercialIdentity(request);
 }
+
+export type { MealInferenceError } from "./nutritionEngine";

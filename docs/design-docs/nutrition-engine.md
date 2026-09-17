@@ -206,3 +206,14 @@ Para evitar que “owner atual” seja interpretado como múltiplos decisores co
 | Pesquisa nutricional externa | `catalogSemanticSearch` via capacidade `NUTRITION_SEARCH` | `createNutritionSearchTrace` e telemetria sanitizada | preflight/fallback não pode emitir segunda pesquisa por representação alternativa |
 
 Esses owners são uma decisão de leitura da baseline, não uma mudança de implementação. Findings F0-01 a F0-04 permanecem abertos para a Fase 2 porque a consolidação deve provar equivalência e preservar os invariantes antes de transformar o owner provisório em uma API única.
+
+
+## Consolidação da Fase 2 — issue #1095
+
+A Fase 2 confirmou e tornou executáveis os owners provisórios da baseline. `commercialProductIdentity.ts` possui um comparador lexical compartilhado para normalização, tokens, variantes e medidas; os guards de identidade persistida e de candidato comercial novo permanecem separados porque suas políticas de aceitação não são equivalentes.
+
+A preparação de medidas contáveis tem um único owner assíncrono em `prepareCountableFoodRegistrationResolved`. O export histórico `prepareCountableFoodRegistration` é apenas um adaptador local síncrono para consumidores legados e não contém uma segunda decisão de parsing/porção. A resolução textual estruturada de marca/variante é feita por `resolveStructuredCommercialIdentity`; o adaptador histórico `recoverCanonicalCommercialIdentity` não reabre `processMealInput`.
+
+A materialização de uma decisão comercial aceita pertence ao domínio: `buildItemFromResolvedCommercialFood` constrói o item preservando identidade, variante, macros e proveniência do `CatalogFood`, enquanto `materializeResolvedCommercialMeal` constrói o resultado, o contrato semântico e os totais. O gate WhatsApp e a adição canônica transportam essa estrutura; não convertem um produto aceito em texto para redescobrir a mesma decisão. A expressão original e sua quantidade/unidade permanecem separadas da gramatura derivada e da relação física usada no cálculo.
+
+A matriz da #1094 continua sendo o controle operacional: nenhum produto comercial emite mais de uma operação outbound de `NUTRITION_SEARCH` por item, as decisões aceitas são monotônicas até persistência e falhas de variante, grounding ou medida permanecem fail-closed. A evidência de baseline e comparação está em `docs/testing/issue-1095-ownership-consolidation.md`.

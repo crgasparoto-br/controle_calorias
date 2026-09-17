@@ -73,24 +73,6 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
       sourceUrls: ["https://example.com/medida-presunto"],
       referenceCount: 2,
     });
-    deps.processMealInput.mockResolvedValueOnce({
-      detectedMealLabel: "Café da manhã",
-      sourceText: "",
-      reasoning: "",
-      confidence: 0.95,
-      needsConfirmation: false,
-      items: [draftItem({
-        quantity: 21,
-        estimatedGrams: 21,
-        portionText: "21 g",
-        calories: 26,
-        protein: 4,
-        carbs: 0.5,
-        fat: 1,
-      })],
-      totals: { calories: 26, protein: 4, carbs: 0.5, fat: 1 },
-    } as any);
-
     const result = await resolveCanonicalFoodAdditionItems({
       userId: 7,
       addition: {
@@ -118,21 +100,19 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
     expect(deps.resolveCommercialFoodIdentity.mock.invocationCallOrder[0]).toBeLessThan(
       deps.resolveHouseholdMeasure.mock.invocationCallOrder[0],
     );
-    expect(deps.processMealInput).toHaveBeenCalledWith(expect.objectContaining({
-      text: "21 g de Presunto cozido Sadia",
-    }));
+    expect(deps.processMealInput).not.toHaveBeenCalled();
     expect(result).toEqual({
       kind: "items",
       items: [expect.objectContaining({
         foodName: "Presunto cozido Sadia",
-        canonicalName: "Presunto cozido Sadia",
+        canonicalName: "Presunto Cozido Sadia",
         brand: "Sadia",
         quantity: 1,
         unit: "fatia",
         portionText: "1 fatia (21 g)",
         estimatedGrams: 21,
         calories: 26,
-        source: "hybrid",
+        source: "catalog",
         quantityResolution: expect.objectContaining({
           kind: "researched_exact",
           grams: 21,

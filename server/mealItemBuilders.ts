@@ -125,6 +125,72 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
   };
 }
 
+export type ResolvedCommercialMealItemInput = {
+  food: CatalogFood;
+  foodName: string;
+  brand: string;
+  quantity: number;
+  unit: string;
+  grams: number;
+  measureResolution: {
+    kind: string;
+    requestedQuantity?: number;
+    requestedUnit?: string;
+    sourceUrls?: string[];
+    evidence?: string | null;
+    referenceCount?: number;
+  };
+};
+
+/**
+ * Canonical domain builder for an already accepted commercial identity.
+ * Quantity changes the serving factor only; it cannot replace the CatalogFood
+ * identity or its nutrition/source provenance with a rewritten text segment.
+ */
+export function buildItemFromResolvedCommercialFood(
+  input: ResolvedCommercialMealItemInput,
+): MealDraftItem {
+  const researched = isResearchVerifiedCatalogFood(input.food);
+  const confidence = clampConfidence(input.food.sourceConfidence ?? 0.95);
+  const item = buildItemFromCatalog(input.food, {
+    foodName: input.foodName,
+    brand: input.brand,
+    quantity: input.quantity,
+    unit: input.unit,
+    portionText: buildPortionText(input.quantity, input.unit),
+    servings: Math.max(input.grams / input.food.gramsPerServing, 0.25),
+    estimatedGrams: input.grams,
+    estimatedCalories: 0,
+    estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+    confidence,
+    foodClassification: null,
+  });
+
+  return {
+    ...item,
+    resolution: {
+      productVariant: input.food.productVariant ?? null,
+      nutritionOrigin: researched ? "web_research" : "catalog",
+      nutritionVerified: true,
+      sourceUrls: [...(input.food.sourceUrls ?? [])],
+      sourceEvidence: input.food.sourceEvidence ?? null,
+      sourceVerifiedAt: input.food.sourceVerifiedAt ?? null,
+      sourceConfidence: input.food.sourceConfidence ?? confidence,
+      ambiguity: null,
+      measureResolution: {
+        kind: input.measureResolution.kind,
+        grams: input.grams,
+        requestedQuantity: input.measureResolution.requestedQuantity ?? input.quantity,
+        requestedUnit: input.measureResolution.requestedUnit ?? input.unit,
+        sourceUrls: [...(input.measureResolution.sourceUrls ?? [])],
+        sourceEvidence: input.measureResolution.evidence ?? null,
+        referenceCount: input.measureResolution.referenceCount ?? 1,
+        verified: true,
+      },
+    },
+  };
+}
+
 export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
   const quantityUnit = parseQuantityUnitFromPortionText(llmItem.portionText) ?? {
     quantity: Math.max(llmItem.servings || 1, 0.25),
