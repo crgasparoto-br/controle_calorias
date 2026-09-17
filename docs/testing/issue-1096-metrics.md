@@ -2,7 +2,7 @@
 
 ## Escopo e snapshots
 
-Este relatório compara a caracterização pública da issue #1094 no snapshot de `develop` que já continha a implementação da #1096 com a mesma caracterização após as correções documentais e os testes runtime desta auditoria. O snapshot de referência é `develop@dacff30479007a0413232c2a22ebf7ac9a9c191d`, capturado em `2026-09-17T12:29:22Z`. A Fase 3 não altera código de produção: o candidato acrescenta somente testes de reachability e documentação; por isso, a comparação operacional deve ser exatamente nula.
+Este relatório compara a caracterização pública da issue #1094 no snapshot de `develop` que já continha a implementação da #1096 com a mesma caracterização após as correções documentais e os testes runtime desta auditoria. O snapshot de referência é `develop@394337d1166c4d12df3c78010246f65a63037eee`, capturado em `2026-09-17T13:51:57Z` por `git rev-parse origin/develop` antes desta correção. A Fase 3 não altera código de produção: o candidato acrescenta somente testes de reachability e documentação; por isso, a comparação operacional deve ser exatamente nula.
 
 A captura foi feita pelo teste `server/whatsappWebhook.issue1094.characterization.test.ts`, que imprime uma linha `[issue-1094-evidence]` com uma linha de métricas por cenário. A suíte possui **17 testes aprovados** e produz **16 linhas de evidência de cenário**: o teste de controle de falha de persistência não é incluído na lista declarada de cenários, embora também seja executado. A distinção evita confundir contagem de testes com contagem de cenários.
 
@@ -18,7 +18,7 @@ A linha `[issue-1094-evidence]` deve ser extraída do primeiro comando. Os valor
 
 ## Comparação operacional
 
-| Métrica | Baseline #1094 em `develop@8884842` | Candidato após correções | Delta | Invariante verificada |
+| Métrica | Baseline #1094 em `develop@394337d1166c4d12df3c78010246f65a63037eee` | Candidato após correções | Delta | Invariante verificada |
 | --- | ---: | ---: | ---: | --- |
 | `processMealInput` — total | 7 | 7 | 0 | O pipeline não é reprocessado pela documentação/testes da #1096. |
 | `processMealInput` — máximo por cenário | 1 | 1 | 0 | Uma execução por cenário aplicável. |
