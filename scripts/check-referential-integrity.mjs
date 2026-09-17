@@ -212,6 +212,28 @@ try {
     if (count > 0) {
       hasIssues = true;
       console.error(`FAIL ${check.name}: ${count}`);
+      if (check.name === "userPreferences sem usuário") {
+        const [diagnosticRows] = await connection.query(`
+          SELECT
+            p.preferenceKey,
+            COUNT(*) AS rowCount,
+            COUNT(DISTINCT p.userId) AS userCount,
+            COUNT(DISTINCT CASE WHEN pp.userId IS NOT NULL THEN p.userId END) AS profileUserCount,
+            COUNT(DISTINCT CASE WHEN ap.professionalUserId IS NOT NULL THEN p.userId END) AS professionalUserCount,
+            COUNT(DISTINCT CASE WHEN at.patientUserId IS NOT NULL THEN p.userId END) AS patientUserCount
+          FROM userPreferences p
+          LEFT JOIN users u ON u.id = p.userId
+          LEFT JOIN professionalProfiles pp ON pp.userId = p.userId
+          LEFT JOIN professionalPatientAuthorizations ap ON ap.professionalUserId = p.userId
+          LEFT JOIN professionalPatientAuthorizations at ON at.patientUserId = p.userId
+          WHERE u.id IS NULL
+          GROUP BY p.preferenceKey
+          ORDER BY p.preferenceKey
+        `);
+        console.error(
+          `INFO userPreferences orphan diagnostic (keys/counts only): ${JSON.stringify(diagnosticRows)}`
+        );
+      }
     } else {
       console.log(`OK   ${check.name}`);
     }
