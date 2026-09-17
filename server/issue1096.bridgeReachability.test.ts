@@ -124,6 +124,7 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     );
 
     expect(evidence).toContain("b3156bcf28cf854b14a657f4750a3f78b2a5ac67");
+    expect(evidence).toContain("24cac382d9aa9e5b0c7a5f79dd94c70f10d56728");
     expect(evidence).toContain("4d86cb814ff57164ff16cd7626ea21be46719fce");
     expect(evidence).toContain("O conjunto de remoções aprovado é vazio");
     expect(evidence).toContain("F0-05 permanece `keep`");
@@ -135,6 +136,9 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(ingestion).toContain("handleWhatsAppPersistentContextWebhook");
     expect(nutritionEngine).toContain(
       "b3156bcf28cf854b14a657f4750a3f78b2a5ac67"
+    );
+    expect(nutritionEngine).toContain(
+      "24cac382d9aa9e5b0c7a5f79dd94c70f10d56728"
     );
     expect(nutritionEngine).toContain("F0-05 = `keep`");
     expect(nutritionEngine).toContain("F0-06 = `defer`");

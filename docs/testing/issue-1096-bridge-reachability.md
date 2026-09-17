@@ -2,7 +2,7 @@
 
 ## Conclusão da implementação
 
-A implementação da Fase 3 foi concluída no SHA `b3156bcf28cf854b14a657f4750a3f78b2a5ac67` de `develop`. O SHA de referência da Fase 0 é `4d86cb814ff57164ff16cd7626ea21be46719fce`. Os findings foram revalidados antes da decisão: **F0-05 permanece `keep`**, enquanto **F0-06 e F0-08 permanecem `defer`** porque a cadeia real ainda possui responsabilidades distintas e contratos de compatibilidade legítimos.
+A implementação da Fase 3 foi iniciada sobre o SHA-base de `develop` `b3156bcf28cf854b14a657f4750a3f78b2a5ac67`. O commit de implementação auditado é `24cac382d9aa9e5b0c7a5f79dd94c70f10d56728`. O SHA de referência da Fase 0 é `4d86cb814ff57164ff16cd7626ea21be46719fce`. Os findings foram revalidados antes da decisão: **F0-05 permanece `keep`**, enquanto **F0-06 e F0-08 permanecem `defer`** porque a cadeia real ainda possui responsabilidades distintas e contratos de compatibilidade legítimos.
 
 O conjunto de remoções aprovado é vazio. Nenhum wrapper foi removido por delegação fina, nome semelhante, cobertura baixa ou busca textual sem referências. Essa é uma decisão de segurança: a evidência disponível demonstra reachability e responsabilidade própria para todos os bridges candidatos. Remover qualquer um deles nesta revisão reduziria lifecycle, precedência, telemetria, compatibilidade ou tratamento de mídia sem substituto equivalente comprovado.
 
