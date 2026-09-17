@@ -126,9 +126,19 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(evidence).toContain("b3156bcf28cf854b14a657f4750a3f78b2a5ac67");
     expect(evidence).toContain("24cac382d9aa9e5b0c7a5f79dd94c70f10d56728");
     expect(evidence).toContain("4d86cb814ff57164ff16cd7626ea21be46719fce");
+    expect(evidence).toContain("88848424a7dceee0c84f92fde636c3142bc919fa");
     expect(evidence).toContain("O conjunto de remoções aprovado é vazio");
     expect(evidence).toContain("F0-05 permanece `keep`");
     expect(evidence).toContain("F0-06 e F0-08 permanecem `defer`");
+    expect(evidence).toContain("issue-1096-metrics.md");
+    expect(evidence).toContain("issue-1096-independent-audit.md");
+    expect(evidence).toContain("issue1096.bridgeReachability.runtime.test.ts");
+    expect(evidence).toContain(
+      "issue1096.bridgeReachability.downstream.runtime.test.ts"
+    );
+    expect(evidence).toContain(
+      "issue1096.bridgeReachability.fallback.runtime.test.ts"
+    );
     expect(evidence).toContain(
       "whatsappWebhook.issue1094.characterization.test.ts"
     );
@@ -140,6 +150,9 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(nutritionEngine).toContain(
       "24cac382d9aa9e5b0c7a5f79dd94c70f10d56728"
     );
+    expect(nutritionEngine).toContain(
+      "88848424a7dceee0c84f92fde636c3142bc919fa"
+    );
     expect(nutritionEngine).toContain("F0-05 = `keep`");
     expect(nutritionEngine).toContain("F0-06 = `defer`");
     expect(nutritionEngine).toContain("F0-08 = `defer`");
@@ -150,5 +163,32 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(architecture).toContain("whatsappWebhook.ts` permanece");
     expect(characterization).toContain("registerWhatsAppPublicPostRoute");
     expect(characterization).toContain("17");
+  });
+
+  it("mantém os artefatos executáveis e independentes da auditoria", () => {
+    for (const relativePath of [
+      "server/issue1096.bridgeReachability.runtime.test.ts",
+      "server/issue1096.bridgeReachability.downstream.runtime.test.ts",
+      "server/issue1096.bridgeReachability.fallback.runtime.test.ts",
+      "docs/testing/issue-1096-metrics.md",
+      "docs/testing/issue-1096-independent-audit.md",
+    ]) {
+      expect(existsSync(resolve(root, relativePath)), `${relativePath} deve existir`).toBe(
+        true
+      );
+    }
+
+    expectSourceIncludes(
+      "server/issue1096.bridgeReachability.runtime.test.ts",
+      /fetch\(`\$\{listening\.url\}\/api\/whatsapp\/webhook`/
+    );
+    expectSourceIncludes(
+      "server/issue1096.bridgeReachability.downstream.runtime.test.ts",
+      /handleWhatsAppWebhookWithTextIntent/
+    );
+    expectSourceIncludes(
+      "server/issue1096.bridgeReachability.fallback.runtime.test.ts",
+      /handleAnnotatedImplementation/
+    );
   });
 });

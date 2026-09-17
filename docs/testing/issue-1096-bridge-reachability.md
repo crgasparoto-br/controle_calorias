@@ -2,7 +2,7 @@
 
 ## Conclusão da implementação
 
-A implementação da Fase 3 foi iniciada sobre o SHA-base de `develop` `b3156bcf28cf854b14a657f4750a3f78b2a5ac67`. O commit de implementação auditado é `24cac382d9aa9e5b0c7a5f79dd94c70f10d56728`. O SHA de referência da Fase 0 é `4d86cb814ff57164ff16cd7626ea21be46719fce`. Os findings foram revalidados antes da decisão: **F0-05 permanece `keep`**, enquanto **F0-06 e F0-08 permanecem `defer`** porque a cadeia real ainda possui responsabilidades distintas e contratos de compatibilidade legítimos.
+A implementação da Fase 3 foi iniciada sobre o SHA-base de `develop` `b3156bcf28cf854b14a657f4750a3f78b2a5ac67`. O commit de implementação auditado é `24cac382d9aa9e5b0c7a5f79dd94c70f10d56728`, com o follow-up documental `a95a5c54c290f7a6aeffe7bb3b1bb892b5b560c3`. O SHA de referência da Fase 0 é `4d86cb814ff57164ff16cd7626ea21be46719fce`. O snapshot atual auditado de `develop` é `88848424a7dceee0c84f92fde636c3142bc919fa`, capturado em `2026-09-17T11:34:43Z` por `git rev-parse origin/develop`. Os findings foram revalidados contra esse snapshot: **F0-05 permanece `keep`**, enquanto **F0-06 e F0-08 permanecem `defer`** porque a cadeia real ainda possui responsabilidades distintas e contratos de compatibilidade legítimos.
 
 O conjunto de remoções aprovado é vazio. Nenhum wrapper foi removido por delegação fina, nome semelhante, cobertura baixa ou busca textual sem referências. Essa é uma decisão de segurança: a evidência disponível demonstra reachability e responsabilidade própria para todos os bridges candidatos. Remover qualquer um deles nesta revisão reduziria lifecycle, precedência, telemetria, compatibilidade ou tratamento de mídia sem substituto equivalente comprovado.
 
@@ -19,7 +19,7 @@ POST /api/whatsapp/webhook
                     -> handleWhatsAppWebhookImplementation
 ```
 
-O fluxo acima é exercitado pelo POST HTTP real na caracterização da #1094. A verificação estática adicionada nesta issue funciona apenas como uma barreira complementar contra remoções ou bypasses acidentais; ela não substitui os golden flows.
+O fluxo acima é exercitado pelo POST HTTP real na caracterização da #1094. A verificação estática adicionada nesta issue funciona apenas como uma barreira complementar contra remoções ou bypasses acidentais; ela não substitui os golden flows. A suíte adicional `issue1096.bridgeReachability.runtime.test.ts` executa o POST real até o limite do wrapper de idempotência com o handler produtivo anterior, e as suítes `issue1096.bridgeReachability.downstream.runtime.test.ts` e `issue1096.bridgeReachability.fallback.runtime.test.ts` executam as delegações de intenção, anotação e fallback com doubles determinísticos para impedir efeitos externos.
 
 ## Revalidação dos findings
 
@@ -54,18 +54,19 @@ A dupla chamada de `runWithMessageLifecycleRequestScope` e de `runWithQuestionLa
 
 ## Contagens e comportamento preservado
 
-A caracterização pública da #1094 permanece com **17/17 testes aprovados**. A regressão focada da #1095 permanece com **12/12 testes aprovados**. Os testes dos wrappers e intents executados nesta fase permanecem com **54/54 testes aprovados**. A regressão explícita de #1072 permanece com **30/30 testes aprovados**, distribuídos entre `commercialServingRelation.issue1072.test.ts` (15), `countableFoodQuantity.issue1072.searchContext.test.ts` (1), `countableFoodRegistrationGate.issue1072.test.ts` (5) e `nutritionSearchDecisionTelemetry.issue1072.test.ts` (9). O typecheck (`pnpm check`) permanece verde.
+A caracterização pública da #1094 permanece com **17/17 testes aprovados**. A regressão focada da #1095 permanece com **12/12 testes aprovados**. Os testes dos wrappers e intents executados nesta fase permanecem com **54/54 testes aprovados**. A regressão explícita de #1072 permanece com **30/30 testes aprovados**, distribuídos entre `commercialServingRelation.issue1072.test.ts` (15), `countableFoodQuantity.issue1072.searchContext.test.ts` (1), `countableFoodRegistrationGate.issue1072.test.ts` (5) e `nutritionSearchDecisionTelemetry.issue1072.test.ts` (9). O typecheck (`pnpm check`) permanece verde. Os valores observados por cenário e a comparação before/after estrutural estão em [`issue-1096-metrics.md`](./issue-1096-metrics.md); a execução registrada totalizou 16 linhas de evidência para 17 testes da caracterização, sem aumento introduzido pela Fase 3.
 
 Esta Fase 3 não alterou código de produção: o diff funcional contém somente documentação e o teste complementar de reachability. Por isso, o delta operacional desta fase é **zero** para `processMealInput`, `NUTRITION_SEARCH`, persistências, claims e round-trips. A caracterização pública pós-implementação foi executada novamente para confirmar que a matriz da #1094 continua verde; ela mantém o limite de uma operação outbound de `NUTRITION_SEARCH` por item e a monotonicidade das decisões estruturadas até a persistência. A comparação code-v-code da Fase 2 permanece registrada em `docs/testing/issue-1095-ownership-consolidation.md`.
 
 ## Evidência executável
 
-O teste `server/issue1096.bridgeReachability.test.ts` verifica a composição documentada, os consumidores produtivos dos wrappers, a preservação da fachada F0-05 e a existência dos golden flows públicos. Ele é deliberadamente complementar: a prova comportamental continua sendo o POST real de `server/whatsappWebhook.issue1094.characterization.test.ts`.
+O teste `server/issue1096.bridgeReachability.test.ts` verifica a composição documentada, os consumidores produtivos dos wrappers, a preservação da fachada F0-05 e a existência dos golden flows públicos. Ele é deliberadamente complementar: a prova comportamental continua sendo o POST real de `server/whatsappWebhook.issue1094.characterization.test.ts`. Os testes runtime da composição observam os limites produtivos sem depender de busca textual como única evidência.
 
 Comandos de revalidação:
 
 ```text
 pnpm vitest run server/issue1096.bridgeReachability.test.ts --reporter=dot
+pnpm vitest run server/issue1096.bridgeReachability.runtime.test.ts server/issue1096.bridgeReachability.downstream.runtime.test.ts server/issue1096.bridgeReachability.fallback.runtime.test.ts --reporter=dot
 pnpm vitest run server/whatsappWebhook.issue1094.characterization.test.ts --reporter=dot
 pnpm vitest run server/issue1095.ownershipConsolidation.test.ts server/modules/whatsapp/confirmedMealRegistration.issue1095.test.ts server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts --reporter=dot
 pnpm vitest run server/commercialServingRelation.issue1072.test.ts server/countableFoodQuantity.issue1072.searchContext.test.ts server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts server/nutritionSearchDecisionTelemetry.issue1072.test.ts --reporter=dot
@@ -77,7 +78,7 @@ pnpm check
 
 O registro desta implementação mantém todos os wrappers, porque cada candidato foi alcançado por entrypoints produtivos ou preserva contratos históricos e cada tentativa de simplificação sem substituto equivalente violaria os controles da issue. A aposentadoria futura é condicional, não automática: somente após os consumidores síncronos/externos históricos serem migrados e uma nova matriz pública provar equivalência.
 
-O parecer independente do ciclo é mantido separado desta decisão de implementação. A aprovação final somente deve ser registrada depois que a auditoria independente confirmar que os requisitos e as correções documentais estão completos.
+O parecer independente do ciclo é mantido separado desta decisão de implementação em [`issue-1096-independent-audit.md`](./issue-1096-independent-audit.md). A aprovação final somente deve ser registrada depois que a auditoria independente confirmar que os requisitos e as correções documentais estão completos.
 
 ## Referências
 
