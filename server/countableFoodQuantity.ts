@@ -12,7 +12,7 @@ import type { CatalogFood } from "./nutritionEngineTypes";
 import { findTacoFood } from "./tacoLookup";
 import { MealInferenceError, resolveCommercialFoodIdentity } from "./nutritionEngine";
 import {
-  recoverCanonicalCommercialIdentity,
+  resolveStructuredCommercialIdentity,
   type CommercialIdentityClarification,
 } from "./commercialFoodIdentityPreflight";
 import { createNutritionSearchTrace } from "./nutritionSearchDecisionTelemetry";
@@ -44,6 +44,13 @@ export type CountableFoodResolvedMeasure = {
 export type CountableFoodPendingItem = CountableFoodQuantityRequest & {
   segmentIndex: number;
   identityClarification?: CommercialIdentityClarification;
+};
+
+type CountableFoodPreparation = {
+  registrationSegments: string[];
+  pendingItems: CountableFoodPendingItem[];
+  resolutions: CountableFoodResolvedMeasure[];
+  registrationText: string;
 };
 
 function splitCountableFoodTextSegments(text: string) {
@@ -148,95 +155,106 @@ export function resolveSafeCountableCatalogGrams(
   return grams && food ? { food, grams } : null;
 }
 
+/**
+ * @deprecated Compatibility adapter for the historical synchronous API.
+ *
+ * Production callers use `prepareCountableFoodRegistrationResolved`; this
+ * export remains for legacy consumers such as the #997 compatibility suite and
+ * external imports. It can be removed after a repository/package consumer scan
+ * confirms zero remaining synchronous callers.
+ *
+ * All local countable decisions are owned by
+ * `prepareLocalCountableFoodRegistration`, which is also the first stage of
+ * the canonical asynchronous preparation below.
+ */
 export function prepareCountableFoodRegistration(registrationText: string) {
+  return prepareLocalCountableFoodRegistration(registrationText);
+}
+
+function prepareLocalCountableFoodRegistration(
+  registrationText: string,
+  resolvedSegmentIndexes: number[] = [],
+): CountableFoodPreparation {
   const registrationSegments = splitCountableFoodTextSegments(registrationText);
-  const pendingItems: Array<CountableFoodQuantityRequest & { segmentIndex: number }> = [];
-  const rewrittenSegments = registrationSegments.map((segment, segmentIndex) => {
+  const pendingItems: CountableFoodPendingItem[] = [];
+  const resolutions: CountableFoodResolvedMeasure[] = [];
+  const rewrittenSegments = [...registrationSegments];
+
+  for (const [segmentIndex, segment] of registrationSegments.entries()) {
+    if (resolvedSegmentIndexes.includes(segmentIndex)) continue;
+
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) {
       const bare = parseBareCount(segment);
-      if (!bare || bare.count !== 1) return segment;
+      if (!bare || bare.count !== 1) continue;
       const safeBare = resolveSafeCountableCatalogGrams(
         bare.foodName,
         bare.count,
         bare.requestedUnit,
       );
-      return safeBare ? `${safeBare.grams} g de ${bare.foodName}` : segment;
+      if (!safeBare) continue;
+      rewrittenSegments[segmentIndex] = `${safeBare.grams} g de ${bare.foodName}`;
+      resolutions.push({
+        segmentIndex,
+        request: bare,
+        resolution: { kind: "canonical_portion", grams: safeBare.grams },
+      });
+      continue;
     }
+
     const safe = resolveSafeCountableCatalogGrams(
       request.foodName,
       request.count,
       request.requestedUnit,
     );
-    if (safe) return `${safe.grams} g de ${request.foodName}`;
+    if (safe) {
+      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${request.foodName}`;
+      resolutions.push({
+        segmentIndex,
+        request,
+        resolution: { kind: "canonical_portion", grams: safe.grams },
+      });
+      continue;
+    }
+
     pendingItems.push({ ...request, segmentIndex });
-    return segment;
-  });
+  }
+
   return {
     registrationSegments: rewrittenSegments,
     pendingItems,
+    resolutions,
     registrationText: rewrittenSegments.join("\n"),
   };
 }
 
+/**
+ * Canonical owner for countable registration preparation. Identity is resolved
+ * before household measure; the accepted CatalogFood is passed to the measure
+ * resolver and is never reconstructed from rewritten text downstream.
+ */
 export async function prepareCountableFoodRegistrationResolved(
   userId: number,
   registrationText: string,
-  resolvedSegmentIndexes: number[] = []
-) {
-  const registrationSegments = splitCountableFoodTextSegments(registrationText);
-  const rewrittenSegments = [...registrationSegments];
-  const pendingItems: CountableFoodPendingItem[] = [];
-  const resolutions: CountableFoodResolvedMeasure[] = [];
+  resolvedSegmentIndexes: number[] = [],
+): Promise<CountableFoodPreparation> {
+  const prepared = prepareLocalCountableFoodRegistration(
+    registrationText,
+    resolvedSegmentIndexes,
+  );
 
-  for (const [segmentIndex, segment] of registrationSegments.entries()) {
-    if (resolvedSegmentIndexes.includes(segmentIndex)) continue;
-    const request = parseCountableFoodQuantitySegment(segment);
-    if (!request) {
-      const bare = parseBareCount(segment);
-      if (!bare || bare.count !== 1) continue;
-      const safeBare = resolveSafeCountableCatalogGrams(bare.foodName, bare.count, bare.requestedUnit);
-      if (safeBare) {
-        rewrittenSegments[segmentIndex] = `${safeBare.grams} g de ${bare.foodName}`;
-        resolutions.push({
-          segmentIndex,
-          request: bare,
-          resolution: { kind: "canonical_portion", grams: safeBare.grams },
-        });
-      }
-      continue;
-    }
+  for (const pending of [...prepared.pendingItems]) {
+    const canonicalIdentity = resolveStructuredCommercialIdentity(pending);
+    const resolvedRequest = canonicalIdentity.brand && !pending.brand
+      ? { ...pending, brand: canonicalIdentity.brand }
+      : pending;
 
-    const canonicalIdentity = await recoverCanonicalCommercialIdentity(request);
-    const resolvedRequest = canonicalIdentity.brand && !request.brand
-      ? { ...request, brand: canonicalIdentity.brand }
-      : request;
-
-    // A clarificação produzida pelo preflight pode significar apenas que a
-    // IA degradou antes da tentativa canônica de NUTRITION_SEARCH. Quando a
-    // marca foi preservada, ainda devemos executar a única pesquisa específica
-    // antes de transformar a pendência em clarificação final.
     if (canonicalIdentity.identityClarification && !resolvedRequest.brand) {
-      pendingItems.push({
+      const index = prepared.pendingItems.findIndex(item => item.segmentIndex === pending.segmentIndex);
+      if (index >= 0) prepared.pendingItems[index] = {
         ...resolvedRequest,
-        segmentIndex,
         identityClarification: canonicalIdentity.identityClarification,
-      });
-      continue;
-    }
-
-    const safe = resolveSafeCountableCatalogGrams(
-      resolvedRequest.foodName,
-      resolvedRequest.count,
-      resolvedRequest.requestedUnit,
-    );
-    if (safe) {
-      rewrittenSegments[segmentIndex] = `${safe.grams} g de ${resolvedRequest.foodName}`;
-      resolutions.push({
-        segmentIndex,
-        request: resolvedRequest,
-        resolution: { kind: "canonical_portion", grams: safe.grams },
-      });
+      };
       continue;
     }
 
@@ -255,8 +273,8 @@ export async function prepareCountableFoodRegistrationResolved(
         traceId: nutritionSearchTrace.traceId,
       };
       try {
-        // Keep canonical identity as the semantic contract while carrying the
-        // original countable expression into the single external search.
+        // Keep the structured identity while carrying the original countable
+        // expression into the single external search.
         commercialFood = await resolveCommercialFoodIdentity(
           resolvedRequest.foodName,
           resolvedRequest.brand,
@@ -271,17 +289,18 @@ export async function prepareCountableFoodRegistrationResolved(
           !error.context?.clarificationReason
         )
           throw error;
-        pendingItems.push({
+        const index = prepared.pendingItems.findIndex(item => item.segmentIndex === pending.segmentIndex);
+        if (index >= 0) prepared.pendingItems[index] = {
           ...resolvedRequest,
-          segmentIndex,
           identityClarification: {
             message: error.message,
             context: error.context,
           },
-        });
+        };
         continue;
       }
     }
+
     const resolved = await resolveHouseholdMeasure({
       userId,
       foodName: resolvedRequest.foodName,
@@ -292,23 +311,23 @@ export async function prepareCountableFoodRegistrationResolved(
       ...(nutritionSearchTelemetry ? { nutritionSearchTelemetry } : {}),
     });
     if (resolved) {
-      rewrittenSegments[segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
-      resolutions.push({
-        segmentIndex,
+      prepared.registrationSegments[pending.segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
+      prepared.resolutions.push({
+        segmentIndex: pending.segmentIndex,
         request: resolvedRequest,
         resolution: resolved,
         ...(commercialFood ? { commercialFood } : {}),
       });
-      continue;
+      const index = prepared.pendingItems.findIndex(item => item.segmentIndex === pending.segmentIndex);
+      if (index >= 0) prepared.pendingItems.splice(index, 1);
+    } else if (resolvedRequest.brand && commercialFood) {
+      // Identity was accepted but no measure relation was proven. Keep the
+      // pending item as a quantity clarification, without re-searching identity.
+      const index = prepared.pendingItems.findIndex(item => item.segmentIndex === pending.segmentIndex);
+      if (index >= 0) prepared.pendingItems[index] = resolvedRequest;
     }
-
-    pendingItems.push({ ...resolvedRequest, segmentIndex });
   }
 
-  return {
-    registrationSegments: rewrittenSegments,
-    pendingItems,
-    resolutions,
-    registrationText: rewrittenSegments.join("\n"),
-  };
+  prepared.registrationText = prepared.registrationSegments.join("\n");
+  return prepared;
 }

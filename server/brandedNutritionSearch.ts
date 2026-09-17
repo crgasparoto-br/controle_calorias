@@ -44,6 +44,16 @@ type BrandedNutritionSearchOptions = {
   telemetry?: NutritionSearchTelemetryContext;
 };
 
+function isCompatibleCachedNutrition(foodName: string, cached: CatalogFood) {
+  return isPersistedProductIdentityCompatible({
+    foodName,
+    matchedProductName: cached.name,
+    brandName: cached.brandName ?? null,
+    servingLabel: cached.servingLabel,
+    gramsPerServing: cached.gramsPerServing,
+  });
+}
+
 const defaultBrandedNutritionRuntime: BrandedNutritionSearchRuntime = {
   resolveCapabilityConfig,
   executeResolvedCapability,
@@ -448,7 +458,7 @@ export async function findBrandedNutritionByWebSearch(
   };
   const decide = (input: Parameters<typeof logNutritionSearchDecision>[0]) => logNutritionSearchDecision(input, trace);
   const cached = await runtime.persistence?.findByIdentity(foodName);
-  if (cached) {
+  if (cached && isCompatibleCachedNutrition(foodName, cached)) {
     decide({
       ...baseDecision,
       reason: "accepted",
@@ -529,3 +539,4 @@ export async function findBrandedNutritionByWebSearch(
     return null;
   }
 }
+import { isPersistedProductIdentityCompatible } from "./commercialProductIdentity";

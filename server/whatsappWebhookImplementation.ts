@@ -208,6 +208,14 @@ function getPreparedTextModality(
   return "text";
 }
 
+function getOriginalInboundText(req: Request, message: WhatsAppWebhookMessage) {
+  const byMessageId = (req as any).__originalInboundTextByMessageId;
+  if (message.id && byMessageId instanceof Map && byMessageId.has(message.id)) {
+    return String(byMessageId.get(message.id)).trim();
+  }
+  return message.text?.body?.trim() || message.image?.caption?.trim() || "";
+}
+
 function inspectPreparedMessageSafety(
   message: WhatsAppWebhookMessage,
   prepared: PreparedMessageInput
@@ -769,30 +777,37 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       if (resolvedSegments.length > 0 && prepared.text?.trim()) {
         const textSegments = splitFoodTextSegments(prepared.text);
         if (textSegments.length === 0) {
-          processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
-            text: prepared.text,
-            transcript: prepared.transcript,
-            imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-            audioUrl: prepared.audioUrl,
-            habits,
-            occurredAt,
-            timeZone: userTimezone,
-          }));
+          processed = await runWithAiUsageScope(
+            { userId, conversationId: message.id },
+            async () =>
+              processMealInput({
+                text: prepared.text,
+                transcript: prepared.transcript,
+                imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+                audioUrl: prepared.audioUrl,
+                habits,
+                occurredAt,
+                timeZone: userTimezone,
+              })
+          );
         } else {
           const parts: MealProcessingResult[] = [];
           for (const [segmentIndex, segment] of textSegments.entries()) {
-            const saved = resolvedSegments.find(item => item.segmentIndex === segmentIndex);
+            const saved = resolvedSegments.find(
+              item => item.segmentIndex === segmentIndex
+            );
             parts.push(
-              saved?.processed
-                ?? (await runWithAiUsageScope(
+              saved?.processed ??
+                (await runWithAiUsageScope(
                   { userId, conversationId: message.id },
-                  () => processMealInput({
-                    text: segment,
-                    habits,
-                    occurredAt,
-                    timeZone: userTimezone,
-                  }),
-                )),
+                  () =>
+                    processMealInput({
+                      text: segment,
+                      habits,
+                      occurredAt,
+                      timeZone: userTimezone,
+                    })
+                ))
             );
           }
           const items = parts.flatMap(part => part.items);
@@ -804,15 +819,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           };
         }
       } else {
-        processed = await runWithAiUsageScope({ userId, conversationId: message.id }, async () => processMealInput({
-          text: prepared.text,
-          transcript: prepared.transcript,
-          imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-          audioUrl: prepared.audioUrl,
-          habits,
-          occurredAt,
-          timeZone: userTimezone,
-        }));
+        processed = await runWithAiUsageScope(
+          { userId, conversationId: message.id },
+          async () =>
+            processMealInput({
+              text: prepared.text,
+              transcript: prepared.transcript,
+              imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+              audioUrl: prepared.audioUrl,
+              habits,
+              occurredAt,
+              timeZone: userTimezone,
+            })
+        );
       }
 
       if (message.image?.id) {
@@ -993,7 +1012,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         mealLabel: processedForPersistence.detectedMealLabel || "Refeição",
         occurredAt: occurredAt.toISOString(),
         notes:
-          prepared.text?.trim() || prepared.transcript?.trim() || undefined,
+          getOriginalInboundText(req, message) ||
+          prepared.transcript?.trim() ||
+          undefined,
         items: processedForPersistence.items,
       });
 

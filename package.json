@@ -18,6 +18,8 @@
     "benchmark:transcription": "tsx scripts/issue-924-transcription-benchmark.ts",
     "benchmark:ai:multi-provider": "tsx scripts/issue-927-multi-provider-benchmark.ts",
     "smoke:issue-927": "tsx scripts/issue-927-multi-provider-benchmark.ts --self-test",
+    "issue-1097:validate": "tsx scripts/issue-1097-final-validation.ts",
+    "smoke:issue-1097:post-deploy": "tsx scripts/issue-1097-post-deploy-smoke.ts",
     "architecture:check": "tsx scripts/check-architecture.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",

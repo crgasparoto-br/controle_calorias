@@ -21,9 +21,9 @@ import {
   handleStravaWebhookVerification,
   handleStravaWebhookEvent,
 } from "../modules/healthIntegrations/stravaWebhookHandler";
-import { resolveWhatsAppWebhookCorrelation } from "../modules/whatsapp/webhookCorrelation";
 import { startWhatsappQuestionRecoveryScheduler } from "../modules/whatsapp/questionRecovery";
 import { handleWhatsAppPersistentContextWebhook } from "../whatsappPersistentContextWebhook";
+import { registerWhatsAppPublicPostRoute } from "../whatsappPublicRoute";
 import { verifyWhatsAppWebhook } from "../whatsappWebhook";
 import { syncFoodCatalogReference } from "../foodCatalogSync";
 import { safeLogDetail } from "../privacy";
@@ -92,7 +92,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
-function listenHttpServer(server: ReturnType<typeof createServer>, port: number) {
+function listenHttpServer(
+  server: ReturnType<typeof createServer>,
+  port: number
+) {
   return new Promise<void>((resolve, reject) => {
     const handleError = (error: Error) => {
       server.off("listening", handleListening);
@@ -181,19 +184,6 @@ async function startServer() {
   const webhookRateLimit = createExpressRateLimit(RATE_LIMITS.whatsappWebhook);
   const asaasWebhookHandler = getAsaasWebhookHandler();
 
-  const observeWhatsAppIngress: RequestHandler = (req, res, next) => {
-    const ingressId = randomUUID();
-    res.locals.whatsappIngressId = ingressId;
-    console.info("[WhatsAppWebhook] ingress_received", {
-      bootId: runtimeBootId,
-      ingressId,
-      state: "request_reached_runtime",
-      method: req.method,
-      contentLength: req.get("content-length") ?? null,
-    });
-    next();
-  };
-
   app.use(MEDIA_TRPC_PATHS, mediaJsonParser);
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultJsonParser));
   app.use("/api/trpc", skipForMediaTrpcRequests(defaultUrlencodedParser));
@@ -217,42 +207,13 @@ async function startServer() {
       handleStravaWebhookEvent(req, res);
     }
   );
-  app.get(
-    "/api/whatsapp/webhook",
+  app.get("/api/whatsapp/webhook", webhookRateLimit, verifyWhatsAppWebhook);
+  registerWhatsAppPublicPostRoute(app, {
     webhookRateLimit,
-    verifyWhatsAppWebhook
-  );
-  app.post(
-    "/api/whatsapp/webhook",
-    observeWhatsAppIngress,
-    webhookRateLimit,
-    express.json({ limit: PAYLOAD_LIMITS.webhookJson }),
-    express.urlencoded({
-      limit: PAYLOAD_LIMITS.webhookJson,
-      extended: true,
-    }),
-    (req, res) => {
-      const correlation = resolveWhatsAppWebhookCorrelation(req.body);
-      console.info("[WhatsAppWebhook] lifecycle_dispatch", {
-        bootId: runtimeBootId,
-        ingressId: res.locals.whatsappIngressId ?? null,
-        state: "request_entering_lifecycle",
-        ...correlation,
-      });
-      void handleWhatsAppPersistentContextWebhook(req, res).catch(error => {
-        console.error("[WhatsAppWebhook] Request failed", {
-          bootId: runtimeBootId,
-          ingressId: res.locals.whatsappIngressId ?? null,
-          state: "lifecycle_failed_retryable",
-          ...correlation,
-          error: safeLogDetail(error),
-        });
-        if (!res.headersSent) {
-          res.status(503).json({ ok: false, retry: true });
-        }
-      });
-    }
-  );
+    runtimeBootId,
+    runtimeCommit,
+    handle: handleWhatsAppPersistentContextWebhook,
+  });
   app.post(
     "/api/billing/asaas/webhook",
     express.raw({ type: "application/json", limit: "128kb" }),

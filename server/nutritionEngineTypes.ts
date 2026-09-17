@@ -91,7 +91,7 @@ export type MealItemResolutionMetadata = {
   nutritionVerified: boolean;
   sourceUrls?: string[];
   sourceEvidence?: string | null;
-  sourceVerifiedAt?: Date | null;
+  sourceVerifiedAt?: Date | string | null;
   sourceConfidence?: number | null;
   /**
    * Proveniência da relação física usada para converter uma medida contável

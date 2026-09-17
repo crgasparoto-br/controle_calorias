@@ -74,3 +74,7 @@ Conversões `usual_average` são explicitamente apresentadas como aproximação 
 A regressão da issue #1037 é coberta por `server/whatsappIntentWebhook.issue1037.test.ts`, incluindo a fronteira wrapper → webhook nutricional, preservação de proveniência, composição `água + alimento` e o controle do preflight para consumidores diretos.
 
 A issue #1047 amplia a mesma matriz com `1 banana nanica`, múltiplos itens, perguntas nutricionais com quantidade, alimento desconhecido e prova de que uma resolução contável positiva não chama `executeWhatsappLlmIntent`. `server/countableFoodQuantity.issue1047.test.ts` protege também as contagens numéricas e por extenso na fonte canônica.
+
+## Controle final da issue #1097
+
+A matriz da #1094 é o gate final do passthrough e é executada pelo runner `pnpm issue-1097:validate`. A comparação deve manter identidade, variante, quantidade/unidade original, gramatura derivada, macros e proveniência distinguíveis até a persistência, sem chamar `processMealInput` para re-resolver um produto comercial já aceito e sem ultrapassar uma operação outbound de `NUTRITION_SEARCH` por item. Os casos de cache vazio/incompatível, falha de grounding, variante divergente, refeição multi-item, clarificação/retomada e replay continuam obrigatórios.

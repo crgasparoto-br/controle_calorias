@@ -185,7 +185,9 @@ function buildCountableResolutionPrefixBlock(
   const lines = resolutions.map(({ request, resolution }) => {
     const requested = `${formatNumber(request.count)} ${request.requestedUnit}`;
     const grams = formatNumber(resolution.grams);
-    const approximate = isApproximateHouseholdMeasureResolutionKind(resolution.kind);
+    const approximate = isApproximateHouseholdMeasureResolutionKind(
+      resolution.kind
+    );
     const sourceLabel = householdMeasureResolutionSourceLabel(resolution.kind);
     return `• ${request.foodName}: ${requested} → ${approximate ? "aprox. " : ""}${grams} g (${sourceLabel})`;
   });
@@ -455,7 +457,7 @@ async function sendAndLogTextReply(input: {
       origin: "whatsapp",
       status: replyOk ? "warning" : "error",
       eventType: "whatsapp.reply_failed",
-      detail: `Falha ao enviar resposta lógica para ${input.sourcePhone}.`,
+      detail: "Falha ao enviar resposta lógica para o contato WhatsApp.",
     });
   }
 
@@ -578,8 +580,8 @@ async function tryHandleTextIntent(
     });
     if (precedenceGate.step !== "continue_pipeline") {
       markTextIntentMessageHandled(message.id);
-      const preservePendingAfterReplay =
-        precedenceGate.result.eventType === "whatsapp.interaction.pending_represented";
+      // prettier-ignore
+      const preservePendingAfterReplay = precedenceGate.result.eventType === "whatsapp.interaction.pending_represented";
       if (!preservePendingAfterReplay) {
         await clearPendingTextIntentContext(userId);
       }
@@ -787,7 +789,9 @@ async function tryHandleTextIntent(
           userId,
           sourcePhone,
           userMessage: text,
-          reply: [...waterPrefixBlocks, countableGate.result.reply].join("\n\n"),
+          reply: [...waterPrefixBlocks, countableGate.result.reply].join(
+            "\n\n"
+          ),
           eventType: countableGate.result.eventType,
           detail: countableGate.result.detail,
           status: "warning",
@@ -999,16 +1003,18 @@ async function tryHandleTextIntent(
     // preflight interno dos consumidores diretos continua existindo, mas não
     // reexecuta a resolução neste caminho porque passa a receber gramas.
     const canonicalRoute = evaluateWhatsappIntentRoute({ text: textForIntent });
-    const countableGate = canonicalFoodAddition || canonicalRoute.action === "safe_non_food_response"
-      ? null
-      : await prepareWhatsappCountableFoodRegistration({
-          userId,
-          text: textForIntent,
-          originalText: text,
-          inboundMessageId: message.id ?? null,
-          receivedAt: occurredAt,
-          userTimezone,
-        });
+    const countableGate =
+      canonicalFoodAddition ||
+      canonicalRoute.action === "safe_non_food_response"
+        ? null
+        : await prepareWhatsappCountableFoodRegistration({
+            userId,
+            text: textForIntent,
+            originalText: text,
+            inboundMessageId: message.id ?? null,
+            receivedAt: occurredAt,
+            userTimezone,
+          });
     if (countableGate?.kind === "clarification") {
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
@@ -1031,8 +1037,9 @@ async function tryHandleTextIntent(
         ? countableGate.registrationText
         : textForIntent;
     const hasCountableResolution =
-      countableGate?.kind === "ready"
-      && (countableGate.resolutions.length > 0 || Boolean(countableGate.resolvedSegments?.length));
+      countableGate?.kind === "ready" &&
+      (countableGate.resolutions.length > 0 ||
+        Boolean(countableGate.resolvedSegments?.length));
     const countableResolutionPrefix =
       countableGate?.kind === "ready"
         ? buildCountableResolutionPrefixBlock(countableGate.resolutions)
@@ -1049,7 +1056,9 @@ async function tryHandleTextIntent(
     // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
     if (!result && hasCountableResolution && countableGate?.kind === "ready") {
       setWhatsAppDeferredLogicalReply(req, message.id, {
-        prefixBlocks: countableResolutionPrefix ? [countableResolutionPrefix] : [],
+        prefixBlocks: countableResolutionPrefix
+          ? [countableResolutionPrefix]
+          : [],
         domainLinks: [],
         resolvedSegments: countableGate.resolvedSegments,
       });

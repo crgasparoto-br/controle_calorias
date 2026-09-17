@@ -95,7 +95,13 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 ### Fronteiras do webhook do WhatsApp
 
-`server/whatsappWebhook.ts` é o orquestrador HTTP do canal (deduplicação, roteamento do fluxo por mensagem, chamada aos módulos de domínio) e deve continuar magro. Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
+`server/whatsappWebhook.ts` é a fachada pública de compatibilidade do fallback nutricional final e da implementação de processamento de refeição. A rota Express produtiva é composta nesta ordem: `server/_core/index.ts` -> `server/whatsappPersistentContextWebhook.ts` -> `server/whatsappImageIdempotencyWebhook.ts` -> `server/whatsappIntentWebhook.ts` -> `server/whatsappAnnotatedImageWebhook.ts` -> `server/whatsappWebhook.ts`. Portanto, lifecycle, claims persistentes, gate de escrita suspensa, correlação de mídia e contexto de meta pertencem aos wrappers anteriores à fachada; `whatsappWebhook.ts` não deve ser tratado como dono único do HTTP.
+
+`server/whatsappWebhook.ts` permanece um entrypoint exportado de compatibilidade para consumidores e testes existentes. A caracterização pública da #1094 e a auditoria de reachability da #1096 confirmaram que sua fachada ainda é alcançada pelo fallback de imagem e por consumidores históricos. Sua assinatura e seus exports continuam estáveis; qualquer consolidação futura exige a matriz de substituto, consumidores migrados e golden flows registrada em `docs/testing/issue-1096-bridge-reachability.md`, sem alterar precedência, idempotência, source grounding, privacidade ou entrega de resposta.
+
+A validação final da #1097 usa a mesma rota pública para os golden flows, exige que os commits das fases #1094, #1095 e #1096 sejam ancestrais do candidato e compara as métricas operacionais antes de aceitar a revisão. O POST público expõe somente o prefixo hexadecimal sanitizado de `RENDER_GIT_COMMIT` no cabeçalho `x-runtime-commit`; esse vínculo é obrigatório para o smoke pós-deploy e não transporta telefone, texto alimentar, URL, prompt, resposta de provider ou erro bruto.
+
+Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
 
 - `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
 - `webhookMediaPipeline.ts` -> download/persistência de mídia recebida (imagem/áudio) e preparo de texto/transcrição para inferência.

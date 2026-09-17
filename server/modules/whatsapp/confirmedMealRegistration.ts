@@ -8,6 +8,7 @@ import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
 } from "./replyMessages";
+import { buildMealSemanticContract } from "../../mealSemanticContract";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
   prepareWhatsappCountableFoodRegistration,
@@ -115,11 +116,20 @@ export function createConfirmedMealRegistrationService(
           );
         }
         const items = parts.flatMap(part => part.items);
+        const semanticContract = buildMealSemanticContract({
+          processingInput: {
+            ...processingInput,
+            text: input.originalText,
+          },
+          sourceText: input.originalText,
+          items,
+        });
         processed = {
           ...parts[0],
           sourceText: input.originalText,
           items,
           totals: calculateMealTotals(items),
+          semanticContract,
         };
       } else {
         processed = await deps.processMeal(processingInput);
