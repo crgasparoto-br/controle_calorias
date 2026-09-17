@@ -1,10 +1,31 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "..");
 const auditedDevelopSha =
-  "dacff30479007a0413232c2a22ebf7ac9a9c191d";
+  "394337d1166c4d12df3c78010246f65a63037eee";
+
+function gitRevision(reference: string) {
+  return execFileSync("git", ["rev-parse", "--verify", `${reference}^{commit}`], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function isAncestor(ancestor: string, descendant: string) {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+      cwd: root,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function source(relativePath: string) {
   const absolutePath = resolve(root, relativePath);
@@ -18,6 +39,25 @@ function expectSourceIncludes(relativePath: string, pattern: RegExp) {
 }
 
 describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
+  it("mantém o snapshot documentado alinhado à develop auditada", () => {
+    expect(auditedDevelopSha).toMatch(/^[0-9a-f]{40}$/);
+
+    const headSha = gitRevision("HEAD");
+    const originDevelopSha = gitRevision("origin/develop");
+    expect(gitRevision(auditedDevelopSha)).toBe(auditedDevelopSha);
+    expect(isAncestor(auditedDevelopSha, headSha)).toBe(true);
+
+    // Em uma branch de PR, origin/develop deve ser exatamente a baseline
+    // auditada. Depois do merge, HEAD e origin/develop passam a ser o mesmo
+    // commit na branch develop; nesse estado, a evidência continua válida se
+    // a baseline auditada permanecer ancestral do commit mergeado.
+    if (headSha === originDevelopSha) {
+      expect(isAncestor(auditedDevelopSha, headSha)).toBe(true);
+    } else {
+      expect(originDevelopSha).toBe(auditedDevelopSha);
+    }
+  });
+
   it("mantém a cadeia do POST público até a implementação final sem bypass", () => {
     const bootstrap = source("server/_core/index.ts");
     const publicRoute = source("server/whatsappPublicRoute.ts");
