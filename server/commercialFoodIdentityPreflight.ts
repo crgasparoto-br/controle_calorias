@@ -95,7 +95,13 @@ export function resolveStructuredCommercialIdentity(
 }
 
 /**
- * Compatibilidade para consumidores históricos. O segundo parâmetro é aceito
+ * @deprecated Compatibilidade para integrações externas legadas.
+ *
+ * O fluxo produtivo de adição canônica usa
+ * `resolveStructuredCommercialIdentity` diretamente. Este adaptador permanece
+ * exportado somente para consumidores externos que ainda dependem da
+ * assinatura assíncrona; ele pode ser removido quando a busca de consumidores
+ * fora deste repositório confirmar zero usos. O segundo parâmetro é aceito
  * deliberadamente como legado, mas não é consultado nem reabre o pipeline.
  */
 export async function recoverCanonicalCommercialIdentity(

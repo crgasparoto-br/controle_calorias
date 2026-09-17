@@ -1,6 +1,6 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { inferUnresolvedCommercialIdentityHint } from "../../../catalogMatching";
-import { recoverCanonicalCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
+import { resolveStructuredCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
 import { isCoffeeOrTeaBeverage } from "../../../foodSemanticCompatibility";
 import {
   isApproximateHouseholdMeasureResolutionKind,
@@ -172,14 +172,11 @@ export async function resolveCanonicalFoodAdditionItems(
     } else if (!beverage) {
       const commercialHint = inferUnresolvedCommercialIdentityHint(item.foodName);
       if (resolvedBrand || commercialHint) {
-        const identity = await recoverCanonicalCommercialIdentity(
-          {
-            segment: originalFoodText,
-            foodName: item.foodName,
-            brand: resolvedBrand,
-          },
-          { processMealInput: runtime.processMealInput },
-        );
+        const identity = resolveStructuredCommercialIdentity({
+          segment: originalFoodText,
+          foodName: item.foodName,
+          brand: resolvedBrand,
+        });
         resolvedBrand = identity.brand ?? resolvedBrand;
         if (identity.identityClarification) {
           return {
