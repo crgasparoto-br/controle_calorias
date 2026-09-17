@@ -45,6 +45,7 @@ import {
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
 import { handleWhatsAppWebhookWithTextIntent } from "./whatsappIntentWebhook";
+import { setWhatsAppWebhookOutcome } from "./whatsappWebhookOutcome";
 
 const fallbackMessageDeduplicationCache = createMessageDeduplicationCache();
 const MAX_WATER_LOG_AMOUNT_ML = 10000;
@@ -56,7 +57,12 @@ type ClaimedMessage = {
   lifecycleHandle: MessageLifecycleHandle;
 };
 
-type ClaimIndexedMessageResult = ClaimedMessage | null | "duplicate" | "inflight" | "unavailable";
+type ClaimIndexedMessageResult =
+  | ClaimedMessage
+  | null
+  | "duplicate"
+  | "inflight"
+  | "unavailable";
 
 function parseWaterAmountMl(text: string) {
   const normalized = normalizeWhatsAppIntentText(text);
@@ -65,9 +71,7 @@ function parseWaterAmountMl(text: string) {
   );
   if (mlMatch) return Math.round(Number(mlMatch[1].replace(",", ".")));
 
-  const literMatch = normalized.match(
-    /(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/
-  );
+  const literMatch = normalized.match(/(\d+(?:[,.]\d+)?)\s*(?:l|litros?)\b/);
   if (literMatch) {
     return Math.round(Number(literMatch[1].replace(",", ".")) * 1000);
   }
@@ -463,8 +467,7 @@ function clonePayloadWithoutKeys(payload: any, handledKeys: Set<string>) {
       return { ...entry, changes: filteredChanges };
     })
     .filter(
-      (entry: any) =>
-        Array.isArray(entry?.changes) && entry.changes.length > 0
+      (entry: any) => Array.isArray(entry?.changes) && entry.changes.length > 0
     );
 
   return cloned;
@@ -493,9 +496,10 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(
       return res.status(503).json({
         ok: false,
         retryable: true,
-        reason: claim === "inflight"
-          ? "message_processing_inflight"
-          : "message_processing_unavailable",
+        reason:
+          claim === "inflight"
+            ? "message_processing_inflight"
+            : "message_processing_unavailable",
       });
     }
     if (claim === "duplicate") {
@@ -518,6 +522,10 @@ async function handleWhatsAppWebhookWithImageIdempotencyInternal(
       !Array.isArray(remainingPayload?.entry) ||
       remainingPayload.entry.length === 0
     ) {
+      setWhatsAppWebhookOutcome(
+        res,
+        duplicateKeys.size > 0 ? "duplicate_ignored" : "handled_without_meal"
+      );
       return res.status(200).json({
         ok: true,
         processed: messages.length - duplicateKeys.size,

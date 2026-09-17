@@ -32,18 +32,18 @@
 | `professionalOfficialGoals`           | Versões oficiais com autoria, vigência, exceções e controle único          |
 | `professionalGoalReviewRequests`      | Solicitações idempotentes de revisão feitas pelo paciente                  |
 | `professionalGoalNotifications`       | Estado e tentativas de notificação da ativação pelo WhatsApp               |
-| `whatsappConnections`                 | Vínculo telefone do usuário ↔ usuário interno                              |
-| `whatsappPendingOperations`           | Estado durável de interações multietapas antes de qualquer outbound         |
+| `whatsappConnections`                 | Vínculo telefone do usuário ↔ usuário interno                             |
+| `whatsappPendingOperations`           | Estado durável de interações multietapas antes de qualquer outbound        |
 | `inferenceLogs`                       | Logs seguros de inferência                                                 |
 | `appSecrets`                          | Segredos operacionais criptografados                                       |
 | `professionalConversations`           | Conversa canônica por autorização profissional                             |
 | `professionalMessages`                | Mensagens lógicas, autoria, origem, resposta e estado                      |
 | `professionalMessageDeliveryAttempts` | Tentativas físicas e claims idempotentes de entrega                        |
-| `billingProducts`                      | Identidade estável das famílias comerciais                                |
-| `billingPlans`                         | Versões comerciais contratáveis e históricas                               |
-| `billingCoupons`                       | Revisões de política de cupom                                               |
-| `billingCouponRedemptions`             | Reserva/uso idempotente de cupom por contratação                            |
-| `billingCommercialAuditEvents`         | Auditoria administrativa de produto, versão e cupom                         |
+| `billingProducts`                     | Identidade estável das famílias comerciais                                 |
+| `billingPlans`                        | Versões comerciais contratáveis e históricas                               |
+| `billingCoupons`                      | Revisões de política de cupom                                              |
+| `billingCouponRedemptions`            | Reserva/uso idempotente de cupom por contratação                           |
+| `billingCommercialAuditEvents`        | Auditoria administrativa de produto, versão e cupom                        |
 
 ## Regras
 
@@ -156,7 +156,7 @@ O seed canônico pode ser reexecutado. Definição já existente precisa coincid
 
 ## Validação
 
-- Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível.
+- Rodar `pnpm db:check-integrity` quando houver `DATABASE_URL` disponível. O verificador mantém uma allowlist explícita e não destrutiva para as quatro chaves JSON legadas profissionais (`professional_profile_v1`, `professional_accesses_v1`, `patient_professional_access_requests_v1` e `patient_professional_goal_suggestions_v1`): registros órfãos dessas chaves são reportados como retenção intencional até a aposentadoria segura, enquanto qualquer outra preferência órfã continua reprovando o gate. Nenhum dado é excluído automaticamente.
 - A migration `0037_professional_message_idempotency_scope.sql` adiciona `professionalMessages.requestedAction` e reconstrói a ação histórica de mensagens profissionais a partir do estado e das tentativas WhatsApp. A criação idempotente usa esse campo para aceitar apenas repetição semanticamente equivalente e rejeitar reutilização da chave em outro profissional, autorização, paciente ou payload. A mensagem e o evento de criação são gravados na mesma transação; `send_web` já nasce em `sent`, enquanto replay de `send_whatsapp` pendente retoma a mesma mensagem lógica. O endpoint de retry aceita somente mensagem WhatsApp em `failed` com tentativa física anterior.
 - Rodar `pnpm docs:check` após alterar schema ou docs geradas.
 - Rodar `pnpm db:migrate:professionals` mais de uma vez em homologação para confirmar idempotência antes do rollout em produção.

@@ -1,6 +1,17 @@
 import "dotenv/config";
 import mysql from "mysql2/promise";
 
+const intentionallyRetainedProfessionalLegacyPreferenceKeys = [
+  "professional_profile_v1",
+  "professional_accesses_v1",
+  "patient_professional_access_requests_v1",
+  "patient_professional_goal_suggestions_v1",
+];
+const professionalLegacyPreferenceKeysSql =
+  intentionallyRetainedProfessionalLegacyPreferenceKeys
+    .map(key => `'${key}'`)
+    .join(", ");
+
 const checks = [
   {
     name: "userProfiles sem usuário",
@@ -96,7 +107,20 @@ const checks = [
   },
   {
     name: "userPreferences sem usuário",
-    sql: "SELECT COUNT(*) AS count FROM userPreferences p LEFT JOIN users u ON u.id = p.userId WHERE u.id IS NULL",
+    sql: `SELECT COUNT(*) AS count
+      FROM userPreferences p
+      LEFT JOIN users u ON u.id = p.userId
+      WHERE u.id IS NULL
+        AND p.preferenceKey NOT IN (${professionalLegacyPreferenceKeysSql})`,
+  },
+  {
+    name: "preferências profissionais legadas sem usuário (retenção intencional)",
+    allowNonZero: true,
+    sql: `SELECT COUNT(*) AS count
+      FROM userPreferences p
+      LEFT JOIN users u ON u.id = p.userId
+      WHERE u.id IS NULL
+        AND p.preferenceKey IN (${professionalLegacyPreferenceKeysSql})`,
   },
   {
     name: "userRestrictions sem usuário",
@@ -209,9 +233,11 @@ try {
   for (const check of checks) {
     const [rows] = await connection.query(check.sql);
     const count = Number(rows[0]?.count ?? 0);
-    if (count > 0) {
+    if (count > 0 && !check.allowNonZero) {
       hasIssues = true;
       console.error(`FAIL ${check.name}: ${count}`);
+    } else if (count > 0) {
+      console.log(`INFO ${check.name}: ${count}`);
     } else {
       console.log(`OK   ${check.name}`);
     }

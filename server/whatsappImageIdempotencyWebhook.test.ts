@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const lifecycleHandle = { conversationId: 1, messageId: 1, wasNewInsert: true };
 const beginInboundMessageMock = vi.fn(async () => lifecycleHandle);
-const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const claimMessageForProcessingStateMock = vi.fn(
+  async () => "claimed" as const
+);
 const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 const downstreamWebhookMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
@@ -68,7 +70,9 @@ const { getWhatsAppExerciseCaloriesForDateKey } = await import(
 type MockResponse = {
   statusCode: number;
   body: unknown;
+  headers: Record<string, string>;
   status: (code: number) => MockResponse;
+  setHeader: (name: string, value: string) => MockResponse;
   json: (payload: unknown) => MockResponse;
 };
 
@@ -76,8 +80,13 @@ function createResponse(): MockResponse {
   return {
     statusCode: 200,
     body: undefined,
+    headers: {},
     status(code: number) {
       this.statusCode = code;
+      return this;
+    },
+    setHeader(name: string, value: string) {
+      this.headers[name.toLowerCase()] = value;
       return this;
     },
     json(payload: unknown) {
@@ -97,9 +106,7 @@ function createImageWebhookRequest(caption?: string) {
               value: {
                 messages: [
                   {
-                    id: caption
-                      ? "wamid-image-caption"
-                      : "wamid-image-1",
+                    id: caption ? "wamid-image-caption" : "wamid-image-1",
                     from: "5511999999999",
                     timestamp: "1780502400",
                     type: "image",
@@ -147,9 +154,8 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     listUserExercisesMock.mockResolvedValue([]);
     createUserWaterLogMock.mockResolvedValue({ id: 91 });
-    downstreamWebhookMock.mockImplementation(
-      async (_req, res: MockResponse) =>
-        res.status(200).json({ ok: true, processed: 1 })
+    downstreamWebhookMock.mockImplementation(async (_req, res: MockResponse) =>
+      res.status(200).json({ ok: true, processed: 1 })
     );
     global.fetch = vi.fn(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -197,6 +203,9 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
       processed: 0,
       deduplicated: true,
     });
+    expect(retryRes.headers["x-whatsapp-processing-outcome"]).toBe(
+      "duplicate_ignored"
+    );
     expect(downstreamWebhookMock).toHaveBeenCalledOnce();
   });
 
@@ -212,10 +221,7 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const req = createImageWebhookRequest("300 ml de água");
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(
-      req as never,
-      res as never
-    );
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
@@ -236,10 +242,7 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const req = createImageWebhookRequest("300 ml de água");
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(
-      req as never,
-      res as never
-    );
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).toHaveBeenCalledWith(
@@ -255,10 +258,7 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const req = createImageWebhookRequest();
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(
-      req as never,
-      res as never
-    );
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
 
     expect(res.statusCode).toBe(200);
     expect(createUserWaterLogMock).not.toHaveBeenCalled();
@@ -302,10 +302,7 @@ describe("handleWhatsAppWebhookWithImageIdempotency", () => {
     const req = createImageWebhookRequest();
     const res = createResponse();
 
-    await handleWhatsAppWebhookWithImageIdempotency(
-      req as never,
-      res as never
-    );
+    await handleWhatsAppWebhookWithImageIdempotency(req as never, res as never);
 
     expect(observedExerciseCalories).toEqual([408]);
   });

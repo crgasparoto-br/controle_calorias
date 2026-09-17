@@ -57,6 +57,7 @@ type SemanticFactSnapshot = {
 
 const nativeFetch = globalThis.fetch.bind(globalThis);
 const BASELINE_DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
+const METRICS_BASELINE_DEVELOP_SHA = "394337d1166c4d12df3c78010246f65a63037eee";
 const F0_07_REVALIDATION = {
   status: "revalidated" as const,
   baselineSha: BASELINE_DEVELOP_SHA,
@@ -285,13 +286,20 @@ function queryComparisons(condition: unknown) {
       | "<>"
       | "<"
       | undefined;
-    if (match) comparisons.push({ name: column.name, operator: match, value: parameter.value });
+    if (match)
+      comparisons.push({
+        name: column.name,
+        operator: match,
+        value: parameter.value,
+      });
   }
   return comparisons;
 }
 
 function pendingDateValue(value: unknown) {
-  return value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
+  return value instanceof Date
+    ? value.getTime()
+    : new Date(String(value)).getTime();
 }
 
 function matchesPendingRow(row: any, condition: unknown) {
@@ -341,7 +349,11 @@ function createProductionPendingDb() {
       limit: vi.fn((value: number) => {
         limitValue = value;
         let rows = load().filter(row => matchesPendingRow(row, whereCondition));
-        if (queryTokens(orderByCondition).some(token => token.kind === "operator" && /desc/u.test(token.value))) {
+        if (
+          queryTokens(orderByCondition).some(
+            token => token.kind === "operator" && /desc/u.test(token.value)
+          )
+        ) {
           rows = rows.sort((left, right) => right.id - left.id);
         }
         return Promise.resolve(rows.slice(0, limitValue).map(clonePendingRow));
@@ -354,7 +366,8 @@ function createProductionPendingDb() {
     select,
     insert: vi.fn(() => ({
       values: vi.fn(async (payload: any) => {
-        if (state.pendingCreateFailure) throw new Error("pending persistence failure");
+        if (state.pendingCreateFailure)
+          throw new Error("pending persistence failure");
         const rows = load();
         const now = new Date();
         const id = Math.max(0, ...rows.map(row => Number(row.id))) + 1;
@@ -379,7 +392,9 @@ function createProductionPendingDb() {
           return {
             where: vi.fn(async (condition: unknown) => {
               const rows = load();
-              const matching = rows.filter(row => matchesPendingRow(row, condition));
+              const matching = rows.filter(row =>
+                matchesPendingRow(row, condition)
+              );
               for (const row of matching) Object.assign(row, setPayload);
               save(rows);
               if (setPayload.state === "consumed" && matching.length > 0) {
@@ -396,7 +411,9 @@ function createProductionPendingDb() {
     delete: vi.fn(() => ({
       where: vi.fn(async (condition: unknown) => {
         const rows = load();
-        const remaining = rows.filter(row => !matchesPendingRow(row, condition));
+        const remaining = rows.filter(
+          row => !matchesPendingRow(row, condition)
+        );
         save(remaining);
         return { affectedRows: rows.length - remaining.length };
       }),
@@ -634,7 +651,8 @@ function measureMealTextRoundTrip(facts: SemanticFactSnapshot[]) {
     .filter(Boolean)
     .map(line => {
       const fields = line.split("\t").map(value => decodeURIComponent(value));
-      if (fields.length !== 14) throw new Error("Invalid semantic text payload");
+      if (fields.length !== 14)
+        throw new Error("Invalid semantic text payload");
       return {
         originalText: fields[0],
         foodName: fields[1],
@@ -1514,6 +1532,7 @@ async function post(url: string, body: unknown) {
   return {
     status: response.status,
     body: (await response.json()) as Record<string, unknown>,
+    headers: response.headers,
   };
 }
 
@@ -1944,6 +1963,7 @@ afterAll(() => {
     schemaVersion: 1,
     issue: 1094,
     baselineDevelopSha: BASELINE_DEVELOP_SHA,
+    metricsBaselineDevelopSha: METRICS_BASELINE_DEVELOP_SHA,
     characterizationDevelopSha: CHARACTERIZATION_DEVELOP_SHA,
     f0_07Revalidation: F0_07_REVALIDATION,
     entrypoint: "POST /api/whatsapp/webhook",
@@ -1966,6 +1986,9 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     );
     const meals = await listUserMeals(nextUserId - 1);
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-whatsapp-processing-outcome")).toBe(
+      "meal_registered"
+    );
     expect(meals).toHaveLength(1);
     expect(meals[0].items[0]).toEqual(
       expect.objectContaining({
@@ -2278,6 +2301,9 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       })
     );
     expect(duplicate.status).toBe(200);
+    expect(duplicate.headers.get("x-whatsapp-processing-outcome")).toBe(
+      "duplicate_ignored"
+    );
     expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
     expect(state.metrics.nutritionSearchAttempts).toBe(1);
     expect(state.metrics.nutritionSearchOutbound).toBe(1);
@@ -2688,7 +2714,8 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     );
     const outboundBeforeDurableRetry = state.outboundReplies.length;
     const pendingCreatedBeforeDurableRetry = state.metrics.pendingCreated;
-    const searchAttemptsBeforeDurableRetry = state.metrics.nutritionSearchAttempts;
+    const searchAttemptsBeforeDurableRetry =
+      state.metrics.nutritionSearchAttempts;
     const durableRetry = await post(
       activeUrl,
       payload({
@@ -2703,7 +2730,9 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     expect(durableRetry.status).toBe(200);
     expect(state.outboundReplies).toHaveLength(outboundBeforeDurableRetry);
     expect(state.metrics.pendingCreated).toBe(pendingCreatedBeforeDurableRetry);
-    expect(state.metrics.nutritionSearchAttempts).toBe(searchAttemptsBeforeDurableRetry);
+    expect(state.metrics.nutritionSearchAttempts).toBe(
+      searchAttemptsBeforeDurableRetry
+    );
     expect(readPendingRows().find(row => row.id === 1)).toEqual(
       expect.objectContaining({ state: "active", version: 1 })
     );
