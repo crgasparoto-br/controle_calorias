@@ -1,9 +1,12 @@
+import { writeFileSync } from "node:fs";
+
 type SmokeResult = {
   status: number;
   ok: boolean;
   processed: number | null;
   deduplicated: boolean | null;
   runtimeCommit: string | null;
+  outcome: string | null;
 };
 
 function required(name: string) {
@@ -13,7 +16,7 @@ function required(name: string) {
 }
 
 function sanitizeCommit(value: string | null) {
-  return value?.match(/^[0-9a-f]{7,40}$/iu)?.[0] ?? null;
+  return value?.match(/^[0-9a-f]{40}$/iu)?.[0] ?? null;
 }
 
 function buildPayload(messageId: string, text: string, phoneNumberId: string) {
@@ -51,7 +54,8 @@ function buildPayload(messageId: string, text: string, phoneNumberId: string) {
 async function post(
   url: string,
   payload: unknown,
-  expectedCommit: string
+  expectedCommit: string,
+  expectedOutcome: "meal_registered" | "duplicate_ignored"
 ): Promise<SmokeResult> {
   const response = await fetch(url, {
     method: "POST",
@@ -65,21 +69,39 @@ async function post(
   const runtimeCommit = sanitizeCommit(
     response.headers.get("x-runtime-commit")
   );
+  const outcome = response.headers.get("x-whatsapp-processing-outcome");
   if (!response.ok || body.ok !== true) {
     throw new Error(`Smoke request failed with status=${response.status}`);
   }
-  if (!runtimeCommit || !expectedCommit.startsWith(runtimeCommit)) {
+  if (!runtimeCommit || runtimeCommit !== expectedCommit) {
     throw new Error(
       "Published runtime is not correlated to the candidate commit"
     );
   }
+  if (outcome !== expectedOutcome) {
+    throw new Error(
+      `Webhook outcome was ${outcome ?? "missing"}; expected ${expectedOutcome}`
+    );
+  }
+  const processed = typeof body.processed === "number" ? body.processed : null;
+  const deduplicated =
+    typeof body.deduplicated === "boolean" ? body.deduplicated : null;
+  if (expectedOutcome === "meal_registered") {
+    if (processed !== 1 || deduplicated === true) {
+      throw new Error(
+        "Initial smoke request did not process exactly one message"
+      );
+    }
+  } else if (deduplicated !== true || processed !== 0) {
+    throw new Error("Replay smoke request was not explicitly deduplicated");
+  }
   return {
     status: response.status,
     ok: body.ok === true,
-    processed: typeof body.processed === "number" ? body.processed : null,
-    deduplicated:
-      typeof body.deduplicated === "boolean" ? body.deduplicated : null,
+    processed,
+    deduplicated,
     runtimeCommit,
+    outcome,
   };
 }
 
@@ -87,8 +109,8 @@ const webhookUrl = required("ISSUE_1097_WEBHOOK_URL");
 const expectedCommit = required("ISSUE_1097_EXPECTED_COMMIT").toLowerCase();
 const phoneNumberId = required("ISSUE_1097_CHANNEL_PHONE_NUMBER_ID");
 const phone = required("ISSUE_1097_TEST_PHONE");
-if (!/^[0-9a-f]{7,40}$/u.test(expectedCommit))
-  throw new Error("ISSUE_1097_EXPECTED_COMMIT must be a hexadecimal SHA");
+if (!/^[0-9a-f]{40}$/u.test(expectedCommit))
+  throw new Error("ISSUE_1097_EXPECTED_COMMIT must be a full 40-character SHA");
 if (!/^\d{8,20}$/u.test(phone))
   throw new Error("ISSUE_1097_TEST_PHONE must be digits only");
 if (!/^\d{8,80}$/u.test(phoneNumberId)) {
@@ -113,12 +135,14 @@ for (const smokeCase of cases) {
   const first = await post(
     webhookUrl,
     buildPayload(smokeCase.messageId, smokeCase.text, phoneNumberId),
-    expectedCommit
+    expectedCommit,
+    "meal_registered"
   );
   const replay = await post(
     webhookUrl,
     buildPayload(smokeCase.messageId, smokeCase.text, phoneNumberId),
-    expectedCommit
+    expectedCommit,
+    "duplicate_ignored"
   );
   if (replay.deduplicated !== true && replay.processed !== 0) {
     throw new Error(`Replay was not idempotent for ${smokeCase.label}`);
@@ -126,21 +150,29 @@ for (const smokeCase of cases) {
   results.push({ label: smokeCase.label, ...first });
 }
 
-console.log(
-  JSON.stringify({
-    schemaVersion: 1,
-    issue: 1097,
-    smoke: "post-deploy",
-    webhook: "POST /api/whatsapp/webhook",
-    testPhone: "opaque",
-    cases: results.map(result => ({
-      label: result.label,
-      status: result.status,
-      ok: result.ok,
-      processed: result.processed,
-      deduplicated: result.deduplicated,
-      runtimeCommit: result.runtimeCommit,
-    })),
-    replayChecked: true,
-  })
-);
+const report = {
+  schemaVersion: 1,
+  issue: 1097,
+  smoke: "post-deploy",
+  webhook: "POST /api/whatsapp/webhook",
+  testPhone: "opaque",
+  cases: results.map(result => ({
+    label: result.label,
+    status: result.status,
+    ok: result.ok,
+    processed: result.processed,
+    deduplicated: result.deduplicated,
+    runtimeCommit: result.runtimeCommit,
+    outcome: result.outcome,
+  })),
+  replayChecked: true,
+};
+const serializedReport = JSON.stringify(report);
+console.log(serializedReport);
+if (process.env.ISSUE_1097_SMOKE_REPORT_PATH?.trim()) {
+  writeFileSync(
+    process.env.ISSUE_1097_SMOKE_REPORT_PATH,
+    `${serializedReport}\n`,
+    "utf8"
+  );
+}

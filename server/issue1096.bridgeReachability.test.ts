@@ -4,15 +4,18 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "..");
-const auditedDevelopSha =
-  "8851ad166a227c810d3b23954caa5d9f06d50cbc";
+const auditedDevelopSha = "99686ce218745b34e347d44240711e1d51a4d4fd";
 
 function gitRevision(reference: string) {
-  return execFileSync("git", ["rev-parse", "--verify", `${reference}^{commit}`], {
-    cwd: root,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  return execFileSync(
+    "git",
+    ["rev-parse", "--verify", `${reference}^{commit}`],
+    {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  ).trim();
 }
 
 function isAncestor(ancestor: string, descendant: string) {
@@ -219,9 +222,10 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
       "docs/testing/issue-1096-metrics.md",
       "docs/testing/issue-1096-independent-audit.md",
     ]) {
-      expect(existsSync(resolve(root, relativePath)), `${relativePath} deve existir`).toBe(
-        true
-      );
+      expect(
+        existsSync(resolve(root, relativePath)),
+        `${relativePath} deve existir`
+      ).toBe(true);
     }
 
     expectSourceIncludes(
