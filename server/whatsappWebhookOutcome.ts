@@ -16,5 +16,7 @@ export function setWhatsAppWebhookOutcome(
   response: Response,
   outcome: WhatsAppWebhookOutcome
 ) {
-  response.setHeader(WHATSAPP_WEBHOOK_OUTCOME_HEADER, outcome);
+  if (typeof response.setHeader === "function") {
+    response.setHeader(WHATSAPP_WEBHOOK_OUTCOME_HEADER, outcome);
+  }
 }
