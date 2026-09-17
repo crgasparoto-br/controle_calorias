@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 
 type SmokeResult = {
@@ -51,6 +52,8 @@ function buildPayload(messageId: string, text: string, phoneNumberId: string) {
   };
 }
 
+const smokeRunId = process.env.GITHUB_RUN_ID?.trim() || randomUUID();
+
 async function post(
   url: string,
   payload: unknown,
@@ -79,6 +82,11 @@ async function post(
     );
   }
   if (outcome !== expectedOutcome) {
+    if (outcome === "handled_without_meal") {
+      throw new Error(
+        "Smoke phone is not mapped to an authorized application user; configure ISSUE_1097_TEST_PHONE with the authorized test phone"
+      );
+    }
     throw new Error(
       `Webhook outcome was ${outcome ?? "missing"}; expected ${expectedOutcome}`
     );
@@ -120,12 +128,12 @@ if (!/^\d{8,80}$/u.test(phoneNumberId)) {
 const cases = [
   {
     label: "panco",
-    messageId: "issue-1097-smoke-panco",
+    messageId: `issue-1097-smoke-${smokeRunId}-panco`,
     text: "1 fatia de pão de forma Panco Premium",
   },
   {
     label: "commercial_non_panco",
-    messageId: "issue-1097-smoke-wickbold",
+    messageId: `issue-1097-smoke-${smokeRunId}-wickbold`,
     text: "1 fatia de pão integral Wickbold",
   },
 ] as const;
