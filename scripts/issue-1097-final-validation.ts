@@ -143,13 +143,15 @@ function workingTreeIsClean() {
 
 function runStep(
   name: string,
-  args: string[]
+  args: string[],
+  envOverrides: Record<string, string | undefined> = {}
 ): StepResult & { output: string } {
   const startedAt = Date.now();
   const result = spawnSync("pnpm", args, {
     cwd: root,
     env: {
       ...process.env,
+      ...envOverrides,
       FORCE_COLOR: "0",
       NO_COLOR: "1",
     },
@@ -480,12 +482,16 @@ try {
     existsSync("scripts/check-architecture.ts"),
     "Architecture gate is missing"
   );
-  const goldenStep = runStep("golden-flows-1094", [
-    "vitest",
-    "run",
-    "server/whatsappWebhook.issue1094.characterization.test.ts",
-    "--reporter=dot",
-  ]);
+  const goldenStep = runStep(
+    "golden-flows-1094",
+    [
+      "vitest",
+      "run",
+      "server/whatsappWebhook.issue1094.characterization.test.ts",
+      "--reporter=dot",
+    ],
+    { DATABASE_URL: "" }
+  );
   steps.push(goldenStep);
   assertCondition(goldenStep.exitCode === 0, "Golden flow suite failed");
   const evidence = extractGoldenEvidence(goldenStep.output);
@@ -495,21 +501,25 @@ try {
   );
   golden = summarizeGoldenEvidence(evidence as GoldenEvidence, candidateSha);
 
-  const focusedStep = runStep("phase-regressions", [
-    "vitest",
-    "run",
-    "server/issue1095.ownershipConsolidation.test.ts",
-    "server/modules/whatsapp/confirmedMealRegistration.issue1095.test.ts",
-    "server/issue1096.bridgeReachability.test.ts",
-    "server/issue1096.bridgeReachability.runtime.test.ts",
-    "server/issue1096.bridgeReachability.downstream.runtime.test.ts",
-    "server/issue1096.bridgeReachability.fallback.runtime.test.ts",
-    "server/commercialServingRelation.issue1072.test.ts",
-    "server/countableFoodQuantity.issue1072.searchContext.test.ts",
-    "server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts",
-    "server/nutritionSearchDecisionTelemetry.issue1072.test.ts",
-    "--reporter=dot",
-  ]);
+  const focusedStep = runStep(
+    "phase-regressions",
+    [
+      "vitest",
+      "run",
+      "server/issue1095.ownershipConsolidation.test.ts",
+      "server/modules/whatsapp/confirmedMealRegistration.issue1095.test.ts",
+      "server/issue1096.bridgeReachability.test.ts",
+      "server/issue1096.bridgeReachability.runtime.test.ts",
+      "server/issue1096.bridgeReachability.downstream.runtime.test.ts",
+      "server/issue1096.bridgeReachability.fallback.runtime.test.ts",
+      "server/commercialServingRelation.issue1072.test.ts",
+      "server/countableFoodQuantity.issue1072.searchContext.test.ts",
+      "server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts",
+      "server/nutritionSearchDecisionTelemetry.issue1072.test.ts",
+      "--reporter=dot",
+    ],
+    { DATABASE_URL: "" }
+  );
   steps.push(focusedStep);
   assertCondition(focusedStep.exitCode === 0, "Phase regression suites failed");
 
@@ -521,7 +531,7 @@ try {
     ["agent", ["agent:check"]],
     ["build", ["build"]],
   ] as const) {
-    const step = runStep(name, [...args]);
+    const step = runStep(name, [...args], { DATABASE_URL: "" });
     steps.push(step);
     assertCondition(step.exitCode === 0, `${name} gate failed`);
   }

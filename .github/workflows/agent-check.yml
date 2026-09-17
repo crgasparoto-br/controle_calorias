@@ -211,6 +211,9 @@ jobs:
         if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
         env:
           NODE_ENV: test
+          # Unit/in-memory suites must not connect to the external validation DB.
+          # DATABASE_URL is reserved for the explicit integrity gate below.
+          DATABASE_URL: ""
         run: |
           : > /tmp/vitest.log
           # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
@@ -265,6 +268,7 @@ jobs:
         if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
         env:
           CI_SHARDED_TESTS_COMPLETE: "1"
+          DATABASE_URL: ""
         run: pnpm agent:check
 
       - name: Upload billing admin visual evidence
