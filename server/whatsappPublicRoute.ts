@@ -9,6 +9,7 @@ export type WhatsAppPublicRouteOptions = {
   observeIngress?: RequestHandler;
   webhookRateLimit: RequestHandler;
   runtimeBootId: string;
+  runtimeCommit?: string | null;
   handle?: (
     req: express.Request,
     res: express.Response
@@ -51,6 +52,9 @@ export function registerWhatsAppPublicPostRoute(
       extended: true,
     }),
     (req, res) => {
+      const runtimeCommit =
+        options.runtimeCommit?.match(/^[0-9a-f]{7,40}$/iu)?.[0];
+      res.setHeader("x-runtime-commit", runtimeCommit ?? "unavailable");
       const originalInboundTextByMessageId = new Map<string, string>();
       for (const entry of Array.isArray(req.body?.entry)
         ? req.body.entry

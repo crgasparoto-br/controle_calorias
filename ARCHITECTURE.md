@@ -99,6 +99,8 @@ A IA não deve executar mutações profissionais automaticamente. Sugestões pre
 
 `server/whatsappWebhook.ts` permanece um entrypoint exportado de compatibilidade para consumidores e testes existentes. A caracterização pública da #1094 e a auditoria de reachability da #1096 confirmaram que sua fachada ainda é alcançada pelo fallback de imagem e por consumidores históricos. Sua assinatura e seus exports continuam estáveis; qualquer consolidação futura exige a matriz de substituto, consumidores migrados e golden flows registrada em `docs/testing/issue-1096-bridge-reachability.md`, sem alterar precedência, idempotência, source grounding, privacidade ou entrega de resposta.
 
+A validação final da #1097 usa a mesma rota pública para os golden flows, exige que os commits das fases #1094, #1095 e #1096 sejam ancestrais do candidato e compara as métricas operacionais antes de aceitar a revisão. O POST público expõe somente o prefixo hexadecimal sanitizado de `RENDER_GIT_COMMIT` no cabeçalho `x-runtime-commit`; esse vínculo é obrigatório para o smoke pós-deploy e não transporta telefone, texto alimentar, URL, prompt, resposta de provider ou erro bruto.
+
 Responsabilidades específicas ficam em módulos dedicados sob `server/modules/whatsapp/`:
 
 - `webhookTextCommands.ts` -> detecção e execução de comandos por texto (água, peso, reclassificação de refeição e confirmação pendente).
