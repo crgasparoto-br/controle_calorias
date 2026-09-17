@@ -3,7 +3,7 @@ import { existsSync, writeFileSync } from "node:fs";
 
 const root = process.cwd();
 const BASELINE_SHA = "394337d1166c4d12df3c78010246f65a63037eee";
-const HISTORICAL_BASELINE_SHA = "4d86cb814ff57164ff16cd762ea21be46719fce";
+const HISTORICAL_BASELINE_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
 const PHASE_COMMITS = {
   issue1094: "8b2540f3",
   issue1095: "66a611a2",
