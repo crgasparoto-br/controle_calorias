@@ -16,7 +16,7 @@ function required(name: string) {
 }
 
 function sanitizeCommit(value: string | null) {
-  return value?.match(/^[0-9a-f]{7,40}$/iu)?.[0] ?? null;
+  return value?.match(/^[0-9a-f]{40}$/iu)?.[0] ?? null;
 }
 
 function buildPayload(messageId: string, text: string, phoneNumberId: string) {
@@ -73,7 +73,7 @@ async function post(
   if (!response.ok || body.ok !== true) {
     throw new Error(`Smoke request failed with status=${response.status}`);
   }
-  if (!runtimeCommit || !expectedCommit.startsWith(runtimeCommit)) {
+  if (!runtimeCommit || runtimeCommit !== expectedCommit) {
     throw new Error(
       "Published runtime is not correlated to the candidate commit"
     );
@@ -109,8 +109,8 @@ const webhookUrl = required("ISSUE_1097_WEBHOOK_URL");
 const expectedCommit = required("ISSUE_1097_EXPECTED_COMMIT").toLowerCase();
 const phoneNumberId = required("ISSUE_1097_CHANNEL_PHONE_NUMBER_ID");
 const phone = required("ISSUE_1097_TEST_PHONE");
-if (!/^[0-9a-f]{7,40}$/u.test(expectedCommit))
-  throw new Error("ISSUE_1097_EXPECTED_COMMIT must be a hexadecimal SHA");
+if (!/^[0-9a-f]{40}$/u.test(expectedCommit))
+  throw new Error("ISSUE_1097_EXPECTED_COMMIT must be a full 40-character SHA");
 if (!/^\d{8,20}$/u.test(phone))
   throw new Error("ISSUE_1097_TEST_PHONE must be digits only");
 if (!/^\d{8,80}$/u.test(phoneNumberId)) {

@@ -32,11 +32,11 @@ describe("Issue #1097 — correlação sanitizada do runtime publicado", () => {
     server = null;
   });
 
-  it("expõe somente um prefixo hexadecimal do commit válido", async () => {
+  it("expõe somente o SHA hexadecimal completo do commit válido", async () => {
     const app = express();
     registerWhatsAppPublicPostRoute(app, {
       runtimeBootId: "issue-1097-runtime",
-      runtimeCommit: "8851ad16deadbeef",
+      runtimeCommit: "8851ad166a227c810d3b23954caa5d9f06d50cbc",
       webhookRateLimit: (_req, _res, next) => next(),
       handle: async (_req, res) =>
         res.status(200).json({ ok: true, processed: 0 }),
@@ -51,7 +51,9 @@ describe("Issue #1097 — correlação sanitizada do runtime publicado", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("x-runtime-commit")).toBe("8851ad16deadbeef");
+    expect(response.headers.get("x-runtime-commit")).toBe(
+      "8851ad166a227c810d3b23954caa5d9f06d50cbc"
+    );
   });
 
   it("não fabrica correlação para valor inválido", async () => {

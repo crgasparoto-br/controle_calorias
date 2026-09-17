@@ -115,7 +115,8 @@ function listenHttpServer(
 async function startServer() {
   const runtimeBootId = randomUUID();
   const runtimeBootStartedAt = Date.now();
-  const runtimeCommit = process.env.RENDER_GIT_COMMIT?.slice(0, 12) ?? null;
+  const runtimeCommit =
+    process.env.RENDER_GIT_COMMIT?.match(/^[0-9a-f]{40}$/iu)?.[0] ?? null;
   console.info("[Runtime] boot_started", {
     bootId: runtimeBootId,
     pid: process.pid,
