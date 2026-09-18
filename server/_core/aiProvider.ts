@@ -27,6 +27,7 @@ export type AiProviderTextRequest = {
   input: ResponseCreateParamsNonStreaming["input"];
   format?: AiProviderResponseFormat;
   tools?: AiProviderTextTool[];
+  toolChoice?: "auto" | "required";
 };
 
 export type AiProviderRequestOptions = {
@@ -445,6 +446,7 @@ export class OpenAiProvider implements AiProvider {
     const tools = buildOpenAiTools(request.tools);
     if (tools) {
       payload.tools = tools;
+      if (request.toolChoice) payload.tool_choice = request.toolChoice;
       (payload as unknown as { include: string[] }).include = [
         "web_search_call.action.sources",
       ];
