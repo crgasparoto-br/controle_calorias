@@ -351,10 +351,10 @@ export default function OnboardingPage() {
   const userEmail = user?.email?.trim() ?? "";
   const whatsappConnection = whatsappStatusQuery.data?.connection;
   const hasWhatsappConnection = whatsappConnection?.status === "active";
-  const whatsappPhoneNumber = hasWhatsappConnection ? whatsappConnection.phoneNumber ?? "" : "";
-  const canEditPhone = !hasWhatsappConnection;
+  const whatsappPhoneNumber = whatsappConnection?.phoneNumber ?? "";
   const pendingWhatsappPhoneNumber = buildWhatsappPhoneNumber(phoneCountryCode, phoneNationalNumber);
-  const shouldAttachWhatsappPhone = canEditPhone && Boolean(phoneNationalNumber.trim());
+  const shouldAttachWhatsappPhone = Boolean(phoneNationalNumber.trim())
+    && (!hasWhatsappConnection || pendingWhatsappPhoneNumber !== whatsappPhoneNumber);
   const contactPhoneNumber = formatPhoneNumber(hasWhatsappConnection ? whatsappPhoneNumber : pendingWhatsappPhoneNumber);
 
   useEffect(() => {
@@ -693,18 +693,14 @@ export default function OnboardingPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                   <TextField label="Nome" value={form.name} onChange={value => updateField("name", value)} optional />
-                  {canEditPhone ? (
-                    <PhoneNumberField
-                      countryCode={phoneCountryCode}
-                      countryOptions={COUNTRY_CODE_OPTIONS}
-                      nationalNumber={phoneNationalNumber}
-                      onCountryCodeChange={setPhoneCountryCode}
-                      onNationalNumberChange={setPhoneNationalNumber}
-                      optional
-                    />
-                  ) : (
-                    <ReadOnlyField label="Telefone" value={contactPhoneNumber || "Não informado"} />
-                  )}
+                  <PhoneNumberField
+                    countryCode={phoneCountryCode}
+                    countryOptions={COUNTRY_CODE_OPTIONS}
+                    nationalNumber={phoneNationalNumber}
+                    onCountryCodeChange={setPhoneCountryCode}
+                    onNationalNumberChange={setPhoneNationalNumber}
+                    optional
+                  />
                   <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
                   <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
                   <SelectField label="Sexo" value={form.sex} options={SEX_OPTIONS} onChange={value => updateField("sex", value as FormState["sex"])} />
