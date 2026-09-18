@@ -806,6 +806,7 @@ async function searchVerifiedMeasure(
               }],
             }],
             tools: [{ type: "web_search" }],
+            toolChoice: "required",
             format: {
               type: "json_schema",
               name: "household_measure_lookup",
