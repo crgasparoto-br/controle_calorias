@@ -73,6 +73,10 @@ import {
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
+import {
+  setWhatsAppWebhookOutcome,
+  type WhatsAppWebhookOutcome,
+} from "./whatsappWebhookOutcome";
 
 type TextIntentResult =
   | NonNullable<Awaited<ReturnType<typeof executeWhatsappTextIntent>>>
@@ -422,6 +426,7 @@ export function __resetWhatsAppTextIntentContextForTests() {
 }
 
 async function sendAndLogTextReply(input: {
+  response: Response;
   userId: number;
   sourcePhone: string;
   userMessage: string;
@@ -433,6 +438,7 @@ async function sendAndLogTextReply(input: {
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
   interactiveReply?: WhatsAppLogicalReply;
+  outcome?: WhatsAppWebhookOutcome;
 }) {
   logInferenceEvent({
     userId: input.userId,
@@ -450,6 +456,15 @@ async function sendAndLogTextReply(input: {
     logicalReply: input.interactiveReply,
     lifecycleHandle: input.lifecycleHandle,
   });
+  setWhatsAppWebhookOutcome(
+    input.response,
+    input.outcome ??
+      resolveTextReplyOutcome({
+        eventType: input.eventType,
+        detail: input.detail,
+        mealId: input.mealId,
+      })
+  );
   const replyOk = delivery.result.primaryOk;
   if (!delivery.result.ok) {
     logInferenceEvent({
@@ -478,6 +493,20 @@ function extractMealId(data: Record<string, unknown> | undefined) {
   return typeof data?.mealId === "number" ? data.mealId : null;
 }
 
+function resolveTextReplyOutcome(input: {
+  eventType: string;
+  detail: string;
+  mealId?: number | null;
+}): WhatsAppWebhookOutcome {
+  if (input.mealId) return "meal_registered";
+  if (
+    /clarif|pending|not[_ -]?found/i.test(`${input.eventType} ${input.detail}`)
+  ) {
+    return "clarification_pending";
+  }
+  return "handled_without_meal";
+}
+
 function extractEditableMealId(result: unknown) {
   if (!result || typeof result !== "object") return null;
   const candidate = result as { action?: unknown; data?: unknown };
@@ -491,6 +520,7 @@ function extractEditableMealId(result: unknown) {
 
 async function tryHandleTextIntent(
   req: Request,
+  res: Response,
   message: ExtractedWhatsAppWebhookMessage
 ): Promise<TextIntentHandlingResult> {
   const sourcePhone = message.from || "unknown";
@@ -551,6 +581,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -586,6 +617,7 @@ async function tryHandleTextIntent(
         await clearPendingTextIntentContext(userId);
       }
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -624,6 +656,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -653,6 +686,7 @@ async function tryHandleTextIntent(
         markTextIntentMessageHandled(message.id);
         await clearPendingTextIntentContext(userId);
         await sendAndLogTextReply({
+          response: res,
           userId,
           sourcePhone,
           userMessage: text,
@@ -675,6 +709,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -710,6 +745,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -745,6 +781,7 @@ async function tryHandleTextIntent(
         });
         if (!result || result.action !== "water_logged") {
           await sendAndLogTextReply({
+            response: res,
             userId,
             sourcePhone,
             userMessage: text,
@@ -786,6 +823,7 @@ async function tryHandleTextIntent(
         markTextIntentMessageHandled(message.id);
         await clearPendingTextIntentContext(userId);
         await sendAndLogTextReply({
+          response: res,
           userId,
           sourcePhone,
           userMessage: text,
@@ -845,6 +883,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -871,6 +910,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -893,6 +933,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -919,6 +960,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -945,6 +987,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -979,6 +1022,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -1019,6 +1063,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -1099,6 +1144,7 @@ async function tryHandleTextIntent(
           markTextIntentMessageHandled(message.id);
           await clearPendingTextIntentContext(userId);
           await sendAndLogTextReply({
+            response: res,
             userId,
             sourcePhone,
             userMessage: text,
@@ -1132,6 +1178,7 @@ async function tryHandleTextIntent(
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
       await sendAndLogTextReply({
+        response: res,
         userId,
         sourcePhone,
         userMessage: text,
@@ -1152,6 +1199,7 @@ async function tryHandleTextIntent(
       result
     );
     await sendAndLogTextReply({
+      response: res,
       userId,
       sourcePhone,
       userMessage: text,
@@ -1237,7 +1285,7 @@ export async function handleWhatsAppWebhookWithTextIntent(
     import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]
   >();
   for (const message of messages) {
-    const handled = await tryHandleTextIntent(req, message);
+    const handled = await tryHandleTextIntent(req, res, message);
     const key = getExtractedWhatsAppMessageKey(message);
     if (handled === true) {
       handledMessageKeys.add(key);
