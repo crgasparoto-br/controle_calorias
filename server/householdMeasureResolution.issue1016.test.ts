@@ -118,6 +118,11 @@ describe("resolveHouseholdMeasure (#1016)", () => {
       sourceUrls: ["https://example.com/presunto-sadia"],
       referenceCount: 1,
     }));
+    expect(runtime.createDomainTextResponse).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ toolChoice: "required" }),
+      expect.anything(),
+    );
   });
 
   it("escala referência exata quando a própria fonte declara múltiplas medidas", async () => {
