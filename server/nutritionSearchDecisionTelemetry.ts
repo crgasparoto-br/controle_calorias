@@ -147,6 +147,7 @@ export function logNutritionSearchDecision(
         ? { operationalOutcome: input.operationalOutcome }
         : {}),
     };
+    console.info("[NutritionSearch] decision", detail);
     const origin =
       context?.origin === "whatsapp" || context?.origin === "web"
         ? context.origin
