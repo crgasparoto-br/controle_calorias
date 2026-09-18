@@ -349,8 +349,9 @@ export default function OnboardingPage() {
   });
   const userName = user?.name?.trim() ?? "";
   const userEmail = user?.email?.trim() ?? "";
-  const whatsappPhoneNumber = whatsappStatusQuery.data?.connection?.phoneNumber ?? "";
-  const hasWhatsappConnection = Boolean(whatsappPhoneNumber);
+  const whatsappConnection = whatsappStatusQuery.data?.connection;
+  const hasWhatsappConnection = whatsappConnection?.status === "active";
+  const whatsappPhoneNumber = hasWhatsappConnection ? whatsappConnection.phoneNumber ?? "" : "";
   const canEditPhone = !hasWhatsappConnection;
   const pendingWhatsappPhoneNumber = buildWhatsappPhoneNumber(phoneCountryCode, phoneNationalNumber);
   const shouldAttachWhatsappPhone = canEditPhone && Boolean(phoneNationalNumber.trim());

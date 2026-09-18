@@ -60,7 +60,7 @@ export default function AccessAndChannelsSettings() {
   });
 
   const connection = whatsappStatusQuery.data?.connection;
-  const hasConnection = Boolean(connection?.phoneNumber);
+  const hasConnection = connection?.status === "active";
   const pendingCount = patientRequestsQuery.data?.filter(request => request.status === "pending").length ?? 0;
 
   return (
