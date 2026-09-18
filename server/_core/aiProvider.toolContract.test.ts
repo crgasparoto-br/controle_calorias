@@ -31,6 +31,23 @@ describe("OpenAiProvider text tool contract", () => {
     );
   });
 
+  it("passes through required tool selection", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "resp_1", output_text: "ok" });
+    const provider = new OpenAiProvider(buildClient(create));
+
+    await provider.createTextResponse({
+      model: "gpt-4.1-mini",
+      input: "pesquise o produto",
+      tools: [{ type: "web_search" }],
+      toolChoice: "required",
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ tool_choice: "required" }),
+      undefined,
+    );
+  });
+
   it("normalizes provider queries and sources without duplicating message citations", async () => {
     const create = vi.fn().mockResolvedValue({
       id: "resp_1",

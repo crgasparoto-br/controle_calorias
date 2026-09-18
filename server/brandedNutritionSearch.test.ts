@@ -83,6 +83,9 @@ describe("branded nutrition evidence consistency", () => {
     installExecution(providerResult());
     await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml"))
       .resolves.toEqual(expect.objectContaining({ brandName: "Marca Aurora", gramsPerServing: 330, calories: 100 }));
+    expect(createTextResponseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ toolChoice: "required" }),
+    );
   });
 
   it("rejects a contradictory structured brand even when matchedProductName echoes the requested brand", async () => {

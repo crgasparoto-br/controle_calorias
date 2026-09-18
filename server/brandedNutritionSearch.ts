@@ -506,6 +506,7 @@ export async function findBrandedNutritionByWebSearch(
               }],
             }],
             tools: [{ type: "web_search" }],
+            toolChoice: "required",
             format: {
               type: "json_schema",
               name: "branded_food_nutrition_lookup",
