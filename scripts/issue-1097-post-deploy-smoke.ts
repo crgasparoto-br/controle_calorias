@@ -151,7 +151,7 @@ await post(
     phoneNumberId
   ),
   expectedCommit,
-  ["clarification_pending", "handled_without_meal"]
+  "handled_without_meal"
 );
 
 const cases = [

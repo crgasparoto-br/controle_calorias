@@ -15,6 +15,7 @@ import { isCompleteWhatsappCommand } from "./foodClarificationContract";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
+import { buildWhatsAppActionCancelledReplyMessage } from "./replyMessages";
 import {
   parseMealIntentDecisionTextAction,
   PENDING_MEAL_INTENT_DECISION_TYPE,
@@ -33,6 +34,7 @@ import {
 } from "./interactionRegistry";
 import type { WhatsAppLogicalReply } from "./replyContract";
 import {
+  isStandaloneWhatsappCancellationWord,
   isStandaloneWhatsappCommandWord,
   normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
@@ -333,7 +335,27 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     active.type,
     active.target
   );
-  if (!interaction) return buildUnregisteredPendingResult(active);
+  if (!interaction) {
+    if (isStandaloneWhatsappCancellationWord(input.text)) {
+      const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
+      if (superseded.superseded) {
+        return {
+          handled: true,
+          action: "pending_operation_cancelled",
+          reply: buildWhatsAppActionCancelledReplyMessage("Não registrei o alimento pendente."),
+          eventType: "whatsapp.interaction.pending_operation_cancelled",
+          detail: "Pendência ativa sem interação registrada substituída por cancelamento explícito, sem mutação.",
+          data: {
+            pendingOperationId: active.id,
+            pendingType: active.type,
+            fallbackBlocked: false,
+            interactionLifecycle: "cancelled",
+          },
+        };
+      }
+    }
+    return buildUnregisteredPendingResult(active);
+  }
 
   const classification = interaction.classifyText(active.target, input.text);
   if (classification === "resolve") {
