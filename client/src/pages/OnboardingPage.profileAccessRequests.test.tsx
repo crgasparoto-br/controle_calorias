@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   search: "",
   preference: { data: { enabled: false } as { enabled: boolean } | undefined, isLoading: false, isError: false },
   failPreferenceSave: false,
+  whatsappConnection: null as { phoneNumber: string; status: "active" | "pending" | "disabled"; displayName?: string | null } | null,
 }));
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const updatePreferenceMock = vi.hoisted(() => vi.fn());
@@ -59,6 +60,7 @@ vi.mock("wouter", () => ({
 
 const invalidateMock = vi.fn(async () => undefined);
 const mutateMock = vi.fn();
+const upsertConnectionMock = vi.hoisted(() => vi.fn(async (input: { phoneNumber: string; displayName?: string }) => input));
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
@@ -88,8 +90,8 @@ vi.mock("@/lib/trpc", () => ({
     },
     nutrition: {
       whatsapp: {
-        status: { useQuery: () => ({ data: { connection: null } }) },
-        upsertConnection: { useMutation: () => ({ isPending: false, mutateAsync: async () => undefined }) },
+        status: { useQuery: () => ({ data: { connection: state.whatsappConnection } }) },
+        upsertConnection: { useMutation: () => ({ isPending: false, mutateAsync: upsertConnectionMock }) },
       },
       onboarding: {
         profile: { useQuery: () => ({ data: null }) },
@@ -126,8 +128,10 @@ describe("OnboardingPage profile tab", () => {
     state.search = "";
     state.preference = { data: { enabled: false }, isLoading: false, isError: false };
     state.failPreferenceSave = false;
+    state.whatsappConnection = null;
     toastErrorMock.mockReset();
     updatePreferenceMock.mockReset();
+    upsertConnectionMock.mockReset();
     setLocationMock.mockReset();
   });
   afterEach(cleanup);
@@ -203,5 +207,26 @@ describe("OnboardingPage profile tab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salvar perfil" }));
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("Falha simulada ao salvar"));
     expect(toggle.getAttribute("data-state")).toBe("unchecked");
+  });
+
+  it("permite reativar telefone quando a conexão existente está desabilitada", async () => {
+    state.whatsappConnection = {
+      phoneNumber: "5515996046021",
+      status: "disabled",
+      displayName: "Paciente Teste",
+    };
+    const { default: OnboardingPage } = await import("./OnboardingPage");
+    const user = userEvent.setup();
+    render(React.createElement(OnboardingPage));
+
+    const phoneInput = screen.getByPlaceholderText("Ex.: 11 99999-8888");
+    expect(phoneInput).toBeTruthy();
+    await user.clear(phoneInput);
+    await user.type(phoneInput, "15 99604-6021");
+    await user.click(screen.getByRole("button", { name: "Salvar perfil" }));
+
+    await waitFor(() => expect(upsertConnectionMock).toHaveBeenCalledWith(expect.objectContaining({
+      phoneNumber: "5515996046021",
+    })));
   });
 });
