@@ -9,6 +9,11 @@ type SmokeResult = {
   runtimeCommit: string | null;
   outcome: string | null;
 };
+type ExpectedOutcome =
+  | "meal_registered"
+  | "duplicate_ignored"
+  | "clarification_pending"
+  | "handled_without_meal";
 
 function required(name: string) {
   const value = process.env[name]?.trim();
@@ -58,8 +63,11 @@ async function post(
   url: string,
   payload: unknown,
   expectedCommit: string,
-  expectedOutcome: "meal_registered" | "duplicate_ignored"
+  expectedOutcome: ExpectedOutcome | readonly ExpectedOutcome[]
 ): Promise<SmokeResult> {
+  const expectedOutcomes = Array.isArray(expectedOutcome)
+    ? expectedOutcome
+    : [expectedOutcome];
   const response = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -81,26 +89,36 @@ async function post(
       "Published runtime is not correlated to the candidate commit"
     );
   }
-  if (outcome !== expectedOutcome) {
-    if (outcome === "handled_without_meal") {
+  if (!expectedOutcomes.includes(outcome as ExpectedOutcome)) {
+    if (
+      expectedOutcomes.includes("meal_registered") &&
+      outcome === "handled_without_meal"
+    ) {
       throw new Error(
         "Smoke phone is not mapped to an authorized application user; configure ISSUE_1097_TEST_PHONE with the authorized test phone"
       );
     }
     throw new Error(
-      `Webhook outcome was ${outcome ?? "missing"}; expected ${expectedOutcome}`
+      `Webhook outcome was ${outcome ?? "missing"}; expected ${expectedOutcomes.join(" or ")}`
     );
   }
   const processed = typeof body.processed === "number" ? body.processed : null;
   const deduplicated =
     typeof body.deduplicated === "boolean" ? body.deduplicated : null;
-  if (expectedOutcome === "meal_registered") {
+  if (expectedOutcomes.includes("meal_registered")) {
     if (processed !== 1 || deduplicated === true) {
       throw new Error(
         "Initial smoke request did not process exactly one message"
       );
     }
-  } else if (deduplicated !== true || processed !== 0) {
+  } else if (expectedOutcomes.includes("duplicate_ignored")) {
+    if (deduplicated !== true || processed !== 0) {
+      throw new Error("Replay smoke request was not explicitly deduplicated");
+    }
+  } else if (processed !== 1 || deduplicated === true) {
+    throw new Error("Smoke reset did not process exactly one message");
+  }
+  if (expectedOutcomes.includes("duplicate_ignored") && deduplicated !== true) {
     throw new Error("Replay smoke request was not explicitly deduplicated");
   }
   return {
@@ -124,6 +142,17 @@ if (!/^\d{8,20}$/u.test(phone))
 if (!/^\d{8,80}$/u.test(phoneNumberId)) {
   throw new Error("ISSUE_1097_CHANNEL_PHONE_NUMBER_ID must be digits only");
 }
+
+await post(
+  webhookUrl,
+  buildPayload(
+    `issue-1097-smoke-${smokeRunId}-reset`,
+    "CANCELAR",
+    phoneNumberId
+  ),
+  expectedCommit,
+  ["clarification_pending", "handled_without_meal"]
+);
 
 const cases = [
   {
