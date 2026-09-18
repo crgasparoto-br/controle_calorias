@@ -500,6 +500,13 @@ function resolveTextReplyOutcome(input: {
 }): WhatsAppWebhookOutcome {
   if (input.mealId) return "meal_registered";
   if (
+    /cancel(?:led|ado|ada|amento)|cancelou/i.test(
+      `${input.eventType} ${input.detail}`
+    )
+  ) {
+    return "handled_without_meal";
+  }
+  if (
     /clarif|pending|not[_ -]?found/i.test(`${input.eventType} ${input.detail}`)
   ) {
     return "clarification_pending";

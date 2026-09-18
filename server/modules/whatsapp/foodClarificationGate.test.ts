@@ -176,4 +176,34 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     expect(resolveWhatsappRegisteredTextMock).not.toHaveBeenCalled();
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
+
+  it("permite cancelar pendência legada sem interação registrada", async () => {
+    const active = {
+      id: 19,
+      userId: 42,
+      type: "legacy_food_clarification",
+      origin: "legacyHandler",
+      target: {},
+      state: "active",
+      version: 1,
+    };
+    getActivePendingOperationMock.mockResolvedValue(active);
+    findWhatsappRegisteredInteractionMock.mockReturnValue(null);
+
+    const result = await resolvePendingWhatsappFoodClarification({
+      userId: 42,
+      text: "CANCELAR",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(supersedePendingOperationMock).toHaveBeenCalledWith(active.id);
+    expect(result).toEqual(expect.objectContaining({
+      action: "pending_operation_cancelled",
+      eventType: "whatsapp.interaction.pending_operation_cancelled",
+      data: expect.objectContaining({
+        pendingType: "legacy_food_clarification",
+        interactionLifecycle: "cancelled",
+      }),
+    }));
+  });
 });
