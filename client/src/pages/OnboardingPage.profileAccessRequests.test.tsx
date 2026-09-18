@@ -229,4 +229,24 @@ describe("OnboardingPage profile tab", () => {
       phoneNumber: "5515996046021",
     })));
   });
+
+  it("permite corrigir o telefone quando a conexão existente está ativa", async () => {
+    state.whatsappConnection = {
+      phoneNumber: "5515996046000",
+      status: "active",
+      displayName: "Paciente Teste",
+    };
+    const { default: OnboardingPage } = await import("./OnboardingPage");
+    const user = userEvent.setup();
+    render(React.createElement(OnboardingPage));
+
+    const phoneInput = screen.getByPlaceholderText("Ex.: 11 99999-8888");
+    await user.clear(phoneInput);
+    await user.type(phoneInput, "15 99604-6021");
+    await user.click(screen.getByRole("button", { name: "Salvar perfil" }));
+
+    await waitFor(() => expect(upsertConnectionMock).toHaveBeenCalledWith(expect.objectContaining({
+      phoneNumber: "5515996046021",
+    })));
+  });
 });
