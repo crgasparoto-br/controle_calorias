@@ -158,12 +158,12 @@ const cases = [
   {
     label: "panco",
     messageId: `issue-1097-smoke-${smokeRunId}-panco`,
-    text: "adicione no café da manhã: 1 fatia de pão de forma Panco Premium",
+    text: "1 fatia de pão de forma Panco Premium",
   },
   {
     label: "commercial_non_panco",
     messageId: `issue-1097-smoke-${smokeRunId}-wickbold`,
-    text: "adicione no café da manhã: 1 fatia de pão integral Wickbold",
+    text: "1 fatia de pão integral Wickbold",
   },
 ] as const;
 const results: Array<SmokeResult & { label: string }> = [];
