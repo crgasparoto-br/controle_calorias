@@ -16,6 +16,24 @@ function safeInteger(value) {
   return Number(value ?? 0);
 }
 
+function buildConnectionConfig(databaseUrl) {
+  const useSsl =
+    process.env.TIDB_ENABLE_SSL === "true" ||
+    databaseUrl.includes("tidbcloud.com");
+
+  if (!useSsl) return databaseUrl;
+
+  const url = new URL(databaseUrl);
+  return {
+    host: url.hostname,
+    port: Number(url.port || 4000),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, ""),
+    ssl: { minVersion: "TLSv1.2" },
+  };
+}
+
 const databaseUrl = required("DATABASE_URL");
 const suppliedPhone = normalizePhone(required("ISSUE_1097_TEST_PHONE"));
 if (!suppliedPhone) throw new Error("ISSUE_1097_TEST_PHONE has no digits");
@@ -28,7 +46,9 @@ if (!suppliedPhone.startsWith("55") && suppliedPhone.length >= 10) {
   variants.add(`55${suppliedPhone}`);
 }
 
-const connection = await mysql.createConnection(databaseUrl);
+const connection = await mysql.createConnection(
+  buildConnectionConfig(databaseUrl)
+);
 try {
   const [rows] = await connection.execute(
     `SELECT status, COUNT(*) AS count
