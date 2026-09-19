@@ -32,24 +32,13 @@ const { prepareCountableFoodRegistrationResolved } = await import(
 );
 
 describe("issue #1072 — contexto contável na pesquisa comercial", () => {
-  it("mantém identidade canônica e usa quantidade/unidade no fallback de pesquisa específica", async () => {
+  it("mantém identidade canônica e evita pesquisa externa quando o produto já está curado", async () => {
     const prepared = await prepareCountableFoodRegistrationResolved(
       42,
       "1 fatia de pão de forma Panco Premium",
     );
 
-    expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
-      "1 fatia de pão de forma Panco Premium",
-      expect.objectContaining({
-        searchSpecificProduct: true,
-        nutritionSearchTelemetry: expect.objectContaining({
-          userId: 42,
-          origin: "whatsapp",
-          traceId: expect.stringMatching(/^[0-9a-f-]{36}$/),
-        }),
-      }),
-    );
-    expect(findCatalogFoodSemanticMock).toHaveBeenCalledTimes(1);
+    expect(findCatalogFoodSemanticMock).not.toHaveBeenCalled();
     expect(prepared).toMatchObject({
       pendingItems: [],
       registrationText: "25 g de pão de forma Panco Premium",
