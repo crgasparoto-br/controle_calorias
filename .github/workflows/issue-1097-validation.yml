@@ -73,6 +73,8 @@ jobs:
       ISSUE_1097_EXPECTED_COMMIT: ${{ inputs.expected_commit || github.sha }}
       ISSUE_1097_CHANNEL_PHONE_NUMBER_ID: ${{ secrets.ISSUE_1097_CHANNEL_PHONE_NUMBER_ID }}
       ISSUE_1097_TEST_PHONE: ${{ secrets.ISSUE_1097_TEST_PHONE }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ISSUE_1097_PHONE_DIAGNOSTIC_PATH: artifacts/issue-1097-phone-diagnostic.json
       ISSUE_1097_SMOKE_REPORT_PATH: artifacts/issue-1097-post-deploy-smoke.json
     steps:
       - name: Checkout exact candidate
@@ -94,6 +96,20 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Diagnose smoke phone authorization (read-only)
+        run: |
+          mkdir -p artifacts
+          node scripts/issue-1097-phone-diagnostic.mjs
+
+      - name: Upload phone authorization diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1097-phone-diagnostic-${{ github.sha }}
+          path: artifacts/issue-1097-phone-diagnostic.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Run post-deploy smoke
         run: |
