@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { findCatalogFood } from "./catalogMatching";
 import {
   getSafeCatalogCountableGrams,
   parseCountableFoodQuantitySegment,
   prepareCountableFoodRegistrationResolved,
+  resolveSafeCountableCatalogGrams,
 } from "./countableFoodQuantity";
 
 describe("issue #1097 — porções comuns e Panco Premium", () => {
@@ -12,7 +12,6 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
     ["1 fatia de presunto", "presunto", 18],
   ])("resolve %s por catálogo local em %s g", (text, foodName, grams) => {
     const request = parseCountableFoodQuantitySegment(text);
-    const food = request ? findCatalogFood(request.foodName) : undefined;
 
     expect(request).toEqual(
       expect.objectContaining({
@@ -21,10 +20,17 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
         count: 1,
       })
     );
-    expect(food).toBeDefined();
     expect(
-      request && food ? getSafeCatalogCountableGrams(food, request) : null
+      request ? getSafeCatalogCountableGrams(undefined, request) : null
     ).toBe(grams);
+    expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia")).toEqual(
+      expect.objectContaining({
+        grams,
+        food: expect.objectContaining({
+          name: expect.stringMatching(/mussarela|presunto/i),
+        }),
+      })
+    );
   });
 
   it("resolve o Panco Premium pela porção curada de 2 fatias = 50 g", async () => {

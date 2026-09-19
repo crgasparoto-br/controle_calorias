@@ -22,6 +22,56 @@ import {
 } from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
+const CURATED_COMMON_COUNTABLE_PORTIONS: Array<{
+  aliases: string[];
+  food: CatalogFood;
+}> = [
+  {
+    aliases: ["mussarela", "muçarela", "mozarela", "queijo mussarela", "queijo muçarela", "queijo mozarela"],
+    food: {
+      slug: "curated-queijo-mussarela-fatia",
+      name: "Queijo mussarela",
+      aliases: ["mussarela", "muçarela", "mozarela"],
+      servingLabel: "1 fatia",
+      gramsPerServing: 20,
+      calories: 65.97,
+      protein: 4.53,
+      carbs: 0.61,
+      fat: 5.04,
+    },
+  },
+  {
+    aliases: ["presunto", "presunto cozido", "fatia de presunto"],
+    food: {
+      slug: "curated-presunto-fatia",
+      name: "Presunto cozido",
+      aliases: ["presunto", "presunto cozido"],
+      servingLabel: "1 fatia",
+      gramsPerServing: 18,
+      calories: 23.01,
+      protein: 2.59,
+      carbs: 0.25,
+      fat: 1.22,
+    },
+  },
+];
+
+function normalizeCuratedFoodName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function findCuratedCommonPortion(foodName: string) {
+  const normalized = normalizeCuratedFoodName(foodName);
+  return CURATED_COMMON_COUNTABLE_PORTIONS.find(item =>
+    item.aliases.some(alias => normalizeCuratedFoodName(alias) === normalized),
+  )?.food;
+}
+
 export type CountableFoodQuantityRequest = {
   segment: string;
   foodName: string;
@@ -100,13 +150,14 @@ export function getSafeCatalogCountableGrams(
   request: CountableFoodQuantityRequest,
 ) {
   if (request.brand) return null;
-  if (!food || !food.servingLabel || !food.gramsPerServing) return null;
-  const serving = parseQuantityUnitFromPortionText(food.servingLabel);
+  const effectiveFood = food ?? findCuratedCommonPortion(request.foodName);
+  if (!effectiveFood || !effectiveFood.servingLabel || !effectiveFood.gramsPerServing) return null;
+  const serving = parseQuantityUnitFromPortionText(effectiveFood.servingLabel);
   if (!serving || !serving.quantity || !serving.unit) return null;
   const servingUnit = normalizeUnit(serving.unit);
   const requestedUnit = normalizeUnit(request.requestedUnit);
   if (MASS_VOLUME_UNITS.has(servingUnit) || servingUnit !== requestedUnit) return null;
-  const grams = (food.gramsPerServing * request.count) / serving.quantity;
+  const grams = (effectiveFood.gramsPerServing * request.count) / serving.quantity;
   return Number.isFinite(grams) && grams > 0 ? grams : null;
 }
 
@@ -150,7 +201,7 @@ export function resolveSafeCountableCatalogGrams(
     count,
     requestedUnit,
   };
-  const food = findCatalogFood(foodName);
+  const food = findCatalogFood(foodName) ?? findCuratedCommonPortion(foodName);
   const grams = getSafeCatalogCountableGrams(food, request);
   return grams && food ? { food, grams } : null;
 }
