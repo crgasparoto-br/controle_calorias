@@ -1,5 +1,6 @@
 import {
   GoogleGenAI,
+  ThinkingLevel,
   type Content,
   type ContentListUnion,
   type GenerateContentConfig,
@@ -533,6 +534,14 @@ function buildGenerationConfig(
   options?: AiProviderRequestOptions,
 ): GenerateContentConfig {
   const config: GenerateContentConfig = { maxOutputTokens: 8192 };
+
+  // Nutrition lookups are short, evidence-oriented requests. Gemini 3 defaults
+  // to high reasoning, which can consume the complete capability timeout before
+  // returning a grounded answer. Keep the low-latency setting scoped to Gemini 3
+  // models; older models do not accept this field consistently.
+  if (/^gemini-3(?:[.-]|$)/iu.test(request.model)) {
+    config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+  }
 
   if (request.format?.type === "json_schema") {
     assertRepresentableSchema(request.format.schema);
