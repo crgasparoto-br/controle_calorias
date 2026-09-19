@@ -148,9 +148,12 @@ export function parseCountableFoodQuantitySegment(
 export function getSafeCatalogCountableGrams(
   food: CatalogFood | null | undefined,
   request: CountableFoodQuantityRequest,
+  includeCuratedCommonPortion = false,
 ) {
   if (request.brand) return null;
-  const effectiveFood = food ?? findCuratedCommonPortion(request.foodName);
+  const effectiveFood = food ?? (
+    includeCuratedCommonPortion ? findCuratedCommonPortion(request.foodName) : undefined
+  );
   if (!effectiveFood || !effectiveFood.servingLabel || !effectiveFood.gramsPerServing) return null;
   const serving = parseQuantityUnitFromPortionText(effectiveFood.servingLabel);
   if (!serving || !serving.quantity || !serving.unit) return null;
@@ -169,7 +172,7 @@ export function findUnsafeCountableFoodQuantity(
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
     const local = findCatalogFood(request.foodName);
-    if (getSafeCatalogCountableGrams(local, request)) continue;
+    if (getSafeCatalogCountableGrams(local, request, false)) continue;
     return request;
   }
   return null;
@@ -184,7 +187,7 @@ export function hasUnsafeKnownCountableFoodQuantity(
     if (!request) continue;
     const local = findCatalogFood(request.foodName) ?? findTacoFood(request.foodName);
     if (!local) continue;
-    if (!getSafeCatalogCountableGrams(local, request)) return true;
+    if (!getSafeCatalogCountableGrams(local, request, false)) return true;
   }
   return false;
 }
@@ -193,6 +196,7 @@ export function resolveSafeCountableCatalogGrams(
   foodName: string,
   count: number,
   requestedUnit = "un",
+  includeCuratedCommonPortion = false,
 ) {
   const request: CountableFoodQuantityRequest = {
     segment: foodName,
@@ -201,8 +205,14 @@ export function resolveSafeCountableCatalogGrams(
     count,
     requestedUnit,
   };
-  const food = findCatalogFood(foodName) ?? findCuratedCommonPortion(foodName);
-  const grams = getSafeCatalogCountableGrams(food, request);
+  const food = findCatalogFood(foodName) ?? (
+    includeCuratedCommonPortion ? findCuratedCommonPortion(foodName) : undefined
+  );
+  const grams = getSafeCatalogCountableGrams(
+    food,
+    request,
+    includeCuratedCommonPortion,
+  );
   return grams && food ? { food, grams } : null;
 }
 
@@ -219,12 +229,13 @@ export function resolveSafeCountableCatalogGrams(
  * the canonical asynchronous preparation below.
  */
 export function prepareCountableFoodRegistration(registrationText: string) {
-  return prepareLocalCountableFoodRegistration(registrationText);
+  return prepareLocalCountableFoodRegistration(registrationText, [], false);
 }
 
 function prepareLocalCountableFoodRegistration(
   registrationText: string,
   resolvedSegmentIndexes: number[] = [],
+  includeCuratedCommonPortion = false,
 ): CountableFoodPreparation {
   const registrationSegments = splitCountableFoodTextSegments(registrationText);
   const pendingItems: CountableFoodPendingItem[] = [];
@@ -242,6 +253,7 @@ function prepareLocalCountableFoodRegistration(
         bare.foodName,
         bare.count,
         bare.requestedUnit,
+        includeCuratedCommonPortion,
       );
       if (!safeBare) continue;
       rewrittenSegments[segmentIndex] = `${safeBare.grams} g de ${bare.foodName}`;
@@ -257,6 +269,7 @@ function prepareLocalCountableFoodRegistration(
       request.foodName,
       request.count,
       request.requestedUnit,
+      includeCuratedCommonPortion,
     );
     if (safe) {
       rewrittenSegments[segmentIndex] = `${safe.grams} g de ${request.foodName}`;
@@ -292,6 +305,7 @@ export async function prepareCountableFoodRegistrationResolved(
   const prepared = prepareLocalCountableFoodRegistration(
     registrationText,
     resolvedSegmentIndexes,
+    true,
   );
 
   for (const pending of [...prepared.pendingItems]) {

@@ -21,9 +21,9 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
       })
     );
     expect(
-      request ? getSafeCatalogCountableGrams(undefined, request) : null
+      request ? getSafeCatalogCountableGrams(undefined, request, true) : null
     ).toBe(grams);
-    expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia")).toEqual(
+    expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia", true)).toEqual(
       expect.objectContaining({
         grams,
         food: expect.objectContaining({
