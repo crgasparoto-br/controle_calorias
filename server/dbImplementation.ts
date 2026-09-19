@@ -242,6 +242,19 @@ export function normalizeWhatsAppPhoneNumber(phoneNumber: string) {
   return phoneNumber.replace(/\D/g, "");
 }
 
+export function getWhatsAppPhoneNumberVariants(phoneNumber: string) {
+  const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(phoneNumber);
+  if (!normalizedPhoneNumber) return [];
+
+  const variants = [normalizedPhoneNumber];
+  if (normalizedPhoneNumber.startsWith("55") && normalizedPhoneNumber.length > 11) {
+    variants.push(normalizedPhoneNumber.slice(2));
+  } else if (!normalizedPhoneNumber.startsWith("55") && normalizedPhoneNumber.length >= 10) {
+    variants.push(`55${normalizedPhoneNumber}`);
+  }
+  return [...new Set(variants)];
+}
+
 export async function getUserWhatsappConnection(userId: number) {
   const db = await getDb();
   if (!db) {
@@ -257,17 +270,19 @@ export async function getUserWhatsappConnection(userId: number) {
 }
 
 export async function getUserIdByWhatsappPhone(phoneNumber: string) {
-  const normalizedPhoneNumber = normalizeWhatsAppPhoneNumber(phoneNumber);
-  if (!normalizedPhoneNumber) {
+  const phoneNumberVariants = getWhatsAppPhoneNumberVariants(phoneNumber);
+  if (!phoneNumberVariants.length) {
     return null;
   }
 
   const db = await getDb();
   if (!db) {
-    return whatsappConnectionStore.find(row => row.phoneNumber === normalizedPhoneNumber && row.status === "active")?.userId ?? null;
+    return whatsappConnectionStore.find(row => phoneNumberVariants.includes(row.phoneNumber) && row.status === "active")?.userId ?? null;
   }
 
-  const rows = await whatsappRepository.findAllByPhoneNumber(normalizedPhoneNumber);
+  const rows = (await Promise.all(
+    phoneNumberVariants.map(variant => whatsappRepository.findAllByPhoneNumber(variant)),
+  )).flat();
   return rows.find(row => row.status === "active")?.userId ?? null;
 }
 
