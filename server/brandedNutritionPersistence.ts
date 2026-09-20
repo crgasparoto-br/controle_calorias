@@ -142,10 +142,9 @@ export function createNutritionResearchPersistence(
       }
 
       const brandName = detectKnownBrand(foodName);
-      if (!brandName) return null;
       const candidates =
         (await deps.repository.findResearchedCandidates?.({
-          brandName,
+          brandName: brandName ?? null,
           limit: 50,
         })) ?? [];
       const match = candidates
@@ -174,7 +173,6 @@ export function createNutritionResearchPersistence(
       });
       if (
         !identityCompatible ||
-        !food.brandName ||
         !sourceUrls.length ||
         !sourceEvidence ||
         !isFresh({ sourceVerifiedAt } as FoodCatalogRow, now())
@@ -198,7 +196,7 @@ export function createNutritionResearchPersistence(
             ...sourceUrls.map(url => `fonte: ${url}`),
           ]),
         ]),
-        brandName: food.brandName,
+        brandName: food.brandName ?? null,
         productVariant,
         servingLabel: food.servingLabel,
         servingUnit: "g",

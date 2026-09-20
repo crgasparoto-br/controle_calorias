@@ -170,6 +170,19 @@ export function buildWhatsAppClarificationReplyMessage(message: string) {
   });
 }
 
+export function buildWhatsAppPartialRegistrationWarning(
+  skippedItems: Array<{ segment: string; reason: string }>,
+) {
+  return buildWhatsAppAuxiliaryReplyMessage({
+    title: skippedItems.length === 1 ? "Item não registrado" : "Itens não registrados",
+    lines: [
+      "Registrei os demais alimentos válidos da mensagem.",
+      "Não registrei:",
+      ...skippedItems.map(item => `• ${item.segment}: ${item.reason}`),
+    ],
+  });
+}
+
 export function buildWhatsAppItemNotFoundReplyMessage(params: { target?: string | null; context?: string; instruction: string }) {
   const context = params.context?.trim();
   const targetLine = params.target?.trim()

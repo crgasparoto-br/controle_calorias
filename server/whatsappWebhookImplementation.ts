@@ -32,6 +32,7 @@ import {
 import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
+  buildWhatsAppPartialRegistrationWarning,
   buildWhatsAppRecoverableErrorReplyMessage,
   buildWhatsAppUnlinkedAccountReplyMessage,
   buildWhatsAppWaterVolumeNeededReplyMessage,
@@ -92,12 +93,9 @@ import {
   resolveWhatsAppMessageOccurredAt,
   type WhatsAppWebhookMessage,
 } from "./modules/whatsapp/webhookUtils";
-import {
-  MealInferenceError,
-  MealProcessingResult,
-  processMealInput,
-} from "./nutritionEngine";
-import { splitFoodTextSegments } from "./mealTextParsing";
+import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
+import { processMealInputWithPartialFailures } from "./partialMealProcessing";
+import { buildMealSemanticContract } from "./mealSemanticContract";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
@@ -774,56 +772,11 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const occurredAt = resolveWhatsAppMessageOccurredAt(message);
       const resolvedSegments = deferredReply?.resolvedSegments ?? [];
       const habits = await getHabitSnapshots(userId);
-      let processed: MealProcessingResult;
-      if (resolvedSegments.length > 0 && prepared.text?.trim()) {
-        const textSegments = splitFoodTextSegments(prepared.text);
-        if (textSegments.length === 0) {
-          processed = await runWithAiUsageScope(
-            { userId, conversationId: message.id },
-            async () =>
-              processMealInput({
-                text: prepared.text,
-                transcript: prepared.transcript,
-                imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-                audioUrl: prepared.audioUrl,
-                habits,
-                occurredAt,
-                timeZone: userTimezone,
-              })
-          );
-        } else {
-          const parts: MealProcessingResult[] = [];
-          for (const [segmentIndex, segment] of textSegments.entries()) {
-            const saved = resolvedSegments.find(
-              item => item.segmentIndex === segmentIndex
-            );
-            parts.push(
-              saved?.processed ??
-                (await runWithAiUsageScope(
-                  { userId, conversationId: message.id },
-                  () =>
-                    processMealInput({
-                      text: segment,
-                      habits,
-                      occurredAt,
-                      timeZone: userTimezone,
-                    })
-                ))
-            );
-          }
-          const items = parts.flatMap(part => part.items);
-          processed = {
-            ...parts[0],
-            sourceText: prepared.text,
-            items,
-            totals: calculateMealTotals(items),
-          };
-        }
-      } else {
-        processed = await runWithAiUsageScope(
-          { userId, conversationId: message.id },
-          async () =>
-            processMealInput({
+      const partialProcessing = await runWithAiUsageScope(
+        { userId, conversationId: message.id },
+        () =>
+          processMealInputWithPartialFailures(
+            {
               text: prepared.text,
               transcript: prepared.transcript,
               imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
@@ -831,8 +784,28 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               habits,
               occurredAt,
               timeZone: userTimezone,
-            })
+            },
+            resolvedSegments,
+            {
+              containsMedia: Boolean(message.image?.id || message.audio?.id),
+              hasTranscriptionFailure: Boolean(prepared.audioTranscriptionFailure),
+            }
+          )
+      );
+      let processed: MealProcessingResult = partialProcessing.processed;
+      if (partialProcessing.skippedSegments.length > 0) {
+        responsePrefixBlocks.push(
+          buildWhatsAppPartialRegistrationWarning(
+            partialProcessing.skippedSegments
+          )
         );
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "warning",
+          eventType: "whatsapp.meal_partial_registration",
+          detail: `Registro parcial: ${partialProcessing.skippedSegments.length} item(ns) não registrado(s) por inconsistência específica do segmento.`,
+        });
       }
 
       if (message.image?.id) {
@@ -861,6 +834,18 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           waterSplit.remainingItems
         );
         processed.totals = calculateMealTotals(processed.items);
+        processed.semanticContract = buildMealSemanticContract({
+          processingInput: {
+            text: processed.sourceText,
+            transcript: processed.transcript,
+            imageUrl: processed.imageUrl,
+            audioUrl: processed.audioUrl,
+            occurredAt,
+            timeZone: userTimezone,
+          },
+          sourceText: processed.sourceText,
+          items: processed.items,
+        });
 
         if (!waterSplit.remainingItems.length) {
           if (waterSplit.waterVolumeMl > 0) {

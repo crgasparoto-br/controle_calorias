@@ -99,4 +99,55 @@ describe("issue #1037 — gramatura resolvida no motor nutricional", () => {
     expect([presunto!.calories, presunto!.protein, presunto!.carbs, presunto!.fat]).not.toEqual([150, 6, 15, 5]);
     expect([mussarela!.calories, mussarela!.protein, mussarela!.carbs, mussarela!.fat]).not.toEqual([150, 6, 15, 5]);
   });
+
+  it("consulta a busca IA para alimento genérico ausente no catálogo local", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_issue_1037_generic-search",
+      outputText: JSON.stringify({
+        mealLabel: "Café da manhã",
+        confidence: 0.95,
+        reasoning: "Fixture determinística da busca genérica #1037.",
+        items: [genericInferenceItem("requeijão", 40)],
+      }),
+      raw: { mocked: true },
+    });
+    findCatalogFoodSemanticMock
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({
+      slug: "web-nutrition-requeijao",
+      name: "Requeijão",
+      aliases: ["requeijão"],
+      servingLabel: "100 g",
+      gramsPerServing: 100,
+      calories: 260,
+      protein: 8,
+      carbs: 4,
+      fat: 23,
+      sourceUrls: ["https://tabela.example/requeijao"],
+      sourceEvidence: "Requeijão 100 g: 260 kcal, 8 g proteínas, 4 g carboidratos e 23 g gorduras.",
+      sourceVerifiedAt: new Date("2026-09-02T12:00:00.000Z"),
+      sourceConfidence: 0.9,
+      isBrandedProduct: false,
+      });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ text: "40 g de requeijão" });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: expect.stringMatching(/requeijão/i),
+      calories: 104,
+      source: "catalog",
+      resolution: expect.objectContaining({
+        nutritionOrigin: "web_research",
+        nutritionVerified: true,
+      }),
+    }));
+    expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        searchGenericNutrition: true,
+        skipNutritionSearch: false,
+      })
+    );
+  });
 });

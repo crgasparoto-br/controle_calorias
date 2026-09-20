@@ -89,6 +89,7 @@ const COMMERCIAL_VARIANT_TOKENS = new Set([
   "aveia",
   "familia",
   "junior",
+  "lager",
   "leite",
   "multigraos",
   "queijo",

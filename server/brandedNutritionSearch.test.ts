@@ -88,6 +88,34 @@ describe("branded nutrition evidence consistency", () => {
     );
   });
 
+  it("aceita alimento genérico quando a fonte comprova identidade, porção e nutrientes", async () => {
+    const evidence = "Mussarela 100 g: 329 kcal, 22 g proteínas, 3 g carboidratos e 25 g gorduras.";
+    installExecution(providerResult({
+      matchedProductName: "Mussarela",
+      brandName: "",
+      servingLabel: "100 g",
+      gramsPerServing: 100,
+      calories: 329,
+      protein: 22,
+      carbs: 3,
+      fat: 25,
+      sourceUrl: "https://tabela.example/mussarela",
+      evidence,
+    }), {
+      url: "https://tabela.example/mussarela",
+      title: "Mussarela 100 g",
+      supportingText: [evidence],
+    });
+
+    await expect(findBrandedNutritionByWebSearch("mussarela"))
+      .resolves.toEqual(expect.objectContaining({
+        name: "Mussarela",
+        brandName: null,
+        isBrandedProduct: false,
+        calories: 329,
+      }));
+  });
+
   it("rejects a contradictory structured brand even when matchedProductName echoes the requested brand", async () => {
     installExecution(providerResult({ brandName: "Marca Eclipse" }));
     await expect(findBrandedNutritionByWebSearch("Cerveja Zero Marca Aurora 330 ml")).resolves.toBeNull();

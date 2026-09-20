@@ -219,7 +219,7 @@ describe("OnboardingPage profile tab", () => {
     const user = userEvent.setup();
     render(React.createElement(OnboardingPage));
 
-    const phoneInput = screen.getByPlaceholderText("Ex.: 11 99999-8888");
+    const phoneInput = screen.getByPlaceholderText("Ex.: (11) 99999-8888");
     expect(phoneInput).toBeTruthy();
     await user.clear(phoneInput);
     await user.type(phoneInput, "15 99604-6021");
@@ -240,7 +240,7 @@ describe("OnboardingPage profile tab", () => {
     const user = userEvent.setup();
     render(React.createElement(OnboardingPage));
 
-    const phoneInput = screen.getByPlaceholderText("Ex.: 11 99999-8888");
+    const phoneInput = screen.getByPlaceholderText("Ex.: (11) 99999-8888");
     await user.clear(phoneInput);
     await user.type(phoneInput, "15 99604-6021");
     await user.click(screen.getByRole("button", { name: "Salvar perfil" }));
