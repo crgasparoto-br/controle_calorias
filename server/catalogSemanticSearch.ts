@@ -13,6 +13,7 @@ import type { NutritionSearchTelemetryContext } from "./nutritionSearchDecisionT
 type NutritionSearchCategory = "chocolate" | "cookie" | "branded_product";
 type SemanticSearchOptions = {
   searchSpecificProduct?: boolean;
+  searchGenericNutrition?: boolean;
   skipNutritionSearch?: boolean;
   nutritionSearchTelemetry?: NutritionSearchTelemetryContext;
 };
@@ -47,7 +48,10 @@ export async function findCatalogFoodSemantic(
   foodName: string,
   options: SemanticSearchOptions = {},
 ): Promise<CatalogFood | null> {
-  if (options.searchSpecificProduct && !options.skipNutritionSearch) {
+  if (
+    (options.searchSpecificProduct || options.searchGenericNutrition) &&
+    !options.skipNutritionSearch
+  ) {
     return preserveLiveResearchProvenance(
       options.nutritionSearchTelemetry
         ? await findBrandedNutritionByWebSearch(foodName, brandedNutritionRuntime, {

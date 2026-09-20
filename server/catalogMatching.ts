@@ -141,6 +141,7 @@ const NON_BRAND_REMAINDER_TOKENS = new Set([
   "desnatada",
   "desnatado",
   "extra",
+  "fazenda",
   "forma",
   "frango",
   "frances",

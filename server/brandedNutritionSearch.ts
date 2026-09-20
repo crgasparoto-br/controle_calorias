@@ -4,7 +4,11 @@ import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
 import { isFoodCandidateSemanticallyCompatible } from "./foodSemanticCompatibility";
-import { extractCommercialVariant, isCommercialProductIdentityCompatible } from "./commercialProductIdentity";
+import {
+  extractCommercialVariant,
+  isCommercialProductIdentityCompatible,
+  isCommercialServingMeasureCompatible,
+} from "./commercialProductIdentity";
 import type { NutritionResearchPersistence } from "./brandedNutritionPersistence";
 import type { CatalogFood } from "./nutritionEngineTypes";
 import {
@@ -154,16 +158,31 @@ function approximatelyEqual(left: number, right: number) {
 }
 
 function structuredIdentityIsCompatible(foodName: string, result: SearchedNutritionResult) {
-  if (!isCommercialProductIdentityCompatible({
+  const identity = {
     foodName,
     matchedProductName: result.matchedProductName,
     brandName: result.brandName,
     servingLabel: result.servingLabel,
     gramsPerServing: result.gramsPerServing,
-  })) return false;
+  };
+  if (result.brandName.trim()) {
+    if (!isCommercialProductIdentityCompatible(identity)) return false;
+  } else {
+    const requestedTokens = compactTokens(foodName);
+    const candidateTokens = new Set(compactTokens(result.matchedProductName));
+    if (
+      !requestedTokens.length ||
+      !requestedTokens.every(token => candidateTokens.has(token)) ||
+      !isFoodCandidateSemanticallyCompatible(foodName, [
+        result.matchedProductName,
+        result.servingLabel,
+      ]) ||
+      !isCommercialServingMeasureCompatible(identity)
+    ) return false;
+  }
 
   const expectedBrandTokens = brandTokens(result.brandName);
-  if (!expectedBrandTokens.length || !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
+  if (expectedBrandTokens.length && !textContainsAllTokens(foodName, expectedBrandTokens)) return false;
 
   return isFoodCandidateSemanticallyCompatible(foodName, [
     result.matchedProductName,
@@ -244,7 +263,7 @@ function sourceSupportsCommercialIdentity(
 ) {
   const sourceText = [source.url, source.title ?? "", ...(source.supportingText ?? [])].join(" ");
   const requiredBrandTokens = brandTokens(result.brandName);
-  if (!requiredBrandTokens.length || !textContainsAllTokens(sourceText, requiredBrandTokens)) return false;
+  if (requiredBrandTokens.length && !textContainsAllTokens(sourceText, requiredBrandTokens)) return false;
 
   const requiredVariantTokens = brandTokens(extractCommercialVariant(result.matchedProductName) ?? "");
   if (requiredVariantTokens.length && !textContainsAllTokens(sourceText, requiredVariantTokens)) return false;
@@ -252,7 +271,9 @@ function sourceSupportsCommercialIdentity(
   const requestTokens = compactTokens(foodName).filter(token => !requiredBrandTokens.includes(token));
   const candidateTokens = new Set(compactTokens(result.matchedProductName));
   const discriminants = requestTokens.filter(token => candidateTokens.has(token));
-  return discriminants.length === 0 || discriminants.some(token => textContainsAllTokens(sourceText, [token]));
+  return requiredBrandTokens.length
+    ? discriminants.length === 0 || discriminants.some(token => textContainsAllTokens(sourceText, [token]))
+    : discriminants.length > 0 && discriminants.some(token => textContainsAllTokens(sourceText, [token]));
 }
 
 function sourceSupportsServing(
@@ -430,8 +451,8 @@ function toCatalogFood(
     protein: result.protein,
     carbs: result.carbs,
     fat: result.fat,
-    brandName: result.brandName.trim(),
-    isBrandedProduct: true,
+    brandName: result.brandName.trim() || null,
+    isBrandedProduct: Boolean(result.brandName.trim()),
   };
 }
 
@@ -489,8 +510,9 @@ export async function findBrandedNutritionByWebSearch(
           {
             model: attempt.model,
             instructions: [
-              "Você pesquisa informações nutricionais de produtos alimentícios e bebidas industrializados com marca.",
-              "Use busca na internet e aceite somente fonte específica e verificável para o mesmo produto, marca, variante e porção.",
+              "Você pesquisa informações nutricionais de alimentos genéricos e de produtos alimentícios ou bebidas industrializados com marca.",
+              "Use busca na internet e aceite somente fonte específica e verificável para o mesmo alimento, produto, marca, variante e porção.",
+              "Para alimento genérico sem marca, não invente marca nem escolha outra categoria; se houver dúvida sobre a preparação ou variante, retorne brandName vazio e found=false.",
               "Não use média genérica nem outra marca/variante; em caso de dúvida retorne found=false.",
               "Retorne apenas JSON válido no schema solicitado.",
             ].join("\n"),

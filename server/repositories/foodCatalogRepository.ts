@@ -52,7 +52,7 @@ export type NutritionResearchUpsertInput = {
   slug: string;
   name: string;
   aliases: string;
-  brandName: string;
+  brandName: string | null;
   productVariant: string | null;
   servingLabel: string;
   servingUnit: string;
@@ -153,13 +153,16 @@ export function createDrizzleFoodCatalogRepository(deps: {
     async upsertResearchedNutrition(input) {
       const db = await deps.getDb();
       if (!db) return 0;
+      const foodType: "generic" | "branded" = input.brandName
+        ? "branded"
+        : "generic";
       const values = {
         slug: input.slug,
         name: input.name,
         aliases: input.aliases,
         brandName: input.brandName,
         productVariant: input.productVariant,
-        foodType: "branded" as const,
+        foodType,
         dataSource: "web_nutrition",
         servingLabel: input.servingLabel,
         servingUnit: input.servingUnit,

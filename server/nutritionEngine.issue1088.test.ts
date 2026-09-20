@@ -398,6 +398,68 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     );
   });
 
+  it("recupera a marca do foodName da imagem e aciona a busca específica", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-commercial-1088",
+      outputText: JSON.stringify({
+        mealLabel: "Café da manhã",
+        confidence: 0.9,
+        reasoning: "Produto comercial identificado visualmente.",
+        items: [
+          {
+            foodName: "Manteiga Batavo Extra com Sal",
+            brand: null,
+            quantity: 20,
+            unit: "g",
+            portionText: "20 g",
+            servings: 0.2,
+            estimatedGrams: 20,
+            estimatedCalories: 30,
+            estimatedMacros: { protein: 1.2, carbs: 3, fat: 1 },
+            confidence: 0.82,
+            foodClassification: {
+              processingLevel: "processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 0,
+              isPlainWater: false,
+            },
+          },
+        ],
+      }),
+      raw: {},
+    });
+    findCatalogFoodSemanticMock.mockResolvedValue(verifiedCommercialFood());
+
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,meal-image",
+    });
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        foodName: "Manteiga Batavo Extra com Sal",
+        brand: "Batavo",
+        calories: 140,
+        protein: 0.1,
+        carbs: 0.2,
+        fat: 15.6,
+        source: "catalog",
+        resolution: expect.objectContaining({
+          nutritionOrigin: "web_research",
+          nutritionVerified: true,
+        }),
+      })
+    );
+    expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
+      expect.stringMatching(/Manteiga Batavo Extra com Sal/i),
+      expect.objectContaining({ searchSpecificProduct: true })
+    );
+    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith(
+      "generic_nutrition_fallback",
+      expect.anything()
+    );
+  });
+
   it("mantém o fallback genérico somente para alimento sem identidade comercial", async () => {
     installAiFailure();
 

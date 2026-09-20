@@ -16,7 +16,9 @@ const phase = process.env.ISSUE_1057_RESTART_PHASE ?? "parent";
 const RESTART_TEST_USER_ID = 1057002;
 const CONCURRENCY_TEST_USER_ID = 1057003;
 const ORIGINAL_TEXT = "2 fatias de pão de forma Panco";
-const REPLY_TEXT = "Pão de forma Panco Premium";
+const REPLY_TEXT = "Pão de forma Panco Variante Inexistente 1057";
+const EXPECTED_REGISTRATION_TEXT =
+  "2 fatias de pão de forma Panco Variante Inexistente 1057";
 const ORIGINAL_MESSAGE_ID = "wamid-1057-restart-origin";
 const REPLY_MESSAGE_ID = "wamid-1057-restart-reply";
 const scriptPath = fileURLToPath(import.meta.url);
@@ -350,14 +352,14 @@ async function runRestartControl(connection: mysql.Connection) {
   assert.equal(successorTarget.inboundMessageId, ORIGINAL_MESSAGE_ID);
   assert.equal(
     successorTarget.registrationText,
-    "2 fatias de pão de forma Panco Premium"
+    EXPECTED_REGISTRATION_TEXT
   );
 
   const countableContext = successorTarget.countableContext as
     | { registrationSegments?: unknown[] }
     | undefined;
   assert.deepEqual(countableContext?.registrationSegments, [
-    "2 fatias de pão de forma Panco Premium",
+    EXPECTED_REGISTRATION_TEXT,
   ]);
   assert.doesNotMatch(
     String(successorTarget.registrationText),
@@ -444,7 +446,7 @@ async function runConcurrencyControl(connection: mysql.Connection) {
   const successorTarget = parseJsonTarget(pendingRows[1]?.target);
   assert.equal(
     successorTarget.registrationText,
-    "2 fatias de pão de forma Panco Premium"
+    EXPECTED_REGISTRATION_TEXT
   );
 
   const [mealRows] = await connection.query<mysql.RowDataPacket[]>(

@@ -244,17 +244,13 @@ export function recoverExplicitBrandFromSource(
   item: LlmItem,
   sourceText?: string
 ): LlmItem {
-  if (item.brand || !sourceText?.trim()) return item;
-  const sourceFoodName = findSourceFoodSegmentForInferenceItem(
-    item,
-    sourceText
-  );
-  const sourceBrand = detectKnownBrand(sourceFoodName ?? "");
+  if (item.brand) return item;
+  const sourceFoodName =
+    findSourceFoodSegmentForInferenceItem(item, sourceText) ?? item.foodName;
+  const sourceBrand = detectKnownBrand(sourceFoodName);
   if (sourceBrand) return { ...item, brand: sourceBrand };
 
-  const commercialHint = inferUnresolvedCommercialIdentityHint(
-    sourceFoodName ?? ""
-  );
+  const commercialHint = inferUnresolvedCommercialIdentityHint(sourceFoodName);
   if (commercialHint?.brand && isNaturalProduceVariant(item, sourceFoodName)) {
     // A residual token in a naturally classified fruit/vegetable is more likely
     // to be a cultivar or variety (e.g. "laranja pêra") than a commercial
@@ -521,14 +517,32 @@ async function findMostSpecificCatalogForInferenceItem(
 
   for (const [index, candidate] of candidates.entries()) {
     if (item.brand && index > 0) break;
-    const catalog =
-      (await findCatalogFoodSemantic(candidate, {
-        searchSpecificProduct: Boolean(item.brand) && index === 0,
-        skipNutritionSearch: index > 0,
-        ...(options.nutritionSearchTelemetry
-          ? { nutritionSearchTelemetry: options.nutritionSearchTelemetry }
-          : {}),
-      }).catch(() => null)) ?? undefined;
+    const semanticSearchOptions = {
+      searchSpecificProduct: Boolean(item.brand) && index === 0,
+      skipNutritionSearch: index > 0,
+      ...(options.nutritionSearchTelemetry
+        ? { nutritionSearchTelemetry: options.nutritionSearchTelemetry }
+        : {}),
+    };
+    let catalog =
+      (await findCatalogFoodSemantic(candidate, semanticSearchOptions).catch(
+        () => null
+      )) ?? undefined;
+    if (
+      !catalog &&
+      !item.brand &&
+      options.searchGenericNutrition &&
+      index === 0
+    ) {
+      catalog =
+        (await findCatalogFoodSemantic(candidate, {
+          searchGenericNutrition: true,
+          skipNutritionSearch: false,
+          ...(options.nutritionSearchTelemetry
+            ? { nutritionSearchTelemetry: options.nutritionSearchTelemetry }
+            : {}),
+        }).catch(() => null)) ?? undefined;
+    }
     if (
       !catalog ||
       !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)
@@ -1083,7 +1097,10 @@ function mealDraftItemToInferenceItem(item: MealDraftItem): LlmItem {
 async function resolveCommercialItemsFromTextFallback(
   items: MealDraftItem[],
   sourceText: string,
-  options: Pick<BuildItemsOptions, "skipCommercialNutritionSearch"> = {}
+  options: Pick<
+    BuildItemsOptions,
+    "skipCommercialNutritionSearch" | "searchGenericNutrition"
+  > = {}
 ) {
   const resolved: MealDraftItem[] = [];
   for (const item of items) {
@@ -1094,7 +1111,7 @@ async function resolveCommercialItemsFromTextFallback(
 
     const [resolvedItem] = await buildItemsFromInference(
       [mealDraftItemToInferenceItem(item)],
-      { sourceText, ...options }
+      { sourceText, searchGenericNutrition: true, ...options }
     );
     resolved.push(resolvedItem ?? item);
   }
@@ -1205,6 +1222,7 @@ export async function processMealInput(
           inferenceItems,
           {
             preferInferredNutrition: Boolean(input.imageUrl),
+            searchGenericNutrition: true,
             skipCommercialNutritionSearch: Boolean(
               input.skipCommercialNutritionSearch
             ),
