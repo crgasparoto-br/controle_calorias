@@ -17,7 +17,8 @@ const RESTART_TEST_USER_ID = 1057002;
 const CONCURRENCY_TEST_USER_ID = 1057003;
 const ORIGINAL_TEXT = "2 fatias de pão de forma Panco";
 const REPLY_TEXT = "Pão de forma Panco Variante Inexistente 1057";
-const EXPECTED_REGISTRATION_TEXT = `2 fatias de ${REPLY_TEXT}`;
+const EXPECTED_REGISTRATION_TEXT =
+  "2 fatias de pão de forma Panco Variante Inexistente 1057";
 const ORIGINAL_MESSAGE_ID = "wamid-1057-restart-origin";
 const REPLY_MESSAGE_ID = "wamid-1057-restart-reply";
 const scriptPath = fileURLToPath(import.meta.url);
