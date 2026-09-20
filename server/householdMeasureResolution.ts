@@ -106,6 +106,9 @@ export type HouseholdMeasureResolutionInput = {
   userId: number;
   foodName: string;
   brand?: string | null;
+  variant?: string | null;
+  context?: string | null;
+  portionLabel?: string | null;
   quantity: number;
   unit: string;
   /** Identity already accepted by the canonical nutrition resolver. */
@@ -900,7 +903,12 @@ export async function resolveHouseholdMeasure(
   const normalizedUnit = normalizeCountableUnit(input.unit);
   if (["mg", "g", "kg", "ml", "l"].includes(normalizedUnit)) return null;
 
-  const normalizedInput = { ...input, unit: normalizedUnit };
+  const normalizedInput = {
+    ...input,
+    unit: normalizedUnit,
+    variant: input.variant ?? input.commercialFood?.productVariant ?? null,
+    portionLabel: input.portionLabel ?? input.commercialFood?.servingLabel ?? null,
+  };
   if (input.commercialFood) {
     const food = input.commercialFood;
     const labelQuantities = extractExplicitQuantities(food.servingLabel);

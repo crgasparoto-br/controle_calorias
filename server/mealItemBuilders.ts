@@ -110,6 +110,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     foodName: formatRecognizedProductIdentity(recognizedProductName, brand),
     canonicalName: formatFoodNameTitleCase(food.name),
     brand,
+    productVariant: food.productVariant ?? null,
     portionText,
     quantity,
     unit,

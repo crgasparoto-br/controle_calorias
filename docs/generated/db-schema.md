@@ -36,6 +36,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `waterGoals` | `waterGoals` | 5 | Requer atenção |
 | `waterLogs` | `waterLogs` | 6 | Requer atenção |
 | `userPreferences` | `userPreferences` | 6 | Requer atenção |
+| `whatsappLearningArtifacts` | `whatsappLearningArtifacts` | 9 | Requer atenção |
 | `userRestrictions` | `userRestrictions` | 8 | Requer atenção |
 | `whatsappConnections` | `whatsappConnections` | 7 | Requer atenção |
 | `whatsappConversations` | `whatsappConversations` | 11 | Requer atenção |
@@ -113,6 +114,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 - `waterGoals` via export `waterGoals`.
 - `waterLogs` via export `waterLogs`.
 - `userPreferences` via export `userPreferences`.
+- `whatsappLearningArtifacts` via export `whatsappLearningArtifacts`.
 - `userRestrictions` via export `userRestrictions`.
 - `whatsappConnections` via export `whatsappConnections`.
 - `whatsappConversations` via export `whatsappConversations`.

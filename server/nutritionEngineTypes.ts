@@ -122,6 +122,7 @@ export type MealDraftItem = {
   foodName: string;
   canonicalName: string;
   brand?: string | null;
+  productVariant?: string | null;
   quantity: number;
   unit: string;
   portionText: string;

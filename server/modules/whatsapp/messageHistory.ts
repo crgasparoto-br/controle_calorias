@@ -8,6 +8,10 @@ import {
 import type { WhatsappAiToolTrace } from "./aiToolContract";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
 import type { WhatsappIntentOperationalTrace, WhatsappIntentValidationStatus } from "./intentAuditLog";
+import {
+  listPersistedWhatsappLearningArtifacts,
+  persistWhatsappLearningArtifact,
+} from "./learningArtifactPersistence";
 
 export type WhatsappMessageHistoryInputType =
   | "text"
@@ -27,6 +31,26 @@ export type WhatsappMessageHistoryStatus =
   | "blocked"
   | "pending"
   | "duplicate";
+
+export type WhatsappMessageItemObservation = {
+  itemIndex: number;
+  foodName: string;
+  brand: string | null;
+  variant: string | null;
+  quantity: number | null;
+  unit: string | null;
+  portion: string | null;
+  nutritionSource: string | null;
+  nutritionEstimated: boolean | null;
+  confidence: number | null;
+  ambiguous: boolean;
+  corrected: boolean;
+  fallback: boolean;
+  fallbackSafe: boolean | null;
+  brandEvidence: "text" | "transcription" | "ocr" | "vision" | "memory" | "unknown";
+  variantEvidence: "text" | "transcription" | "ocr" | "vision" | "memory" | "unknown";
+  quantityEvidence: "text" | "transcription" | "ocr" | "vision" | "memory" | "unknown";
+};
 
 export type WhatsappMessageHistoryPurpose = "operation" | "audit" | "individual_learning" | "global_learning";
 
@@ -63,10 +87,12 @@ export type WhatsappMessageHistoryEntry = {
     hasQuantity: boolean;
     foods: string[];
     brands: string[];
+    variants?: string[];
     quantity: { value: number; unit: string } | null;
     mealLabel: string | null;
     date: string | null;
   };
+  itemObservations?: WhatsappMessageItemObservation[];
   calculation: {
     expression: string;
     result: number | null;
@@ -133,6 +159,8 @@ type RecordWhatsappMessageHistoryInput = {
   persisted?: Partial<WhatsappMessageHistoryEntry["persisted"]>;
   linkedHistoryId?: number | null;
   correctionOfHistoryId?: number | null;
+  itemObservations?: WhatsappMessageItemObservation[];
+  fallbackSafe?: boolean | null;
   allowRawContentStorage?: boolean;
   createdAt?: Date;
 };
@@ -236,10 +264,46 @@ function buildEntities(intent?: WhatsappInterpretedIntent | null): WhatsappMessa
     hasQuantity: Boolean(intent?.quantity),
     foods: intent?.items.map(item => item.foodName).filter(Boolean) ?? [],
     brands: intent?.items.map(item => item.brand).filter((brand): brand is string => Boolean(brand)) ?? [],
+    variants: intent?.items.map(item => item.variant).filter((variant): variant is string => Boolean(variant)) ?? [],
     quantity: intent?.quantity ? { value: intent.quantity.value, unit: intent.quantity.unit } : null,
     mealLabel: intent?.meal?.label ?? null,
     date: intent?.date ?? null,
   };
+}
+
+function evidenceFor(inputType: WhatsappMessageHistoryInputType, value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "unknown" as const;
+  if (inputType === "audio_transcript") return "transcription" as const;
+  if (inputType === "image_caption") return "ocr" as const;
+  if (inputType === "multimodal") return "vision" as const;
+  return "text" as const;
+}
+
+function buildItemObservations(input: RecordWhatsappMessageHistoryInput): WhatsappMessageItemObservation[] {
+  if (input.itemObservations) return input.itemObservations.map(item => ({ ...item }));
+  const intent = input.intent;
+  if (!intent?.items.length) return [];
+  const inputType = input.inputType ?? "text";
+  const fallback = Boolean(input.replyKind === "fallback" || input.action?.includes("fallback") || input.fallbackReason === "fallback");
+  return intent.items.map((item, itemIndex) => ({
+    itemIndex,
+    foodName: item.foodName,
+    brand: item.brand ?? null,
+    variant: item.variant ?? null,
+    quantity: item.quantity ?? null,
+    unit: item.unit ?? null,
+    portion: item.unit && item.quantity ? `${item.quantity} ${item.unit}` : null,
+    nutritionSource: input.nutritionSource?.sourceType ?? null,
+    nutritionEstimated: input.nutritionSource?.estimated ?? null,
+    confidence: clampConfidence(intent.confidence),
+    ambiguous: input.status === "ambiguous" || input.replyKind === "clarification" || Boolean(intent.requiresConfirmation),
+    corrected: input.correctionOfHistoryId !== undefined && input.correctionOfHistoryId !== null,
+    fallback,
+    fallbackSafe: input.fallbackSafe ?? null,
+    brandEvidence: evidenceFor(inputType, item.brand),
+    variantEvidence: evidenceFor(inputType, item.variant),
+    quantityEvidence: evidenceFor(inputType, item.quantity),
+  }));
 }
 
 function hasPersistentTool(toolTrace: WhatsappAiToolTrace[]) {
@@ -315,6 +379,7 @@ export function recordWhatsappMessageHistory(input: RecordWhatsappMessageHistory
     confidence,
     validationStatus: input.validationStatus ?? null,
     entities: buildEntities(input.intent),
+    itemObservations: buildItemObservations(input),
     calculation: input.calculation ?? null,
     nutritionSource: input.nutritionSource ?? null,
     versions: {
@@ -344,7 +409,48 @@ export function recordWhatsappMessageHistory(input: RecordWhatsappMessageHistory
   nextHistoryId += 1;
   entries.push(entry);
   pruneHistory();
+  void persistWhatsappMessageHistoryEntry(entry);
   return entry;
+}
+
+export async function persistWhatsappMessageHistoryEntry(entry: WhatsappMessageHistoryEntry) {
+  return persistWhatsappLearningArtifact({
+    scope: entry.userId === null ? "global" : "user",
+    userId: entry.userId,
+    kind: "message_history",
+    key: `history:${entry.id}`,
+    value: entry,
+    createdAt: new Date(entry.createdAt),
+  });
+}
+
+export async function recordWhatsappMessageHistoryDurably(input: RecordWhatsappMessageHistoryInput) {
+  const entry = recordWhatsappMessageHistory(input);
+  const persisted = await persistWhatsappMessageHistoryEntry(entry);
+  return { entry, persisted: Boolean(persisted) };
+}
+
+export async function loadPersistedWhatsappMessageHistory(userId: number): Promise<WhatsappMessageHistoryEntry[] | null> {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappMessageHistoryEntry>({
+    scope: "user",
+    userId,
+    kind: "message_history",
+  });
+  if (artifacts === null) return null;
+  return artifacts
+    .map(artifact => artifact.value)
+    .filter((entry): entry is WhatsappMessageHistoryEntry => Boolean(entry && typeof entry.id === "number"))
+    .sort((a, b) => a.id - b.id);
+}
+
+export function hydrateWhatsappMessageHistory(entriesToHydrate: WhatsappMessageHistoryEntry[]) {
+  const knownIds = new Set(entries.map(entry => entry.id));
+  for (const entry of entriesToHydrate) {
+    if (!knownIds.has(entry.id)) entries.push(entry);
+  }
+  entries.sort((a, b) => a.id - b.id);
+  nextHistoryId = Math.max(nextHistoryId, (entries.at(-1)?.id ?? 0) + 1);
+  pruneHistory();
 }
 
 export function listWhatsappMessageHistory(filter: ListWhatsappMessageHistoryFilter = {}) {
