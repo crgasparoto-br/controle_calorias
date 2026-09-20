@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 
 const root = process.cwd();
-const BASELINE_SHA = "394337d1166c4d12df3c78010246f65a63037eee";
+const BASELINE_SHA = "521b645182f3811bf904cb28aafb152b990ed184";
 const HISTORICAL_BASELINE_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
 const PHASE_COMMITS = {
   issue1094: "8b2540f3",
@@ -14,7 +14,7 @@ const baselineTotals = {
   processMealInput: 7,
   nutritionSearchAttempts: 12,
   nutritionSearchOutbound: 9,
-  roundTrips: 23,
+  roundTrips: 29,
   persistedMeals: 12,
   persistedItems: 16,
   pendingClaimed: 2,

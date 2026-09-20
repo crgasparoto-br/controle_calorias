@@ -57,7 +57,7 @@ type SemanticFactSnapshot = {
 
 const nativeFetch = globalThis.fetch.bind(globalThis);
 const BASELINE_DEVELOP_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
-const METRICS_BASELINE_DEVELOP_SHA = "394337d1166c4d12df3c78010246f65a63037eee";
+const METRICS_BASELINE_DEVELOP_SHA = "521b645182f3811bf904cb28aafb152b990ed184";
 const F0_07_REVALIDATION = {
   status: "revalidated" as const,
   baselineSha: BASELINE_DEVELOP_SHA,
