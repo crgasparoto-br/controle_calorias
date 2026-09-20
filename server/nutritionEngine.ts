@@ -808,14 +808,44 @@ async function buildItemsFromInference(
       normalizedItem,
       options.sourceText
     );
-    const { catalog, isExactMatch, alternatives, semanticSource } =
-      await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+    const semanticSource = resolveSemanticSourceForInferenceItem(
+      resolvedItem,
+      options.sourceText
+    );
     const verifiedNutritionLabelEvidence = options.preferInferredNutrition
       ? verifyNutritionLabelEvidence(
           resolvedItem,
           options.nutritionLabelEvidenceText
         )
       : null;
+    const requestedVariant = extractCommercialVariant(semanticSource);
+    const canUseVerifiedNutritionLabel = Boolean(
+      resolvedItem.brand &&
+        options.preferInferredNutrition &&
+        verifiedNutritionLabelEvidence &&
+        requestedVariant
+    );
+
+    if (canUseVerifiedNutritionLabel && verifiedNutritionLabelEvidence) {
+      results.push({
+        ...buildHybridItem(resolvedItem),
+        resolution: {
+          productVariant: requestedVariant,
+          nutritionOrigin: "nutrition_label",
+          nutritionVerified: true,
+          sourceUrls: [],
+          sourceEvidence: verifiedNutritionLabelEvidence.raw,
+          sourceVerifiedAt: null,
+          sourceConfidence: resolvedItem.confidence,
+          ambiguity: null,
+        },
+      });
+      continue;
+    }
+
+    const { catalog, isExactMatch, alternatives } =
+      await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+
     if (!catalog) {
       observeFallback?.("catalog_miss");
     }
@@ -836,14 +866,6 @@ async function buildItemsFromInference(
       continue;
     }
 
-    const requestedVariant = extractCommercialVariant(semanticSource);
-    const canUseVerifiedNutritionLabel = Boolean(
-      resolvedItem.brand &&
-        options.preferInferredNutrition &&
-        verifiedNutritionLabelEvidence &&
-        requestedVariant
-    );
-
     if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
       results.push({
         ...buildUnresolvedBrandedNutritionItem(resolvedItem),
@@ -851,23 +873,6 @@ async function buildItemsFromInference(
           semanticSource,
           alternatives,
         }),
-      });
-      continue;
-    }
-
-    if (canUseVerifiedNutritionLabel && verifiedNutritionLabelEvidence) {
-      results.push({
-        ...buildHybridItem(resolvedItem),
-        resolution: {
-          productVariant: requestedVariant,
-          nutritionOrigin: "nutrition_label",
-          nutritionVerified: true,
-          sourceUrls: [],
-          sourceEvidence: verifiedNutritionLabelEvidence.raw,
-          sourceVerifiedAt: null,
-          sourceConfidence: resolvedItem.confidence,
-          ambiguity: null,
-        },
       });
       continue;
     }

@@ -210,6 +210,42 @@ describe("issue #1051 — contrato semântico e fail-closed de marca", () => {
     });
   });
 
+  it("prioriza a tabela nutricional validada da imagem sobre um catálogo persistido divergente", async () => {
+    const persistedProduct = {
+      ...premium,
+      calories: 180,
+      protein: 5.2,
+      carbs: 31,
+      fat: 2.4,
+    };
+    findCatalogFoodSemanticMock.mockResolvedValue(persistedProduct);
+    getCatalogCacheMock.mockReturnValue([persistedProduct]);
+    const evidence = "NUTRITION_LABEL_EVIDENCE: serving=1 fatia; kcal=62.5; protein_g=1.95; carbs_g=12; fat_g=0.75";
+    extractWithAiMock.mockResolvedValue(extraction({
+      foodName: "Pão de Forma Panco Premium",
+      reasoning: `Tabela nutricional legível. ${evidence}.`,
+    }));
+
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,aW1hZ2Vt",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      calories: 125,
+      protein: 3.9,
+      carbs: 24,
+      fat: 1.5,
+      source: "hybrid",
+    }));
+    expect(result.semanticContract.items[0].evidence.nutrition).toEqual(
+      expect.objectContaining({
+        origin: "nutrition_label",
+        verified: true,
+      }),
+    );
+    expect(findCatalogFoodSemanticMock).not.toHaveBeenCalled();
+  });
+
   it("não promove mera menção à tabela nutricional sem evidência numérica", async () => {
     extractWithAiMock.mockResolvedValue(extraction({
       foodName: "Pão de Forma Panco Premium",
