@@ -315,6 +315,25 @@ function formatPhoneNumber(value: string) {
   return trimmed;
 }
 
+export function formatNationalPhoneNumber(value: string, countryOption: string) {
+  const countryCode = countryCallingCode(countryOption);
+  const digits = normalizeNationalPhoneDigits(value, countryOption);
+  if (!digits) return "";
+  if (countryCode !== "55") return digits;
+
+  const limitedDigits = digits.slice(0, 11);
+  if (limitedDigits.length <= 2) return `(${limitedDigits}`;
+
+  const areaCode = limitedDigits.slice(0, 2);
+  const subscriberDigits = limitedDigits.slice(2);
+  if (subscriberDigits.length <= 4) return `(${areaCode}) ${subscriberDigits}`;
+  if (limitedDigits.length <= 10) {
+    return `(${areaCode}) ${subscriberDigits.slice(0, 4)}-${subscriberDigits.slice(4)}`;
+  }
+
+  return `(${areaCode}) ${subscriberDigits.slice(0, 5)}-${subscriberDigits.slice(5)}`;
+}
+
 export default function OnboardingPage() {
   const utils = trpc.useUtils();
   const { user } = useAuth();
@@ -395,7 +414,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (whatsappPhoneNumber) {
       setPhoneCountryCode(DEFAULT_PHONE_COUNTRY_OPTION);
-      setPhoneNationalNumber(normalizeNationalPhoneDigits(whatsappPhoneNumber, DEFAULT_PHONE_COUNTRY_OPTION));
+      setPhoneNationalNumber(formatNationalPhoneNumber(whatsappPhoneNumber, DEFAULT_PHONE_COUNTRY_OPTION));
     } else {
       setSendWhatsappGreeting(false);
     }
@@ -697,9 +716,11 @@ export default function OnboardingPage() {
                     countryCode={phoneCountryCode}
                     countryOptions={COUNTRY_CODE_OPTIONS}
                     nationalNumber={phoneNationalNumber}
-                    onCountryCodeChange={setPhoneCountryCode}
-                    onNationalNumberChange={setPhoneNationalNumber}
-                    optional
+                    onCountryCodeChange={value => {
+                      setPhoneCountryCode(value);
+                      setPhoneNationalNumber(current => formatNationalPhoneNumber(current, value));
+                    }}
+                    onNationalNumberChange={value => setPhoneNationalNumber(formatNationalPhoneNumber(value, phoneCountryCode))}
                   />
                   <ReadOnlyField label="E-mail" value={userEmail || "Não informado"} />
                   <TextField label="Data de nascimento" type="date" value={form.birthDate} onChange={value => updateField("birthDate", value)} optional />
@@ -968,17 +989,16 @@ function TextField({ label, value, onChange, inputMode, suffix, type = "text", o
   );
 }
 
-function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCountryCodeChange, onNationalNumberChange, optional = false }: {
+function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCountryCodeChange, onNationalNumberChange }: {
   countryCode: string;
   countryOptions: readonly { value: string; label: string }[];
   nationalNumber: string;
   onCountryCodeChange: (value: string) => void;
   onNationalNumberChange: (value: string) => void;
-  optional?: boolean;
 }) {
   return (
     <div className="min-w-0 space-y-2 rounded-2xl border bg-background p-5">
-      <FieldLabel label="Telefone para WhatsApp" optional={optional} />
+      <FieldLabel label="Telefone" />
       <div className="grid gap-3 sm:grid-cols-[minmax(190px,0.8fr)_1fr]">
         <select
           aria-label="País e código do país"
@@ -992,7 +1012,7 @@ function PhoneNumberField({ countryCode, countryOptions, nationalNumber, onCount
           inputMode="tel"
           value={nationalNumber}
           onChange={event => onNationalNumberChange(event.target.value)}
-          placeholder="Ex.: 11 99999-8888"
+          placeholder="Ex.: (11) 99999-8888"
         />
       </div>
     </div>
