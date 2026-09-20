@@ -212,6 +212,80 @@ describe("brandedNutritionPersistence", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("persiste e reutiliza referência IA de alimento genérico sem marca", async () => {
+    const genericFood = food({
+      slug: "web-nutrition-mussarela",
+      name: "Mussarela",
+      aliases: ["mussarela"],
+      servingLabel: "100 g",
+      gramsPerServing: 100,
+      calories: 329,
+      protein: 22,
+      carbs: 3,
+      fat: 25,
+      fiber: 0,
+      brandName: null,
+      productVariant: null,
+      variants: ["Mussarela"],
+      sourceUrls: ["https://tabela.example/mussarela"],
+      sourceEvidence: "Mussarela 100 g: 329 kcal, 22 g proteínas, 3 g carboidratos e 25 g gorduras.",
+      isBrandedProduct: false,
+    });
+    const stored = row({
+      slug: genericFood.slug,
+      name: genericFood.name,
+      aliases: JSON.stringify(genericFood.aliases),
+      brandName: null,
+      productVariant: null,
+      foodType: "generic",
+      servingLabel: genericFood.servingLabel,
+      gramsPerServing: genericFood.gramsPerServing,
+      calories: genericFood.calories,
+      protein: genericFood.protein,
+      carbs: genericFood.carbs,
+      fat: genericFood.fat,
+      fiber: 0,
+      researchIdentityKey: buildNutritionResearchIdentityKey("mussarela"),
+      sourceUrls: JSON.stringify(genericFood.sourceUrls),
+      sourceEvidence: genericFood.sourceEvidence,
+      sourceConfidence: 0.9,
+      isUltraProcessed: 0,
+    });
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async key =>
+        key === stored.researchIdentityKey ? stored : null
+      ),
+    });
+    const refresh = vi.fn(async () => undefined);
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      refreshCatalogCache: refresh,
+      now: () => now,
+    });
+
+    const saved = await persistence.save("mussarela", genericFood);
+    const reused = await persistence.findByIdentity("mussarela");
+
+    expect(saved).toEqual(expect.objectContaining({
+      brandName: null,
+      isBrandedProduct: false,
+      researchIdentityKey: expect.stringMatching(/^nutrition-research-v1:/),
+    }));
+    expect(repo.upsertResearchedNutrition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brandName: null,
+        productVariant: null,
+        researchIdentityKey: buildNutritionResearchIdentityKey("mussarela"),
+      })
+    );
+    expect(reused).toEqual(expect.objectContaining({
+      name: "Mussarela",
+      brandName: null,
+      calories: 329,
+    }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("não grava variante específica para uma consulta genérica", async () => {
     const repo = repository();
     const persistence = createNutritionResearchPersistence({

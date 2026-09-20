@@ -470,6 +470,10 @@ describe("whatsappWebhook image inbound - água como hidratação", () => {
     expect(processed.items).toHaveLength(1);
     expect(processed.items[0].foodName).toBe("frango");
     expect(processed.totals).toEqual({ calories: 165, protein: 31, carbs: 0, fat: 3.6 });
+    expect(processed.semanticContract?.items).toHaveLength(1);
+    expect(processed.semanticContract?.items[0]).toEqual(
+      expect.objectContaining({ commercialName: "frango" })
+    );
     expect(findFetchCallByBody("Água registrada")).toBeTruthy();
   });
 

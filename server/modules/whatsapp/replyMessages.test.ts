@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWhatsAppConsolidatedMealReplyMessage, buildWhatsAppMealActionReplyMessage, buildWhatsAppMealReplyMessage } from "./replyMessages";
+import { buildWhatsAppPartialRegistrationWarning } from "./replyMessages";
 import type { MealProcessingResult } from "../../nutritionEngine";
 
 const frangoItem = {
@@ -15,6 +16,23 @@ const frangoItem = {
   confidence: 0.9,
   source: "catalog" as const,
 };
+
+describe("buildWhatsAppPartialRegistrationWarning", () => {
+  it("informa o item que ficou de fora e o motivo sem apagar os demais", () => {
+    const reply = buildWhatsAppPartialRegistrationWarning([
+      {
+        segment: "3 xícaras de café",
+        reason:
+          "O preparo ficou ambíguo; não vou assumir calorias para o café genérico.",
+      },
+    ]);
+
+    expect(reply).toContain("*Item não registrado*");
+    expect(reply).toContain("Registrei os demais alimentos válidos da mensagem.");
+    expect(reply).toContain("3 xícaras de café");
+    expect(reply).toContain("não vou assumir calorias");
+  });
+});
 
 function buildProcessedMeal(overrides: Partial<MealProcessingResult> = {}): MealProcessingResult {
   return {

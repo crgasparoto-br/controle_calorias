@@ -311,6 +311,8 @@ export type ExplicitQuantity = {
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
   skipCommercialNutritionSearch?: boolean;
+  /** Consulta a fonte nutricional externa também para alimentos sem marca. */
+  searchGenericNutrition?: boolean;
   /**
    * Evidência textual estruturada emitida pelo extrator visual. O motor só a
    * promove a `nutrition_label` quando a porção-base e os quatro valores
