@@ -2,6 +2,14 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
+import {
+  listNutritionLabelCandidates,
+  listNutritionLabelCandidateAudits,
+  publishNutritionLabelCandidate,
+  rejectNutritionLabelCandidate,
+  requestNutritionLabelCandidatePhoto,
+  rollbackNutritionLabelCandidate,
+} from "./nutritionLabelCandidateService";
 import { analyticsService } from "./analyticsService";
 import { exportUserPrivacyData, requestUserAccountDeletion } from "./db";
 import { generateFoodAssistantSuggestion } from "./modules/assistant/service";
@@ -1115,6 +1123,27 @@ export const nutritionRouter = router({
     curateGlobalFood: adminProcedure
       .input(adminCatalogFoodCurationSchema)
       .mutation(async ({ ctx, input }) => curateGlobalFood(ctx.user.id, input)),
+    nutritionLabelCandidates: adminProcedure
+      .input(z.object({
+        status: z.enum(["pending_review", "photo_requested", "published", "rejected", "rolled_back"]).optional(),
+        userId: z.number().int().positive().optional(),
+      }).optional())
+      .query(async ({ input }) => listNutritionLabelCandidates(input ?? {})),
+    nutritionLabelCandidateAudits: adminProcedure
+      .input(z.object({ candidateId: z.number().int().positive() }))
+      .query(async ({ input }) => listNutritionLabelCandidateAudits(input.candidateId)),
+    publishNutritionLabelCandidate: adminProcedure
+      .input(z.object({ candidateId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => publishNutritionLabelCandidate({ ...input, adminUserId: ctx.user.id })),
+    rejectNutritionLabelCandidate: adminProcedure
+      .input(z.object({ candidateId: z.number().int().positive(), reason: z.string().trim().max(500).optional() }))
+      .mutation(async ({ ctx, input }) => rejectNutritionLabelCandidate({ ...input, adminUserId: ctx.user.id })),
+    requestNutritionLabelCandidatePhoto: adminProcedure
+      .input(z.object({ candidateId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => requestNutritionLabelCandidatePhoto({ ...input, adminUserId: ctx.user.id })),
+    rollbackNutritionLabelCandidate: adminProcedure
+      .input(z.object({ candidateId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => rollbackNutritionLabelCandidate({ ...input, adminUserId: ctx.user.id })),
   }),
 
   whatsapp: router({

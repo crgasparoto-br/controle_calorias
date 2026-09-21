@@ -37,6 +37,33 @@ function deriveUnitFromPortionText(portionText: string) {
   return normalized || "porção";
 }
 
+const mealItemResolutionSchema = z.object({
+  productVariant: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  nutritionOrigin: z.enum([
+    "text", "transcription", "ocr", "vision", "memory", "catalog",
+    "web_research", "nutrition_label", "provisional_estimate",
+    "ai_estimate", "heuristic", "unavailable",
+  ]),
+  nutritionVerified: z.boolean(),
+  sourceUrls: z.array(z.string()).optional(),
+  sourceEvidence: z.string().nullable().optional(),
+  sourceVerifiedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  sourceConfidence: z.number().min(0).max(1).nullable().optional(),
+  measureResolution: z.object({
+    kind: z.string(), grams: z.number(), requestedQuantity: z.number(), requestedUnit: z.string(),
+    sourceUrls: z.array(z.string()), sourceEvidence: z.string().nullable(),
+    referenceCount: z.number().int().nonnegative(), verified: z.boolean(),
+  }).optional(),
+  ambiguity: z.object({
+    reason: z.enum(["brand_variant_unresolved", "commercial_identity_unverified"]),
+    alternatives: z.array(z.object({
+      name: z.string(), brand: z.string().nullable(), productVariant: z.string().nullable(),
+      servingLabel: z.string(), gramsPerServing: z.number(),
+    })),
+  }).nullable().optional(),
+});
+
 const mealItemBaseSchema = z.object({
   foodId: z.number().int().positive().optional(),
   foodCatalogId: z.number().int().positive().nullable().optional(),
@@ -57,6 +84,7 @@ const mealItemBaseSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+  resolution: mealItemResolutionSchema.optional(),
   nutritionSource: nutritionSourceSchema.optional(),
 });
 

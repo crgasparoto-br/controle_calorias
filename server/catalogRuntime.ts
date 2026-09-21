@@ -54,7 +54,13 @@ export async function refreshCatalogCache() {
       return catalogCache;
     }
 
-    catalogCache = rows.map(row => ({
+    const activeRows = rows.filter(row => row.status === "active");
+    if (!activeRows.length) {
+      catalogCache = [...FOOD_CATALOG_REFERENCE];
+      return catalogCache;
+    }
+
+    catalogCache = activeRows.map(row => ({
       slug: row.slug,
       name: row.name,
       aliases: parseAliases(row.aliases),

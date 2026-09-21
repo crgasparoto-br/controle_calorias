@@ -1072,6 +1072,18 @@ export async function confirmPendingMeal(input: {
   await persistMealToDb(savedMeal);
   await updateHabitsFromMeal(savedMeal);
 
+  try {
+    const { recordNutritionLabelCandidates } = await import("./nutritionLabelCandidateService");
+    await recordNutritionLabelCandidates({
+      userId: savedMeal.userId,
+      mealId: savedMeal.id,
+      sourceText: savedMeal.sourceText,
+      items: savedMeal.items,
+    });
+  } catch (error) {
+    logPersistenceWarning("Nutrition label candidate persistence skipped", error);
+  }
+
   // Aprendizado silencioso de aliases pessoais: se o texto original difere do
   // nome canônico, registra o mapeamento para uso futuro sem intervenção do usuário.
   if (savedMeal.sourceText && savedMeal.source === "whatsapp") {

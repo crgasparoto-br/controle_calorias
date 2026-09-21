@@ -26,6 +26,7 @@ import {
   applyExplicitQuantities,
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
+  buildProvisionalBrandedNutritionItem,
   buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
@@ -616,6 +617,36 @@ function unresolvedBrandedResolution(input: {
   };
 }
 
+function provisionalBrandedResolution(input: {
+  semanticSource: string;
+  confidence: number;
+}): MealItemResolutionMetadata {
+  return {
+    productVariant: extractCommercialVariant(input.semanticSource),
+    nutritionOrigin: "provisional_estimate",
+    nutritionVerified: false,
+    sourceUrls: [],
+    sourceEvidence:
+      "Estimativa nutricional provisória baseada na identidade comercial informada; fonte exata ainda não comprovada.",
+    sourceVerifiedAt: null,
+    sourceConfidence: Math.min(input.confidence, 0.7),
+    ambiguity: null,
+  };
+}
+
+function hasSpecificCommercialProductName(foodName: string, brand: string, variant: string) {
+  const genericProductWords = new Set(["alimento", "bebida", "queijo", "requeijao", "iogurte", "leite"]);
+  const excluded = new Set([
+    ...normalizeForMatching(brand).split(/\s+/),
+    ...normalizeForMatching(variant).split(/\s+/),
+  ]);
+  const remaining = normalizeForMatching(foodName)
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(token => !excluded.has(token) && !genericProductWords.has(token));
+  return remaining.length >= 2;
+}
+
 /** The countable preflight uses the same identity, evidence and ambiguity policy as nutrition. */
 export async function resolveCommercialFoodIdentity(
   foodName: string,
@@ -862,6 +893,25 @@ async function buildItemsFromInference(
       results.push({
         ...buildItemFromCatalog(catalog, resolvedItem),
         resolution: catalogResolution(catalog),
+      });
+      continue;
+    }
+
+    if (
+      resolvedItem.brand
+      && requestedVariant
+      && alternatives.length === 0
+      && hasUsableNutrition(resolvedItem)
+      && !options.preferInferredNutrition
+      && hasSpecificCommercialProductName(resolvedItem.foodName, resolvedItem.brand, requestedVariant)
+      && !canUseVerifiedNutritionLabel
+    ) {
+      results.push({
+        ...buildProvisionalBrandedNutritionItem(resolvedItem, requestedVariant),
+        resolution: provisionalBrandedResolution({
+          semanticSource,
+          confidence: resolvedItem.confidence,
+        }),
       });
       continue;
     }

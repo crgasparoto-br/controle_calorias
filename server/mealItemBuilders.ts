@@ -242,6 +242,19 @@ export function buildUnresolvedBrandedNutritionItem(llmItem: LlmItem): MealDraft
   };
 }
 
+export function buildProvisionalBrandedNutritionItem(
+  llmItem: LlmItem,
+  productVariant: string,
+): MealDraftItem {
+  const item = buildHybridItem(llmItem);
+  return {
+    ...item,
+    productVariant: productVariant.trim() || null,
+    source: "hybrid",
+    confidence: Math.min(item.confidence, 0.7),
+  };
+}
+
 export function hasUsableNutrition(item: LlmItem) {
   return item.estimatedCalories > 0
     || item.estimatedMacros.protein > 0

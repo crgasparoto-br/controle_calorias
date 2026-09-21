@@ -94,9 +94,18 @@ import {
   PENDING_CONFIRMATION_TYPE,
   type PendingWhatsAppConfirmation,
 } from "./webhookTextCommands";
+import {
+  buildNutritionLabelPhotoActions,
+  cancelNutritionLabelPhotoRequest,
+  isNutritionLabelPhotoRequestTarget,
+} from "../../nutritionLabelCandidateService";
+import {
+  NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
+  PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
+} from "./nutritionLabelPhotoInteraction";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 8;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 9;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -340,7 +349,49 @@ async function completeProfessionalAccess(input: WhatsappInteractionCallbackInpu
   return completeWhatsAppProfessionalAccessCallback(input.userId, input.pendingOperation, input.action);
 }
 
+function rebuildNutritionLabelPhotoRequest(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target as { instructionText?: string };
+  return { reply: target.instructionText ?? "Envie uma foto legível do rótulo nutricional. Ou envie CANCELAR." };
+}
+
+function classifyNutritionLabelPhotoText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+  return text?.trim().toLowerCase() === "cancelar" ? "resolve" : "invalid";
+}
+
+function resolveNutritionLabelPhotoText(input: WhatsappInteractionTextInput): Promise<WhatsappInteractionTextResult | null> | WhatsappInteractionTextResult | null {
+  if (input.text?.trim().toLowerCase() !== "cancelar") {
+    return {
+      handled: true,
+      action: "nutrition_label_photo_request_waiting",
+      reply: "Envie uma foto legível do rótulo, mostrando a tabela nutricional e a porção. Ou envie CANCELAR.",
+      eventType: "whatsapp.nutrition_label_photo_request.waiting",
+      detail: "Texto incompatível preservou a pendência de foto sem iniciar novo registro.",
+    };
+  }
+  return cancelNutritionLabelPhotoRequest({ userId: input.userId, pendingOperationId: input.pendingOperation.id });
+}
+
 export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteraction[] = [
+  {
+    id: "nutrition_label_photo.request",
+    pendingType: PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
+    origin: NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "open",
+    reconstruction: "pending_target",
+    invalidResponse: "text_guidance",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: ["provide_photo", "cancel", "update_candidate_once"],
+    forbiddenEffects: ["nutrition_fallback", "llm_reinterpretation", "meal_creation"],
+    matches: isNutritionLabelPhotoRequestTarget,
+    actions: () => [...buildNutritionLabelPhotoActions()],
+    classifyText: classifyNutritionLabelPhotoText,
+    resolveText: resolveNutritionLabelPhotoText,
+    rebuild: rebuildNutritionLabelPhotoRequest,
+    completeCallback: input => input.action === "cancel"
+      ? cancelNutritionLabelPhotoRequest({ userId: input.userId, pendingOperationId: input.pendingOperation.id })
+      : null,
+  },
   {
     id: "delete.confirmation",
     pendingType: PENDING_DELETE_TYPE,

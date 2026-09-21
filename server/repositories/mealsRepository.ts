@@ -97,6 +97,16 @@ function resolveMealItemFoodCatalogId(item: MealDraftItem, resolvedCatalogIds: M
   return resolvedCatalogIds.get(item.canonicalName) ?? resolvedCatalogIds.get(item.foodName) ?? null;
 }
 
+function readMealItemResolution(value: string | null | undefined) {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as { resolution?: MealDraftItem["resolution"] };
+    return parsed?.resolution ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
     mealId,
@@ -112,6 +122,9 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
     protein: item.protein,
     carbs: item.carbs,
     fat: item.fat,
+    foodSnapshotJson: item.resolution
+      ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
+      : null,
     source: item.source,
   }));
 }
@@ -228,6 +241,7 @@ export function createDrizzleMealsRepository(deps: {
             fat: item.fat,
             confidence: 0.9,
             source: item.source,
+            resolution: readMealItemResolution(item.foodSnapshotJson),
           });
           itemsByMealId.set(item.mealId, list);
         }

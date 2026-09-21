@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCountPtBr } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, Database, KeyRound, PlayCircle, Save, Search, Shield, Upload, Users } from "lucide-react";
+import { Camera, Check, ChevronLeft, ChevronRight, Database, KeyRound, PlayCircle, RotateCcw, Save, Search, Shield, Upload, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 const FOOD_CATALOG_PAGE_SIZE = 25;
@@ -271,6 +271,8 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
+            <NutritionLabelCandidateReview />
+
             <Card className="border-0 shadow-sm">
               <CardHeader><CardTitle className="flex items-center gap-2"><Database className="h-5 w-5 text-primary" />Base de alimentos usada pelo sistema</CardTitle><CardDescription>Consulte alimentos compartilhados, personalizados e indisponíveis usados nas buscas nutricionais. A consulta carrega até 500 itens e exibe 25 por página; use o filtro para localizar marcas, nomes, categorias ou alimentos específicos.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
@@ -283,6 +285,27 @@ export default function AdminPage() {
       </div>
     </DashboardLayout>
   );
+}
+
+function NutritionLabelCandidateReview() {
+  const candidateEndpoint = (trpc.nutrition.admin as unknown as { nutritionLabelCandidates?: { useQuery?: unknown } }).nutritionLabelCandidates;
+  if (!candidateEndpoint?.useQuery) return null;
+  const utils = trpc.useUtils();
+  const candidates = trpc.nutrition.admin.nutritionLabelCandidates.useQuery(undefined, { retry: false });
+  const refresh = async () => Promise.all([
+    utils.nutrition.admin.nutritionLabelCandidates.invalidate(),
+    utils.nutrition.foods.catalogSearch.invalidate(),
+  ]);
+  const publish = trpc.nutrition.admin.publishNutritionLabelCandidate.useMutation({ onSuccess: async () => { toast.success("Candidato publicado no catálogo global."); await refresh(); }, onError: error => toast.error(error.message) });
+  const reject = trpc.nutrition.admin.rejectNutritionLabelCandidate.useMutation({ onSuccess: async () => { toast.success("Candidato rejeitado."); await refresh(); }, onError: error => toast.error(error.message) });
+  const requestPhoto = trpc.nutrition.admin.requestNutritionLabelCandidatePhoto.useMutation({ onSuccess: async () => { toast.success("Pedido de nova foto enviado pelo WhatsApp."); await refresh(); }, onError: error => toast.error(error.message) });
+  const rollback = trpc.nutrition.admin.rollbackNutritionLabelCandidate.useMutation({ onSuccess: async () => { toast.success("Publicação desativada por rollback."); await refresh(); }, onError: error => toast.error(error.message) });
+  const busy = publish.isPending || reject.isPending || requestPhoto.isPending || rollback.isPending;
+  return <Card className="border-0 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-primary" />Revisão de rótulos nutricionais</CardTitle><CardDescription>Valores extraídos de rótulos entram como candidatos. Publique apenas após revisar identidade, porção, macros e evidência.</CardDescription></CardHeader><CardContent>{candidates.isLoading ? <p className="text-sm text-muted-foreground">Carregando candidatos...</p> : candidates.data?.length ? <div className="space-y-3">{candidates.data.map(candidate => <div key={candidate.id} className="rounded-2xl border bg-background p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{candidate.foodName}</p><Badge variant={candidate.status === "published" ? "default" : "outline"}>{nutritionLabelCandidateStatusLabel(candidate.status)}</Badge></div><p className="text-sm text-muted-foreground">{candidate.brand || "sem marca"}{candidate.productVariant ? ` · ${candidate.productVariant}` : ""} · {candidate.servingLabel}</p><p className="mt-1 text-sm">{formatNutritionValue(candidate.calories)} kcal · P {formatNutritionValue(candidate.protein)}g · C {formatNutritionValue(candidate.carbs)}g · G {formatNutritionValue(candidate.fat)}g</p><p className="mt-1 text-xs text-muted-foreground">{candidate.sourceEvidence}</p></div><div className="flex flex-wrap gap-2">{candidate.status !== "published" && candidate.status !== "rejected" && candidate.status !== "rolled_back" ? <><Button size="sm" className="gap-1" disabled={busy} onClick={() => publish.mutate({ candidateId: candidate.id })}><Check className="h-3 w-3" />Publicar</Button><Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={() => requestPhoto.mutate({ candidateId: candidate.id })}><Camera className="h-3 w-3" />Nova foto</Button><Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={() => reject.mutate({ candidateId: candidate.id })}><X className="h-3 w-3" />Rejeitar</Button></> : null}{candidate.status === "published" ? <Button size="sm" variant="outline" className="gap-1" disabled={busy} onClick={() => rollback.mutate({ candidateId: candidate.id })}><RotateCcw className="h-3 w-3" />Rollback</Button> : null}</div></div></div>)}</div> : <p className="text-sm text-muted-foreground">Nenhum candidato de rótulo na fila.</p>}</CardContent></Card>;
+}
+
+function nutritionLabelCandidateStatusLabel(status: string) {
+  return ({ pending_review: "Pendente de revisão", photo_requested: "Foto solicitada", published: "Publicado", rejected: "Rejeitado", rolled_back: "Em rollback" } as Record<string, string>)[status] ?? status;
 }
 
 function IntroStat({ label, value, supporting }: { label: string; value: string; supporting: string }) {
