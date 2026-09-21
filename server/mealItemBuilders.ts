@@ -245,8 +245,12 @@ export function buildUnresolvedBrandedNutritionItem(llmItem: LlmItem): MealDraft
 export function buildProvisionalBrandedNutritionItem(
   llmItem: LlmItem,
   productVariant: string,
+  identitySource = llmItem.foodName,
 ): MealDraftItem {
-  const item = buildHybridItem(llmItem);
+  const item = buildHybridItem({
+    ...llmItem,
+    foodName: identitySource,
+  });
   return {
     ...item,
     productVariant: productVariant.trim() || null,

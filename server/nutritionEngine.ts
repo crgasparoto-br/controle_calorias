@@ -634,15 +634,37 @@ function provisionalBrandedResolution(input: {
   };
 }
 
-function hasSpecificCommercialProductName(foodName: string, brand: string, variant: string) {
+function hasSpecificCommercialProductName(identitySource: string, brand: string, variant: string) {
   const genericProductWords = new Set(["alimento", "bebida", "queijo", "requeijao", "iogurte", "leite"]);
-  const excluded = new Set([
-    ...normalizeForMatching(brand).split(/\s+/),
-    ...normalizeForMatching(variant).split(/\s+/),
+  const commercialMeasureTokens = new Set([
+    "g", "gr", "grama", "gramas", "kg", "quilo", "quilos", "mg", "ml",
+    "mililitro", "mililitros", "l", "litro", "litros",
   ]);
-  const remaining = normalizeForMatching(foodName)
+  const sourceTokens = normalizeForMatching(identitySource)
+    .trim()
     .split(/\s+/)
     .filter(Boolean)
+    .filter(token =>
+      !commercialMeasureTokens.has(token)
+      && !/^\d+(?:[.,]\d+)?(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)?$/u.test(token)
+    );
+  const brandTokens = normalizeForMatching(brand).split(/\s+/).filter(Boolean);
+  const variantTokens = normalizeForMatching(variant).split(/\s+/).filter(Boolean);
+  const includesAll = (tokens: string[]) =>
+    tokens.length > 0 && tokens.every(token => sourceTokens.includes(token));
+
+  // A generic category becomes specific when the original text also contains
+  // the explicit brand and variant required by issue #1158.
+  if (
+    sourceTokens.some(token => genericProductWords.has(token))
+    && includesAll(brandTokens)
+    && includesAll(variantTokens)
+  ) {
+    return true;
+  }
+
+  const excluded = new Set([...brandTokens, ...variantTokens]);
+  const remaining = sourceTokens
     .filter(token => !excluded.has(token) && !genericProductWords.has(token));
   return remaining.length >= 2;
 }
@@ -903,11 +925,11 @@ async function buildItemsFromInference(
       && alternatives.length === 0
       && hasUsableNutrition(resolvedItem)
       && !options.preferInferredNutrition
-      && hasSpecificCommercialProductName(resolvedItem.foodName, resolvedItem.brand, requestedVariant)
+      && hasSpecificCommercialProductName(semanticSource, resolvedItem.brand, requestedVariant)
       && !canUseVerifiedNutritionLabel
     ) {
       results.push({
-        ...buildProvisionalBrandedNutritionItem(resolvedItem, requestedVariant),
+        ...buildProvisionalBrandedNutritionItem(resolvedItem, requestedVariant, semanticSource),
         resolution: provisionalBrandedResolution({
           semanticSource,
           confidence: resolvedItem.confidence,
