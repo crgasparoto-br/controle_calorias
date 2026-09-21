@@ -77,7 +77,7 @@ describe("nutritionEngine brand and type specificity", () => {
     }));
   });
 
-  it("bloqueia fallback hibrido de marca quando a referencia comercial especifica nao foi comprovada", async () => {
+  it("registra como provisional quando marca e variante estão claras no texto original", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_requeijao_generic",
       outputText: JSON.stringify({
@@ -88,9 +88,9 @@ describe("nutritionEngine brand and type specificity", () => {
           {
             foodName: "requeijão",
             brand: "Catupiry",
-            portionText: "61 g",
+            portionText: "43 g",
             servings: 1,
-            estimatedGrams: 61,
+            estimatedGrams: 43,
             estimatedCalories: 110,
             estimatedMacros: {
               protein: 5,
@@ -110,21 +110,68 @@ describe("nutritionEngine brand and type specificity", () => {
       raw: { mocked: true },
     });
 
+    const { processMealInput } = await import("./nutritionEngine");
+
+    const result = await processMealInput({
+      text: "43 g requeijão Catupiry Light",
+      occurredAt: "2026-07-08T07:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Requeijão Catupiry Light",
+      brand: "Catupiry",
+      estimatedGrams: 43,
+      source: "hybrid",
+      resolution: expect.objectContaining({
+        nutritionOrigin: "provisional_estimate",
+        nutritionVerified: false,
+        productVariant: "light",
+        ambiguity: null,
+      }),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
+  });
+
+  it("continua exigindo clarificação quando só marca e variante aparecem", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_brand_variant_only",
+      outputText: JSON.stringify({
+        mealLabel: "Café da manhã",
+        confidence: 0.86,
+        reasoning: "A identidade do produto não informa a categoria.",
+        items: [{
+          foodName: "Catupiry",
+          brand: "Catupiry",
+          portionText: "43 g",
+          servings: 1,
+          estimatedGrams: 43,
+          estimatedCalories: 110,
+          estimatedMacros: { protein: 5, carbs: 3, fat: 8 },
+          confidence: 0.82,
+          foodClassification: {
+            processingLevel: "ultra_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+          },
+        }],
+      }),
+      raw: { mocked: true },
+    });
+
     const { MealInferenceError, processMealInput } = await import("./nutritionEngine");
 
     await expect(processMealInput({
-      text: "61g requeijão catupiry light",
+      text: "43 g Catupiry Light",
       occurredAt: "2026-07-08T07:00:00-03:00",
       timeZone: "America/Sao_Paulo",
     })).rejects.toMatchObject({
       name: MealInferenceError.name,
       code: "food_identity_clarification_required",
       context: expect.objectContaining({
-        brand: "Catupiry",
         clarificationReason: "commercial_identity_unverified",
-        semanticContract: expect.objectContaining({
-          needsClarification: true,
-        }),
+        semanticContract: expect.objectContaining({ needsClarification: true }),
       }),
     });
   });
