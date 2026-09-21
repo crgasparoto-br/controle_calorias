@@ -118,9 +118,19 @@ function extractCommercialTokens(value: string) {
     );
 }
 
+function extractCommercialVariantTokens(value: string) {
+  const tokens = extractCommercialTokens(value);
+  const compact = normalizeCommercialText(value).replace(/[^a-z0-9]/g, "");
+  return new Set([
+    ...tokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
+    ...[...COMMERCIAL_VARIANT_TOKENS].filter(
+      token => compact.includes(token) && !tokens.includes(token),
+    ),
+  ]);
+}
+
 export function extractCommercialVariant(value: string): string | null {
-  const variantTokens = extractCommercialTokens(value)
-    .filter(token => COMMERCIAL_VARIANT_TOKENS.has(token));
+  const variantTokens = [...extractCommercialVariantTokens(value)];
   return variantTokens.length ? variantTokens.join(" ") : null;
 }
 
@@ -202,9 +212,7 @@ function compareCommercialIdentity(input: {
   const requestedVariants = new Set(
     requestedTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
   );
-  const candidateVariants = new Set(
-    candidateProductTokens.filter(token => COMMERCIAL_VARIANT_TOKENS.has(token)),
-  );
+  const candidateVariants = extractCommercialVariantTokens(input.matchedProductName);
 
   return {
     requestedTokens,
@@ -291,14 +299,13 @@ export function isPersistedProductIdentityCompatible(input: {
 }) {
   const comparison = compareCommercialIdentity(input);
 
-  if (!comparison.requestedTokens.every(token =>
+  const hasAllRequestedTokens = comparison.requestedTokens.every(token =>
     comparison.candidateTokens.has(token) || comparison.candidateCompact.includes(token)
-  )) {
-    return Boolean(
-      comparison.requestedCompact
-      && comparison.candidateCompact.includes(comparison.requestedCompact),
-    );
-  }
+  );
+  if (
+    !hasAllRequestedTokens &&
+    (!comparison.requestedCompact || !comparison.candidateCompact.includes(comparison.requestedCompact))
+  ) return false;
 
   if (comparison.requestedVariants.size === 0 && comparison.candidateVariants.size > 0) return false;
   if (

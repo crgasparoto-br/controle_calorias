@@ -14,6 +14,7 @@ import {
 } from "./commercialProductIdentity";
 
 const RESEARCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MIN_PERSISTED_SOURCE_CONFIDENCE = 0.72;
 
 export type NutritionResearchPersistence = {
   findByIdentity(foodName: string): Promise<CatalogFood | null>;
@@ -33,6 +34,12 @@ function normalizeIdentityPart(value: string | null | undefined) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function identityTokens(value: string | null | undefined) {
+  return normalizeIdentityPart(value)
+    .split(/[^a-z0-9]+/g)
+    .filter(token => token.length >= 2);
 }
 
 export function buildNutritionResearchIdentityKey(
@@ -91,7 +98,76 @@ function isFresh(row: FoodCatalogRow, now: Date) {
   );
 }
 
+function hasUsableSourceUrls(value: string | null | undefined) {
+  if (!value?.trim()) return false;
+
+  let urls: unknown;
+  try {
+    urls = JSON.parse(value);
+  } catch {
+    urls = value.split(",").map(item => item.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(urls) || urls.length === 0 || urls.some(item => typeof item !== "string")) {
+    return false;
+  }
+
+  return urls.every(candidate => {
+    try {
+      const url = new URL(candidate.trim());
+      return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function hasUsableNutritionValues(row: {
+  gramsPerServing: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number | null;
+}) {
+  return (
+    Number.isFinite(row.gramsPerServing) &&
+    row.gramsPerServing > 0 &&
+    [row.calories, row.protein, row.carbs, row.fat].every(
+      value => Number.isFinite(value) && value >= 0,
+    ) &&
+    (row.fiber == null || (Number.isFinite(row.fiber) && row.fiber >= 0))
+  );
+}
+
+function isUsablePersistedResearch(row: FoodCatalogRow, now: Date) {
+  return (
+    isFresh(row, now) &&
+    hasUsableSourceUrls(row.sourceUrls) &&
+    Boolean(row.sourceEvidence?.trim()) &&
+    Number.isFinite(row.sourceConfidence) &&
+    (row.sourceConfidence ?? 0) >= MIN_PERSISTED_SOURCE_CONFIDENCE &&
+    (row.sourceConfidence ?? 0) <= 1 &&
+    hasUsableNutritionValues(row)
+  );
+}
+
+function matchesRequestedBrand(foodName: string, row: FoodCatalogRow) {
+  const requestedBrand = detectKnownBrand(foodName);
+  const candidateBrand = row.brandName?.trim() || null;
+  if (!candidateBrand) return !requestedBrand;
+
+  const requestedTokens = new Set(identityTokens(foodName));
+  const candidateBrandTokens = identityTokens(candidateBrand);
+  if (!candidateBrandTokens.every(token => requestedTokens.has(token))) return false;
+
+  return (
+    !requestedBrand ||
+    normalizeIdentityPart(requestedBrand) === normalizeIdentityPart(candidateBrand)
+  );
+}
+
 function matchesRequestedIdentity(foodName: string, row: FoodCatalogRow) {
+  if (!matchesRequestedBrand(foodName, row)) return false;
   return isPersistedProductIdentityCompatible({
     foodName,
     matchedProductName: row.name,
@@ -135,7 +211,7 @@ export function createNutritionResearchPersistence(
         await deps.repository.findResearchedByIdentity?.(identityKey);
       if (
         exact &&
-        isFresh(exact, now()) &&
+        isUsablePersistedResearch(exact, now()) &&
         matchesRequestedIdentity(foodName, exact)
       ) {
         return rowToCatalogFood(exact);
@@ -150,7 +226,7 @@ export function createNutritionResearchPersistence(
       const match = candidates
         .filter(
           candidate =>
-            isFresh(candidate, now()) &&
+            isUsablePersistedResearch(candidate, now()) &&
             matchesRequestedIdentity(foodName, candidate)
         )
         .sort(
@@ -171,11 +247,17 @@ export function createNutritionResearchPersistence(
         servingLabel: food.servingLabel,
         gramsPerServing: food.gramsPerServing,
       });
+      const sourceConfidence = food.sourceConfidence ?? 0;
+      const serializedSourceUrls = JSON.stringify(sourceUrls);
       if (
         !identityCompatible ||
-        !sourceUrls.length ||
+        !hasUsableSourceUrls(serializedSourceUrls) ||
         !sourceEvidence ||
-        !isFresh({ sourceVerifiedAt } as FoodCatalogRow, now())
+        !Number.isFinite(sourceConfidence) ||
+        sourceConfidence < MIN_PERSISTED_SOURCE_CONFIDENCE ||
+        sourceConfidence > 1 ||
+        !isFresh({ sourceVerifiedAt } as FoodCatalogRow, now()) ||
+        !hasUsableNutritionValues(food)
       ) {
         return null;
       }
@@ -209,7 +291,7 @@ export function createNutritionResearchPersistence(
         sourceUrls: JSON.stringify(sourceUrls),
         sourceEvidence,
         sourceVerifiedAt,
-        sourceConfidence: food.sourceConfidence ?? 0,
+        sourceConfidence,
       };
       const id = await deps.repository.upsertResearchedNutrition?.(input);
       if (!id) return null;

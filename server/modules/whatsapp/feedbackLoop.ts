@@ -6,9 +6,15 @@ import {
 } from "../aiLearningPrivacy";
 import type { WhatsappIntentName } from "./intentSchema";
 import {
+  hydrateWhatsappMessageHistory,
+  loadPersistedWhatsappMessageHistory,
   listWhatsappMessageHistory,
   type WhatsappMessageHistoryEntry,
 } from "./messageHistory";
+import {
+  listPersistedWhatsappLearningArtifacts,
+  persistWhatsappLearningArtifact,
+} from "./learningArtifactPersistence";
 
 export type WhatsappFeedbackKind =
   | "positive"
@@ -35,6 +41,14 @@ export type WhatsappFeedbackEntry = {
   status: WhatsappFeedbackStatus;
   reason: string;
   targetHistoryId: number | null;
+  targetItemIndex: number | null;
+  targetItem: {
+    foodName: string | null;
+    brand: string | null;
+    variant: string | null;
+    portion: string | null;
+    nutritionSource: string | null;
+  } | null;
   targetIntent: WhatsappIntentName | "unknown" | null;
   targetAction: string | null;
   generatedMemory: {
@@ -62,6 +76,7 @@ type RecordWhatsappFeedbackInput = {
   userId: number;
   text: string;
   targetHistoryId?: number | null;
+  targetItemIndex?: number | null;
   createdAt?: Date;
 };
 
@@ -308,6 +323,23 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
     status: scopeDecision.status,
     reason: scopeDecision.reason || classified.reason,
     targetHistoryId: effectiveTarget?.id ?? (scopeDecision.scope === "blocked" ? null : input.targetHistoryId ?? null),
+    targetItemIndex: effectiveTarget && input.targetItemIndex !== undefined
+      ? input.targetItemIndex
+      : null,
+    targetItem: effectiveTarget && input.targetItemIndex !== undefined
+      ? (() => {
+          const item = effectiveTarget.itemObservations?.[input.targetItemIndex ?? -1];
+          return item
+            ? {
+                foodName: item.foodName,
+                brand: item.brand,
+                variant: item.variant,
+                portion: item.portion,
+                nutritionSource: item.nutritionSource,
+              }
+            : null;
+        })()
+      : null,
     targetIntent: effectiveTarget?.intent ?? null,
     targetAction: effectiveTarget?.action ?? null,
     generatedMemory,
@@ -324,7 +356,40 @@ export function recordWhatsappUserFeedback(input: RecordWhatsappFeedbackInput) {
   nextFeedbackId += 1;
   entries.push(entry);
   pruneFeedback();
+  void persistWhatsappFeedbackEntry(entry);
   return entry;
+}
+
+export async function persistWhatsappFeedbackEntry(entry: WhatsappFeedbackEntry) {
+  return persistWhatsappLearningArtifact({
+    scope: "user",
+    userId: entry.userId,
+    kind: "feedback_event",
+    key: `feedback:${entry.id}`,
+    value: entry,
+    createdAt: new Date(entry.createdAt),
+  });
+}
+
+export async function recordWhatsappUserFeedbackDurably(input: RecordWhatsappFeedbackInput) {
+  const persistedHistory = await loadPersistedWhatsappMessageHistory(input.userId);
+  if (persistedHistory) hydrateWhatsappMessageHistory(persistedHistory);
+  const entry = recordWhatsappUserFeedback(input);
+  const persisted = await persistWhatsappFeedbackEntry(entry);
+  return { entry, persisted: Boolean(persisted) };
+}
+
+export async function loadPersistedWhatsappFeedback(userId: number): Promise<WhatsappFeedbackEntry[] | null> {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappFeedbackEntry>({
+    scope: "user",
+    userId,
+    kind: "feedback_event",
+  });
+  if (artifacts === null) return null;
+  return artifacts
+    .map(artifact => artifact.value)
+    .filter((entry): entry is WhatsappFeedbackEntry => Boolean(entry && typeof entry.id === "number"))
+    .sort((a, b) => a.id - b.id);
 }
 
 export function listWhatsappFeedback(filter: ListWhatsappFeedbackFilter = {}) {

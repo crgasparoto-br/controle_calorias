@@ -111,6 +111,12 @@ describe("#1061 — recovery durável de QUESTION", () => {
     });
 
     expect(repository.findRecoverableQuestions).toHaveBeenCalledTimes(1);
+    expect(repository.findRecoverableQuestions).toHaveBeenCalledWith({
+      now: new Date("2026-09-14T00:00:00.000Z"),
+      horizonMs: 20 * 60 * 1000,
+      limit: 10,
+      processingStaleBefore: new Date("2026-09-13T23:59:30.000Z"),
+    });
     expect(mocks.begin).toHaveBeenCalledWith(expect.objectContaining({
       externalMessageId: candidate.externalMessageId,
       text: candidate.text,

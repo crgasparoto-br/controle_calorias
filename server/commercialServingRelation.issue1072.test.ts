@@ -30,6 +30,7 @@ const DISABLED_POLICY = {
 
 const {
   isCommercialProductIdentityCompatible,
+  isPersistedProductIdentityCompatible,
 } = await import("./commercialProductIdentity");
 const { findBrandedNutritionByWebSearch } = await import("./brandedNutritionSearch");
 const { resolveHouseholdMeasure } = await import("./householdMeasureResolution");
@@ -260,6 +261,16 @@ describe("#1072 — identidade comercial e medida física são contratos separad
       foodName: "1 fatia de pão de forma Panco Premium",
       matchedProductName: "Pão de Forma Wickbold Premium",
       brandName: "Wickbold",
+      servingLabel: "2 fatias (50 g)",
+      gramsPerServing: 50,
+    })).toBe(false);
+  });
+
+  it("não aceita candidato variantizado concatenado para pedido genérico", () => {
+    expect(isPersistedProductIdentityCompatible({
+      foodName: "Panco",
+      matchedProductName: "PancoPremium",
+      brandName: "Panco",
       servingLabel: "2 fatias (50 g)",
       gramsPerServing: 50,
     })).toBe(false);

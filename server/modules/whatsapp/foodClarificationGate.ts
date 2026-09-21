@@ -198,6 +198,7 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   receivedAt?: Date;
   userTimezone: string;
   messageId?: string | null;
+  skipStalePendingResponse?: boolean;
 }): Promise<PendingInteractionResult | null> {
   const active = await pendingOperationRepository.getActivePendingOperation(
     input.userId,
@@ -228,6 +229,8 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   }
 
   if (!active) {
+    if (input.skipStalePendingResponse) return null;
+
     const latest =
       (await pendingOperationRepository.getLatestPendingOperation?.(
         input.userId

@@ -199,6 +199,7 @@ async function findPersistedRecoveryCandidate(messageId: string) {
     now: new Date(),
     horizonMs: 20 * 60 * 1000,
     limit: 20,
+    processingStaleBefore: new Date(Date.now() - HEARTBEAT_TIMEOUT_MS),
   });
   return candidates.find(item => item.externalMessageId === messageId);
 }

@@ -138,6 +138,86 @@ describe("brandedNutritionPersistence", () => {
     ).resolves.toBeNull();
   });
 
+  it("não reutiliza registro fresco sem fonte, evidência ou confiança suficiente", async () => {
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async () =>
+        row({
+          sourceUrls: JSON.stringify([]),
+          sourceEvidence: null,
+          sourceConfidence: 0.5,
+        })
+      ),
+    });
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.findByIdentity("2 fatias de pão de forma Panco Premium 50 g")
+    ).resolves.toBeNull();
+  });
+
+  it.each([
+    {
+      name: "confiança acima de 1",
+      overrides: { sourceConfidence: 1.01 },
+    },
+    {
+      name: "fonte parcialmente inválida",
+      overrides: {
+        sourceUrls: JSON.stringify([
+          "https://panco.com.br/produto/premium",
+          "not-a-url",
+        ]),
+      },
+    },
+    {
+      name: "fonte não textual",
+      overrides: {
+        sourceUrls: JSON.stringify([
+          "https://panco.com.br/produto/premium",
+          null,
+        ]),
+      },
+    },
+    {
+      name: "fibra não numérica",
+      overrides: { fiber: Number.NaN },
+    },
+  ])("não reutiliza registro com $name", async ({ overrides }) => {
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async () => row(overrides)),
+    });
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.findByIdentity("2 fatias de pão de forma Panco Premium 50 g")
+    ).resolves.toBeNull();
+  });
+
+  it("não reutiliza produto de marca para uma consulta sem marca", async () => {
+    const repo = repository({
+      findResearchedByIdentity: vi.fn(async () => null),
+      findResearchedCandidates: vi.fn(async () => [row()]),
+    });
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.findByIdentity("2 fatias de pão de forma 50 g")
+    ).resolves.toBeNull();
+    expect(repo.findResearchedCandidates).toHaveBeenCalledWith({
+      brandName: null,
+      limit: 50,
+    });
+  });
+
   it("reutiliza candidato equivalente mesmo com ordem textual diferente", async () => {
     const stored = row();
     const repo = repository({
@@ -310,6 +390,26 @@ describe("brandedNutritionPersistence", () => {
       persistence.save(
         "Panco pão de forma",
         food({ sourceUrls: [], sourceEvidence: null })
+      )
+    ).resolves.toBeNull();
+    expect(repo.upsertResearchedNutrition).not.toHaveBeenCalled();
+  });
+
+  it("não grava referência com fonte parcial, confiança fora do intervalo ou fibra inválida", async () => {
+    const repo = repository();
+    const persistence = createNutritionResearchPersistence({
+      repository: repo,
+      now: () => now,
+    });
+
+    await expect(
+      persistence.save(
+        "Panco pão de forma Premium",
+        food({
+          sourceUrls: ["https://panco.com.br/produto/premium", "not-a-url"],
+          sourceConfidence: 1.01,
+          fiber: Number.NaN,
+        })
       )
     ).resolves.toBeNull();
     expect(repo.upsertResearchedNutrition).not.toHaveBeenCalled();

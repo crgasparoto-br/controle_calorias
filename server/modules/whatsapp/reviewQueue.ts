@@ -6,7 +6,11 @@ import {
 } from "../aiLearningPrivacy";
 import type { WhatsappFeedbackEntry } from "./feedbackLoop";
 import type { WhatsappIntentName } from "./intentSchema";
-import type { WhatsappMessageHistoryEntry } from "./messageHistory";
+import { listWhatsappMessageHistory, type WhatsappMessageHistoryEntry } from "./messageHistory";
+import {
+  listPersistedWhatsappLearningArtifacts,
+  persistWhatsappLearningArtifact,
+} from "./learningArtifactPersistence";
 
 export type WhatsappReviewQueueItemType =
   | "ambiguous_message"
@@ -70,9 +74,13 @@ export type WhatsappReviewQueueItem = {
   links: {
     historyId: number | null;
     feedbackId: number | null;
+    itemIndex: number | null;
     sourceId: string | number | null;
     foodName: string | null;
     brand: string | null;
+    variant: string | null;
+    portion: string | null;
+    nutritionSource: string | null;
     classification: string | null;
   };
   review: {
@@ -237,10 +245,12 @@ export function recordWhatsappReviewQueueItem(input: RecordWhatsappReviewQueueIt
   const existing = entries.find(entry => entry.fingerprint === fingerprint && !["converted", "closed", "rejected"].includes(entry.status));
 
   if (existing) {
+    const previousPriority = existing.priority;
     existing.occurrences += 1;
     existing.priority = maxPriority(existing.priority, priority);
-    existing.impact = priorityRank(priority) > priorityRank(existing.priority) ? impact : existing.impact;
+    existing.impact = priorityRank(priority) > priorityRank(previousPriority) ? impact : existing.impact;
     existing.updatedAt = createdAt;
+    void persistWhatsappReviewQueueItem(existing);
     return existing;
   }
 
@@ -264,9 +274,13 @@ export function recordWhatsappReviewQueueItem(input: RecordWhatsappReviewQueueIt
     links: {
       historyId: input.links?.historyId ?? null,
       feedbackId: input.links?.feedbackId ?? null,
+      itemIndex: input.links?.itemIndex ?? null,
       sourceId: input.links?.sourceId ?? null,
       foodName: input.links?.foodName ?? null,
       brand: input.links?.brand ?? null,
+      variant: input.links?.variant ?? null,
+      portion: input.links?.portion ?? null,
+      nutritionSource: input.links?.nutritionSource ?? null,
       classification: input.links?.classification ?? null,
     },
     review: {
@@ -283,10 +297,12 @@ export function recordWhatsappReviewQueueItem(input: RecordWhatsappReviewQueueIt
   nextReviewId += 1;
   entries.push(entry);
   pruneQueue();
+  void persistWhatsappReviewQueueItem(entry);
   return entry;
 }
 
 export function enqueueWhatsappReviewFromHistory(history: WhatsappMessageHistoryEntry) {
+  const item = history.itemObservations?.[0] ?? null;
   if (history.status === "ambiguous") {
     return recordWhatsappReviewQueueItem({
       type: "ambiguous_message",
@@ -312,7 +328,15 @@ export function enqueueWhatsappReviewFromHistory(history: WhatsappMessageHistory
       confidence: history.confidence,
       userId: history.userId,
       intent: history.intent,
-      links: { historyId: history.id, foodName: history.entities.foods[0] ?? null, brand: history.entities.brands[0] ?? null },
+      links: {
+        historyId: history.id,
+        itemIndex: item?.itemIndex ?? null,
+        foodName: item?.foodName ?? history.entities.foods[0] ?? null,
+        brand: item?.brand ?? history.entities.brands[0] ?? null,
+        variant: item?.variant ?? history.entities.variants?.[0] ?? null,
+        portion: item?.portion ?? null,
+        nutritionSource: item?.nutritionSource ?? history.nutritionSource?.sourceType ?? null,
+      },
       createdAt: new Date(history.createdAt),
     });
   }
@@ -333,7 +357,7 @@ export function enqueueWhatsappReviewFromHistory(history: WhatsappMessageHistory
     });
   }
 
-  if (history.entities.foods.length > 0 && (!history.nutritionSource || history.nutritionSource.confidence === null || (history.nutritionSource.confidence ?? 0) < 0.6)) {
+  if (history.entities.foods.length > 0 && (!history.nutritionSource || history.nutritionSource.confidence === null || (history.nutritionSource.confidence ?? 0) < 0.6 || ["incompatible", "conflict", "contaminated"].includes(history.nutritionSource.sourceType ?? ""))) {
     return recordWhatsappReviewQueueItem({
       type: "nutrition_source_issue",
       origin: "nutrition_source",
@@ -345,9 +369,13 @@ export function enqueueWhatsappReviewFromHistory(history: WhatsappMessageHistory
       intent: history.intent,
       links: {
         historyId: history.id,
+        itemIndex: item?.itemIndex ?? null,
         sourceId: history.nutritionSource?.sourceId ?? null,
-        foodName: history.entities.foods[0] ?? null,
-        brand: history.entities.brands[0] ?? null,
+        foodName: item?.foodName ?? history.entities.foods[0] ?? null,
+        brand: item?.brand ?? history.entities.brands[0] ?? null,
+        variant: item?.variant ?? history.entities.variants?.[0] ?? null,
+        portion: item?.portion ?? null,
+        nutritionSource: history.nutritionSource?.sourceType ?? null,
       },
       createdAt: new Date(history.createdAt),
     });
@@ -369,7 +397,16 @@ export function enqueueWhatsappReviewFromFeedback(feedback: WhatsappFeedbackEntr
       userId: feedback.userId,
       intent: feedback.targetIntent,
       priority: "high",
-      links: { historyId: feedback.targetHistoryId, feedbackId: feedback.id },
+      links: {
+        historyId: feedback.targetHistoryId,
+        feedbackId: feedback.id,
+        itemIndex: feedback.targetItemIndex,
+        foodName: feedback.targetItem?.foodName ?? null,
+        brand: feedback.targetItem?.brand ?? null,
+        variant: feedback.targetItem?.variant ?? null,
+        portion: feedback.targetItem?.portion ?? null,
+        nutritionSource: feedback.targetItem?.nutritionSource ?? null,
+      },
       createdAt: new Date(feedback.createdAt),
     });
   }
@@ -452,6 +489,7 @@ export function transitionWhatsappReviewQueueItem(input: {
     decision: input.decision ?? entry.review.decision,
     justification: input.justification,
   };
+  void persistWhatsappReviewQueueItem(entry);
   return entry;
 }
 
@@ -476,7 +514,39 @@ export function convertApprovedWhatsappReviewQueueItem(input: {
     },
     globalPromotion: defaultConversion().globalPromotion,
   };
+  void persistWhatsappReviewQueueItem(entry);
   return entry;
+}
+
+export async function persistWhatsappReviewQueueItem(entry: WhatsappReviewQueueItem) {
+  return persistWhatsappLearningArtifact({
+    scope: entry.userId === null ? "global" : "user",
+    userId: entry.userId,
+    kind: "review_queue_item",
+    key: `review:${entry.id}`,
+    value: entry,
+    createdAt: new Date(entry.createdAt),
+  });
+}
+
+export async function loadPersistedWhatsappReviewQueue(userId: number): Promise<WhatsappReviewQueueItem[] | null> {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappReviewQueueItem>({
+    scope: "user",
+    userId,
+    kind: "review_queue_item",
+  });
+  if (artifacts === null) return null;
+  return artifacts
+    .map(artifact => artifact.value)
+    .filter((entry): entry is WhatsappReviewQueueItem => Boolean(entry && typeof entry.id === "number"))
+    .sort((a, b) => a.id - b.id);
+}
+
+export async function enqueueWhatsappReviewFromHistoryDurably(history: WhatsappMessageHistoryEntry) {
+  const entry = enqueueWhatsappReviewFromHistory(history);
+  if (!entry) return { entry: null, persisted: true };
+  const persisted = await persistWhatsappReviewQueueItem(entry);
+  return { entry, persisted: Boolean(persisted) };
 }
 
 export function __resetWhatsappReviewQueueForTests() {

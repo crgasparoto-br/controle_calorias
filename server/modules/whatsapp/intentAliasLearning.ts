@@ -3,6 +3,8 @@ import {
   recordWhatsappContextMemory,
   type WhatsappContextMemoryEntry,
 } from "./contextMemory";
+import { persistWhatsappContextMemoryEntry } from "./persistentContextMemory";
+import { persistWhatsappLearningArtifact } from "./learningArtifactPersistence";
 import { listWhatsappMessageHistory } from "./messageHistory";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
 
@@ -162,5 +164,28 @@ export function learnWhatsappIntentAliasFromConfirmation(input: {
       sourceHistoryId: recentPendingAlias.id,
       createdAt: input.receivedAt,
     }),
+  };
+}
+
+export async function learnWhatsappIntentAliasFromConfirmationDurably(input: {
+  userId: number;
+  text: string;
+  intent: WhatsappInterpretedIntent;
+  receivedAt: Date;
+}) {
+  const result = learnWhatsappIntentAliasFromConfirmation(input);
+  if (!result.learned) return { ...result, persisted: false as const };
+  const individual = await persistWhatsappContextMemoryEntry(result.individual);
+  const candidateGlobal = await persistWhatsappLearningArtifact({
+    scope: "global",
+    userId: null,
+    kind: "context_memory",
+    key: `${result.candidateGlobal.kind}:${result.candidateGlobal.keyHash}`,
+    value: result.candidateGlobal,
+    createdAt: new Date(result.candidateGlobal.createdAt),
+  });
+  return {
+    ...result,
+    persisted: Boolean(individual && candidateGlobal),
   };
 }

@@ -218,6 +218,8 @@ export async function resolveCanonicalFoodAdditionItems(
         userId: input.userId,
         foodName: item.foodName,
         brand: resolvedBrand,
+        variant: commercialFood?.productVariant ?? null,
+        portionLabel: commercialFood?.servingLabel ?? null,
         quantity: item.quantity,
         unit: normalizedUnit,
         ...(commercialFood ? { commercialFood } : {}),

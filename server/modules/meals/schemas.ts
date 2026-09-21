@@ -45,6 +45,7 @@ const mealItemBaseSchema = z.object({
   foodName: z.string().min(1),
   canonicalName: z.string().min(1),
   brand: z.string().trim().min(1).max(80).nullable().optional(),
+  productVariant: z.string().trim().min(1).max(120).nullable().optional(),
   portionText: z.string().min(1),
   quantity: z.number().min(0.1).max(5000).optional(),
   unit: z.string().trim().min(1).max(40).optional(),

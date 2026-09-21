@@ -6,6 +6,14 @@ import {
 } from "../aiLearningPrivacy";
 import type { WhatsappFeedbackEntry } from "./feedbackLoop";
 import type { WhatsappIntentName } from "./intentSchema";
+import {
+  listPersistedWhatsappLearningArtifacts,
+  persistWhatsappLearningArtifact,
+} from "./learningArtifactPersistence";
+import {
+  loadPersistedWhatsappContextMemories,
+  persistWhatsappContextMemoryEntry,
+} from "./persistentContextMemory";
 
 export type WhatsappContextMemoryKind =
   | "individual_preference"
@@ -119,6 +127,7 @@ type RetrieveWhatsappContextMemoryInput = {
   maxItems?: number;
   maxContextChars?: number;
   now?: Date;
+  persistedMemories?: WhatsappContextMemoryEntry[];
 };
 
 const MAX_MEMORY_ENTRIES = 1_000;
@@ -398,7 +407,8 @@ export function retrieveWhatsappContextMemory(input: RetrieveWhatsappContextMemo
   const now = input.now ?? new Date();
   const maxItems = input.maxItems ?? DEFAULT_MAX_CONTEXT_ITEMS;
   const maxContextChars = input.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
-  const candidates = memoryEntries.filter(entry => {
+  const allMemories = [...memoryEntries, ...(input.persistedMemories ?? [])];
+  const candidates = allMemories.filter(entry => {
     if (entry.status !== "active") return false;
     if (entry.scope === "individual" && entry.userId !== input.userId) return false;
     if (isExpired(entry, now)) return false;
@@ -482,6 +492,56 @@ export function recordWhatsappMemoryUsage(input: {
 
 export function listWhatsappMemoryUsage() {
   return [...usageEntries];
+}
+
+export async function retrieveWhatsappContextMemoryDurably(input: RetrieveWhatsappContextMemoryInput) {
+  const persisted = await loadPersistedWhatsappContextMemories(input.userId);
+  if (persisted === null) return { status: "unavailable" as const, context: null };
+  const localIds = new Set(memoryEntries.filter(entry => entry.userId === input.userId).map(entry => entry.id));
+  for (const entry of persisted) {
+    if (!localIds.has(entry.id)) memoryEntries.push({ ...entry, source: { ...entry.source }, appliesToIntents: [...entry.appliesToIntents] });
+  }
+  return { status: "ready" as const, context: retrieveWhatsappContextMemory(input) };
+}
+
+export async function recordWhatsappContextMemoryDurably(input: RecordWhatsappContextMemoryInput) {
+  const entry = recordWhatsappContextMemory(input);
+  const persisted = input.scope === "individual"
+    ? await persistWhatsappContextMemoryEntry(entry)
+    : await persistWhatsappLearningArtifact({
+        scope: "global",
+        userId: null,
+        kind: "context_memory",
+        key: `${entry.kind}:${entry.keyHash}`,
+        value: entry,
+        createdAt: new Date(entry.createdAt),
+      });
+  return { entry, persisted: Boolean(persisted) };
+}
+
+export async function recordWhatsappMemoryFromFeedbackDurably(feedback: WhatsappFeedbackEntry) {
+  const entry = recordWhatsappMemoryFromFeedback(feedback);
+  if (!entry) return { entry: null, persisted: true };
+  const persisted = entry.scope === "individual"
+    ? await persistWhatsappContextMemoryEntry(entry)
+    : await persistWhatsappLearningArtifact({
+        scope: "global",
+        userId: null,
+        kind: "context_memory",
+        key: `${entry.kind}:${entry.keyHash}`,
+        value: entry,
+        createdAt: new Date(entry.createdAt),
+      });
+  return { entry, persisted: Boolean(persisted) };
+}
+
+export async function listPersistedWhatsappCandidateMemories() {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappContextMemoryEntry>({
+    scope: "global",
+    kind: "context_memory",
+  });
+  if (artifacts === null) return null;
+  return artifacts.map(artifact => artifact.value).filter(entry => entry && entry.scope === "candidate_global");
 }
 
 export function __resetWhatsappContextMemoryForTests() {
