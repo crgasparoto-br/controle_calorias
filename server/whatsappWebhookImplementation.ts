@@ -175,6 +175,17 @@ function buildProcessingFailureReply(
   error: unknown
 ) {
   const notRecognized = error instanceof MealInferenceError;
+  if (
+    message.image?.id &&
+    notRecognized &&
+    error instanceof MealInferenceError &&
+    error.code === "food_identity_clarification_required" &&
+    error.message.trim()
+  ) {
+    return buildWhatsAppRecoverableErrorReplyMessage(
+      `Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. ${error.message.trim()}`
+    );
+  }
   if (message.image?.id) {
     return notRecognized
       ? buildWhatsAppImageNotRecognizedReplyMessage()

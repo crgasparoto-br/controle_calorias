@@ -30,6 +30,7 @@ import {
   buildWhatsAppImageNotRecognizedReplyMessage,
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
+import { normalizeImageForAnalysis } from "./modules/whatsapp/imageAnalysisNormalization";
 import {
   sendWhatsAppLogicalDomainReply,
   type WhatsAppAuxiliaryImage,
@@ -127,9 +128,13 @@ async function prepareImageMessage(
     imageId,
     message.image?.mime_type
   );
-  const imageAnalysisUrl = buildMediaDataUrl(
+  const analysisImage = await normalizeImageForAnalysis(
     downloaded.buffer,
-    downloaded.mimeType
+    downloaded.mimeType,
+  );
+  const imageAnalysisUrl = buildMediaDataUrl(
+    analysisImage.buffer,
+    analysisImage.mimeType,
   );
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${imageId}.${extension}`;
