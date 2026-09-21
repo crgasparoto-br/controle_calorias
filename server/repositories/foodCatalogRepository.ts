@@ -66,6 +66,8 @@ export type NutritionResearchUpsertInput = {
   sourceEvidence: string;
   sourceVerifiedAt: Date;
   sourceConfidence: number;
+  barcode?: string | null;
+  dataSource?: string;
 };
 
 export type FoodCatalogRepository = {
@@ -73,6 +75,7 @@ export type FoodCatalogRepository = {
   findResearchedByIdentity?(researchIdentityKey: string): Promise<FoodCatalogRow | null>;
   findResearchedCandidates?(query: NutritionResearchCandidateQuery): Promise<FoodCatalogRow[]>;
   upsertResearchedNutrition?(input: NutritionResearchUpsertInput): Promise<number>;
+  deprecateById?(foodId: number): Promise<boolean>;
   findActiveForUser?(userId: number): Promise<FoodCatalogRow[]>;
   findForResolution?(userId: number): Promise<FoodCatalogRow[]>;
   findByIdsForUser?(userId: number, ids: number[]): Promise<FoodCatalogRow[]>;
@@ -128,7 +131,7 @@ export function createDrizzleFoodCatalogRepository(deps: {
         .from(foodCatalog)
         .where(and(
           eq(foodCatalog.researchIdentityKey, researchIdentityKey),
-          eq(foodCatalog.dataSource, "web_nutrition"),
+          inArray(foodCatalog.dataSource, ["web_nutrition", "nutrition_label"]),
           eq(foodCatalog.status, "active"),
         ))
         .limit(1);
@@ -139,7 +142,7 @@ export function createDrizzleFoodCatalogRepository(deps: {
       const db = await deps.getDb();
       if (!db) return [];
       const conditions = [
-        eq(foodCatalog.dataSource, "web_nutrition"),
+        inArray(foodCatalog.dataSource, ["web_nutrition", "nutrition_label"]),
         eq(foodCatalog.status, "active"),
         query.brandName ? eq(foodCatalog.brandName, query.brandName) : undefined,
       ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
@@ -163,7 +166,8 @@ export function createDrizzleFoodCatalogRepository(deps: {
         brandName: input.brandName,
         productVariant: input.productVariant,
         foodType,
-        dataSource: "web_nutrition",
+        dataSource: input.dataSource ?? "web_nutrition",
+        barcode: input.barcode ?? null,
         servingLabel: input.servingLabel,
         servingUnit: input.servingUnit,
         gramsPerServing: input.gramsPerServing,
@@ -193,6 +197,7 @@ export function createDrizzleFoodCatalogRepository(deps: {
             aliases: values.aliases,
             brandName: values.brandName,
             productVariant: values.productVariant,
+            barcode: values.barcode,
             servingLabel: values.servingLabel,
             servingUnit: values.servingUnit,
             gramsPerServing: values.gramsPerServing,
@@ -216,6 +221,16 @@ export function createDrizzleFoodCatalogRepository(deps: {
         .where(eq(foodCatalog.researchIdentityKey, input.researchIdentityKey))
         .limit(1);
       return row?.id ?? 0;
+    },
+
+    async deprecateById(foodId) {
+      const db = await deps.getDb();
+      if (!db) return false;
+      const result = await db
+        .update(foodCatalog)
+        .set({ status: "deprecated", updatedAt: new Date() })
+        .where(eq(foodCatalog.id, foodId));
+      return extractAffectedRows(result) > 0;
     },
 
     async findActiveForUser(userId) {

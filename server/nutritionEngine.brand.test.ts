@@ -133,30 +133,23 @@ describe("nutritionEngine branded catalog selection", () => {
 
     const { processMealInput } = await import("./nutritionEngine");
 
-    await expect(processMealInput({
+    const result = await processMealInput({
       text: "18g whey proten doce de leite Growth",
-    })).rejects.toMatchObject({
-      code: "food_identity_clarification_required",
-      context: expect.objectContaining({
-        foodName: "Whey Proten Doce de Leite Growth",
-        brand: "Growth",
-        semanticContract: expect.objectContaining({
-          needsClarification: true,
-          items: [
-            expect.objectContaining({
-              commercialName: "Whey Proten Doce de Leite Growth",
-              brand: "Growth",
-              evidence: expect.objectContaining({
-                nutrition: expect.objectContaining({
-                  verified: false,
-                  value: expect.objectContaining({ calories: 0 }),
-                }),
-              }),
-            }),
-          ],
-        }),
-      }),
     });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Whey Proten Doce de Leite Growth",
+      brand: "Growth",
+      source: "hybrid",
+      calories: 72,
+      resolution: expect.objectContaining({
+        nutritionOrigin: "provisional_estimate",
+        nutritionVerified: false,
+        productVariant: "leite",
+        ambiguity: null,
+      }),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
   });
 
   it("nao inventa marca quando a IA retorna brand nulo", async () => {

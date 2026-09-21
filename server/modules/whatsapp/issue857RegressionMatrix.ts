@@ -169,6 +169,14 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/foodClarificationPlan.test.ts", requiredTokens: ["selection", "candidates"] },
     ],
   },
+  "nutrition_label_photo.request": {
+    modalities: ["text", "image_context", "simulator"],
+    evidence: [
+      { file: "server/modules/whatsapp/interactionRegistry.test.ts", requiredTokens: ["registry", "pending"] },
+      { file: "server/modules/whatsapp/labelingProtocol.test.ts", requiredTokens: ["reviewQueue", "multiTurn"] },
+      { file: "server/modules/whatsapp/labelingProtocol.test.ts", requiredTokens: ["cancel", "persistence"] },
+    ],
+  },
 };
 
 export const ISSUE_857_REGRESSION_MATRIX: readonly Issue857RegressionEvidence[] = WHATSAPP_INTERACTION_REGISTRY.map(interaction => {

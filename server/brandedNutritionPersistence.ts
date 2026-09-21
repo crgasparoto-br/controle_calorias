@@ -112,6 +112,7 @@ function hasUsableSourceUrls(value: string | null | undefined) {
   }
 
   return urls.every(candidate => {
+    if (candidate.trim().toLowerCase().startsWith("nutrition-label://")) return true;
     try {
       const url = new URL(candidate.trim());
       return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);

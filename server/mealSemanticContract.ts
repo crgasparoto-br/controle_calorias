@@ -118,6 +118,7 @@ function resolveEstimatedGramsOrigin(input: {
     input.nutritionOrigin === "catalog"
     || input.nutritionOrigin === "web_research"
     || input.nutritionOrigin === "nutrition_label"
+    || input.nutritionOrigin === "provisional_estimate"
     || input.nutritionOrigin === "ai_estimate"
     || input.nutritionOrigin === "heuristic"
   ) {
