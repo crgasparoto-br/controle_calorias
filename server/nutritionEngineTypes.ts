@@ -57,6 +57,7 @@ export type MealSemanticEvidenceOrigin =
   | "catalog"
   | "web_research"
   | "nutrition_label"
+  | "provisional_estimate"
   | "ai_estimate"
   | "heuristic"
   | "unavailable";
@@ -87,6 +88,7 @@ export type MealSemanticAlternative = {
 
 export type MealItemResolutionMetadata = {
   productVariant?: string | null;
+  barcode?: string | null;
   nutritionOrigin: MealSemanticEvidenceOrigin;
   nutritionVerified: boolean;
   sourceUrls?: string[];

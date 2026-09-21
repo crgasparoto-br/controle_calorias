@@ -96,6 +96,11 @@ import {
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { buildMealSemanticContract } from "./mealSemanticContract";
+import {
+  applyNutritionLabelPhotoToCandidate,
+  claimNutritionLabelPhotoRequest,
+  markNutritionLabelPhotoReceived,
+} from "./nutritionLabelCandidateService";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
@@ -939,6 +944,34 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         }
 
         assertWhatsappImageMealItemsArePersistable(processed.items);
+
+        const nutritionLabelPhotoRequest = await claimNutritionLabelPhotoRequest(userId);
+        if (nutritionLabelPhotoRequest) {
+          const target = nutritionLabelPhotoRequest.target as { candidateId: number; originalFoodName: string };
+          const labelItem = processed.items.find(item => item.resolution?.nutritionOrigin === "nutrition_label");
+          const updatedCandidate = labelItem
+            ? await applyNutritionLabelPhotoToCandidate({
+                candidateId: target.candidateId,
+                userId,
+                sourceText: processed.sourceText,
+                item: labelItem,
+              })
+            : await markNutritionLabelPhotoReceived({ candidateId: target.candidateId, userId });
+          const labelReply = updatedCandidate
+            ? `Recebi a nova foto de ${target.originalFoodName}. A evidência foi atualizada e aguarda revisão administrativa; não registrei uma nova refeição.`
+            : `Recebi a foto, mas não consegui validar um rótulo legível para ${target.originalFoodName}. Nenhuma refeição foi alterada.`;
+          const replyResult = await sendFinalText(labelReply);
+          if (!replyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail: "Falha ao enviar confirmação da nova foto de rótulo.",
+            });
+          }
+          continue;
+        }
       }
 
       const processedForPersistence = {

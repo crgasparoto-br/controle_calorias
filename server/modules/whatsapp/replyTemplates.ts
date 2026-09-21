@@ -11,6 +11,7 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
   portionText: string;
   estimatedGrams: number;
   source?: string | null;
+  resolution?: { nutritionOrigin?: string | null; nutritionVerified?: boolean } | null;
 };
 
 export type WhatsAppGoalProgressInput = {
@@ -121,6 +122,9 @@ export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
   return [
     formatWhatsAppFoodLine(item),
     formatWhatsAppMacroLine(item),
+    ...(item.resolution?.nutritionOrigin === "provisional_estimate" && item.resolution.nutritionVerified === false
+      ? ["⚠️ Valores nutricionais provisórios; envie uma foto legível do rótulo para atualizar com precisão."]
+      : []),
   ];
 }
 

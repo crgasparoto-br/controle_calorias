@@ -149,6 +149,7 @@ function toReplyItem(item: MealDraftItem): WhatsAppFoodReplyItem {
     portionText: item.portionText?.trim() || (item.estimatedGrams ? `${formatNumber(item.estimatedGrams)} g` : "porção registrada"),
     estimatedGrams: item.estimatedGrams ?? 0,
     source: item.source,
+    resolution: item.resolution,
     calories: Number(item.calories || 0),
     protein: Number(item.protein || 0),
     carbs: Number(item.carbs || 0),

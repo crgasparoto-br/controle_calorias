@@ -24,7 +24,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
-| `admin` | 5 | 2 | 3 | admin | Visão operacional administrativa |
+| `admin` | 11 | 4 | 7 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 | `professionalRecord` | 14 | 6 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
 | `professionalRecord.messages` | 6 | 4 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
@@ -212,6 +212,12 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `updateWhatsappToken` | mutation | admin |
 | `runFoodImportJob` | mutation | admin |
 | `curateGlobalFood` | mutation | admin |
+| `nutritionLabelCandidates` | query | admin |
+| `nutritionLabelCandidateAudits` | query | admin |
+| `publishNutritionLabelCandidate` | mutation | admin |
+| `rejectNutritionLabelCandidate` | mutation | admin |
+| `requestNutritionLabelCandidatePhoto` | mutation | admin |
+| `rollbackNutritionLabelCandidate` | mutation | admin |
 
 ### whatsapp
 
