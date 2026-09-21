@@ -42,4 +42,28 @@ describe("OpenAI-compatible endpoint contract", () => {
     expect(resolved.fallback.effectivelyEnabled).toBe(false);
     expect(resolved.state).toBe("degraded");
   });
+
+  it("keeps the official OpenAI endpoint on the native provider path", () => {
+    const resolved = resolveCapabilityConfig("MEAL_VISION", envWith({
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_BASE_URL: "https://api.openai.com/v1",
+    }));
+
+    expect(resolved.primary).toEqual({ provider: "openai", model: "gpt-4.1-mini" });
+    expect(resolved.state).toBe("ready");
+    expect(resolved.diagnostics).not.toContain(
+      expect.stringContaining("custom OPENAI_BASE_URL configured")
+    );
+  });
+
+  it("keeps a non-OpenAI endpoint on the explicit compatible allowlist path", () => {
+    const resolved = resolveCapabilityConfig("MEAL_VISION", envWith({
+      OPENAI_API_KEY: "sk-test",
+      OPENAI_BASE_URL: "https://proxy.example/v1",
+      AI_OPENAI_COMPATIBLE_OPERATIONS: "text,vision,structured_output",
+    }));
+
+    expect(resolved.primary).toEqual({ provider: "openai-compatible", model: "gpt-4.1-mini" });
+    expect(resolved.state).toBe("ready");
+  });
 });

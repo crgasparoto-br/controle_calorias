@@ -90,6 +90,7 @@ vi.mock("./whatsappWebhook", () => ({
 }));
 
 const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { MealInferenceError } = await import("./nutritionEngine");
 
 type MockResponse = {
   statusCode: number;
@@ -622,6 +623,35 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       eventType: "whatsapp.processing_error",
       detail: "provider timeout",
     }));
+  });
+
+  it("preserva a clarificação de identidade comercial no caminho efetivo da imagem", async () => {
+    processMealInputMock.mockRejectedValueOnce(
+      new MealInferenceError(
+        "Não consegui comprovar a identidade comercial exata de Ouro Branco Duo Nuts. Envie uma foto do rótulo nutricional para confirmar os nutrientes.",
+        {
+          code: "food_identity_clarification_required",
+          context: {
+            foodName: "Ouro Branco Duo Nuts",
+            brand: "Lacta",
+            clarificationReason: "commercial_identity_unverified",
+          },
+        }
+      )
+    );
+    const req = createImageWebhookRequest("image-commercial-clarification");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentTextMessages[0]).toContain("Identifiquei um produto na imagem");
+    expect(sentTextMessages[0]).toContain("Ouro Branco Duo Nuts");
+    expect(sentTextMessages[0]).not.toContain("Não consegui identificar o alimento na imagem");
   });
 
   it("usa o estado persistido ao responder uma refeição nova criada por imagem", async () => {

@@ -133,13 +133,23 @@ function parseBoolean(raw: string): boolean {
   return raw.trim().toLowerCase() === "true";
 }
 
+function isOfficialOpenAiEndpoint(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.toLowerCase() === "api.openai.com";
+  } catch {
+    return false;
+  }
+}
+
 function applyEndpointPolicy(
   capability: AiCapabilityId,
   provider: string,
   env: NodeJS.ProcessEnv,
   diagnostics: string[],
 ): string {
-  if (provider === "openai" && readTrimmed(env, "OPENAI_BASE_URL")) {
+  const baseUrl = readTrimmed(env, "OPENAI_BASE_URL");
+  if (provider === "openai" && baseUrl && !isOfficialOpenAiEndpoint(baseUrl)) {
     diagnostics.push(
       `capability=${capability} custom OPENAI_BASE_URL configured; applying openai-compatible operation allowlist`,
     );
