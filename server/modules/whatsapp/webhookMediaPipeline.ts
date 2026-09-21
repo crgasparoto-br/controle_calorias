@@ -11,6 +11,7 @@ import {
   buildWhatsAppAudioNotUnderstoodReplyMessage,
   buildWhatsAppAudioProcessingFailureReplyMessage,
 } from "./mediaReplyMessages";
+import { normalizeImageForAnalysis } from "./imageAnalysisNormalization";
 import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
@@ -79,7 +80,10 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
       metadata: { provider: "meta", mediaType },
     });
   }
-  const analysisDataUrl = buildMediaDataUrl(downloaded.buffer, downloaded.mimeType);
+  const analysisImage = mediaType === "image"
+    ? await normalizeImageForAnalysis(downloaded.buffer, downloaded.mimeType)
+    : { buffer: downloaded.buffer, mimeType: downloaded.mimeType };
+  const analysisDataUrl = buildMediaDataUrl(analysisImage.buffer, analysisImage.mimeType);
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = buildOpaqueIncomingMediaFileName(mediaType, extension);
 

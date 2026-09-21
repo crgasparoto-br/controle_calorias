@@ -82,6 +82,7 @@ const { handleWhatsAppWebhook, verifyWhatsAppWebhook } = await import(
 const { getAdminSnapshot, listUserMeals, upsertUserWhatsappConnection } =
   await import("./db");
 const { requireWhatsAppSendConfig } = await import("./whatsappConfig");
+const { MealInferenceError } = await import("./nutritionEngine");
 
 type MockResponse = {
   statusCode: number;
@@ -496,6 +497,58 @@ describe("whatsappWebhook", () => {
     );
     expect(lastSentWhatsAppBody).not.toContain("Failed query");
     expect(createLocalMealPhotoOverlayMock).not.toHaveBeenCalled();
+  });
+
+  it("informa quando a imagem identificou um produto, mas a identidade comercial ainda não foi confirmada", async () => {
+    const userId = 2000104;
+    const phoneNumber = "5511777770104";
+    await upsertUserWhatsappConnection({
+      userId,
+      phoneNumber,
+      displayName: "Gaspa",
+    });
+    processMealInputMock.mockRejectedValueOnce(
+      new MealInferenceError(
+        "Não consegui comprovar a identidade comercial exata de Ouro Branco Pro Nuts. Confirme a variante ou envie um rótulo legível antes de registrar os nutrientes.",
+        {
+          code: "food_identity_clarification_required",
+          context: {
+            foodName: "Ouro Branco Pro Nuts",
+            brand: "Lacta",
+            clarificationReason: "commercial_identity_unverified",
+          },
+        },
+      ),
+    );
+
+    const req = {
+      body: {
+        entry: [
+          {
+            changes: [
+              {
+                value: {
+                  messages: [
+                    {
+                      id: "wamid.image-commercial-identity",
+                      from: phoneNumber,
+                      type: "image",
+                      image: { id: "commercial-identity", mime_type: "image/jpeg" },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    await handleWhatsAppWebhook(req as never, createResponse() as never);
+
+    expect(lastSentWhatsAppBody).toContain("Identifiquei um produto na imagem");
+    expect(lastSentWhatsAppBody).toContain("identidade comercial exata");
+    expect(lastSentWhatsAppBody).not.toContain("Envie outra foto com o alimento mais visível");
   });
 
   it("normaliza o nome exibido quando apenas o canonicalName é confiável", async () => {
