@@ -207,6 +207,9 @@ export async function runWhatsappQuestionRecoveryCycle(input: {
     now,
     horizonMs: input.horizonMs ?? DEFAULT_QUESTION_RECOVERY_HORIZON_MS,
     limit: input.limit ?? DEFAULT_QUESTION_RECOVERY_BATCH_SIZE,
+    processingStaleBefore: new Date(
+      now.getTime() - DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS,
+    ),
   });
   const outcomes: Array<{
     messageId: number;

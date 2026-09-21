@@ -52,6 +52,7 @@ O recovery é deliberadamente restrito:
 - considera apenas uma janela recente de 20 minutos, abaixo do TTL de 30 minutos da conversa persistente, para manter a mesma identidade de conversa/resposta;
 - processa no máximo 10 candidatos por ciclo;
 - executa ciclos a cada 15 segundos, sem sobreposição;
+- a consulta já exclui claims com heartbeat ativo; uma corrida entre a leitura e o takeover ainda é protegida pelo claim persistente;
 - chama o mesmo `beginInboundMessage` com o mesmo `externalMessageId` e adquire o mesmo claim persistente usado pelo webhook;
 - owner com heartbeat ativo retorna `inflight` e não é roubado;
 - owner órfão só é retomado depois da janela canônica de liveness do `messageLifecycle`;

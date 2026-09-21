@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import {
   whatsappConversationMessages,
   whatsappConversations,
@@ -24,15 +24,25 @@ export type WhatsAppQuestionRecoveryRepository = {
     now?: Date;
     horizonMs: number;
     limit: number;
+    processingStaleBefore?: Date;
   }): Promise<RecoverableWhatsappQuestion[]>;
 };
+
+const DEFAULT_RECOVERY_PROCESSING_HEARTBEAT_TIMEOUT_MS = 30 * 1000;
 
 export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
 }): WhatsAppQuestionRecoveryRepository {
   return {
-    async findRecoverableQuestions({ now = new Date(), horizonMs, limit }) {
+    async findRecoverableQuestions({
+      now = new Date(),
+      horizonMs,
+      limit,
+      processingStaleBefore = new Date(
+        now.getTime() - DEFAULT_RECOVERY_PROCESSING_HEARTBEAT_TIMEOUT_MS,
+      ),
+    }) {
       const db = await deps.getDb();
       if (!db) return [];
 
@@ -73,6 +83,16 @@ export function createDrizzleWhatsAppQuestionRecoveryRepository(deps: {
             isNull(whatsappConversationMessages.processedAt),
             isNotNull(whatsappConversationMessages.externalMessageId),
             isNotNull(whatsappConversationMessages.sanitizedText),
+            // Owners comprovadamente ativos não devem ocupar o lote de recovery.
+            // O claim continua sendo a fence final para a corrida entre esta
+            // leitura e a tentativa de takeover.
+            or(
+              isNull(whatsappMessageProcessingClaims.messageId),
+              lt(
+                whatsappMessageProcessingClaims.heartbeatAt,
+                processingStaleBefore,
+              ),
+            ),
             // O timestamp do evento Meta pode ser anterior ao recebimento real.
             // A janela de recovery mede quando o inbound foi persistido neste
             // runtime, que é o sinal correto para decidir se o trabalho órfão
