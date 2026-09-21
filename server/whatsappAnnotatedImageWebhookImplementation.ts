@@ -25,6 +25,7 @@ import {
 import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
+  buildWhatsAppRecoverableErrorReplyMessage,
 } from "./modules/whatsapp/replyMessages";
 import {
   buildWhatsAppImageNotRecognizedReplyMessage,
@@ -85,6 +86,10 @@ type PreparedImageMessage = {
   media: SavedMedia[];
   storageWarning?: string;
 };
+
+type ImageMealProcessingOutcome =
+  | { meal: MealProcessingResult }
+  | { error: MealInferenceError };
 
 const annotatedImageMessageDeduplicationCache =
   createMessageDeduplicationCache();
@@ -219,18 +224,20 @@ async function processImageMealInputWithFallback(input: {
     | import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]
     | null;
   userTimezone: string;
-}): Promise<MealProcessingResult | null> {
+}): Promise<ImageMealProcessingOutcome> {
   try {
-    return await runWithAiUsageScope({ userId: input.userId }, async () =>
-      processMealInput({
-        text: input.prepared.text,
-        imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
-        habits: await getHabitSnapshots(input.userId),
-        occurredAt: input.occurredAt,
-        timeZone: input.userTimezone,
-        intentHint: input.intentHint ?? undefined,
-      })
-    );
+    return {
+      meal: await runWithAiUsageScope({ userId: input.userId }, async () =>
+        processMealInput({
+          text: input.prepared.text,
+          imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
+          habits: await getHabitSnapshots(input.userId),
+          occurredAt: input.occurredAt,
+          timeZone: input.userTimezone,
+          intentHint: input.intentHint ?? undefined,
+        })
+      ),
+    };
   } catch (error) {
     if (!(error instanceof MealInferenceError)) {
       throw error;
@@ -249,8 +256,21 @@ async function processImageMealInputWithFallback(input: {
         "A imagem foi recebida, mas a IA não identificou alimentos com segurança suficiente. Nenhum registro foi criado.",
     });
 
-    return null;
+    return { error };
   }
+}
+
+function buildImageInferenceFailureReply(error: MealInferenceError) {
+  if (
+    error.code === "food_identity_clarification_required" &&
+    error.message.trim()
+  ) {
+    return buildWhatsAppRecoverableErrorReplyMessage(
+      `Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. ${error.message.trim()}`
+    );
+  }
+
+  return buildWhatsAppImageNotRecognizedReplyMessage();
 }
 
 function hasUsableAnnotatedImagePayload(annotatedImage: AnnotatedImageResult) {
@@ -527,7 +547,7 @@ async function tryHandleAnnotatedImageMessage(
     const occurredAt = resolveWhatsAppMessageOccurredAt(message);
     const messageKey = getExtractedWhatsAppMessageKey(message);
     const intentHint = intentHints?.get(messageKey) ?? null;
-    const processed = await processImageMealInputWithFallback({
+    const processingOutcome = await processImageMealInputWithFallback({
       userId,
       prepared,
       occurredAt,
@@ -535,18 +555,19 @@ async function tryHandleAnnotatedImageMessage(
       userTimezone,
     });
 
-    if (!processed) {
-      const notRecognizedReply = buildWhatsAppImageNotRecognizedReplyMessage();
+    if ("error" in processingOutcome) {
       await sendAnnotatedImageFallbackText({
         userId,
         sourcePhone,
-        reply: notRecognizedReply,
+        reply: buildImageInferenceFailureReply(processingOutcome.error),
         lifecycleHandle,
         acknowledgement,
       });
       markAnnotatedImageMessageHandled(message.id);
       return true;
     }
+
+    const processed = processingOutcome.meal;
 
     const processedForPersistence = {
       ...processed,
