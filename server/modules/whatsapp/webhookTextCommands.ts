@@ -362,6 +362,14 @@ export function detectWeightLogFromMessage(message: WhatsAppWebhookMessage) {
   const text = getWhatsAppMessageTextBody(message);
   if (!text || message.image?.id || message.audio?.id) return null;
   const normalized = normalizeWhatsAppIntentText(text);
+  if (
+    text.includes("?") ||
+    /\b(?:qual|quanto|quantos|quantas|como|ideal|medio|media|recomendado|recomendada)\b/.test(
+      normalized
+    )
+  ) {
+    return null;
+  }
   if (!/\b(peso|pesei|pesando|kg|kgs|quilo|quilos)\b/.test(normalized)) return null;
   const weightKg = parseWeightKg(text);
   if (!weightKg || weightKg < MIN_WEIGHT_LOG_KG || weightKg > MAX_WEIGHT_LOG_KG) return null;

@@ -120,6 +120,10 @@ describe("webhookTextCommands", () => {
       expect(detectWeightLogFromMessage(textMessage("meu peso hoje é 82,5kg"))).toEqual({ weightKg: 82.5 });
     });
 
+    it("não trata pergunta sobre peso como registro corporal", () => {
+      expect(detectWeightLogFromMessage(textMessage("qual o peso ideal para 68 kg?"))).toBeNull();
+    });
+
     it("ignora valores fora da faixa aceitável", () => {
       expect(detectWeightLogFromMessage(textMessage("pesei 10kg"))).toBeNull();
     });

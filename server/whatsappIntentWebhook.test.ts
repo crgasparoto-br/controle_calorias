@@ -399,6 +399,51 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("*Variação:* primeiro registro");
   });
 
+  it("registra peso mesmo quando existe uma pergunta alimentar expirada", async () => {
+    await fakePendingOperationDb.insert().values({
+      userId: 42,
+      type: "meal_intent_registration_details",
+      origin: "mealIntentRegistrationDetailsInteraction",
+      target: {
+        contractVersion: 1,
+        interactionId: "meal_intent_decision.registration_details",
+        kind: "meal_intent_registration_details",
+        originalText: "arroz e frango",
+        registrationText: "arroz e frango",
+        normalizedText: "arroz e frango",
+        inboundMessageId: "old-meal-message",
+        prompt: "Precisa ajustar algum alimento?",
+        attempts: 1,
+        actions: [{ id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" }],
+      },
+      state: "consumed",
+      version: 2,
+      expiresAt: new Date("2026-06-03T11:00:00.000Z"),
+      createdAt: new Date("2026-06-03T10:00:00.000Z"),
+      updatedAt: new Date("2026-06-03T11:00:00.000Z"),
+      consumedAt: new Date("2026-06-03T11:00:00.000Z"),
+    });
+
+    const req = createTextWebhookRequest("Meu Peso 68,70", {
+      id: "weight-after-stale-meal-question",
+    });
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(ensureWhatsAppWeightEntryMock).toHaveBeenCalledWith(42, {
+      weightKg: 68.7,
+      measuredAt: expect.any(Date),
+      notes: "Peso atualizado pelo WhatsApp.",
+    });
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(sentMessages.at(-1)).toContain("⚖️ *Peso registrado*");
+    expect(sentMessages.at(-1)).toContain("*Peso:* 68,7 kg");
+    expect(sentMessages.at(-1)).not.toContain("Essa pergunta não está mais disponível");
+  });
+
   it("pede esclarecimento para peso sem valor e não delega para criação de refeição", async () => {
     const req = createTextWebhookRequest("peso", { id: "weight-clarification" });
     const res = createResponse();

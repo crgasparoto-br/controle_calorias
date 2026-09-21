@@ -232,6 +232,14 @@ function isValidWeightKg(weightKg: number | null) {
 
 function detectWeightLogFromText(text: string) {
   const normalized = normalizeText(text);
+  if (
+    text.includes("?") ||
+    /\b(?:qual|quanto|quantos|quantas|como|ideal|medio|media|recomendado|recomendada)\b/.test(
+      normalized
+    )
+  ) {
+    return null;
+  }
   const mentionsWeightWord = /\b(peso|pesei|pesando)\b/.test(normalized);
   const mentionsWeightUnit = /\b(kg|kgs|quilo|quilos)\b/.test(normalized);
   if (!mentionsWeightWord && !mentionsWeightUnit) {
@@ -607,6 +615,7 @@ async function tryHandleTextIntent(
     // compartilhado, antes de qualquer classificação de intenção (exclusão, ajuste,
     // substituição, LLM etc).
     const interactiveReplyId = getWhatsAppInteractiveReplyId(message);
+    const weightLog = detectWeightLogFromText(text);
     const precedenceGate = await resolveWhatsAppPrecedenceGate({
       userId,
       text,
@@ -615,6 +624,7 @@ async function tryHandleTextIntent(
       interactiveReplyId,
       sourcePhone,
       messageId: message.id,
+      skipStalePendingResponse: Boolean(weightLog && !interactiveReplyId),
     });
     if (precedenceGate.step !== "continue_pipeline") {
       markTextIntentMessageHandled(message.id);
@@ -711,7 +721,6 @@ async function tryHandleTextIntent(
       }
     }
 
-    const weightLog = detectWeightLogFromText(text);
     if (weightLog?.kind === "clarification") {
       markTextIntentMessageHandled(message.id);
       await clearPendingTextIntentContext(userId);
