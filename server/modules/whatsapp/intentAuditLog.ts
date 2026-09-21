@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { WhatsappAiToolId, WhatsappAiToolTrace } from "./aiToolContract";
 import type { WhatsappIntentName, WhatsappInterpretedIntent } from "./intentSchema";
-import { recordWhatsappMessageHistory } from "./messageHistory";
+import { persistWhatsappMessageHistoryEntry, recordWhatsappMessageHistory } from "./messageHistory";
+import { enqueueWhatsappReviewFromHistoryDurably } from "./reviewQueue";
 import { recordWhatsappPipelineTrace, type WhatsappPipelineTraceSpan } from "./operationalObservability";
 
 export type WhatsappIntentValidationStatus = "valid" | "invalid_json" | "invalid_payload" | "skipped";
@@ -206,7 +207,7 @@ function recordOperationalPipelineTrace(entry: WhatsappIntentAuditLogEntry) {
 }
 
 function recordStructuredMessageHistory(input: RecordWhatsappIntentAuditLogInput, entry: WhatsappIntentAuditLogEntry) {
-  recordWhatsappMessageHistory({
+  const history = recordWhatsappMessageHistory({
     userId: entry.userId,
     messageText: input.messageText,
     createdAt: new Date(entry.createdAt),
@@ -221,6 +222,9 @@ function recordStructuredMessageHistory(input: RecordWhatsappIntentAuditLogInput
     fallbackReason: entry.fallbackReason,
     errorCode: entry.errorCode,
   });
+  void persistWhatsappMessageHistoryEntry(history);
+  void enqueueWhatsappReviewFromHistoryDurably(history);
+  return history;
 }
 
 export function recordWhatsappIntentAuditLog(input: RecordWhatsappIntentAuditLogInput) {

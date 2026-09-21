@@ -1,6 +1,7 @@
 import { listMeals } from "../meals/service";
 import type { MealDraftItem } from "../../nutritionEngine";
 import { retrieveWhatsappContextMemory, type WhatsappMemoryRetrievalContext } from "./contextMemory";
+import { loadPersistedWhatsappContextMemories } from "./persistentContextMemory";
 import { createDrizzleWhatsAppConversationRepository, type WhatsAppConversationMessageRecord, type WhatsAppConversationRepository } from "../../repositories/whatsappConversationRepository";
 import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import { WHATSAPP_CONVERSATION_ACTIVE_TTL_MS } from "./conversationPolicy";
@@ -219,12 +220,16 @@ export async function buildWhatsappIntentContext(
   const recentFoodNames = Array.from(new Set(
     compactMeals.flatMap(meal => meal.items.map(item => item.foodName).filter(Boolean)),
   )).slice(0, 20);
-  const memoryContext = includeContextualMemories
+  const persistedMemories = includeContextualMemories
+    ? await loadPersistedWhatsappContextMemories(userId)
+    : null;
+  const memoryContext: Pick<WhatsappMemoryRetrievalContext, "llmContext"> = persistedMemories !== null
     ? retrieveWhatsappContextMemory({
         userId,
         text: null,
         intent: null,
         now: receivedAt,
+        persistedMemories,
       })
     : { llmContext: [] };
 

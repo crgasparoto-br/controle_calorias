@@ -499,6 +499,21 @@ export const userPreferences = mysqlTable("userPreferences", {
   userKeyUnique: uniqueIndex("userPreferences_user_key_idx").on(table.userId, table.preferenceKey),
 }));
 
+export const whatsappLearningArtifacts = mysqlTable("whatsappLearningArtifacts", {
+  id: int("id").autoincrement().primaryKey(),
+  scope: mysqlEnum("scope", ["user", "global"]).notNull(),
+  userId: int("userId").references(() => users.id, { onDelete: "cascade" }),
+  artifactKind: varchar("artifactKind", { length: 80 }).notNull(),
+  artifactKey: varchar("artifactKey", { length: 64 }).notNull().unique(),
+  artifactValue: text("artifactValue").notNull(),
+  artifactVersion: varchar("artifactVersion", { length: 80 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  userKindIdx: index("whatsappLearningArtifacts_user_kind_idx").on(table.userId, table.artifactKind),
+  scopeKindIdx: index("whatsappLearningArtifacts_scope_kind_idx").on(table.scope, table.artifactKind),
+}));
+
 export const userRestrictions = mysqlTable("userRestrictions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),

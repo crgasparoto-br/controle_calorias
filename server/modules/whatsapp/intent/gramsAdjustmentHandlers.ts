@@ -114,6 +114,8 @@ function buildHouseholdMeasureLearningRelation(input: {
   item: MealItemInput;
   correctedQuantity: number;
   correctedUnit: string;
+  sourceMealId?: number | null;
+  sourceItemIndex?: number | null;
 }) {
   const originalQuantity = Number(input.item.quantity);
   const originalUnit = input.item.unit?.trim();
@@ -127,6 +129,12 @@ function buildHouseholdMeasureLearningRelation(input: {
     correctedQuantity: input.correctedQuantity,
     correctedUnit: input.correctedUnit,
   };
+  Object.defineProperties(relation, {
+    variant: { value: input.item.productVariant ?? null, enumerable: false },
+    portionLabel: { value: input.item.portionText, enumerable: false },
+    sourceMealId: { value: input.sourceMealId ?? null, enumerable: false },
+    sourceItemIndex: { value: input.sourceItemIndex ?? null, enumerable: false },
+  });
   return buildUserLearnedHouseholdMeasurePreference(relation) ? relation : null;
 }
 
@@ -136,6 +144,7 @@ async function updateMealItemsWithOptionalLearning(input: {
   originalItem: MealItemInput;
   correctedQuantity: number;
   correctedUnit: string;
+  sourceItemIndex: number;
 }) {
   const updateInput = {
     mealId: input.meal.id,
@@ -149,6 +158,8 @@ async function updateMealItemsWithOptionalLearning(input: {
     item: input.originalItem,
     correctedQuantity: input.correctedQuantity,
     correctedUnit: input.correctedUnit,
+    sourceMealId: input.meal.id,
+    sourceItemIndex: input.sourceItemIndex,
   });
   if (!relation) return updateMeal(input.userId, updateInput);
   return updateMealWithHouseholdMeasureLearning(input.userId, updateInput, {
@@ -269,6 +280,7 @@ export async function handleQuantityCorrectionIntent(userId: number, correction:
     originalItem,
     correctedQuantity: correction.nextQuantity,
     correctedUnit: correction.nextUnit,
+    sourceItemIndex: target.index,
   });
   const previous = correction.previousQuantity && correction.previousUnit
     ? `${formatNumber(correction.previousQuantity)}${correction.previousUnit}`
@@ -355,6 +367,7 @@ async function updateLatestMealItemGrams(input: {
         originalItem,
         correctedQuantity: nextGrams,
         correctedUnit: "g",
+        sourceItemIndex: target.index,
       })
     : await updateMealItems(input.userId, target.meal);
   return {

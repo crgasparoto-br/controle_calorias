@@ -22,6 +22,9 @@ export type HouseholdMeasurePersistenceInput = {
   userId: number;
   foodName: string;
   brand?: string | null;
+  variant?: string | null;
+  context?: string | null;
+  portionLabel?: string | null;
   quantity: number;
   unit: string;
 };
@@ -64,6 +67,12 @@ function parseStoredResolution(
       normalizedFoodName: parsed.normalizedFoodName,
       brand: parsed.brand ?? null,
       normalizedBrand: parsed.normalizedBrand,
+      variant: parsed.variant ?? null,
+      normalizedVariant: typeof parsed.normalizedVariant === "string" ? parsed.normalizedVariant : "",
+      context: parsed.context ?? null,
+      normalizedContext: typeof parsed.normalizedContext === "string" ? parsed.normalizedContext : "",
+      portionLabel: parsed.portionLabel ?? null,
+      normalizedPortionLabel: typeof parsed.normalizedPortionLabel === "string" ? parsed.normalizedPortionLabel : "",
       unit: parsed.unit,
       measureQuantity: parsed.measureQuantity,
       grams: parsed.grams,
@@ -76,6 +85,9 @@ function parseStoredResolution(
         : 0,
       verifiedAt: parsed.verifiedAt,
       expiresAt: parsed.expiresAt ?? null,
+      sourceMealId: typeof parsed.sourceMealId === "number" && Number.isInteger(parsed.sourceMealId) ? parsed.sourceMealId : null,
+      sourceItemIndex: typeof parsed.sourceItemIndex === "number" && Number.isInteger(parsed.sourceItemIndex) ? parsed.sourceItemIndex : null,
+      sourceFeedbackId: typeof parsed.sourceFeedbackId === "string" || typeof parsed.sourceFeedbackId === "number" ? parsed.sourceFeedbackId : null,
     };
   } catch {
     return null;
@@ -89,6 +101,9 @@ function recordMatchesInput(
   const identity = normalizedHouseholdMeasureIdentity(input);
   return record.normalizedFoodName === identity.foodName
     && record.normalizedBrand === identity.brand
+    && record.normalizedVariant === identity.variant
+    && record.normalizedContext === identity.context
+    && record.normalizedPortionLabel === identity.portionLabel
     && record.unit === identity.unit;
 }
 
@@ -152,6 +167,12 @@ export async function persistHouseholdMeasureResolution(
     normalizedFoodName: identity.foodName,
     brand: input.brand?.trim() || null,
     normalizedBrand: identity.brand,
+    variant: input.variant?.trim() || null,
+    normalizedVariant: identity.variant,
+    context: input.context?.trim() || null,
+    normalizedContext: identity.context,
+    portionLabel: input.portionLabel?.trim() || null,
+    normalizedPortionLabel: identity.portionLabel,
     unit: identity.unit,
     measureQuantity: input.quantity,
     grams: Number(input.grams.toFixed(2)),
@@ -160,6 +181,9 @@ export async function persistHouseholdMeasureResolution(
     referenceCount: Math.max(0, Math.trunc(input.referenceCount)),
     verifiedAt: verifiedAt.toISOString(),
     expiresAt: expiresAt?.toISOString() ?? null,
+    sourceMealId: null,
+    sourceItemIndex: null,
+    sourceFeedbackId: null,
   };
   const key = householdMeasurePreferenceKey(input, input.kind);
   const serialized = JSON.stringify(record);

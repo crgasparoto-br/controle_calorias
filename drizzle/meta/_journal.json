@@ -50,6 +50,7 @@
     { "idx": 47, "version": "5", "when": 1786925040000, "tag": "0047_usage_governance_audit_closure", "breakpoints": true },
     { "idx": 48, "version": "5", "when": 1787893200000, "tag": "0048_billing_consumption_charge_state_machine", "breakpoints": true },
     { "idx": 49, "version": "5", "when": 1788625361192, "tag": "0049_nutrition_research_persistence", "breakpoints": true },
-    { "idx": 50, "version": "5", "when": 1789176694000, "tag": "0050_whatsapp_processing_owner_claim", "breakpoints": true }
+    { "idx": 50, "version": "5", "when": 1789176694000, "tag": "0050_whatsapp_processing_owner_claim", "breakpoints": true },
+    { "idx": 51, "version": "5", "when": 1789946433000, "tag": "0051_whatsapp_learning_artifacts", "breakpoints": true }
   ]
 }

@@ -12,6 +12,9 @@ export type HouseholdMeasurePersistenceIdentity = {
   userId: number;
   foodName: string;
   brand?: string | null;
+  variant?: string | null;
+  context?: string | null;
+  portionLabel?: string | null;
   quantity: number;
   unit: string;
 };
@@ -20,10 +23,16 @@ export type UserLearnedHouseholdMeasureInput = {
   userId: number;
   foodName: string;
   brand?: string | null;
+  variant?: string | null;
+  context?: string | null;
+  portionLabel?: string | null;
   originalQuantity: number;
   originalUnit: string;
   correctedQuantity: number;
   correctedUnit: string;
+  sourceMealId?: number | null;
+  sourceItemIndex?: number | null;
+  sourceFeedbackId?: string | number | null;
 };
 
 export type PersistedHouseholdMeasureResolution = {
@@ -33,6 +42,12 @@ export type PersistedHouseholdMeasureResolution = {
   normalizedFoodName: string;
   brand: string | null;
   normalizedBrand: string;
+  variant: string | null;
+  normalizedVariant: string;
+  context: string | null;
+  normalizedContext: string;
+  portionLabel: string | null;
+  normalizedPortionLabel: string;
   unit: string;
   measureQuantity: number;
   grams: number;
@@ -41,6 +56,9 @@ export type PersistedHouseholdMeasureResolution = {
   referenceCount: number;
   verifiedAt: string;
   expiresAt: string | null;
+  sourceMealId: number | null;
+  sourceItemIndex: number | null;
+  sourceFeedbackId: string | number | null;
 };
 
 export type BuiltHouseholdMeasurePreference = {
@@ -70,22 +88,25 @@ export function normalizeHouseholdMeasureCountableUnit(value: string) {
 }
 
 export function normalizedHouseholdMeasureIdentity(
-  input: Pick<HouseholdMeasurePersistenceIdentity, "foodName" | "brand" | "unit">,
+  input: Pick<HouseholdMeasurePersistenceIdentity, "foodName" | "brand" | "variant" | "context" | "portionLabel" | "unit">,
 ) {
   return {
     foodName: normalizeHouseholdMeasureIdentityText(input.foodName),
     brand: normalizeHouseholdMeasureIdentityText(input.brand ?? ""),
+    variant: normalizeHouseholdMeasureIdentityText(input.variant ?? ""),
+    context: normalizeHouseholdMeasureIdentityText(input.context ?? ""),
+    portionLabel: normalizeHouseholdMeasureIdentityText(input.portionLabel ?? ""),
     unit: normalizeHouseholdMeasureCountableUnit(input.unit),
   };
 }
 
 export function householdMeasurePreferenceKey(
-  input: Pick<HouseholdMeasurePersistenceIdentity, "foodName" | "brand" | "unit">,
+  input: Pick<HouseholdMeasurePersistenceIdentity, "foodName" | "brand" | "variant" | "context" | "portionLabel" | "unit">,
   kind: PersistedHouseholdMeasureKind,
 ) {
   const identity = normalizedHouseholdMeasureIdentity(input);
   const digest = createHash("sha256")
-    .update([identity.foodName, identity.brand, identity.unit, kind].join("|"))
+    .update([identity.foodName, identity.brand, identity.variant, identity.context, identity.portionLabel, identity.unit, kind].join("|"))
     .digest("hex");
   return `${PREFERENCE_PREFIX}${digest}`;
 }
@@ -119,6 +140,9 @@ export function buildUserLearnedHouseholdMeasurePreference(
   const identity = normalizedHouseholdMeasureIdentity({
     foodName: input.foodName,
     brand: input.brand,
+    variant: input.variant,
+    context: input.context,
+    portionLabel: input.portionLabel,
     unit: originalUnit,
   });
   const record: PersistedHouseholdMeasureResolution = {
@@ -128,6 +152,12 @@ export function buildUserLearnedHouseholdMeasurePreference(
     normalizedFoodName: identity.foodName,
     brand: input.brand?.trim() || null,
     normalizedBrand: identity.brand,
+    variant: input.variant?.trim() || null,
+    normalizedVariant: identity.variant,
+    context: input.context?.trim() || null,
+    normalizedContext: identity.context,
+    portionLabel: input.portionLabel?.trim() || null,
+    normalizedPortionLabel: identity.portionLabel,
     unit: identity.unit,
     measureQuantity: input.originalQuantity,
     grams: Number(correctedGrams.toFixed(2)),
@@ -136,12 +166,18 @@ export function buildUserLearnedHouseholdMeasurePreference(
     referenceCount: 0,
     verifiedAt: verifiedAt.toISOString(),
     expiresAt: null,
+    sourceMealId: input.sourceMealId ?? null,
+    sourceItemIndex: input.sourceItemIndex ?? null,
+    sourceFeedbackId: input.sourceFeedbackId ?? null,
   };
 
   return {
     preferenceKey: householdMeasurePreferenceKey({
       foodName: input.foodName,
       brand: input.brand,
+      variant: input.variant,
+      context: input.context,
+      portionLabel: input.portionLabel,
       unit: originalUnit,
     }, "user_learned"),
     preferenceValue: JSON.stringify(record),

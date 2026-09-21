@@ -81,3 +81,11 @@ No WhatsApp, um atributo de preparo omitido pode ser preenchido por memória ind
 - A leitura usada por decisões de domínio vem da memória contextual persistida; memória de processo pode existir apenas como fallback de teste/desenvolvimento permitido e nunca autoriza sucesso persistente em produção.
 - Memória inativa, expirada, substituída, de outro usuário ou em conflito mantém o fluxo de clarificação. Nenhuma LLM escolhe silenciosamente entre memórias conflitantes.
 - O uso de uma memória aplicada é registrado com identificador e chave operacionais, sem depender do texto bruto do usuário como fonte de verdade da mutação.
+
+## Memória pessoal durável e aprendizado seguro (#1153)
+
+Aliases pessoais e correções de medidas são persistidos por usuário no artefato durável de aprendizado do WhatsApp. A identidade aprendida inclui alimento canônico, marca, variante/linha, contexto e porção/medida quando esses campos participam da decisão, além de confiança, origem, criação, último uso, expiração e estado de lifecycle. A fonte usada pela decisão de domínio é a persistência; o estado local só pode ser usado como fallback explícito em testes/desenvolvimento e não autoriza declarar aprendizado persistido em produção.
+
+A precedência operacional é **evidência explícita da mensagem atual > memória pessoal ativa e pertencente ao mesmo usuário > resolvedor canônico > clarificação**. A memória completa somente campos ausentes. Se o mesmo alias for redefinido para outra identidade, a definição anterior é revogada e permanece apenas como histórico auditável; duas identidades ativas concorrentes não podem ser escolhidas silenciosamente. Falhas de leitura ou escrita de memória não desfazem uma refeição validamente registrada, mas bloqueiam a afirmação de que o aprendizado foi persistido.
+
+Confirmações, correções e feedback carregam a referência ao histórico e, quando aplicável, ao índice do item alimentar, identidade comercial, porção, fonte nutricional e confiança. Ambiguidades, baixa confiança, fonte insuficiente/incompatível e correções posteriores são encaminhadas à review queue. Esses eventos e candidatos globais permanecem separados da memória individual e não promovem uma regra global diretamente.

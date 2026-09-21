@@ -47,6 +47,7 @@ const whatsappIntentFoodItemSchema = z.object({
   quantity: z.number().positive().max(5000).nullable().optional(),
   unit: z.string().trim().min(1).max(40).nullable().optional(),
   brand: z.string().trim().min(1).max(80).nullable().optional(),
+  variant: z.string().trim().min(1).max(120).nullable().optional(),
   preparation: z.string().trim().min(1).max(120).nullable().optional(),
 });
 
@@ -125,13 +126,14 @@ export const whatsappIntentJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["foodName", "quantity", "unit", "brand", "preparation"],
-        properties: {
-          foodName: { type: "string" },
-          quantity: { type: ["number", "null"] },
-          unit: { type: ["string", "null"] },
-          brand: { type: ["string", "null"] },
-          preparation: { type: ["string", "null"] },
+              required: ["foodName", "quantity", "unit", "brand", "preparation"],
+              properties: {
+                foodName: { type: "string" },
+                quantity: { type: ["number", "null"] },
+                unit: { type: ["string", "null"] },
+                brand: { type: ["string", "null"] },
+                variant: { type: ["string", "null"] },
+                preparation: { type: ["string", "null"] },
         },
       },
     },

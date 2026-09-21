@@ -5,6 +5,12 @@ import {
   type AiLearningPrivacyRecord,
 } from "../aiLearningPrivacy";
 import type { WhatsappReviewDecisionResult, WhatsappReviewQueueItem } from "./reviewQueue";
+import {
+  listPersistedWhatsappLearningArtifacts,
+  persistWhatsappLearningArtifact,
+} from "./learningArtifactPersistence";
+import type { WhatsappQualityGateResult } from "./qualityGates";
+import type { WhatsappPromotionEvaluation } from "./gradualPromotion";
 
 export const WHATSAPP_LEARNING_GOVERNANCE_VERSION = "whatsapp-learning-governance/v1";
 
@@ -80,7 +86,7 @@ export type WhatsappLearningCandidate = {
   scope: "individual" | "cohort" | "global" | "system";
   title: string;
   rationale: string;
-  evidence: Array<{ source: string; reference: string; summary: string }>;
+  evidence: Array<{ source: string; reference: string; summary: string; userIdHash?: string; identityKey?: string }>;
   risk: WhatsappLearningRiskLevel;
   expectedImpact: string;
   rollbackPlan: string | null;
@@ -90,6 +96,19 @@ export type WhatsappLearningCandidate = {
   sourceReviewQueueItemId: number | null;
   sourceReviewDecision: WhatsappReviewDecisionResult | null;
   directGlobalPromotionAllowed: false;
+  distinctUserCount: number;
+  conflictDetected: boolean;
+  governanceChecks: {
+    required: boolean;
+    replayDecision: "approve" | "review" | "reject" | "shadow" | null;
+    qualityGateDecision: string | null;
+    positiveCases: number;
+    negativeCases: number;
+    ambiguousCases: number;
+    multiTurnCases: number;
+  };
+  qualityGate: Pick<WhatsappQualityGateResult, "decision" | "targetStage" | "blockingFindings" | "warnings"> | null;
+  gradualPromotion: Pick<WhatsappPromotionEvaluation, "allowed" | "decision" | "targetStage" | "reason"> | null;
   governanceVersion: typeof WHATSAPP_LEARNING_GOVERNANCE_VERSION;
   privacy: AiLearningPrivacyRecord;
   approvals: Array<{ role: WhatsappLearningApprovalRole; reviewer: string; justification: string; decidedAt: string }>;
@@ -132,6 +151,8 @@ type RecordLearningCandidateInput = {
   metric?: string | null;
   payload?: Record<string, unknown>;
   sourceReviewQueueItem?: WhatsappReviewQueueItem | null;
+  qualityGate?: Pick<WhatsappQualityGateResult, "decision" | "targetStage" | "blockingFindings" | "warnings"> | null;
+  gradualPromotion?: Pick<WhatsappPromotionEvaluation, "allowed" | "decision" | "targetStage" | "reason"> | null;
   createdAt?: Date;
 };
 
@@ -208,6 +229,7 @@ function recordAudit(input: Omit<WhatsappLearningAuditEvent, "id" | "createdAt" 
   };
   nextAuditId += 1;
   auditEvents.push(event);
+  void persistWhatsappLearningAuditEvent(event);
   return event;
 }
 
@@ -251,6 +273,62 @@ function payloadContainsIdentifier(payload: Record<string, unknown>) {
   return containsDirectIdentifier(JSON.stringify(auditablePayload));
 }
 
+function governanceEvidence(payload: Record<string, unknown>, evidence: WhatsappLearningCandidate["evidence"]) {
+  const sourceUserIds = Array.isArray(payload.sourceUserIds)
+    ? payload.sourceUserIds.filter((id): id is number => Number.isInteger(id) && id > 0)
+    : [];
+  const evidenceUserHashes = evidence.map(item => item.userIdHash).filter((hash): hash is string => Boolean(hash));
+  const distinctUserCount = Number.isFinite(Number(payload.distinctUserCount))
+    ? Math.max(0, Math.trunc(Number(payload.distinctUserCount)))
+    : sourceUserIds.length > 0 ? new Set(sourceUserIds).size : new Set(evidenceUserHashes).size;
+  const coverage = payload.coverage && typeof payload.coverage === "object"
+    ? payload.coverage as Record<string, unknown>
+    : {};
+  const required = payload.requiresMultiUserEvidence === true
+    || payload.requiresGovernedPromotion === true
+    || sourceUserIds.length > 0
+    || evidenceUserHashes.length > 0;
+  return {
+    required,
+    distinctUserCount,
+    conflictDetected: payload.conflictDetected === true
+      || payload.materialConflict === true
+      || new Set(evidence.map(item => item.identityKey).filter(Boolean)).size > 1,
+    replayDecision: ["approve", "review", "reject", "shadow"].includes(String(payload.replayDecision))
+      ? String(payload.replayDecision) as "approve" | "review" | "reject" | "shadow"
+      : null,
+    qualityGateDecision: typeof payload.qualityGateDecision === "string" ? payload.qualityGateDecision : null,
+    positiveCases: Math.max(0, Math.trunc(Number(coverage.positiveCases ?? 0))),
+    negativeCases: Math.max(0, Math.trunc(Number(coverage.negativeCases ?? 0))),
+    ambiguousCases: Math.max(0, Math.trunc(Number(coverage.ambiguousCases ?? 0))),
+    multiTurnCases: Math.max(0, Math.trunc(Number(coverage.multiTurnCases ?? 0))),
+    evidenceCount: evidence.length,
+  };
+}
+
+export function aggregateWhatsappLearningEvidence(input: Array<{
+  userId: number;
+  identityKey: string;
+  summary?: string;
+}>) {
+  const sourceUserIds = [...new Set(input.filter(item => Number.isInteger(item.userId) && item.userId > 0).map(item => item.userId))];
+  const byIdentity = new Map<string, { count: number; userIds: number[]; summaries: string[] }>();
+  for (const item of input) {
+    const current = byIdentity.get(item.identityKey) ?? { count: 0, userIds: [], summaries: [] };
+    current.count += 1;
+    if (!current.userIds.includes(item.userId)) current.userIds.push(item.userId);
+    if (item.summary) current.summaries.push(item.summary);
+    byIdentity.set(item.identityKey, current);
+  }
+  return {
+    frequency: input.length,
+    distinctUserCount: sourceUserIds.length,
+    sourceUserIds,
+    conflictDetected: byIdentity.size > 1,
+    identities: [...byIdentity.entries()].map(([identityKey, value]) => ({ identityKey, ...value })),
+  };
+}
+
 export function getWhatsappLearningGovernancePolicy(action: WhatsappLearningAction) {
   return getPolicy(action);
 }
@@ -263,6 +341,9 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
   const createdAt = toIso(input.createdAt);
   const policy = getPolicy(input.action);
   const payload = input.payload ?? {};
+  const governanceEvidenceResult = governanceEvidence(payload, input.evidence ?? []);
+  const auditablePayload: Record<string, unknown> = { ...payload, distinctUserCount: governanceEvidenceResult.distinctUserCount };
+  delete auditablePayload.sourceUserIds;
   const candidate: WhatsappLearningCandidate = {
     id: nextCandidateId,
     createdAt,
@@ -280,10 +361,23 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
     rollbackPlan: input.rollbackPlan ?? null,
     version: input.version ?? null,
     metric: input.metric ?? null,
-    payload: { ...payload, governanceFingerprint: hashValue(JSON.stringify({ title: input.title, origin: input.origin, payload })) },
+    payload: { ...auditablePayload, governanceFingerprint: hashValue(JSON.stringify({ title: input.title, origin: input.origin, payload: auditablePayload })) },
     sourceReviewQueueItemId: input.sourceReviewQueueItem?.id ?? null,
     sourceReviewDecision: input.sourceReviewQueueItem?.review.decision ?? null,
     directGlobalPromotionAllowed: false,
+    distinctUserCount: governanceEvidenceResult.distinctUserCount,
+    conflictDetected: governanceEvidenceResult.conflictDetected,
+    governanceChecks: {
+      required: governanceEvidenceResult.required,
+      replayDecision: governanceEvidenceResult.replayDecision,
+      qualityGateDecision: input.qualityGate?.decision ?? governanceEvidenceResult.qualityGateDecision,
+      positiveCases: governanceEvidenceResult.positiveCases,
+      negativeCases: governanceEvidenceResult.negativeCases,
+      ambiguousCases: governanceEvidenceResult.ambiguousCases,
+      multiTurnCases: governanceEvidenceResult.multiTurnCases,
+    },
+    qualityGate: input.qualityGate ?? null,
+    gradualPromotion: input.gradualPromotion ?? null,
     governanceVersion: WHATSAPP_LEARNING_GOVERNANCE_VERSION,
     privacy: buildPrivacy(createdAt),
     approvals: [],
@@ -295,6 +389,7 @@ export function recordWhatsappLearningCandidate(input: RecordLearningCandidateIn
   nextCandidateId += 1;
   candidates.push(candidate);
   recordAudit({ createdAt, type: "candidate_created", candidateId: candidate.id, actor: "system", role: "system", action: candidate.action, status: candidate.status, justification: policy.description });
+  void persistWhatsappLearningCandidate(candidate);
   return candidate;
 }
 
@@ -348,6 +443,7 @@ export function approveWhatsappLearningCandidate(input: {
   candidate.status = approvalCount(candidate, policy) >= requiredApprovals(policy) ? "approved" : "needs_review";
   candidate.updatedAt = decidedAt;
   recordAudit({ createdAt: decidedAt, type: "approval_recorded", candidateId: candidate.id, actor: input.reviewer, role: input.role, action: candidate.action, status: candidate.status, justification: input.justification });
+  void persistWhatsappLearningCandidate(candidate);
   return candidate;
 }
 
@@ -367,6 +463,7 @@ export function rejectWhatsappLearningCandidate(input: {
   candidate.updatedAt = decidedAt;
   candidate.rejection = { role: input.role, reviewer: input.reviewer, justification: input.justification, decidedAt };
   recordAudit({ createdAt: decidedAt, type: "rejection_recorded", candidateId: candidate.id, actor: input.reviewer, role: input.role, action: candidate.action, status: candidate.status, justification: input.justification });
+  void persistWhatsappLearningCandidate(candidate);
   return candidate;
 }
 
@@ -384,6 +481,36 @@ export function evaluateWhatsappLearningPromotion(input: {
   }
   if (candidate.status !== "approved" && requiredApprovals(policy) > 0) {
     return { allowed: false, reason: "Promocao exige aprovacao governada antes de ficar ativa.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.scope === "global" && candidate.distinctUserCount < 2) {
+    return { allowed: false, reason: "Evidencia multiusuario exige pelo menos 2 usuarios distintos; repeticoes do mesmo usuario nao contam.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.conflictDetected) {
+    return { allowed: false, reason: "Conflito material entre sinais bloqueia o candidato e exige revisao auditavel.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.governanceChecks.replayDecision !== "approve") {
+    return { allowed: false, reason: "Replay/reprocessing sem decisao approve bloqueia a promocao global.", policy };
+  }
+  if (candidate.governanceChecks.required && (candidate.governanceChecks.positiveCases < 1 || candidate.governanceChecks.negativeCases < 1)) {
+    return { allowed: false, reason: "Dataset positivo e negativo sao obrigatorios antes da promocao global.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.payload.ambiguousCasesApplicable === true && candidate.governanceChecks.ambiguousCases < 1) {
+    return { allowed: false, reason: "Casos ambiguos aplicaveis ainda nao foram cobertos.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.payload.multiTurnApplicable === true && candidate.governanceChecks.multiTurnCases < 1) {
+    return { allowed: false, reason: "Casos multi-turn aplicaveis ainda nao foram cobertos.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.qualityGate?.blockingFindings.length) {
+    return { allowed: false, reason: "Quality gate canonico possui findings bloqueantes.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.scope === "global" && !candidate.gradualPromotion) {
+    return { allowed: false, reason: "Candidato global sem avaliacao de promocao gradual nao pode avancar.", policy };
+  }
+  if (candidate.governanceChecks.required && candidate.gradualPromotion && !candidate.gradualPromotion.allowed) {
+    return { allowed: false, reason: `Promocao gradual bloqueada: ${candidate.gradualPromotion.reason}`, policy };
+  }
+  if (candidate.governanceChecks.required && !["approve_shadow", "approve_canary", "approve_broad"].includes(candidate.governanceChecks.qualityGateDecision ?? "")) {
+    return { allowed: false, reason: "Quality gates aplicaveis ainda nao aprovam o candidato.", policy };
   }
   if (input.role && !policyAllowsRole(policy, input.role)) {
     return { allowed: false, reason: "Papel sem permissao para promover esta mudanca.", policy };
@@ -427,6 +554,7 @@ export function promoteWhatsappLearningCandidate(input: {
     metric: candidate.metric ?? "Metrica nao informada.",
   };
   recordAudit({ createdAt: promotedAt, type: "promotion_recorded", candidateId: candidate.id, actor: input.promotedBy, role: input.role, action: candidate.action, status: candidate.status, justification: decision.reason });
+  void persistWhatsappLearningCandidate(candidate);
   return candidate;
 }
 
@@ -447,6 +575,7 @@ export function rollbackWhatsappLearningCandidate(input: {
   candidate.updatedAt = rolledBackAt;
   candidate.rollback = { rolledBackAt, rolledBackBy: input.rolledBackBy, role: input.role, reason: input.reason, restoredVersion: input.restoredVersion ?? null };
   recordAudit({ createdAt: rolledBackAt, type: "rollback_recorded", candidateId: candidate.id, actor: input.rolledBackBy, role: input.role, action: candidate.action, status: candidate.status, justification: input.reason });
+  void persistWhatsappLearningCandidate(candidate);
   return candidate;
 }
 
@@ -487,6 +616,72 @@ export function listWhatsappLearningAuditEvents(filter: Partial<Pick<WhatsappLea
     if (filter.type && event.type !== filter.type) return false;
     return true;
   });
+}
+
+export async function persistWhatsappLearningCandidate(candidate: WhatsappLearningCandidate) {
+  return persistWhatsappLearningArtifact({
+    scope: "global",
+    userId: null,
+    kind: "learning_candidate",
+    key: `candidate:${candidate.id}`,
+    value: candidate,
+    createdAt: new Date(candidate.createdAt),
+  });
+}
+
+export async function persistWhatsappLearningAuditEvent(event: WhatsappLearningAuditEvent) {
+  return persistWhatsappLearningArtifact({
+    scope: "global",
+    userId: null,
+    kind: "learning_audit_event",
+    key: `audit:${event.id}`,
+    value: event,
+    createdAt: new Date(event.createdAt),
+  });
+}
+
+export async function recordWhatsappLearningCandidateDurably(input: RecordLearningCandidateInput) {
+  const candidate = recordWhatsappLearningCandidate(input);
+  const audit = listWhatsappLearningAuditEvents({ candidateId: candidate.id }).at(-1);
+  const [persistedCandidate, persistedAudit] = await Promise.all([
+    persistWhatsappLearningCandidate(candidate),
+    audit ? persistWhatsappLearningAuditEvent(audit) : Promise.resolve(true),
+  ]);
+  return { candidate, persisted: Boolean(persistedCandidate && persistedAudit) };
+}
+
+export async function loadPersistedWhatsappLearningCandidates() {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappLearningCandidate>({ scope: "global", kind: "learning_candidate" });
+  if (artifacts === null) return null;
+  return artifacts.map(artifact => artifact.value).filter(candidate => candidate && typeof candidate.id === "number");
+}
+
+export async function loadPersistedWhatsappLearningAuditEvents() {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<WhatsappLearningAuditEvent>({ scope: "global", kind: "learning_audit_event" });
+  if (artifacts === null) return null;
+  return artifacts.map(artifact => artifact.value).filter(event => event && typeof event.id === "number");
+}
+
+export async function hydrateWhatsappLearningGovernance() {
+  const [persistedCandidates, persistedEvents] = await Promise.all([
+    loadPersistedWhatsappLearningCandidates(),
+    loadPersistedWhatsappLearningAuditEvents(),
+  ]);
+  if (persistedCandidates === null || persistedEvents === null) return { persisted: false as const, candidates: 0, auditEvents: 0 };
+
+  const candidateIds = new Set(candidates.map(candidate => candidate.id));
+  for (const candidate of persistedCandidates) {
+    if (!candidateIds.has(candidate.id)) candidates.push(candidate);
+  }
+  const eventIds = new Set(auditEvents.map(event => event.id));
+  for (const event of persistedEvents) {
+    if (!eventIds.has(event.id)) auditEvents.push(event);
+  }
+  candidates.sort((a, b) => a.id - b.id);
+  auditEvents.sort((a, b) => a.id - b.id);
+  nextCandidateId = Math.max(nextCandidateId, (candidates.at(-1)?.id ?? 0) + 1);
+  nextAuditId = Math.max(nextAuditId, (auditEvents.at(-1)?.id ?? 0) + 1);
+  return { persisted: true as const, candidates: persistedCandidates.length, auditEvents: persistedEvents.length };
 }
 
 export function __resetWhatsappLearningGovernanceForTests() {
