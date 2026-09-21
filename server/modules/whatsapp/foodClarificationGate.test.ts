@@ -99,14 +99,15 @@ describe("resolvePendingWhatsappFoodClarification", () => {
 
     const result = await resolvePendingWhatsappFoodClarification({
       userId: 42,
-      text: "170 g",
+      text: "Meu Peso 68,70",
       userTimezone: "America/Sao_Paulo",
+      skipStalePendingResponse: true,
     });
 
-    expect(interaction.classifyText).toHaveBeenCalledWith(active.target, "170 g");
+    expect(interaction.classifyText).toHaveBeenCalledWith(active.target, "Meu Peso 68,70");
     expect(resolveWhatsappRegisteredTextMock).toHaveBeenCalledWith(
       interaction,
-      expect.objectContaining({ pendingOperation: active, text: "170 g" }),
+      expect.objectContaining({ pendingOperation: active, text: "Meu Peso 68,70" }),
     );
     expect(result).toEqual(expect.objectContaining({
       action: "food_clarification_requested",

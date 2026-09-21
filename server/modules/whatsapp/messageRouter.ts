@@ -146,6 +146,8 @@ export async function resolveWhatsAppPrecedenceGate(input: {
   interactiveReplyId?: string | null;
   sourcePhone?: string | null;
   messageId?: string | null;
+  /** Permite que uma intenção determinística ignore somente pendências stale. */
+  skipStalePendingResponse?: boolean;
   /** Executa somente o tratamento transversal de pendências textuais. */
   pendingOnly?: boolean;
 }): Promise<WhatsAppPrecedenceGateResult> {
@@ -203,6 +205,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     receivedAt: input.receivedAt,
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
     messageId: input.messageId,
+    skipStalePendingResponse: input.skipStalePendingResponse,
   });
   if (pendingInteraction) {
     if (pendingInteraction.eventType.startsWith("whatsapp.action_")) {
