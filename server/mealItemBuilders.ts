@@ -259,6 +259,30 @@ export function buildProvisionalBrandedNutritionItem(
   };
 }
 
+/**
+ * Preserves a clear commercial identity when the text extractor omitted usable
+ * macros. The generic reference is explicitly heuristic and never represents
+ * verified nutrition for the branded product.
+ */
+export function buildProvisionalBrandedNutritionFallbackItem(
+  llmItem: LlmItem,
+  productVariant: string,
+  identitySource = llmItem.foodName,
+): MealDraftItem {
+  const estimated = buildEstimatedNutritionFallbackItem({
+    ...llmItem,
+    foodName: identitySource,
+  });
+  return {
+    ...estimated,
+    foodName: formatRecognizedProductIdentity(identitySource, llmItem.brand ?? null),
+    canonicalName: formatFoodNameTitleCase(identitySource),
+    productVariant: productVariant.trim() || null,
+    source: "hybrid",
+    confidence: Math.min(estimated.confidence, 0.55),
+  };
+}
+
 export function hasUsableNutrition(item: LlmItem) {
   return item.estimatedCalories > 0
     || item.estimatedMacros.protein > 0
