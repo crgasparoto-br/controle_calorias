@@ -1064,14 +1064,37 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       );
 
       const replyMeal = consolidationResult.meal;
+      const provisionalNutritionItemCount = (replyMeal.items ?? []).filter(
+        item =>
+          item.resolution?.nutritionOrigin === "provisional_estimate" &&
+          item.resolution.nutritionVerified === false
+      ).length;
+      let nutritionLabelContinuationAvailable =
+        provisionalNutritionItemCount === 0;
       try {
-        await createProvisionalNutritionLabelPhotoRequests({
-          userId,
-          mealId: replyMeal.id,
-          items: replyMeal.items ?? [],
-          sourceMessageId: message.id,
-        });
+        const nutritionLabelPhotoRequestIds =
+          await createProvisionalNutritionLabelPhotoRequests({
+            userId,
+            mealId: replyMeal.id,
+            items: replyMeal.items ?? [],
+            sourceMessageId: message.id,
+          });
+        nutritionLabelContinuationAvailable =
+          provisionalNutritionItemCount === 0 ||
+          nutritionLabelPhotoRequestIds.length === provisionalNutritionItemCount;
+        if (!nutritionLabelContinuationAvailable) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType:
+              "whatsapp.nutrition_label_photo_request_persistence_failed",
+            detail:
+              "A refeição foi registrada, mas nem todas as continuações de rótulo puderam ser persistidas; o convite acionável foi suprimido.",
+          });
+        }
       } catch {
+        nutritionLabelContinuationAvailable = false;
         logInferenceEvent({
           userId,
           origin: "whatsapp",
@@ -1110,11 +1133,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               registeredAt: occurredAt,
               goalProgress,
               timeZone: userTimezone,
+              nutritionLabelContinuationAvailable,
             })
           : buildWhatsAppMealReplyMessage(persistedReplyInput, {
               registeredAt: occurredAt,
               goalProgress,
               timeZone: userTimezone,
+              nutritionLabelContinuationAvailable,
             });
       const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
         ? {

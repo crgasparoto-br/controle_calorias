@@ -58,6 +58,7 @@ const {
   createProvisionalNutritionLabelPhotoRequests,
   isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
+  parseNutritionLabelPhotoClarificationText,
   resolveNutritionLabelPhotoClarificationText,
   resolveNutritionLabelPhotoEvidence,
 } = await import("./nutritionLabelCandidateService");
@@ -113,6 +114,13 @@ const doriLabelItem = {
   foodName: "Amendoim Japonês Dori",
   canonicalName: "Amendoim Japonês Dori",
   brand: "Dori",
+};
+
+const sameBrandOtherProductLabelItem = {
+  ...labelItem,
+  foodName: "Cheetos Lua Parmesão Elma Chips",
+  canonicalName: "Cheetos Lua Parmesão Elma Chips",
+  brand: "Elma Chips",
 };
 
 const beerItem = {
@@ -234,6 +242,18 @@ describe("nutrition label provisional WhatsApp flow", () => {
         createPendingOperationMock.mock.calls[0][0].target
       )
     ).toBe(true);
+  });
+
+  it("não oferece continuação como persistida quando a pending operation não foi criada", async () => {
+    createPendingOperationMock.mockResolvedValueOnce(null);
+
+    await expect(
+      createProvisionalNutritionLabelPhotoRequests({
+        userId: 42,
+        mealId: 900,
+        items: [provisionalItem],
+      })
+    ).resolves.toEqual([]);
   });
 
   it("não duplica a pendência do mesmo item ao repetir a confirmação", async () => {
@@ -442,6 +462,40 @@ describe("nutrition label provisional WhatsApp flow", () => {
         ],
       })
     );
+  });
+
+  it("bloqueia outro produto da mesma marca até a resposta confirmar o produto conflitante", async () => {
+    const meal = originalMeal();
+    const source = pendingRequest(808, 0, provisionalItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([source]);
+    listUserMealsMock.mockResolvedValue([meal]);
+
+    const result = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: sameBrandOtherProductLabelItem,
+      captionText: "Elma Chips",
+      sourceText: "Elma Chips",
+      sourceMessageId: "wamid-label-same-brand-other-product",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        action: "nutrition_label_photo_identity_confirmation_requested",
+      })
+    );
+    expect(claimPendingOperationMock).not.toHaveBeenCalled();
+    expect(updateUserMealMock).not.toHaveBeenCalled();
+
+    const target = createPendingOperationMock.mock.calls.at(-1)?.[0]?.target;
+    expect(isNutritionLabelPhotoClarificationTarget(target)).toBe(true);
+    expect(parseNutritionLabelPhotoClarificationText(target, "Elma Chips")).toBeNull();
+    expect(
+      parseNutritionLabelPhotoClarificationText(
+        target,
+        "É o amendoim japonês Elma Chips"
+      )
+    ).toBe("select:0");
   });
 
   it("resposta Não é Dori, é Elma Chips retoma a foto persistida e atualiza uma única vez", async () => {

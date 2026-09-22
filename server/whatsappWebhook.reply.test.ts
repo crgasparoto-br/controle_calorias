@@ -10,6 +10,7 @@ const createUserWaterLogMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
+const createProvisionalNutritionLabelPhotoRequestsMock = vi.fn();
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
@@ -49,6 +50,12 @@ vi.mock("./storage", () => ({
 
 vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: vi.fn(),
+}));
+
+vi.mock("./nutritionLabelCandidateService", () => ({
+  createProvisionalNutritionLabelPhotoRequests:
+    createProvisionalNutritionLabelPhotoRequestsMock,
+  resolveNutritionLabelPhotoEvidence: vi.fn(async () => ({ handled: false })),
 }));
 
 const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
@@ -154,6 +161,8 @@ describe("whatsappWebhook detailed replies", () => {
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });
+    createProvisionalNutritionLabelPhotoRequestsMock.mockReset();
+    createProvisionalNutritionLabelPhotoRequestsMock.mockResolvedValue([]);
     confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
       id: 456,
       mealLabel: input.mealLabel as string,
@@ -266,6 +275,116 @@ describe("whatsappWebhook detailed replies", () => {
     expect(finalReply).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
     expect(finalReply).not.toContain("• 🍚 arroz — 100g");
     expect(finalReply).not.toContain("• 🍗 frango — 100g");
+  });
+
+  it("não convida a enviar rótulo quando a continuação não foi persistida", async () => {
+    const provisionalItem = {
+      foodName: "Amendoim Japonês Elma Chips",
+      canonicalName: "Amendoim Japonês Elma Chips",
+      brand: "Elma Chips",
+      portionText: "1 pacote (145 g)",
+      quantity: 1,
+      unit: "pacote",
+      servings: 1,
+      estimatedGrams: 145,
+      calories: 725,
+      protein: 24.6,
+      carbs: 66.7,
+      fat: 40.6,
+      confidence: 0.62,
+      source: "heuristic" as const,
+      resolution: {
+        nutritionOrigin: "provisional_estimate" as const,
+        nutritionVerified: false,
+        sourceEvidence: null,
+      },
+    };
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "amendoim Elma Chips",
+      confidence: 0.62,
+      needsConfirmation: false,
+      reasoning: "Estimativa provisória.",
+      items: [provisionalItem],
+      totals: { calories: 725, protein: 24.6, carbs: 66.7, fat: 40.6 },
+    });
+    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 457,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: input.items as Array<Record<string, unknown>>,
+    }));
+    createProvisionalNutritionLabelPhotoRequestsMock.mockResolvedValue([]);
+
+    const req = {
+      body: createTextPayload(
+        "amendoim Elma Chips",
+        "wamid.reply-provisional-persistence-failed"
+      ),
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const finalReply = outboundTextBodies().at(-1) ?? "";
+    expect(finalReply).toMatch(/valores nutricionais provisórios/i);
+    expect(finalReply).toMatch(/não está disponível agora/i);
+    expect(finalReply).not.toMatch(/envie uma foto legível do rótulo/i);
+  });
+
+  it("mantém o convite ao rótulo quando a continuação foi persistida", async () => {
+    const provisionalItem = {
+      foodName: "Amendoim Japonês Elma Chips",
+      canonicalName: "Amendoim Japonês Elma Chips",
+      brand: "Elma Chips",
+      portionText: "1 pacote (145 g)",
+      quantity: 1,
+      unit: "pacote",
+      servings: 1,
+      estimatedGrams: 145,
+      calories: 725,
+      protein: 24.6,
+      carbs: 66.7,
+      fat: 40.6,
+      confidence: 0.62,
+      source: "heuristic" as const,
+      resolution: {
+        nutritionOrigin: "provisional_estimate" as const,
+        nutritionVerified: false,
+        sourceEvidence: null,
+      },
+    };
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Lanche",
+      sourceText: "amendoim Elma Chips",
+      confidence: 0.62,
+      needsConfirmation: false,
+      reasoning: "Estimativa provisória.",
+      items: [provisionalItem],
+      totals: { calories: 725, protein: 24.6, carbs: 66.7, fat: 40.6 },
+    });
+    confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
+      id: 458,
+      mealLabel: input.mealLabel as string,
+      occurredAt: input.occurredAt as string,
+      notes: input.notes as string | undefined,
+      items: input.items as Array<Record<string, unknown>>,
+    }));
+    createProvisionalNutritionLabelPhotoRequestsMock.mockResolvedValue([701]);
+
+    const req = {
+      body: createTextPayload(
+        "amendoim Elma Chips",
+        "wamid.reply-provisional-persistence-ok"
+      ),
+    };
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    const finalReply = outboundTextBodies().at(-1) ?? "";
+    expect(finalReply).toMatch(/envie uma foto legível do rótulo/i);
   });
 
 });

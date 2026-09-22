@@ -892,6 +892,30 @@ function nutritionLabelIdentityTokens(value: string | null | undefined) {
     );
 }
 
+const NUTRITION_LABEL_GENERIC_PRODUCT_TOKENS = new Set([
+  "alimento",
+  "embalado",
+  "embalada",
+  "embalagem",
+  "nutricional",
+  "rotulo",
+  "tabela",
+]);
+
+function nutritionLabelProductTokens(
+  value: string | null | undefined,
+  excludedIdentities: Array<string | null | undefined> = []
+) {
+  const excluded = new Set(
+    excludedIdentities.flatMap(identity => nutritionLabelIdentityTokens(identity))
+  );
+  return nutritionLabelIdentityTokens(value).filter(
+    token =>
+      !excluded.has(token) &&
+      !NUTRITION_LABEL_GENERIC_PRODUCT_TOKENS.has(token)
+  );
+}
+
 function nutritionLabelTokenOverlap(left: string[], right: string[]) {
   return left.filter(token =>
     right.some(candidate =>
@@ -924,6 +948,21 @@ function nutritionLabelIdentityScore(
   return score;
 }
 
+function nutritionLabelProductOverlap(
+  text: string | null | undefined,
+  candidate: NutritionLabelPhotoClarificationCandidate
+) {
+  const candidateTokens = nutritionLabelProductTokens(
+    [candidate.originalFoodName, candidate.originalCanonicalName]
+      .filter(Boolean)
+      .join(" "),
+    [candidate.originalBrand]
+  );
+  const textTokens = nutritionLabelProductTokens(text, [candidate.originalBrand]);
+  if (!candidateTokens.length || !textTokens.length) return 0;
+  return nutritionLabelTokenOverlap(textTokens, candidateTokens);
+}
+
 function nutritionLabelValuesCompatible(
   left: string | null | undefined,
   right: string | null | undefined
@@ -934,13 +973,27 @@ function nutritionLabelValuesCompatible(
   return a === b || a.includes(b) || b.includes(a);
 }
 
-function nutritionLabelCommercialConflict(
+function nutritionLabelCommercialConflictDimensions(
   item: MealDraftItem,
   candidate: NutritionLabelPhotoClarificationCandidate
 ) {
   const brandConflict =
     Boolean(item.brand && candidate.originalBrand) &&
     !nutritionLabelValuesCompatible(item.brand, candidate.originalBrand);
+  const candidateProductTokens = nutritionLabelProductTokens(
+    [candidate.originalFoodName, candidate.originalCanonicalName]
+      .filter(Boolean)
+      .join(" "),
+    [candidate.originalBrand]
+  );
+  const labelProductTokens = nutritionLabelProductTokens(
+    [item.foodName, item.canonicalName].filter(Boolean).join(" "),
+    [item.brand, candidate.originalBrand]
+  );
+  const productConflict =
+    candidateProductTokens.length > 0 &&
+    labelProductTokens.length > 0 &&
+    nutritionLabelTokenOverlap(labelProductTokens, candidateProductTokens) === 0;
   const variant =
     item.productVariant ?? item.resolution?.productVariant ?? null;
   const variantConflict =
@@ -949,7 +1002,51 @@ function nutritionLabelCommercialConflict(
       variant,
       candidate.originalProductVariant
     );
-  return brandConflict || variantConflict;
+  return { brandConflict, productConflict, variantConflict };
+}
+
+function nutritionLabelCommercialConflict(
+  item: MealDraftItem,
+  candidate: NutritionLabelPhotoClarificationCandidate
+) {
+  const conflicts = nutritionLabelCommercialConflictDimensions(item, candidate);
+  return (
+    conflicts.brandConflict ||
+    conflicts.productConflict ||
+    conflicts.variantConflict
+  );
+}
+
+function nutritionLabelConflictResolutionSatisfied(
+  item: MealDraftItem,
+  candidate: NutritionLabelPhotoClarificationCandidate,
+  text?: string | null
+) {
+  const conflicts = nutritionLabelCommercialConflictDimensions(item, candidate);
+  if (
+    !conflicts.brandConflict &&
+    !conflicts.productConflict &&
+    !conflicts.variantConflict
+  ) {
+    return true;
+  }
+
+  const normalizedText = normalize(text);
+  if (conflicts.brandConflict) {
+    const brand = normalize(candidate.originalBrand);
+    if (!brand || !normalizedText.includes(brand)) return false;
+  }
+  if (
+    conflicts.productConflict &&
+    nutritionLabelProductOverlap(text, candidate) === 0
+  ) {
+    return false;
+  }
+  if (conflicts.variantConflict) {
+    const variant = normalize(candidate.originalProductVariant);
+    if (!variant || !normalizedText.includes(variant)) return false;
+  }
+  return true;
 }
 
 function isValidNutritionLabelEvidence(
@@ -1033,6 +1130,13 @@ async function createNutritionLabelPhotoClarification(input: {
   retry?: boolean;
 }) {
   const labels = input.candidates.map(nutritionLabelCandidateLabel);
+  const singleCandidateConflicts =
+    input.candidates.length === 1
+      ? nutritionLabelCommercialConflictDimensions(
+          input.item,
+          input.candidates[0]
+        )
+      : null;
   const instructionText =
     input.candidates.length > 1
       ? "Recebi o rótulo, mas há mais de um item provisório possível. Qual item devo atualizar? " +
@@ -1042,10 +1146,14 @@ async function createNutritionLabelPhotoClarification(input: {
         ? "Não consegui concluir a atualização de " +
           labels[0] +
           ". A foto do rótulo continua guardada. Confirme o nome ou a marca para tentar novamente, ou envie CANCELAR."
+        : input.conflict && singleCandidateConflicts?.productConflict
+          ? "O rótulo recebido parece corresponder a outro produto, embora possa compartilhar a mesma marca de " +
+            labels[0] +
+            ". Não vou aplicar esses nutrientes automaticamente. Confirme o nome do produto correto, ou envie CANCELAR."
         : input.conflict
           ? "O rótulo recebido conflita com a identidade já confirmada de " +
             labels[0] +
-            ". Não vou trocar a marca ou a variante automaticamente. Confirme o nome ou a marca correta, ou envie CANCELAR."
+            ". Não vou trocar a marca ou a variante automaticamente. Confirme o nome, a marca ou a variante correta, ou envie CANCELAR."
           : "Recebi o rótulo, mas a identidade não ficou inequívoca. A foto continua guardada. Confirme que ele pertence a " +
             labels[0] +
             ", ou envie CANCELAR.";
@@ -1133,7 +1241,15 @@ export function parseNutritionLabelPhotoClarificationText(
   const numeric = normalizedText.match(/^(?:opcao )?(\d{1,2})$/);
   if (numeric) {
     const index = Number(numeric[1]) - 1;
-    if (index >= 0 && index < target.candidates.length)
+    if (
+      index >= 0 &&
+      index < target.candidates.length &&
+      nutritionLabelConflictResolutionSatisfied(
+        target.evidenceItem,
+        target.candidates[index],
+        text
+      )
+    )
       return "select:" + String(index);
   }
   const matches = target.candidates
@@ -1146,11 +1262,27 @@ export function parseNutritionLabelPhotoClarificationText(
   if (
     matches.length === 1 ||
     (matches.length > 1 && matches[0].score > matches[1].score)
-  )
-    return "select:" + String(matches[0].index);
+  ) {
+    const candidate = target.candidates[matches[0].index];
+    if (
+      candidate &&
+      nutritionLabelConflictResolutionSatisfied(
+        target.evidenceItem,
+        candidate,
+        text
+      )
+    ) {
+      return "select:" + String(matches[0].index);
+    }
+  }
   if (
     target.candidates.length === 1 &&
-    ["sim", "confirmar", "confirmo"].includes(normalizedText)
+    ["sim", "confirmar", "confirmo"].includes(normalizedText) &&
+    nutritionLabelConflictResolutionSatisfied(
+      target.evidenceItem,
+      target.candidates[0],
+      text
+    )
   )
     return "select:0";
   return null;
@@ -1423,8 +1555,8 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
 
   const conflict = nutritionLabelCommercialConflict(labelItem, selected);
   const explicitOriginalIdentity =
-    nutritionLabelIdentityScore(input.captionText, selected) > 0 ||
-    nutritionLabelIdentityScore(
+    nutritionLabelProductOverlap(input.captionText, selected) > 0 ||
+    nutritionLabelProductOverlap(
       [labelItem.foodName, labelItem.canonicalName, labelItem.brand]
         .filter(Boolean)
         .join(" "),
