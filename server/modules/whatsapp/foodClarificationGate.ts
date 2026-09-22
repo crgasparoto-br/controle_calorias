@@ -211,7 +211,7 @@ export async function resolvePendingWhatsappFoodClarification(input: {
     ? findWhatsappRegisteredInteraction(active.type, active.target)
     : null;
   const interactionOwnsIdentityCorrection =
-    activeInteractionForCorrection?.allowedEffects.includes(
+    activeInteractionForCorrection?.allowedEffects?.includes(
       "confirm_original_identity"
     ) ?? false;
 
