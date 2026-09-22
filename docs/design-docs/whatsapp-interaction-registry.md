@@ -45,7 +45,8 @@ O registro cobre:
 5. período de resumo;
 6. autorização profissional;
 7. clarificação genérica de intenção;
-8. clarificações alimentares `quantity`, `confirmation` e `selection` da issue #855.
+8. clarificações alimentares `quantity`, `confirmation` e `selection` da issue #855;
+9. solicitação de foto de rótulo nutricional e a continuação de correlação/identidade da issue #1174.
 
 Os produtores expõem ações estruturadas e reutilizam `buildWhatsappClosedDecisionReply`. Os testes impedem que produtores principais voltem a chamar `buttonsReply` ou `listReply` diretamente.
 
@@ -73,6 +74,10 @@ Depois do claim compare-and-set, a entrada do registro chama o resolvedor canôn
 - recurso obsoleto não é substituído silenciosamente.
 
 No webhook textual, `whatsapp.interaction.pending_represented` preserva a mesma pendência ativa.
+
+A continuação de rótulo nutricional usa o mesmo tipo persistente `nutrition_label_photo_request`, distinguindo o alvo original de foto do alvo `nutrition_label_photo_clarification`. O segundo guarda a evidência já analisada e os candidatos correlacionados para que uma resposta textual retome a mesma foto. Durante essa interação, correções explícitas de identidade pertencem ao próprio registro; `foodClarificationGate.ts` não substitui a pendência pelo fluxo genérico `não é X, é Y`.
+
+O resolvedor revalida usuário, estado e identidade do item e reivindica a fonte com compare-and-set antes da mutação. Resposta inválida reapresenta a mesma pergunta; cancelamento encerra também as fontes correlacionadas; concorrência ou fonte obsoleta não repetem a atualização.
 
 ## Clarificação genérica
 

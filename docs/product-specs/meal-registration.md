@@ -38,6 +38,18 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - A composição nutricional de produto de marca só é `verified` quando provém de referência compatível de catálogo/pesquisa ou de tabela nutricional legível da mesma variante. `hybrid` estimado pela LLM não é evidência suficiente para fechar marca/variante.
 - Quando houver clarificação de identidade, `processMealInput` encerra antes da mutação. No registro confirmado do WhatsApp, o `MealInferenceError` estruturado segue para a continuação persistente de detalhes já existente, preservando a mensagem original antes de perguntar novamente ao usuário.
 
+## Rótulo posterior de item provisório (#1174)
+
+Quando uma refeição já confirmada contém `nutritionOrigin = "provisional_estimate"` e `nutritionVerified = false`, a foto posterior do rótulo é uma **continuação da refeição existente**, não uma nova inferência de identidade ou uma nova refeição.
+
+- A identidade comercial confirmada no item original — nome, marca e variante — tem precedência sobre uma inferência isolada da nova imagem. O rótulo fornece porção, nutrientes e evidência; ele não pode renomear silenciosamente o produto.
+- A correlação usa o usuário proprietário, a operação pendente, `mealId`, `itemIndex` e a identidade comercial persistida. Tempo de chegada ou nome genérico do alimento, isoladamente, não são chaves suficientes.
+- Quando há vários itens provisórios, legenda/descrição compatível pode selecionar um único item. Se a evidência ainda for ambígua, o sistema persiste a foto já analisada e pergunta qual item deve ser atualizado; a resposta retoma a mesma evidência sem exigir reenvio.
+- Conflito explícito de marca/variante abre clarificação e preserva o estado anterior. Respostas como `É Elma Chips` ou `Não é Dori, é Elma Chips` retomam a continuação persistida e não caem no fluxo de substituição genérica.
+- A aplicação válida escala os nutrientes da porção do rótulo para a quantidade originalmente consumida, atualiza somente o item correlacionado, recalcula os totais pela refeição persistida e mantém os demais itens intactos.
+- Claim compare-and-set da pendência precede a mutação. Reentrega, retry ou concorrência não podem aplicar o mesmo rótulo duas vezes. Pendência expirada, cancelada, consumida ou pertencente a outro usuário não autoriza mutação.
+- Evidência de rótulo de produto comercial continua sujeita à fila de revisão da #1158 para eventual publicação global; atualizar a refeição do usuário não publica automaticamente um novo item no catálogo.
+
 ## Classificação automática de alimentos (pipeline)
 
 - A extração por IA (`server/mealAiExtraction.ts`) retorna, para cada item, um `foodClassification` com `processingLevel` (escala NOVA: `natural_or_minimally_processed`, `processed_culinary_ingredient`, `processed`, `ultra_processed`), `isFruit`, `isVegetable` e `fiberGrams` estimado para a porção.

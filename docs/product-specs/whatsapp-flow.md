@@ -74,6 +74,11 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
 - Quando o usuário informar nome específico de produto, marca, linha, versão ou tipo/qualificador em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
 - Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. Produto com marca/variante explícita exige referência comercial compatível e comprovada; ausência ou ambiguidade mantém a clarificação canônica de identidade. A busca por alimento + tipo e o fallback genérico só se aplicam quando não existe identidade comercial pendente, conforme o contrato de registro de refeição.
+- Quando um item já registrado com nutrientes provisórios pede foto de rótulo, `whatsappPendingOperations` mantém a correlação entre usuário, refeição, índice do item e identidade comercial. A imagem posterior é tratada como continuação e nunca cria uma segunda refeição.
+- Nome, marca e variante confirmados no registro original prevalecem sobre uma identificação divergente obtida apenas da foto posterior. Conflito como rótulo interpretado como Dori para item confirmado como Elma Chips exige clarificação; não é permitido trocar a identidade silenciosamente.
+- Se mais de um item provisório puder receber a foto, o sistema usa a descrição/legenda quando ela resolver um candidato único; caso contrário, persiste a evidência do rótulo e pergunta qual item deve ser atualizado. A resposta posterior retoma a mesma foto, inclusive após reinício, até conclusão, cancelamento, substituição ou expiração.
+- A continuação de rótulo é idempotente: claim versionado precede a mutação, e reentrega ou respostas concorrentes resultam em no máximo uma atualização. Falha de persistência mantém o item provisório seguro e não transforma a foto em novo registro ou publicação global.
+- Correções textuais explícitas durante essa continuação, como `Não é Dori, é Elma Chips`, pertencem à interação de rótulo ativa e não devem ser interceptadas pelo fluxo genérico de substituição de alimento.
 
 ## Entradas suportadas
 
