@@ -67,7 +67,7 @@ describe("executeWhatsappTextIntent multiple food additions", () => {
       name: "MealInferenceError",
       code: "food_identity_clarification_required",
       context: expect.objectContaining({
-        brand: "Elma Chips",
+        brand: "Budweiser",
         clarificationReason: "brand_variant_unresolved",
       }),
     });
