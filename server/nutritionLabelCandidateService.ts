@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import {
   getDb,
   getUserWhatsappConnection,
+  listUserMeals,
   logInferenceEvent,
   logPersistenceWarning,
+  updateUserMeal,
 } from "./db";
 import { refreshCatalogCache } from "./catalogRuntime";
 import type { MealDraftItem } from "./nutritionEngineTypes";
@@ -88,7 +90,9 @@ export type NutritionLabelCandidateAudit = {
 
 export type NutritionLabelPhotoRequestTarget = {
   kind: "nutrition_label_photo_request";
-  candidateId: number;
+  candidateId?: number;
+  mealId?: number;
+  itemIndex?: number;
   identityKey: string;
   originalFoodName: string;
   instructionText: string;
@@ -102,7 +106,8 @@ export function isNutritionLabelPhotoRequestTarget(
   return Boolean(
     target &&
       target.kind === "nutrition_label_photo_request" &&
-      Number.isInteger(target.candidateId) &&
+      (Number.isInteger(target.candidateId) ||
+        (Number.isInteger(target.mealId) && Number.isInteger(target.itemIndex))) &&
       typeof target.identityKey === "string" &&
       Array.isArray(target.actions) &&
       target.actions.some(action => action?.id === "cancel")
@@ -266,9 +271,11 @@ export async function recordNutritionLabelCandidates(input: {
   mealId?: number | null;
   sourceText?: string | null;
   items: MealDraftItem[];
+  itemIndexes?: number[];
 }) {
   const created: NutritionLabelCandidate[] = [];
-  for (const [itemIndex, item] of input.items.entries()) {
+  for (const [arrayIndex, item] of input.items.entries()) {
+    const itemIndex = input.itemIndexes?.[arrayIndex] ?? arrayIndex;
     const candidate = toCandidate({ ...input, item, itemIndex });
     if (!candidate) continue;
     const existing = (await listCandidateArtifacts()).find(
@@ -547,21 +554,223 @@ export async function requestNutritionLabelCandidatePhoto(input: {
   };
 }
 
-export async function claimNutritionLabelPhotoRequest(userId: number) {
-  const pending =
-    await pendingOperationRepository.getActivePendingOperation(userId);
-  if (
-    !pending ||
-    pending.type !== NUTRITION_LABEL_PHOTO_REQUEST_TYPE ||
-    !isNutritionLabelPhotoRequestTarget(pending.target)
-  ) {
-    return null;
+export async function createProvisionalNutritionLabelPhotoRequests(input: {
+  userId: number;
+  mealId: number;
+  items: MealDraftItem[];
+}) {
+  const created: number[] = [];
+  for (const [itemIndex, item] of input.items.entries()) {
+    if (
+      item.resolution?.nutritionOrigin !== "provisional_estimate" ||
+      item.resolution.nutritionVerified !== false
+    ) {
+      continue;
+    }
+
+    let existingOperations: Awaited<
+      ReturnType<NonNullable<typeof pendingOperationRepository.listActivePendingOperationsByType>>
+    > = [];
+    if (pendingOperationRepository.listActivePendingOperationsByType) {
+      existingOperations =
+        await pendingOperationRepository.listActivePendingOperationsByType(
+          input.userId,
+          NUTRITION_LABEL_PHOTO_REQUEST_TYPE
+        );
+    } else if (pendingOperationRepository.getActivePendingOperationByType) {
+      const existing =
+        await pendingOperationRepository.getActivePendingOperationByType(
+          input.userId,
+          NUTRITION_LABEL_PHOTO_REQUEST_TYPE
+        );
+      existingOperations = existing ? [existing] : [];
+    }
+    const existing = existingOperations.find(operation => {
+      const target = operation.target as Partial<NutritionLabelPhotoRequestTarget> | null;
+      return target?.mealId === input.mealId && target.itemIndex === itemIndex;
+    });
+    if (
+      existing &&
+      isNutritionLabelPhotoRequestTarget(existing.target)
+    ) {
+      created.push(existing.id);
+      continue;
+    }
+
+    const target: NutritionLabelPhotoRequestTarget = {
+      kind: "nutrition_label_photo_request",
+      mealId: input.mealId,
+      itemIndex,
+      identityKey: buildCandidateIdentityKey(item),
+      originalFoodName: item.foodName,
+      instructionText: `Envie uma foto legível do rótulo de ${item.foodName}, mostrando a tabela nutricional e a porção. Não registre o alimento novamente; esta foto será usada para atualizar os nutrientes provisórios já registrados.`,
+      actions: [{ id: "cancel", title: "Cancelar" }],
+    };
+    const pending = await pendingOperationRepository.createPendingOperation({
+      userId: input.userId,
+      type: NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
+      origin: NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
+      target,
+      ttlMs: NUTRITION_LABEL_PHOTO_REQUEST_TTL_MS,
+    });
+    if (pending) created.push(pending.id);
   }
+  return created;
+}
+
+async function listActiveNutritionLabelPhotoRequests(userId: number) {
+  const pending = pendingOperationRepository.listActivePendingOperationsByType
+    ? await pendingOperationRepository.listActivePendingOperationsByType(
+        userId,
+        NUTRITION_LABEL_PHOTO_REQUEST_TYPE
+      )
+    : pendingOperationRepository.getActivePendingOperationByType
+      ? [
+          await pendingOperationRepository.getActivePendingOperationByType(
+            userId,
+            NUTRITION_LABEL_PHOTO_REQUEST_TYPE
+          ),
+        ]
+      : [await pendingOperationRepository.getActivePendingOperation(userId)];
+  return pending.filter(
+    (operation): operation is NonNullable<typeof operation> =>
+      Boolean(
+        operation &&
+          operation.type === NUTRITION_LABEL_PHOTO_REQUEST_TYPE &&
+          isNutritionLabelPhotoRequestTarget(operation.target)
+      )
+  );
+}
+
+function matchesNutritionLabelPhotoTarget(
+  target: NutritionLabelPhotoRequestTarget,
+  labelItem?: MealDraftItem
+) {
+  if (!labelItem) return target.candidateId != null;
+  if (target.candidateId != null) return true;
+  if (target.identityKey === buildCandidateIdentityKey(labelItem)) return true;
+  const targetName = normalize(target.originalFoodName);
+  const labelNames = [labelItem.foodName, labelItem.canonicalName]
+    .map(normalize)
+    .filter(Boolean);
+  return labelNames.some(
+    name => name.includes(targetName) || targetName.includes(name)
+  );
+}
+
+export async function claimNutritionLabelPhotoRequest(
+  userId: number,
+  labelItem?: MealDraftItem
+) {
+  const requests = await listActiveNutritionLabelPhotoRequests(userId);
+  const matching = requests.filter(request =>
+    matchesNutritionLabelPhotoTarget(
+      request.target as NutritionLabelPhotoRequestTarget,
+      labelItem
+    )
+  );
+  const pending =
+    matching.length === 1
+      ? matching[0]
+      : requests.length === 1 &&
+          (Boolean(labelItem) ||
+            (requests[0].target as NutritionLabelPhotoRequestTarget).candidateId != null)
+        ? requests[0]
+        : null;
+  if (!pending) return null;
   const claimed = await pendingOperationRepository.claimPendingOperation({
     id: pending.id,
     expectedVersion: pending.version,
   });
   return claimed.claimed ? pending : null;
+}
+
+export async function hasActiveNutritionLabelPhotoRequest(userId: number) {
+  return (await listActiveNutritionLabelPhotoRequests(userId)).length > 0;
+}
+
+function roundNutritionValue(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function buildMealItemFromNutritionLabel(
+  original: MealDraftItem,
+  label: MealDraftItem
+): MealDraftItem {
+  const originalGrams = Number(original.estimatedGrams);
+  const labelGrams = Number(label.estimatedGrams);
+  const ratio =
+    originalGrams > 0 && labelGrams > 0 ? originalGrams / labelGrams : 1;
+  return {
+    ...original,
+    foodName: label.foodName || original.foodName,
+    canonicalName: label.canonicalName || original.canonicalName,
+    brand: label.brand ?? original.brand ?? null,
+    productVariant: label.productVariant ?? original.productVariant ?? null,
+    calories: roundNutritionValue(label.calories * ratio),
+    protein: roundNutritionValue(label.protein * ratio),
+    carbs: roundNutritionValue(label.carbs * ratio),
+    fat: roundNutritionValue(label.fat * ratio),
+    confidence: Math.max(original.confidence, label.confidence),
+    source: label.source,
+    resolution: {
+      ...original.resolution,
+      ...label.resolution,
+      nutritionOrigin: "nutrition_label",
+      nutritionVerified: true,
+      sourceUrls: label.resolution?.sourceUrls ?? original.resolution?.sourceUrls,
+      sourceEvidence:
+        label.resolution?.sourceEvidence ?? original.resolution?.sourceEvidence,
+      sourceVerifiedAt:
+        label.resolution?.sourceVerifiedAt ?? original.resolution?.sourceVerifiedAt,
+      sourceConfidence:
+        label.resolution?.sourceConfidence ?? label.confidence,
+    },
+  };
+}
+
+export async function applyNutritionLabelPhotoToMeal(input: {
+  mealId: number;
+  itemIndex: number;
+  userId: number;
+  item: MealDraftItem;
+}) {
+  const meal = (await listUserMeals(input.userId)).find(
+    candidate => candidate.id === input.mealId
+  );
+  const original = meal?.items?.[input.itemIndex];
+  if (!meal || !original) return null;
+
+  const updatedItem = buildMealItemFromNutritionLabel(original, input.item);
+  const updatedMeal = await updateUserMeal(
+    {
+      userId: input.userId,
+      mealId: meal.id,
+      mealLabel: meal.mealLabel,
+      occurredAt: new Date(meal.occurredAt).toISOString(),
+      notes: meal.notes,
+      items: meal.items.map((item, index) =>
+        index === input.itemIndex ? updatedItem : item
+      ),
+    },
+    { logEvent: false }
+  );
+
+  await recordNutritionLabelCandidates({
+    userId: input.userId,
+    mealId: meal.id,
+    sourceText: meal.sourceText,
+    items: [updatedItem],
+    itemIndexes: [input.itemIndex],
+  });
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: "success",
+    eventType: "nutrition_label_photo.meal_item_updated",
+    detail: `Item ${input.itemIndex} da refeição ${input.mealId} atualizado pela foto do rótulo, sem criar nova refeição.`,
+  });
+  return updatedMeal;
 }
 
 export async function markNutritionLabelPhotoReceived(input: {
