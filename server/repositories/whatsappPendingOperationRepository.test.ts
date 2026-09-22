@@ -266,6 +266,41 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     expect(active?.id).toBe(second?.id);
   });
 
+  it("retorna a pendência ativa do tipo solicitado mesmo quando outra mensagem abriu uma pendência mais recente", async () => {
+    const { repository } = createRepository();
+    const now = new Date("2026-07-10T10:00:00Z");
+
+    const labelRequest = await repository.createPendingOperation({
+      userId: 1,
+      type: "nutrition_label_photo_request",
+      target: { kind: "nutrition_label_photo_request", mealId: 10, itemIndex: 0 },
+      origin: "nutritionLabelCandidateService",
+      ttlMs: 60_000,
+      now,
+    });
+    await repository.createPendingOperation({
+      userId: 1,
+      type: "food_registration_clarification",
+      target: { kind: "food_registration_clarification" },
+      origin: "foodClarification",
+      ttlMs: 60_000,
+      now,
+    });
+
+    const active = await repository.getActivePendingOperationByType?.(
+      1,
+      "nutrition_label_photo_request",
+      now
+    );
+    expect(active?.id).toBe(labelRequest?.id);
+    const allActive = await repository.listActivePendingOperationsByType?.(
+      1,
+      "nutrition_label_photo_request",
+      now
+    );
+    expect(allActive?.map(operation => operation.id)).toEqual([labelRequest?.id]);
+  });
+
   it("não retorna pendência expirada", async () => {
     const { repository } = createRepository();
     const now = new Date("2026-07-10T10:00:00Z");

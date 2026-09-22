@@ -98,7 +98,10 @@ import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { buildMealSemanticContract } from "./mealSemanticContract";
 import {
   applyNutritionLabelPhotoToCandidate,
+  applyNutritionLabelPhotoToMeal,
   claimNutritionLabelPhotoRequest,
+  createProvisionalNutritionLabelPhotoRequests,
+  hasActiveNutritionLabelPhotoRequest,
   markNutritionLabelPhotoReceived,
 } from "./nutritionLabelCandidateService";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
@@ -956,20 +959,64 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
         assertWhatsappImageMealItemsArePersistable(processed.items);
 
-        const nutritionLabelPhotoRequest = await claimNutritionLabelPhotoRequest(userId);
+        const labelItem = processed.items.find(
+          item => item.resolution?.nutritionOrigin === "nutrition_label"
+        );
+        const nutritionLabelPhotoRequest = await claimNutritionLabelPhotoRequest(
+          userId,
+          labelItem
+        );
+        if (
+          !nutritionLabelPhotoRequest &&
+          (await hasActiveNutritionLabelPhotoRequest(userId))
+        ) {
+          const retryReply = labelItem
+            ? "Identifiquei um rótulo, mas não consegui relacioná-lo com segurança a um dos alimentos pendentes. Envie uma foto mais clara ou uma imagem por alimento; nenhuma refeição foi alterada."
+            : "Recebi a imagem, mas não consegui validar uma tabela nutricional legível. A solicitação continua aberta; envie outra foto do rótulo. Nenhuma refeição foi alterada.";
+          const replyResult = await sendFinalText(retryReply);
+          if (!replyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail: "Falha ao enviar orientação para nova foto de rótulo.",
+            });
+          }
+          continue;
+        }
         if (nutritionLabelPhotoRequest) {
-          const target = nutritionLabelPhotoRequest.target as { candidateId: number; originalFoodName: string };
-          const labelItem = processed.items.find(item => item.resolution?.nutritionOrigin === "nutrition_label");
-          const updatedCandidate = labelItem
-            ? await applyNutritionLabelPhotoToCandidate({
-                candidateId: target.candidateId,
-                userId,
-                sourceText: processed.sourceText,
-                item: labelItem,
-              })
-            : await markNutritionLabelPhotoReceived({ candidateId: target.candidateId, userId });
-          const labelReply = updatedCandidate
-            ? `Recebi a nova foto de ${target.originalFoodName}. A evidência foi atualizada e aguarda revisão administrativa; não registrei uma nova refeição.`
+          const target = nutritionLabelPhotoRequest.target as {
+            candidateId?: number;
+            mealId?: number;
+            itemIndex?: number;
+            originalFoodName: string;
+          };
+          const updatedTarget =
+            labelItem && Number.isInteger(target.mealId) && Number.isInteger(target.itemIndex)
+              ? await applyNutritionLabelPhotoToMeal({
+                  mealId: target.mealId!,
+                  itemIndex: target.itemIndex!,
+                  userId,
+                  item: labelItem,
+                })
+              : labelItem && Number.isInteger(target.candidateId)
+                ? await applyNutritionLabelPhotoToCandidate({
+                    candidateId: target.candidateId!,
+                    userId,
+                    sourceText: processed.sourceText,
+                    item: labelItem,
+                  })
+                : Number.isInteger(target.candidateId)
+                  ? await markNutritionLabelPhotoReceived({
+                      candidateId: target.candidateId!,
+                      userId,
+                    })
+                  : null;
+          const labelReply = updatedTarget
+            ? target.mealId
+              ? `Recebi a nova foto de ${target.originalFoodName}. Atualizei os nutrientes do alimento já registrado; não criei uma nova refeição.`
+              : `Recebi a nova foto de ${target.originalFoodName}. A evidência foi atualizada e aguarda revisão administrativa; não registrei uma nova refeição.`
             : `Recebi a foto, mas não consegui validar um rótulo legível para ${target.originalFoodName}. Nenhuma refeição foi alterada.`;
           const replyResult = await sendFinalText(labelReply);
           if (!replyResult.ok) {
@@ -1059,6 +1106,22 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       );
 
       const replyMeal = consolidationResult.meal;
+      try {
+        await createProvisionalNutritionLabelPhotoRequests({
+          userId,
+          mealId: replyMeal.id,
+          items: replyMeal.items ?? [],
+        });
+      } catch {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: "warning",
+          eventType: "whatsapp.nutrition_label_photo_request_persistence_failed",
+          detail:
+            "A refeição foi registrada, mas não foi possível persistir a associação para futura foto de rótulo.",
+        });
+      }
       await recordDomainLink(lifecycleHandle, { mealId: replyMeal.id });
       setWhatsAppWebhookOutcome(res, "meal_registered");
 

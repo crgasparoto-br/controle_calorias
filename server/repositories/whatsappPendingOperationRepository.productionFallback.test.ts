@@ -43,6 +43,12 @@ describe("WhatsApp pending operation production persistence policy", () => {
 
     await expect(repository.createPendingOperation(input)).resolves.toBeNull();
     await expect(repository.getActivePendingOperation(903)).resolves.toBeNull();
+    await expect(
+      repository.getActivePendingOperationByType?.(
+        903,
+        "nutrition_label_photo_request"
+      )
+    ).resolves.toBeNull();
     await expect(repository.getLatestPendingOperation(903)).resolves.toBeNull();
     await expect(repository.getPendingOperationById(1)).resolves.toBeNull();
     await expect(
@@ -56,8 +62,8 @@ describe("WhatsApp pending operation production persistence policy", () => {
     });
     await expect(repository.purgeInactiveOperations(30)).resolves.toBe(0);
 
-    expect(getDb).toHaveBeenCalledTimes(8);
-    expect(onWarning).toHaveBeenCalledTimes(8);
+    expect(getDb).toHaveBeenCalledTimes(9);
+    expect(onWarning).toHaveBeenCalledTimes(9);
     for (const [scope, error] of onWarning.mock.calls) {
       expect(scope).toContain("WhatsApp pending operation");
       expect(String((error as Error).message)).toContain(
