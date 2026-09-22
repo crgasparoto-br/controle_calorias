@@ -1348,6 +1348,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     };
   }
 
+  const labelItem = input.item;
   const candidates = await buildNutritionLabelClarificationCandidates(
     input.userId,
     requests
@@ -1375,7 +1376,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     .map(candidate => ({
       candidate,
       score: nutritionLabelIdentityScore(
-        [input.item.foodName, input.item.canonicalName, input.item.brand]
+        [labelItem.foodName, labelItem.canonicalName, labelItem.brand]
           .filter(Boolean)
           .join(" "),
         candidate
@@ -1401,7 +1402,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     const clarification = await createNutritionLabelPhotoClarification({
       userId: input.userId,
       candidates,
-      item: input.item,
+      item: labelItem,
       sourceText: input.sourceText,
       sourceMessageId: input.sourceMessageId,
     });
@@ -1420,11 +1421,11 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     };
   }
 
-  const conflict = nutritionLabelCommercialConflict(input.item, selected);
+  const conflict = nutritionLabelCommercialConflict(labelItem, selected);
   const explicitOriginalIdentity =
     nutritionLabelIdentityScore(input.captionText, selected) > 0 ||
     nutritionLabelIdentityScore(
-      [input.item.foodName, input.item.canonicalName, input.item.brand]
+      [labelItem.foodName, labelItem.canonicalName, labelItem.brand]
         .filter(Boolean)
         .join(" "),
       selected
@@ -1433,7 +1434,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     const clarification = await createNutritionLabelPhotoClarification({
       userId: input.userId,
       candidates: [selected],
-      item: input.item,
+      item: labelItem,
       sourceText: input.sourceText,
       sourceMessageId: input.sourceMessageId,
       conflict,
@@ -1473,7 +1474,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     const updated = await applyNutritionLabelClarificationCandidate({
       userId: input.userId,
       candidate: selected,
-      item: input.item,
+      item: labelItem,
       sourceText: input.sourceText,
     });
     if (!updated) {
@@ -1508,7 +1509,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
           sourceLocked: true,
         },
       ],
-      item: input.item,
+      item: labelItem,
       sourceText: input.sourceText,
       sourceMessageId: input.sourceMessageId,
       retry: true,
