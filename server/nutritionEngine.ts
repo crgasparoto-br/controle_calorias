@@ -27,6 +27,7 @@ import {
   buildEstimatedNutritionFallbackItem,
   buildHybridItem,
   buildProvisionalBrandedNutritionItem,
+  buildProvisionalBrandedNutritionFallbackItem,
   buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
@@ -634,7 +635,12 @@ function provisionalBrandedResolution(input: {
   };
 }
 
-function hasSpecificCommercialProductName(identitySource: string, brand: string, variant: string) {
+function hasSpecificCommercialProductName(
+  identitySource: string,
+  brand: string,
+  variant: string,
+  requireExplicitCategory = false,
+) {
   const genericProductWords = new Set(["alimento", "bebida", "queijo", "requeijao", "iogurte", "leite"]);
   const commercialMeasureTokens = new Set([
     "g", "gr", "grama", "gramas", "kg", "quilo", "quilos", "mg", "ml",
@@ -655,8 +661,13 @@ function hasSpecificCommercialProductName(identitySource: string, brand: string,
 
   // A generic category becomes specific when the original text also contains
   // the explicit brand and variant required by issue #1158.
+  const hasExplicitCategory = sourceTokens.some(
+    token => genericProductWords.has(token) && !variantTokens.includes(token),
+  );
+  if (requireExplicitCategory && !hasExplicitCategory) return false;
+
   if (
-    sourceTokens.some(token => genericProductWords.has(token))
+    hasExplicitCategory
     && includesAll(brandTokens)
     && includesAll(variantTokens)
   ) {
@@ -923,19 +934,37 @@ async function buildItemsFromInference(
       resolvedItem.brand
       && requestedVariant
       && alternatives.length === 0
-      && hasUsableNutrition(resolvedItem)
       && !options.preferInferredNutrition
-      && hasSpecificCommercialProductName(semanticSource, resolvedItem.brand, requestedVariant)
       && !canUseVerifiedNutritionLabel
     ) {
-      results.push({
-        ...buildProvisionalBrandedNutritionItem(resolvedItem, requestedVariant, semanticSource),
-        resolution: provisionalBrandedResolution({
-          semanticSource,
-          confidence: resolvedItem.confidence,
-        }),
-      });
-      continue;
+      const hasNutrition = hasUsableNutrition(resolvedItem);
+      const specificIdentity = hasSpecificCommercialProductName(
+        semanticSource,
+        resolvedItem.brand,
+        requestedVariant,
+        !hasNutrition,
+      );
+      if (specificIdentity) {
+        const provisionalItem = hasNutrition
+          ? buildProvisionalBrandedNutritionItem(
+              resolvedItem,
+              requestedVariant,
+              semanticSource,
+            )
+          : buildProvisionalBrandedNutritionFallbackItem(
+              resolvedItem,
+              requestedVariant,
+              semanticSource,
+            );
+        results.push({
+          ...provisionalItem,
+          resolution: provisionalBrandedResolution({
+            semanticSource,
+            confidence: resolvedItem.confidence,
+          }),
+        });
+        continue;
+      }
     }
 
     if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
