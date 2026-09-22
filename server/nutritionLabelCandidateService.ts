@@ -952,10 +952,12 @@ function nutritionLabelCommercialConflict(
   return brandConflict || variantConflict;
 }
 
-function isValidNutritionLabelEvidence(item?: MealDraftItem | null) {
+function isValidNutritionLabelEvidence(
+  item?: MealDraftItem | null
+): item is MealDraftItem {
+  if (!item) return false;
   return Boolean(
-    item &&
-      item.resolution?.nutritionOrigin === "nutrition_label" &&
+    item.resolution?.nutritionOrigin === "nutrition_label" &&
       item.resolution.nutritionVerified === true &&
       item.resolution.sourceEvidence?.trim() &&
       Number.isFinite(item.estimatedGrams) &&
@@ -981,49 +983,44 @@ async function buildNutritionLabelClarificationCandidates(
   requests: Awaited<ReturnType<typeof listActiveNutritionLabelPhotoRequests>>
 ) {
   const meals = await listUserMeals(userId);
-  return requests
-    .map(request => {
-      const target = request.target as NutritionLabelPhotoRequestTarget;
-      const meal = Number.isInteger(target.mealId)
-        ? meals.find(candidate => candidate.id === target.mealId)
+  const candidates: NutritionLabelPhotoClarificationCandidate[] = [];
+  for (const request of requests) {
+    const target = request.target as NutritionLabelPhotoRequestTarget;
+    const meal = Number.isInteger(target.mealId)
+      ? meals.find(candidate => candidate.id === target.mealId)
+      : null;
+    const original =
+      meal && Number.isInteger(target.itemIndex)
+        ? meal.items?.[target.itemIndex!]
         : null;
-      const original =
-        meal && Number.isInteger(target.itemIndex)
-          ? meal.items?.[target.itemIndex!]
-          : null;
-      if (
-        Number.isInteger(target.mealId) &&
-        Number.isInteger(target.itemIndex) &&
-        !original
-      ) {
-        return null;
-      }
-      return {
-        sourcePendingOperationId: request.id,
-        sourceLocked: false,
-        candidateId: target.candidateId,
-        mealId: target.mealId,
-        itemIndex: target.itemIndex,
-        identityKey: target.identityKey,
-        originalFoodName: target.originalFoodName,
-        originalCanonicalName:
-          target.originalCanonicalName ??
-          original?.canonicalName ??
-          target.originalFoodName,
-        originalBrand: target.originalBrand ?? original?.brand ?? null,
-        originalProductVariant:
-          target.originalProductVariant ??
-          original?.productVariant ??
-          original?.resolution?.productVariant ??
-          null,
-      } satisfies NutritionLabelPhotoClarificationCandidate;
-    })
-    .filter(
-      (
-        candidate
-      ): candidate is NutritionLabelPhotoClarificationCandidate =>
-        Boolean(candidate)
-    );
+    if (
+      Number.isInteger(target.mealId) &&
+      Number.isInteger(target.itemIndex) &&
+      !original
+    ) {
+      continue;
+    }
+    candidates.push({
+      sourcePendingOperationId: request.id,
+      sourceLocked: false,
+      candidateId: target.candidateId,
+      mealId: target.mealId,
+      itemIndex: target.itemIndex,
+      identityKey: target.identityKey,
+      originalFoodName: target.originalFoodName,
+      originalCanonicalName:
+        target.originalCanonicalName ??
+        original?.canonicalName ??
+        target.originalFoodName,
+      originalBrand: target.originalBrand ?? original?.brand ?? null,
+      originalProductVariant:
+        target.originalProductVariant ??
+        original?.productVariant ??
+        original?.resolution?.productVariant ??
+        null,
+    });
+  }
+  return candidates;
 }
 
 async function createNutritionLabelPhotoClarification(input: {
