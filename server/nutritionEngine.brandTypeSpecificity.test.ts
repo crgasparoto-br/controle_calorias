@@ -133,6 +133,60 @@ describe("nutritionEngine brand and type specificity", () => {
     expect(result.semanticContract.needsClarification).toBe(false);
   });
 
+  it("usa estimativa provisional quando a identidade é clara mas a IA não retorna macros", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "resp_requeijao_without_nutrition",
+      outputText: JSON.stringify({
+        mealLabel: "Café da manhã",
+        confidence: 0.86,
+        reasoning: "A identidade foi reconhecida, mas a estimativa nutricional não veio preenchida.",
+        items: [{
+          foodName: "requeijão",
+          brand: "Catupiry",
+          portionText: "43 g",
+          servings: 1,
+          estimatedGrams: 43,
+          estimatedCalories: 0,
+          estimatedMacros: { protein: 0, carbs: 0, fat: 0 },
+          confidence: 0.82,
+          foodClassification: {
+            processingLevel: "ultra_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 0,
+          },
+        }],
+      }),
+      raw: { mocked: true },
+    });
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "43g requeijão catupiry light",
+      occurredAt: "2026-07-08T07:00:00-03:00",
+      timeZone: "America/Sao_Paulo",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Requeijão Catupiry Light",
+      canonicalName: "Requeijão Catupiry Light",
+      brand: "Catupiry",
+      estimatedGrams: 43,
+      calories: 64.5,
+      protein: 2.6,
+      carbs: 6.5,
+      fat: 2.2,
+      source: "hybrid",
+      resolution: expect.objectContaining({
+        nutritionOrigin: "provisional_estimate",
+        nutritionVerified: false,
+        productVariant: "light",
+        ambiguity: null,
+      }),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
+  });
+
   it("continua exigindo clarificação quando só marca e variante aparecem", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "resp_brand_variant_only",
