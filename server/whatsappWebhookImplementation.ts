@@ -1064,7 +1064,9 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       );
 
       const replyMeal = consolidationResult.meal;
-      const provisionalNutritionItemCount = (replyMeal.items ?? []).filter(
+      const replyMealItems: MealProcessingResult["items"] =
+        replyMeal.items ?? [];
+      const provisionalNutritionItemCount = replyMealItems.filter(
         item =>
           item.resolution?.nutritionOrigin === "provisional_estimate" &&
           item.resolution.nutritionVerified === false
@@ -1076,7 +1078,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           await createProvisionalNutritionLabelPhotoRequests({
             userId,
             mealId: replyMeal.id,
-            items: replyMeal.items ?? [],
+            items: replyMealItems,
             sourceMessageId: message.id,
           });
         nutritionLabelContinuationAvailable =
@@ -1119,8 +1121,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const persistedReplyInput: MealProcessingResult = {
         ...processedForPersistence,
         detectedMealLabel: replyMeal.mealLabel,
-        items: replyMeal.items ?? [],
-        totals: calculateMealTotals(replyMeal.items ?? []),
+        items: replyMealItems,
+        totals: calculateMealTotals(replyMealItems),
       };
       const goalProgress = await getWhatsAppMealGoalProgress(
         userId,
