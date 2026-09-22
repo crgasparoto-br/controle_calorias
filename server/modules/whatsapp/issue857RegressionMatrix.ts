@@ -169,6 +169,19 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/foodClarificationPlan.test.ts", requiredTokens: ["selection", "candidates"] },
     ],
   },
+  "nutrition_label_photo.clarification": {
+    modalities: ["text", "image_context", "simulator"],
+    evidence: [
+      {
+        file: "server/nutritionLabelCandidateService.provisional.test.ts",
+        requiredTokens: [
+          "Não é Dori, é Elma Chips",
+          "nutrition_label_photo_clarification_completed",
+          "claim concorrente perdido",
+        ],
+      },
+    ],
+  },
   "nutrition_label_photo.request": {
     modalities: ["text", "image_context", "simulator"],
     evidence: [
