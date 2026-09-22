@@ -207,7 +207,19 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   const correlatedMessageId =
     input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId();
 
-  if (active && parseLatestFoodCorrection(input.text?.trim() ?? "")) {
+  const activeInteractionForCorrection = active
+    ? findWhatsappRegisteredInteraction(active.type, active.target)
+    : null;
+  const interactionOwnsIdentityCorrection =
+    activeInteractionForCorrection?.allowedEffects.includes(
+      "confirm_original_identity"
+    ) ?? false;
+
+  if (
+    active &&
+    parseLatestFoodCorrection(input.text?.trim() ?? "") &&
+    !interactionOwnsIdentityCorrection
+  ) {
     const superseded =
       await pendingOperationRepository.supersedePendingOperation(active.id);
     if (superseded.superseded) return null;
