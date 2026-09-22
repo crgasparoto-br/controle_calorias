@@ -1,16 +1,46 @@
 {
   "schema_version": 1,
-  "material_head_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
-  "base_sha": "df0bc684029806191cbd3f5cd6db6b03ecc935cb",
+  "material_head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+  "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
   "evidence": [
     {
-      "evidence_id": "EVID-1047-COUNTABLE",
+      "evidence_id": "EV-Q-010",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue1047-exact-head-evidence.txt",
-      "sha256": "65236813a9fd381a4abbbdc2ff9c57d335b9180f6d736a15f526d28f0c1b1a50",
-      "subject_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
+      "path": ".audit/entregar-issue/evidence-summary.json",
+      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head CI and regression evidence",
+      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-Q-026",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence-summary.json",
+      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-Q-035",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence-summary.json",
+      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EV-Q-040",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence-summary.json",
+      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
       "status": "passed"
     }
   ]

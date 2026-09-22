@@ -1,1 +1,242 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"risk-saturation","compression":"gzip","encoded_size":2164,"encoded_sha256":"c622fb3e741776cd6de33cb96f3f30de20f76cc5023e74c77266d8c780abbab3","decoded_size":15395,"decoded_sha256":"7684ddb9c572c421a7446bd9764795f9044a696905bb798611370d749c887a30","parts":[{"path":"risk-saturation.parts/part-000.b64","size":2000,"sha256":"f273100638348f129e48379057d7eebd62764ca7eb69f0370f34089cda2ada27"},{"path":"risk-saturation.parts/part-001.b64","size":164,"sha256":"280fccd560eea2214df3562f70c136c8ce1d29d4d0264746c8395df481dc0f17"}]}
+{
+  "schema_version": 1,
+  "head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-031-01",
+        "NEG-066-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "evidence-effect-scope",
+          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "control_ids": [
+            "NEG-031-01",
+            "NEG-066-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-014-02",
+        "NEG-055-01",
+        "NEG-075-02"
+      ],
+      "dimensions": [
+        {
+          "surface": "user-scope-isolation",
+          "reason": "The requirement explicitly activates this risk family and needs an exact-head adversarial surface.",
+          "control_ids": [
+            "NEG-014-02",
+            "NEG-055-01",
+            "NEG-075-02"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-014-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "pending-reference-liveness",
+          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "control_ids": [
+            "NEG-014-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-009-01",
+        "NEG-017-01",
+        "NEG-027-01",
+        "NEG-047-02",
+        "NEG-048-01",
+        "NEG-059-02",
+        "NEG-061-01",
+        "NEG-069-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "pending-lifecycle-window",
+          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "control_ids": [
+            "NEG-009-01",
+            "NEG-017-01",
+            "NEG-027-01",
+            "NEG-047-02",
+            "NEG-048-01",
+            "NEG-059-02",
+            "NEG-061-01",
+            "NEG-069-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-019-01",
+        "NEG-072-01",
+        "NEG-081-01",
+        "NEG-083-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NEG-019-01",
+            "NEG-072-01",
+            "NEG-081-01",
+            "NEG-083-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-007-01",
+        "NEG-013-01",
+        "NEG-023-01",
+        "NEG-039-01",
+        "NEG-043-01",
+        "NEG-046-01",
+        "NEG-047-01",
+        "NEG-059-01",
+        "NEG-071-01",
+        "NEG-075-01",
+        "NEG-076-01",
+        "NEG-082-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
+          "control_ids": [
+            "NEG-039-01",
+            "NEG-059-01",
+            "NEG-076-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-continuation-path",
+          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "control_ids": [
+            "NEG-007-01",
+            "NEG-023-01",
+            "NEG-043-01",
+            "NEG-046-01",
+            "NEG-047-01",
+            "NEG-071-01",
+            "NEG-075-01",
+            "NEG-082-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-013-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "control_ids": [
+        "NEG-080-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "reason": "Canonical documentation claims must describe the same nutrition-label continuation contract as runtime behavior.",
+          "control_ids": [
+            "NEG-080-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "material_families_missing_controls": []
+}
