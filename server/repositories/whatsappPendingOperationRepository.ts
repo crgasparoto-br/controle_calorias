@@ -47,6 +47,16 @@ export type WhatsAppPendingOperationRepository = {
     userId: number,
     now?: Date
   ): Promise<WhatsAppPendingOperationRecord | null>;
+  getActivePendingOperationByType?(
+    userId: number,
+    type: string,
+    now?: Date
+  ): Promise<WhatsAppPendingOperationRecord | null>;
+  listActivePendingOperationsByType?(
+    userId: number,
+    type: string,
+    now?: Date
+  ): Promise<WhatsAppPendingOperationRecord[]>;
   getLatestPendingOperation(
     userId: number
   ): Promise<WhatsAppPendingOperationRecord | null>;
@@ -154,6 +164,39 @@ function createFallbackStore() {
       if (!latest) return null;
       if (new Date(latest.expiresAt).getTime() < now.getTime()) return null;
       return latest;
+    },
+    getActiveByType(
+      userId: number,
+      type: string,
+      now: Date
+    ): WhatsAppPendingOperationRecord | null {
+      const candidates = [...fallbackStore.values()]
+        .filter(
+          row =>
+            row.userId === userId &&
+            row.type === type &&
+            row.state === "active"
+        )
+        .sort((a, b) => b.id - a.id);
+      const latest = candidates[0];
+      if (!latest) return null;
+      if (new Date(latest.expiresAt).getTime() < now.getTime()) return null;
+      return latest;
+    },
+    listActiveByType(
+      userId: number,
+      type: string,
+      now: Date
+    ): WhatsAppPendingOperationRecord[] {
+      return [...fallbackStore.values()]
+        .filter(
+          row =>
+            row.userId === userId &&
+            row.type === type &&
+            row.state === "active" &&
+            new Date(row.expiresAt).getTime() >= now.getTime()
+        )
+        .sort((a, b) => b.id - a.id);
     },
     getLatest(userId: number): WhatsAppPendingOperationRecord | null {
       return [...fallbackStore.values()]
@@ -278,6 +321,76 @@ export function createDrizzleWhatsAppPendingOperationRepository(
       } catch (error) {
         deps.onWarning("WhatsApp pending operation read skipped", error);
         return null;
+      }
+    },
+
+    async getActivePendingOperationByType(userId, type, now = new Date()) {
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation typed read skipped"
+      );
+      if (persistence.kind === "memory") {
+        return fallback.getActiveByType(userId, type, now);
+      }
+      if (persistence.kind === "unavailable") return null;
+      const { db } = persistence;
+
+      try {
+        const [row] = await db
+          .select()
+          .from(whatsappPendingOperations)
+          .where(
+            and(
+              eq(whatsappPendingOperations.userId, userId),
+              eq(whatsappPendingOperations.type, type),
+              eq(whatsappPendingOperations.state, "active")
+            )
+          )
+          .orderBy(desc(whatsappPendingOperations.id))
+          .limit(1);
+
+        if (!row) return null;
+        if (new Date(row.expiresAt).getTime() < now.getTime()) return null;
+
+        return row;
+      } catch (error) {
+        deps.onWarning("WhatsApp pending operation typed read skipped", error);
+        return null;
+      }
+    },
+
+    async listActivePendingOperationsByType(userId, type, now = new Date()) {
+      const persistence = await resolvePersistenceMode(
+        deps,
+        "WhatsApp pending operation typed list skipped"
+      );
+      if (persistence.kind === "memory") {
+        return fallback.listActiveByType(userId, type, now);
+      }
+      if (persistence.kind === "unavailable") return [];
+      const { db } = persistence;
+
+      try {
+        const rows = await db
+          .select()
+          .from(whatsappPendingOperations)
+          .where(
+            and(
+              eq(whatsappPendingOperations.userId, userId),
+              eq(whatsappPendingOperations.type, type),
+              eq(whatsappPendingOperations.state, "active")
+            )
+          )
+          .orderBy(desc(whatsappPendingOperations.id))
+          .limit(100);
+
+        return rows.filter(
+          (row: WhatsAppPendingOperationRecord) =>
+            new Date(row.expiresAt).getTime() >= now.getTime()
+        );
+      } catch (error) {
+        deps.onWarning("WhatsApp pending operation typed list skipped", error);
+        return [];
       }
     },
 
