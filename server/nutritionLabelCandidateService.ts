@@ -701,6 +701,7 @@ async function listActiveNutritionLabelOperations(userId: number) {
     (operation): operation is NonNullable<typeof operation> =>
       Boolean(
         operation &&
+          operation.userId === userId &&
           operation.type === NUTRITION_LABEL_PHOTO_REQUEST_TYPE
       )
   );
@@ -1084,6 +1085,7 @@ async function claimNutritionLabelClarificationSource(
     source.userId !== userId ||
     source.state !== "active" ||
     source.type !== NUTRITION_LABEL_PHOTO_REQUEST_TYPE ||
+    new Date(source.expiresAt).getTime() < Date.now() ||
     !isNutritionLabelPhotoRequestTarget(source.target)
   ) {
     return false;
@@ -1423,13 +1425,13 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
 
   const conflict = nutritionLabelCommercialConflict(input.item, selected);
   const explicitOriginalIdentity =
-    nutritionLabelIdentityScore(input.captionText, selected) >= 6 ||
-    (input.item.brand &&
-      selected.originalBrand &&
-      nutritionLabelValuesCompatible(
-        input.item.brand,
-        selected.originalBrand
-      ));
+    nutritionLabelIdentityScore(input.captionText, selected) > 0 ||
+    nutritionLabelIdentityScore(
+      [input.item.foodName, input.item.canonicalName, input.item.brand]
+        .filter(Boolean)
+        .join(" "),
+      selected
+    ) > 0;
   if (conflict || !explicitOriginalIdentity) {
     const clarification = await createNutritionLabelPhotoClarification({
       userId: input.userId,
