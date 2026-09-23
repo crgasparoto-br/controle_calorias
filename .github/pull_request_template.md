@@ -37,10 +37,9 @@ Comandos relevantes executados pelo perfil (marque somente os aplicáveis):
 
 Banco e integridade:
 
-- `DATABASE_URL` no CI: <!-- disponível / não aplicável -->
-- `Database integrity check`: <!-- passou / falhou / não aplicável -->
-- Runner para perfil CRITICAL: `tidb-vps`
-- `db:check-integrity`: <!-- executado / não aplicável -->
+- `DATABASE_URL` no CI: <!-- disponível / não disponível / não aplicável -->
+- `db:check-integrity`: <!-- executado / pulado / não aplicável -->
+- Validação alternativa ou risco residual quando pulado: <!-- descreva ou marque não aplicável -->
 
 Vercel:
 
