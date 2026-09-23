@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:ee6f493cc3407c30",
+    "finding_ids": [
+      "AUD-1175-SAME-BRAND-PRODUCT-001",
+      "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
+      "AUD-1175-CONCURRENCY-SATURATION-003"
+    ],
+    "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+  },
+  "generalized_learning": {
+    "escape_class": "risk-family-lexical-classification-gap",
+    "generalized_failure_pattern": "A normative concurrency clause can be missed when a detector recognizes only a narrow noun vocabulary around concurrent actors or responses.",
+    "plausible_wrong_implementation": "Mark concurrency risk not applicable because the lexical detector misses phrases describing simultaneous responses, callbacks or messages.",
+    "trigger_signals": [
+      "concurrent responses",
+      "parallel callbacks",
+      "simultaneous messages",
+      "single valid conclusion"
+    ],
+    "risk_families": [
+      "concurrency-atomicity",
+      "structural-contract"
+    ],
+    "reusable_control": "RISK-CONCURRENCY-ACTOR-LEXICON-001",
+    "prevention_rule": "When normative text describes two or more concurrent response-like actors or a single-winner conclusion, classify concurrency-atomicity as applicable.",
+    "detection_rule": "Lexical precision tests must include at least two synthetic concurrent actor surfaces and a non-concurrency semantic competitor false-positive case.",
+    "transfer_cases": [
+      {
+        "id": "transfer-callback-resolution",
+        "surface": "callback-resolution",
+        "input": "two callbacks arrive concurrently and only one conclusion may commit",
+        "expected": "concurrency-atomicity is detected",
+        "status": "passed"
+      },
+      {
+        "id": "transfer-message-consumption",
+        "surface": "message-consumption",
+        "input": "two messages are processed simultaneously for one pending state",
+        "expected": "concurrency-atomicity is detected",
+        "status": "passed"
+      }
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {
+      "role": "prevention",
+      "path": "scripts/risk_inference.py",
+      "status": "passed",
+      "evidence": "Generic concurrent response/message/callback lexical recognition added without target-specific identifiers."
+    },
+    {
+      "role": "detection",
+      "path": "tests/test_risk_inference_lexical_precision.py",
+      "status": "passed",
+      "evidence": "Synthetic concurrency and false-positive lexical precision tests passed; genericity validator also passed."
+    }
+  ]
+}

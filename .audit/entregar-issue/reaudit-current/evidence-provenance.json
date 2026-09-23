@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "594d7d886698621fbeecb07587eb525459127205",
+  "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
+  "evidence": [
+    {
+      "evidence_id": "EVID-QUANT-LABEL-SCALING",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/reaudit-current/evidence/quantitative-label-scaling.json",
+      "sha256": "23731a76db912786289fd81a19b1cf6d8e7fdae91e3997a9f361abc26ddb27b3",
+      "subject_sha": "594d7d886698621fbeecb07587eb525459127205",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head nutrition label regression plus arithmetic verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-EXACT-HEAD-REMEDIATION",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+      "sha256": "27f69bbee47f4f2cbf3c5c274a841598ebbe102318e46f05122be6a4a8d7f649",
+      "subject_sha": "594d7d886698621fbeecb07587eb525459127205",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head Agent-first and WhatsApp TiDB gates",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-DOC-SEMANTIC-DRIFT",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/reaudit-current/evidence/documentation-semantic-drift.txt",
+      "sha256": "311c59ddc41391076c96e774b262caf97187d84a576a9acbd1ca0298e58d15e2",
+      "subject_sha": "594d7d886698621fbeecb07587eb525459127205",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head repository documentation consistency scan",
+      "status": "passed"
+    }
+  ]
+}
