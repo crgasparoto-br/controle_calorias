@@ -42,7 +42,15 @@ for (const command of ["pnpm check", "pnpm test", "pnpm architecture:check", "pn
 }
 
 requireText(workflow, "pnpm db:check-integrity", ".github/workflows/agent-check.yml");
-requireText(workflow, "DATABASE_URL not available", ".github/workflows/agent-check.yml");
+requireText(workflow, "Start validation TiDB", ".github/workflows/agent-check.yml local TiDB");
+requireText(workflow, "pingcap/tidb:v8.5.1", ".github/workflows/agent-check.yml local TiDB image");
+requireText(workflow, "mysql://root@127.0.0.1:4000/controle_calorias", ".github/workflows/agent-check.yml local DATABASE_URL");
+requireText(workflow, "Apply current repository schema", ".github/workflows/agent-check.yml schema validation");
+
+if (workflow.includes("DATABASE_URL: ${{ secrets.DATABASE_URL }}")) {
+  failures.push(".github/workflows/agent-check.yml nao deve depender do DATABASE_URL externo no Agent-first gate");
+}
+
 requireText(workflow, "GITHUB_STEP_SUMMARY", ".github/workflows/agent-check.yml");
 
 for (const doc of [contributing, pullRequestTemplate, branchProtection]) {

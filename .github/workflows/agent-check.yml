@@ -111,7 +111,6 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
       VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -344,13 +343,90 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Start validation TiDB
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
+        run: |
+          docker run -d             --name agent-first-tidb             -p 4000:4000             pingcap/tidb:v8.5.1
+
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e '
+              import mysql from "mysql2/promise";
+              const connection = await mysql.createConnection({
+                host: "127.0.0.1",
+                port: 4000,
+                user: "root"
+              });
+              await connection.query("SELECT 1");
+              await connection.end();
+            '; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs --tail 100 agent-first-tidb
+          exit 1
+
+      - name: Prepare validation database
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+        run: |
+          node --input-type=module <<'NODE'
+          import mysql from "mysql2/promise";
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let lastError;
+
+          for (let attempt = 1; attempt <= 30; attempt += 1) {
+            let connection;
+            try {
+              connection = await mysql.createConnection({
+                host: "127.0.0.1",
+                port: 4000,
+                user: "root"
+              });
+
+              await connection.query(
+                "CREATE DATABASE IF NOT EXISTS controle_calorias"
+              );
+
+              await connection.end();
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              if (connection) {
+                await connection.end().catch(() => undefined);
+              }
+              await sleep(2000);
+            }
+          }
+
+          throw lastError ?? new Error(
+            "TiDB nao ficou pronto para validacao."
+          );
+          NODE
+
+      - name: Apply current repository schema
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
+        run: |
+          if ! pnpm exec drizzle-kit push --force > /tmp/agent-first-drizzle.log 2>&1; then
+            tail -n 200 /tmp/agent-first-drizzle.log
+            exit 1
+          fi
+          tail -n 80 /tmp/agent-first-drizzle.log
+
       - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical'
+        env:
+          DATABASE_URL: mysql://root@127.0.0.1:4000/controle_calorias
         run: pnpm db:check-integrity
 
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
-        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
+      - name: Show validation TiDB logs on failure
+        if: failure()
+        run: docker logs --tail 100 agent-first-tidb || true
 
       - name: Gate summary
         if: always()
