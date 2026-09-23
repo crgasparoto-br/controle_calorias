@@ -14,6 +14,7 @@ import {
   isNutritionLabelPhotoRequestTarget,
   normalize,
   pendingOperationRepository,
+  recordNutritionLabelCandidates,
   type NutritionLabelPhotoClarificationCandidate,
   type NutritionLabelPhotoClarificationTarget,
   type NutritionLabelPhotoRequestTarget,
