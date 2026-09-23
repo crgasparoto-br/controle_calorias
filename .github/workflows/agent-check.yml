@@ -105,19 +105,67 @@ jobs:
           echo "Merge preview intentionally validates integration/type compatibility only."
           echo "Vitest executes once on the exact PR head according to Delivery V2 risk."
 
+  database-integrity:
+    name: Database integrity check
+    needs: classify
+    if: ${{ always() && (github.event_name != 'pull_request' || (needs.classify.result == 'success' && needs.classify.outputs.risk_profile == 'critical')) }}
+    runs-on: [self-hosted, Linux, X64, tidb-vps]
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Require database connection secret
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL is required for the database integrity gate."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.VERIFICATION_HEAD_SHA }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Database integrity check
+        run: pnpm db:check-integrity
+
   agent-check:
     name: Agent-first gate
-    needs: [classify, merge-preview-integration]
+    needs: [classify, merge-preview-integration, database-integrity]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
       VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       DELIVERY_V2_RISK_PROFILE: ${{ github.event_name == 'pull_request' && needs.classify.outputs.risk_profile || 'critical' }}
 
     steps:
+      - name: Require database integrity
+        if: ${{ github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical' }}
+        run: |
+          if [ "${{ needs.database-integrity.result }}" != "success" ]; then
+            echo "Database integrity check did not succeed: ${{ needs.database-integrity.result }}"
+            exit 1
+          fi
+
       - name: Require Delivery V2 classification
         if: github.event_name == 'pull_request' && needs.classify.result != 'success'
         run: |
@@ -343,14 +391,6 @@ jobs:
           path: /tmp/agent-first-repository
           if-no-files-found: error
           retention-days: 7
-
-      - name: Database integrity check
-        if: ${{ env.DATABASE_URL != '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
-        run: pnpm db:check-integrity
-
-      - name: Database integrity check skipped
-        if: ${{ env.DATABASE_URL == '' && (github.event_name != 'pull_request' || needs.classify.outputs.risk_profile == 'critical') }}
-        run: echo "DATABASE_URL not available; pnpm db:check-integrity skipped."
 
       - name: Gate summary
         if: always()
