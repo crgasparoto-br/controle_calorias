@@ -320,49 +320,54 @@ export default function Home() {
         />
 
         <PageIntro
-          title="Resumo"
+          title="Resumo do dia"
           description="Acompanhe consumo, metas e registros do dia selecionado em uma leitura rápida."
         />
 
-        <section className="space-y-4">
-          <SectionHeading title="Foco do dia" />
-          <div className="grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
-            <div className="space-y-4">
-              <TodayStatusCard
-                consumedCalories={consumedCalories}
-                baseCalorieGoal={baseCalorieGoal}
-                adjustedCalorieGoal={adjustedCalorieGoal}
-                remainingCalories={remainingCalories}
-                exerciseCalories={exerciseCalories}
-                waterConsumedMl={waterConsumedMl}
-                waterGoalMl={waterGoalMl}
-                groupedMealsCount={groupedSelectedDayMeals.length}
-                macroSummaries={macroSummaries}
-                consumedMacroTotal={consumedMacroTotal}
-                goalMacroTotal={goalMacroTotal}
-              />
+        <section className="space-y-4" aria-labelledby="nutrition-summary-heading">
+          <SectionHeading
+            id="nutrition-summary-heading"
+            title="Foco do dia"
+            description="Valores principais, progresso e contexto da meta ficam reunidos antes dos registros e ferramentas."
+          />
+          <TodayStatusCard
+            consumedCalories={consumedCalories}
+            baseCalorieGoal={baseCalorieGoal}
+            adjustedCalorieGoal={adjustedCalorieGoal}
+            remainingCalories={remainingCalories}
+            exerciseCalories={exerciseCalories}
+            waterConsumedMl={waterConsumedMl}
+            waterGoalMl={waterGoalMl}
+            groupedMealsCount={groupedSelectedDayMeals.length}
+            macroSummaries={macroSummaries}
+            consumedMacroTotal={consumedMacroTotal}
+            goalMacroTotal={goalMacroTotal}
+          />
+        </section>
 
-              <MealsOfDayCard
-                groupedMeals={groupedSelectedDayMeals}
-                recordsUrl={recordsHref(selectedDate)}
-                consumedCalories={consumedCalories}
-                consumedProtein={consumedProtein}
-                consumedCarbs={consumedCarbs}
-                consumedFat={consumedFat}
-              />
-            </div>
+        <section
+          className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.9fr)]"
+          aria-label="Registros e ferramentas do dia"
+        >
+          <MealsOfDayCard
+            groupedMeals={groupedSelectedDayMeals}
+            recordsUrl={recordsHref(selectedDate)}
+            consumedCalories={consumedCalories}
+            consumedProtein={consumedProtein}
+            consumedCarbs={consumedCarbs}
+            consumedFat={consumedFat}
+          />
 
-            <FoodAssistantCard
-              message={assistantMessage}
-              suggestion={assistantSuggestion}
-              isGenerating={assistantSuggest.isPending}
-              isSaving={saveAssistantMeal.isPending}
-              onMessageChange={setAssistantMessage}
-              onSubmit={handleAssistantSubmit}
-              onShortcut={handleAssistantShortcut}
-              onSaveSuggestion={handleSaveSuggestionAsMeal}
-            />
-          </div>
+          <FoodAssistantCard
+            message={assistantMessage}
+            suggestion={assistantSuggestion}
+            isGenerating={assistantSuggest.isPending}
+            isSaving={saveAssistantMeal.isPending}
+            onMessageChange={setAssistantMessage}
+            onSubmit={handleAssistantSubmit}
+            onShortcut={handleAssistantShortcut}
+            onSaveSuggestion={handleSaveSuggestionAsMeal}
+          />
         </section>
       </div>
     </DashboardLayout>
@@ -436,10 +441,10 @@ function DateNavigator({
   );
 }
 
-function SectionHeading({ title, description }: { title: string; description?: string }) {
+function SectionHeading({ title, description, id }: { title: string; description?: string; id?: string }) {
   return (
     <div className="space-y-1">
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <h2 id={id} className="text-xl font-semibold tracking-tight">{title}</h2>
       {description ? <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
     </div>
   );
@@ -521,16 +526,28 @@ function TodayStatusCard({
           ))}
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
           <CalorieBar consumed={consumedCalories} goal={adjustedCalorieGoal} />
           {macroSummaries.map(macro => (
             <MacroBar key={macro.label} label={macro.label} consumed={macro.consumed} goal={macro.goal} />
           ))}
+          <MacroBar
+            label="Água"
+            consumed={waterConsumedMl}
+            goal={waterGoalMl}
+            goalLabel="meta de água"
+            formatter={value => formatCountPtBr(value, " ml")}
+          />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <SupportMetric label="Refeições" value={formatCountPtBr(groupedMealsCount)} helper="Agrupadas por nome" />
-          <SupportMetric label="Água do dia" value={formatCountPtBr(waterConsumedMl, " ml")} helper={`Meta ${formatCountPtBr(waterGoalMl, " ml")}`} />
+          <StatBlock label="Refeições" value={formatCountPtBr(groupedMealsCount)} sublabel="Agrupadas por nome" />
+          <StatBlock
+            label="Água do dia"
+            value={formatCountPtBr(waterConsumedMl, " ml")}
+            sublabel={formatGoalProgressText(waterConsumedMl, waterGoalMl, "meta de água")}
+            details={[`Meta ${formatCountPtBr(waterGoalMl, " ml")}`]}
+          />
         </div>
       </CardContent>
     </Card>
@@ -719,7 +736,7 @@ function StatBlock({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
+    <div className="flex h-full flex-col rounded-2xl border bg-background p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className={`mt-2 text-xl font-semibold tracking-tight ${valueClassName ?? ""}`}>{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{sublabel}</p>
@@ -732,16 +749,6 @@ function StatBlock({
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function SupportMetric({ label, value, helper }: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl border bg-muted/30 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
     </div>
   );
 }
@@ -767,9 +774,21 @@ function CalorieBar({ consumed, goal }: { consumed: number; goal: number }) {
   );
 }
 
-function MacroBar({ label, consumed, goal }: { label: string; consumed: number; goal: number }) {
+function MacroBar({
+  label,
+  consumed,
+  goal,
+  goalLabel = "meta do dia",
+  formatter = formatGrams,
+}: {
+  label: string;
+  consumed: number;
+  goal: number;
+  goalLabel?: string;
+  formatter?: (value: number) => string;
+}) {
   const progress = macroProgress(consumed, goal);
-  const progressText = formatGoalProgressText(consumed, goal);
+  const progressText = formatGoalProgressText(consumed, goal, goalLabel);
   const isAboveGoal = goal > 0 && consumed > goal;
 
   return (
@@ -777,7 +796,7 @@ function MacroBar({ label, consumed, goal }: { label: string; consumed: number; 
       <div className="flex items-center justify-between gap-3">
         <p className="font-medium tracking-tight">{label}</p>
         <p className="text-sm text-muted-foreground">
-          {formatGrams(consumed)} / {formatGrams(goal)}
+          {formatter(consumed)} / {formatter(goal)}
         </p>
       </div>
       <Progress value={progress} className="h-2" />
