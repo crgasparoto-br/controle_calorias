@@ -1,16 +1,36 @@
 {
   "schema_version": 1,
-  "material_head_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
-  "base_sha": "df0bc684029806191cbd3f5cd6db6b03ecc935cb",
+  "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+  "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
   "evidence": [
     {
-      "evidence_id": "EVID-1047-COUNTABLE",
+      "evidence_id": "EVID-QUANT-LABEL-SCALING",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue1047-exact-head-evidence.txt",
-      "sha256": "65236813a9fd381a4abbbdc2ff9c57d335b9180f6d736a15f526d28f0c1b1a50",
-      "subject_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
+      "path": ".audit/entregar-issue/evidence/quantitative-label-scaling.json",
+      "sha256": "c9100dd62ee7a69e593c763cd5ae5bfd98fc0eeaa37d7b6a7d56db49b00ed42c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
       "freshness_policy": "exact-material-head",
-      "producer": "entregar-issue exact-head CI and regression evidence",
+      "producer": "exact-head nutrition label regression plus arithmetic verification",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-EXACT-HEAD-REMEDIATION",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/exact-head-remediation.txt",
+      "sha256": "77c8f5669af541ecb549c67a89f2e557508147ca58df602eed02a9399e5488ef",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "freshness_policy": "exact-material-head",
+      "producer": "focused exact-head regression suite",
+      "status": "passed"
+    },
+    {
+      "evidence_id": "EVID-DOC-SEMANTIC-DRIFT",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/evidence/documentation-semantic-drift.txt",
+      "sha256": "c78853d0404524b09fc59123950be0e2bd1f4f3e3524e3863a558432f9f627e7",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head repository documentation and type/architecture gates",
       "status": "passed"
     }
   ]

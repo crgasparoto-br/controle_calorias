@@ -96,8 +96,12 @@ import {
 } from "./webhookTextCommands";
 import {
   buildNutritionLabelPhotoActions,
+  cancelClaimedNutritionLabelPhotoClarification,
   cancelNutritionLabelPhotoRequest,
+  isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
+  parseNutritionLabelPhotoClarificationText,
+  resolveNutritionLabelPhotoClarificationText,
 } from "../../nutritionLabelCandidateService";
 import {
   NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
@@ -105,7 +109,7 @@ import {
 } from "./nutritionLabelPhotoInteraction";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 9;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 10;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -354,6 +358,33 @@ function rebuildNutritionLabelPhotoRequest(input: WhatsappInteractionReplayInput
   return { reply: target.instructionText ?? "Envie uma foto legível do rótulo nutricional. Ou envie CANCELAR." };
 }
 
+function rebuildNutritionLabelPhotoClarification(input: WhatsappInteractionReplayInput): WhatsappInteractionReplayResult {
+  const target = input.pendingOperation.target;
+  return isNutritionLabelPhotoClarificationTarget(target)
+    ? { reply: target.instructionText }
+    : null;
+}
+
+function classifyNutritionLabelPhotoClarificationText(
+  target: unknown,
+  text?: string | null
+): WhatsappInteractionTextClassification {
+  return isNutritionLabelPhotoClarificationTarget(target) &&
+    parseNutritionLabelPhotoClarificationText(target, text)
+    ? "resolve"
+    : "invalid";
+}
+
+async function resolveNutritionLabelPhotoClarificationRegisteredText(
+  input: WhatsappInteractionTextInput
+): Promise<WhatsappInteractionTextResult | null> {
+  return resolveNutritionLabelPhotoClarificationText({
+    userId: input.userId,
+    pendingOperation: input.pendingOperation,
+    text: input.text,
+  });
+}
+
 function classifyNutritionLabelPhotoText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
   return text?.trim().toLowerCase() === "cancelar" ? "resolve" : "invalid";
 }
@@ -372,6 +403,29 @@ function resolveNutritionLabelPhotoText(input: WhatsappInteractionTextInput): Pr
 }
 
 export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteraction[] = [
+  {
+    id: "nutrition_label_photo.clarification",
+    pendingType: PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
+    origin: NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "open",
+    reconstruction: "pending_target",
+    invalidResponse: "text_guidance",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: ["confirm_original_identity", "select_item", "cancel", "update_item_once"],
+    forbiddenEffects: ["identity_overwrite", "nutrition_fallback", "meal_creation"],
+    matches: isNutritionLabelPhotoClarificationTarget,
+    actions: () => [{ id: "cancel", label: "Cancelar", effect: "cancel" }],
+    classifyText: classifyNutritionLabelPhotoClarificationText,
+    resolveText: resolveNutritionLabelPhotoClarificationRegisteredText,
+    rebuild: rebuildNutritionLabelPhotoClarification,
+    completeCallback: input => input.action === "cancel"
+      ? cancelClaimedNutritionLabelPhotoClarification({
+          userId: input.userId,
+          pendingOperation: input.pendingOperation,
+        })
+      : null,
+  },
   {
     id: "nutrition_label_photo.request",
     pendingType: PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE,

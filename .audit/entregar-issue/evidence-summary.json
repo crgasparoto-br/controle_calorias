@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+  "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
+  "ci": {
+    "agent_first": {
+      "run_id": "35761534707",
+      "status": "completed",
+      "conclusion": "success",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce"
+    },
+    "whatsapp_tidb": {
+      "run_id": "35761534699",
+      "status": "completed",
+      "conclusion": "success",
+      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce"
+    }
+  },
+  "regressions": [
+    "Elma Chips identity is preserved when label vision says Dori",
+    "25 g label scales to 145 g consumed quantity: 736.6 kcal, 26.1 protein, 56.8 carbs, 45.2 fat",
+    "caption Amendoim selects peanut while beer remains unchanged",
+    "ambiguous multi-item label persists clarification and reuses same evidence",
+    "text Não é Dori, é Elma Chips resumes the persisted clarification",
+    "lost compare-and-set claim blocks duplicate mutation",
+    "interaction registry final gate includes nutrition_label_photo.clarification scenario"
+  ],
+  "changed_paths": [
+    "docs/RELIABILITY.md",
+    "docs/design-docs/whatsapp-interaction-registry.md",
+    "docs/issue-1158-provisional-branded-catalog.md",
+    "docs/product-specs/meal-registration.md",
+    "docs/product-specs/whatsapp-flow.md",
+    "server/modules/whatsapp/foodClarificationGate.ts",
+    "server/modules/whatsapp/interactionRegistry.ts",
+    "server/modules/whatsapp/interactionRegistryLegacy.ts",
+    "server/modules/whatsapp/issue857RegressionMatrix.ts",
+    "server/nutritionLabelCandidateService.provisional.test.ts",
+    "server/nutritionLabelCandidateService.ts",
+    "server/whatsappWebhookImplementation.ts"
+  ],
+  "verification": "Remote CRITICAL Agent-first gate and WhatsApp context TiDB gate passed for the exact material SHA."
+}

@@ -43,7 +43,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `whatsappConversationMessages` | `whatsappConversationMessages` | 23 | Requer atenção |
 | `whatsappMessageDomainLinks` | `whatsappMessageDomainLinks` | 8 | Requer atenção |
 | `whatsappConversationSummaries` | `whatsappConversationSummaries` | 9 | Requer atenção |
-| `whatsappPendingOperations` | `whatsappPendingOperations` | 11 | Requer atenção |
+| `whatsappPendingOperations` | `whatsappPendingOperations` | 12 | Requer atenção |
 | `appSecrets` | `appSecrets` | 6 | Baixa |
 | `inferenceLogs` | `inferenceLogs` | 7 | Requer atenção |
 | `quickEditTokens` | `quickEditTokens` | 9 | Baixa |

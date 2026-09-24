@@ -1,1 +1,1989 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-closure","compression":"gzip","encoded_size":14612,"encoded_sha256":"aa27fa0fdd0e3da72232490326612ceff76668e14697015755e770687b2dfcdb","decoded_size":59347,"decoded_sha256":"77ec76ad3da3134b2b9348b78f58eadff0e275c2609886a84cb048d5eab1c4dd","parts":[{"path":"requirement-closure.parts/part-000.b64","size":12288,"sha256":"6863451abc360bc190a1b4bf2915351b364cb6f94dd4ccb5e0bce418724289de"},{"path":"requirement-closure.parts/part-001.b64","size":2324,"sha256":"879c39ddf6b00d121a43d529d8de246f775482fb3f296eaabfb85caac4c45f9e"}]}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": ".audit/entregar-issue/specification-snapshot.json",
+    "sha256": "cd3705cd79020e4ea54cacceb2a673b7a35c676a0388d04203bd0c3a99fbef92"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1174",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "2bbb9cb1cdb849170c2da8e119e6ab0e80862dfd378a37efe4e5bbe73a3c943f",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 7,
+      "source_text": "O usuário enviou uma foto contendo **Amendoim Tipo Japonês Elma Chips** e **3 garrafas de Cerveja Original**.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "46f4f954f93938d8bc6076f62bc9984b11a7025e20029c2f445c5da577b1b3b2",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 8,
+      "source_text": "O sistema identificou corretamente o amendoim como **Elma Chips**, registrou **1 pacote (145 g)** e sinalizou os valores nutricionais como provisórios, orientando o usuário a enviar uma foto legível do rótulo para atualização.",
+      "flags": [
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "9475922831448cb55cbbd357402cfafe42d126de91f3c897378c88ba1803160c",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 9,
+      "source_text": "Em seguida, o usuário enviou a foto da **tabela nutricional do mesmo amendoim**, com a legenda `Amendoim`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "882262d86f12f20e6c776fb0ee36e70366a8833b64f7433e6309d37375579ccc",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 13,
+      "source_text": "O problema é de **continuidade/correlação entre o item provisório confirmado e a evidência nutricional enviada em turno posterior**, não de reconhecimento inicial do alimento.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "23ad3f4a76a22fa4410b2c4c71db6d2833a3b1516ee420447e2cca529629d040",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 15,
+      "source_text": "A implementação deve partir da branch **develop**.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "71b4f9fcab46d3dc774a94add91bf6290a47d73d94431413c12cbcf8313c6f65",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 24,
+      "source_text": "`docs/issue-1158-provisional-branded-catalog.md` — fonte versionada do registro provisório, evidência de rótulo, governança e regra de correção de item confirmado;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "3be4283a447d468e099e832bc55561d82207fa9f900aef6bb9edb96dfa172a18",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 29,
+      "source_text": "Reutilizar os contratos existentes de:",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "a8ef1d3b4bb2ac388df8c7fae5a76fa0ddc3206249f54db89aa50026b22352bd",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 41,
+      "source_text": "Para registro provisório de produto comercial e governança de rótulo, `docs/issue-1158-provisional-branded-catalog.md` é a referência versionada mais específica e prevalece sobre trechos anteriores de `docs/product-specs/meal-registration.md` que ainda descrevam produto com marca/variante sem fonte exata como sempre fail-closed. A #1158 alterou essa regra de forma deliberada: identidade inequívoca + estimativa defensável pode gerar item provisório; ambiguidade de identidade continua fail-closed. A implementação desta issue deve reconciliar o texto antigo no documento de produto, sem ampliar a exceção.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "48d0a666809ede29286006e1d378a0abe2fe66b3043d0f138c55b343953e6031",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 45,
+      "source_text": "Quando o sistema registrar um item com nutrição provisória e orientar o usuário a enviar o rótulo, uma imagem nutricional recebida depois deve conseguir ser correlacionada ao **item provisório correto**, atualizar somente esse item com a evidência validada e preservar o contexto durante eventuais clarificações.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "248ec66052344c2318777d272762cacfb58f801276393e8c8e46d0a9eea315a7",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 47,
+      "source_text": "O envio posterior do rótulo não deve ser interpretado como uma nova refeição nem perder marca, variante, quantidade ou item de origem já conhecidos.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "dd6b14f902dcf74e441f927a11d0f7ee901ec8ad575946461b3d5e950d91347d",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 51,
+      "source_text": "**must_behave:** um rótulo enviado em turno posterior deve poder completar um item provisório já registrado.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "336f8c62845f9267862d95016516f3c90f3e1f6e31eae4e22689efd27968feed",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 52,
+      "source_text": "**must_reuse:** continuidade deve usar `whatsappPendingOperations` + interaction registry e os resolvedores nutricionais existentes.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "b1c38f1491a61bcf1f37c917295c7e8add9a3377a2e713bd7347a6b055ce77ec",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 53,
+      "source_text": "**must_be_single_source:** identidade original do item/refeição e a evidência nutricional validada devem convergir no mesmo item persistido; não manter uma segunda cópia funcional concorrente.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "b4b7cf8ea629beaa0b26cbb4f251cafc0569dccffe628707dd4382c7ced7d7cc",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 54,
+      "source_text": "**precedence_invariant:** identidade explícita já confirmada no item + correção explícita atual do usuário > inferência visual nova e isolada > fallback genérico.",
+      "flags": [
+        "isolation",
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "c606c8ac217ac87e79f0b1473090aea464bbe98a0f0f977d8cb7643772be19ce",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 55,
+      "source_text": "**must_not_behave:** a análise do rótulo não pode trocar silenciosamente Elma Chips por Dori, Wickbold, Panco ou qualquer outra marca/variante.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "da6c85f32978453ef13a00b611132951ea3863b8f7563efbf3252b3507fc9de0",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 56,
+      "source_text": "**must_not_behave:** a imagem usada como rótulo de um item provisório não pode criar uma nova refeição apenas por chegar em outro turno.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "3959967af508e88709bf52aa12f2130f7ee7a2fcee800eb7b3abc3d499305c93",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 57,
+      "source_text": "**must_not_behave:** uma pergunta de clarificação criada nesse fluxo não pode desaparecer antes de a resposta válida ser consumida, cancelada, expirada ou substituída de forma explícita.",
+      "flags": [
+        "negative",
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "3d6b4ef9062043060de7cf750e67ee9f900a7209a5d3e6e2500383fef20e2386",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 58,
+      "source_text": "**forbidden_implementation:** associar rótulo apenas pelo horário da mensagem ou por `foodName` genérico sem validar usuário, refeição, item, identidade comercial e estado da pendência.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "8900263d1b3741042aa53ff3ec8b282bbbf5dbadf3aa8e74fd983fd42c6e3370",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 59,
+      "source_text": "**forbidden_implementation:** reprocessar a foto do rótulo como um novo produto e usar a marca sugerida pela visão para sobrescrever a identidade já confirmada.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "4d45d4a83b119249791a14eb0749bb932a90d26b4f4a0f306db37b54326a131f",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 61,
+      "source_text": "Uma implementação errada que ainda passaria no caminho feliz seria associar automaticamente qualquer foto seguinte ao último alimento. O controle discriminante deve incluir múltiplos itens provisórios e provar que a imagem/caption resolve o item correto ou pede seleção sem mutar nenhum item.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "e16f25105503bc2c6fbdde7a58a1a68ed0ed70b0a292e92f2d59abdd1af875ea",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 70,
+      "source_text": "`nutritionVerified=false`/estado provisório equivalente;",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "82d253e30280be0aaeb0ece63738ef2b3fbe941f5c63a91234b968f6494531e0",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 71,
+      "source_text": "mensagem ao usuário solicitando rótulo para melhorar a precisão;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "07c1fbcd66f819f6ecf9bc6c2ec54b463183b3d5d888fef34f098867594cac42",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 73,
+      "source_text": "o sistema deve manter correlação durável suficiente para um rótulo posterior, reutilizando a infraestrutura de pendências existente.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "ab3744bf9be9dde5053867c63e413b41943b00b1e86dec56f3c417b157bd54e4",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 75,
+      "source_text": "O contexto deve preservar, no mínimo, referências para:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-024"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "16d81cd77a4cf405824cdf93ef55ba85a0118e9b1b7043b0e490faf459c8734e",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 77,
+      "source_text": "usuário proprietário;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "30e17f7a5b111894af98cd56a357239f1d59fd8fa1de9bf7ab01357b0b7a4d6b",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 83,
+      "source_text": "quantidade consumida e unidade;",
+      "flags": [
+        "review-surface",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "6dfcbb1eb97fc39ee61e0a8eb14ce45ca498f09740c502ecffe1024346466dcd",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 88,
+      "source_text": "A persistência deve existir **antes** da mensagem que convida o usuário a enviar o rótulo quando essa mensagem estabelecer uma continuação acionável.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "83e271de118d72ec9dfbf3eaba6fe4c93acc815f715c965807201f97610c5009",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 94,
+      "source_text": "Resolver primeiro se existe pendência válida de rótulo para o mesmo usuário.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "bd303d0903132c10b75be45f45a53463beb8eac62a475b1d53e30a6b556cec09",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 95,
+      "source_text": "Usar legenda/texto da mensagem, identidade comercial já conhecida e contexto da refeição para correlacionar o item.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-029"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "b865decf86669d3174e8cfd58e6d7726a0e5af680d049785e73c5da6bc180af4",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 97,
+      "source_text": "Se houver vários itens provisórios compatíveis e a imagem/texto não desambiguar, pedir seleção mantendo a imagem/evidência e a pendência recuperáveis.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "4d322554e5beb777388ca6e208f6f356d7d83959bd308cc1d44fd528d4a2e9a6",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 102,
+      "source_text": "Quando o próprio sistema já tiver solicitado um rótulo para um item provisório confirmado e existir pendência ativa correlacionada àquele item, o envio do rótulo pelo mesmo usuário constitui **ação explícita de correção/revisão daquele item** para fins do contrato da #1158. Essa autorização é restrita ao item correlacionado: não autoriza alterar outros itens da refeição nem publicar diretamente no catálogo global.",
+      "flags": [
+        "negative",
+        "review-surface",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "2c0cd2375e966948c695514d270680620de6d339c4a8fba91746029a1b8718c7",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 104,
+      "source_text": "O pipeline canônico de rótulo deve:",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "48e8f92c455b1f70551b7f459b65071046001484534e378e40778993e5c6ffb3",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 106,
+      "source_text": "preservar a identidade comercial do item original;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "403e4bc512f0fe9057c36f8b63cbf2eba4028388840f0ea75e0cba6baeb24292",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 108,
+      "source_text": "validar que a evidência pertence à mesma identidade conhecida;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "4a3f4fbe343c58596f22cbd1a1550c0369cc44488c45502d23ec27dca40f208e",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 110,
+      "source_text": "recalcular os nutrientes para a **quantidade efetivamente consumida**;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "84919057e45659fac206ebd72223c9c7318c191c303f6fda1f6d7c0cb4905ca7",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 111,
+      "source_text": "atualizar apenas o item correlacionado;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "b60564d4ad2e4df19784821b5661efeeb53885c9c2e256554f820ebe5917a28d",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 112,
+      "source_text": "preservar de forma auditável os valores anteriores, os novos valores, a fonte/evidência nutricional e a origem da correção conforme o contrato canônico da #1158;",
+      "flags": [
+        "atomicity",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "e5caade0ed709fa7dcf293c798293c3764592a0b7e4aafc79be5a66f2b3ee9c5",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 114,
+      "source_text": "registrar procedência como rótulo validado quando os critérios do contrato canônico forem satisfeitos;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "5959020bc40ec12d1c1a56300fb293206f740a6b97eb47e636aa6880dacfc445",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 115,
+      "source_text": "encaminhar a evidência ao candidato/review da #1158 quando aplicável, sem publicação global direta.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-039"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "a6d237d3f41556a60f5d4b80defbc3d6c37a179f9685b881a1f716b26844ced2",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 122,
+      "source_text": "quantidade consumida: **145 g**",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-040"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "7f44253a3c07eaa1d023f1da48361d96cc27e43972cf42ace3da4c0370327f64",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 132,
+      "source_text": "Para 145 g, o item atualizado deve refletir proporcionalmente aproximadamente:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "2f13438775391dd2d6d0d4999365039ba42fc78a11ca4853de5cde2e2ee43a37",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 139,
+      "source_text": "Usar as regras de arredondamento já existentes do produto. A cerveja da mesma refeição não deve ser alterada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-042"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "ab50ef2dbc8a9f259e12b7ce514225a323a5c38a455b7433ae2448fa3fae6f29",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 145,
+      "source_text": "Persistir/reutilizar uma operação pendente registrada no interaction registry.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-043"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "ff2cd0dd9284133b43942ae124519a1be630e70c42dac6abae414480daf855a1",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 146,
+      "source_text": "A pergunta deve permanecer válida até resolução, cancelamento, expiração ou substituição explícita.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-044"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "a73063a26f1098f341db2b88a2efd7d5d3bf6dd1fc1bbc27414f0d9e09412b3b",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 152,
+      "source_text": "devem resolver a mesma pendência quando semanticamente compatíveis.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-045"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "1beaaf7dddaf28f73f337750fd5dc8f7168bc1c92d25bd876b37f1efde2c6fb8",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 153,
+      "source_text": "Uma correção explícita do usuário tem precedência sobre uma marca inferida pela visão.",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-046"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "90d94acd04dffa4a7be3c12602e584dbb8e68b24aa3758967c97ee307600e4c4",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 154,
+      "source_text": "Após resolver a identidade, reutilizar a imagem/evidência já recebida quando ela ainda for válida; não exigir novo upload sem necessidade.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-047"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "3ee01ec90bb35e752ebfd70396ee3da2ec798ee7ccdc92011cd50d4650718916",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 155,
+      "source_text": "A mensagem `Essa pergunta não está mais disponível` só é válida para estado realmente expirado, consumido, cancelado ou superseded; não pode ocorrer por perda acidental de correlação entre turnos.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-048"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "611d7917fdbdc9257b38122746d20d5fd6bec61755214ab6f0fb030fa9789502",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 162,
+      "source_text": "usuário envia rótulo com legenda `Amendoim`: atualizar somente o amendoim;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-049"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "6963548f7bf3a26232509c6fc62810adefeb96cd0370ab6f5c1112bdcb3ed837",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 163,
+      "source_text": "usuário envia rótulo com legenda `Cerveja`: atualizar somente a cerveja;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-050"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "eb0a177a28172c5fea5cc458033aa922699179bb5c03e1b2f32e457c11065d7a",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 164,
+      "source_text": "usuário envia rótulo sem legenda e a evidência visual identifica inequivocamente um dos itens: associar somente se a identidade for compatível;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-051"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "8d933f45b5b1cd51c9ce5afd4c93eb6713c9d829ce77fbbf32c4c3e931603572",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 165,
+      "source_text": "usuário envia imagem insuficiente para distinguir dois itens: perguntar qual item, sem alterar nenhum;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-052"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "f7dd2d19da0d559c6b18a24f77b15020cfef7aefb44ac39bfc3ea45768466daf",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 170,
+      "source_text": "Reentrega do mesmo `message.id` não pode atualizar o item duas vezes nem criar dois candidatos.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-053"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "8e3e510ec52eeb8f1f6b3f6b96ddae58435073ff427c669cc392cfa7e55223a8",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 171,
+      "source_text": "Duas respostas concorrentes para a mesma clarificação devem resultar em no máximo uma conclusão válida.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-054"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "e6416695f1a08ea15b33926237ac0efa27141d7ee9b5b46034784ffa53434a84",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 172,
+      "source_text": "Pendência de um usuário nunca pode ser consumida por outro usuário/telefone.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "isolation",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-055"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "6cf4c499eb89a6dfef13017c77b986d22bff5b3421331f2284fac8788a22fe5c",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 173,
+      "source_text": "Reinício do processo não pode apagar uma pendência de rótulo ativa.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-056"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "307551659ec64032d47c605cefa3e9d89d37b87ce177e82996bc8aae87bc9188",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 175,
+      "source_text": "Expiração mantém o item provisório intacto e exige novo rótulo/comando para atualização.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-057"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "ae06135e13ee4d19db9822fdcd6b41e536c8c0a4509b5586610657d354b1135f",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 179,
+      "source_text": "Falha ao analisar o rótulo: preservar o item provisório e informar que a atualização não foi concluída.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-058"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "20af966d63298a799def12a99ad870e8278b4b3e9d8c466cbf66bd0ba5ca804f",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 182,
+      "source_text": "Falha ao criar candidato/review da #1158 após atualizar validamente o item: preservar a atualização da refeição quando o contrato canônico permitir, registrar falha operacional e não afirmar publicação/cadastro global.",
+      "flags": [
+        "negative",
+        "temporal",
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-059"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "3042780111bf935d39a57152cd2c63e29a7a2d03a60eaaa101fec3f84b32cab5",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 183,
+      "source_text": "Pendência inexistente ou expirada: não interpretar automaticamente a imagem como correção do último alimento apenas pela proximidade temporal.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-060"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "069d27e726e51aa121398f36195576aec22c7f83b8f4bd53ea027e3efc78775a",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 187,
+      "source_text": "[ ] Após registrar item provisório e solicitar rótulo, a continuação é persistida antes do outbound acionável e sobrevive a reinício.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-061"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "f3bae8b9e81a4fcfdd271164df63fec6417bbf3ae3a16357e771e0d482886d23",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 188,
+      "source_text": "[ ] Uma foto de rótulo posterior é correlacionada ao item provisório correto do mesmo usuário/refeição quando houver evidência suficiente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-062"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "934bcbb8959df9b509d2ed39b1f77594fd9510f72481ad97c2cb3b2a08aff89f",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 189,
+      "source_text": "[ ] O caso Elma Chips reproduzido acima não é reclassificado como Dori.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-063"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "d66502525bb05ad48ab23f36e62876e90c31d9501bd69bd3ffa8e218b21de3ee",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 190,
+      "source_text": "[ ] A tabela de 25 g atualiza proporcionalmente o consumo de 145 g usando o arredondamento canônico.",
+      "flags": [
+        "atomicity",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-064"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "ce301cf68b526dc4f5ca6bd0c035510cf87cc335f870277e6a5c7b625502c9b5",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 191,
+      "source_text": "[ ] Somente o item de amendoim é atualizado; a cerveja da mesma refeição permanece inalterada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-065"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "5a9d45af42e12ef9e2852bc9e8761ceb19dd75494f50d1dc9edc9b712f60c9f0",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 192,
+      "source_text": "[ ] O upload do rótulo em resposta à solicitação ativa é tratado como correção explícita do item correlacionado, sem autorizar mutação de outros itens nem publicação global direta.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-066"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "16e916c0602365f628d3e6b78455010df5b0978f035c06c468d4163cfd199942",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 193,
+      "source_text": "[ ] A correção do item preserva valores anteriores, novos valores, fonte/evidência e origem auditável da mudança.",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-067"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "5ae909cf7f6df11e1cfd1b30815323a3f8646b3ab6b515cec25cce1e0b55d759",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 194,
+      "source_text": "[ ] Marca/variante incompatível bloqueia mutação e gera clarificação em vez de substituição silenciosa.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-068"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "a87d615ab1f4f4acccfad4526d129c5b42b370fcf78cd7e63816686865136211",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 195,
+      "source_text": "[ ] Resposta textual `Não é Dori, é Elma Chips` resolve a pendência ativa e não retorna falsamente `Essa pergunta não está mais disponível`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-069"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "3c9df4ff3f9e0cd30686474ee5c79fb0bcdf34d8fa72a61bcefd30b9c83f59eb",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 196,
+      "source_text": "[ ] Se houver mais de um item provisório plausível, o sistema pede seleção e preserva a imagem/evidência para continuação.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-070"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "7a5877320a45041fb2dbe7a3b9bc9ab71bab5910103bdefde4858331b9ba4350",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 197,
+      "source_text": "[ ] A resposta à seleção reutiliza a evidência já recebida e não cria nova refeição.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-071"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "34dcdb82428c4d8505ddf51ace20bae2ae3c853229ab34612e8d6567e5a126fd",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 198,
+      "source_text": "[ ] Reentrega da mesma mensagem é idempotente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-072"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "ea86d1665f4f68cd40125843372a02e1f550ee2762c3b746ff3b0d382e9f78fa",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 199,
+      "source_text": "[ ] Reinício mantém a pendência ativa e a correlação necessária.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-073"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "2088097491932f5fec7f1c401daf7c4880560856cd28e5238335acfef6d28286",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 200,
+      "source_text": "[ ] Cancelamento/expiração não altera o item provisório existente.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-074"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "035ddf4e196c3cd4a3a5c8bf1c46e3108ab0337bb73c78f31ecef05d4fff1d59",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 201,
+      "source_text": "[ ] Outro usuário não consegue consumir a pendência nem reutilizar a evidência.",
+      "flags": [
+        "negative",
+        "isolation",
+        "structural",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-075"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "5c014f6da9f166ac4ff8ab725044794cfc7ab335be44a77bc8afc7d1a39de1a5",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 202,
+      "source_text": "[ ] Evidência validada segue o fluxo canônico de candidato/review da #1158 sem insert global paralelo.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-076"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "f8816a9d5235158ae699e8da56b4b4c25a1e12181b9adee87ade3a145e2fcda0",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 203,
+      "source_text": "[ ] Nenhuma nova máquina de pendências, store de contexto ou parser de rótulo paralelo é criado.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-077"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "35e2761f72b55573be3dea3cd6d94d8ceb5d88206dddcc4e1f60c90edb745286",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 204,
+      "source_text": "[ ] Testes focados, `pnpm check`, `pnpm architecture:check` e regressões WhatsApp aplicáveis passam.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-078"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "7cd0f5f6e6510d0edc809ad0e6d416ea69118cea0da04487a9ad18db4871e90d",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 222,
+      "source_text": "isolamento entre usuários;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-079"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-080",
+      "candidate_key": "2750437ae30714a36955ca79219a0a23094d18f84340165dfd27135601020e82",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 228,
+      "source_text": "Na implementação, atualizar somente se necessário para manter o contrato canônico coerente:",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-080"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-081",
+      "candidate_key": "2215d8561690358f610c2f73e8ae73dba622d60c6f99cc774b8e0e3faf41f84a",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 234,
+      "source_text": "Usar `docs/issue-1158-provisional-branded-catalog.md` como referência versionada para a separação entre correção do item confirmado e promoção global. Não duplicar a especificação da #1158 sobre governança/publicação global.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-081"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-082",
+      "candidate_key": "7c94a974478816551342eb2c92f5c9c3e3416bbe063a51e3aa5a90a3d996656b",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 249,
+      "source_text": "Esta issue deve corrigir a correlação multi-turn e o lifecycle da evidência. A governança de publicação global permanece pertencente à #1158/#1153 e deve apenas ser reutilizada quando aplicável.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-082"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    },
+    {
+      "id": "OBL-083",
+      "candidate_key": "5e9de7562aff507235045f25aa9376feb49700f39b344617c50b409291a9bd8b",
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "source_line": 253,
+      "source_text": "**Pronta.** O contrato de continuidade, correlação, correção explícita do item, isolamento, idempotência e governança está suficientemente definido para implementação sobre `develop`. Não há decisão de produto bloqueante conhecida; detalhes de modelagem física da pendência permanecem de implementação, desde que reutilizem `whatsappPendingOperations` e o interaction registry canônico.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-083"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Implemented and verified on the exact material head through the correlated WhatsApp label continuation, targeted remediation regressions, and CRITICAL CI gates."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1174",
+      "source_sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "candidate_count": 83,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Structural reuse, precedence and single-source obligations are material to this delivery.",
+    "entries": [
+      {
+        "id": "STR-OBL-007",
+        "obligation_ids": [
+          "OBL-007"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-023",
+        "obligation_ids": [
+          "OBL-023"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-043",
+        "obligation_ids": [
+          "OBL-043"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-046",
+        "obligation_ids": [
+          "OBL-046"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-047",
+        "obligation_ids": [
+          "OBL-047"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-071",
+        "obligation_ids": [
+          "OBL-071"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-075",
+        "obligation_ids": [
+          "OBL-075"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-082",
+        "obligation_ids": [
+          "OBL-082"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      },
+      {
+        "id": "STR-OBL-083",
+        "obligation_ids": [
+          "OBL-083"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending store or let the later vision result overwrite the original commercial identity.",
+        "negative_control_evidence": "Exact-head regression plus Agent-first gate run 35761534707 verifies the canonical pending-operation path and identity precedence."
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "Persisted pending state and meal identity are read back across later turns and restart-sensitive continuation paths.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "The implementation reuses the canonical pending-operation repository, interaction registry, and persisted meal item as sources of truth.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "Remediation changes normative identity and durable-continuation behavior and therefore requires repository-wide canonical claim consistency.",
+    "old_contract_terms": [
+      "brand match could confirm identity without product compatibility",
+      "provisional reply could invite a label even when durable continuation persistence failed"
+    ],
+    "new_contract_terms": [
+      "product compatibility is required in addition to brand/variant",
+      "actionable label invitation is suppressed unless durable continuation exists"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/RELIABILITY.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/design-docs/whatsapp-interaction-registry.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/issue-1158-provisional-branded-catalog.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/product-specs/whatsapp-flow.md",
+        "status": "reconciled"
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "Exact-head repository scan on 594d7d886698621fbeecb07587eb525459127205 reconciles canonical label-continuation claims; evidence=.audit/entregar-issue/reaudit-current/evidence/documentation-semantic-drift.txt"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-007",
+      "REQ-008",
+      "REQ-009",
+      "REQ-010",
+      "REQ-011",
+      "REQ-012",
+      "REQ-013",
+      "REQ-014",
+      "REQ-015",
+      "REQ-016",
+      "REQ-017",
+      "REQ-018",
+      "REQ-019",
+      "REQ-020",
+      "REQ-021",
+      "REQ-022",
+      "REQ-023",
+      "REQ-024",
+      "REQ-025",
+      "REQ-026",
+      "REQ-027",
+      "REQ-028",
+      "REQ-029",
+      "REQ-030",
+      "REQ-031",
+      "REQ-032",
+      "REQ-033",
+      "REQ-034",
+      "REQ-035",
+      "REQ-036",
+      "REQ-037",
+      "REQ-038",
+      "REQ-039",
+      "REQ-040",
+      "REQ-041",
+      "REQ-042",
+      "REQ-043",
+      "REQ-044",
+      "REQ-045",
+      "REQ-046",
+      "REQ-047",
+      "REQ-048",
+      "REQ-049",
+      "REQ-050",
+      "REQ-051",
+      "REQ-052",
+      "REQ-053",
+      "REQ-054",
+      "REQ-055",
+      "REQ-056",
+      "REQ-057",
+      "REQ-058",
+      "REQ-059",
+      "REQ-060",
+      "REQ-061",
+      "REQ-062",
+      "REQ-063",
+      "REQ-064",
+      "REQ-065",
+      "REQ-066",
+      "REQ-067",
+      "REQ-068",
+      "REQ-069",
+      "REQ-070",
+      "REQ-071",
+      "REQ-072",
+      "REQ-073",
+      "REQ-074",
+      "REQ-075",
+      "REQ-076",
+      "REQ-077",
+      "REQ-078",
+      "REQ-079",
+      "REQ-080",
+      "REQ-081",
+      "REQ-082",
+      "REQ-083"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-056",
+      "OBL-057",
+      "OBL-058",
+      "OBL-059",
+      "OBL-060",
+      "OBL-061",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-076",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079",
+      "OBL-080",
+      "OBL-081",
+      "OBL-082",
+      "OBL-083"
+    ],
+    "evidence": [
+      "Agent-first gate run 35761534707 success on 800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "WhatsApp context TiDB gate run 35761534699 success on 800f962c533d5bff04ad3a862f026fd6e3d12bce"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

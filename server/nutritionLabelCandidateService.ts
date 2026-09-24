@@ -95,6 +95,37 @@ export type NutritionLabelPhotoRequestTarget = {
   itemIndex?: number;
   identityKey: string;
   originalFoodName: string;
+  originalCanonicalName?: string | null;
+  originalBrand?: string | null;
+  originalProductVariant?: string | null;
+  originalBarcode?: string | null;
+  originalQuantity?: number | null;
+  originalUnit?: string | null;
+  originalEstimatedGrams?: number | null;
+  sourceMessageId?: string | null;
+  instructionText: string;
+  actions: readonly { id: string; title: string }[];
+};
+
+export type NutritionLabelPhotoClarificationCandidate = {
+  sourcePendingOperationId: number | null;
+  sourceLocked?: boolean;
+  candidateId?: number;
+  mealId?: number;
+  itemIndex?: number;
+  identityKey: string;
+  originalFoodName: string;
+  originalCanonicalName: string;
+  originalBrand: string | null;
+  originalProductVariant: string | null;
+};
+
+export type NutritionLabelPhotoClarificationTarget = {
+  kind: "nutrition_label_photo_clarification";
+  candidates: NutritionLabelPhotoClarificationCandidate[];
+  evidenceItem: MealDraftItem;
+  sourceText?: string | null;
+  sourceMessageId?: string | null;
   instructionText: string;
   actions: readonly [{ id: "cancel"; title: string }];
 };
@@ -114,19 +145,35 @@ export function isNutritionLabelPhotoRequestTarget(
   );
 }
 
+export function isNutritionLabelPhotoClarificationTarget(
+  value: unknown
+): value is NutritionLabelPhotoClarificationTarget {
+  const target = value as Partial<NutritionLabelPhotoClarificationTarget> | null;
+  return Boolean(
+    target &&
+      target.kind === "nutrition_label_photo_clarification" &&
+      Array.isArray(target.candidates) &&
+      target.candidates.length > 0 &&
+      target.evidenceItem &&
+      typeof target.instructionText === "string" &&
+      Array.isArray(target.actions) &&
+      target.actions.some(action => action?.id === "cancel")
+  );
+}
+
 type CandidateArtifact = WhatsappLearningArtifact<NutritionLabelCandidate>;
 
-const pendingOperationRepository =
+export const pendingOperationRepository =
   createDrizzleWhatsAppPendingOperationRepository({
     getDb,
     onWarning: logPersistenceWarning,
   });
 
-function nowIso() {
+export function nowIso() {
   return new Date().toISOString();
 }
 
-function normalize(value: string | null | undefined) {
+export function normalize(value: string | null | undefined) {
   return (value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -136,7 +183,7 @@ function normalize(value: string | null | undefined) {
     .trim();
 }
 
-function buildCandidateIdentityKey(item: MealDraftItem) {
+export function buildCandidateIdentityKey(item: MealDraftItem) {
   const identity = [
     normalize(item.brand),
     normalize(item.canonicalName || item.foodName),
@@ -161,7 +208,7 @@ async function listCandidateArtifacts() {
     .filter((item): item is CandidateArtifact => Boolean(item));
 }
 
-async function findCandidateArtifact(candidateId: number) {
+export async function findCandidateArtifact(candidateId: number) {
   return (
     (await listCandidateArtifacts()).find(
       candidate => candidate.id === candidateId
@@ -182,7 +229,7 @@ async function persistCandidate(
   });
 }
 
-async function recordCandidateAudit(input: {
+export async function recordCandidateAudit(input: {
   candidateId: number;
   identityKey: string;
   action: NutritionLabelCandidateAudit["action"];
@@ -203,7 +250,7 @@ async function recordCandidateAudit(input: {
   return value;
 }
 
-function toCandidate(input: {
+export function toCandidate(input: {
   userId: number;
   mealId?: number | null;
   itemIndex: number;
@@ -341,7 +388,7 @@ export async function listNutritionLabelCandidates(
     .map(artifact => ({ id: artifact.id, ...artifact.value }));
 }
 
-async function updateCandidate(
+export async function updateCandidate(
   artifact: CandidateArtifact,
   patch: Partial<NutritionLabelCandidate>
 ) {
@@ -506,6 +553,14 @@ export async function requestNutritionLabelCandidatePhoto(input: {
     candidateId: artifact.id,
     identityKey: artifact.value.identityKey,
     originalFoodName: artifact.value.foodName,
+    originalCanonicalName: artifact.value.canonicalName,
+    originalBrand: artifact.value.brand,
+    originalProductVariant: artifact.value.productVariant,
+    originalBarcode: artifact.value.barcode ?? null,
+    originalQuantity: 1,
+    originalUnit: artifact.value.servingUnit,
+    originalEstimatedGrams: artifact.value.gramsPerServing,
+    sourceMessageId: null,
     instructionText: `Envie uma foto legível do rótulo de ${artifact.value.foodName}, mostrando a tabela nutricional e a porção. Não registre o alimento novamente; esta foto será usada para corrigir os nutrientes provisórios.`,
     actions: [{ id: "cancel", title: "Cancelar" }],
   };
@@ -558,6 +613,7 @@ export async function createProvisionalNutritionLabelPhotoRequests(input: {
   userId: number;
   mealId: number;
   items: MealDraftItem[];
+  sourceMessageId?: string | null;
 }) {
   const created: number[] = [];
   for (const [itemIndex, item] of input.items.entries()) {
@@ -603,14 +659,25 @@ export async function createProvisionalNutritionLabelPhotoRequests(input: {
       itemIndex,
       identityKey: buildCandidateIdentityKey(item),
       originalFoodName: item.foodName,
+      originalCanonicalName: item.canonicalName,
+      originalBrand: item.brand ?? null,
+      originalProductVariant:
+        item.productVariant ?? item.resolution?.productVariant ?? null,
+      originalBarcode: item.resolution?.barcode ?? null,
+      originalQuantity: item.quantity,
+      originalUnit: item.unit,
+      originalEstimatedGrams: item.estimatedGrams,
+      sourceMessageId: input.sourceMessageId ?? null,
       instructionText: `Envie uma foto legível do rótulo de ${item.foodName}, mostrando a tabela nutricional e a porção. Não registre o alimento novamente; esta foto será usada para atualizar os nutrientes provisórios já registrados.`,
       actions: [{ id: "cancel", title: "Cancelar" }],
     };
+    const dedupeKey = `${NUTRITION_LABEL_PHOTO_REQUEST_TYPE}:${input.userId}:${input.mealId}:${itemIndex}`;
     const pending = await pendingOperationRepository.createPendingOperation({
       userId: input.userId,
       type: NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
       origin: NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
       target,
+      dedupeKey,
       ttlMs: NUTRITION_LABEL_PHOTO_REQUEST_TTL_MS,
     });
     if (pending) created.push(pending.id);
@@ -618,288 +685,6 @@ export async function createProvisionalNutritionLabelPhotoRequests(input: {
   return created;
 }
 
-async function listActiveNutritionLabelPhotoRequests(userId: number) {
-  const pending = pendingOperationRepository.listActivePendingOperationsByType
-    ? await pendingOperationRepository.listActivePendingOperationsByType(
-        userId,
-        NUTRITION_LABEL_PHOTO_REQUEST_TYPE
-      )
-    : pendingOperationRepository.getActivePendingOperationByType
-      ? [
-          await pendingOperationRepository.getActivePendingOperationByType(
-            userId,
-            NUTRITION_LABEL_PHOTO_REQUEST_TYPE
-          ),
-        ]
-      : [await pendingOperationRepository.getActivePendingOperation(userId)];
-  return pending.filter(
-    (operation): operation is NonNullable<typeof operation> =>
-      Boolean(
-        operation &&
-          operation.type === NUTRITION_LABEL_PHOTO_REQUEST_TYPE &&
-          isNutritionLabelPhotoRequestTarget(operation.target)
-      )
-  );
-}
-
-function matchesNutritionLabelPhotoTarget(
-  target: NutritionLabelPhotoRequestTarget,
-  labelItem?: MealDraftItem
-) {
-  if (!labelItem) return target.candidateId != null;
-  if (target.candidateId != null) return true;
-  if (target.identityKey === buildCandidateIdentityKey(labelItem)) return true;
-  const targetName = normalize(target.originalFoodName);
-  const labelNames = [labelItem.foodName, labelItem.canonicalName]
-    .map(normalize)
-    .filter(Boolean);
-  return labelNames.some(
-    name => name.includes(targetName) || targetName.includes(name)
-  );
-}
-
-export async function claimNutritionLabelPhotoRequest(
-  userId: number,
-  labelItem?: MealDraftItem
-) {
-  const requests = await listActiveNutritionLabelPhotoRequests(userId);
-  const matching = requests.filter(request =>
-    matchesNutritionLabelPhotoTarget(
-      request.target as NutritionLabelPhotoRequestTarget,
-      labelItem
-    )
-  );
-  const pending =
-    matching.length === 1
-      ? matching[0]
-      : requests.length === 1 &&
-          (Boolean(labelItem) ||
-            (requests[0].target as NutritionLabelPhotoRequestTarget).candidateId != null)
-        ? requests[0]
-        : null;
-  if (!pending) return null;
-  const claimed = await pendingOperationRepository.claimPendingOperation({
-    id: pending.id,
-    expectedVersion: pending.version,
-  });
-  return claimed.claimed ? pending : null;
-}
-
-export async function hasActiveNutritionLabelPhotoRequest(userId: number) {
-  return (await listActiveNutritionLabelPhotoRequests(userId)).length > 0;
-}
-
-function roundNutritionValue(value: number) {
-  return Math.round(value * 10) / 10;
-}
-
-function buildMealItemFromNutritionLabel(
-  original: MealDraftItem,
-  label: MealDraftItem
-): MealDraftItem {
-  const originalGrams = Number(original.estimatedGrams);
-  const labelGrams = Number(label.estimatedGrams);
-  const ratio =
-    originalGrams > 0 && labelGrams > 0 ? originalGrams / labelGrams : 1;
-  return {
-    ...original,
-    foodName: label.foodName || original.foodName,
-    canonicalName: label.canonicalName || original.canonicalName,
-    brand: label.brand ?? original.brand ?? null,
-    productVariant: label.productVariant ?? original.productVariant ?? null,
-    calories: roundNutritionValue(label.calories * ratio),
-    protein: roundNutritionValue(label.protein * ratio),
-    carbs: roundNutritionValue(label.carbs * ratio),
-    fat: roundNutritionValue(label.fat * ratio),
-    confidence: Math.max(original.confidence, label.confidence),
-    source: label.source,
-    resolution: {
-      ...original.resolution,
-      ...label.resolution,
-      nutritionOrigin: "nutrition_label",
-      nutritionVerified: true,
-      sourceUrls: label.resolution?.sourceUrls ?? original.resolution?.sourceUrls,
-      sourceEvidence:
-        label.resolution?.sourceEvidence ?? original.resolution?.sourceEvidence,
-      sourceVerifiedAt:
-        label.resolution?.sourceVerifiedAt ?? original.resolution?.sourceVerifiedAt,
-      sourceConfidence:
-        label.resolution?.sourceConfidence ?? label.confidence,
-    },
-  };
-}
-
-export async function applyNutritionLabelPhotoToMeal(input: {
-  mealId: number;
-  itemIndex: number;
-  userId: number;
-  item: MealDraftItem;
-}) {
-  const meal = (await listUserMeals(input.userId)).find(
-    candidate => candidate.id === input.mealId
-  );
-  const original = meal?.items?.[input.itemIndex];
-  if (!meal || !original) return null;
-
-  const updatedItem = buildMealItemFromNutritionLabel(original, input.item);
-  const updatedMeal = await updateUserMeal(
-    {
-      userId: input.userId,
-      mealId: meal.id,
-      mealLabel: meal.mealLabel,
-      occurredAt: new Date(meal.occurredAt).toISOString(),
-      notes: meal.notes,
-      items: meal.items.map((item, index) =>
-        index === input.itemIndex ? updatedItem : item
-      ),
-    },
-    { logEvent: false }
-  );
-
-  await recordNutritionLabelCandidates({
-    userId: input.userId,
-    mealId: meal.id,
-    sourceText: meal.sourceText,
-    items: [updatedItem],
-    itemIndexes: [input.itemIndex],
-  });
-  logInferenceEvent({
-    userId: input.userId,
-    origin: "whatsapp",
-    status: "success",
-    eventType: "nutrition_label_photo.meal_item_updated",
-    detail: `Item ${input.itemIndex} da refeição ${input.mealId} atualizado pela foto do rótulo, sem criar nova refeição.`,
-  });
-  return updatedMeal;
-}
-
-export async function markNutritionLabelPhotoReceived(input: {
-  candidateId: number;
-  userId: number;
-}) {
-  const artifact = await findCandidateArtifact(input.candidateId);
-  if (!artifact || artifact.value.userId !== input.userId) return null;
-  const updated = await updateCandidate(artifact, {
-    photoReceivedAt: nowIso(),
-    status:
-      artifact.value.status === "published" ? "published" : "pending_review",
-  });
-  await recordCandidateAudit({
-    candidateId: artifact.id,
-    identityKey: artifact.value.identityKey,
-    action: "photo_received",
-    actorUserId: input.userId,
-    detail:
-      "Foto recebida após solicitação administrativa; aguardando evidência nutricional válida para atualização do candidato.",
-  });
-  return updated;
-}
-
-export function buildNutritionLabelPhotoActions() {
-  return [
-    {
-      id: "cancel",
-      label: "Cancelar",
-      effect: "cancel",
-      description: "Encerrar o pedido de nova foto.",
-    },
-  ] as const;
-}
-
-export async function cancelNutritionLabelPhotoRequest(input: {
-  userId: number;
-  pendingOperationId: number;
-}) {
-  const pending = await pendingOperationRepository.getPendingOperationById(
-    input.pendingOperationId
-  );
-  if (
-    !pending ||
-    pending.userId !== input.userId ||
-    pending.type !== NUTRITION_LABEL_PHOTO_REQUEST_TYPE
-  ) {
-    return {
-      handled: true,
-      action: "nutrition_label_photo_request_unavailable",
-      reply:
-        "Esse pedido de foto já não está disponível. Envie um novo comando se ainda precisar corrigir o rótulo.",
-      eventType: "whatsapp.nutrition_label_photo_request.unavailable",
-      detail:
-        "Callback de nova foto não correspondeu a uma pendência ativa do usuário.",
-    } as const;
-  }
-  const cancelled = await pendingOperationRepository.cancelPendingOperation(
-    pending.id
-  );
-  return {
-    handled: true,
-    action: "nutrition_label_photo_request_cancelled",
-    reply: cancelled.cancelled
-      ? "Pedido de nova foto cancelado. Nenhum candidato foi alterado."
-      : "O pedido de nova foto já foi encerrado.",
-    eventType: "whatsapp.nutrition_label_photo_request.cancelled",
-    detail: cancelled.cancelled
-      ? "Pendência de foto cancelada sem mutação nutricional."
-      : "Pendência de foto já estava encerrada.",
-  } as const;
-}
-
-export async function applyNutritionLabelPhotoToCandidate(input: {
-  candidateId: number;
-  userId: number;
-  sourceText?: string | null;
-  item: MealDraftItem;
-}) {
-  const artifact = await findCandidateArtifact(input.candidateId);
-  if (!artifact || artifact.value.userId !== input.userId) return null;
-  const candidate = toCandidate({
-    userId: input.userId,
-    mealId: artifact.value.mealId,
-    itemIndex: artifact.value.itemIndex,
-    sourceText: input.sourceText ?? artifact.value.sourceText,
-    item: input.item,
-  });
-  if (!candidate) return null;
-  const updated = await updateCandidate(artifact, {
-    ...candidate,
-    identityKey: artifact.value.identityKey,
-    status: "pending_review",
-    publishedCatalogId: artifact.value.publishedCatalogId ?? null,
-    photoReceivedAt: nowIso(),
-    createdAt: artifact.value.createdAt,
-  });
-  await recordCandidateAudit({
-    candidateId: artifact.id,
-    identityKey: artifact.value.identityKey,
-    action: "photo_received",
-    actorUserId: input.userId,
-    detail:
-      "Nova foto legível aplicada ao candidato original; a publicação continua bloqueada até revisão administrativa.",
-  });
-  return updated;
-}
-
-export function buildNutritionLabelCandidateAuditSummary(
-  audit: NutritionLabelCandidateAudit
-) {
-  return {
-    action: audit.action,
-    actorUserId: audit.actorUserId ?? null,
-    detail: audit.detail,
-    createdAt: audit.createdAt,
-  };
-}
-
-export async function listNutritionLabelCandidateAudits(candidateId: number) {
-  const artifacts =
-    await listPersistedWhatsappLearningArtifacts<NutritionLabelCandidateAudit>({
-      scope: "global",
-      kind: NUTRITION_LABEL_CANDIDATE_AUDIT_KIND,
-    });
-  return (artifacts ?? [])
-    .filter(artifact => artifact.value?.candidateId === candidateId)
-    .sort((left, right) =>
-      right.value.createdAt.localeCompare(left.value.createdAt)
-    )
-    .map(artifact => ({ id: artifact.id, ...artifact.value }));
-}
+export * from "./nutritionLabelPhotoRequestService";
+export * from "./nutritionLabelPhotoClarificationService";
+export * from "./nutritionLabelPhotoMutationService";

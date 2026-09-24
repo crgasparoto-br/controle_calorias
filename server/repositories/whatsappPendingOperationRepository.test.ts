@@ -88,8 +88,16 @@ function createFakeDb(
 
   const db = {
     select: vi.fn(() => ({ from: vi.fn(() => createSelectChain()) })),
-    insert: vi.fn(() => ({
+      insert: vi.fn(() => ({
       values: vi.fn((payload: Row) => {
+        if (
+          payload.dedupeKey &&
+          rows.some(
+            row => row.dedupeKey === payload.dedupeKey && row.state === "active"
+          )
+        ) {
+          return Promise.reject(new Error("duplicate dedupe key"));
+        }
         const id = nextId++;
         rows.push({ id, ...payload });
         return Promise.resolve(
@@ -154,6 +162,26 @@ describe("createDrizzleWhatsAppPendingOperationRepository", () => {
     expect(created).not.toBeNull();
     expect(created?.state).toBe("active");
     expect(created?.version).toBe(1);
+  });
+
+  it("retorna a pendência existente quando duas criações disputam a mesma chave", async () => {
+    const { repository } = createRepository();
+    const input = {
+      userId: 42,
+      type: "nutrition_label_photo_request",
+      target: { mealId: 900, itemIndex: 0 },
+      dedupeKey: "nutrition_label_photo_request:42:900:0",
+      origin: "nutritionLabelCandidateService",
+      ttlMs: 10 * 60 * 1000,
+    };
+
+    const [first, second] = await Promise.all([
+      repository.createPendingOperation(input),
+      repository.createPendingOperation(input),
+    ]);
+
+    expect(first?.id).toBe(second?.id);
+    expect(first?.dedupeKey).toBe(input.dedupeKey);
   });
 
   it("rele a pendência criada quando o insert retorna insertId direto", async () => {

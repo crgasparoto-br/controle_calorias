@@ -48,6 +48,24 @@ describe("replyTemplates", () => {
     expect(buildWhatsAppFoodLines({ ...banana, source: "heuristic" })).toEqual(expected);
   });
 
+  it("só convida a enviar rótulo quando a continuação persistente está disponível", () => {
+    const provisional = {
+      ...banana,
+      source: "heuristic",
+      resolution: {
+        nutritionOrigin: "provisional_estimate",
+        nutritionVerified: false,
+      },
+    };
+
+    expect(buildWhatsAppFoodLines(provisional)[2]).toMatch(/envie uma foto/i);
+    const unavailable = buildWhatsAppFoodLines(provisional, {
+      nutritionLabelContinuationAvailable: false,
+    })[2];
+    expect(unavailable).toMatch(/não está disponível agora/i);
+    expect(unavailable).not.toMatch(/envie uma foto/i);
+  });
+
   it("informa correção posterior quando o açúcar do café foi estimado", () => {
     const coffee = {
       foodName: "Café com açúcar",
