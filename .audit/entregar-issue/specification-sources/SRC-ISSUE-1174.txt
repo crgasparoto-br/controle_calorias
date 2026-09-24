@@ -148,7 +148,7 @@ Se a evidência não for suficiente para fechar identidade/variante:
    - `É Elma Chips`
    - `Não é Dori, é Elma Chips`
    - `É o amendoim japonês Elma Chips`
-   
+
    devem resolver a mesma pendência quando semanticamente compatíveis.
 4. Uma correção explícita do usuário tem precedência sobre uma marca inferida pela visão.
 5. Após resolver a identidade, reutilizar a imagem/evidência já recebida quando ela ainda for válida; não exigir novo upload sem necessidade.
