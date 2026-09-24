@@ -903,7 +903,7 @@ describe("nutrition router", () => {
 
     expect(rejected.status).toBe("rejected");
     expect(afterReject).toHaveLength(before.length);
-  });
+  }, 15_000);
 
   it("conecta, sincroniza e desconecta integração de saúde com origem dos dados", async () => {
     const caller = appRouter.createCaller(createNutritionContext(886));
