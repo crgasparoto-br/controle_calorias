@@ -1,4 +1,7 @@
-import { findCatalogFood } from "./catalogMatching";
+import {
+  findCatalogFood,
+  findNaturalProduceQuantityReferenceName,
+} from "./catalogMatching";
 import { detectKnownBrand } from "./foodBrandDetection";
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "./householdMeasureResolution";
@@ -366,10 +369,14 @@ export async function prepareCountableFoodRegistrationResolved(
       }
     }
 
+    const quantityReferenceFoodName = resolvedRequest.brand
+      ? null
+      : findNaturalProduceQuantityReferenceName(resolvedRequest.foodName);
     const resolved = await resolveHouseholdMeasure({
       userId,
       foodName: resolvedRequest.foodName,
       brand: resolvedRequest.brand,
+      quantityReferenceFoodName,
       quantity: resolvedRequest.count,
       unit: resolvedRequest.requestedUnit,
       ...(commercialFood ? { commercialFood } : {}),
