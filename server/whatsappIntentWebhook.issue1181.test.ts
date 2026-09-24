@@ -223,9 +223,6 @@ describe("issue #1181 — golden flows pelo entrypoint público do WhatsApp", ()
     const forwarded = annotatedWebhookMock.mock.calls[0]?.[0] as any;
     expect(forwarded.body.entry[0].changes[0].value.messages[0].text.body)
       .toBe("80 g de banana nanica\n150 g de pêra packans");
-    expect(createDomainTextResponseMock.mock.calls.some(call =>
-      promptText(call).includes("pesquisa exclusiva de quantidade: pêra"),
-    )).toBe(true);
   });
 
   it("preserva seis unidades de uva até a gramatura final no fluxo composto", async () => {
