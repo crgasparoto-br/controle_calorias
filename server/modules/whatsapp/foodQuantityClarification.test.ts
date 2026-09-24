@@ -462,6 +462,9 @@ describe("issue 874 persistent quantity clarification", () => {
     expect(first?.action).toBe("food_clarification_requested");
     expect(first?.reply).toContain("iogurte");
     expect(createWhatsappMeal).not.toHaveBeenCalled();
+    expect(
+      (await repository.getActivePendingOperation(91, new Date("2026-07-22T12:01:00.000Z")))?.target
+    ).toEqual(expect.objectContaining({ inboundMessageId: "image-identity-idempotent" }));
 
     const second = await foodService.handle({
       userId: 91,
@@ -471,6 +474,9 @@ describe("issue 874 persistent quantity clarification", () => {
     });
     expect(second?.action).toBe("food_clarification_requested");
     expect(second?.reply).toContain("quantidade");
+    expect(
+      (await repository.getActivePendingOperation(91, new Date("2026-07-22T12:02:00.000Z")))?.target
+    ).toEqual(expect.objectContaining({ inboundMessageId: "image-identity-idempotent" }));
 
     const third = await foodService.handle({
       userId: 91,

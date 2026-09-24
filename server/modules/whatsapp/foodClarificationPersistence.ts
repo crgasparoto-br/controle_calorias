@@ -324,6 +324,7 @@ async function persistResolvedImageMealIdentity(
       pendingItemIndexes: remainingIdentityIndexes,
       currentItemIndex: nextIndex,
       instructionText: nextPrompt,
+      messageId: target.inboundMessageId,
     });
   }
   const missingPortionIndexes = getWhatsappImageMissingPortionIndexes(items);
@@ -342,6 +343,7 @@ async function persistResolvedImageMealIdentity(
       media: context.media,
       pendingItemIndexes: missingPortionIndexes,
       currentItemIndex: nextIndex,
+      messageId: target.inboundMessageId,
     });
   }
   return persistCompletedImageMeal(
@@ -417,6 +419,7 @@ async function persistResolvedImageMeal(
       media: context.media,
       pendingItemIndexes: remainingIndexes,
       currentItemIndex: nextIndex,
+      messageId: target.inboundMessageId,
     });
   }
 
