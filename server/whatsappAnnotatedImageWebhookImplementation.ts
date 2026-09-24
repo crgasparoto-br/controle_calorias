@@ -18,6 +18,7 @@ import { getWhatsAppMealGoalProgress } from "./modules/whatsapp/goalProgressServ
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
+import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
 import {
   buildSuspiciousWhatsAppContentReply,
   inspectWhatsAppUserContentSafety,
@@ -556,6 +557,56 @@ async function tryHandleAnnotatedImageMessage(
     });
 
     if ("error" in processingOutcome) {
+      const identityError = processingOutcome.error;
+      const identityContext =
+        identityError.code === "food_identity_clarification_required"
+          ? identityError.context
+          : null;
+      const identityIndexes = identityContext?.semanticContract?.clarifications
+        .filter(clarification =>
+          clarification.code === "commercial_identity_unverified" ||
+          clarification.code === "brand_variant_unresolved"
+        )
+        .map(clarification => clarification.itemIndex)
+        .filter(index => Number.isInteger(index)) ?? [];
+      if (
+        identityContext?.semanticContract &&
+        identityContext.items?.length &&
+        identityIndexes.length
+      ) {
+        const identityResult = await requestWhatsappImageMealIdentityClarification({
+          userId,
+          detectedMealLabel: identityContext.detectedMealLabel || "Refeição",
+          sourceText: identityContext.originalText ?? getTextBody(message),
+          transcript: undefined,
+          reasoning: identityContext.reasoning || "A identidade comercial foi preservada para continuação textual.",
+          confidence: identityContext.confidence ?? 0.6,
+          occurredAt,
+          items: identityContext.items,
+          semanticContract: identityContext.semanticContract,
+          media: prepared.media,
+          pendingItemIndexes: identityIndexes,
+          currentItemIndex: identityIndexes[0],
+          messageId: message.id,
+          instructionText: identityError.message,
+        });
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: identityResult.action === "food_clarification_requested" ? "warning" : "error",
+          eventType: identityResult.eventType,
+          detail: identityResult.detail,
+        });
+        await sendAnnotatedImageFallbackText({
+          userId,
+          sourcePhone,
+          reply: identityResult.reply,
+          lifecycleHandle,
+          acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
       await sendAnnotatedImageFallbackText({
         userId,
         sourcePhone,

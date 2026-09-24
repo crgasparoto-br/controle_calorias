@@ -36,7 +36,8 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - O contrato mantém `alternatives`, `needsClarification` e motivo estruturado quando a identidade comercial não puder ser fechada. `brand_variant_unresolved` representa marca conhecida sem variante segura; `commercial_identity_unverified` representa variante/identidade informada mas ainda não comprovada.
 - `barcode` permanece `null` enquanto o pipeline atual não tiver evidência estruturada confiável de código de barras; o contrato não fabrica esse valor.
 - A composição nutricional de produto de marca só é `verified` quando provém de referência compatível de catálogo/pesquisa ou de tabela nutricional legível da mesma variante. `hybrid` estimado pela LLM não é evidência suficiente para fechar marca/variante.
-- Quando houver clarificação de identidade, `processMealInput` encerra antes da mutação. No registro confirmado do WhatsApp, o `MealInferenceError` estruturado segue para a continuação persistente de detalhes já existente, preservando a mensagem original antes de perguntar novamente ao usuário.
+- Quando houver clarificação de identidade, `processMealInput` encerra antes da mutação. No registro por imagem do WhatsApp, o `MealInferenceError` estruturado segue para a interação persistente `food_clarification.identity`, preservando o contrato semântico, a mídia, a mensagem original e todos os itens identificados antes de perguntar a marca/linha/variante do item alvo. A resposta resolve somente esse item; os demais continuam no mesmo contexto e a sequência passa por identidade e, depois, quantidade, sem executar uma segunda análise visual.
+- Descritores culinários ou de apresentação, como `assada`, `cozida`, `grelhada`, `picada`, `fatiada` e `em rodelas`, não constituem marca ou variante comercial por si só. Eles permanecem como atributos do alimento genérico e não podem abrir clarificação de produto.
 
 ## Rótulo posterior de item provisório (#1174)
 

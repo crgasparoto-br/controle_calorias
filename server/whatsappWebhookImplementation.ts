@@ -79,7 +79,10 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
-import { requestWhatsappImageMealQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
+import {
+  requestWhatsappImageMealIdentityClarification,
+  requestWhatsappImageMealQuantityClarification,
+} from "./modules/whatsapp/foodQuantityClarification";
 import {
   assertWhatsappImageMealItemsArePersistable,
   getWhatsappImageMissingPortionIndexes,
@@ -525,6 +528,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
     }
 
+    let preparedForError: PreparedMessageInput | null = null;
     try {
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
       const userTimezone = timeZoneResolution.timeZone;
@@ -716,6 +720,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
+      preparedForError = prepared;
       if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
         const replyResult = await sendFinalText(
           prepared.audioTranscriptionFailure.reply
@@ -1179,6 +1184,60 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
+      const identityContext =
+        error instanceof MealInferenceError &&
+        error.code === "food_identity_clarification_required"
+          ? error.context
+          : null;
+      const identityIndexes = identityContext?.semanticContract?.clarifications
+        .filter(clarification =>
+          clarification.code === "commercial_identity_unverified" ||
+          clarification.code === "brand_variant_unresolved"
+        )
+        .map(clarification => clarification.itemIndex)
+        .filter(index => Number.isInteger(index)) ?? [];
+      if (
+        message.image?.id &&
+        preparedForError &&
+        identityContext?.semanticContract &&
+        identityContext.items?.length &&
+        identityIndexes.length
+      ) {
+        const identityResult = await requestWhatsappImageMealIdentityClarification({
+          userId,
+          detectedMealLabel: identityContext.detectedMealLabel || "Refeição",
+          sourceText: identityContext.originalText ?? message.image.caption ?? "",
+          reasoning: identityContext.reasoning || "A identidade comercial foi preservada para continuação textual.",
+          confidence: identityContext.confidence ?? 0.6,
+          occurredAt: resolveWhatsAppMessageOccurredAt(message),
+          items: identityContext.items,
+          semanticContract: identityContext.semanticContract,
+          media: preparedForError.media,
+          pendingItemIndexes: identityIndexes,
+          currentItemIndex: identityIndexes[0],
+          messageId: message.id,
+          instructionText: error instanceof Error ? error.message : undefined,
+        });
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: identityResult.action === "food_clarification_requested" ? "warning" : "error",
+          eventType: identityResult.eventType,
+          detail: identityResult.detail,
+        });
+        const identityReplyResult = await sendFinalText(identityResult.reply);
+        if (!identityReplyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
+          });
+        }
+        await markMessageProcessed(lifecycleHandle);
+        continue;
+      }
       logInferenceEvent({
         userId,
         origin: "whatsapp",

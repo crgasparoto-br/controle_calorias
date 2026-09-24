@@ -209,7 +209,16 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     "manteiga premium",
     "ZERO AÇÚCAR ÁGUA TÔNICA",
     "Iogurte sabor refrigerante zero açúcar",
+    "batata-doce assada em rodelas",
   ])("não promove descrição genérica a marca desconhecida: %s", foodName => {
+    expect(inferUnresolvedCommercialIdentityHint(foodName)).toBeNull();
+  });
+
+  it.each([
+    "batata-doce assada em rodelas",
+    "batata doce cozida picada",
+    "cenoura grelhada fatiada",
+  ])("não promove preparo ou apresentação a marca desconhecida: %s", foodName => {
     expect(inferUnresolvedCommercialIdentityHint(foodName)).toBeNull();
   });
 
@@ -458,6 +467,70 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
       "generic_nutrition_fallback",
       expect.anything()
     );
+  });
+
+  it("preserva todos os itens distintos de uma única imagem", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-multi-item-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Almoço",
+        confidence: 0.91,
+        reasoning: "Dois itens visíveis na mesma refeição.",
+        items: [
+          {
+            foodName: "arroz",
+            brand: null,
+            quantity: 100,
+            unit: "g",
+            portionText: "100 g",
+            servings: 1,
+            estimatedGrams: 100,
+            estimatedCalories: 130,
+            estimatedMacros: { protein: 2.7, carbs: 28, fat: 0.3 },
+            confidence: 0.92,
+            foodClassification: {
+              processingLevel: "natural_or_minimally_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1.5,
+              isPlainWater: false,
+            },
+          },
+          {
+            foodName: "feijão",
+            brand: null,
+            quantity: 100,
+            unit: "g",
+            portionText: "100 g",
+            servings: 1,
+            estimatedGrams: 100,
+            estimatedCalories: 76,
+            estimatedMacros: { protein: 4.8, carbs: 13.6, fat: 0.5 },
+            confidence: 0.9,
+            foodClassification: {
+              processingLevel: "natural_or_minimally_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 4.5,
+              isPlainWater: false,
+            },
+          },
+        ],
+      }),
+      raw: {},
+    });
+
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,multi-item-image",
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.map(item => item.foodName)).toEqual([
+      "Arroz",
+      "Feijão",
+    ]);
+    expect(result.semanticContract.items).toHaveLength(2);
+    expect(result.semanticContract.clarifications).toEqual([]);
   });
 
   it("mantém o fallback genérico somente para alimento sem identidade comercial", async () => {

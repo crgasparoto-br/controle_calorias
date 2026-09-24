@@ -1,6 +1,7 @@
 import { extractCoffeeServingQuantity, type CoffeeServingQuantity } from "../../coffeeSugarNutrition";
 import { getDb, logPersistenceWarning } from "../../db";
 import type { MealDraftItem } from "../../nutritionEngine";
+import type { MealSemanticContract } from "../../nutritionEngineTypes";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRepository,
@@ -10,6 +11,7 @@ import {
   buildFoodClarificationPendingData,
   buildPendingFoodClarificationTarget,
   buildQuantityInstruction,
+  isPendingFoodClarificationTarget,
   PENDING_FOOD_CLARIFICATION_ORIGIN,
   PENDING_FOOD_CLARIFICATION_TTL_MS,
   PENDING_FOOD_CLARIFICATION_TYPE,
@@ -52,6 +54,21 @@ export type ImageMealQuantityContext = {
   confidence: number;
   occurredAt: string;
   items: MealDraftItem[];
+  media: ImageMealMediaReference[];
+  pendingItemIndexes: number[];
+  currentItemIndex: number;
+};
+
+export type ImageMealIdentityContext = {
+  mode: "complete_image_meal_identity";
+  detectedMealLabel: string;
+  sourceText: string;
+  transcript?: string;
+  reasoning: string;
+  confidence: number;
+  occurredAt: string;
+  items: MealDraftItem[];
+  semanticContract: MealSemanticContract;
   media: ImageMealMediaReference[];
   pendingItemIndexes: number[];
   currentItemIndex: number;
@@ -154,6 +171,7 @@ export type FoodAdditionQuantityContext = {
 export type FoodQuantityResolutionContext =
   | MealItemCorrectionContext
   | ImageMealQuantityContext
+  | ImageMealIdentityContext
   | CaloricComplementQuantityContext
   | MealItemIncrementQuantityContext
   | ConfirmedTextMealQuantityContext
@@ -333,6 +351,104 @@ export function createFoodQuantityClarificationService(
     });
   };
 
+  const createIdentityClarification = async (input: {
+    userId: number;
+    foodName: string;
+    originalText: string;
+    occurredAt: Date;
+    messageId?: string | null;
+    resolutionContext: ImageMealIdentityContext;
+    instructionText: string;
+  }): Promise<WhatsappIntentResult> => {
+    const foodName = input.foodName.trim();
+    if (!foodName) {
+      return result({
+        action: "food_clarification_blocked",
+        reply: buildWhatsAppRecoverableErrorReplyMessage(
+          "Não consegui identificar o item que precisa de confirmação. Envie a foto novamente ou descreva a refeição."
+        ),
+        eventType: "whatsapp.food_clarification.invalid_identity",
+        detail: "Clarificação de identidade bloqueada sem item alvo.",
+      });
+    }
+    if (input.messageId?.trim()) {
+      const active = await deps.repository.getActivePendingOperation(
+        input.userId,
+        input.occurredAt
+      );
+      if (
+        active &&
+        isPendingFoodClarificationTarget(active.target) &&
+        active.target.inboundMessageId === input.messageId.trim()
+      ) {
+        return result({
+          action: "food_clarification_reprompted",
+          reply: buildWhatsAppClarificationReplyMessage(active.target.instructionText),
+          eventType: "whatsapp.food_clarification.identity_replayed",
+          detail: "Reentrega do mesmo inbound reutilizou a pendência alimentar existente.",
+          data: buildFoodClarificationPendingData(active, active.target),
+        });
+      }
+    }
+    if (!(await supersedeAllActive(deps.repository, input.userId, input.occurredAt))) {
+      return result({
+        action: "food_clarification_blocked",
+        reply: buildWhatsAppRecoverableErrorReplyMessage(
+          "Não consegui substituir a operação pendente com segurança. Cancele a anterior e tente novamente."
+        ),
+        eventType: "whatsapp.food_clarification.pending_replacement_blocked",
+        detail: "Clarificação de identidade não substituiu a pendência anterior.",
+      });
+    }
+
+    const candidate = buildCandidate(foodName);
+    const baseTarget = buildPendingFoodClarificationTarget({
+      request: buildRequest(foodName, input.originalText),
+      pendingKind: "identity",
+      candidates: [candidate],
+      selectedCandidateIndex: 0,
+      instructionText: input.instructionText,
+      messageId: input.messageId,
+    });
+    const target: FoodQuantityClarificationTarget = {
+      ...baseTarget,
+      actions: buildFoodClarificationActions("identity", [candidate]),
+      classification: "open",
+      resolutionContext: {
+        ...input.resolutionContext,
+        items: input.resolutionContext.items.map(item => ({ ...item })),
+        media: input.resolutionContext.media.map(media => ({ ...media })),
+        pendingItemIndexes: [...input.resolutionContext.pendingItemIndexes],
+      },
+      allowedDomainEffect: "complete_pending_food_operation_once",
+    };
+    const created = await deps.repository.createPendingOperation({
+      userId: input.userId,
+      type: PENDING_FOOD_CLARIFICATION_TYPE,
+      origin: PENDING_FOOD_CLARIFICATION_ORIGIN,
+      target,
+      ttlMs: PENDING_FOOD_CLARIFICATION_TTL_MS,
+      now: input.occurredAt,
+    });
+    if (!created) {
+      return result({
+        action: "food_clarification_blocked",
+        reply: buildWhatsAppRecoverableErrorReplyMessage(
+          "Não consegui guardar o contexto da refeição com segurança. Envie a foto novamente."
+        ),
+        eventType: "whatsapp.food_clarification.persistence_unavailable",
+        detail: "Clarificação de identidade não foi persistida.",
+      });
+    }
+    return result({
+      action: "food_clarification_requested",
+      reply: buildWhatsAppClarificationReplyMessage(target.instructionText),
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Refeição multi-item aguardando identidade em pendência persistente.",
+      data: buildFoodClarificationPendingData(created, target),
+    });
+  };
+
   return {
     requestImageFoodQuantity: (input: {
       userId: number;
@@ -392,6 +508,52 @@ export function createFoodQuantityClarificationService(
           currentItemIndex,
         },
         instructionText,
+      });
+    },
+    requestImageMealIdentity: (input: {
+      userId: number;
+      detectedMealLabel: string;
+      sourceText: string;
+      transcript?: string;
+      reasoning: string;
+      confidence: number;
+      occurredAt: Date;
+      items: MealDraftItem[];
+      semanticContract: MealSemanticContract;
+      media: ImageMealMediaReference[];
+      pendingItemIndexes: number[];
+      currentItemIndex?: number;
+      messageId?: string | null;
+      instructionText?: string;
+    }) => {
+      const currentItemIndex =
+        input.currentItemIndex ?? input.pendingItemIndexes[0] ?? -1;
+      const item = input.items[currentItemIndex];
+      const foodName = item?.foodName?.trim() || item?.canonicalName?.trim() || "";
+      const sequencePosition = Math.min(currentItemIndex + 1, input.items.length);
+      const instructionText = input.instructionText?.trim() ||
+        `Ainda não consegui confirmar a identidade comercial de ${foodName}. Informe a marca, linha ou variante exata, ou envie CANCELAR (${sequencePosition} de ${input.items.length}).`;
+      return createIdentityClarification({
+        userId: input.userId,
+        foodName,
+        originalText: input.sourceText || `Imagem com ${foodName}`,
+        occurredAt: input.occurredAt,
+        messageId: input.messageId,
+        instructionText,
+        resolutionContext: {
+          mode: "complete_image_meal_identity",
+          detectedMealLabel: input.detectedMealLabel,
+          sourceText: input.sourceText,
+          transcript: input.transcript,
+          reasoning: input.reasoning,
+          confidence: input.confidence,
+          occurredAt: input.occurredAt.toISOString(),
+          items: input.items.map(item => ({ ...item })),
+          semanticContract: input.semanticContract,
+          media: input.media.map(media => ({ ...media })),
+          pendingItemIndexes: [...input.pendingItemIndexes],
+          currentItemIndex,
+        },
       });
     },
     requestLatestFoodCorrectionQuantity: (input: {
@@ -558,6 +720,8 @@ export const requestWhatsappImageFoodQuantityClarification =
   defaultService.requestImageFoodQuantity;
 export const requestWhatsappImageMealQuantityClarification =
   defaultService.requestImageMealQuantity;
+export const requestWhatsappImageMealIdentityClarification =
+  defaultService.requestImageMealIdentity;
 export const requestWhatsappLatestFoodCorrectionQuantity =
   defaultService.requestLatestFoodCorrectionQuantity;
 export const requestWhatsappCaloricComplementQuantityClarification =

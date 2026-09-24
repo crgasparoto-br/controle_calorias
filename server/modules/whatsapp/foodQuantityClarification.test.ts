@@ -341,4 +341,154 @@ describe("issue 874 persistent quantity clarification", () => {
       })
     );
   });
+
+  it("resolve somente o item alvo de identidade e preserva os demais até concluir", async () => {
+    const clarification = createFoodQuantityClarificationService({ repository });
+    const items = [
+      {
+        ...originalMeal.items[0],
+        foodName: "Bombom",
+        canonicalName: "Bombom",
+        portionText: "1 unidade",
+        quantity: 1,
+        unit: "unidade",
+      },
+      {
+        ...originalMeal.items[0],
+        foodName: "Iogurte",
+        canonicalName: "Iogurte",
+        portionText: "170 g",
+        quantity: 170,
+        unit: "g",
+      },
+      {
+        ...originalMeal.items[0],
+        foodName: "Arroz",
+        canonicalName: "Arroz",
+        portionText: "porção não informada",
+        quantity: 0,
+        unit: "",
+        estimatedGrams: 0,
+      },
+    ];
+    const semanticContract = {
+      version: 1,
+      originalText: "foto do almoço",
+      normalizedText: "foto do almoço",
+      inputType: "image",
+      intent: "register_meal",
+      items: [],
+      needsClarification: true,
+      clarifications: [
+        {
+          itemIndex: 0,
+          code: "commercial_identity_unverified",
+          message: "Informe a marca ou variante do bombom.",
+          alternatives: [],
+        },
+        {
+          itemIndex: 1,
+          code: "commercial_identity_unverified",
+          message: "Informe a marca ou variante do iogurte.",
+          alternatives: [],
+        },
+      ],
+    } as any;
+    const requested = await clarification.requestImageMealIdentity({
+      userId: 91,
+      detectedMealLabel: "Almoço",
+      sourceText: "foto do almoço",
+      reasoning: "Identidade comercial ambígua.",
+      confidence: 0.91,
+      occurredAt: new Date("2026-07-22T12:00:00.000Z"),
+      items,
+      semanticContract,
+      media: [],
+      pendingItemIndexes: [0, 1],
+      messageId: "image-identity-idempotent",
+    });
+    expect(requested).toEqual(expect.objectContaining({
+      action: "food_clarification_requested",
+      data: expect.objectContaining({ pendingKind: "identity" }),
+    }));
+    const replayed = await clarification.requestImageMealIdentity({
+      userId: 91,
+      detectedMealLabel: "Almoço",
+      sourceText: "foto do almoço",
+      reasoning: "Identidade comercial ambígua.",
+      confidence: 0.91,
+      occurredAt: new Date("2026-07-22T12:00:01.000Z"),
+      items,
+      semanticContract,
+      media: [],
+      pendingItemIndexes: [0, 1],
+      messageId: "image-identity-idempotent",
+    });
+    expect(replayed).toEqual(expect.objectContaining({
+      action: "food_clarification_reprompted",
+      eventType: "whatsapp.food_clarification.identity_replayed",
+      data: expect.objectContaining({ pendingOperationId: requested.data?.pendingOperationId }),
+    }));
+
+    const processFood = vi.fn()
+      .mockResolvedValueOnce({ items: [{ ...items[0], brand: "Lacta", foodName: "Bombom" }] })
+      .mockResolvedValueOnce({ items: [{ ...items[1], brand: "Nestlé", foodName: "Iogurte" }] })
+      .mockResolvedValueOnce({ items: [{ ...items[2], quantity: 100, unit: "g", portionText: "100 g", estimatedGrams: 100 }] });
+    createWhatsappMeal.mockImplementation(async (_userId, input) => ({
+      ...originalMeal,
+      id: 991,
+      mealLabel: input.detectedMealLabel,
+      occurredAt: new Date(input.occurredAt).getTime(),
+      items: input.items,
+    }));
+    listMeals.mockResolvedValue([]);
+    const foodService = createWhatsappFoodClarificationService({
+      repository,
+      processFood: processFood as never,
+      getHabits: vi.fn(async () => []) as never,
+      createMeal: vi.fn() as never,
+      listMeals: listMeals as never,
+      updateMeal: updateMeal as never,
+      removeMeal: vi.fn() as never,
+      createWhatsappMeal: createWhatsappMeal as never,
+    });
+
+    const first = await foodService.handle({
+      userId: 91,
+      text: "Lacta",
+      receivedAt: new Date("2026-07-22T12:01:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(first?.action).toBe("food_clarification_requested");
+    expect(first?.reply).toContain("iogurte");
+    expect(createWhatsappMeal).not.toHaveBeenCalled();
+
+    const second = await foodService.handle({
+      userId: 91,
+      text: "Nestlé",
+      receivedAt: new Date("2026-07-22T12:02:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(second?.action).toBe("food_clarification_requested");
+    expect(second?.reply).toContain("quantidade");
+
+    const third = await foodService.handle({
+      userId: 91,
+      text: "100g",
+      receivedAt: new Date("2026-07-22T12:03:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(third?.action).toBe("food_clarification_completed");
+    expect(createWhatsappMeal).toHaveBeenCalledWith(
+      91,
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({ foodName: "Bombom", brand: "Lacta" }),
+          expect.objectContaining({ foodName: "Iogurte", brand: "Nestlé" }),
+          expect.objectContaining({ foodName: "Arroz", quantity: 100, unit: "g" }),
+        ],
+      })
+    );
+    expect(processFood).toHaveBeenCalledTimes(3);
+  });
 });

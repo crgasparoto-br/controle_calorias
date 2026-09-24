@@ -45,7 +45,7 @@ O registro cobre:
 5. período de resumo;
 6. autorização profissional;
 7. clarificação genérica de intenção;
-8. clarificações alimentares `quantity`, `confirmation` e `selection` da issue #855;
+8. clarificações alimentares `identity`, `quantity`, `confirmation` e `selection` da issue #855/#1177;
 9. solicitação de foto de rótulo nutricional e a continuação de correlação/identidade da issue #1174.
 
 Os produtores expõem ações estruturadas e reutilizam `buildWhatsappClosedDecisionReply`. Os testes impedem que produtores principais voltem a chamar `buttonsReply` ou `listReply` diretamente.
@@ -99,6 +99,7 @@ A interação persiste `mealIds` e, quando aplicável, `allMealIds`. A confirma�
 Os contratos da issue #855 são consumidos sem reimplementar catálogo, correção, porção ou persistência nutricional:
 
 - `quantity` é aberta e permanece textual;
+- `identity` é aberta e permanece textual, preservando o contrato semântico, a mídia e os itens acompanhantes da imagem até a resposta do item alvo;
 - `confirmation` é fechada e usa botões;
 - `selection` é fechada e escolhe botões ou lista pela cardinalidade total;
 - texto original e candidato normalizado permanecem separados;
