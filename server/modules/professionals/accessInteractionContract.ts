@@ -2,6 +2,7 @@ import type { WhatsappInteractionAction } from "../whatsapp/interactionPresentat
 
 export const PROFESSIONAL_ACCESS_AUTHORIZE_ACTION = "authorize";
 export const PROFESSIONAL_ACCESS_REJECT_ACTION = "reject";
+export const PROFESSIONAL_ACCESS_CANCEL_ACTION = "cancel";
 
 export function buildProfessionalAccessActions(): WhatsappInteractionAction[] {
   return [
@@ -14,6 +15,11 @@ export function buildProfessionalAccessActions(): WhatsappInteractionAction[] {
       id: PROFESSIONAL_ACCESS_REJECT_ACTION,
       label: "Recusar",
       effect: "reject_access",
+    },
+    {
+      id: PROFESSIONAL_ACCESS_CANCEL_ACTION,
+      label: "Cancelar",
+      effect: "cancel_without_persistence",
     },
   ];
 }

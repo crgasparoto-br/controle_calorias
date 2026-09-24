@@ -23,10 +23,14 @@ import type { WhatsAppLogicalReply } from "../whatsapp/replyContract";
 import {
   buildProfessionalAccessActions,
   PROFESSIONAL_ACCESS_AUTHORIZE_ACTION as AUTHORIZE_ACTION,
+  PROFESSIONAL_ACCESS_CANCEL_ACTION as CANCEL_ACTION,
   PROFESSIONAL_ACCESS_REJECT_ACTION as REJECT_ACTION,
 } from "./accessInteractionContract";
 import { sendWhatsAppStandaloneLogicalReply } from "../whatsapp/logicalReplyDelivery";
-import { buildWhatsAppCallbackResourceNotFoundReplyMessage } from "../whatsapp/replyMessages";
+import {
+  buildWhatsAppActionCancelledReplyMessage,
+  buildWhatsAppCallbackResourceNotFoundReplyMessage,
+} from "../whatsapp/replyMessages";
 import {
   createDrizzleWhatsAppPendingOperationRepository,
   type WhatsAppPendingOperationRecord,
@@ -250,6 +254,8 @@ export function buildProfessionalAccessAuthorizationMessage(input: {
     "Para responder pelo WhatsApp, envie uma das opções abaixo:",
     `AUTORIZAR ${code}`,
     `NEGAR ${code}`,
+    "",
+    "Para encerrar esta pergunta sem alterar a autorização, envie CANCELAR.",
     "",
     "Ao autorizar, você permite que o profissional veja seus dados de acompanhamento. Você pode revogar esse vínculo depois pela plataforma.",
   ].join("\n");
@@ -573,6 +579,18 @@ export async function completeWhatsAppProfessionalAccessCallback(
   const target = pendingOperation.target as { accessId?: unknown };
   const accessId =
     typeof target?.accessId === "string" ? target.accessId : null;
+  if (action === CANCEL_ACTION) {
+    return {
+      handled: true,
+      action: "professional_access_cancelled",
+      reply: buildWhatsAppActionCancelledReplyMessage(
+        "A solicitação de autorização continua sem alteração."
+      ),
+      eventType: "professional.access.whatsapp_cancelled",
+      detail:
+        "Pergunta de autorização profissional cancelada sem aprovar, recusar ou alterar o vínculo.",
+    };
+  }
   if (!accessId || (action !== AUTHORIZE_ACTION && action !== REJECT_ACTION)) {
     return {
       handled: true,

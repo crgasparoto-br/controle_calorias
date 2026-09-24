@@ -34,6 +34,7 @@ import {
 import type { WhatsAppWebhookMessage } from "./webhookUtils";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
+const PROFESSIONAL_ACCESS_CANCEL_ACTION = "cancel";
 
 export type WhatsappInteractionTextClassification = "resolve" | "invalid";
 
@@ -240,6 +241,7 @@ export async function resolveIntentClarificationText(input: WhatsappInteractionT
 }
 
 export function classifyProfessionalAccessText(_target: unknown, text?: string | null): WhatsappInteractionTextClassification {
+  if (isStandaloneWhatsappCancellationWord(text)) return "resolve";
   const normalized = normalizeStandaloneWhatsappCommand(text ?? "").toUpperCase();
   return /\b(?:AUTORIZAR|AUTORIZO|APROVAR|APROVO|ACEITAR|ACEITO|NEGAR|NEGO|RECUSAR|RECUSO)\b/.test(normalized)
     ? "resolve"
@@ -248,6 +250,21 @@ export function classifyProfessionalAccessText(_target: unknown, text?: string |
 
 export async function resolveProfessionalAccessText(input: WhatsappInteractionTextInput) {
   const service = await import("../professionals/service");
+  if (isStandaloneWhatsappCancellationWord(input.text)) {
+    const claim = await claimWhatsAppTextPendingOperation(
+      input.userId,
+      PENDING_PROFESSIONAL_ACCESS_TYPE,
+      PROFESSIONAL_ACCESS_CANCEL_ACTION,
+      input.receivedAt,
+    );
+    if (claim.status !== "claimed") return null;
+    const completed = await service.completeWhatsAppProfessionalAccessCallback(
+      input.userId,
+      claim.pendingOperation,
+      PROFESSIONAL_ACCESS_CANCEL_ACTION,
+    );
+    return normalizeResolvedInteraction(completed, "professional_access_resolved");
+  }
   const decision = service.parseProfessionalAccessWhatsappDecision(input.text ?? "");
   if (!decision) return null;
   const action = decision === "approved" ? "authorize" : "reject";
