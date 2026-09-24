@@ -19,6 +19,7 @@ import {
 import { buildMealItemSelectionActions } from "./mealItemSelectionCallback";
 import { buildWhatsappPeriodReportActions } from "./periodReportClarification";
 import { buildGenericConfirmationActions } from "./webhookTextCommands";
+import { buildProfessionalAccessActions } from "../professionals/accessInteractionContract";
 
 function listTypeScriptFiles(root: string): string[] {
   const entries = fs.readdirSync(root, { withFileTypes: true });
@@ -225,5 +226,14 @@ describe("registro executável transversal de interações", () => {
     expect(findWhatsappRegisteredInteraction("food_registration_clarification", confirmation)?.classification).toBe("closed");
     expect(findWhatsappRegisteredInteraction("food_registration_clarification", quantity)?.actions(quantity))
       .toEqual(buildFoodClarificationActions("quantity", []));
+  });
+
+  it("aceita CANCELAR na autorização profissional sem transformar a resposta em decisão", () => {
+    const target = { accessId: "abc12345-def6" };
+    const interaction = findWhatsappRegisteredInteraction("professional_access", target);
+
+    expect(interaction?.actions(target)).toEqual(buildProfessionalAccessActions());
+    expect(interaction?.allowedEffects).toContain("cancel");
+    expect(interaction?.classifyText(target, "CANCELAR")).toBe("resolve");
   });
 });
