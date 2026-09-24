@@ -131,6 +131,39 @@ describe("resolveHouseholdMeasure (#1181)", () => {
     expect(runtime.persistHouseholdMeasureResolution).not.toHaveBeenCalled();
   });
 
+  it("preserva o multiplicador e usa a referência natural somente para pesquisar quantidade", async () => {
+    const runtime = baseRuntime();
+    const grape = reference({
+      matchedFoodName: "Uva",
+      foodTypeName: "uva",
+      measureUnit: "unidade",
+      measureQuantity: 1,
+      grams: 5,
+      sourceUrl: "https://example.test/uva-a",
+      evidence: "1 unidade de uva pesa 5 g.",
+    });
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([grape]));
+
+    const result = await resolveHouseholdMeasure({
+      userId: 1181,
+      foodName: "uvas pretas",
+      quantityReferenceFoodName: "uva",
+      quantity: 6,
+      unit: "un",
+    }, runtime as any);
+
+    expect(result).toEqual(expect.objectContaining({
+      kind: "contextual_estimate",
+      grams: 30,
+      requestedQuantity: 6,
+      requestedUnit: "unidade",
+    }));
+    const request = runtime.createDomainTextResponse.mock.calls[0]?.[1] as any;
+    const prompt = request.input?.[0]?.content?.[0]?.text ?? "";
+    expect(prompt).toContain("Alimento informado: uvas pretas");
+    expect(prompt).toContain("pesquisa exclusiva de quantidade: uva");
+  });
+
   it("não estima medida estruturalmente ambígua como pedaço", async () => {
     const runtime = baseRuntime();
     const ambiguousInput = { ...input, unit: "pedaço" };
