@@ -497,4 +497,120 @@ describe("issue 874 persistent quantity clarification", () => {
     );
     expect(processFood).toHaveBeenCalledTimes(3);
   });
+
+  it("mantém cancelamento, expiração e isolamento sem mutação parcial", async () => {
+    const repository = createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    const item = {
+      ...originalMeal.items[0],
+      foodName: "Biscoito",
+      canonicalName: "Biscoito",
+      portionText: "1 unidade",
+      quantity: 1,
+      unit: "unidade",
+    };
+    const request = (userId: number, messageId: string, occurredAt: Date) =>
+      clarification.requestImageMealIdentity({
+        userId,
+        detectedMealLabel: "Lanche",
+        sourceText: "foto do lanche",
+        reasoning: "Identidade pendente.",
+        confidence: 0.8,
+        occurredAt,
+        items: [item],
+        semanticContract: {
+          version: 1,
+          originalText: "foto do lanche",
+          normalizedText: "foto do lanche",
+          inputType: "image",
+          intent: "register_meal",
+          items: [],
+          needsClarification: true,
+          clarifications: [{
+            itemIndex: 0,
+            code: "commercial_identity_unverified",
+            message: "Informe a marca.",
+            alternatives: [],
+          }],
+        } as any,
+        media: [],
+        pendingItemIndexes: [0],
+        messageId,
+      });
+    const foodService = createWhatsappFoodClarificationService({
+      repository,
+      processFood: vi.fn() as never,
+      getHabits: vi.fn(async () => []) as never,
+      createMeal: vi.fn() as never,
+      listMeals: vi.fn(async () => []) as never,
+      updateMeal: vi.fn() as never,
+      removeMeal: vi.fn() as never,
+      createWhatsappMeal: vi.fn() as never,
+    });
+
+    await request(501, "wamid.cancel", new Date("2026-07-22T13:00:00.000Z"));
+    const cancelled = await foodService.handle({
+      userId: 501,
+      text: "CANCELAR",
+      receivedAt: new Date("2026-07-22T13:01:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+    expect(cancelled?.action).toBe("food_clarification_cancelled");
+    expect(await repository.getActivePendingOperation(501, new Date("2026-07-22T13:02:00.000Z"))).toBeNull();
+
+    await request(502, "wamid.expired", new Date("2026-07-22T14:00:00.000Z"));
+    expect(await foodService.handle({
+      userId: 502,
+      text: "Lacta",
+      receivedAt: new Date("2026-07-22T14:11:00.001Z"),
+      userTimezone: "America/Sao_Paulo",
+    })).toBeNull();
+
+    await request(503, "wamid.isolated", new Date("2026-07-22T15:00:00.000Z"));
+    expect(await foodService.handle({
+      userId: 504,
+      text: "Lacta",
+      receivedAt: new Date("2026-07-22T15:01:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    })).toBeNull();
+    expect(await repository.getActivePendingOperation(503, new Date("2026-07-22T15:01:00.000Z"))).toEqual(
+      expect.objectContaining({ userId: 503, state: "active" })
+    );
+  });
+
+  it("aceita no máximo uma resposta concorrente para a mesma identidade", async () => {
+    const repository = createRepository();
+    const clarification = createFoodQuantityClarificationService({ repository });
+    const item = { ...originalMeal.items[0], foodName: "Bombom", canonicalName: "Bombom", portionText: "1 unidade", quantity: 1, unit: "unidade" };
+    await clarification.requestImageMealIdentity({
+      userId: 601,
+      detectedMealLabel: "Lanche",
+      sourceText: "foto do lanche",
+      reasoning: "Identidade pendente.",
+      confidence: 0.8,
+      occurredAt: new Date("2026-07-22T16:00:00.000Z"),
+      items: [item],
+      semanticContract: { version: 1, originalText: "foto do lanche", normalizedText: "foto do lanche", inputType: "image", intent: "register_meal", items: [], needsClarification: true, clarifications: [{ itemIndex: 0, code: "commercial_identity_unverified", message: "Informe a marca.", alternatives: [] }] } as any,
+      media: [],
+      pendingItemIndexes: [0],
+      messageId: "wamid.concurrent",
+    });
+    const createWhatsappMeal = vi.fn(async (_userId, input) => ({ ...originalMeal, id: 1601, mealLabel: input.detectedMealLabel, occurredAt: new Date(input.occurredAt).getTime(), items: input.items }));
+    const foodService = createWhatsappFoodClarificationService({
+      repository,
+      processFood: vi.fn(async () => ({ items: [{ ...item, brand: "Lacta" }] })) as never,
+      getHabits: vi.fn(async () => []) as never,
+      createMeal: vi.fn() as never,
+      listMeals: vi.fn(async () => []) as never,
+      updateMeal: vi.fn() as never,
+      removeMeal: vi.fn() as never,
+      createWhatsappMeal: createWhatsappMeal as never,
+    });
+    const results = await Promise.all([
+      foodService.handle({ userId: 601, text: "Lacta", receivedAt: new Date("2026-07-22T16:01:00.000Z"), userTimezone: "America/Sao_Paulo" }),
+      foodService.handle({ userId: 601, text: "Nestlé", receivedAt: new Date("2026-07-22T16:01:00.000Z"), userTimezone: "America/Sao_Paulo" }),
+    ]);
+    expect(results.filter(result => result?.action === "food_clarification_completed")).toHaveLength(1);
+    expect(createWhatsappMeal).toHaveBeenCalledTimes(1);
+  });
 });
