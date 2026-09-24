@@ -270,6 +270,10 @@ export function classifyFoodClarificationText(target: unknown, text?: string | n
   if (!isPendingFoodClarificationTarget(target)) return "invalid";
   if (isStandaloneWhatsappCancellationWord(text)) return "resolve";
 
+  if (target.pendingKind === "identity") {
+    return text?.trim() && !isCompleteWhatsappCommand(text) ? "resolve" : "invalid";
+  }
+
   if (target.pendingKind === "quantity") {
     if (parseFoodClarificationQuantityReply(text)) return "resolve";
   } else if (target.pendingKind === "confirmation") {

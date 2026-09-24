@@ -23,7 +23,7 @@ export const PENDING_FOOD_CLARIFICATION_TYPE = "food_registration_clarification"
 export const PENDING_FOOD_CLARIFICATION_ORIGIN = "foodClarification";
 export const PENDING_FOOD_CLARIFICATION_TTL_MS = 10 * 60 * 1000;
 
-export type FoodClarificationKind = "confirmation" | "quantity" | "selection";
+export type FoodClarificationKind = "confirmation" | "quantity" | "selection" | "identity";
 export type FoodClarificationClassification = "open" | "closed";
 export type FoodClarificationInteractionId = `food_clarification.${FoodClarificationKind}`;
 
@@ -211,6 +211,12 @@ export function buildFoodClarificationActions(kind: FoodClarificationKind, candi
       { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
     ];
   }
+  if (kind === "identity") {
+    return [
+      { id: "provide_identity", label: "Informar identidade", effect: "confirm_original_identity" },
+      { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+    ];
+  }
   if (kind === "confirmation") {
     return [
       { id: "confirm", label: "Confirmar", effect: "register_original_food_once" },
@@ -259,7 +265,7 @@ export function isPendingFoodClarificationTarget(value: unknown): value is Pendi
   const target = value as Partial<PendingFoodClarificationTarget>;
   return target.contractVersion === 1
     && target.kind === "food_registration_clarification"
-    && ["confirmation", "quantity", "selection"].includes(target.pendingKind ?? "")
+    && ["confirmation", "quantity", "selection", "identity"].includes(target.pendingKind ?? "")
     && typeof target.originalText === "string"
     && typeof target.sanitizedOriginalText === "string"
     && typeof target.originalCandidate === "string"

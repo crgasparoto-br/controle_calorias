@@ -109,7 +109,7 @@ import {
 } from "./nutritionLabelPhotoInteraction";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 10;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 11;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -657,6 +657,29 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
       pendingOperation: input.pendingOperation,
       action: input.action,
     }),
+  },
+  {
+    id: "food_clarification.identity",
+    pendingType: PENDING_FOOD_CLARIFICATION_TYPE,
+    origin: "foodClarification",
+    entrypoints: ALL_ENTRYPOINTS,
+    classification: "open",
+    reconstruction: "pending_target",
+    invalidResponse: "text_guidance",
+    staleBehavior: "reply_unavailable_request_new_command",
+    allowedEffects: [
+      "provide_identity",
+      "confirm_original_identity",
+      "cancel",
+      "complete_pending_food_operation_once",
+    ],
+    forbiddenEffects: ["persist_command_word_as_food", "nutrition_fallback", "meal_creation"],
+    matches: target => isPendingFoodClarificationTarget(target) && target.pendingKind === "identity",
+    actions: foodActions,
+    classifyText: classifyFoodClarificationText,
+    resolveText: resolveFoodClarificationText,
+    rebuild: rebuildFoodClarification,
+    completeCallback: completeFoodClarification,
   },
   {
     id: "food_clarification.quantity",

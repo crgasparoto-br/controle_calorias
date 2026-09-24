@@ -16,6 +16,7 @@ const createLocalMealPhotoOverlayMock = vi.fn();
 const storagePutMock = vi.fn();
 const fallbackWebhookMock = vi.fn();
 const getAnnotatedImagePreferenceMock = vi.fn();
+const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
 const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
   recordOutboundReplyMock: vi.fn(async () => undefined),
@@ -50,6 +51,11 @@ vi.mock("./db", () => ({
   logInferenceEvent: logInferenceEventMock,
   removeUserMeal: removeUserMealMock,
   updateUserMeal: updateUserMealMock,
+}));
+
+vi.mock("./modules/whatsapp/foodQuantityClarification", () => ({
+  requestWhatsappImageMealIdentityClarification:
+    requestWhatsappImageMealIdentityClarificationMock,
 }));
 
 vi.mock("./whatsappConfig", () => ({
@@ -198,6 +204,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     storagePutMock.mockReset();
     fallbackWebhookMock.mockReset();
     getAnnotatedImagePreferenceMock.mockReset();
+    requestWhatsappImageMealIdentityClarificationMock.mockReset();
     beginInboundMessageMock.mockReset();
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
@@ -635,10 +642,49 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
             foodName: "Ouro Branco Duo Nuts",
             brand: "Lacta",
             clarificationReason: "commercial_identity_unverified",
+            detectedMealLabel: "Almoço",
+            reasoning: "Produto industrializado identificado.",
+            confidence: 0.92,
+            items: [{
+              foodName: "Ouro Branco Duo Nuts",
+              canonicalName: "Ouro Branco Duo Nuts",
+              portionText: "1 unidade",
+              quantity: 1,
+              unit: "unidade",
+              servings: 1,
+              estimatedGrams: 20,
+              calories: 100,
+              protein: 2,
+              carbs: 12,
+              fat: 5,
+              confidence: 0.8,
+              source: "vision",
+            }],
+            semanticContract: {
+              version: 1,
+              originalText: "meu almoço",
+              normalizedText: "meu almoço",
+              inputType: "image",
+              intent: "register_meal",
+              items: [],
+              needsClarification: true,
+              clarifications: [{
+                itemIndex: 0,
+                code: "commercial_identity_unverified",
+                message: "Informe a marca ou variante.",
+                alternatives: [],
+              }],
+            },
           },
         }
       )
     );
+    requestWhatsappImageMealIdentityClarificationMock.mockResolvedValue({
+      action: "food_clarification_requested",
+      reply: "Informe a marca, linha ou variante exata do produto, ou envie CANCELAR.",
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Pendência persistida.",
+    });
     const req = createImageWebhookRequest("image-commercial-clarification");
     const res = createResponse();
 
@@ -649,9 +695,95 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
     expect(sentTextMessages).toHaveLength(1);
-    expect(sentTextMessages[0]).toContain("Identifiquei um produto na imagem");
-    expect(sentTextMessages[0]).toContain("Ouro Branco Duo Nuts");
-    expect(sentTextMessages[0]).not.toContain("Não consegui identificar o alimento na imagem");
+    expect(sentTextMessages[0]).toContain("Informe a marca, linha ou variante");
+    expect(sentTextMessages[0]).not.toContain("Não consegui comprovar");
+    expect(requestWhatsappImageMealIdentityClarificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detectedMealLabel: "Almoço",
+        pendingItemIndexes: [0],
+        items: [expect.objectContaining({ foodName: "Ouro Branco Duo Nuts" })],
+      })
+    );
+  });
+
+  it("preserva todos os itens identificados ao abrir identidade persistente para um item", async () => {
+    const imageItems = [
+      {
+        ...savedImageMeal.items[0],
+        foodName: "Bombom",
+        canonicalName: "Bombom",
+        portionText: "1 unidade",
+        quantity: 1,
+        unit: "unidade",
+      },
+      {
+        ...savedImageMeal.items[0],
+        foodName: "Iogurte",
+        canonicalName: "Iogurte natural",
+        portionText: "170 g",
+        quantity: 170,
+        unit: "g",
+      },
+    ];
+    const semanticContract = {
+      version: 1 as const,
+      originalText: "meu almoço",
+      normalizedText: "meu almoço",
+      inputType: "image" as const,
+      intent: "register_meal",
+      items: [],
+      needsClarification: true,
+      clarifications: [{
+        itemIndex: 0,
+        code: "commercial_identity_unverified" as const,
+        message: "Informe a marca do bombom.",
+        alternatives: [],
+      }],
+    };
+    processMealInputMock.mockRejectedValueOnce(
+      new MealInferenceError("Informe a marca ou variante exata do bombom.", {
+        code: "food_identity_clarification_required",
+        context: {
+          originalText: "meu almoço",
+          detectedMealLabel: "Almoço",
+          reasoning: "A imagem contém um produto comercial sem identidade comprovada.",
+          confidence: 0.88,
+          items: imageItems,
+          semanticContract,
+        },
+      })
+    );
+    requestWhatsappImageMealIdentityClarificationMock.mockResolvedValueOnce({
+      action: "food_clarification_requested",
+      reply: "Informe a marca ou variante exata do bombom.",
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Pendência persistida.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-multi-item-identity") as never,
+      res as never
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(requestWhatsappImageMealIdentityClarificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: imageItems,
+        pendingItemIndexes: [0],
+        currentItemIndex: 0,
+        semanticContract,
+        media: expect.arrayContaining([
+          expect.objectContaining({
+            storageKey: "whatsapp/image/5511999999999-image-media-id.jpg",
+          }),
+        ]),
+      })
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toEqual(["Informe a marca ou variante exata do bombom."]);
   });
 
   it("usa o estado persistido ao responder uma refeição nova criada por imagem", async () => {

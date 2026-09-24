@@ -90,6 +90,10 @@ export type MealInferenceErrorContext = {
   acceptedUnits?: string[];
   foodName?: string;
   brand?: string | null;
+  items?: MealDraftItem[];
+  detectedMealLabel?: string;
+  reasoning?: string;
+  confidence?: number;
   /** Indica que a identidade veio do fallback textual, sem extração da IA. */
   usedSourceTextFallback?: boolean;
   clarificationReason?: MealSemanticClarificationCode;
@@ -1389,6 +1393,23 @@ export async function processMealInput(
         originalText: sourceText,
         foodName: semanticItem?.commercialName,
         brand: semanticItem?.brand ?? null,
+        detectedMealLabel,
+        reasoning,
+        confidence,
+        items: items.map(item => ({
+          ...item,
+          resolution: item.resolution
+            ? {
+                ...item.resolution,
+                ambiguity: item.resolution.ambiguity
+                  ? {
+                      ...item.resolution.ambiguity,
+                      alternatives: item.resolution.ambiguity.alternatives.map(alternative => ({ ...alternative })),
+                    }
+                  : item.resolution.ambiguity,
+              }
+            : item.resolution,
+        })),
         usedSourceTextFallback,
         clarificationReason: clarification.code,
         alternatives: [...clarification.alternatives],

@@ -25,7 +25,7 @@ export type {
   WhatsappRegisteredInteraction,
 } from "./interactionRegistryLegacy";
 
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 10;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 11;
 
 const coffeePreparationInteraction: WhatsappRegisteredInteraction = {
   id: "coffee_preparation.sugar_choice",

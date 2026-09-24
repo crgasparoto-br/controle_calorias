@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+  "evidence": [
+    {
+      "evidence_id": "EVID-1177-EXACT-HEAD",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
+      "sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
+      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+      "freshness_policy": "exact-material-head",
+      "producer": "issue 1177 focused and full regression gates",
+      "status": "passed"
+    }
+  ]
+}

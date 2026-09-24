@@ -157,6 +157,14 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["natual", "natural"] },
     ],
   },
+  "food_clarification.identity": {
+    modalities: ["text", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/foodQuantityClarification.test.ts", requiredTokens: ["pendingKind", "identity", "preserva"] },
+      { file: "server/whatsappAnnotatedImageWebhook.test.ts", requiredTokens: ["identity_requested", "pendingItemIndexes", "Ouro Branco"] },
+      { file: "server/nutritionEngine.issue1088.test.ts", requiredTokens: ["assada", "rodelas", "toBeNull"] },
+    ],
+  },
   "food_clarification.confirmation": {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
