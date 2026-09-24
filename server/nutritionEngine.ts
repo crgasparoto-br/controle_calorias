@@ -650,7 +650,7 @@ function hasSpecificCommercialProductName(
   variant: string,
   requireExplicitCategory = false,
 ) {
-  const genericProductWords = new Set(["alimento", "bebida", "queijo", "requeijao", "iogurte", "leite"]);
+  const genericProductWords = new Set(["alimento", "amendoim", "bebida", "cerveja", "chocolate", "refrigerante", "salgadinho", "queijo", "requeijao", "iogurte", "leite"]);
   const commercialMeasureTokens = new Set([
     "g", "gr", "grama", "gramas", "kg", "quilo", "quilos", "mg", "ml",
     "mililitro", "mililitros", "l", "litro", "litros",
@@ -891,6 +891,9 @@ async function buildItemsFromInference(
           options.nutritionLabelEvidenceText
         )
       : null;
+    const hasNutritionLabelEvidenceClaim = /NUTRITION_LABEL_EVIDENCE\s*:|tabela\s+nutricional|nutrition\s+label/i.test(
+      options.nutritionLabelEvidenceText ?? ""
+    );
     const requestedVariant = extractCommercialVariant(semanticSource);
     const canUseVerifiedNutritionLabel = Boolean(
       resolvedItem.brand &&
@@ -943,17 +946,23 @@ async function buildItemsFromInference(
       resolvedItem.brand
       && requestedVariant
       && alternatives.length === 0
-      && !options.preferInferredNutrition
       && !canUseVerifiedNutritionLabel
     ) {
       const hasNutrition = hasUsableNutrition(resolvedItem);
+      const identitySource = [semanticSource, resolvedItem.brand]
+        .filter(Boolean)
+        .join(" ");
       const specificIdentity = hasSpecificCommercialProductName(
-        semanticSource,
+        identitySource,
         resolvedItem.brand,
         requestedVariant,
         !hasNutrition,
       );
-      if (specificIdentity) {
+      if (
+        specificIdentity
+        && (hasNutrition || !options.preferInferredNutrition)
+        && !hasNutritionLabelEvidenceClaim
+      ) {
         const provisionalItem = hasNutrition
           ? buildProvisionalBrandedNutritionItem(
               resolvedItem,

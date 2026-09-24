@@ -144,9 +144,6 @@ describe("issue #987 — identidade comercial no MEAL_VISION", () => {
 
   it.each([
     ["Cerveja", "Stella Artois", "Cerveja Stella Artois"],
-    ["Cerveja Original", "Heineken", "Cerveja Original Heineken"],
-    ["Cerveja Original", "Antarctica", "Cerveja Original Antarctica"],
-    ["Cerveja Weissbier", "Paulaner", "Cerveja Weissbier Paulaner"],
   ])("preserva produto e variante visíveis sem aceitar macros não comprovados: %s / %s", async (foodName, brand, expectedName) => {
     await expectBrandedIdentityClarification({
       foodName,
@@ -155,6 +152,34 @@ describe("issue #987 — identidade comercial no MEAL_VISION", () => {
       estimatedCalories: 130,
       estimatedMacros: { protein: 1, carbs: 10, fat: 0 },
     });
+  });
+
+  it.each([
+    ["Iogurte Natural Integral", "Danone", "integral"],
+    ["Amendoim Japonês", "Elma Chips", "japones"],
+    ["Cerveja Original", "Antarctica", "original"],
+  ])("registra como provisional quando categoria, marca e variante estão claras na imagem: %s / %s", async (foodName, brand, expectedVariant) => {
+    createTextResponseMock.mockResolvedValue(visionResponse([{
+      foodName,
+      brand,
+      estimatedCalories: 220,
+      estimatedMacros: { protein: 7, carbs: 24, fat: 8 },
+    }]));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,aW1hZ2Vt" });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      brand,
+      source: "hybrid",
+      resolution: expect.objectContaining({
+        nutritionOrigin: "provisional_estimate",
+        nutritionVerified: false,
+        productVariant: expectedVariant,
+        ambiguity: null,
+      }),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
   });
 
   it("não duplica a marca na identidade pendente quando ela também veio incorporada em foodName", async () => {
