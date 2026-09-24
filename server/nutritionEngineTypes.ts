@@ -18,6 +18,10 @@ export type CatalogFood = {
   sourceVerifiedAt?: Date | null;
   sourceConfidence?: number | null;
   isBrandedProduct?: boolean;
+  processingLevel?: FoodProcessingLevelEstimate;
+  isFruit?: boolean;
+  isVegetable?: boolean;
+  isUltraProcessed?: boolean;
 };
 
 export type HabitSnapshot = {

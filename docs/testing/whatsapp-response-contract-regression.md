@@ -26,6 +26,22 @@ No registro textual normal, `handleWhatsAppWebhookWithTextIntent` preserva os ha
 - Resoluções aproximadas são apresentadas como estimativas; a conversão para gramas não apaga a medida original.
 - O anexo histórico permanece disponível para os demais contratos de resposta, idempotência, mídia, onboarding, profissionais, segurança e migrações anteriores.
 
+## Regressão #1181 — fruta natural por unidade com qualificador não cadastrado
+
+| Cenário | Entrada/estado | Boundary protegido | Efeito esperado | Evidência automatizada |
+|---|---|---|---|---|
+| Caso de produção composto | `1 banana nanica, 1 pêra packans`, com uma referência verificável `same_food_type` para `1 unidade de pêra` | preflight de identidade comercial → `prepareCountableFoodRegistrationResolved` → `resolveHouseholdMeasure` | `packans` permanece qualificador natural não comprovado; não vira marca; a banana continua canônica e a pêra segue para `contextual_estimate` sem clarificação de peso | `countableFoodRegistrationGate.issue1054.test.ts`, `commercialFoodIdentityPreflight.issue1181.test.ts`, `householdMeasureResolution.issue1181.test.ts` |
+| Qualificador natural desconhecido | `1 pêra golden` e extração nutricional-base `pêra` | preflight canônico antes de `inferUnresolvedCommercialIdentityHint` e `recoverExplicitBrandFromSource` | o token residual é preservado no nome original e não é afirmado como marca ou cultivar específico | `commercialFoodIdentityPreflight.issue1181.test.ts`, `nutritionEngine.issue1088.aiIdentity.test.ts` |
+| Fruta natural genérica e variantes conhecidas | `1 pêra`, `laranja pêra`, `mamão formosa` | catálogo natural/TACO compartilhado pelo preflight | usa a mesma fronteira de identidade e medida; variantes naturais não são promovidas indevidamente a marca | `commercialFoodIdentityPreflight.issue1181.test.ts`, suítes de `householdMeasureResolution.*` |
+| Produto comercial | `refrigerante laranja` ou marca estruturada | guard comercial fail-closed após a precedência de identidade natural | não recebe a exceção de fruta; segue para clarificação de identidade comercial quando não comprovado | `commercialFoodIdentityPreflight.issue1181.test.ts`, `nutritionEngine.issue1088.aiIdentity.test.ts` |
+
+### Controles específicos da #1181
+
+- O preflight consulta os catálogos canônicos de alimento natural antes de interpretar tokens residuais como marca; não há mapa de `packans`, peso fixo de pêra ou alias de cultivar no WhatsApp.
+- O qualificador original continua no segmento encaminhado ao resolvedor de medida, enquanto `resolveHouseholdMeasure` permanece o único dono da gramatura e da procedência `contextual_estimate`/`usual_average`.
+- A exceção é limitada a alimento natural não comercial; marca conhecida ou identidade comercial estruturada mantém precedência e o contrato fail-closed de #1088.
+- A regressão atravessa o gate de registro contável e valida que uma referência `same_food_type` preenche somente a quantidade, sem reescrever a identidade específica.
+
 ## Regressão #1043 — estimativa contextual persistida e aprendizado
 
 | Cenário | Entrada/estado | Efeito esperado | Evidência automatizada |
