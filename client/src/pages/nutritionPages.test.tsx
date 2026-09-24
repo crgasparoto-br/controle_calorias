@@ -1054,14 +1054,16 @@ describe("nutrition pages", () => {
     expect(html).toContain("/api/whatsapp/webhook");
   });
 
-  it("renderiza a página administrativa com a credencial editável do WhatsApp", async () => {
+  it("renderiza a página administrativa com navegação plana e credencial recolhida", async () => {
     const { default: AdminPage } = await import("./AdminPage");
     const html = renderToString(React.createElement(AdminPage));
 
-    expect(html).toContain("Credencial do WhatsApp");
-    expect(html).toContain("Chave de acesso do WhatsApp");
-    expect(html).toContain("Salvar credencial");
-    expect(html).toContain("Painel administrativo");
-    expect(html).toContain("EAAcmt••••1234");
+    expect(html).toContain("Visão geral");
+    expect(html).toContain("Usuários");
+    expect(html).toContain("Atividades");
+    expect(html).toContain("Base de alimentos");
+    expect(html).toContain("Configurações");
+    expect(html).not.toContain("Nova chave de acesso do WhatsApp");
+    expect(html).not.toContain("Salvar credencial");
   });
 });
