@@ -1,0 +1,304 @@
+<!-- specification_version: 2 -->
+
+## Contexto
+
+Em produção, em 2026-09-23, uma foto de prato contendo **múltiplos componentes alimentares visualmente distintos** foi enviada pelo WhatsApp.
+
+O sistema respondeu:
+
+> "Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. Não consegui determinar a variante exata de Batata-Doce Assada em Rodelas (Rodelas). Informe a variante/linha/sabor ou envie uma foto legível do rótulo antes de registrar os nutrientes."
+
+O comportamento observado combina duas falhas de produto:
+
+1. a refeição deixou de ser tratada como um conjunto de múltiplos alimentos;
+2. um alimento/preparação genérica foi encaminhado para clarificação de **identidade comercial/variante** sem evidência suficiente de marca, linha ou produto comercial.
+
+A implementação deve partir da branch **develop**.
+
+## Relação com a issue #1174
+
+Esta issue é **distinta da #1174**.
+
+- **#1174**: continuidade entre item provisório já registrado e rótulo nutricional enviado em turno posterior.
+- **#1177**: extração inicial de foto de refeição multi-item, classificação correta de identidade genérica/comercial e preservação do conjunto durante clarificações.
+
+Não ampliar a #1174 para absorver este problema e não mover para esta issue a governança de rótulo posterior definida lá.
+
+## Baseline validado na `develop`
+
+A revisão do código e da documentação atuais mostrou que a infraestrutura necessária já existe parcialmente:
+
+- `server/mealAiExtraction.ts` aceita `items[]` no Structured Output de `MEAL_VISION`; a extração não é, por contrato, limitada a um único alimento.
+- `server/mealItemCleanup.ts` limpa ruído/baixa confiança e deduplica, mas não deve colapsar legitimamente uma refeição multi-item em um único componente.
+- `server/mealSemanticContract.ts` constrói um contrato por item e pode carregar múltiplas clarificações.
+- `server/nutritionEngine.ts` atualmente lança `MealInferenceError("food_identity_clarification_required")` na **primeira** clarificação semântica, mas inclui o `semanticContract` completo no contexto do erro.
+- `server/whatsappWebhookImplementation.ts` transforma esse erro de identidade vindo de imagem em uma resposta genérica de "produto/variante", sem hoje criar uma continuação persistente específica para retomar a refeição multi-item.
+- O fluxo de **quantidade** de imagem já possui continuidade canônica em `server/modules/whatsapp/foodQuantityClarification.ts` com `resolutionContext.mode = "complete_image_meal"`, preservando `items`, mídia, índices pendentes e sequência.
+- `server/modules/whatsapp/foodClarificationPersistence.ts` retoma esse contexto, resolve um item por vez e só persiste a refeição ao final.
+- `whatsappPendingOperations` + `server/modules/whatsapp/interactionRegistry.ts` são a fonte única de verdade para interações persistentes.
+
+A correção deve **estender/reutilizar esses contratos**, não criar um fluxo paralelo para imagens.
+
+> O baseline acima identifica fronteiras onde a regressão pode ocorrer, mas não presume que um único arquivo seja a causa raiz do caso de produção. A implementação deve comprovar a causa com teste de regressão.
+
+## Fontes canônicas relacionadas
+
+Reutilizar e manter coerência com:
+
+- `docs/product-specs/meal-registration.md`;
+- `docs/product-specs/whatsapp-flow.md`;
+- `docs/design-docs/whatsapp-interaction-registry.md`;
+- `server/mealAiExtraction.ts`;
+- `server/mealSemanticContract.ts`;
+- `server/nutritionEngine.ts`;
+- `server/modules/whatsapp/foodQuantityClarification.ts`;
+- `server/modules/whatsapp/foodClarificationPersistence.ts`;
+- contrato semântico multimodal de `processMealInput`;
+- capacidade canônica `MEAL_VISION`.
+
+## Objetivo
+
+Garantir que uma foto de refeição contendo vários alimentos seja processada como **refeição multi-item**, preservando todos os itens reconhecíveis e evitando que alimentos genéricos/preparações comuns sejam indevidamente promovidos ao fluxo de produto comercial com marca/linha/variante.
+
+Se somente um item estiver ambíguo, a clarificação deve afetar **somente esse item** e a resposta posterior deve retomar a mesma refeição/imagem até que todas as pendências necessárias sejam resolvidas.
+
+## Escopo
+
+- Preservar múltiplos itens retornados por `MEAL_VISION` durante extração, normalização, resolução nutricional e clarificação.
+- Corrigir a distinção semântica entre:
+  - alimento/preparação genérica;
+  - produto comercial com marca/linha/variante.
+- Tornar clarificação de identidade em imagem uma continuação persistente e retomável quando necessária.
+- Reutilizar o contexto `complete_image_meal` e/ou evoluir o contrato canônico de clarificação dentro de `whatsappPendingOperations` + interaction registry.
+- Manter o fail-closed existente para identidade comercial realmente ambígua.
+- Preservar o fluxo posterior de quantidade já existente para itens cuja porção continue pendente.
+
+## Invariantes obrigatórios
+
+- **must_behave:** uma imagem com vários componentes reconhecíveis produz múltiplos itens candidatos quando a evidência visual os sustentar.
+- **must_behave:** ambiguidade de um item não apaga, substitui nem reclassifica silenciosamente os demais.
+- **must_behave:** descritores de preparo, corte ou apresentação — por exemplo `assada`, `cozida`, `grelhada`, `em rodelas`, `picada`, `fatiada` — não constituem, isoladamente, evidência de identidade comercial.
+- **must_behave:** depois de resolver identidade de um item, o fluxo continua da mesma refeição e, se necessário, entra na sequência canônica de quantidade dos itens ainda pendentes.
+- **must_reuse:** `MEAL_VISION`, `processMealInput`, `MealSemanticContract`, `whatsappPendingOperations`, interaction registry e a continuidade existente de `complete_image_meal`.
+- **must_be_single_source:** o conjunto de itens da imagem e o estado de suas pendências devem ter uma única representação canônica durante a continuação; não manter uma cópia funcional concorrente por handler.
+- **precedence_invariant:** marca/linha/variante explicitamente observada no texto/caption/rótulo ou sustentada pelo contrato semântico > inferência comercial derivada; ausência de evidência comercial não autoriza promover alimento genérico a produto comercial.
+- **precedence_invariant:** clarificação de identidade pendente deve ser resolvida antes de persistir a refeição; após resolvida, quantidades pendentes continuam pelo fluxo canônico já existente.
+- **must_not_behave:** não pedir "variante/linha/sabor" para alimento genérico apenas porque a nutrição, quantidade ou preparo ainda é incerto.
+- **must_not_behave:** não persistir parcialmente os itens "bons" enquanto outro item da mesma imagem ainda exige clarificação, salvo se um contrato canônico existente explicitamente determinar outra operação independente (ex.: hidratação já separada pelo domínio).
+- **must_not_behave:** não reexecutar a visão da imagem nem exigir novo upload apenas para recuperar itens que já estavam no `semanticContract`/contexto persistido.
+- **must_not_depend_on:** a correção não pode depender de lista manual de alimentos conhecidos, horário da mensagem ou memória em processo.
+- **forbidden_implementation:** criar lista hardcoded de alimentos "sem variante".
+- **forbidden_implementation:** criar novo store, roteador de pendência ou parser paralelo exclusivo para imagem.
+- **forbidden_implementation:** tratar apenas `semanticContract.clarifications[0]` e descartar o restante do contrato multi-item.
+
+### Implementações erradas que o teste deve distinguir
+
+1. **Corrige "batata-doce" por exceção textual**, mas outro alimento genérico continua virando variante comercial.
+   - Controle: usar ao menos outro alimento/preparação genérica sem depender de allowlist.
+2. **Preserva múltiplos itens no caminho feliz**, mas quando um item exige identidade, os demais desaparecem.
+   - Controle: cenário multi-item com uma clarificação e verificação do contexto após a resposta.
+3. **Persiste os itens resolvidos antes da clarificação**, depois adiciona o restante.
+   - Controle: antes da resposta do usuário, nenhuma refeição parcial deve ter sido criada.
+4. **Reprocessa a imagem após a resposta**, podendo gerar outro conjunto de itens.
+   - Controle: continuação deve reutilizar o contexto persistido e não exigir segunda chamada de `MEAL_VISION` para o mesmo inbound.
+
+## Requisitos funcionais
+
+### 1. Extração e preservação multi-item
+
+Ao processar foto de prato:
+
+1. `MEAL_VISION` pode retornar zero, um ou vários itens.
+2. Cada componente com evidência suficiente deve permanecer como item independente.
+3. Limpeza/deduplicação pode remover ruído real, mas não pode escolher arbitrariamente "o melhor item" e descartar os demais.
+4. Confiança e evidência permanecem por item.
+
+### 2. Identidade genérica x comercial
+
+Aplicar política comercial somente quando houver evidência compatível de identidade comercial.
+
+- `brand`, `productVariant`, linha/sabor ou motivo `brand_variant_unresolved` não podem nascer somente de descritor de preparo/apresentação.
+- Nome composto de alimento genérico continua sendo identidade alimentar, não marca/variante, salvo evidência adicional.
+- Produto comercial real mantém a política fail-closed vigente.
+- Não alterar globalmente o vocabulário de variantes sem teste que prove a necessidade; corrigir a fronteira semântica que gerou a classificação indevida.
+
+### 3. Clarificação de identidade multi-item
+
+Quando `processMealInput` produzir `food_identity_clarification_required` para uma imagem:
+
+1. usar o `semanticContract` completo do erro como fonte para identificar item alvo e itens já conhecidos;
+2. preservar mídia/referência opaca, inbound `message.id`, refeição lógica, itens, índices e evidências necessários para retomada;
+3. persistir a operação **antes** de enviar uma pergunta acionável;
+4. perguntar somente o atributo realmente ambíguo do item alvo;
+5. manter os demais itens intactos;
+6. uma resposta válida resolve somente o item alvo;
+7. se existir outra clarificação de identidade no mesmo conjunto, avançar para ela sem perder o estado;
+8. quando não houver identidade pendente, continuar para as quantidades pendentes pelo fluxo `complete_image_meal`;
+9. persistir a refeição somente quando o conjunto estiver apto ao contrato canônico de persistência.
+
+É permitido **evoluir o target/resolutionContext canônico ou registrar um subtipo/interação adicional no interaction registry**, se necessário. É proibido criar uma segunda máquina de estados ou store paralelo.
+
+### 4. Lifecycle da continuação
+
+A pendência deve obedecer ao lifecycle canônico:
+
+- **created:** contexto persistido antes do outbound;
+- **active/represented:** resposta inválida reapresenta a mesma pendência sem descartar itens;
+- **resolved:** claim atômico e avanço para a próxima pendência ou persistência final;
+- **cancelled:** não persiste refeição parcial;
+- **expired:** não persiste refeição parcial e não reutiliza contexto obsoleto;
+- **superseded:** novo comando completo pode substituir a pendência conforme precedência canônica.
+
+Reentrega da mesma mensagem ou duas respostas concorrentes devem resultar em no máximo uma conclusão válida.
+
+### 5. Resultado insuficiente
+
+Se a imagem não permitir reconhecer alimentos com segurança:
+
+- não inventar itens;
+- não selecionar arbitrariamente um único componente;
+- responder com clarificação geral apropriada;
+- não fabricar marca/variante;
+- `items: []` validado continua sendo resultado funcional conforme contrato de `MEAL_VISION`, sem retry/fallback apenas por estar vazio.
+
+## Cenários obrigatórios
+
+### Regressão observada
+
+**Entrada:** foto de prato com múltiplos alimentos visíveis.
+
+**Resultado atual incorreto:**
+- apenas "Batata-Doce Assada em Rodelas" domina o fluxo;
+- o sistema pede "variante/linha/sabor".
+
+**Resultado esperado:**
+- refeição permanece multi-item;
+- demais componentes reconhecíveis são preservados;
+- batata-doce é alimento/preparação genérica, salvo evidência explícita de produto comercial;
+- se a pendência real for quantidade, perguntar quantidade/porção, não variante comercial.
+
+### Um item ambíguo entre vários
+
+Com três itens resolvidos e um quarto com identidade ambígua:
+
+- nenhum dos quatro é persistido parcialmente;
+- os três resolvidos permanecem no contexto;
+- somente o quarto é clarificado;
+- resposta válida continua a mesma refeição.
+
+### Duas ambiguidades de identidade
+
+Com dois itens ambíguos na mesma imagem:
+
+- resolver um não descarta o outro;
+- o fluxo avança de forma determinística;
+- ao final, segue para quantidades pendentes sem nova análise visual.
+
+### Produto comercial real junto de alimentos genéricos
+
+- somente o produto com evidência comercial segue regras de marca/variante;
+- alimentos genéricos não herdam esse estado;
+- falha/ambiguidade no produto não transforma os demais em produtos comerciais.
+
+### Baixa confiança global
+
+Se nenhum componente for identificável com segurança:
+
+- solicitar descrição/clarificação geral;
+- não criar refeição vazia/genérica;
+- não inventar variante.
+
+## Idempotência, concorrência e isolamento
+
+- Reentrega do mesmo `message.id` não cria segunda pendência nem segunda refeição.
+- Reinício do processo não perde uma pendência ativa.
+- Resposta inválida mantém o contexto.
+- Duas respostas concorrentes resultam em no máximo um claim/conclusão.
+- Pendência de um usuário/telefone não pode ser consumida por outro.
+- Novo comando completo incompatível segue a regra canônica de `superseded`.
+- Cancelamento/expiração deixam o domínio sem refeição parcial criada por esta imagem.
+
+## Tratamento de falhas e fallback
+
+- Falha de `MEAL_VISION`: comportamento canônico de indisponibilidade/clarificação, sem persistência genérica.
+- Structured Output válido multi-item: preservar os itens até a etapa de domínio correspondente.
+- Falha ao persistir a pendência: não enviar pergunta que dependa daquele contexto.
+- Falha depois de claim mas antes da persistência final: aplicar recuperação/idempotência canônica; não recriar silenciosamente uma segunda refeição.
+- Item genérico com nutrição incerta: seguir o caminho genérico permitido pelo contrato de produto.
+- Produto comercial realmente ambíguo: manter fail-closed.
+- Falha em item ambíguo não autoriza fallback que transforme o item em genérico se havia identidade comercial explícita.
+
+## Critérios de aceite
+
+- [ ] A regressão observada não resulta mais em uma refeição reduzida a "Batata-Doce Assada em Rodelas" com pedido indevido de variante.
+- [ ] Uma imagem com múltiplos componentes reconhecíveis preserva múltiplos itens até a conclusão ou cancelamento.
+- [ ] Descritores de preparo/formato não são tratados isoladamente como evidência de variante comercial.
+- [ ] Batata-doce genérica não abre clarificação de marca/linha/sabor sem evidência comercial.
+- [ ] `MealInferenceError.food_identity_clarification_required` vindo de imagem preserva e torna retomável o `semanticContract` multi-item, em vez de virar apenas resposta terminal genérica.
+- [ ] A pendência é persistida antes da pergunta acionável.
+- [ ] Resposta a uma clarificação modifica/resolve somente o item alvo e preserva os demais.
+- [ ] Duas ambiguidades de identidade na mesma imagem podem ser resolvidas sequencialmente sem nova chamada de visão.
+- [ ] Após identidades resolvidas, quantidades ausentes continuam pelo contrato canônico `complete_image_meal`.
+- [ ] Nenhuma refeição parcial é persistida enquanto a imagem ainda possui clarificação obrigatória.
+- [ ] Cancelamento e expiração não criam refeição parcial.
+- [ ] Reentrega, retry, reinício e respostas concorrentes não duplicam refeição, pendência ou mutação.
+- [ ] Outro usuário não consome a pendência.
+- [ ] Produto comercial real continua fail-closed quando a variante não puder ser comprovada.
+- [ ] Nenhuma lista hardcoded de alimentos "sem variante" é usada como correção principal.
+- [ ] Nenhum store/roteador/pipeline paralelo de pendência é criado.
+- [ ] `items: []` funcional continua sem retry/fallback indevido.
+- [ ] Testes focados, `pnpm check`, `pnpm architecture:check` e regressões de WhatsApp/MEAL_VISION aplicáveis passam.
+
+## Considerações de testes
+
+Cobrir no mínimo:
+
+- fixture visual/sintética representativa de prato com 3+ componentes;
+- regressão com alimento genérico contendo descritor de preparo/formato;
+- controle com outro alimento genérico, provando ausência de allowlist específica;
+- múltiplos itens com apenas um exigindo clarificação de identidade;
+- dois itens exigindo clarificação de identidade;
+- identidade resolvida seguida de uma ou mais quantidades pendentes;
+- produto comercial real junto de alimentos genéricos;
+- baixa confiança em um item sem perda dos demais;
+- baixa confiança global;
+- `items: []`;
+- normalização/cleanup preservando múltiplos itens válidos;
+- resposta inválida, cancelamento e expiração;
+- reentrega do mesmo `message.id`;
+- reinício entre pergunta e resposta;
+- duas respostas concorrentes;
+- isolamento entre usuários;
+- ausência de segunda chamada `MEAL_VISION` na retomada;
+- ausência de persistência parcial;
+- ausência de regressão na #1174 e nos fluxos de produto comercial/rótulo.
+
+## Impacto na documentação
+
+A revisão identificou uma regra durável que deve ficar explícita durante a implementação:
+
+- `docs/product-specs/meal-registration.md`: registrar que clarificação obrigatória de **um item** de imagem multi-item preserva o conjunto do rascunho/contrato e não autoriza persistência parcial.
+- `docs/product-specs/whatsapp-flow.md`: ampliar a regra já existente de preservação multi-item durante clarificação de quantidade para também cobrir clarificação de identidade.
+- `docs/design-docs/whatsapp-interaction-registry.md`: atualizar somente se for necessário evoluir target/subtipo/interação registrada; não criar segunda fonte de verdade.
+
+Não criar novo documento para esta regra.
+
+## Fora de escopo
+
+- Alterar a política da #1174 sobre rótulo nutricional posterior.
+- Mudar provider/modelo de `MEAL_VISION`.
+- Criar reconhecimento manual por lista fixa de alimentos.
+- Reprocessar refeições históricas.
+- Alterar governança do catálogo global.
+- Refatoração ampla do pipeline de IA sem relação direta com a regressão.
+- Alterar a política de hidratação já separada do domínio.
+
+## Base de implementação
+
+Partir da **develop** atual.
+
+## Prontidão
+
+**Pronta.**
+
+A causa exata do exemplo de produção ainda deve ser comprovada por teste de regressão, mas o contrato de comportamento, as fontes canônicas, o lifecycle da continuação, a fronteira de reutilização e os critérios discriminantes estão suficientemente definidos para implementação sem decisão adicional de produto.
