@@ -172,6 +172,14 @@ export async function applyNutritionLabelPhotoToMeal(input: {
   }
 
   const updatedItem = buildMealItemFromNutritionLabel(original, input.item);
+  await recordNutritionLabelCandidates({
+    userId: input.userId,
+    mealId: meal.id,
+    sourceText: meal.sourceText,
+    items: [updatedItem],
+    itemIndexes: [input.itemIndex],
+  });
+
   const updatedMeal = await updateUserMeal(
     {
       userId: input.userId,
@@ -186,13 +194,6 @@ export async function applyNutritionLabelPhotoToMeal(input: {
     { logEvent: false }
   );
 
-  await recordNutritionLabelCandidates({
-    userId: input.userId,
-    mealId: meal.id,
-    sourceText: meal.sourceText,
-    items: [updatedItem],
-    itemIndexes: [input.itemIndex],
-  });
   logInferenceEvent({
     userId: input.userId,
     origin: "whatsapp",

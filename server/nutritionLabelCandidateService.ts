@@ -671,11 +671,13 @@ export async function createProvisionalNutritionLabelPhotoRequests(input: {
       instructionText: `Envie uma foto legível do rótulo de ${item.foodName}, mostrando a tabela nutricional e a porção. Não registre o alimento novamente; esta foto será usada para atualizar os nutrientes provisórios já registrados.`,
       actions: [{ id: "cancel", title: "Cancelar" }],
     };
+    const dedupeKey = `${NUTRITION_LABEL_PHOTO_REQUEST_TYPE}:${input.userId}:${input.mealId}:${itemIndex}`;
     const pending = await pendingOperationRepository.createPendingOperation({
       userId: input.userId,
       type: NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
       origin: NUTRITION_LABEL_PHOTO_REQUEST_ORIGIN,
       target,
+      dedupeKey,
       ttlMs: NUTRITION_LABEL_PHOTO_REQUEST_TTL_MS,
     });
     if (pending) created.push(pending.id);

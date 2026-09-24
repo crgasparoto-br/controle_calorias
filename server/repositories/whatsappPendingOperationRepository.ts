@@ -29,6 +29,7 @@ export type CreatePendingOperationInput = {
   userId: number;
   type: string;
   target: unknown;
+  dedupeKey?: string | null;
   origin: string;
   ttlMs: number;
   now?: Date;
@@ -94,7 +95,7 @@ async function transitionFromActive(
 ): Promise<boolean> {
   const result = await db
     .update(whatsappPendingOperations)
-    .set({ state: nextState, updatedAt: new Date() })
+    .set({ state: nextState, dedupeKey: null, updatedAt: new Date() })
     .where(
       and(
         eq(whatsappPendingOperations.id, id),
@@ -137,11 +138,21 @@ function createFallbackStore() {
   return {
     create(input: CreatePendingOperationInput): WhatsAppPendingOperationRecord {
       const now = input.now ?? new Date();
+      const existing = input.dedupeKey
+        ? [...fallbackStore.values()].find(
+            row =>
+              row.dedupeKey === input.dedupeKey &&
+              row.state === "active" &&
+              new Date(row.expiresAt).getTime() >= now.getTime()
+          )
+        : null;
+      if (existing) return existing;
       const record = {
         id: fallbackNextId++,
         userId: input.userId,
         type: input.type,
         target: input.target,
+        dedupeKey: input.dedupeKey ?? null,
         origin: input.origin,
         state: "active",
         version: 1,
@@ -212,6 +223,7 @@ function createFallbackStore() {
         return false;
       Object.assign(row, {
         state: "consumed",
+        dedupeKey: null,
         version: expectedVersion + 1,
         consumedAt: new Date(),
       });
@@ -223,7 +235,7 @@ function createFallbackStore() {
     ): boolean {
       const row = fallbackStore.get(id);
       if (!row || row.state !== "active") return false;
-      Object.assign(row, { state: nextState });
+      Object.assign(row, { state: nextState, dedupeKey: null });
       return true;
     },
     purgeInactive(operationalDays: number, now: Date): number {
@@ -261,10 +273,23 @@ export function createDrizzleWhatsAppPendingOperationRepository(
       const now = input.now ?? new Date();
 
       try {
+        if (input.dedupeKey) {
+          await db
+            .update(whatsappPendingOperations)
+            .set({ state: "expired", dedupeKey: null, updatedAt: now })
+            .where(
+              and(
+                eq(whatsappPendingOperations.dedupeKey, input.dedupeKey),
+                eq(whatsappPendingOperations.state, "active"),
+                lt(whatsappPendingOperations.expiresAt, now)
+              )
+            );
+        }
         const inserted = await db.insert(whatsappPendingOperations).values({
           userId: input.userId,
           type: input.type,
           target: input.target,
+          dedupeKey: input.dedupeKey ?? null,
           origin: input.origin,
           state: "active",
           version: 1,
@@ -287,6 +312,26 @@ export function createDrizzleWhatsAppPendingOperationRepository(
 
         return created ?? null;
       } catch (error) {
+        if (input.dedupeKey) {
+          try {
+            const [existing] = await db
+              .select()
+              .from(whatsappPendingOperations)
+              .where(
+                and(
+                  eq(whatsappPendingOperations.dedupeKey, input.dedupeKey),
+                  eq(whatsappPendingOperations.state, "active")
+                )
+              )
+              .orderBy(desc(whatsappPendingOperations.id))
+              .limit(1);
+            if (existing && new Date(existing.expiresAt).getTime() >= now.getTime()) {
+              return existing;
+            }
+          } catch (lookupError) {
+            deps.onWarning("WhatsApp pending operation dedupe lookup skipped", lookupError);
+          }
+        }
         deps.onWarning("WhatsApp pending operation create skipped", error);
         return null;
       }
@@ -455,6 +500,7 @@ export function createDrizzleWhatsAppPendingOperationRepository(
           .update(whatsappPendingOperations)
           .set({
             state: "consumed",
+            dedupeKey: null,
             version: expectedVersion + 1,
             consumedAt: new Date(),
             updatedAt: new Date(),

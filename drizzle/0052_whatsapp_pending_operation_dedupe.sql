@@ -1,0 +1,2 @@
+ALTER TABLE `whatsappPendingOperations` ADD `dedupeKey` varchar(255);--> statement-breakpoint
+ALTER TABLE `whatsappPendingOperations` ADD CONSTRAINT `wa_pending_op_dedupe_key_unique` UNIQUE(`dedupeKey`);

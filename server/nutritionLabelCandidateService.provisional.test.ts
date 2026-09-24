@@ -242,6 +242,9 @@ describe("nutrition label provisional WhatsApp flow", () => {
         createPendingOperationMock.mock.calls[0][0].target
       )
     ).toBe(true);
+    expect(createPendingOperationMock.mock.calls[0][0].dedupeKey).toBe(
+      "nutrition_label_photo_request:42:900:0"
+    );
   });
 
   it("não oferece continuação como persistida quando a pending operation não foi criada", async () => {
@@ -398,6 +401,25 @@ describe("nutrition label provisional WhatsApp flow", () => {
     expect(updateUserMealMock).toHaveBeenCalledOnce();
     expect(updateUserMealMock.mock.calls[0][0].items).toHaveLength(1);
     expect(persistArtifactMock).toHaveBeenCalled();
+    expect(persistArtifactMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateUserMealMock.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("não promove a refeição quando a persistência da evidência falha", async () => {
+    const meal = originalMeal();
+    listUserMealsMock.mockResolvedValue([meal]);
+    persistArtifactMock.mockRejectedValueOnce(new Error("candidate persistence failed"));
+
+    await expect(
+      applyNutritionLabelPhotoToMeal({
+        mealId: 900,
+        itemIndex: 0,
+        userId: 42,
+        item: labelItem,
+      })
+    ).rejects.toThrow("candidate persistence failed");
+    expect(updateUserMealMock).not.toHaveBeenCalled();
   });
 
   it("nunca troca a identidade Elma Chips por Dori ao aplicar nutrientes do rótulo", async () => {
