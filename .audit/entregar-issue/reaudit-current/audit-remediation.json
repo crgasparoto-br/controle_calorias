@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "594d7d886698621fbeecb07587eb525459127205",
+  "remediation_mode": "mixed-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:ee6f493cc3407c30",
+    "audited_head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+    "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1175-SAME-BRAND-PRODUCT-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+        "server/nutritionLabelCandidateService.ts",
+        "server/nutritionLabelCandidateService.provisional.test.ts"
+      ],
+      "validations": [
+        "Agent-first exact-head tests passed",
+        "Same-brand different-product control blocks mutation and brand-only resolution"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+        "server/whatsappWebhookImplementation.ts",
+        "server/whatsappWebhook.reply.test.ts"
+      ],
+      "validations": [
+        "Agent-first exact-head tests passed",
+        "Persistence absence suppresses actionable label invitation"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1175-CONCURRENCY-SATURATION-003",
+      "remediation_mode": "systemic-remediation",
+      "status": "fixed",
+      "evidence": [
+        ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt",
+        ".audit/entregar-issue/reaudit-current/audit-escape-closure.json",
+        ".audit/entregar-issue/reaudit-current/learning-closure.json"
+      ],
+      "validations": [
+        "Generic lexical precision tests passed",
+        "Risk saturation now declares concurrency-atomicity applicable with parallel-response control"
+      ]
+    }
+  ]
+}

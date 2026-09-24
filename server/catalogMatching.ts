@@ -114,6 +114,8 @@ const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "artesanais",
   "assada",
   "assado",
+  "cozidas",
+  "cozidos",
   "caseira",
   "caseiro",
   "cozida",
@@ -122,6 +124,11 @@ const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "fatiado",
   "fresca",
   "fresco",
+  "grelhada",
+  "grelhado",
+  "picada",
+  "picado",
+  "rodelas",
   "torrada",
   "torrado",
 ]);
@@ -175,6 +182,55 @@ type UnresolvedCommercialIdentityHint = {
   brand: string | null;
   productVariant: string | null;
 };
+
+const NON_NATURAL_PRODUCE_QUALIFIER_TOKENS = new Set([
+  "barra",
+  "calda",
+  "chips",
+  "chip",
+  "com",
+  "doce",
+  "desidratada",
+  "desidratado",
+  "frita",
+  "frito",
+  "geleia",
+  "suco",
+]);
+
+export function isNaturalProduceCatalogFood(
+  food: CatalogFood | null | undefined,
+) {
+  if (!food || food.brandName?.trim() || food.isBrandedProduct) return false;
+  if (food.isFruit || food.isVegetable) return true;
+
+  // TACO entries for produce without an explicit classification flag still
+  // carry the canonical raw-preparation marker in their identity (e.g.
+  // "Pêra, Park, crua"). This is a source-derived marker, not a list of
+  // cultivars or a fallback for arbitrary food names.
+  const identity = normalizeForMatching(
+    [food.name, ...food.aliases].join(" "),
+  );
+  return /\b(?:cru|crua|in natura)\b/u.test(identity) && !food.isUltraProcessed;
+}
+
+export function findNaturalProduceCatalogFood(foodName: string) {
+  const sourceTokens = normalizedWords(foodName);
+  if (sourceTokens.some(token => NON_NATURAL_PRODUCE_QUALIFIER_TOKENS.has(token))) {
+    return null;
+  }
+
+  const direct = findCatalogFood(foodName) ?? findTacoFood(foodName);
+  if (direct) return isNaturalProduceCatalogFood(direct) ? direct : null;
+
+  for (let length = sourceTokens.length - 1; length >= 1; length -= 1) {
+    const candidateName = sourceTokens.slice(0, length).join(" ");
+    const candidate = findCatalogFood(candidateName) ?? findTacoFood(candidateName);
+    if (isNaturalProduceCatalogFood(candidate)) return candidate;
+  }
+
+  return null;
+}
 
 function normalizedWords(value: string) {
   return normalizeText(value)

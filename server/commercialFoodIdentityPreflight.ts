@@ -1,4 +1,8 @@
-import { findCatalogFood, inferUnresolvedCommercialIdentityHint } from "./catalogMatching";
+import {
+  findCatalogFood,
+  findNaturalProduceCatalogFood,
+  inferUnresolvedCommercialIdentityHint,
+} from "./catalogMatching";
 import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
 import type { MealInferenceError } from "./nutritionEngine";
@@ -83,6 +87,8 @@ export function resolveStructuredCommercialIdentity(
 
   const knownBrand = detectKnownBrand(request.foodName);
   if (knownBrand) return { brand: knownBrand };
+
+  if (findNaturalProduceCatalogFood(request.foodName)) return { brand: null };
 
   const hint = inferUnresolvedCommercialIdentityHint(request.foodName);
   if (hint?.brand) return { brand: hint.brand };

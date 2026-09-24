@@ -445,4 +445,118 @@ describe("#1054 — resolvedor real e precedência comercial", () => {
     ).toBeNull();
     expect(boundary.confirm).toHaveBeenCalledOnce();
   });
+
+  it("resolve fruta natural qualificada por referência contextual sem pedir peso", async () => {
+    boundary.catalog = [{
+      slug: "banana",
+      name: "Banana",
+      aliases: ["banana", "banana nanica"],
+      servingLabel: "1 unidade",
+      gramsPerServing: 80,
+      calories: 72,
+      protein: 0.9,
+      carbs: 18.6,
+      fat: 0.2,
+      fiber: 2.1,
+      processingLevel: "natural_or_minimally_processed",
+      isFruit: true,
+    }];
+    boundary.measureSearch.mockResolvedValueOnce({
+      id: "measure-1181",
+      outputText: JSON.stringify({
+        found: true,
+        references: [{
+          matchedFoodName: "Pêra",
+          foodTypeName: "pêra",
+          brandName: "",
+          measureUnit: "unidade",
+          measureQuantity: 1,
+          grams: 150,
+          referenceKind: "same_food_type",
+          describesTypicalMeasure: false,
+          sourceUrl: "https://example.test/pera-unidade",
+          evidence: "1 unidade de pêra pesa 150 g.",
+        }],
+      }),
+      webSearch: {
+        executed: true,
+        searchCount: 1,
+        sources: [{
+          url: "https://example.test/pera-unidade",
+          title: "Pêra crua",
+          supportingText: ["1 unidade de pêra pesa 150 g."],
+        }],
+      },
+      raw: {},
+    });
+
+    const result = await gate("1 banana nanica, 1 pêra packans");
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      registrationText: "80 g de banana nanica\n150 g de pêra packans",
+      resolutions: expect.arrayContaining([
+        expect.objectContaining({
+          request: expect.objectContaining({ foodName: "pêra packans", brand: null }),
+          resolution: expect.objectContaining({
+            kind: "contextual_estimate",
+            grams: 150,
+            requestedQuantity: 1,
+            requestedUnit: "unidade",
+          }),
+        }),
+      ]),
+    });
+    expect(boundary.measureSearch).toHaveBeenCalledOnce();
+  });
+
+  it("resolve pêra genérica por unidade no mesmo wrapper contável", async () => {
+    boundary.measureSearch.mockResolvedValueOnce({
+      id: "measure-1181-generic",
+      outputText: JSON.stringify({
+        found: true,
+        references: [{
+          matchedFoodName: "Pêra",
+          foodTypeName: "pêra",
+          brandName: "",
+          measureUnit: "unidade",
+          measureQuantity: 1,
+          grams: 150,
+          referenceKind: "same_food_type",
+          describesTypicalMeasure: false,
+          sourceUrl: "https://example.test/pera-generica-unidade",
+          evidence: "1 unidade de pêra pesa 150 g.",
+        }],
+      }),
+      webSearch: {
+        executed: true,
+        searchCount: 1,
+        sources: [{
+          url: "https://example.test/pera-generica-unidade",
+          title: "Pêra crua",
+          supportingText: ["1 unidade de pêra pesa 150 g."],
+        }],
+      },
+      raw: {},
+    });
+
+    const result = await gate("1 pêra");
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      registrationText: "150 g de pêra",
+      resolutions: [
+        expect.objectContaining({
+          request: expect.objectContaining({ foodName: "pêra", brand: null }),
+          resolution: expect.objectContaining({
+            kind: "contextual_estimate",
+            grams: 150,
+            requestedQuantity: 1,
+            requestedUnit: "unidade",
+          }),
+        }),
+      ],
+    });
+    expect(boundary.measureSearch).toHaveBeenCalledOnce();
+  });
 });

@@ -1,6 +1,7 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
   findCatalogFood,
+  findNaturalProduceCatalogFood,
   inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
@@ -90,6 +91,10 @@ export type MealInferenceErrorContext = {
   acceptedUnits?: string[];
   foodName?: string;
   brand?: string | null;
+  items?: MealDraftItem[];
+  detectedMealLabel?: string;
+  reasoning?: string;
+  confidence?: number;
   /** Indica que a identidade veio do fallback textual, sem extração da IA. */
   usedSourceTextFallback?: boolean;
   clarificationReason?: MealSemanticClarificationCode;
@@ -230,15 +235,19 @@ function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
   const normalizedSource = normalizeForMatching(sourceFoodName).trim();
   const normalizedItem = normalizeForMatching(item.foodName).trim();
   const genericTacoFood = findTacoFood(sourceFoodName);
+  const naturalProduce = findNaturalProduceCatalogFood(sourceFoodName);
   const isNaturalFoodIdentity =
     classification.isFruit ||
     classification.isVegetable ||
+    Boolean(naturalProduce) ||
     Boolean(genericTacoFood && !genericTacoFood.brandName);
 
   return (
     classification.processingLevel === "natural_or_minimally_processed" &&
     isNaturalFoodIdentity &&
-    (normalizedSource === normalizedItem || Boolean(genericTacoFood))
+    (normalizedSource === normalizedItem ||
+      Boolean(genericTacoFood) ||
+      Boolean(naturalProduce))
   );
 }
 
@@ -1398,6 +1407,23 @@ export async function processMealInput(
         originalText: sourceText,
         foodName: semanticItem?.commercialName,
         brand: semanticItem?.brand ?? null,
+        detectedMealLabel,
+        reasoning,
+        confidence,
+        items: items.map(item => ({
+          ...item,
+          resolution: item.resolution
+            ? {
+                ...item.resolution,
+                ambiguity: item.resolution.ambiguity
+                  ? {
+                      ...item.resolution.ambiguity,
+                      alternatives: item.resolution.ambiguity.alternatives.map(alternative => ({ ...alternative })),
+                    }
+                  : item.resolution.ambiguity,
+              }
+            : item.resolution,
+        })),
         usedSourceTextFallback,
         clarificationReason: clarification.code,
         alternatives: [...clarification.alternatives],

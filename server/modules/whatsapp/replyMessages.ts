@@ -23,6 +23,7 @@ export type WhatsAppMealReplyOptions = {
   registeredAt?: Date;
   goalProgress?: WhatsAppMealGoalProgress | null;
   timeZone?: string;
+  nutritionLabelContinuationAvailable?: boolean;
 };
 
 export type WhatsAppConsolidatedMealReplyInput = {
@@ -106,9 +107,15 @@ function sumReplyItems(items: WhatsAppFoodReplyItem[]): WhatsAppNutritionTotals 
   );
 }
 
-function buildMealItemLines(items: WhatsAppFoodReplyItem[]) {
+function buildMealItemLines(
+  items: WhatsAppFoodReplyItem[],
+  options: Pick<WhatsAppMealReplyOptions, "nutritionLabelContinuationAvailable"> = {}
+) {
   return items.flatMap((item, index) => [
-    ...buildWhatsAppFoodLines(item),
+    ...buildWhatsAppFoodLines(item, {
+      nutritionLabelContinuationAvailable:
+        options.nutritionLabelContinuationAvailable,
+    }),
     ...(index < items.length - 1 ? [buildWhatsAppSeparator()] : []),
   ]);
 }
@@ -120,6 +127,7 @@ function buildMealReplyBody(input: {
   items: WhatsAppFoodReplyItem[];
   totals: WhatsAppNutritionTotals;
   goalLines: string[];
+  nutritionLabelContinuationAvailable?: boolean;
 }) {
   if (!input.items.length) {
     return buildWhatsAppBlock([
@@ -140,7 +148,10 @@ function buildMealReplyBody(input: {
     input.title,
     buildWhatsAppSeparator(),
     "Itens:",
-    ...buildMealItemLines(input.items),
+    ...buildMealItemLines(input.items, {
+      nutritionLabelContinuationAvailable:
+        input.nutritionLabelContinuationAvailable,
+    }),
     buildWhatsAppSeparator(),
     ...buildWhatsAppMealTotalLines(input.totals),
     ...(input.goalLines.length ? [buildWhatsAppSeparator(), ...input.goalLines] : []),
@@ -336,7 +347,16 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
   const title = buildMealTitle(processed.detectedMealLabel, registeredAt, false, timeZone);
   const contextLine = buildWhatsAppMealContextLine(processed.detectedMealLabel, registeredAt, timeZone);
   const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone);
-  return buildMealReplyBody({ title, contextLine, sourceText: processed.sourceText, items: processed.items, totals: processed.totals, goalLines });
+  return buildMealReplyBody({
+    title,
+    contextLine,
+    sourceText: processed.sourceText,
+    items: processed.items,
+    totals: processed.totals,
+    goalLines,
+    nutritionLabelContinuationAvailable:
+      options.nutritionLabelContinuationAvailable,
+  });
 }
 
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
@@ -345,7 +365,15 @@ export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolid
   const title = buildMealTitle(meal.mealLabel, registeredAt, true, timeZone);
   const contextLine = buildWhatsAppMealContextLine(meal.mealLabel, registeredAt, timeZone);
   const goalLines = buildMealGoalProgressLines(options.goalProgress, registeredAt, timeZone);
-  return buildMealReplyBody({ title, contextLine, items: meal.items, totals: sumReplyItems(meal.items), goalLines });
+  return buildMealReplyBody({
+    title,
+    contextLine,
+    items: meal.items,
+    totals: sumReplyItems(meal.items),
+    goalLines,
+    nutritionLabelContinuationAvailable:
+      options.nutritionLabelContinuationAvailable,
+  });
 }
 
 export function buildWhatsAppMealActionReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealActionReplyOptions) {

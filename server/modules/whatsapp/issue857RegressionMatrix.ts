@@ -157,6 +157,14 @@ const INTERACTION_SCENARIOS: Record<string, {
       { file: "server/modules/whatsapp/foodClarification.test.ts", requiredTokens: ["natual", "natural"] },
     ],
   },
+  "food_clarification.identity": {
+    modalities: ["text", "audio_transcription", "simulator", "image_context"],
+    evidence: [
+      { file: "server/modules/whatsapp/foodQuantityClarification.test.ts", requiredTokens: ["pendingKind", "identity", "preserva"] },
+      { file: "server/whatsappAnnotatedImageWebhook.test.ts", requiredTokens: ["identity_requested", "pendingItemIndexes", "Ouro Branco"] },
+      { file: "server/nutritionEngine.issue1088.test.ts", requiredTokens: ["assada", "rodelas", "toBeNull"] },
+    ],
+  },
   "food_clarification.confirmation": {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
@@ -167,6 +175,19 @@ const INTERACTION_SCENARIOS: Record<string, {
     modalities: ["text", "callback", "audio_transcription", "simulator", "image_context"],
     evidence: [
       { file: "server/modules/whatsapp/foodClarificationPlan.test.ts", requiredTokens: ["selection", "candidates"] },
+    ],
+  },
+  "nutrition_label_photo.clarification": {
+    modalities: ["text", "image_context", "simulator"],
+    evidence: [
+      {
+        file: "server/nutritionLabelCandidateService.provisional.test.ts",
+        requiredTokens: [
+          "Não é Dori, é Elma Chips",
+          "nutrition_label_photo_clarification_completed",
+          "claim concorrente perdido",
+        ],
+      },
     ],
   },
   "nutrition_label_photo.request": {

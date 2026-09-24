@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for authorization is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-028",
+        "NEG-1177-102"
+      ],
+      "dimensions": [
+        {
+          "surface": "session-target-binding",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover authorization:session-target-binding.",
+          "control_ids": [
+            "NEG-1177-028",
+            "NEG-1177-102"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for concurrency-atomicity is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S002"
+      ],
+      "dimensions": [
+        {
+          "surface": "concurrency-atomicity-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover concurrency-atomicity:concurrency-atomicity-contract.",
+          "control_ids": [
+            "NEG-1177-S002"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for documentation is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S003"
+      ],
+      "dimensions": [
+        {
+          "surface": "documentation-semantic-drift",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover documentation:documentation-semantic-drift.",
+          "control_ids": [
+            "NEG-1177-S003"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for historical-immutability is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S004"
+      ],
+      "dimensions": [
+        {
+          "surface": "historical-immutability-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover historical-immutability:historical-immutability-contract.",
+          "control_ids": [
+            "NEG-1177-S004"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for idempotency is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-041",
+        "NEG-1177-062",
+        "NEG-1177-074",
+        "NEG-1177-088",
+        "NEG-1177-093"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover idempotency:duplicate-processing.",
+          "control_ids": [
+            "NEG-1177-041",
+            "NEG-1177-062",
+            "NEG-1177-074",
+            "NEG-1177-088",
+            "NEG-1177-093"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "public-boundary",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for public-boundary is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S006"
+      ],
+      "dimensions": [
+        {
+          "surface": "public-boundary-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover public-boundary:public-boundary-contract.",
+          "control_ids": [
+            "NEG-1177-S006"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for reference-liveness is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-048"
+      ],
+      "dimensions": [
+        {
+          "surface": "reference-liveness",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover reference-liveness:reference-liveness.",
+          "control_ids": [
+            "NEG-1177-048"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "rollback",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for rollback is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S008"
+      ],
+      "dimensions": [
+        {
+          "surface": "rollback-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover rollback:rollback-contract.",
+          "control_ids": [
+            "NEG-1177-S008"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for structural-contract is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-009",
+        "NEG-1177-010",
+        "NEG-1177-011",
+        "NEG-1177-019",
+        "NEG-1177-027",
+        "NEG-1177-035",
+        "NEG-1177-042",
+        "NEG-1177-058",
+        "NEG-1177-104",
+        "NEG-1177-105"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover structural-contract:benchmark-path-fidelity.",
+          "control_ids": [
+            "NEG-1177-009",
+            "NEG-1177-010",
+            "NEG-1177-011",
+            "NEG-1177-019",
+            "NEG-1177-035",
+            "NEG-1177-042",
+            "NEG-1177-058",
+            "NEG-1177-104",
+            "NEG-1177-105"
+          ]
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover structural-contract:relational-semantic-integrity.",
+          "control_ids": [
+            "NEG-1177-027"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for temporal-consistency is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-005",
+        "NEG-1177-014",
+        "NEG-1177-025",
+        "NEG-1177-029",
+        "NEG-1177-040",
+        "NEG-1177-082",
+        "NEG-1177-085",
+        "NEG-1177-101",
+        "NEG-1177-103"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-consistency-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover temporal-consistency:temporal-consistency-contract.",
+          "control_ids": [
+            "NEG-1177-005",
+            "NEG-1177-014",
+            "NEG-1177-025",
+            "NEG-1177-029",
+            "NEG-1177-040",
+            "NEG-1177-082",
+            "NEG-1177-085",
+            "NEG-1177-101",
+            "NEG-1177-103"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for temporal-destination is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-S013"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-destination-contract",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover temporal-destination:temporal-destination-contract.",
+          "control_ids": [
+            "NEG-1177-S013"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Issue 1177 risk saturation decision for tenant-isolation is exact-head and derived from the canonical closure.",
+      "control_ids": [
+        "NEG-1177-089"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "status": "passed",
+          "reason": "Exact-head adversarial controls cover tenant-isolation:tenant-scope-isolation.",
+          "control_ids": [
+            "NEG-1177-089"
+          ]
+        }
+      ]
+    }
+  ],
+  "material_families_missing_controls": []
+}

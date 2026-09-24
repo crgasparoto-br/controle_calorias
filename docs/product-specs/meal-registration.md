@@ -36,7 +36,20 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 - O contrato mantém `alternatives`, `needsClarification` e motivo estruturado quando a identidade comercial não puder ser fechada. `brand_variant_unresolved` representa marca conhecida sem variante segura; `commercial_identity_unverified` representa variante/identidade informada mas ainda não comprovada.
 - `barcode` permanece `null` enquanto o pipeline atual não tiver evidência estruturada confiável de código de barras; o contrato não fabrica esse valor.
 - A composição nutricional de produto de marca só é `verified` quando provém de referência compatível de catálogo/pesquisa ou de tabela nutricional legível da mesma variante. `hybrid` estimado pela LLM não é evidência suficiente para fechar marca/variante.
-- Quando houver clarificação de identidade, `processMealInput` encerra antes da mutação. No registro confirmado do WhatsApp, o `MealInferenceError` estruturado segue para a continuação persistente de detalhes já existente, preservando a mensagem original antes de perguntar novamente ao usuário.
+- Quando houver clarificação de identidade, `processMealInput` encerra antes da mutação. No registro por imagem do WhatsApp, o `MealInferenceError` estruturado segue para a interação persistente `food_clarification.identity`, preservando o contrato semântico, a mídia, a mensagem original e todos os itens identificados antes de perguntar a marca/linha/variante do item alvo. A resposta resolve somente esse item; os demais continuam no mesmo contexto e a sequência passa por identidade e, depois, quantidade, sem executar uma segunda análise visual.
+- Descritores culinários ou de apresentação, como `assada`, `cozida`, `grelhada`, `picada`, `fatiada` e `em rodelas`, não constituem marca ou variante comercial por si só. Eles permanecem como atributos do alimento genérico e não podem abrir clarificação de produto.
+
+## Rótulo posterior de item provisório (#1174)
+
+Quando uma refeição já confirmada contém `nutritionOrigin = "provisional_estimate"` e `nutritionVerified = false`, a foto posterior do rótulo é uma **continuação da refeição existente**, não uma nova inferência de identidade ou uma nova refeição.
+
+- A identidade comercial confirmada no item original — nome, marca e variante — tem precedência sobre uma inferência isolada da nova imagem. O rótulo fornece porção, nutrientes e evidência; ele não pode renomear silenciosamente o produto.
+- A correlação usa o usuário proprietário, a operação pendente, `mealId`, `itemIndex` e a identidade comercial persistida. Tempo de chegada ou nome genérico do alimento, isoladamente, não são chaves suficientes.
+- Quando há vários itens provisórios, legenda/descrição compatível pode selecionar um único item. Se a evidência ainda for ambígua, o sistema persiste a foto já analisada e pergunta qual item deve ser atualizado; a resposta retoma a mesma evidência sem exigir reenvio.
+- Conflito explícito de produto, marca ou variante abre clarificação e preserva o estado anterior. Marca coincidente, isoladamente, não comprova que o rótulo pertence ao mesmo produto; respostas como `É Elma Chips` ou `Não é Dori, é Elma Chips` só resolvem conflitos de marca quando o produto continua compatível, enquanto conflito de produto exige confirmação textual do produto correspondente.
+- A aplicação válida escala os nutrientes da porção do rótulo para a quantidade originalmente consumida, atualiza somente o item correlacionado, recalcula os totais pela refeição persistida e mantém os demais itens intactos.
+- Claim compare-and-set da pendência precede a mutação. Reentrega, retry ou concorrência não podem aplicar o mesmo rótulo duas vezes. Pendência expirada, cancelada, consumida ou pertencente a outro usuário não autoriza mutação.
+- Evidência de rótulo de produto comercial continua sujeita à fila de revisão da #1158 para eventual publicação global; atualizar a refeição do usuário não publica automaticamente um novo item no catálogo.
 
 ## Classificação automática de alimentos (pipeline)
 

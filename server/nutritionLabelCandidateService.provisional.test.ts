@@ -5,6 +5,8 @@ const listActivePendingOperationsByTypeMock = vi.hoisted(() => vi.fn());
 const getActivePendingOperationMock = vi.hoisted(() => vi.fn());
 const createPendingOperationMock = vi.hoisted(() => vi.fn());
 const claimPendingOperationMock = vi.hoisted(() => vi.fn());
+const getPendingOperationByIdMock = vi.hoisted(() => vi.fn());
+const cancelPendingOperationMock = vi.hoisted(() => vi.fn());
 const listUserMealsMock = vi.hoisted(() => vi.fn());
 const updateUserMealMock = vi.hoisted(() => vi.fn());
 const persistArtifactMock = vi.hoisted(() => vi.fn());
@@ -35,7 +37,8 @@ vi.mock("./repositories/whatsappPendingOperationRepository", () => ({
     getActivePendingOperation: getActivePendingOperationMock,
     createPendingOperation: createPendingOperationMock,
     claimPendingOperation: claimPendingOperationMock,
-    cancelPendingOperation: vi.fn(),
+    getPendingOperationById: getPendingOperationByIdMock,
+    cancelPendingOperation: cancelPendingOperationMock,
     supersedePendingOperation: vi.fn(),
   })),
 }));
@@ -50,9 +53,14 @@ vi.mock("./modules/whatsapp/replyTransport", () => ({
 
 const {
   applyNutritionLabelPhotoToMeal,
+  buildCandidateIdentityKey,
   claimNutritionLabelPhotoRequest,
   createProvisionalNutritionLabelPhotoRequests,
+  isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
+  parseNutritionLabelPhotoClarificationText,
+  resolveNutritionLabelPhotoClarificationText,
+  resolveNutritionLabelPhotoEvidence,
 } = await import("./nutritionLabelCandidateService");
 
 const provisionalItem = {
@@ -101,6 +109,81 @@ const labelItem = {
   },
 };
 
+const doriLabelItem = {
+  ...labelItem,
+  foodName: "Amendoim Japonês Dori",
+  canonicalName: "Amendoim Japonês Dori",
+  brand: "Dori",
+};
+
+const sameBrandOtherProductLabelItem = {
+  ...labelItem,
+  foodName: "Cheetos Lua Parmesão Elma Chips",
+  canonicalName: "Cheetos Lua Parmesão Elma Chips",
+  brand: "Elma Chips",
+};
+
+const beerItem = {
+  foodName: "Cerveja Original",
+  canonicalName: "Cerveja Original",
+  brand: "Original",
+  portionText: "3 garrafas (600 ml)",
+  quantity: 3,
+  unit: "garrafa",
+  servings: 3,
+  estimatedGrams: 1800,
+  calories: 756,
+  protein: 0,
+  carbs: 63,
+  fat: 0,
+  confidence: 0.7,
+  source: "heuristic" as const,
+  resolution: {
+    nutritionOrigin: "provisional_estimate" as const,
+    nutritionVerified: false,
+    sourceEvidence: null,
+  },
+};
+
+function pendingRequest(id: number, itemIndex: number, item: typeof provisionalItem | typeof beerItem) {
+  return {
+    id,
+    userId: 42,
+    type: "nutrition_label_photo_request",
+    target: {
+      kind: "nutrition_label_photo_request",
+      mealId: 900,
+      itemIndex,
+      identityKey: buildCandidateIdentityKey(item),
+      originalFoodName: item.foodName,
+      originalCanonicalName: item.canonicalName,
+      originalBrand: item.brand,
+      originalProductVariant: null,
+      instructionText: "foto",
+      actions: [{ id: "cancel", title: "Cancelar" }],
+    },
+    origin: "nutritionLabelCandidateService",
+    state: "active",
+    version: 1,
+    createdAt: new Date("2026-09-22T10:54:00.000Z"),
+    updatedAt: new Date("2026-09-22T10:54:00.000Z"),
+    expiresAt: new Date("2099-09-23T10:54:00.000Z"),
+    consumedAt: null,
+  };
+}
+
+function originalMeal(items = [provisionalItem]) {
+  return {
+    id: 900,
+    userId: 42,
+    mealLabel: "Café da manhã",
+    occurredAt: new Date("2026-09-22T10:54:00.000Z").getTime(),
+    notes: "Amendoim",
+    sourceText: "1 pacote de amendoim japonês",
+    items,
+  };
+}
+
 describe("nutrition label provisional WhatsApp flow", () => {
   beforeEach(() => {
     getActivePendingOperationByTypeMock.mockReset();
@@ -108,6 +191,8 @@ describe("nutrition label provisional WhatsApp flow", () => {
     getActivePendingOperationMock.mockReset();
     createPendingOperationMock.mockReset();
     claimPendingOperationMock.mockReset();
+    getPendingOperationByIdMock.mockReset();
+    cancelPendingOperationMock.mockReset();
     listUserMealsMock.mockReset();
     updateUserMealMock.mockReset();
     persistArtifactMock.mockReset();
@@ -157,6 +242,21 @@ describe("nutrition label provisional WhatsApp flow", () => {
         createPendingOperationMock.mock.calls[0][0].target
       )
     ).toBe(true);
+    expect(createPendingOperationMock.mock.calls[0][0].dedupeKey).toBe(
+      "nutrition_label_photo_request:42:900:0"
+    );
+  });
+
+  it("não oferece continuação como persistida quando a pending operation não foi criada", async () => {
+    createPendingOperationMock.mockResolvedValueOnce(null);
+
+    await expect(
+      createProvisionalNutritionLabelPhotoRequests({
+        userId: 42,
+        mealId: 900,
+        items: [provisionalItem],
+      })
+    ).resolves.toEqual([]);
   });
 
   it("não duplica a pendência do mesmo item ao repetir a confirmação", async () => {
@@ -266,18 +366,10 @@ describe("nutrition label provisional WhatsApp flow", () => {
   });
 
   it("substitui nutrientes proporcionalmente na refeição original e não cria refeição nova", async () => {
-    const originalMeal = {
-      id: 900,
-      userId: 42,
-      mealLabel: "Café da manhã",
-      occurredAt: new Date("2026-09-22T10:54:00.000Z").getTime(),
-      notes: "Amendoim",
-      sourceText: "1 pacote de amendoim japonês",
-      items: [provisionalItem],
-    };
-    listUserMealsMock.mockResolvedValue([originalMeal]);
+    const meal = originalMeal();
+    listUserMealsMock.mockResolvedValue([meal]);
     updateUserMealMock.mockImplementation(async input => ({
-      ...originalMeal,
+      ...meal,
       ...input,
       items: input.items,
     }));
@@ -292,6 +384,9 @@ describe("nutrition label provisional WhatsApp flow", () => {
     expect(updated?.items).toHaveLength(1);
     expect(updated?.items[0]).toEqual(
       expect.objectContaining({
+        foodName: "Amendoim Japonês Elma Chips",
+        canonicalName: "Amendoim Japonês Elma Chips",
+        brand: "Elma Chips",
         calories: 736.6,
         protein: 26.1,
         carbs: 56.8,
@@ -306,5 +401,315 @@ describe("nutrition label provisional WhatsApp flow", () => {
     expect(updateUserMealMock).toHaveBeenCalledOnce();
     expect(updateUserMealMock.mock.calls[0][0].items).toHaveLength(1);
     expect(persistArtifactMock).toHaveBeenCalled();
+    expect(persistArtifactMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateUserMealMock.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("não promove a refeição quando a persistência da evidência falha", async () => {
+    const meal = originalMeal();
+    listUserMealsMock.mockResolvedValue([meal]);
+    persistArtifactMock.mockRejectedValueOnce(new Error("candidate persistence failed"));
+
+    await expect(
+      applyNutritionLabelPhotoToMeal({
+        mealId: 900,
+        itemIndex: 0,
+        userId: 42,
+        item: labelItem,
+      })
+    ).rejects.toThrow("candidate persistence failed");
+    expect(updateUserMealMock).not.toHaveBeenCalled();
+  });
+
+  it("nunca troca a identidade Elma Chips por Dori ao aplicar nutrientes do rótulo", async () => {
+    const meal = originalMeal();
+    listUserMealsMock.mockResolvedValue([meal]);
+    updateUserMealMock.mockImplementation(async input => ({
+      ...meal,
+      ...input,
+      items: input.items,
+    }));
+
+    const updated = await applyNutritionLabelPhotoToMeal({
+      mealId: 900,
+      itemIndex: 0,
+      userId: 42,
+      item: doriLabelItem,
+    });
+
+    expect(updated?.items[0]).toEqual(
+      expect.objectContaining({
+        foodName: "Amendoim Japonês Elma Chips",
+        canonicalName: "Amendoim Japonês Elma Chips",
+        brand: "Elma Chips",
+        calories: 736.6,
+      })
+    );
+  });
+
+  it("persiste conflito Dori versus Elma sem consumir a pendência original", async () => {
+    const meal = originalMeal();
+    const source = pendingRequest(801, 0, provisionalItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([source]);
+    listUserMealsMock.mockResolvedValue([meal]);
+
+    const result = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: doriLabelItem,
+      captionText: "Amendoim",
+      sourceText: "Amendoim",
+      sourceMessageId: "wamid-label-1",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        action: "nutrition_label_photo_identity_confirmation_requested",
+      })
+    );
+    expect(claimPendingOperationMock).not.toHaveBeenCalled();
+    expect(updateUserMealMock).not.toHaveBeenCalled();
+    const clarificationTarget = createPendingOperationMock.mock.calls.at(-1)?.[0]?.target;
+    expect(isNutritionLabelPhotoClarificationTarget(clarificationTarget)).toBe(true);
+    expect(clarificationTarget).toEqual(
+      expect.objectContaining({
+        sourceMessageId: "wamid-label-1",
+        evidenceItem: expect.objectContaining({ brand: "Dori" }),
+        candidates: [
+          expect.objectContaining({
+            sourcePendingOperationId: 801,
+            originalBrand: "Elma Chips",
+          }),
+        ],
+      })
+    );
+  });
+
+  it("bloqueia outro produto da mesma marca até a resposta confirmar o produto conflitante", async () => {
+    const meal = originalMeal();
+    const source = pendingRequest(808, 0, provisionalItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([source]);
+    listUserMealsMock.mockResolvedValue([meal]);
+
+    const result = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: sameBrandOtherProductLabelItem,
+      captionText: "Elma Chips",
+      sourceText: "Elma Chips",
+      sourceMessageId: "wamid-label-same-brand-other-product",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        handled: true,
+        action: "nutrition_label_photo_identity_confirmation_requested",
+      })
+    );
+    expect(claimPendingOperationMock).not.toHaveBeenCalled();
+    expect(updateUserMealMock).not.toHaveBeenCalled();
+
+    const target = createPendingOperationMock.mock.calls.at(-1)?.[0]?.target;
+    expect(isNutritionLabelPhotoClarificationTarget(target)).toBe(true);
+    expect(parseNutritionLabelPhotoClarificationText(target, "Elma Chips")).toBeNull();
+    expect(
+      parseNutritionLabelPhotoClarificationText(
+        target,
+        "É o amendoim japonês Elma Chips"
+      )
+    ).toBe("select:0");
+  });
+
+  it("resposta Não é Dori, é Elma Chips retoma a foto persistida e atualiza uma única vez", async () => {
+    const meal = originalMeal();
+    const source = pendingRequest(802, 0, provisionalItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([source]);
+    listUserMealsMock.mockResolvedValue([meal]);
+    updateUserMealMock.mockImplementation(async input => ({
+      ...meal,
+      ...input,
+      items: input.items,
+    }));
+
+    await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: doriLabelItem,
+      captionText: "Amendoim",
+      sourceText: "Amendoim",
+      sourceMessageId: "wamid-label-2",
+    });
+    const target = createPendingOperationMock.mock.calls.at(-1)?.[0]?.target;
+    const clarification = {
+      id: 901,
+      userId: 42,
+      type: "nutrition_label_photo_request",
+      target,
+      state: "active",
+      version: 1,
+    };
+    getPendingOperationByIdMock.mockResolvedValue(source);
+    claimPendingOperationMock.mockResolvedValue({ claimed: true });
+
+    const result = await resolveNutritionLabelPhotoClarificationText({
+      userId: 42,
+      pendingOperation: clarification,
+      text: "Não é Dori, é Elma Chips",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "nutrition_label_photo_clarification_completed",
+      })
+    );
+    expect(claimPendingOperationMock).toHaveBeenCalledTimes(2);
+    expect(updateUserMealMock).toHaveBeenCalledOnce();
+    expect(updateUserMealMock.mock.calls[0][0].items[0]).toEqual(
+      expect.objectContaining({
+        brand: "Elma Chips",
+        calories: 736.6,
+      })
+    );
+  });
+
+  it("legenda Amendoim escolhe somente o amendoim quando há cerveja provisória", async () => {
+    const meal = originalMeal([provisionalItem, beerItem]);
+    const peanutRequest = pendingRequest(803, 0, provisionalItem);
+    const beerRequest = pendingRequest(804, 1, beerItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([
+      peanutRequest,
+      beerRequest,
+    ]);
+    listUserMealsMock.mockResolvedValue([meal]);
+    getPendingOperationByIdMock.mockResolvedValue(peanutRequest);
+    claimPendingOperationMock.mockResolvedValue({ claimed: true });
+    updateUserMealMock.mockImplementation(async input => ({
+      ...meal,
+      ...input,
+      items: input.items,
+    }));
+
+    const result = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: labelItem,
+      captionText: "Amendoim",
+      sourceText: "Amendoim",
+      sourceMessageId: "wamid-label-3",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "nutrition_label_photo_applied",
+      })
+    );
+    expect(updateUserMealMock).toHaveBeenCalledOnce();
+    const savedItems = updateUserMealMock.mock.calls[0][0].items;
+    expect(savedItems[0]).toEqual(
+      expect.objectContaining({
+        brand: "Elma Chips",
+        calories: 736.6,
+      })
+    );
+    expect(savedItems[1]).toEqual(beerItem);
+  });
+
+  it("rótulo ambíguo entre dois itens pede seleção e reutiliza a mesma evidência", async () => {
+    const meal = originalMeal([provisionalItem, beerItem]);
+    const peanutRequest = pendingRequest(805, 0, provisionalItem);
+    const beerRequest = pendingRequest(806, 1, beerItem);
+    const ambiguousLabel = {
+      ...labelItem,
+      foodName: "Produto embalado",
+      canonicalName: "Produto embalado",
+      brand: null,
+    };
+    listActivePendingOperationsByTypeMock.mockResolvedValue([
+      peanutRequest,
+      beerRequest,
+    ]);
+    listUserMealsMock.mockResolvedValue([meal]);
+
+    const first = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: ambiguousLabel,
+      sourceText: "Rótulo",
+      sourceMessageId: "wamid-label-4",
+    });
+
+    expect(first).toEqual(
+      expect.objectContaining({
+        action: "nutrition_label_photo_selection_requested",
+      })
+    );
+    expect(updateUserMealMock).not.toHaveBeenCalled();
+    const target = createPendingOperationMock.mock.calls.at(-1)?.[0]?.target;
+    expect(target).toEqual(
+      expect.objectContaining({
+        sourceMessageId: "wamid-label-4",
+        candidates: expect.arrayContaining([
+          expect.objectContaining({ originalBrand: "Elma Chips" }),
+          expect.objectContaining({ originalBrand: "Original" }),
+        ]),
+      })
+    );
+
+    const clarification = {
+      id: 902,
+      userId: 42,
+      type: "nutrition_label_photo_request",
+      target,
+      state: "active",
+      version: 1,
+    };
+    getPendingOperationByIdMock.mockResolvedValue(peanutRequest);
+    claimPendingOperationMock.mockResolvedValue({ claimed: true });
+    updateUserMealMock.mockImplementation(async input => ({
+      ...meal,
+      ...input,
+      items: input.items,
+    }));
+
+    const resumed = await resolveNutritionLabelPhotoClarificationText({
+      userId: 42,
+      pendingOperation: clarification,
+      text: "Amendoim",
+    });
+
+    expect(resumed).toEqual(
+      expect.objectContaining({
+        action: "nutrition_label_photo_clarification_completed",
+      })
+    );
+    expect(updateUserMealMock).toHaveBeenCalledOnce();
+    expect(updateUserMealMock.mock.calls[0][0].items[0]).toEqual(
+      expect.objectContaining({
+        foodName: "Amendoim Japonês Elma Chips",
+        brand: "Elma Chips",
+        calories: 736.6,
+      })
+    );
+    expect(updateUserMealMock.mock.calls[0][0].items[1]).toEqual(beerItem);
+  });
+
+  it("claim concorrente perdido bloqueia atualização duplicada", async () => {
+    const meal = originalMeal();
+    const source = pendingRequest(807, 0, provisionalItem);
+    listActivePendingOperationsByTypeMock.mockResolvedValue([source]);
+    listUserMealsMock.mockResolvedValue([meal]);
+    getPendingOperationByIdMock.mockResolvedValue(source);
+    claimPendingOperationMock.mockResolvedValue({ claimed: false });
+
+    const result = await resolveNutritionLabelPhotoEvidence({
+      userId: 42,
+      item: labelItem,
+      captionText: "Amendoim Elma Chips",
+      sourceMessageId: "wamid-label-5",
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: "nutrition_label_photo_concurrent_or_stale",
+      })
+    );
+    expect(updateUserMealMock).not.toHaveBeenCalled();
   });
 });

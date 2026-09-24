@@ -1,0 +1,2392 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "73a463e48613ffd5a264713f1ead0c1d5b2e7682d4eb5a6b6724069da3b61ab1"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1177",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "3970825b2f75fc1639818780addf2afd6099b2769b666c7605db7a634175a5b6",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 5,
+      "source_text": "Em produção, em 2026-09-23, uma foto de prato contendo **múltiplos componentes alimentares visualmente distintos** foi enviada pelo WhatsApp.",
+      "flags": [
+        "exhaustive",
+        "observable",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "825f97c7d094e66914a5bd9edb473158e6d7214ecb1fc7afcbf218df58b6a94f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 13,
+      "source_text": "a refeição deixou de ser tratada como um conjunto de múltiplos alimentos;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "841b05473e9aaa690407ee268d313606c9c322f509044b2098db0f673e2985fa",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 14,
+      "source_text": "um alimento/preparação genérica foi encaminhado para clarificação de **identidade comercial/variante** sem evidência suficiente de marca, linha ou produto comercial.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "899aa24cde57a6e811dbc34ae93b4f500ee6033aebac23e04a547e32f1d66f1d",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 16,
+      "source_text": "A implementação deve partir da branch **develop**.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "47829fad0b701a09f7c85cc0e9f1c63af5b40cad9205bea3a816ce07fbd46e1c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 23,
+      "source_text": "**#1177**: extração inicial de foto de refeição multi-item, classificação correta de identidade genérica/comercial e preservação do conjunto durante clarificações.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "fafe2c30b165799dcf9510adfe484d5ee949a17aebc1c7bbd00b5b1c395717a7",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 31,
+      "source_text": "`server/mealAiExtraction.ts` aceita `items[]` no Structured Output de `MEAL_VISION`; a extração não é, por contrato, limitada a um único alimento.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "80c6e218e1c034230e34b647e7dde60b17e20923c9706f392b94bbf66ec48ada",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 32,
+      "source_text": "`server/mealItemCleanup.ts` limpa ruído/baixa confiança e deduplica, mas não deve colapsar legitimamente uma refeição multi-item em um único componente.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "0ec6e678ce9eb9d4a7b2f8663e3d3e5b06023415e743e8aa8a206b8dfc7fefb9",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 36,
+      "source_text": "O fluxo de **quantidade** de imagem já possui continuidade canônica em `server/modules/whatsapp/foodQuantityClarification.ts` com `resolutionContext.mode = \"complete_image_meal\"`, preservando `items`, mídia, índices pendentes e sequência.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "3e971969ae1c4fbc0ff2ed5cf4087d85eb864610fb403a220a1e2daf7882747b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 40,
+      "source_text": "A correção deve **estender/reutilizar esses contratos**, não criar um fluxo paralelo para imagens.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "f008a2bfa5b922a6bb7168f5cf22043a1a29cc6af1a5e42676033d9baa71bb27",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 42,
+      "source_text": "> O baseline acima identifica fronteiras onde a regressão pode ocorrer, mas não presume que um único arquivo seja a causa raiz do caso de produção. A implementação deve comprovar a causa com teste de regressão.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "16d497915bb4e0be1751627fe082f3e37717ea32eba71ecdf6884465fd454e18",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 46,
+      "source_text": "Reutilizar e manter coerência com:",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "faa61e1cd998b9f64a00f7de8338538d098704694855ccf662a8c13e9ce4da2f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 61,
+      "source_text": "Garantir que uma foto de refeição contendo vários alimentos seja processada como **refeição multi-item**, preservando todos os itens reconhecíveis e evitando que alimentos genéricos/preparações comuns sejam indevidamente promovidos ao fluxo de produto comercial com marca/linha/variante.",
+      "flags": [
+        "exhaustive",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "98da9621900ed1e80a992aa013b5deb23106f2989ff472865683e55dc44c897a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 63,
+      "source_text": "Se somente um item estiver ambíguo, a clarificação deve afetar **somente esse item** e a resposta posterior deve retomar a mesma refeição/imagem até que todas as pendências necessárias sejam resolvidas.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "0c8c1a63449e680dce8c8b32b5d69978070969d4c403f74e89224e0f9e827d8f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 67,
+      "source_text": "Preservar múltiplos itens retornados por `MEAL_VISION` durante extração, normalização, resolução nutricional e clarificação.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "8ae45d5f6fa69000c78ae0b8ea5de804c542ca35834100576fcb5b6d7b44bdc1",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 68,
+      "source_text": "Corrigir a distinção semântica entre:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "b2f7d84c45ff5ed1e16a54b81573835082ccb092a704660007265bec4f76e11a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 69,
+      "source_text": "alimento/preparação genérica;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "7650c3d1b4b81d3cc1220a1f571f9cb91ca53278a1c104868eb43f67e0772aba",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 70,
+      "source_text": "produto comercial com marca/linha/variante.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "ab7c1c6963738530f5bd0eb66db07d846cd17b8a99f720ca26e8ea8080db1f2a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 71,
+      "source_text": "Tornar clarificação de identidade em imagem uma continuação persistente e retomável quando necessária.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "510fdb39b6d641e2ee7b0cba23ef9b620da9df3c7d96eb1a42e62045a193f224",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 72,
+      "source_text": "Reutilizar o contexto `complete_image_meal` e/ou evoluir o contrato canônico de clarificação dentro de `whatsappPendingOperations` + interaction registry.",
+      "flags": [
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "7dee6d06d01f3258702fcf825a34a75983d7a3cc32cc2770b369ffd05a2c8a7b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 73,
+      "source_text": "Manter o fail-closed existente para identidade comercial realmente ambígua.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "e9369af2006398a5dbb7049fe752b8bbde640db34d3a64bb2cf43355515ab429",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 74,
+      "source_text": "Preservar o fluxo posterior de quantidade já existente para itens cuja porção continue pendente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "9ac566a7ecc8d351c1e1e85a4837a44a9d752c198417e4e7f1e612de41956c9f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 78,
+      "source_text": "**must_behave:** uma imagem com vários componentes reconhecíveis produz múltiplos itens candidatos quando a evidência visual os sustentar.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "162e6827b577e57085fb649bfa10411331cd1f11854f67310df08537f58c629c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 79,
+      "source_text": "**must_behave:** ambiguidade de um item não apaga, substitui nem reclassifica silenciosamente os demais.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "484cef956f230773922738be4d78aab95b86235d5cd282482387d44f2b5b5c04",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 80,
+      "source_text": "**must_behave:** descritores de preparo, corte ou apresentação — por exemplo `assada`, `cozida`, `grelhada`, `em rodelas`, `picada`, `fatiada` — não constituem, isoladamente, evidência de identidade comercial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "7f2f38efd6dbdad6afaee12ed3b9a2a17f17371c6742126ebd75ef768f66eb30",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 81,
+      "source_text": "**must_behave:** depois de resolver identidade de um item, o fluxo continua da mesma refeição e, se necessário, entra na sequência canônica de quantidade dos itens ainda pendentes.",
+      "flags": [
+        "temporal",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "9b1e361e922db019e4938ba6b1934d370ec2db8ab626466ecb94569494eff2db",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 82,
+      "source_text": "**must_reuse:** `MEAL_VISION`, `processMealInput`, `MealSemanticContract`, `whatsappPendingOperations`, interaction registry e a continuidade existente de `complete_image_meal`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "fa092de55a84fb2d1cda3a2cbd127dc834a9026119a8f28fd7b44b3130b4c989",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 83,
+      "source_text": "**must_be_single_source:** o conjunto de itens da imagem e o estado de suas pendências devem ter uma única representação canônica durante a continuação; não manter uma cópia funcional concorrente por handler.",
+      "flags": [
+        "negative",
+        "temporal",
+        "atomicity",
+        "forbidden-implementation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "70557712732b51b9271adb28e8915f5c03caaaeaebd55ceccceb7f495a7c22dc",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 84,
+      "source_text": "**precedence_invariant:** marca/linha/variante explicitamente observada no texto/caption/rótulo ou sustentada pelo contrato semântico > inferência comercial derivada; ausência de evidência comercial não autoriza promover alimento genérico a produto comercial.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "36317988e2eb1424723d08243de70269f0b0dc6363a84b94fa2db2ba63aabcc1",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 85,
+      "source_text": "**precedence_invariant:** clarificação de identidade pendente deve ser resolvida antes de persistir a refeição; após resolvida, quantidades pendentes continuam pelo fluxo canônico já existente.",
+      "flags": [
+        "temporal",
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "4f588a744a5d7d9803745e947caecb7f5d0367868a8c60f7ecc2d3bfe7c9d360",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 86,
+      "source_text": "**must_not_behave:** não pedir \"variante/linha/sabor\" para alimento genérico apenas porque a nutrição, quantidade ou preparo ainda é incerto.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "3c854ac7092a15ef304a7ac21e5906aeed37535bb60dee01a68ed8f3cd531c9b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 87,
+      "source_text": "**must_not_behave:** não persistir parcialmente os itens \"bons\" enquanto outro item da mesma imagem ainda exige clarificação, salvo se um contrato canônico existente explicitamente determinar outra operação independente (ex.: hidratação já separada pelo domínio).",
+      "flags": [
+        "exhaustive",
+        "observable",
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "55af8b8c6c4710569f8ca330193b80d0334f581e924fe258b07c52d1c5304b8c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 88,
+      "source_text": "**must_not_behave:** não reexecutar a visão da imagem nem exigir novo upload apenas para recuperar itens que já estavam no `semanticContract`/contexto persistido.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "b72fc978dbcbd615f3cf2b8da69dc154bde3dc34b881b5fae16574694af1ded1",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 89,
+      "source_text": "**must_not_depend_on:** a correção não pode depender de lista manual de alimentos conhecidos, horário da mensagem ou memória em processo.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "22e1df428e43cf695a7df87a78682576fc4ae27be417bff11b6da3f1a75e081b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 90,
+      "source_text": "**forbidden_implementation:** criar lista hardcoded de alimentos \"sem variante\".",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "8a8e7a6d19e7f7f4e331bcf9c12db92a1865b515bd451d41299ecbce33fe479b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 91,
+      "source_text": "**forbidden_implementation:** criar novo store, roteador de pendência ou parser paralelo exclusivo para imagem.",
+      "flags": [
+        "structural",
+        "canonical-path"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "136be1ce2003537d693d9cab58b04a72baa5262394d63dbcdf38bdc4108ffea0",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 92,
+      "source_text": "**forbidden_implementation:** tratar apenas `semanticContract.clarifications[0]` e descartar o restante do contrato multi-item.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "e9c51c4fd333a6bdc70d61807c125f4102267ed8acf4b717b24cf6754e045545",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 96,
+      "source_text": "**Corrige \"batata-doce\" por exceção textual**, mas outro alimento genérico continua virando variante comercial.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "6afb45ad3f5fb935593fca57893ae18784cba9730acccab15e129c24d05698f9",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 97,
+      "source_text": "Controle: usar ao menos outro alimento/preparação genérica sem depender de allowlist.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "2d41f64429eea650a2e82f6f236972e320355a05bde8237b0cd268b933e97c3b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 98,
+      "source_text": "**Preserva múltiplos itens no caminho feliz**, mas quando um item exige identidade, os demais desaparecem.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "c3a245ca84aac6b292fd38019aa3b46c3ac5ff6de7ca0c2f780de59fcc6784f1",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 101,
+      "source_text": "Controle: antes da resposta do usuário, nenhuma refeição parcial deve ter sido criada.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "ae8cd8b793d5afd481f1b01cb7c47c2505503bb4d5c2afca2dadd05de0e0efe4",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 102,
+      "source_text": "**Reprocessa a imagem após a resposta**, podendo gerar outro conjunto de itens.",
+      "flags": [
+        "temporal",
+        "aftermath",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "25b728cc0bee00d19a90625abd9f55ace5199976d7edf0acfd48f3647e15eecd",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 103,
+      "source_text": "Controle: continuação deve reutilizar o contexto persistido e não exigir segunda chamada de `MEAL_VISION` para o mesmo inbound.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "3d0a87336766c5abfa79631920da37438171a775e215008f57bcbb1045980e17",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 112,
+      "source_text": "Cada componente com evidência suficiente deve permanecer como item independente.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "be3e3e8dc790b3efcb4af2f20d6d7b7415abba9eb7faf8eae0a8825eb0371683",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 113,
+      "source_text": "Limpeza/deduplicação pode remover ruído real, mas não pode escolher arbitrariamente \"o melhor item\" e descartar os demais.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "b5cc8e99bef9e43a1349a1019c98939829329cb7172477d144a4bc8785510911",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 118,
+      "source_text": "Aplicar política comercial somente quando houver evidência compatível de identidade comercial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "924e486b923148263dc5ea474736c875c5be3dcae224105a2bca88a3a2202d87",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 120,
+      "source_text": "`brand`, `productVariant`, linha/sabor ou motivo `brand_variant_unresolved` não podem nascer somente de descritor de preparo/apresentação.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "d8e644db5ac238dccd81e127417e2df00b355a008bc0e59a601f886b454ce7d2",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 121,
+      "source_text": "Nome composto de alimento genérico continua sendo identidade alimentar, não marca/variante, salvo evidência adicional.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "b569fbbd32fa00226266cd4bff1c736b018e3e20553941fdb742f393413b103f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 122,
+      "source_text": "Produto comercial real mantém a política fail-closed vigente.",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "6a6f8d8e0e31e59e2220d1e0dbb4e2cb1b08a36226655a95d2be5a2dbc370177",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 123,
+      "source_text": "Não alterar globalmente o vocabulário de variantes sem teste que prove a necessidade; corrigir a fronteira semântica que gerou a classificação indevida.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "befc3da320747e4759c6f889a21dcab8826836e6e19ad819495c268798dd8bfe",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 129,
+      "source_text": "usar o `semanticContract` completo do erro como fonte para identificar item alvo e itens já conhecidos;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "6d14f62244b394b177f8cdd5fba6abcffde26efa9ab288bbfe9234f291daea92",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 130,
+      "source_text": "preservar mídia/referência opaca, inbound `message.id`, refeição lógica, itens, índices e evidências necessários para retomada;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "5ebd407b4d5272d7a338db995f428f95b6a81d12dd7de5ab355a5909647bbb58",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 132,
+      "source_text": "perguntar somente o atributo realmente ambíguo do item alvo;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "4809dfd9d91c5e426eddf9b9c5ad056b6bd810cf3b92b0b54dad915ee5de8cca",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 133,
+      "source_text": "manter os demais itens intactos;",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "615d17896fcd38536c1350fd29d4b7f5194439abd0ad291848defabc5f8a3e1a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 134,
+      "source_text": "uma resposta válida resolve somente o item alvo;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "5b0ec8348c2756a857b745deeade4db84477f0faf8b9c61b2e3f331ab6e67e3a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 137,
+      "source_text": "persistir a refeição somente quando o conjunto estiver apto ao contrato canônico de persistência.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "ae7b2c9ab00b9bca085bd8b0dd59149f4f3ad2e8c2b6c729f92a144a77dd3f1d",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 139,
+      "source_text": "É permitido **evoluir o target/resolutionContext canônico ou registrar um subtipo/interação adicional no interaction registry**, se necessário. É proibido criar uma segunda máquina de estados ou store paralelo.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "a529200dbc2b9e307541efdd18feedba668b11eec6accfa840db13ff03533693",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 143,
+      "source_text": "A pendência deve obedecer ao lifecycle canônico:",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "f312b5f1755c4f1e40e9dad88ee582f95276a2c21bcb9087155c1cad187f6936",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 149,
+      "source_text": "**expired:** não persiste refeição parcial e não reutiliza contexto obsoleto;",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "841262de93bac636b379c35c0d421b87530681e2a4992480aead3be4d13d35b8",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 152,
+      "source_text": "Reentrega da mesma mensagem ou duas respostas concorrentes devem resultar em no máximo uma conclusão válida.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "086ca5a7f6e0f8ee2720d88035d71638cd8232438872193a6f582fa75e3fe04c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 156,
+      "source_text": "Se a imagem não permitir reconhecer alimentos com segurança:",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "23c51aa77f87536bb16c4c8bbc1fcd03dbfcc01f60bc725d6d1c23fda9ef1f65",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 160,
+      "source_text": "responder com clarificação geral apropriada;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "b498b883a06daf8ae0c65cf2b0bd23e2fe9b8d1bb62d4e69f7cf9c718c594567",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 162,
+      "source_text": "`items: []` validado continua sendo resultado funcional conforme contrato de `MEAL_VISION`, sem retry/fallback apenas por estar vazio.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "c703ad138f348188e31d9678fd45a32a9ae08bfc0bc91784ffd3314982fbe86e",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 168,
+      "source_text": "**Entrada:** foto de prato com múltiplos alimentos visíveis.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "f3e7d6978a13b3a02214f74ddc52697f6ee15cb75f7583ba034da91beb022ab7",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 171,
+      "source_text": "apenas \"Batata-Doce Assada em Rodelas\" domina o fluxo;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "09cd22fb6a274424cf0d7950f70eda929a90a2b1984ff2d147d05a4c4224a4ce",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 176,
+      "source_text": "demais componentes reconhecíveis são preservados;",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "5a227ce62b8d026682d64ab20d1101f0cc92570bb382c2c9860a45b30912c9cf",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 177,
+      "source_text": "batata-doce é alimento/preparação genérica, salvo evidência explícita de produto comercial;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "b6e504e137d445ba388bf44ba15088d59b38bf045cccca218bce214087cad84e",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 186,
+      "source_text": "somente o quarto é clarificado;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "ce8a3dfb59e2faf8afb3bbfb4da18b4864c5d2342f16b7860e10472198e9cb77",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 199,
+      "source_text": "somente o produto com evidência comercial segue regras de marca/variante;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "ba85cc8f9e849a235ca73d631770072f5c1123e48b1eb5acc4ef3e12011a7362",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 200,
+      "source_text": "alimentos genéricos não herdam esse estado;",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "485cf42fd4d4e2525d37a58e73dffdc8ca2656e03911032af7d6a67a2dbc7fab",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 207,
+      "source_text": "solicitar descrição/clarificação geral;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "77329f6f8bc31d79e1ce877a3c40bf927e1a9befbb6c5c8d000d448c41ee934e",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 215,
+      "source_text": "Resposta inválida mantém o contexto.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "57f4e4a353c95f4845a147f8152eca4eae4391ff35d5af58c44fa27f258e2b06",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 217,
+      "source_text": "Pendência de um usuário/telefone não pode ser consumida por outro.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "0f6d4132c5ec32b275b0bdf8a2e13eba845b1d151272cf8ab0ee05966dae8ed9",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 224,
+      "source_text": "Structured Output válido multi-item: preservar os itens até a etapa de domínio correspondente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "4ff937f9510fc84530bf92dc6255be200df601492cbe10f07c6d61d1171d8198",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 226,
+      "source_text": "Falha depois de claim mas antes da persistência final: aplicar recuperação/idempotência canônica; não recriar silenciosamente uma segunda refeição.",
+      "flags": [
+        "negative",
+        "temporal",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "ba29819463ec3f13eaab57a5f3d457e8c99666acbdd4a3b0b2564a5d0005f764",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 227,
+      "source_text": "Item genérico com nutrição incerta: seguir o caminho genérico permitido pelo contrato de produto.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "afad73fe710699a094f2451edb89349b052eddb912a49d79469aab2c7c29152b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 228,
+      "source_text": "Produto comercial realmente ambíguo: manter fail-closed.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "cfd4d10dd8c86494f0e46ac85f69dc274004bd57270a4054593f704b734d86ec",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 233,
+      "source_text": "[ ] A regressão observada não resulta mais em uma refeição reduzida a \"Batata-Doce Assada em Rodelas\" com pedido indevido de variante.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "55ca3020f4c58d8d3b2b0afb5e6284df76dc3039c02c274f93516c6cb1006900",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 234,
+      "source_text": "[ ] Uma imagem com múltiplos componentes reconhecíveis preserva múltiplos itens até a conclusão ou cancelamento.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "e443f83b57fbe41a5b0185a616796dae26f1c806a62f39c9b7d2d78f64c47ef3",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 235,
+      "source_text": "[ ] Descritores de preparo/formato não são tratados isoladamente como evidência de variante comercial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-080",
+      "candidate_key": "7ef7a585af7c767ecc718258bca3e9b36fe267a5ebad1d8f2ef5dd2743e11ef0",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 236,
+      "source_text": "[ ] Batata-doce genérica não abre clarificação de marca/linha/sabor sem evidência comercial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-081",
+      "candidate_key": "4f5bdba59813bd383a59888af8c597fc5f8f9cba80a09db3d1f84dc0e13a4e3b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 237,
+      "source_text": "[ ] `MealInferenceError.food_identity_clarification_required` vindo de imagem preserva e torna retomável o `semanticContract` multi-item, em vez de virar apenas resposta terminal genérica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-082",
+      "candidate_key": "d6ce67dee05b1fcf4f8a81343688b76beae42f13183a4934ca8a3a9d8e8fba65",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 238,
+      "source_text": "[ ] A pendência é persistida antes da pergunta acionável.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-083",
+      "candidate_key": "c849fa86c377462c4ad6d46ff11fc42d4c7758207ac8c8c35ca54359c2ade87c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 239,
+      "source_text": "[ ] Resposta a uma clarificação modifica/resolve somente o item alvo e preserva os demais.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-084",
+      "candidate_key": "bd02764ce744562e2458185781bc17259c1ab73d22df103b24d367f433020cba",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 240,
+      "source_text": "[ ] Duas ambiguidades de identidade na mesma imagem podem ser resolvidas sequencialmente sem nova chamada de visão.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-085",
+      "candidate_key": "4edd7ad54b46239bd17b9cb93c56dbd6883e8cc945ecc817e143c8540c409abf",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 241,
+      "source_text": "[ ] Após identidades resolvidas, quantidades ausentes continuam pelo contrato canônico `complete_image_meal`.",
+      "flags": [
+        "temporal",
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-086",
+      "candidate_key": "50e5a9159d0846d62b588038993f6820a88219e0385e6f34db3f988540404f48",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 242,
+      "source_text": "[ ] Nenhuma refeição parcial é persistida enquanto a imagem ainda possui clarificação obrigatória.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-087",
+      "candidate_key": "e43ccb942326e4a72a78bad4a1a57f1a6959a8b1b4b10e2e2537e28a8e32f9ba",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 243,
+      "source_text": "[ ] Cancelamento e expiração não criam refeição parcial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-088",
+      "candidate_key": "e04682a8ecdc54234c51c6ba51e157c01383ee829bcdd5e3da690a91c86d2475",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 244,
+      "source_text": "[ ] Reentrega, retry, reinício e respostas concorrentes não duplicam refeição, pendência ou mutação.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-089",
+      "candidate_key": "3b40a542748cbc6bbce7c56b5fa5fd16aead3cb9b5feb425eaf481d340593396",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 245,
+      "source_text": "[ ] Outro usuário não consome a pendência.",
+      "flags": [
+        "negative",
+        "isolation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-090",
+      "candidate_key": "426d6a4f22c3506675cb17c4907a87cc676bd9477052caabf600a910037977b8",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 246,
+      "source_text": "[ ] Produto comercial real continua fail-closed quando a variante não puder ser comprovada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-091",
+      "candidate_key": "db89996ed6d834b5aca76084aec95800094205eb278b55553df466aa157f50c8",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 247,
+      "source_text": "[ ] Nenhuma lista hardcoded de alimentos \"sem variante\" é usada como correção principal.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-092",
+      "candidate_key": "799ebdfe0de21f0d755c7d65f22263e335199e895b0ebc9c3e9c5ba8d79124fa",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 248,
+      "source_text": "[ ] Nenhum store/roteador/pipeline paralelo de pendência é criado.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-093",
+      "candidate_key": "2f5c4a7ae02ca2a5b2953876a618a9e5a90929a9f98400fa9b9cd362c4e40eaf",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 249,
+      "source_text": "[ ] `items: []` funcional continua sem retry/fallback indevido.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-094",
+      "candidate_key": "a6e0989a0e832c6879fd44596b5f02026af48003ccebbbaf8934735f0648c951",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 250,
+      "source_text": "[ ] Testes focados, `pnpm check`, `pnpm architecture:check` e regressões de WhatsApp/MEAL_VISION aplicáveis passam.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-095",
+      "candidate_key": "61d3d3fb1c748499e8426e6fcecb8ad2b68014bdef7b204688978826accf4ada",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 257,
+      "source_text": "regressão com alimento genérico contendo descritor de preparo/formato;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-096",
+      "candidate_key": "4cf6487b164fbeaae21a37ccf57c4a33b950ba99e97b1f58741c368b4464e359",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 258,
+      "source_text": "controle com outro alimento genérico, provando ausência de allowlist específica;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-097",
+      "candidate_key": "53bfb69533df633532187bcb210c60d65cb5befb3d0a1b5091482bfd7c655f17",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 259,
+      "source_text": "múltiplos itens com apenas um exigindo clarificação de identidade;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-098",
+      "candidate_key": "ff7963dffa174be2eda801be61cbdb5e1ebd35eb8f1bf31e98a31f8e05f4bd51",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 262,
+      "source_text": "produto comercial real junto de alimentos genéricos;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-099",
+      "candidate_key": "d09e451c5928490c940609052da3aef57f85d905a1fe32b39ea271bf0e78244e",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 266,
+      "source_text": "normalização/cleanup preservando múltiplos itens válidos;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-100",
+      "candidate_key": "7ada391ab803d5d33cd3d2f097c5d5e18659331fd736c4657d7e4756bf12f8c8",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 271,
+      "source_text": "isolamento entre usuários;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-101",
+      "candidate_key": "98263b34ce6f153b97963a11320e19b912833e004815dc290319b612b59329fd",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 278,
+      "source_text": "A revisão identificou uma regra durável que deve ficar explícita durante a implementação:",
+      "flags": [
+        "temporal",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-102",
+      "candidate_key": "a59776a6118aa82b1a92720d9165307c377cf0122e99e5c489caf6a79433f52c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 280,
+      "source_text": "`docs/product-specs/meal-registration.md`: registrar que clarificação obrigatória de **um item** de imagem multi-item preserva o conjunto do rascunho/contrato e não autoriza persistência parcial.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-103",
+      "candidate_key": "5b2c4c11cb56bedaa4360c04d688d442b681fbc5c4feaa8c6dcac7668805edff",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 281,
+      "source_text": "`docs/product-specs/whatsapp-flow.md`: ampliar a regra já existente de preservação multi-item durante clarificação de quantidade para também cobrir clarificação de identidade.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-104",
+      "candidate_key": "1ea86bfbb1bd6efc1875aa8a7d52976098ebb62771c499616072eabf85c5d87b",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 282,
+      "source_text": "`docs/design-docs/whatsapp-interaction-registry.md`: atualizar somente se for necessário evoluir target/subtipo/interação registrada; não criar segunda fonte de verdade.",
+      "flags": [
+        "negative",
+        "forbidden-implementation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    },
+    {
+      "id": "OBL-105",
+      "candidate_key": "17cb4e819ea0e4fd566a0e5bec6700fcae0a49f13f2729cac3b6cb197a73f53e",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_line": 304,
+      "source_text": "A causa exata do exemplo de produção ainda deve ser comprovada por teste de regressão, mas o contrato de comportamento, as fontes canônicas, o lifecycle da continuação, a fronteira de reutilização e os critérios discriminantes estão suficientemente definidos para implementação sem decisão adicional de produto.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "candidate_count": 105,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083",
+        "OBL-084",
+        "OBL-085",
+        "OBL-086",
+        "OBL-087",
+        "OBL-088",
+        "OBL-089",
+        "OBL-090",
+        "OBL-091",
+        "OBL-092",
+        "OBL-093",
+        "OBL-094",
+        "OBL-095",
+        "OBL-096",
+        "OBL-097",
+        "OBL-098",
+        "OBL-099",
+        "OBL-100",
+        "OBL-101",
+        "OBL-102",
+        "OBL-103",
+        "OBL-104",
+        "OBL-105"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "entries": [
+      {
+        "id": "STR-1177-001",
+        "obligation_ids": [
+          "OBL-009"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-002",
+        "obligation_ids": [
+          "OBL-011"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-003",
+        "obligation_ids": [
+          "OBL-019"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-004",
+        "obligation_ids": [
+          "OBL-027"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-005",
+        "obligation_ids": [
+          "OBL-035"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-006",
+        "obligation_ids": [
+          "OBL-042"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-007",
+        "obligation_ids": [
+          "OBL-058"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-008",
+        "obligation_ids": [
+          "OBL-104"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      },
+      {
+        "id": "STR-1177-009",
+        "obligation_ids": [
+          "OBL-105"
+        ],
+        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
+        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "old_contract_terms": [
+      "imagem com múltiplos itens podia cair em resposta terminal genérica"
+    ],
+    "new_contract_terms": [
+      "identity persistente por item",
+      "preservação multi-item",
+      "sem persistência parcial"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/product-specs/whatsapp-flow.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/design-docs/whatsapp-interaction-registry.md",
+        "status": "reconciled"
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "pnpm docs:check",
+      "rg -n food_clarification.identity docs server"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [],
+    "rationale": "Nenhuma obrigação normativa foi removida; todas as 105 candidatas foram preservadas."
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-1177"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-056",
+      "OBL-057",
+      "OBL-058",
+      "OBL-059",
+      "OBL-060",
+      "OBL-061",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-076",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079",
+      "OBL-080",
+      "OBL-081",
+      "OBL-082",
+      "OBL-083",
+      "OBL-084",
+      "OBL-085",
+      "OBL-086",
+      "OBL-087",
+      "OBL-088",
+      "OBL-089",
+      "OBL-090",
+      "OBL-091",
+      "OBL-092",
+      "OBL-093",
+      "OBL-094",
+      "OBL-095",
+      "OBL-096",
+      "OBL-097",
+      "OBL-098",
+      "OBL-099",
+      "OBL-100",
+      "OBL-101",
+      "OBL-102",
+      "OBL-103",
+      "OBL-104",
+      "OBL-105"
+    ],
+    "evidence": [
+      "server/nutritionEngine.issue1088.test.ts",
+      "server/whatsappAnnotatedImageWebhook.test.ts",
+      "server/modules/whatsapp/foodQuantityClarification.test.ts",
+      "server/catalogMatching.ts",
+      "server/modules/whatsapp/interactionRegistryLegacy.ts"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

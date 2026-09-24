@@ -169,4 +169,21 @@ describe("Home adjusted calorie goal display", () => {
     expect(html).toContain("400 kcal");
     expect(html).toContain("82% da meta ajustada.");
   });
+
+  it("mantém o resumo antes de refeições e assistente, com refeições predominantes no desktop", async () => {
+    dashboardOverviewMock.mockReturnValue({
+      data: buildOverview({ consumedCalories: 1800 }),
+      isLoading: false,
+      isError: false,
+    });
+    const { default: Home } = await import("./Home");
+
+    const html = renderToString(React.createElement(Home));
+
+    expect(html.indexOf("Foco do dia")).toBeLessThan(html.indexOf("Refeições do dia"));
+    expect(html.indexOf("Refeições do dia")).toBeLessThan(html.indexOf("Assistente alimentar"));
+    expect(html).toContain("xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.9fr)]");
+    expect(html).toContain("xl:grid-cols-5");
+    expect(html).toContain("Água do dia");
+  });
 });

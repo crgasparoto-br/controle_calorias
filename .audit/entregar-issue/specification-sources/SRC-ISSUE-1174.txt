@@ -1,0 +1,253 @@
+<!-- specification_version: 2 -->
+
+## Contexto
+
+Em produção, em 2026-09-22, ocorreu o seguinte fluxo no WhatsApp:
+
+1. O usuário enviou uma foto contendo **Amendoim Tipo Japonês Elma Chips** e **3 garrafas de Cerveja Original**.
+2. O sistema identificou corretamente o amendoim como **Elma Chips**, registrou **1 pacote (145 g)** e sinalizou os valores nutricionais como provisórios, orientando o usuário a enviar uma foto legível do rótulo para atualização.
+3. Em seguida, o usuário enviou a foto da **tabela nutricional do mesmo amendoim**, com a legenda `Amendoim`.
+4. Em vez de associar a nova imagem ao item provisório já registrado, o pipeline tratou a imagem como uma nova identificação e passou a perguntar sobre uma variante **Dori**, marca que não fazia parte do item original.
+5. Ao responder `Não é amendoim Dori é Elmas`, o sistema perdeu a continuidade e respondeu que a pergunta não estava mais disponível.
+
+O problema é de **continuidade/correlação entre o item provisório confirmado e a evidência nutricional enviada em turno posterior**, não de reconhecimento inicial do alimento.
+
+A implementação deve partir da branch **develop**.
+
+## Relação com contratos existentes
+
+Esta issue é específica e complementar a:
+
+- #1158 — registro de produto comercial com nutrição provisória e uso posterior de rótulo validado;
+- #1051 — contrato semântico multimodal e identidade comercial;
+- #1153 — memória/aprendizado e governança;
+- `docs/issue-1158-provisional-branded-catalog.md` — fonte versionada do registro provisório, evidência de rótulo, governança e regra de correção de item confirmado;
+- `docs/product-specs/meal-registration.md`;
+- `docs/product-specs/whatsapp-flow.md`;
+- `docs/design-docs/whatsapp-interaction-registry.md`.
+
+Reutilizar os contratos existentes de:
+
+- `whatsappPendingOperations`;
+- `server/modules/whatsapp/interactionRegistry.ts`;
+- pipeline canônico de imagem/`MEAL_VISION`;
+- evidência `nutrition_label`/`NUTRITION_LABEL_EVIDENCE`;
+- atualização do item/refeição e fluxo de candidato/review definido pela #1158.
+
+**Não criar um segundo store, um parser paralelo de rótulo ou uma segunda máquina de pendências.**
+
+### Precedência documental para esta entrega
+
+Para registro provisório de produto comercial e governança de rótulo, `docs/issue-1158-provisional-branded-catalog.md` é a referência versionada mais específica e prevalece sobre trechos anteriores de `docs/product-specs/meal-registration.md` que ainda descrevam produto com marca/variante sem fonte exata como sempre fail-closed. A #1158 alterou essa regra de forma deliberada: identidade inequívoca + estimativa defensável pode gerar item provisório; ambiguidade de identidade continua fail-closed. A implementação desta issue deve reconciliar o texto antigo no documento de produto, sem ampliar a exceção.
+
+## Objetivo
+
+Quando o sistema registrar um item com nutrição provisória e orientar o usuário a enviar o rótulo, uma imagem nutricional recebida depois deve conseguir ser correlacionada ao **item provisório correto**, atualizar somente esse item com a evidência validada e preservar o contexto durante eventuais clarificações.
+
+O envio posterior do rótulo não deve ser interpretado como uma nova refeição nem perder marca, variante, quantidade ou item de origem já conhecidos.
+
+## Invariantes obrigatórios
+
+- **must_behave:** um rótulo enviado em turno posterior deve poder completar um item provisório já registrado.
+- **must_reuse:** continuidade deve usar `whatsappPendingOperations` + interaction registry e os resolvedores nutricionais existentes.
+- **must_be_single_source:** identidade original do item/refeição e a evidência nutricional validada devem convergir no mesmo item persistido; não manter uma segunda cópia funcional concorrente.
+- **precedence_invariant:** identidade explícita já confirmada no item + correção explícita atual do usuário > inferência visual nova e isolada > fallback genérico.
+- **must_not_behave:** a análise do rótulo não pode trocar silenciosamente Elma Chips por Dori, Wickbold, Panco ou qualquer outra marca/variante.
+- **must_not_behave:** a imagem usada como rótulo de um item provisório não pode criar uma nova refeição apenas por chegar em outro turno.
+- **must_not_behave:** uma pergunta de clarificação criada nesse fluxo não pode desaparecer antes de a resposta válida ser consumida, cancelada, expirada ou substituída de forma explícita.
+- **forbidden_implementation:** associar rótulo apenas pelo horário da mensagem ou por `foodName` genérico sem validar usuário, refeição, item, identidade comercial e estado da pendência.
+- **forbidden_implementation:** reprocessar a foto do rótulo como um novo produto e usar a marca sugerida pela visão para sobrescrever a identidade já confirmada.
+
+Uma implementação errada que ainda passaria no caminho feliz seria associar automaticamente qualquer foto seguinte ao último alimento. O controle discriminante deve incluir múltiplos itens provisórios e provar que a imagem/caption resolve o item correto ou pede seleção sem mutar nenhum item.
+
+## Contrato de continuidade
+
+### Estado inicial
+
+Ao confirmar uma refeição contendo item com:
+
+- identidade comercial suficientemente conhecida;
+- `nutritionVerified=false`/estado provisório equivalente;
+- mensagem ao usuário solicitando rótulo para melhorar a precisão;
+
+o sistema deve manter correlação durável suficiente para um rótulo posterior, reutilizando a infraestrutura de pendências existente.
+
+O contexto deve preservar, no mínimo, referências para:
+
+- usuário proprietário;
+- refeição;
+- item;
+- produto/nome canônico;
+- marca;
+- variante/linha/sabor quando conhecida;
+- quantidade consumida e unidade;
+- estado nutricional provisório;
+- mensagem/turno de origem quando necessário para idempotência;
+- expiração/lifecycle da pendência.
+
+A persistência deve existir **antes** da mensagem que convida o usuário a enviar o rótulo quando essa mensagem estabelecer uma continuação acionável.
+
+### Recebimento do rótulo
+
+Quando chegar uma imagem posterior:
+
+1. Resolver primeiro se existe pendência válida de rótulo para o mesmo usuário.
+2. Usar legenda/texto da mensagem, identidade comercial já conhecida e contexto da refeição para correlacionar o item.
+3. Se houver um único item compatível, processar a imagem como **evidência nutricional desse item**, não como nova refeição.
+4. Se houver vários itens provisórios compatíveis e a imagem/texto não desambiguar, pedir seleção mantendo a imagem/evidência e a pendência recuperáveis.
+5. Se não houver item compatível, não forçar associação; seguir o comportamento canônico de nova imagem/clarificação.
+
+## Validação da evidência e atualização do item
+
+Quando o próprio sistema já tiver solicitado um rótulo para um item provisório confirmado e existir pendência ativa correlacionada àquele item, o envio do rótulo pelo mesmo usuário constitui **ação explícita de correção/revisão daquele item** para fins do contrato da #1158. Essa autorização é restrita ao item correlacionado: não autoriza alterar outros itens da refeição nem publicar diretamente no catálogo global.
+
+O pipeline canônico de rótulo deve:
+
+- preservar a identidade comercial do item original;
+- extrair porção-base, kcal, proteína, carboidratos e gorduras;
+- validar que a evidência pertence à mesma identidade conhecida;
+- rejeitar marca/variante incompatível em vez de substituir silenciosamente o item;
+- recalcular os nutrientes para a **quantidade efetivamente consumida**;
+- atualizar apenas o item correlacionado;
+- preservar de forma auditável os valores anteriores, os novos valores, a fonte/evidência nutricional e a origem da correção conforme o contrato canônico da #1158;
+- recalcular os totais da refeição;
+- registrar procedência como rótulo validado quando os critérios do contrato canônico forem satisfeitos;
+- encaminhar a evidência ao candidato/review da #1158 quando aplicável, sem publicação global direta.
+
+### Caso real de regressão
+
+Item original:
+
+- **Amendoim Tipo Japonês Elma Chips**
+- quantidade consumida: **145 g**
+
+Rótulo recebido:
+
+- porção: **25 g**
+- 127 kcal
+- 9,8 g carboidratos
+- 4,5 g proteínas
+- 7,8 g gorduras
+
+Para 145 g, o item atualizado deve refletir proporcionalmente aproximadamente:
+
+- **736,6/737 kcal**
+- **56,8 g carboidratos**
+- **26,1 g proteínas**
+- **45,2 g gorduras**
+
+Usar as regras de arredondamento já existentes do produto. A cerveja da mesma refeição não deve ser alterada.
+
+## Clarificação e correção textual
+
+Se a evidência não for suficiente para fechar identidade/variante:
+
+1. Persistir/reutilizar uma operação pendente registrada no interaction registry.
+2. A pergunta deve permanecer válida até resolução, cancelamento, expiração ou substituição explícita.
+3. Respostas como:
+   - `É Elma Chips`
+   - `Não é Dori, é Elma Chips`
+   - `É o amendoim japonês Elma Chips`
+
+   devem resolver a mesma pendência quando semanticamente compatíveis.
+4. Uma correção explícita do usuário tem precedência sobre uma marca inferida pela visão.
+5. Após resolver a identidade, reutilizar a imagem/evidência já recebida quando ela ainda for válida; não exigir novo upload sem necessidade.
+6. A mensagem `Essa pergunta não está mais disponível` só é válida para estado realmente expirado, consumido, cancelado ou superseded; não pode ocorrer por perda acidental de correlação entre turnos.
+
+## Ambiguidade com múltiplos itens provisórios
+
+Cobrir explicitamente:
+
+- refeição com **amendoim Elma Chips** e **cerveja Original**, ambos provisórios;
+- usuário envia rótulo com legenda `Amendoim`: atualizar somente o amendoim;
+- usuário envia rótulo com legenda `Cerveja`: atualizar somente a cerveja;
+- usuário envia rótulo sem legenda e a evidência visual identifica inequivocamente um dos itens: associar somente se a identidade for compatível;
+- usuário envia imagem insuficiente para distinguir dois itens: perguntar qual item, sem alterar nenhum;
+- resposta à seleção retoma a mesma evidência sem criar nova refeição ou novo candidato duplicado.
+
+## Idempotência, concorrência e isolamento
+
+- Reentrega do mesmo `message.id` não pode atualizar o item duas vezes nem criar dois candidatos.
+- Duas respostas concorrentes para a mesma clarificação devem resultar em no máximo uma conclusão válida.
+- Pendência de um usuário nunca pode ser consumida por outro usuário/telefone.
+- Reinício do processo não pode apagar uma pendência de rótulo ativa.
+- Cancelamento encerra a continuação sem alterar o item provisório já registrado.
+- Expiração mantém o item provisório intacto e exige novo rótulo/comando para atualização.
+
+## Tratamento de falhas
+
+- Falha ao analisar o rótulo: preservar o item provisório e informar que a atualização não foi concluída.
+- Rótulo legível, mas incompatível com a identidade já confirmada: não sobrescrever o item; pedir correção/seleção.
+- Falha ao persistir a atualização nutricional: não responder como se o item tivesse sido atualizado.
+- Falha ao criar candidato/review da #1158 após atualizar validamente o item: preservar a atualização da refeição quando o contrato canônico permitir, registrar falha operacional e não afirmar publicação/cadastro global.
+- Pendência inexistente ou expirada: não interpretar automaticamente a imagem como correção do último alimento apenas pela proximidade temporal.
+
+## Critérios de aceite
+
+- [ ] Após registrar item provisório e solicitar rótulo, a continuação é persistida antes do outbound acionável e sobrevive a reinício.
+- [ ] Uma foto de rótulo posterior é correlacionada ao item provisório correto do mesmo usuário/refeição quando houver evidência suficiente.
+- [ ] O caso Elma Chips reproduzido acima não é reclassificado como Dori.
+- [ ] A tabela de 25 g atualiza proporcionalmente o consumo de 145 g usando o arredondamento canônico.
+- [ ] Somente o item de amendoim é atualizado; a cerveja da mesma refeição permanece inalterada.
+- [ ] O upload do rótulo em resposta à solicitação ativa é tratado como correção explícita do item correlacionado, sem autorizar mutação de outros itens nem publicação global direta.
+- [ ] A correção do item preserva valores anteriores, novos valores, fonte/evidência e origem auditável da mudança.
+- [ ] Marca/variante incompatível bloqueia mutação e gera clarificação em vez de substituição silenciosa.
+- [ ] Resposta textual `Não é Dori, é Elma Chips` resolve a pendência ativa e não retorna falsamente `Essa pergunta não está mais disponível`.
+- [ ] Se houver mais de um item provisório plausível, o sistema pede seleção e preserva a imagem/evidência para continuação.
+- [ ] A resposta à seleção reutiliza a evidência já recebida e não cria nova refeição.
+- [ ] Reentrega da mesma mensagem é idempotente.
+- [ ] Reinício mantém a pendência ativa e a correlação necessária.
+- [ ] Cancelamento/expiração não altera o item provisório existente.
+- [ ] Outro usuário não consegue consumir a pendência nem reutilizar a evidência.
+- [ ] Evidência validada segue o fluxo canônico de candidato/review da #1158 sem insert global paralelo.
+- [ ] Nenhuma nova máquina de pendências, store de contexto ou parser de rótulo paralelo é criado.
+- [ ] Testes focados, `pnpm check`, `pnpm architecture:check` e regressões WhatsApp aplicáveis passam.
+
+## Considerações de testes
+
+Cobrir no mínimo:
+
+- fluxo principal com um único item provisório;
+- caso real Elma Chips 145 g + rótulo de 25 g;
+- refeição com dois itens provisórios e legenda que desambigua;
+- múltiplos itens sem legenda suficiente;
+- correção textual de marca após sugestão errada da visão;
+- marca incompatível;
+- evidência incompleta;
+- reentrega do mesmo `message.id`;
+- reinício entre solicitação e resposta;
+- resposta inválida que reapresenta a mesma pendência;
+- cancelamento e expiração;
+- duas respostas concorrentes;
+- isolamento entre usuários;
+- falha de persistência após análise;
+- ausência de criação de nova refeição durante o fluxo de atualização.
+
+## Impacto na documentação
+
+Na implementação, atualizar somente se necessário para manter o contrato canônico coerente:
+
+- `docs/product-specs/meal-registration.md`: reconciliar o wording antigo de fail-closed com a regra específica da #1158 e documentar continuidade de rótulo para item provisório e precedência de identidade;
+- `docs/product-specs/whatsapp-flow.md`: imagem posterior como continuação de item provisório;
+- `docs/design-docs/whatsapp-interaction-registry.md`: nova interação registrada, caso seja necessário um novo tipo de pendência.
+
+Usar `docs/issue-1158-provisional-branded-catalog.md` como referência versionada para a separação entre correção do item confirmado e promoção global. Não duplicar a especificação da #1158 sobre governança/publicação global.
+
+## Fora de escopo
+
+- Alterar a política global de promoção do catálogo definida na #1158/#1153.
+- Criar nova tela administrativa.
+- Reprocessar automaticamente todas as refeições históricas provisórias.
+- Inferir código de barras inexistente.
+- Associar qualquer imagem ao último alimento apenas por proximidade temporal.
+- Refatoração ampla do pipeline nutricional sem relação direta com a continuidade do rótulo.
+
+## Base de implementação
+
+Partir da **develop** atual.
+
+Esta issue deve corrigir a correlação multi-turn e o lifecycle da evidência. A governança de publicação global permanece pertencente à #1158/#1153 e deve apenas ser reutilizada quando aplicável.
+
+## Prontidão
+
+**Pronta.** O contrato de continuidade, correlação, correção explícita do item, isolamento, idempotência e governança está suficientemente definido para implementação sobre `develop`. Não há decisão de produto bloqueante conhecida; detalhes de modelagem física da pendência permanecem de implementação, desde que reutilizem `whatsappPendingOperations` e o interaction registry canônico.

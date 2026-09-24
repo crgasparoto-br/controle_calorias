@@ -12,7 +12,14 @@ O catálogo ativo não é alterado pela entrada do candidato. A administração 
 
 ## Continuidade WhatsApp
 
-A solicitação de nova foto é gravada como uma pending operation antes do envio outbound. A interação é registrada no registry transversal, pode ser reconstruída após reinício, aceita `CANCELAR` e é reivindicada com versionamento para evitar dupla aplicação. A foto recebida não cria uma nova refeição: se o rótulo for legível, a evidência atualiza o candidato original e retorna à fila de revisão; caso contrário, nenhuma refeição é alterada.
+A solicitação de nova foto é gravada como uma pending operation antes do envio outbound. A interação é registrada no registry transversal, pode ser reconstruída após reinício, aceita `CANCELAR` e é reivindicada com versionamento para evitar dupla aplicação.
+
+Há dois destinos canônicos para a foto posterior:
+
+- quando a solicitação nasceu de um **item provisório já persistido em refeição**, a pending operation conserva `userId`, `mealId`, `itemIndex` e o snapshot da identidade comercial. O rótulo corrige somente nutrientes/evidência do item original; nome, marca e variante não são substituídos pela nova visão. Conflito ou múltiplos candidatos persistem a evidência analisada e abrem clarificação retomável no mesmo store;
+- quando a solicitação nasceu da **fila administrativa de candidatos**, a foto atualiza a evidência do candidato original e o devolve à revisão, sem publicar automaticamente no catálogo global.
+
+Nos dois casos a foto não cria nova refeição. A aplicação exige evidência legível, correlação segura e claim compare-and-set; estado obsoleto, conflito não resolvido, expiração ou concorrência falham fechado sem mutação silenciosa.
 
 ## Persistência e apresentação
 

@@ -27,12 +27,14 @@ import {
   rejectFoodPhotoAnalysisSchema,
 } from "./modules/photoAnalysis/schemas";
 import {
+  getAdminActivityPage,
   getAdminOverview,
   getWhatsappTokenStatus,
   runFoodImportJob,
   updateWhatsappToken,
 } from "./modules/admin/service";
 import {
+  adminActivitiesSchema,
   runFoodImportJobSchema,
   updateWhatsappTokenSchema,
 } from "./modules/admin/schemas";
@@ -1109,6 +1111,9 @@ export const nutritionRouter = router({
 
   admin: router({
     overview: adminProcedure.query(async () => getAdminOverview()),
+    activities: adminProcedure
+      .input(adminActivitiesSchema)
+      .query(async ({ input }) => getAdminActivityPage(input)),
     whatsappTokenStatus: adminProcedure.query(async () =>
       getWhatsappTokenStatus()
     ),

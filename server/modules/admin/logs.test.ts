@@ -6,6 +6,9 @@ function createFakeRepository(overrides: Partial<LogsRepository> = {}): LogsRepo
   return {
     insert: vi.fn(async () => undefined),
     findRecent: vi.fn(async () => null),
+    findPage: vi.fn(async () => null),
+    count: vi.fn(async () => null),
+    countByRange: vi.fn(async () => null),
     deleteByUserId: vi.fn(async () => undefined),
     ...overrides,
   };

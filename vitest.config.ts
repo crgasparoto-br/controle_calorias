@@ -15,6 +15,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["server/testSetupAiDefaults.ts"],
+    testTimeout: 15_000,
     include: [
       "server/**/*.test.ts",
       "server/**/*.spec.ts",

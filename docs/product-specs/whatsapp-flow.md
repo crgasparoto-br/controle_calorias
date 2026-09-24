@@ -47,6 +47,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Quando uma medida for convertida, a resposta ao usuário deve deixar clara a medida interpretada, por exemplo usando a porção convertida na confirmação.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.
 - Imagem com alimento identificado, mas sem porção segura, não cria refeição: abre clarificação persistente de quantidade, preserva todos os itens identificados e conclui as porções pendentes em sequência antes de persistir.
+- Imagem com identidade comercial ambígua não cria refeição nem responde com erro terminal: abre a interação persistente `food_clarification.identity`, preserva a mídia, o contrato semântico e todos os itens identificados, e pergunta a marca, linha ou variante do item alvo. Cada resposta altera somente o item perguntado; os demais permanecem no contexto e a mesma interação segue para as próximas identidades e quantidades sem reenviar a imagem à visão.
+- Termos de preparo/apresentação, como `assada`, `cozida`, `grelhada`, `picada`, `fatiada` e `em rodelas`, não são promovidos a marca ou variante comercial desconhecida.
 - A correção `O último alimento é ...` sem quantidade abre uma pendência compatível; uma resposta posterior como `30g` conclui a substituição pelo processamento nutricional canônico e envia o resumo recalculado.
 - Preparações com complemento calórico explícito, como `café com açúcar`, não podem usar referência incompatível de ausência do ingrediente.
 - Quando a quantidade do açúcar estiver ausente e não houver estimativa nutricional utilizável, registro, adição e substituição abrem a interação canônica `food_clarification.quantity` antes de qualquer mutação.
@@ -74,6 +76,11 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Comandos posteriores, como ajustes e exclusões por alimento, devem procurar primeiro no contexto lógico seguro do dia/refeição, não apenas no último bloco criado pela última mensagem.
 - Quando o usuário informar nome específico de produto, marca, linha, versão ou tipo/qualificador em texto, o registro exibido deve preservar esse nome sempre que ele for compatível com a referência nutricional usada internamente.
 - Marca e tipo/qualificador informados no texto devem participar da busca da referência nutricional. Produto com marca/variante explícita exige referência comercial compatível e comprovada; ausência ou ambiguidade mantém a clarificação canônica de identidade. A busca por alimento + tipo e o fallback genérico só se aplicam quando não existe identidade comercial pendente, conforme o contrato de registro de refeição.
+- Quando um item já registrado com nutrientes provisórios pede foto de rótulo, `whatsappPendingOperations` mantém a correlação entre usuário, refeição, índice do item e identidade comercial. A imagem posterior é tratada como continuação e nunca cria uma segunda refeição.
+- Nome/produto, marca e variante confirmados no registro original prevalecem sobre uma identificação divergente obtida apenas da foto posterior. Conflito como rótulo interpretado como Dori para item confirmado como Elma Chips exige clarificação; marca coincidente não autoriza aplicar nutrientes de outro produto da mesma marca.
+- Se mais de um item provisório puder receber a foto, o sistema usa a descrição/legenda quando ela resolver um candidato único; caso contrário, persiste a evidência do rótulo e pergunta qual item deve ser atualizado. A resposta posterior retoma a mesma foto, inclusive após reinício, até conclusão, cancelamento, substituição ou expiração.
+- A continuação de rótulo é idempotente: claim versionado precede a mutação, e reentrega ou respostas concorrentes resultam em no máximo uma atualização. Falha de persistência mantém o item provisório seguro, não transforma a foto em novo registro/publicação global e suprime qualquer convite acionável para enviar rótulo enquanto a continuação durável não existir.
+- Correções textuais explícitas durante essa continuação, como `Não é Dori, é Elma Chips`, pertencem à interação de rótulo ativa e não devem ser interceptadas pelo fluxo genérico de substituição de alimento.
 
 ## Entradas suportadas
 
@@ -105,6 +112,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
+- Alimento identificado por imagem com identidade comercial pendente permanece em `food_clarification.identity` até uma resposta textual válida; resposta inválida reapresenta a pergunta e não cai no fallback nutricional.
 - Correção do último alimento em duas mensagens preserva contexto, substitui somente o item revalidado e confirma macros do estado recarregado.
 - Café com açúcar nunca usa slug, nome canônico ou composição de `cafe-sem-acucar`.
 - Quantidade explícita de açúcar participa dos totais uma única vez; sem quantidade e sem estimativa utilizável, nenhuma refeição ou item é alterado antes da clarificação persistente.

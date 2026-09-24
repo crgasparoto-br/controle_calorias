@@ -1,1 +1,601 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"inherited-controls","compression":"gzip","encoded_size":5908,"encoded_sha256":"480a1c1d2e88aef96cc35e25ce2f2cf738ee06d2f18dca1ab205e25c8f09da2f","decoded_size":31529,"decoded_sha256":"c0194c8f13c135b13e0a6da2e93aa400def27a97ccdfda434ee6d1a047d2a192","parts":[{"path":"inherited-controls.parts/part-000.b64","size":2000,"sha256":"747db030715e1e8222bdc0fcd56cd4a80845eee8c3c892c32c3c6ac91a4e2643"},{"path":"inherited-controls.parts/part-001.b64","size":2000,"sha256":"d79e391d8236c8699f602b54ab35980ba2b614383fd59cabbe49a61092dd08f6"},{"path":"inherited-controls.parts/part-002.b64","size":1908,"sha256":"43528780dbb1a2554aa090dcf0f701aacd5f099f4118a05e500799682fe5cb91"}]}
+{
+  "schema_version": 1,
+  "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+  "source_audits": [
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:99e044ac-cd2a-4599-866c-d08c052404ed",
+      "finding_ids": [
+        "AUD-998-F001"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:eed1aa42-cde8-4d18-9918-e08097fb4218",
+      "finding_ids": [
+        "AUD-998-F002",
+        "AUD-998-F003"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:577f8883-06ee-4b32-a49b-352b5975cc42",
+      "finding_ids": [
+        "AUD-998-F004"
+      ],
+      "audit_report_sha256": "d83c91d87ddcc97078a68787783616fd6ae805699fd930842ba850be5e788f91"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:def9ff78-8917-47c8-a766-598b362fdd9c",
+      "finding_ids": [
+        "DELIVERY-998-001"
+      ],
+      "audit_report_sha256": "f226dea8d1d94d612ad8242d6ed7fea82cf02a5e5ece25ca611f2d915f618695"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:392e45bf-73eb-4f88-aebf-5c1fd49202af",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "cb7414615b58ec72a940cb7e1dc714c52103dbcbd04bf810a2a525e3d008b5f8"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:003d3dde-3ce4-4908-b3d6-7732bc9028ef",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "329ea905b5db844ba2313a8a05d3790e3607d06bd627bd9d625d863a66747450"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:51bdafa2-f565-4551-ab87-ab45d0cddcd6",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "cfacc085946b49f0239c927826638eb6db3d28858e2d04a6efcc87cd9e4a1030"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:9c6cef99-2470-489d-b6e4-37f2fc31221e",
+      "finding_ids": [
+        "A-002"
+      ],
+      "audit_report_sha256": "94bde4607e2431142ec9629a11a93ec345eadd34867067bc836e7c7f81d638b3"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:bb350a82-eeb0-40c8-b9cd-edf963efd5c4",
+      "finding_ids": [
+        "AUD-1015-F001",
+        "AUD-1015-F002",
+        "AUD-1015-F003",
+        "AUD-1015-F004"
+      ]
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:a02fd202-8ef5-4b52-9d35-0b8a340a1014",
+      "finding_ids": [
+        "AUD-1015-R2-F001",
+        "AUD-1015-R2-F002",
+        "AUD-1015-R2-F003",
+        "AUD-1015-R2-F004"
+      ],
+      "audit_report_sha256": "a7ba7992190c647360575c2cf7647ee39a9c06a8c80c01634122d69111c2ec25"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:80889e6e-b99c-49b3-a8cb-8eef0fb9f38b",
+      "finding_ids": [
+        "A-003"
+      ],
+      "audit_report_sha256": "85e70186c9f2457cdf4176b23f46c1ff12ca4f6887a48c748b3513d89d7a72c3"
+    },
+    {
+      "rejection_id": "audit-rejection:b223bd10-6a0e-43eb-b1e7-8bab1825c17e",
+      "finding_ids": [
+        "A-001"
+      ],
+      "report_sha256": "d0012f26b6a775c2accbffeb92533d895674d24ba792916b4825bcd6ee3396ca"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:pr1021-c48ec232-starvation-001",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "33e89f3cd8078d4f8fe4a88673dc585a2244db3a5e6161519845b215b731774f"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:898-1023-snapshot-cohort-001",
+      "finding_ids": [
+        "AUD-898-F001"
+      ],
+      "audit_report_sha256": "c0f792dfcbb0ec8bacf134e080a1b1d5c4ac016dd463a12becfefcf9fc26891e"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:898-1023-handoff-integrity-002",
+      "finding_ids": [
+        "AUD-898-HANDOFF-F001",
+        "AUD-898-HANDOFF-F002"
+      ],
+      "audit_report_sha256": "b78bb39f86d567c2f020cd451c33881e388f7094d7bd0f8ef4e0cb9b0a46b53c"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:6bee550765e66a2959d3",
+      "finding_ids": [
+        "A-001",
+        "A-002",
+        "A-003"
+      ],
+      "audit_report_sha256": "2fcaf1209c6d8163e065977511c646cb47ab0028eb5e279b1004495d92598e0f"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:bc20d0f04efa4ed75f30",
+      "finding_ids": [
+        "A-004"
+      ],
+      "head_sha": "eaa46ed7026586c798c51835a5ca49ee88ab5b2b",
+      "material_head_sha": "ddc9508db607a2c1d21effd2710066442d7ba2a1",
+      "audit_report_sha256": "36a3d5a59c448ea63e51630051b2fb64f95824c1ee18da3da0ce9d119b809fff"
+    },
+    {
+      "kind": "independent-audit-rejection",
+      "rejection_id": "audit-rejection:ae5a0adf-a1a0-43c2-9c62-0ba88cafec17",
+      "finding_ids": [
+        "A-002"
+      ],
+      "head_sha": "a1d2625ae3196a3d79531f54da06994a9960e218",
+      "material_head_sha": "31f6306bdba848e28d2bce1467e05f97c003334e",
+      "audit_report_sha256": "23d00b274c7cae2610beaf49263e923748100bef5f9575cbf897d62ba3015771"
+    },
+    {
+      "rejection_id": "audit-rejection:ee6f493cc3407c30",
+      "kind": "independent-rejection",
+      "audited_head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+      "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+    }
+  ],
+  "controls": [
+    {
+      "id": "CTRL-1174-SPEC-COVERAGE-001",
+      "status": "passed",
+      "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "control_type": "gate",
+      "procedure": "Validate every canonical obligation against the current specification snapshot and exact material head before handoff.",
+      "expected": "All obligations stay covered with no unresolved scope reduction or structural invariant.",
+      "observed": "Current closure contains all 83 obligations and passes terminal coverage on the current material head.",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+      "evidence_sha256": "27f69bbee47f4f2cbf3c5c274a841598ebbe102318e46f05122be6a4a8d7f649"
+    },
+    {
+      "id": "CTRL-1174-SAME-BRAND-PRODUCT-001",
+      "status": "passed",
+      "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "control_type": "test",
+      "procedure": "Attempt to apply label evidence from a different product sharing the same brand to the original pending item.",
+      "expected": "Mutation is blocked until the actual product identity is explicitly confirmed.",
+      "observed": "Same-brand different-product regression blocks mutation and brand-only clarification.",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+      "evidence_sha256": "27f69bbee47f4f2cbf3c5c274a841598ebbe102318e46f05122be6a4a8d7f649",
+      "attack_control_id": "NEG-068-01",
+      "risk_family": "structural-contract",
+      "surface": "commercial-identity-validation",
+      "dimension": "same-brand-different-product"
+    },
+    {
+      "id": "CTRL-1174-PERSIST-BEFORE-INVITE-001",
+      "status": "passed",
+      "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "control_type": "test",
+      "procedure": "Force durable pending creation to fail after provisional meal persistence and render the final WhatsApp reply.",
+      "expected": "The reply preserves provisional status but does not invite a label upload without durable continuation.",
+      "observed": "Exact-head webhook regression emits unavailable-now wording and no actionable label invitation.",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+      "evidence_sha256": "27f69bbee47f4f2cbf3c5c274a841598ebbe102318e46f05122be6a4a8d7f649",
+      "attack_control_id": "NEG-061-02",
+      "risk_family": "temporal-consistency",
+      "surface": "pending-lifecycle-window",
+      "dimension": "persistence-failure-suppresses-invite"
+    },
+    {
+      "id": "CTRL-1174-CONCURRENT-RESOLUTION-001",
+      "status": "passed",
+      "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "control_type": "test",
+      "procedure": "Execute two competing resolutions against the same pending version using compare-and-set claim semantics.",
+      "expected": "At most one response concludes and no second domain mutation occurs.",
+      "observed": "Exact-head lost-claim regression blocks the second mutation.",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+      "evidence_sha256": "27f69bbee47f4f2cbf3c5c274a841598ebbe102318e46f05122be6a4a8d7f649",
+      "attack_control_id": "NEG-054-01",
+      "risk_family": "concurrency-atomicity",
+      "surface": "concurrent-resolution",
+      "dimension": "parallel-responses"
+    },
+    {
+      "id": "CTRL-RISK-CONCURRENCY-LEXICON-001",
+      "status": "passed",
+      "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "control_type": "gate",
+      "procedure": "Classify synthetic concurrent responses, callbacks and messages plus a semantic competitor false-positive control.",
+      "expected": "Concurrent response-like clauses activate concurrency-atomicity while non-concurrency semantic competition does not.",
+      "observed": "Generic lexical precision and saturation regression tests pass after classifier hardening.",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt",
+      "evidence_sha256": "3d910a26f71f346dde53b6ca1b14b842976f99b66febba5d47094f1fc497116a",
+      "attack_control_id": "NEG-054-02",
+      "risk_family": "structural-contract",
+      "surface": "risk-classification",
+      "dimension": "concurrency-language-detection"
+    }
+  ],
+  "retired_controls": [
+    {
+      "id": "CTRL-1037-CANONICAL-SOURCE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-A001-EXACT-HEAD-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-A002-FULL-SPEC-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-A003-ATOMIC-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-1043-A004-EXACT-CONFLICT",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-SPEC-LIST-ANCESTRY-001",
+      "disposition": "superseded",
+      "reason": "Historical specification-list control is replaced by the current exact-source specification coverage gate for Issue #1174 while preserving cumulative lineage.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package.",
+      "replacement_control_id": "CTRL-1174-SPEC-COVERAGE-001"
+    },
+    {
+      "id": "CTRL-SPEC-LIST-EXCLUSION-001",
+      "disposition": "superseded",
+      "reason": "Historical specification-list control is replaced by the current exact-source specification coverage gate for Issue #1174 while preserving cumulative lineage.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package.",
+      "replacement_control_id": "CTRL-1174-SPEC-COVERAGE-001"
+    },
+    {
+      "id": "CTRL-960-CANONICAL-SOURCE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-1015-A003-CURRENT-BASE-REFREEZE",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-1015-R2-HANDOFF-PACKAGE-INTEGRITY",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-215-PENDING-ACTIVATION-FAIRNESS-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-215-TARGET-BINDING-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-AUD-F001-FILTER-BEFORE-LIMIT",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-AUD-F002-ECONOMIC-EXHAUSTIVE",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-AUD-F003-ROLLOUT-SPECIFIED-MATRIX",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-AUD-F004-RUNTIME-VISUAL-ARTIFACT",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-STRUCTURAL-IDENTITY-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-STRUCTURAL-TEST-MATRIX-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-896-TEMPORAL-CONSISTENCY-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-AUDIT-REMEDIATION-CERT-REDERIVE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-AUDIT-REMEDIATION-SOURCE-BINDING-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-CANONICAL-DISPLAY-PARITY-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-CLARIFICATION-REPROMPT-CONTRACT-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-EXPLICIT-DATE-TEMPORAL-LINEAGE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-LOW-CAL-BEVERAGE-PRECEDENCE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-MIXED-TARGET-IDENTITY-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-PARSER-OWNERSHIP-FALLTHROUGH-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-POST-WRITE-REFREEZE-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-RESULT-ONLY-ARTIFACT-ALLOWLIST-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-898-STRUCTURAL-CONTRACT-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-898-SNAPSHOT-COHORT-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    },
+    {
+      "id": "CTRL-898-HANDOFF-INTEGRITY-001",
+      "disposition": "not-applicable",
+      "reason": "Historical control belongs to an earlier delivery target and is retained only for cumulative lineage; it is not used as evidence for Issue #1174.",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "evidence": ".audit/entregar-issue/reaudit-current/evidence/lineage-remediation.txt",
+      "evidence_sha256": "570007ada15282c20dde13787c7b2046e60b666c4459d9875cbd4d31598d7c7d",
+      "procedure": "Reclassify the historical control against the current target and preserve its explicit retirement disposition without promoting stale execution evidence.",
+      "expected": "Historical control identity remains explicit and does not replace current exact-head discriminant evidence.",
+      "observed": "Historical lineage is preserved; current-target claims rely on the new exact-head controls in this package."
+    }
+  ],
+  "unresolved_controls": []
+}

@@ -2,38 +2,59 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+  "remediation_mode": "mixed-remediation",
   "source": {
-    "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
-    "audit_report_sha256": "ee67cbb32f033852daef30eb46998a293ef23e2f2cc0d42029b85e09fb33b331",
-    "audited_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac"
+    "rejection_id": "audit-rejection:ee6f493cc3407c30",
+    "audited_head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+    "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
   },
-  "candidate_head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
-  "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-1052-HANDOFF-STALE-001",
+      "source_id": "AUD-1175-SAME-BRAND-PRODUCT-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "post-write-refreeze",
-      "changed_files": [
-        ".audit/entregar-issue/audit-source-result.json",
-        ".audit/entregar-issue/audit-remediation.json",
-        ".audit/entregar-issue/audit-escape-closure-1051.json",
-        ".audit/entregar-issue/learning-closure.json",
-        ".audit/entregar-issue/standard-evidence.json",
-        ".audit/entregar-issue/handoff-ready.json"
-      ],
       "evidence": [
-        "Fresh PR identity fixes ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac as the new material candidate; the stale certificate for 9debe298b21cb975a0b3c09ea6f45b1842219bbc is not reused as terminal evidence.",
-        "The canonical handoff recovery classifier preserves the independent-audit floor recovery_scope=post-write-refreeze and requires a new freeze/handoff on the current material head."
+        ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+        "server/nutritionLabelCandidateService.ts",
+        "server/nutritionLabelCandidateService.provisional.test.ts"
       ],
       "validations": [
-        "Agent-first run 34173557538 completed/success on exact material head ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac, covering TypeScript, full Vitest, Architecture, Documentation, Build, Agent check and CI gate docs.",
-        "Billing 34173557521, Onboarding 34173557524, WhatsApp 34173557480 and Professional 34173557501 TiDB gates completed/success on ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac; AI provider live smoke 34173557481 was skipped/non-applicable.",
-        "classify_handoff_recovery.py returned recovery_scope=post-write-refreeze with auditor_requires_refreeze=true for the fresh remote identity."
+        "Agent-first exact-head tests passed",
+        "Same-brand different-product control blocks mutation and brand-only resolution"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": [
+        ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt",
+        "server/whatsappWebhookImplementation.ts",
+        "server/whatsappWebhook.reply.test.ts"
+      ],
+      "validations": [
+        "Agent-first exact-head tests passed",
+        "Persistence absence suppresses actionable label invitation"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "AUD-1175-CONCURRENCY-SATURATION-003",
+      "remediation_mode": "systemic-remediation",
+      "status": "fixed",
+      "evidence": [
+        ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt",
+        ".audit/entregar-issue/reaudit-current/audit-escape-closure.json",
+        ".audit/entregar-issue/reaudit-current/learning-closure.json"
+      ],
+      "validations": [
+        "Generic lexical precision tests passed",
+        "Risk saturation now declares concurrency-atomicity applicable with parallel-response control"
       ]
     }
-  ],
-  "status": "closed"
+  ]
 }

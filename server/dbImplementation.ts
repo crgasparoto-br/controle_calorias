@@ -26,6 +26,7 @@ import { createDrizzleWeightRepository } from "./repositories/weightRepository";
 import { createDrizzleWhatsAppRepository } from "./repositories/whatsappRepository";
 import { createFoodsService, normalizeCatalogText, type FoodSearchItem, type FoodUpsertInput } from "./modules/foods/catalog";
 import { createUsersService } from "./modules/users/service";
+import type { AdminActivitiesInput } from "./modules/admin/schemas";
 import { createExercisesService, sumExercises } from "./modules/exercises/store";
 import { createGamificationService, BADGE_DEFINITIONS } from "./modules/gamification/store";
 import { createGoalsService, type GoalInput } from "./modules/goals/store";
@@ -438,6 +439,10 @@ type AdminLogEntry = {
   eventType: string;
   detail: string;
   createdAt: number;
+};
+
+export type AdminUserSummary = User & {
+  profile: "admin" | "professional" | "user";
 };
 
 const mealStore = new Map<number, SavedMeal[]>();
@@ -1709,12 +1714,15 @@ export async function getDashboardSnapshot(userId: number, timeZone = DEFAULT_AP
   };
 }
 
-export async function getKnownUsers(): Promise<User[]> {
+export async function getKnownUsers(): Promise<AdminUserSummary[]> {
   const db = await getDb();
   if (db) {
-    const recentUsers = await usersRepository.listRecent(25);
-    if (recentUsers) {
-      return recentUsers;
+    const allUsers = await usersRepository.listAll();
+    if (allUsers) {
+      return allUsers.map(({ hasProfessionalProfile, ...user }) => ({
+        ...user,
+        profile: user.role === "admin" ? "admin" : hasProfessionalProfile ? "professional" : "user",
+      }));
     }
   }
 
@@ -1729,6 +1737,7 @@ export async function getKnownUsers(): Promise<User[]> {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
+      profile: "admin",
     },
   ];
 }
@@ -1737,12 +1746,20 @@ export async function getAdminSnapshot() {
   const usersList = await getKnownUsers();
   const db = await getDb();
   const whatsappToken = await getAdminWhatsAppTokenStatus();
+  const attentionWindowTo = new Date();
+  const attentionWindowFrom = new Date(attentionWindowTo.getTime() - 24 * 60 * 60 * 1000);
 
   if (db) {
     try {
-      const [mealsCount, recentLogs] = await Promise.all([
+      const [mealsCount, recentLogs, logsCount, attentionCountLast24h] = await Promise.all([
         mealsRepository.countConfirmed(),
         loadRecentLogsFromDb(),
+        logsRepository.count(),
+        logsRepository.countByRange({
+          from: attentionWindowFrom,
+          to: attentionWindowTo,
+          statuses: ["warning", "error"],
+        }),
       ]);
 
       return {
@@ -1750,7 +1767,8 @@ export async function getAdminSnapshot() {
           usersCount: usersList.length,
           mealsCount,
           pendingInferences: inferenceStore.size,
-          logsCount: recentLogs?.length ?? adminLogStore.length,
+          logsCount: logsCount ?? recentLogs?.length ?? adminLogStore.length,
+          attentionCountLast24h,
         },
         users: usersList,
         whatsappToken,
@@ -1768,10 +1786,101 @@ export async function getAdminSnapshot() {
       mealsCount: allMeals.length,
       pendingInferences: inferenceStore.size,
       logsCount: adminLogStore.length,
+      attentionCountLast24h: adminLogStore.filter(
+        log =>
+          (log.status === "warning" || log.status === "error") &&
+          log.createdAt >= attentionWindowFrom.getTime() &&
+          log.createdAt < attentionWindowTo.getTime()
+      ).length,
     },
     users: usersList,
     whatsappToken,
     recentInferenceLogs: adminLogStore.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
+  };
+}
+
+type AdminActivityCategory = Exclude<AdminActivitiesInput["eventTypeCategory"], "all">;
+
+function adminActivityCategory(eventType: string): AdminActivityCategory {
+  if (eventType.startsWith("ai.") || eventType.includes("inference")) return "ai";
+  if (eventType.startsWith("meal.")) return "meal";
+  if (eventType.startsWith("whatsapp.")) return "whatsapp";
+  if (eventType.startsWith("foods.") || eventType.startsWith("nutrition_label_candidate.")) return "foods";
+  if (eventType.startsWith("water.")) return "water";
+  if (eventType.startsWith("exercise.")) return "exercise";
+  return "system";
+}
+
+function getAdminActivityRange(period: AdminActivitiesInput["period"], nowMs: number) {
+  const to = new Date(nowMs);
+  if (period === "today") {
+    const today = getUtcRangeForLocalDate(getDateKeyInTimeZone(to, DEFAULT_APP_TIME_ZONE), DEFAULT_APP_TIME_ZONE);
+    return { from: today.startAt, to };
+  }
+  const durationMs = period === "24h" ? 24 * 60 * 60 * 1000 : period === "7d" ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+  return { from: new Date(nowMs - durationMs), to };
+}
+
+function matchesAdminActivity(log: AdminLogEntry, input: AdminActivitiesInput, range: { from: Date; to: Date }) {
+  const createdAt = new Date(log.createdAt);
+  if (createdAt < range.from || createdAt >= range.to) return false;
+  if (input.status !== "all" && log.status !== input.status) return false;
+  if (input.origin !== "all" && log.origin !== input.origin) return false;
+  if (input.eventTypeCategory !== "all" && adminActivityCategory(log.eventType) !== input.eventTypeCategory) return false;
+  if (input.search) {
+    const search = input.search.toLocaleLowerCase("pt-BR");
+    if (!`${log.eventType} ${log.detail}`.toLocaleLowerCase("pt-BR").includes(search)) return false;
+  }
+  return true;
+}
+
+export async function getAdminActivities(input: AdminActivitiesInput) {
+  const nowMs = Date.now();
+  const range = getAdminActivityRange(input.period, nowMs);
+  const offset = (input.page - 1) * input.pageSize;
+  const persisted = await logsRepository.findPage({
+    from: range.from,
+    to: range.to,
+    search: input.search || undefined,
+    status: input.status === "all" ? undefined : input.status,
+    origin: input.origin === "all" ? undefined : input.origin,
+    eventTypeCategory: input.eventTypeCategory === "all" ? undefined : input.eventTypeCategory,
+    offset,
+    limit: input.pageSize,
+  });
+
+  if (persisted) {
+    return {
+      items: persisted.rows.map(row => ({
+        id: String(row.id),
+        userId: row.userId ?? undefined,
+        origin: row.origin,
+        status: row.status,
+        eventType: row.eventType,
+        detail: row.detail,
+        createdAt: new Date(row.createdAt).getTime(),
+      } satisfies AdminLogEntry)),
+      total: persisted.total,
+      availableTotal: persisted.availableTotal,
+      page: input.page,
+      pageSize: input.pageSize,
+      totalPages: Math.max(1, Math.ceil(persisted.total / input.pageSize)),
+      range: { from: range.from.toISOString(), to: range.to.toISOString() },
+      source: "persisted" as const,
+    };
+  }
+
+  const available = adminLogStore.filter(log => matchesAdminActivity(log, { ...input, search: "", status: "all", origin: "all", eventTypeCategory: "all" }, range));
+  const filtered = adminLogStore.filter(log => matchesAdminActivity(log, input, range)).sort((left, right) => right.createdAt - left.createdAt);
+  return {
+    items: filtered.slice(offset, offset + input.pageSize),
+    total: filtered.length,
+    availableTotal: available.length,
+    page: input.page,
+    pageSize: input.pageSize,
+    totalPages: Math.max(1, Math.ceil(filtered.length / input.pageSize)),
+    range: { from: range.from.toISOString(), to: range.to.toISOString() },
+    source: "session" as const,
   };
 }
 

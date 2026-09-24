@@ -164,7 +164,8 @@ async function persistWithRecovery(
   candidate: FoodClarificationCandidate,
   occurredAt: Date,
   timeZone: string,
-  explicitQuantity?: { quantity: number; unit: string }
+  explicitQuantity?: { quantity: number; unit: string },
+  explicitIdentity?: string,
 ): Promise<WhatsappFoodClarificationResult> {
   const canonicalTarget = canonicalizeFoodClarificationTarget(target);
   const outcome = await persistResolvedFoodSafely(
@@ -174,7 +175,8 @@ async function persistWithRecovery(
     candidate,
     occurredAt,
     timeZone,
-    explicitQuantity
+    explicitQuantity,
+    explicitIdentity,
   );
   if (outcome.status !== "safe_to_retry") return outcome.result;
 
@@ -335,6 +337,43 @@ async function resolvePendingText(
       occurredAt,
       timeZone,
       quantity
+    );
+  }
+
+  if (target.pendingKind === "identity") {
+    const identity = text?.trim() ?? "";
+    if (!identity || isCompleteWhatsappCommand(identity)) {
+      if (isCompleteWhatsappCommand(identity)) return "new_command";
+      return reprompt(
+        pending,
+        target,
+        "whatsapp.food_clarification.invalid_identity_response",
+        "Resposta vazia não consumiu a identidade comercial pendente."
+      );
+    }
+    const claimed = await deps.repository.claimPendingOperation({
+      id: pending.id,
+      expectedVersion: pending.version,
+    });
+    if (!claimed.claimed)
+      return unavailable("Claim atômico da identidade falhou.");
+    const candidate = target.candidates[target.selectedCandidateIndex ?? 0] ?? {
+      name: target.normalizedCandidate,
+      servingLabel: "identidade informada pelo usuário",
+      gramsPerServing: 0,
+      brandName: null,
+      isBrandedProduct: false,
+      matchKind: "exact" as const,
+    };
+    return persistWithRecovery(
+      deps,
+      userId,
+      target,
+      candidate,
+      occurredAt,
+      timeZone,
+      undefined,
+      identity
     );
   }
 

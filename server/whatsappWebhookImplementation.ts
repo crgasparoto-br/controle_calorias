@@ -79,7 +79,10 @@ import {
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
-import { requestWhatsappImageMealQuantityClarification } from "./modules/whatsapp/foodQuantityClarification";
+import {
+  requestWhatsappImageMealIdentityClarification,
+  requestWhatsappImageMealQuantityClarification,
+} from "./modules/whatsapp/foodQuantityClarification";
 import {
   assertWhatsappImageMealItemsArePersistable,
   getWhatsappImageMissingPortionIndexes,
@@ -97,12 +100,8 @@ import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
 import { buildMealSemanticContract } from "./mealSemanticContract";
 import {
-  applyNutritionLabelPhotoToCandidate,
-  applyNutritionLabelPhotoToMeal,
-  claimNutritionLabelPhotoRequest,
   createProvisionalNutritionLabelPhotoRequests,
-  hasActiveNutritionLabelPhotoRequest,
-  markNutritionLabelPhotoReceived,
+  resolveNutritionLabelPhotoEvidence,
 } from "./nutritionLabelCandidateService";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
 import { calculateMealTotals } from "../shared/mealTotals";
@@ -529,6 +528,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
     }
 
+    let preparedForError: PreparedMessageInput | null = null;
     try {
       const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
       const userTimezone = timeZoneResolution.timeZone;
@@ -720,6 +720,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
 
       const prepared = await prepareMessageInput(message, sourcePhone);
+      preparedForError = prepared;
       if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
         const replyResult = await sendFinalText(
           prepared.audioTranscriptionFailure.reply
@@ -962,70 +963,32 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         const labelItem = processed.items.find(
           item => item.resolution?.nutritionOrigin === "nutrition_label"
         );
-        const nutritionLabelPhotoRequest = await claimNutritionLabelPhotoRequest(
+        const nutritionLabelResult = await resolveNutritionLabelPhotoEvidence({
           userId,
-          labelItem
-        );
-        if (
-          !nutritionLabelPhotoRequest &&
-          (await hasActiveNutritionLabelPhotoRequest(userId))
-        ) {
-          const retryReply = labelItem
-            ? "Identifiquei um rótulo, mas não consegui relacioná-lo com segurança a um dos alimentos pendentes. Envie uma foto mais clara ou uma imagem por alimento; nenhuma refeição foi alterada."
-            : "Recebi a imagem, mas não consegui validar uma tabela nutricional legível. A solicitação continua aberta; envie outra foto do rótulo. Nenhuma refeição foi alterada.";
-          const replyResult = await sendFinalText(retryReply);
+          item: labelItem,
+          sourceText: processed.sourceText,
+          captionText: getOriginalInboundText(req, message),
+          sourceMessageId: message.id,
+        });
+        if (nutritionLabelResult.handled) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: nutritionLabelResult.action.includes("failed")
+              ? "warning"
+              : "success",
+            eventType: nutritionLabelResult.eventType,
+            detail: nutritionLabelResult.detail,
+          });
+          const replyResult = await sendFinalText(nutritionLabelResult.reply);
           if (!replyResult.ok) {
             logInferenceEvent({
               userId,
               origin: "whatsapp",
               status: "warning",
               eventType: "whatsapp.reply_failed",
-              detail: "Falha ao enviar orientação para nova foto de rótulo.",
-            });
-          }
-          continue;
-        }
-        if (nutritionLabelPhotoRequest) {
-          const target = nutritionLabelPhotoRequest.target as {
-            candidateId?: number;
-            mealId?: number;
-            itemIndex?: number;
-            originalFoodName: string;
-          };
-          const updatedTarget =
-            labelItem && Number.isInteger(target.mealId) && Number.isInteger(target.itemIndex)
-              ? await applyNutritionLabelPhotoToMeal({
-                  mealId: target.mealId!,
-                  itemIndex: target.itemIndex!,
-                  userId,
-                  item: labelItem,
-                })
-              : labelItem && Number.isInteger(target.candidateId)
-                ? await applyNutritionLabelPhotoToCandidate({
-                    candidateId: target.candidateId!,
-                    userId,
-                    sourceText: processed.sourceText,
-                    item: labelItem,
-                  })
-                : Number.isInteger(target.candidateId)
-                  ? await markNutritionLabelPhotoReceived({
-                      candidateId: target.candidateId!,
-                      userId,
-                    })
-                  : null;
-          const labelReply = updatedTarget
-            ? target.mealId
-              ? `Recebi a nova foto de ${target.originalFoodName}. Atualizei os nutrientes do alimento já registrado; não criei uma nova refeição.`
-              : `Recebi a nova foto de ${target.originalFoodName}. A evidência foi atualizada e aguarda revisão administrativa; não registrei uma nova refeição.`
-            : `Recebi a foto, mas não consegui validar um rótulo legível para ${target.originalFoodName}. Nenhuma refeição foi alterada.`;
-          const replyResult = await sendFinalText(labelReply);
-          if (!replyResult.ok) {
-            logInferenceEvent({
-              userId,
-              origin: "whatsapp",
-              status: "warning",
-              eventType: "whatsapp.reply_failed",
-              detail: "Falha ao enviar confirmação da nova foto de rótulo.",
+              detail:
+                "Falha ao enviar resposta da continuação de rótulo nutricional.",
             });
           }
           continue;
@@ -1106,13 +1069,39 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       );
 
       const replyMeal = consolidationResult.meal;
+      const replyMealItems: MealProcessingResult["items"] =
+        replyMeal.items ?? [];
+      const provisionalNutritionItemCount = replyMealItems.filter(
+        item =>
+          item.resolution?.nutritionOrigin === "provisional_estimate" &&
+          item.resolution.nutritionVerified === false
+      ).length;
+      let nutritionLabelContinuationAvailable =
+        provisionalNutritionItemCount === 0;
       try {
-        await createProvisionalNutritionLabelPhotoRequests({
-          userId,
-          mealId: replyMeal.id,
-          items: replyMeal.items ?? [],
-        });
+        const nutritionLabelPhotoRequestIds =
+          await createProvisionalNutritionLabelPhotoRequests({
+            userId,
+            mealId: replyMeal.id,
+            items: replyMealItems,
+            sourceMessageId: message.id,
+          });
+        nutritionLabelContinuationAvailable =
+          provisionalNutritionItemCount === 0 ||
+          nutritionLabelPhotoRequestIds.length === provisionalNutritionItemCount;
+        if (!nutritionLabelContinuationAvailable) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType:
+              "whatsapp.nutrition_label_photo_request_persistence_failed",
+            detail:
+              "A refeição foi registrada, mas nem todas as continuações de rótulo puderam ser persistidas; o convite acionável foi suprimido.",
+          });
+        }
       } catch {
+        nutritionLabelContinuationAvailable = false;
         logInferenceEvent({
           userId,
           origin: "whatsapp",
@@ -1137,8 +1126,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const persistedReplyInput: MealProcessingResult = {
         ...processedForPersistence,
         detectedMealLabel: replyMeal.mealLabel,
-        items: replyMeal.items ?? [],
-        totals: calculateMealTotals(replyMeal.items ?? []),
+        items: replyMealItems,
+        totals: calculateMealTotals(replyMealItems),
       };
       const goalProgress = await getWhatsAppMealGoalProgress(
         userId,
@@ -1151,11 +1140,13 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               registeredAt: occurredAt,
               goalProgress,
               timeZone: userTimezone,
+              nutritionLabelContinuationAvailable,
             })
           : buildWhatsAppMealReplyMessage(persistedReplyInput, {
               registeredAt: occurredAt,
               goalProgress,
               timeZone: userTimezone,
+              nutritionLabelContinuationAvailable,
             });
       const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage?.url
         ? {
@@ -1193,6 +1184,60 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
+      const identityContext =
+        error instanceof MealInferenceError &&
+        error.code === "food_identity_clarification_required"
+          ? error.context
+          : null;
+      const identityIndexes = identityContext?.semanticContract?.clarifications
+        .filter(clarification =>
+          clarification.code === "commercial_identity_unverified" ||
+          clarification.code === "brand_variant_unresolved"
+        )
+        .map(clarification => clarification.itemIndex)
+        .filter(index => Number.isInteger(index)) ?? [];
+      if (
+        message.image?.id &&
+        preparedForError &&
+        identityContext?.semanticContract &&
+        identityContext.items?.length &&
+        identityIndexes.length
+      ) {
+        const identityResult = await requestWhatsappImageMealIdentityClarification({
+          userId,
+          detectedMealLabel: identityContext.detectedMealLabel || "Refeição",
+          sourceText: identityContext.originalText ?? message.image.caption ?? "",
+          reasoning: identityContext.reasoning || "A identidade comercial foi preservada para continuação textual.",
+          confidence: identityContext.confidence ?? 0.6,
+          occurredAt: resolveWhatsAppMessageOccurredAt(message),
+          items: identityContext.items,
+          semanticContract: identityContext.semanticContract,
+          media: preparedForError.media,
+          pendingItemIndexes: identityIndexes,
+          currentItemIndex: identityIndexes[0],
+          messageId: message.id,
+          instructionText: error instanceof Error ? error.message : undefined,
+        });
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: identityResult.action === "food_clarification_requested" ? "warning" : "error",
+          eventType: identityResult.eventType,
+          detail: identityResult.detail,
+        });
+        const identityReplyResult = await sendFinalText(identityResult.reply);
+        if (!identityReplyResult.ok) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: "warning",
+            eventType: "whatsapp.reply_failed",
+            detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
+          });
+        }
+        await markMessageProcessed(lifecycleHandle);
+        continue;
+      }
       logInferenceEvent({
         userId,
         origin: "whatsapp",

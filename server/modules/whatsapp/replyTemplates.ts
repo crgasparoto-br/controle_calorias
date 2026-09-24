@@ -14,6 +14,10 @@ export type WhatsAppFoodReplyItem = FoodIconInput & WhatsAppNutritionTotals & {
   resolution?: { nutritionOrigin?: string | null; nutritionVerified?: boolean } | null;
 };
 
+export type WhatsAppFoodLineOptions = {
+  nutritionLabelContinuationAvailable?: boolean;
+};
+
 export type WhatsAppGoalProgressInput = {
   consumedCalories?: number | null;
   /** Meta final aplicável, já calculada fora do formatter conforme a configuração da #756. */
@@ -118,12 +122,19 @@ export function isWhatsAppEstimatedFoodItem(item: WhatsAppFoodReplyItem) {
   return item.source !== "catalog";
 }
 
-export function buildWhatsAppFoodLines(item: WhatsAppFoodReplyItem) {
+export function buildWhatsAppFoodLines(
+  item: WhatsAppFoodReplyItem,
+  options: WhatsAppFoodLineOptions = {}
+) {
+  const provisionalNutritionWarning =
+    options.nutritionLabelContinuationAvailable === false
+      ? "⚠️ Valores nutricionais provisórios; a atualização por rótulo não está disponível agora. Tente novamente mais tarde."
+      : "⚠️ Valores nutricionais provisórios; envie uma foto legível do rótulo para atualizar com precisão.";
   return [
     formatWhatsAppFoodLine(item),
     formatWhatsAppMacroLine(item),
     ...(item.resolution?.nutritionOrigin === "provisional_estimate" && item.resolution.nutritionVerified === false
-      ? ["⚠️ Valores nutricionais provisórios; envie uma foto legível do rótulo para atualizar com precisão."]
+      ? [provisionalNutritionWarning]
       : []),
   ];
 }
