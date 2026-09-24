@@ -1,4 +1,5 @@
 import {
+  getAdminActivities,
   getAdminSnapshot,
   getAdminWhatsAppTokenStatus,
   logInferenceEvent,
@@ -14,6 +15,10 @@ export async function getAdminOverview() {
     ...snapshot,
     questionLatency: buildQuestionLatencyPercentiles(snapshot.recentInferenceLogs),
   };
+}
+
+export function getAdminActivityPage(input: Parameters<typeof getAdminActivities>[0]) {
+  return getAdminActivities(input);
 }
 
 export async function getWhatsappTokenStatus() {
