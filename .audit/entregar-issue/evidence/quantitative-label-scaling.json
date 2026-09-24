@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+  "test_file": "server/nutritionLabelCandidateService.provisional.test.ts",
+  "assertion": "Nutrition-label replacement preserves the original item identity and scales label nutrients to the persisted portion.",
+  "result": "passed",
+  "focused_test_count": 51,
+  "arithmetic_control": {
+    "calories": 736.6,
+    "protein": 26.1,
+    "carbs": 56.8,
+    "fat": 45.2,
+    "estimated_grams": 145
+  }
+}

@@ -2,27 +2,45 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "status": "rejected",
-  "rejection_id": "audit-rejection:85912a65-6c15-4983-a48d-b8464f6e1654",
-  "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
+  "rejection_id": "audit-rejection:ee6f493cc3407c30",
+  "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
   "identity": {
-    "head_sha": "ec957ba0fb9b1c4022de6e3d95e5da5cfa47d2ac",
-    "material_head_sha": "9debe298b21cb975a0b3c09ea6f45b1842219bbc",
     "repository": "crgasparoto-br/controle_calorias",
-    "issue_number": 1051,
-    "pull_request_number": 1052
+    "issue_number": 1174,
+    "pull_request_number": 1175,
+    "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+    "material_head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce"
   },
   "findings": [
     {
-      "id": "AUD-1052-HANDOFF-STALE-001",
-      "disposition": "blocking",
+      "id": "AUD-1175-SAME-BRAND-PRODUCT-001",
+      "title": "Same-brand different-product label could mutate wrong item",
       "status": "open",
+      "disposition": "blocking",
       "actionable": true,
+      "severity": "high",
       "remediation_mode": "targeted-remediation",
-      "category": "delivery-handoff-identity",
-      "summary": "The terminal handoff certifies an ancestral material head even though later material commits moved the PR head.",
-      "reason": "handoff-stale",
-      "recovery_scope": "post-write-refreeze",
-      "requires_refreeze": true
+      "summary": "A matching brand did not prove product identity; a different product from the same brand could pass correlation."
+    },
+    {
+      "id": "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
+      "title": "Actionable label invitation could be sent without durable continuation",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "severity": "high",
+      "remediation_mode": "targeted-remediation",
+      "summary": "Pending-operation persistence failure did not prevent the final reply from inviting a later label upload."
+    },
+    {
+      "id": "AUD-1175-CONCURRENCY-SATURATION-003",
+      "title": "Concurrency risk family was marked not applicable",
+      "status": "open",
+      "disposition": "blocking",
+      "actionable": true,
+      "severity": "gate-blocker",
+      "remediation_mode": "systemic-remediation",
+      "summary": "The CRITICAL risk package omitted concurrency-atomicity despite an explicit concurrent-response requirement."
     }
   ],
   "recommendations": []

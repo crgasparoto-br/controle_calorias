@@ -1,1 +1,202 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"audit-escape-closure","compression":"gzip","encoded_size":12916,"encoded_sha256":"68efa9330c06f119c841cc0c23e1a10133dde3127f1e26c6d50ee13e4593b884","decoded_size":103395,"decoded_sha256":"b193e3b54bca631ff1757de04465202ff7f4f4de77bf6997a3823c71c702cca7","parts":[{"path":"audit-escape-closure.parts/part-000.b64","size":2000,"sha256":"7c7c3d810ddb1b176c2d411421c39db8877addacee9cc1a5c3b2e91c00c61c40"},{"path":"audit-escape-closure.parts/part-001.b64","size":2000,"sha256":"0b96a5b7f1f4b4f9bd840142fc31f0096396a3eaa178b151bf17353597085986"},{"path":"audit-escape-closure.parts/part-002.b64","size":2000,"sha256":"667cb00a283f6c9d052e331ddd4d3b719d1c8e96348979496668917c77657a64"},{"path":"audit-escape-closure.parts/part-003.b64","size":2000,"sha256":"bed71443927439e4088ae0e53da9ab08da47377ec03cbe76ee39c442236faa56"},{"path":"audit-escape-closure.parts/part-004.b64","size":2000,"sha256":"8bc23318ce7051deaa8aee7dfa6c452dec827428e6443dcf07ae9f13186ae3eb"},{"path":"audit-escape-closure.parts/part-005.b64","size":2000,"sha256":"10dc40947b42a9e6e7434d7caa35849e9255a7ee1632f5aa20780c34f8f97ca7"},{"path":"audit-escape-closure.parts/part-006.b64","size":916,"sha256":"91c92b417ea63f282712c4a98db25019213c308286f3fec65cbc0e47148c1ab1"}]}
+{
+  "schema_version": 2,
+  "escapes": [
+    {
+      "escape_id": "AUDESC-COMMERCIAL-IDENTITY-PARTIAL-MATCH-001",
+      "escape_class": "commercial-identity-partial-match",
+      "source_audit": {
+        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+        "rejection_id": "audit-rejection:ee6f493cc3407c30",
+        "finding_id": "AUD-1175-SAME-BRAND-PRODUCT-001",
+        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+      },
+      "plausible_wrong_implementation": "Treat one matching commercial identity field such as brand as sufficient and apply evidence from a different product that shares that brand.",
+      "literal_case": {
+        "procedure": "Send evidence for a different product from the same brand while the original pending item remains active.",
+        "expected": "Mutation is blocked and product-specific clarification is persisted.",
+        "observed": "Exact-head regression blocks the same-brand different-product case and requires product confirmation.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "different-brand-same-category",
+          "surface": "commercial-identity-validation",
+          "dimension": "different-brand-same-category",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+        },
+        {
+          "id": "same-brand-same-product",
+          "surface": "commercial-identity-validation",
+          "dimension": "same-brand-same-product-compatible",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "commercial-identity-validation",
+          "dimension": "same-brand-different-product"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "clarification-resolution",
+          "dimension": "brand-only-cannot-resolve-product-conflict"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Product-aware label identity comparison and conflict-resolution guard",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "Exact-head same-brand different-product regression",
+        "control_id": "NEG-068-01",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "trigger_terms": [
+        "partial commercial identity match",
+        "same brand different product",
+        "identity conflict"
+      ],
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "status": "passed"
+    },
+    {
+      "escape_id": "AUDESC-CONTINUATION-OUTBOUND-WITHOUT-DURABLE-STATE-001",
+      "escape_class": "continuation-outbound-without-durable-state",
+      "source_audit": {
+        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+        "rejection_id": "audit-rejection:ee6f493cc3407c30",
+        "finding_id": "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
+        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+      },
+      "plausible_wrong_implementation": "Continue sending an actionable follow-up invitation after durable pending-state persistence fails, producing an orphaned later response.",
+      "literal_case": {
+        "procedure": "Force pending-operation creation to return no durable state after the provisional meal is saved.",
+        "expected": "Keep provisional values but suppress the actionable invitation to send a later label.",
+        "observed": "Exact-head reply regression emits unavailable-now wording and no send-label invitation when persistence is absent.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "partial-multi-item-persistence",
+          "surface": "pending-lifecycle-window",
+          "dimension": "partial-multi-item-persistence",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+        },
+        {
+          "id": "persistence-available-control",
+          "surface": "canonical-continuation-path",
+          "dimension": "durable-state-retains-invite",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "pending-lifecycle-window",
+          "dimension": "persistence-failure-suppresses-invite"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-continuation-path",
+          "dimension": "partial-persistence-fail-closed"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Outbound reply receives durable-continuation availability and fails closed when persistence is incomplete",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "Exact-head webhook and reply-template persistence-failure regression",
+        "control_id": "NEG-061-01",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
+      },
+      "trigger_terms": [
+        "persist before outbound",
+        "durable continuation",
+        "orphaned follow-up"
+      ],
+      "required_risk_families": [
+        "temporal-consistency",
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "status": "passed"
+    },
+    {
+      "escape_id": "AUDESC-RISK-FAMILY-LEXICAL-MISS-001",
+      "escape_class": "risk-family-lexical-classification-gap",
+      "source_audit": {
+        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
+        "rejection_id": "audit-rejection:ee6f493cc3407c30",
+        "finding_id": "AUD-1175-CONCURRENCY-SATURATION-003",
+        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
+      },
+      "plausible_wrong_implementation": "Use a narrow lexical classifier that fails to recognize a normative concurrent-response clause and therefore marks a required risk family not applicable.",
+      "literal_case": {
+        "procedure": "Classify a clause with two concurrent responses and a single valid conclusion.",
+        "expected": "Concurrency-atomicity is material and receives an exact-head adversarial control.",
+        "observed": "The generic risk classifier now detects concurrent response/message/callback wording and current saturation includes concurrency-atomicity.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
+      },
+      "sibling_cases": [
+        {
+          "id": "concurrent-callbacks",
+          "surface": "concurrent-resolution",
+          "dimension": "concurrent-callbacks",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
+        },
+        {
+          "id": "simultaneous-messages",
+          "surface": "risk-classification",
+          "dimension": "simultaneous-messages",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
+        }
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "concurrency-atomicity",
+          "surface": "concurrent-resolution",
+          "dimension": "parallel-responses"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "risk-classification",
+          "dimension": "concurrency-language-detection"
+        }
+      ],
+      "prevention_change": {
+        "skill_or_code": "Generic risk-family inference vocabulary recognizes response-like concurrent actors",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
+      },
+      "detection_change": {
+        "skill_or_gate": "Lexical precision and saturation regression suite",
+        "control_id": "NEG-054-02",
+        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
+      },
+      "trigger_terms": [
+        "concurrent responses",
+        "parallel callbacks",
+        "simultaneous messages"
+      ],
+      "required_risk_families": [
+        "concurrency-atomicity",
+        "structural-contract"
+      ],
+      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "status": "passed"
+    }
+  ]
+}

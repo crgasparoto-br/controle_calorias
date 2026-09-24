@@ -1,0 +1,4 @@
+material_head_sha=40e3fb87ed4f670c25931d43f33e35153ee3b18c
+pnpm vitest run server/nutritionLabelCandidateService.provisional.test.ts server/repositories/whatsappPendingOperationRepository.test.ts server/whatsappWebhook.reply.test.ts server/modules/whatsapp/replyTemplates.test.ts
+result=4 test files passed, 51 tests passed
+regressions=dedupe-race,persist-before-meal-mutation,failed-evidence-persistence-no-meal-update

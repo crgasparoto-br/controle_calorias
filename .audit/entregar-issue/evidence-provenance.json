@@ -1,46 +1,36 @@
 {
   "schema_version": 1,
-  "material_head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+  "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
   "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
   "evidence": [
     {
-      "evidence_id": "EV-Q-010",
+      "evidence_id": "EVID-QUANT-LABEL-SCALING",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence-summary.json",
-      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
-      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "path": ".audit/entregar-issue/evidence/quantitative-label-scaling.json",
+      "sha256": "c9100dd62ee7a69e593c763cd5ae5bfd98fc0eeaa37d7b6a7d56db49b00ed42c",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "producer": "exact-head nutrition label regression plus arithmetic verification",
       "status": "passed"
     },
     {
-      "evidence_id": "EV-Q-026",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence-summary.json",
-      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
-      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "evidence_id": "EVID-EXACT-HEAD-REMEDIATION",
+      "kind": "behavioral",
+      "path": ".audit/entregar-issue/evidence/exact-head-remediation.txt",
+      "sha256": "77c8f5669af541ecb549c67a89f2e557508147ca58df602eed02a9399e5488ef",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "producer": "focused exact-head regression suite",
       "status": "passed"
     },
     {
-      "evidence_id": "EV-Q-035",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence-summary.json",
-      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
-      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+      "evidence_id": "EVID-DOC-SEMANTIC-DRIFT",
+      "kind": "documentation",
+      "path": ".audit/entregar-issue/evidence/documentation-semantic-drift.txt",
+      "sha256": "c78853d0404524b09fc59123950be0e2bd1f4f3e3524e3863a558432f9f627e7",
+      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EV-Q-040",
-      "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence-summary.json",
-      "sha256": "521f26299c43d8eacbd9de71f0599bce44114e7a9731ba5c8f54c34f69af9f16",
-      "subject_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
-      "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head verification plus issue-specific regression assertions",
+      "producer": "exact-head repository documentation and type/architecture gates",
       "status": "passed"
     }
   ]

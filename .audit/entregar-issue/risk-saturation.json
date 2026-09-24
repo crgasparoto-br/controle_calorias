@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "head_sha": "800f962c533d5bff04ad3a862f026fd6e3d12bce",
+  "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
         "NEG-031-01",
         "NEG-066-01"
@@ -13,7 +13,7 @@
       "dimensions": [
         {
           "surface": "evidence-effect-scope",
-          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "reason": "Current specification/escape matrix declares authorization:evidence-effect-scope material and executes exact-head discriminant controls.",
           "control_ids": [
             "NEG-031-01",
             "NEG-066-01"
@@ -26,19 +26,17 @@
     {
       "family": "tenant-isolation",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
-        "NEG-014-02",
-        "NEG-055-01",
+        "NEG-055-02",
         "NEG-075-02"
       ],
       "dimensions": [
         {
-          "surface": "user-scope-isolation",
-          "reason": "The requirement explicitly activates this risk family and needs an exact-head adversarial surface.",
+          "surface": "tenant-scope-isolation",
+          "reason": "Current specification/escape matrix declares tenant-isolation:tenant-scope-isolation material and executes exact-head discriminant controls.",
           "control_ids": [
-            "NEG-014-02",
-            "NEG-055-01",
+            "NEG-055-02",
             "NEG-075-02"
           ],
           "status": "passed"
@@ -49,7 +47,7 @@
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current canonical requirement, escape dimension or inherited active control requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -57,16 +55,16 @@
     {
       "family": "reference-liveness",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
-        "NEG-014-01"
+        "NEG-048-01"
       ],
       "dimensions": [
         {
           "surface": "pending-reference-liveness",
-          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "reason": "Current specification/escape matrix declares reference-liveness:pending-reference-liveness material and executes exact-head discriminant controls.",
           "control_ids": [
-            "NEG-014-01"
+            "NEG-048-01"
           ],
           "status": "passed"
         }
@@ -76,29 +74,19 @@
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
-        "NEG-009-01",
-        "NEG-017-01",
-        "NEG-027-01",
-        "NEG-047-02",
-        "NEG-048-01",
-        "NEG-059-02",
-        "NEG-061-01",
+        "NEG-048-02",
+        "NEG-061-02",
         "NEG-069-01"
       ],
       "dimensions": [
         {
           "surface": "pending-lifecycle-window",
-          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "reason": "Current specification/escape matrix declares temporal-consistency:pending-lifecycle-window material and executes exact-head discriminant controls.",
           "control_ids": [
-            "NEG-009-01",
-            "NEG-017-01",
-            "NEG-027-01",
-            "NEG-047-02",
-            "NEG-048-01",
-            "NEG-059-02",
-            "NEG-061-01",
+            "NEG-048-02",
+            "NEG-061-02",
             "NEG-069-01"
           ],
           "status": "passed"
@@ -109,37 +97,48 @@
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current canonical requirement, escape dimension or inherited active control requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Material in current requirement/escape matrix.",
+      "control_ids": [
+        "NEG-054-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "concurrent-resolution",
+          "reason": "Current specification/escape matrix declares concurrency-atomicity:concurrent-resolution material and executes exact-head discriminant controls.",
+          "control_ids": [
+            "NEG-054-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
         "NEG-019-01",
         "NEG-072-01",
-        "NEG-081-01",
+        "NEG-081-02",
         "NEG-083-01"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "reason": "Current specification/escape matrix declares idempotency:duplicate-processing material and executes exact-head discriminant controls.",
           "control_ids": [
             "NEG-019-01",
             "NEG-072-01",
-            "NEG-081-01",
+            "NEG-081-02",
             "NEG-083-01"
           ],
           "status": "passed"
@@ -150,7 +149,7 @@
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current canonical requirement, escape dimension or inherited active control requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -158,7 +157,7 @@
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current canonical requirement, escape dimension or inherited active control requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -166,52 +165,209 @@
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
+        "NEG-001-01",
+        "NEG-002-01",
+        "NEG-003-01",
+        "NEG-004-01",
+        "NEG-005-01",
+        "NEG-006-01",
         "NEG-007-01",
-        "NEG-013-01",
+        "NEG-008-01",
+        "NEG-009-01",
+        "NEG-010-01",
+        "NEG-011-01",
+        "NEG-012-01",
+        "NEG-014-01",
+        "NEG-015-01",
+        "NEG-016-01",
+        "NEG-017-01",
+        "NEG-018-01",
+        "NEG-020-01",
+        "NEG-021-01",
+        "NEG-022-01",
         "NEG-023-01",
+        "NEG-024-01",
+        "NEG-025-01",
+        "NEG-026-01",
+        "NEG-027-01",
+        "NEG-028-01",
+        "NEG-029-01",
+        "NEG-030-01",
+        "NEG-032-01",
+        "NEG-033-01",
+        "NEG-034-01",
+        "NEG-035-01",
+        "NEG-036-01",
+        "NEG-037-01",
+        "NEG-038-01",
         "NEG-039-01",
+        "NEG-040-01",
+        "NEG-041-01",
+        "NEG-042-01",
         "NEG-043-01",
+        "NEG-044-01",
+        "NEG-045-01",
         "NEG-046-01",
         "NEG-047-01",
+        "NEG-049-01",
+        "NEG-050-01",
+        "NEG-051-01",
+        "NEG-052-01",
+        "NEG-053-01",
+        "NEG-055-01",
+        "NEG-056-01",
+        "NEG-057-01",
+        "NEG-058-01",
         "NEG-059-01",
+        "NEG-060-01",
+        "NEG-061-01",
+        "NEG-062-01",
+        "NEG-063-01",
+        "NEG-064-01",
+        "NEG-065-01",
+        "NEG-067-01",
+        "NEG-068-01",
+        "NEG-070-01",
         "NEG-071-01",
+        "NEG-073-01",
+        "NEG-074-01",
         "NEG-075-01",
         "NEG-076-01",
-        "NEG-082-01"
+        "NEG-077-01",
+        "NEG-078-01",
+        "NEG-079-01",
+        "NEG-080-01",
+        "NEG-082-01",
+        "NEG-068-02",
+        "NEG-068-03",
+        "NEG-013-01",
+        "NEG-054-02",
+        "NEG-039-BENCHMARK-01",
+        "NEG-059-BENCHMARK-01",
+        "NEG-076-BENCHMARK-01"
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
-          "control_ids": [
-            "NEG-039-01",
-            "NEG-059-01",
-            "NEG-076-01"
-          ],
-          "status": "passed"
-        },
-        {
           "surface": "canonical-continuation-path",
-          "reason": "This surface exercises the observable contract and rejects a plausible shortcut for the requirement.",
+          "reason": "Current specification/escape matrix declares structural-contract:canonical-continuation-path material and executes exact-head discriminant controls.",
           "control_ids": [
+            "NEG-001-01",
+            "NEG-002-01",
+            "NEG-003-01",
+            "NEG-004-01",
+            "NEG-005-01",
+            "NEG-006-01",
             "NEG-007-01",
+            "NEG-008-01",
+            "NEG-009-01",
+            "NEG-010-01",
+            "NEG-011-01",
+            "NEG-012-01",
+            "NEG-014-01",
+            "NEG-015-01",
+            "NEG-016-01",
+            "NEG-017-01",
+            "NEG-018-01",
+            "NEG-020-01",
+            "NEG-021-01",
+            "NEG-022-01",
             "NEG-023-01",
+            "NEG-024-01",
+            "NEG-025-01",
+            "NEG-026-01",
+            "NEG-027-01",
+            "NEG-028-01",
+            "NEG-029-01",
+            "NEG-030-01",
+            "NEG-032-01",
+            "NEG-033-01",
+            "NEG-034-01",
+            "NEG-035-01",
+            "NEG-036-01",
+            "NEG-037-01",
+            "NEG-038-01",
+            "NEG-039-01",
+            "NEG-040-01",
+            "NEG-041-01",
+            "NEG-042-01",
             "NEG-043-01",
+            "NEG-044-01",
+            "NEG-045-01",
             "NEG-046-01",
             "NEG-047-01",
+            "NEG-049-01",
+            "NEG-050-01",
+            "NEG-051-01",
+            "NEG-052-01",
+            "NEG-053-01",
+            "NEG-055-01",
+            "NEG-056-01",
+            "NEG-057-01",
+            "NEG-058-01",
+            "NEG-059-01",
+            "NEG-060-01",
+            "NEG-061-01",
+            "NEG-062-01",
+            "NEG-063-01",
+            "NEG-064-01",
+            "NEG-065-01",
+            "NEG-067-01",
+            "NEG-068-01",
+            "NEG-070-01",
             "NEG-071-01",
+            "NEG-073-01",
+            "NEG-074-01",
             "NEG-075-01",
+            "NEG-076-01",
+            "NEG-077-01",
+            "NEG-078-01",
+            "NEG-079-01",
+            "NEG-080-01",
             "NEG-082-01"
           ],
           "status": "passed"
         },
         {
+          "surface": "clarification-resolution",
+          "reason": "Current specification/escape matrix declares structural-contract:clarification-resolution material and executes exact-head discriminant controls.",
+          "control_ids": [
+            "NEG-068-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "commercial-identity-validation",
+          "reason": "Current specification/escape matrix declares structural-contract:commercial-identity-validation material and executes exact-head discriminant controls.",
+          "control_ids": [
+            "NEG-068-03"
+          ],
+          "status": "passed"
+        },
+        {
           "surface": "relational-semantic-integrity",
-          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "reason": "Current specification/escape matrix declares structural-contract:relational-semantic-integrity material and executes exact-head discriminant controls.",
           "control_ids": [
             "NEG-013-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "risk-classification",
+          "reason": "Current specification/escape matrix declares structural-contract:risk-classification material and executes exact-head discriminant controls.",
+          "control_ids": [
+            "NEG-054-02"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "The exact-head production-direct benchmark must not omit productive persistence operations.",
+          "control_ids": [
+            "NEG-039-BENCHMARK-01",
+            "NEG-059-BENCHMARK-01",
+            "NEG-076-BENCHMARK-01"
           ],
           "status": "passed"
         }
@@ -221,16 +377,16 @@
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "Exact-head adversarial controls cover every declared material surface for this family.",
+      "reason": "Material in current requirement/escape matrix.",
       "control_ids": [
-        "NEG-080-01"
+        "NEG-081-01"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "Canonical documentation claims must describe the same nutrition-label continuation contract as runtime behavior.",
+          "reason": "Current specification/escape matrix declares documentation:canonical-claims material and executes exact-head discriminant controls.",
           "control_ids": [
-            "NEG-080-01"
+            "NEG-081-01"
           ],
           "status": "passed"
         }
