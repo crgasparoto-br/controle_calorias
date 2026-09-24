@@ -57,19 +57,24 @@ describe("issue #1088 — identidade comercial com IA não vazia", () => {
     });
   });
 
-  it.each(["laranja pêra", "mamão formosa", "feijão preto"])(
-    "não promove variante natural a marca desconhecida: %s",
-    async foodName => {
-      testInput.foodName = foodName;
+  it.each([
+    { sourceText: "laranja pêra", extractedFoodName: "laranja pêra" },
+    { sourceText: "mamão formosa", extractedFoodName: "mamão formosa" },
+    { sourceText: "feijão preto", extractedFoodName: "feijão preto" },
+    { sourceText: "pêra packans", extractedFoodName: "pêra" },
+  ])(
+    "não promove variante natural a marca desconhecida: $sourceText",
+    async ({ sourceText, extractedFoodName }) => {
+      testInput.foodName = extractedFoodName;
       testInput.processingLevel = "natural_or_minimally_processed";
-      testInput.isFruit = /laranja|mamão/u.test(foodName);
+      testInput.isFruit = /laranja|mamão|pêra/u.test(sourceText);
       testInput.isVegetable = false;
 
-      const result = await processMealInput({ text: `15 g de ${foodName}` });
+      const result = await processMealInput({ text: `15 g de ${sourceText}` });
 
       expect(result.items[0]).toEqual(
         expect.objectContaining({
-          foodName: expect.stringMatching(new RegExp(foodName, "i")),
+          foodName: expect.stringMatching(new RegExp(extractedFoodName, "i")),
           brand: null,
         })
       );

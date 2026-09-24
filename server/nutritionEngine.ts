@@ -1,6 +1,7 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
   findCatalogFood,
+  findNaturalProduceCatalogFood,
   inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
@@ -234,15 +235,19 @@ function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
   const normalizedSource = normalizeForMatching(sourceFoodName).trim();
   const normalizedItem = normalizeForMatching(item.foodName).trim();
   const genericTacoFood = findTacoFood(sourceFoodName);
+  const naturalProduce = findNaturalProduceCatalogFood(sourceFoodName);
   const isNaturalFoodIdentity =
     classification.isFruit ||
     classification.isVegetable ||
+    Boolean(naturalProduce) ||
     Boolean(genericTacoFood && !genericTacoFood.brandName);
 
   return (
     classification.processingLevel === "natural_or_minimally_processed" &&
     isNaturalFoodIdentity &&
-    (normalizedSource === normalizedItem || Boolean(genericTacoFood))
+    (normalizedSource === normalizedItem ||
+      Boolean(genericTacoFood) ||
+      Boolean(naturalProduce))
   );
 }
 
