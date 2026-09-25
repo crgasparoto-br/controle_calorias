@@ -293,7 +293,6 @@ export async function generateExternalImageAnnotation(
         url: upload.url,
         storageKey: upload.key || storageKey,
         mimeType: generated.mimeType,
-        buffer: generated.buffer,
         artifactKind: "photo_annotation",
         mode: "external",
         degradation: "none",

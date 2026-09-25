@@ -205,7 +205,7 @@ describe("whatsappWebhook audio transcription failures", () => {
         return {
           ok: true,
           headers: { get: () => "audio/ogg; codecs=opus" },
-          arrayBuffer: async () => new TextEncoder().encode("binary-audio").buffer,
+          body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("binary-audio")); controller.close(); } }),
         } as Response;
       }
 

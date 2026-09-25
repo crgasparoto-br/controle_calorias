@@ -203,8 +203,7 @@ describe("whatsappWebhook", () => {
           return {
             ok: true,
             headers: { get: () => "image/jpeg" },
-            arrayBuffer: async () =>
-              new TextEncoder().encode("binary-media").buffer,
+            body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("binary-media")); controller.close(); } }),
           } as Response;
         }
 
