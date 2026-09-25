@@ -1,0 +1,1 @@
+Implementada e incorporada em develop pela PR #1182 (merge 9014d284). A entrega preserva itens multi-item, adiciona continuação persistente de identidade e mantém o fluxo canônico de quantidade, com checks remotos verdes.

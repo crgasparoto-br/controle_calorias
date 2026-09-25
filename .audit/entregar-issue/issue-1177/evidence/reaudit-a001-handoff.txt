@@ -1,0 +1,3 @@
+A-001 targeted remediation evidence.
+The current-target handoff is rebuilt for issue 1177 / PR 1193 and the material head will be bound to bfe63fa314013a3ca08dc300ba8a82b243ab2f9e.
+The package validator and terminal handoff validator must compare the current certificate against the immutable develop base and prove it is not inherited.

@@ -1,4 +1,4 @@
-<!-- specification_version: 2 -->
+<!-- specification_version: 3 -->
 
 ## Contexto
 
@@ -14,6 +14,105 @@ O comportamento observado combina duas falhas de produto:
 2. um alimento/preparação genérica foi encaminhado para clarificação de **identidade comercial/variante** sem evidência suficiente de marca, linha ou produto comercial.
 
 A implementação deve partir da branch **develop**.
+
+## Reabertura por regressão pós-release — 24/09/2026
+
+A issue foi reaberta após novo teste real em produção, depois da implementação da PR #1182 e da promoção subsequente para `main`.
+
+### Evidência de produção
+
+Foi enviada pelo WhatsApp uma foto de prato com vários componentes visualmente distinguíveis. Na imagem há pelo menos múltiplos componentes alimentares reconhecíveis, incluindo um filé de frango, rodelas de batata e couve-flor, além de outros componentes que podem exigir menor confiança individual.
+
+O sistema respondeu:
+
+```text
+Recebi sua imagem e estou processando.
+
+⚠️ Não consegui identificar o alimento na imagem
+
+Envie outra foto com o alimento mais visível ou descreva o que comeu e a quantidade.
+```
+
+Esse resultado é incompatível com o contrato desta issue: a incerteza sobre um componente não pode transformar uma refeição multi-item parcialmente reconhecível em falha global de identidade.
+
+### Fronteira suspeita identificada na `develop`
+
+Na `develop` atual, `server/modules/whatsapp/visualMealInferenceValidation.ts` possui a seguinte regra dentro de `inspectWhatsappImageMealItemsPersistence()`:
+
+```ts
+if (
+  !items.length ||
+  items.some(item => !resolveWhatsappImageVisibleFoodName(item))
+) {
+  return { status: "missing_identity" };
+}
+```
+
+Esse `items.some(...)` faz com que **um único item sem identidade confiável converta o conjunto inteiro em `missing_identity`**.
+
+A implementação deve confirmar por teste se esse é o caminho exato acionado no caso de produção. A correção não deve simplesmente trocar `some` por `every` sem preservar os invariantes de atomicidade, clarificação por item e continuidade já definidos nesta issue.
+
+### Regra funcional adicional
+
+Para imagem multi-item:
+
+1. `items: []` continua podendo representar baixa confiança global e justificar clarificação geral.
+2. Se houver ao menos um item com identidade confiável e outro sem identidade confiável:
+   - o resultado **não pode** virar imediatamente `missing_identity` global;
+   - os itens reconhecidos devem ser preservados no contexto canônico da refeição;
+   - somente o item realmente ambíguo deve entrar em clarificação de identidade;
+   - a refeição permanece atômica e não é parcialmente persistida enquanto existir pendência obrigatória.
+3. A mensagem genérica “Não consegui identificar o alimento na imagem” só é válida quando a imagem inteira não produzir nenhum alimento confiavelmente identificável.
+
+### Golden flow obrigatório da reabertura
+
+**Entrada:** foto real de prato com 3+ componentes visíveis, contendo:
+- ao menos dois itens com identidade confiável;
+- ao menos um item com identidade ausente ou abaixo do limiar de confiança.
+
+**Esperado:**
+- o conjunto continua multi-item;
+- os itens reconhecidos não são descartados;
+- o item ambíguo gera clarificação específica;
+- a resposta não usa a mensagem global de imagem não reconhecida;
+- a continuação reutiliza o mesmo contexto persistido;
+- não há nova chamada de visão apenas para recuperar os itens já reconhecidos;
+- nenhuma refeição parcial é persistida antes da resolução/cancelamento da pendência.
+
+### Critérios de aceite adicionais
+
+- [ ] Uma imagem multi-item com pelo menos um item confiável e um item sem identidade confiável não retorna `missing_identity` global.
+- [ ] `buildWhatsAppImageNotRecognizedReplyMessage()` é usado somente quando nenhum alimento confiável foi identificado no conjunto.
+- [ ] O caso de regressão atravessa o entrypoint público real do WhatsApp e chega à validação/persistência sem mockar o resultado final de `inspectWhatsappImageMealItemsPersistence()`.
+- [ ] O teste prova que um item ambíguo é convertido em pendência específica e que os demais itens permanecem preservados no contexto.
+- [ ] A correção mantém a atomicidade: nenhum item reconhecido é persistido isoladamente enquanto outro item da mesma imagem exige clarificação obrigatória.
+- [ ] O fluxo de baixa confiança global (`items: []` ou nenhum item confiável) continua retornando clarificação geral.
+- [ ] O fluxo com todos os itens confiáveis continua persistível.
+- [ ] O fluxo com múltiplas ambiguidades continua sequencial e retomável sem reexecutar `MEAL_VISION`.
+- [ ] Não é criada allowlist de alimentos, lista manual de pratos nem exceção específica para frango, batata ou couve-flor.
+- [ ] Smoke pós-deploy inclui uma foto multi-item parcialmente reconhecida e comprova ausência da resposta global incorreta.
+
+### Invariantes adicionais
+
+- **must_behave:** identidade é avaliada por item; o status global da imagem deve refletir o conjunto, não o pior item isolado.
+- **must_not_behave:** um único item sem identidade não pode apagar itens válidos nem forçar `missing_identity` global.
+- **must_reuse:** reutilizar o contrato existente de clarificação multi-item e `complete_image_meal`.
+- **must_be_single_source:** o conjunto retornado por `MEAL_VISION` e o estado de clarificação permanecem no mesmo contexto canônico; não copiar itens reconhecidos para estrutura paralela.
+- **must_not_depend_on:** não depender de nomes específicos de alimentos nem de exceções por prato.
+
+### Implementações erradas que os testes devem rejeitar
+
+1. **Trocar `some` por `every` e seguir adiante sem criar pendência específica.**
+   - O erro global desapareceria, mas o item ambíguo poderia ser ignorado silenciosamente.
+   - Controle: teste exige pendência específica e preservação atômica do conjunto.
+
+2. **Descartar o item ambíguo e persistir somente os itens reconhecidos.**
+   - O caminho pareceria “bem-sucedido”, mas a refeição seria incompleta.
+   - Controle: nenhum item é persistido enquanto existir clarificação obrigatória.
+
+3. **Criar exceções para os alimentos desta foto.**
+   - A foto passaria sem corrigir a regra sistêmica.
+   - Controle: fixture adicional com outro conjunto de alimentos e um item ambíguo.
 
 ## Relação com a issue #1174
 
