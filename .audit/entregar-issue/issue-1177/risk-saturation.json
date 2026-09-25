@@ -1,209 +1,139 @@
 {
   "schema_version": 1,
-  "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+  "head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for authorization is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover authorization for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-028",
-        "NEG-1177-102"
+        "NEG-1193-001"
       ],
       "dimensions": [
         {
           "surface": "session-target-binding",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover authorization:session-target-binding.",
+          "reason": "A persisted clarification must remain bound to the originating user/phone.",
           "control_ids": [
-            "NEG-1177-028",
-            "NEG-1177-102"
+            "NEG-1193-001"
           ]
         }
       ]
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for concurrency-atomicity is exact-head and derived from the canonical closure.",
-      "control_ids": [
-        "NEG-1177-S002"
-      ],
-      "dimensions": [
-        {
-          "surface": "concurrency-atomicity-contract",
-          "status": "passed",
-          "reason": "Exact-head adversarial controls cover concurrency-atomicity:concurrency-atomicity-contract.",
-          "control_ids": [
-            "NEG-1177-S002"
-          ]
-        }
-      ]
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires concurrency-atomicity; it is explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "documentation",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for documentation is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover documentation for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-S003"
+        "NEG-1193-002"
       ],
       "dimensions": [
         {
-          "surface": "documentation-semantic-drift",
+          "surface": "canonical-claims",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover documentation:documentation-semantic-drift.",
+          "reason": "Normative documentation must not contradict the changed identity/fallback contract.",
           "control_ids": [
-            "NEG-1177-S003"
+            "NEG-1193-002"
           ]
         }
       ]
     },
     {
       "family": "historical-immutability",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for historical-immutability is exact-head and derived from the canonical closure.",
-      "control_ids": [
-        "NEG-1177-S004"
-      ],
-      "dimensions": [
-        {
-          "surface": "historical-immutability-contract",
-          "status": "passed",
-          "reason": "Exact-head adversarial controls cover historical-immutability:historical-immutability-contract.",
-          "control_ids": [
-            "NEG-1177-S004"
-          ]
-        }
-      ]
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires historical-immutability; it is explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "idempotency",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for idempotency is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover idempotency for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-041",
-        "NEG-1177-062",
-        "NEG-1177-074",
-        "NEG-1177-088",
-        "NEG-1177-093"
+        "NEG-1193-003"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover idempotency:duplicate-processing.",
+          "reason": "Replay, retry and resume must not duplicate the logical image meal or pending mutation.",
           "control_ids": [
-            "NEG-1177-041",
-            "NEG-1177-062",
-            "NEG-1177-074",
-            "NEG-1177-088",
-            "NEG-1177-093"
+            "NEG-1193-003"
           ]
         }
       ]
     },
     {
       "family": "public-boundary",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for public-boundary is exact-head and derived from the canonical closure.",
-      "control_ids": [
-        "NEG-1177-S006"
-      ],
-      "dimensions": [
-        {
-          "surface": "public-boundary-contract",
-          "status": "passed",
-          "reason": "Exact-head adversarial controls cover public-boundary:public-boundary-contract.",
-          "control_ids": [
-            "NEG-1177-S006"
-          ]
-        }
-      ]
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires public-boundary; it is explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "reference-liveness",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for reference-liveness is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover reference-liveness for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-048"
+        "NEG-1193-004"
       ],
       "dimensions": [
         {
           "surface": "reference-liveness",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover reference-liveness:reference-liveness.",
+          "reason": "Persisted media/context references must remain valid when resumed.",
           "control_ids": [
-            "NEG-1177-048"
+            "NEG-1193-004"
           ]
         }
       ]
     },
     {
       "family": "rollback",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for rollback is exact-head and derived from the canonical closure.",
-      "control_ids": [
-        "NEG-1177-S008"
-      ],
-      "dimensions": [
-        {
-          "surface": "rollback-contract",
-          "status": "passed",
-          "reason": "Exact-head adversarial controls cover rollback:rollback-contract.",
-          "control_ids": [
-            "NEG-1177-S008"
-          ]
-        }
-      ]
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires rollback; it is explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "structural-contract",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for structural-contract is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover structural-contract for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-009",
-        "NEG-1177-010",
-        "NEG-1177-011",
-        "NEG-1177-019",
-        "NEG-1177-027",
-        "NEG-1177-035",
-        "NEG-1177-042",
-        "NEG-1177-058",
-        "NEG-1177-104",
-        "NEG-1177-105"
+        "NEG-1193-005",
+        "NEG-1193-006"
       ],
       "dimensions": [
         {
           "surface": "benchmark-path-fidelity",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover structural-contract:benchmark-path-fidelity.",
+          "reason": "Controls must traverse the productive image webhook rather than an isolated helper.",
           "control_ids": [
-            "NEG-1177-009",
-            "NEG-1177-010",
-            "NEG-1177-011",
-            "NEG-1177-019",
-            "NEG-1177-035",
-            "NEG-1177-042",
-            "NEG-1177-058",
-            "NEG-1177-104",
-            "NEG-1177-105"
+            "NEG-1193-005"
           ]
         },
         {
           "surface": "relational-semantic-integrity",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover structural-contract:relational-semantic-integrity.",
+          "reason": "The multi-item semantic contract and per-item identity must remain aligned across linked records.",
           "control_ids": [
-            "NEG-1177-027"
+            "NEG-1193-006"
           ]
         }
       ]
@@ -212,75 +142,47 @@
       "family": "temporal-consistency",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for temporal-consistency is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover temporal-consistency for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-005",
-        "NEG-1177-014",
-        "NEG-1177-025",
-        "NEG-1177-029",
-        "NEG-1177-040",
-        "NEG-1177-082",
-        "NEG-1177-085",
-        "NEG-1177-101",
-        "NEG-1177-103"
+        "NEG-1193-007"
       ],
       "dimensions": [
         {
           "surface": "temporal-consistency-contract",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover temporal-consistency:temporal-consistency-contract.",
+          "reason": "Continuation state and terminal persistence must respect the lifecycle boundary.",
           "control_ids": [
-            "NEG-1177-005",
-            "NEG-1177-014",
-            "NEG-1177-025",
-            "NEG-1177-029",
-            "NEG-1177-040",
-            "NEG-1177-082",
-            "NEG-1177-085",
-            "NEG-1177-101",
-            "NEG-1177-103"
+            "NEG-1193-007"
           ]
         }
       ]
     },
     {
       "family": "temporal-destination",
-      "applicable": true,
-      "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for temporal-destination is exact-head and derived from the canonical closure.",
-      "control_ids": [
-        "NEG-1177-S013"
-      ],
-      "dimensions": [
-        {
-          "surface": "temporal-destination-contract",
-          "status": "passed",
-          "reason": "Exact-head adversarial controls cover temporal-destination:temporal-destination-contract.",
-          "control_ids": [
-            "NEG-1177-S013"
-          ]
-        }
-      ]
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires temporal-destination; it is explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
     },
     {
       "family": "tenant-isolation",
       "applicable": true,
       "status": "passed",
-      "reason": "Issue 1177 risk saturation decision for tenant-isolation is exact-head and derived from the canonical closure.",
+      "reason": "Exact-head controls cover tenant-isolation for issue #1177 / PR #1193.",
       "control_ids": [
-        "NEG-1177-089"
+        "NEG-1193-008"
       ],
       "dimensions": [
         {
           "surface": "tenant-scope-isolation",
           "status": "passed",
-          "reason": "Exact-head adversarial controls cover tenant-isolation:tenant-scope-isolation.",
+          "reason": "A pending image clarification must not cross user or phone scope.",
           "control_ids": [
-            "NEG-1177-089"
+            "NEG-1193-008"
           ]
         }
       ]
     }
-  ],
-  "material_families_missing_controls": []
+  ]
 }

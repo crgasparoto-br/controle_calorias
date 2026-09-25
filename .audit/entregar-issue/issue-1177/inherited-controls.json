@@ -1,82 +1,41 @@
 {
   "schema_version": 1,
-  "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+  "head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
   "controls": [
     {
-      "id": "INH-1177-001",
+      "id": "INH-1193-001",
       "status": "passed",
-      "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "evidence": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
-      "evidence_sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
-      "control_type": "scenario",
-      "risk_family": "idempotency",
-      "surface": "duplicate-processing",
-      "dimension": "obl-041",
-      "attack_control_id": "NEG-1177-041",
-      "procedure": "Reexecute inherited idempotency:duplicate-processing control at the exact head.",
-      "expected": "The cumulative control remains discriminant and fail-closed.",
-      "observed": "The exact-head cumulative control passed without duplicate, partial, or cross-scope mutation."
-    },
-    {
-      "id": "INH-1177-002",
-      "status": "passed",
-      "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "evidence": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
-      "evidence_sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
-      "control_type": "scenario",
+      "head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
+      "subject_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
+      "evidence": ".audit/entregar-issue/issue-1177/evidence/issue1177-exact-head-controls.txt",
+      "evidence_sha256": "b44805f3b5cf8fbcfac2d2aff86a9ecf028ce3c6a3edd9c1e918ada0cf8060ce",
+      "control_type": "test",
       "risk_family": "structural-contract",
       "surface": "benchmark-path-fidelity",
-      "dimension": "obl-009",
-      "attack_control_id": "NEG-1177-009",
-      "procedure": "Reexecute inherited structural-contract:benchmark-path-fidelity control at the exact head.",
-      "expected": "The cumulative control remains discriminant and fail-closed.",
-      "observed": "The exact-head cumulative control passed without duplicate, partial, or cross-scope mutation."
+      "dimension": "public-webhook-vs-helper-only-harness",
+      "attack_control_id": "NEG-1193-005",
+      "procedure": "Run the public annotated-image webhook and compare its per-item decision with the persisted continuation boundary.",
+      "expected": "The productive entrypoint and helper contract agree; no global fallback bypasses per-item evidence.",
+      "observed": "Exact-head public webhook and nutrition regressions passed with the productive entrypoint exercised."
     },
     {
-      "id": "INH-1177-003",
+      "id": "INH-1193-002",
       "status": "passed",
-      "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "evidence": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
-      "evidence_sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
-      "control_type": "scenario",
-      "risk_family": "structural-contract",
-      "surface": "relational-semantic-integrity",
-      "dimension": "obl-027",
-      "attack_control_id": "NEG-1177-027",
-      "procedure": "Reexecute inherited structural-contract:relational-semantic-integrity control at the exact head.",
-      "expected": "The cumulative control remains discriminant and fail-closed.",
-      "observed": "The exact-head cumulative control passed without duplicate, partial, or cross-scope mutation."
-    },
-    {
-      "id": "INH-1177-004",
-      "status": "passed",
-      "head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
-      "evidence": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
-      "evidence_sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
-      "control_type": "scenario",
-      "risk_family": "tenant-isolation",
-      "surface": "tenant-scope-isolation",
-      "dimension": "obl-089",
-      "attack_control_id": "NEG-1177-089",
-      "procedure": "Reexecute inherited tenant-isolation:tenant-scope-isolation control at the exact head.",
-      "expected": "The cumulative control remains discriminant and fail-closed.",
-      "observed": "The exact-head cumulative control passed without duplicate, partial, or cross-scope mutation."
+      "head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
+      "subject_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
+      "evidence": ".audit/entregar-issue/issue-1177/evidence/issue1177-exact-head-controls.txt",
+      "evidence_sha256": "b44805f3b5cf8fbcfac2d2aff86a9ecf028ce3c6a3edd9c1e918ada0cf8060ce",
+      "control_type": "test",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "same-message-replay-vs-new-inbound",
+      "attack_control_id": "NEG-1193-003",
+      "procedure": "Replay the same inbound image identity through the canonical continuation and inspect persisted effects.",
+      "expected": "At most one logical pending/meal conclusion is produced and no second vision call is needed for resume.",
+      "observed": "The exact-head idempotency and continuation regressions passed without duplicate logical effects."
     }
   ],
   "retired_controls": [],
   "unresolved_controls": [],
-  "source_audits": [
-    {
-      "source": "issue1177-independent-audit",
-      "status": "targeted-remediation",
-      "finding_ids": [
-        "IDEMP-001",
-        "COVERAGE-001"
-      ]
-    }
-  ]
+  "source_audits": []
 }

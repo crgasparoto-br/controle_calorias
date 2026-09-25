@@ -1,0 +1,4 @@
+A-002 targeted remediation evidence.
+Material head: bfe63fa314013a3ca08dc300ba8a82b243ab2f9e
+The image path now applies the confidence threshold regardless of whether extractCommercialVariant returns a variant token.
+Focused regression covers Bombom Charge Original, Iogurte Danone Light, and Refrigerante Coca-Cola Zero at item confidence 0.45; each remains food_identity_clarification_required with nutritionOrigin=heuristic and nutritionVerified=false.

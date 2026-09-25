@@ -1,1 +1,17 @@
-Issue 1177 exact-head control evidence\nmaterial_head_sha=bc1d2105ebeaabf790e4c8322df7c15a623dbbce\nfocused=nutritionEngine.issue1088, whatsappAnnotatedImageWebhook, foodQuantityClarification\nlifecycle=identity-sequence, quantity-continuation, cancel, expiry, isolation, concurrent-claim\nfull_suite=703 test files passed; 4499 tests passed; 4 skipped\ngates=pnpm check; pnpm architecture:check; pnpm docs:check; pnpm build\n
+Issue #1177 / PR #1193 exact-head evidence
+material_head_sha=bfe63fa314013a3ca08dc300ba8a82b243ab2f9e
+base_sha=0dfe5d23d97b65bc9051585bf8fe9ceae16e7ec9
+
+Focused regression command:
+pnpm vitest run server/nutritionEngine.issue1088.test.ts -t "baixa confiança|produto embalado visualmente específico|itens reconhecidos"
+Observed: 1 file passed; 7 selected tests passed, including the low-confidence visual identity fail-closed case, three explicit-variant sibling cases, the visually specific provisional case, and multi-item preservation.
+
+TypeScript command:
+pnpm check
+Observed: exit code 0 (tsc --noEmit).
+
+Full exact-head agent gate:
+pnpm agent:check
+Observed: exit code 0; 705 test files passed and 1 skipped; 4,531 tests passed and 4 skipped. The provider policy control report also returned allPassed=true with 32 controls.
+
+No production database, user content, or secrets are included in this evidence.

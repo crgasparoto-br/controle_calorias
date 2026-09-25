@@ -1,16 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+  "material_head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
   "evidence": [
     {
-      "evidence_id": "EVID-1177-EXACT-HEAD",
+      "evidence_id": "EVID-1193-EXACT-HEAD",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/issue1177-exact-head-controls.txt",
-      "sha256": "bdfe141fe65606363666289d29e8f65badfc2238e3f7e40ddcccdb34247aa44d",
-      "subject_sha": "bc1d2105ebeaabf790e4c8322df7c15a623dbbce",
+      "status": "passed",
+      "producer": "Exact-head repository regression and gate runner",
+      "subject_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
       "freshness_policy": "exact-material-head",
-      "producer": "issue 1177 focused and full regression gates",
-      "status": "passed"
+      "path": ".audit/entregar-issue/issue-1177/evidence/issue1177-exact-head-controls.txt",
+      "sha256": "b44805f3b5cf8fbcfac2d2aff86a9ecf028ce3c6a3edd9c1e918ada0cf8060ce",
+      "observed": "Four selected tests passed in the exact-head focused regression command; the low-confidence visual identity negative control and two multi-item/product identity controls are included."
     }
   ]
 }

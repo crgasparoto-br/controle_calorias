@@ -2,7 +2,7 @@
   "schema_version": 3,
   "specification_snapshot": {
     "path": "specification-snapshot.json",
-    "sha256": "73a463e48613ffd5a264713f1ead0c1d5b2e7682d4eb5a6b6724069da3b61ab1"
+    "sha256": "7d6ab986eac7821566123f5690580e6e2fef9f9743628693a65116d4b4168d4b"
   },
   "primary_issue_source_id": "SRC-ISSUE-1177",
   "obligations": [
@@ -10,7 +10,7 @@
       "id": "OBL-001",
       "candidate_key": "3970825b2f75fc1639818780addf2afd6099b2769b666c7605db7a634175a5b6",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
       "source_line": 5,
       "source_text": "Em produção, em 2026-09-23, uma foto de prato contendo **múltiplos componentes alimentares visualmente distintos** foi enviada pelo WhatsApp.",
       "flags": [
@@ -25,13 +25,13 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
       "id": "OBL-002",
       "candidate_key": "825f97c7d094e66914a5bd9edb473158e6d7214ecb1fc7afcbf218df58b6a94f",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
       "source_line": 13,
       "source_text": "a refeição deixou de ser tratada como um conjunto de múltiplos alimentos;",
       "flags": [
@@ -44,13 +44,13 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
       "id": "OBL-003",
       "candidate_key": "841b05473e9aaa690407ee268d313606c9c322f509044b2098db0f673e2985fa",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
       "source_line": 14,
       "source_text": "um alimento/preparação genérica foi encaminhado para clarificação de **identidade comercial/variante** sem evidência suficiente de marca, linha ou produto comercial.",
       "flags": [
@@ -64,13 +64,13 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
       "id": "OBL-004",
       "candidate_key": "899aa24cde57a6e811dbc34ae93b4f500ee6033aebac23e04a547e32f1d66f1d",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
       "source_line": 16,
       "source_text": "A implementação deve partir da branch **develop**.",
       "flags": [],
@@ -81,14 +81,696 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
       "id": "OBL-005",
-      "candidate_key": "47829fad0b701a09f7c85cc0e9f1c63af5b40cad9205bea3a816ce07fbd46e1c",
+      "candidate_key": "2d3cd049ec7b40cebe65aa230cbaf58ec573befeec78d36e271e36e6a9184bd4",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 23,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 20,
+      "source_text": "A issue foi reaberta após novo teste real em produção, depois da implementação da PR #1182 e da promoção subsequente para `main`.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "fb1a2dc8396d906fcc9bbca0eb47754fe26b4c465536ffd1a4b5817761ecdd4f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 24,
+      "source_text": "Foi enviada pelo WhatsApp uma foto de prato com vários componentes visualmente distinguíveis. Na imagem há pelo menos múltiplos componentes alimentares reconhecíveis, incluindo um filé de frango, rodelas de batata e couve-flor, além de outros componentes que podem exigir menor confiança individual.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "e25eead5ee8b37b650b0b7745e6a499d1ba1f1ddd32e327b449dab1066635a72",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 31,
+      "source_text": "⚠️ Não consegui identificar o alimento na imagem",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "94605e3e9f2f8e3881bb903dcb82ac87de15e435f771a3b23988482f58732d27",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 33,
+      "source_text": "Envie outra foto com o alimento mais visível ou descreva o que comeu e a quantidade.",
+      "flags": [
+        "observable",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "80cc225955856de10473e00e99d3c27e9061a174dcfda157974680d5c7a2a396",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 36,
+      "source_text": "Esse resultado é incompatível com o contrato desta issue: a incerteza sobre um componente não pode transformar uma refeição multi-item parcialmente reconhecível em falha global de identidade.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "ff11fdca2a5062b7e9c4a51d6ff3828b651e3d1a45308118ecfcdeee5cfe4151",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 40,
+      "source_text": "Na `develop` atual, `server/modules/whatsapp/visualMealInferenceValidation.ts` possui a seguinte regra dentro de `inspectWhatsappImageMealItemsPersistence()`:",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "d732c64884c49abdd358c7fceb391ecfcfa42b297152bcd8c6163469c30fc736",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 53,
+      "source_text": "A implementação deve confirmar por teste se esse é o caminho exato acionado no caso de produção. A correção não deve simplesmente trocar `some` por `every` sem preservar os invariantes de atomicidade, clarificação por item e continuidade já definidos nesta issue.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "c8943e3da0518186c2ae26eb01c9910c791791856d448f44bef35b837c2e16e9",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 59,
+      "source_text": "`items: []` continua podendo representar baixa confiança global e justificar clarificação geral.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "e56c40f598adfc3d06bcb1d52833325954d92577566272fc91de69e69b9e5b19",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 61,
+      "source_text": "o resultado **não pode** virar imediatamente `missing_identity` global;",
+      "flags": [
+        "observable",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "40e98f19df809fe57dac56605c317d8314cd08c5d4f690d3d3cb805758055dd0",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 62,
+      "source_text": "os itens reconhecidos devem ser preservados no contexto canônico da refeição;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "c95fb23acdb64ee90b91e1dc09338f6f0b9fc6fbf9f6eb42d260b969cd097e29",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 63,
+      "source_text": "somente o item realmente ambíguo deve entrar em clarificação de identidade;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "f2bd313b02f092c7709158843cc4ecf6d4f7ed7e9f15998049974aad3fc91cf9",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 65,
+      "source_text": "A mensagem genérica “Não consegui identificar o alimento na imagem” só é válida quando a imagem inteira não produzir nenhum alimento confiavelmente identificável.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "614da294d14603b42302fd7dab1942eac65c19e4f8500a4358dec5f698f62a39",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 76,
+      "source_text": "o item ambíguo gera clarificação específica;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "aafc61e037f7b8157c160f7795c0bf2e2d9edb0e2f63bb7981aeda09cfed5b0c",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 77,
+      "source_text": "a resposta não usa a mensagem global de imagem não reconhecida;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "bb8f63e24d489f039728bc65c72550ea52c21a681410a123264220abb5c68567",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 78,
+      "source_text": "a continuação reutiliza o mesmo contexto persistido;",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "5656d3efc86195b919e300fdb3a92deb786db3b4e6544f1e978776d6b5fc0e53",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 79,
+      "source_text": "não há nova chamada de visão apenas para recuperar os itens já reconhecidos;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "bfcc33a1756eddbf806de4cc368729e051862b2b7a9476fea443ad871d3844bf",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 84,
+      "source_text": "[ ] Uma imagem multi-item com pelo menos um item confiável e um item sem identidade confiável não retorna `missing_identity` global.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "a1570d56625ec3f0f92d8b561aa5c85aea5f5ab13ebdb81aa0320f9a24d67920",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 85,
+      "source_text": "[ ] `buildWhatsAppImageNotRecognizedReplyMessage()` é usado somente quando nenhum alimento confiável foi identificado no conjunto.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "f3e36a49bc299c7fbd7fca13f45ffccc32e9638bd70d1e6f82585fe2a7cf7a00",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 86,
+      "source_text": "[ ] O caso de regressão atravessa o entrypoint público real do WhatsApp e chega à validação/persistência sem mockar o resultado final de `inspectWhatsappImageMealItemsPersistence()`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "81d03beccc18b95140e723da31d4bddbee6daa8e557f508d9c404008c45778ff",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 87,
+      "source_text": "[ ] O teste prova que um item ambíguo é convertido em pendência específica e que os demais itens permanecem preservados no contexto.",
+      "flags": [
+        "exhaustive",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "bb734243c64b7a509141b665d85db99697c3e2935dde8f20cb2ecf48f079693f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 88,
+      "source_text": "[ ] A correção mantém a atomicidade: nenhum item reconhecido é persistido isoladamente enquanto outro item da mesma imagem exige clarificação obrigatória.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "277b0c6903c2bce53628ce74eab5f27eedf5c695475e51c917844642a8474c3a",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 89,
+      "source_text": "[ ] O fluxo de baixa confiança global (`items: []` ou nenhum item confiável) continua retornando clarificação geral.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "c5743063252409c834bbd3ed019e6a673ce26067da42a4be4a26415365c5b855",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 90,
+      "source_text": "[ ] O fluxo com todos os itens confiáveis continua persistível.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "b4260e32ccaea2d09255364863ec651b4195c898de3bf4d358b9bf424867c3b5",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 91,
+      "source_text": "[ ] O fluxo com múltiplas ambiguidades continua sequencial e retomável sem reexecutar `MEAL_VISION`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "ec323531bc42af9eb1557e5912a61db8d2292a48c8cca861342a0d0371f13f7f",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 92,
+      "source_text": "[ ] Não é criada allowlist de alimentos, lista manual de pratos nem exceção específica para frango, batata ou couve-flor.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "edaf8ce49aa4f469e076e491296d25b63135fad007982d79e313ef07f9cff957",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 93,
+      "source_text": "[ ] Smoke pós-deploy inclui uma foto multi-item parcialmente reconhecida e comprova ausência da resposta global incorreta.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "1abe6ed9a81ba29840ff54c03899256053a24606124dbaec6d8dfe60af3e8767",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 97,
+      "source_text": "**must_behave:** identidade é avaliada por item; o status global da imagem deve refletir o conjunto, não o pior item isolado.",
+      "flags": [
+        "negative",
+        "isolation"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "429d54d88d402c1620cfa599ce5d24cb5c36386e0a735bd0ad382b05b530bc46",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 98,
+      "source_text": "**must_not_behave:** um único item sem identidade não pode apagar itens válidos nem forçar `missing_identity` global.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "575f122fef5a0526939af37f25f912f884bf4482e12c9ab8c9121acde9ab3667",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 99,
+      "source_text": "**must_reuse:** reutilizar o contrato existente de clarificação multi-item e `complete_image_meal`.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "7b856aab1248a7874a0664abc8979da95e4a1a66df7ac55dce90dc262dfcc636",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 100,
+      "source_text": "**must_be_single_source:** o conjunto retornado por `MEAL_VISION` e o estado de clarificação permanecem no mesmo contexto canônico; não copiar itens reconhecidos para estrutura paralela.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "cc1ff043f3f7dd9444b17b054109195257e57c014d344c3c166ce49277398321",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 101,
+      "source_text": "**must_not_depend_on:** não depender de nomes específicos de alimentos nem de exceções por prato.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "594594f3957f5dcdf1647e0cb0acc680c2583283888c86844db029a57a0518ca",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 107,
+      "source_text": "Controle: teste exige pendência específica e preservação atômica do conjunto.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "13a549cbcf33023ee154af09cf1def3f52296f197aa436a793bbb162eb6d7005",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 109,
+      "source_text": "**Descartar o item ambíguo e persistir somente os itens reconhecidos.**",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "c6628de92facf114052973793327b07346197bfa72c76b4e671b3e64ad975858",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 113,
+      "source_text": "**Criar exceções para os alimentos desta foto.**",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "6975769a9e1d3a96e21e06ba201d33d428d62824f47c1b362995a452c00e129d",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 115,
+      "source_text": "Controle: fixture adicional com outro conjunto de alimentos e um item ambíguo.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "46dcb25bdba7584ecb9206327a2c6a2694a62a5cdde9c9979582349e04fe54f8",
+      "source_id": "SRC-ISSUE-1177",
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 122,
       "source_text": "**#1177**: extração inicial de foto de refeição multi-item, classificação correta de identidade genérica/comercial e preservação do conjunto durante clarificações.",
       "flags": [
         "temporal"
@@ -100,14 +782,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-006",
-      "candidate_key": "fafe2c30b165799dcf9510adfe484d5ee949a17aebc1c7bbd00b5b1c395717a7",
+      "id": "OBL-041",
+      "candidate_key": "23ca5ebae95e3b6336611e4d01746b8fd4d6cccc28fa6d431ac0623e3347ee78",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 31,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 130,
       "source_text": "`server/mealAiExtraction.ts` aceita `items[]` no Structured Output de `MEAL_VISION`; a extração não é, por contrato, limitada a um único alimento.",
       "flags": [
         "negative",
@@ -121,14 +803,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-007",
-      "candidate_key": "80c6e218e1c034230e34b647e7dde60b17e20923c9706f392b94bbf66ec48ada",
+      "id": "OBL-042",
+      "candidate_key": "353a009ba94d4ce80a12d0cd6ba6e983eb0418918f5e8eee453985888b6c9441",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 32,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 131,
       "source_text": "`server/mealItemCleanup.ts` limpa ruído/baixa confiança e deduplica, mas não deve colapsar legitimamente uma refeição multi-item em um único componente.",
       "flags": [
         "negative",
@@ -141,14 +823,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-008",
-      "candidate_key": "0ec6e678ce9eb9d4a7b2f8663e3d3e5b06023415e743e8aa8a206b8dfc7fefb9",
+      "id": "OBL-043",
+      "candidate_key": "148f1dd8cedf6a18baacfcf8dec1e6cbf1ca5235c56cf5696654d24e0e335433",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 36,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 135,
       "source_text": "O fluxo de **quantidade** de imagem já possui continuidade canônica em `server/modules/whatsapp/foodQuantityClarification.ts` com `resolutionContext.mode = \"complete_image_meal\"`, preservando `items`, mídia, índices pendentes e sequência.",
       "flags": [
         "atomicity"
@@ -160,14 +842,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-009",
-      "candidate_key": "3e971969ae1c4fbc0ff2ed5cf4087d85eb864610fb403a220a1e2daf7882747b",
+      "id": "OBL-044",
+      "candidate_key": "c1caadc63913102cd23ecacc3671bba256e427a5c3e9596d2df77b4baaadfcf7",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 40,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 139,
       "source_text": "A correção deve **estender/reutilizar esses contratos**, não criar um fluxo paralelo para imagens.",
       "flags": [
         "negative",
@@ -180,14 +862,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-010",
-      "candidate_key": "f008a2bfa5b922a6bb7168f5cf22043a1a29cc6af1a5e42676033d9baa71bb27",
+      "id": "OBL-045",
+      "candidate_key": "6c90bfe004a544dbf2f009731110f2c4a627dab18f2d0349ed51d086ee3d5801",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 42,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 141,
       "source_text": "> O baseline acima identifica fronteiras onde a regressão pode ocorrer, mas não presume que um único arquivo seja a causa raiz do caso de produção. A implementação deve comprovar a causa com teste de regressão.",
       "flags": [
         "negative",
@@ -200,14 +882,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-011",
-      "candidate_key": "16d497915bb4e0be1751627fe082f3e37717ea32eba71ecdf6884465fd454e18",
+      "id": "OBL-046",
+      "candidate_key": "19a4696a215f0896a047dde66fdf8452db91f962dc639fd1dec724dfaa82a582",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 46,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 145,
       "source_text": "Reutilizar e manter coerência com:",
       "flags": [
         "structural"
@@ -219,14 +901,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-012",
-      "candidate_key": "faa61e1cd998b9f64a00f7de8338538d098704694855ccf662a8c13e9ce4da2f",
+      "id": "OBL-047",
+      "candidate_key": "bd7a30bda53230adf571eca176e4f4e10ec9fa322bc14e83026e96f4db4c5293",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 61,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 160,
       "source_text": "Garantir que uma foto de refeição contendo vários alimentos seja processada como **refeição multi-item**, preservando todos os itens reconhecíveis e evitando que alimentos genéricos/preparações comuns sejam indevidamente promovidos ao fluxo de produto comercial com marca/linha/variante.",
       "flags": [
         "exhaustive",
@@ -239,14 +921,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-013",
-      "candidate_key": "98da9621900ed1e80a992aa013b5deb23106f2989ff472865683e55dc44c897a",
+      "id": "OBL-048",
+      "candidate_key": "a152c4355836ad99516a5e54dc715bf14451498fffae179ef12d38b360e4235c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 63,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 162,
       "source_text": "Se somente um item estiver ambíguo, a clarificação deve afetar **somente esse item** e a resposta posterior deve retomar a mesma refeição/imagem até que todas as pendências necessárias sejam resolvidas.",
       "flags": [
         "exhaustive",
@@ -259,14 +941,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-014",
-      "candidate_key": "0c8c1a63449e680dce8c8b32b5d69978070969d4c403f74e89224e0f9e827d8f",
+      "id": "OBL-049",
+      "candidate_key": "655dd7ab99c2b9ac6e01f205a2eea77a0e9680c4db03cbf4e4f547cf2d5ad1eb",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 67,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 166,
       "source_text": "Preservar múltiplos itens retornados por `MEAL_VISION` durante extração, normalização, resolução nutricional e clarificação.",
       "flags": [
         "temporal"
@@ -278,14 +960,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-015",
-      "candidate_key": "8ae45d5f6fa69000c78ae0b8ea5de804c542ca35834100576fcb5b6d7b44bdc1",
+      "id": "OBL-050",
+      "candidate_key": "685f2255650c93f1f147233e5e05c275c56eb05525c189a2c07250b7c531636c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 68,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 167,
       "source_text": "Corrigir a distinção semântica entre:",
       "flags": [],
       "disposition": "covered",
@@ -295,14 +977,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-016",
-      "candidate_key": "b2f7d84c45ff5ed1e16a54b81573835082ccb092a704660007265bec4f76e11a",
+      "id": "OBL-051",
+      "candidate_key": "5a8361850e49befffbf1ea1dbd608820d2f8ab1059bd7cf7837292b21326b114",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 69,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 168,
       "source_text": "alimento/preparação genérica;",
       "flags": [
         "semantic-effect"
@@ -314,14 +996,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-017",
-      "candidate_key": "7650c3d1b4b81d3cc1220a1f571f9cb91ca53278a1c104868eb43f67e0772aba",
+      "id": "OBL-052",
+      "candidate_key": "194167d1fb297295c8b3647e040cb5563464de9a611ef68cd0417ce86fa4210a",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 70,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 169,
       "source_text": "produto comercial com marca/linha/variante.",
       "flags": [],
       "disposition": "covered",
@@ -331,14 +1013,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-018",
-      "candidate_key": "ab7c1c6963738530f5bd0eb66db07d846cd17b8a99f720ca26e8ea8080db1f2a",
+      "id": "OBL-053",
+      "candidate_key": "631fbd472de13eb009bdde62b1237b73456c592ec5fe5b4aa1e93cb56aa6fd56",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 71,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 170,
       "source_text": "Tornar clarificação de identidade em imagem uma continuação persistente e retomável quando necessária.",
       "flags": [],
       "disposition": "covered",
@@ -348,14 +1030,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-019",
-      "candidate_key": "510fdb39b6d641e2ee7b0cba23ef9b620da9df3c7d96eb1a42e62045a193f224",
+      "id": "OBL-054",
+      "candidate_key": "15f08bc1f20a4618ee622cafa04f8366e6c12f4ff45c3c7f1783ee397fad47ca",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 72,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 171,
       "source_text": "Reutilizar o contexto `complete_image_meal` e/ou evoluir o contrato canônico de clarificação dentro de `whatsappPendingOperations` + interaction registry.",
       "flags": [
         "atomicity",
@@ -368,14 +1050,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-020",
-      "candidate_key": "7dee6d06d01f3258702fcf825a34a75983d7a3cc32cc2770b369ffd05a2c8a7b",
+      "id": "OBL-055",
+      "candidate_key": "9905edf06db042af62ccd37fd3869d532990f86219806c6f6e185841a495b60b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 73,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 172,
       "source_text": "Manter o fail-closed existente para identidade comercial realmente ambígua.",
       "flags": [],
       "disposition": "covered",
@@ -385,14 +1067,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-021",
-      "candidate_key": "e9369af2006398a5dbb7049fe752b8bbde640db34d3a64bb2cf43355515ab429",
+      "id": "OBL-056",
+      "candidate_key": "247c135a049f2e26a839601c997555cda1c1c8fe8eff32204f380cddb8e9bea7",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 74,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 173,
       "source_text": "Preservar o fluxo posterior de quantidade já existente para itens cuja porção continue pendente.",
       "flags": [],
       "disposition": "covered",
@@ -402,14 +1084,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-022",
-      "candidate_key": "9ac566a7ecc8d351c1e1e85a4837a44a9d752c198417e4e7f1e612de41956c9f",
+      "id": "OBL-057",
+      "candidate_key": "81ce87f1f877884832b2bb8b69f29c3f1b9030bdcf80ba32f86d52fb6652c95d",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 78,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 177,
       "source_text": "**must_behave:** uma imagem com vários componentes reconhecíveis produz múltiplos itens candidatos quando a evidência visual os sustentar.",
       "flags": [],
       "disposition": "covered",
@@ -419,14 +1101,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-023",
-      "candidate_key": "162e6827b577e57085fb649bfa10411331cd1f11854f67310df08537f58c629c",
+      "id": "OBL-058",
+      "candidate_key": "e19c7919116bc18eebc31ede103ebbea112daa0ef03a98ce7c58f257d02c100b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 79,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 178,
       "source_text": "**must_behave:** ambiguidade de um item não apaga, substitui nem reclassifica silenciosamente os demais.",
       "flags": [
         "exhaustive",
@@ -439,14 +1121,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-024",
-      "candidate_key": "484cef956f230773922738be4d78aab95b86235d5cd282482387d44f2b5b5c04",
+      "id": "OBL-059",
+      "candidate_key": "5755079728c2c7d21b181a846907008bda6ac0a59c3a8f016e0ac9220e1073ed",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 80,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 179,
       "source_text": "**must_behave:** descritores de preparo, corte ou apresentação — por exemplo `assada`, `cozida`, `grelhada`, `em rodelas`, `picada`, `fatiada` — não constituem, isoladamente, evidência de identidade comercial.",
       "flags": [
         "negative"
@@ -458,14 +1140,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-025",
-      "candidate_key": "7f2f38efd6dbdad6afaee12ed3b9a2a17f17371c6742126ebd75ef768f66eb30",
+      "id": "OBL-060",
+      "candidate_key": "adbb661dcf183c1fdab6dcfd1ff6e0c93eb15ec5c7e24c24ac28525820fb1165",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 81,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 180,
       "source_text": "**must_behave:** depois de resolver identidade de um item, o fluxo continua da mesma refeição e, se necessário, entra na sequência canônica de quantidade dos itens ainda pendentes.",
       "flags": [
         "temporal",
@@ -478,14 +1160,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-026",
-      "candidate_key": "9b1e361e922db019e4938ba6b1934d370ec2db8ab626466ecb94569494eff2db",
+      "id": "OBL-061",
+      "candidate_key": "010cd3edc9d877c5b16828270b4b4aa5cc4cadc1aa4ca298b54e7c1d2e766a43",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 82,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 181,
       "source_text": "**must_reuse:** `MEAL_VISION`, `processMealInput`, `MealSemanticContract`, `whatsappPendingOperations`, interaction registry e a continuidade existente de `complete_image_meal`.",
       "flags": [],
       "disposition": "covered",
@@ -495,14 +1177,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-027",
-      "candidate_key": "fa092de55a84fb2d1cda3a2cbd127dc834a9026119a8f28fd7b44b3130b4c989",
+      "id": "OBL-062",
+      "candidate_key": "5e43b00be3eb04bb484c09040410e5e0f51d30b2354d5067eeaa2e27b9ff34a0",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 83,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 182,
       "source_text": "**must_be_single_source:** o conjunto de itens da imagem e o estado de suas pendências devem ter uma única representação canônica durante a continuação; não manter uma cópia funcional concorrente por handler.",
       "flags": [
         "negative",
@@ -517,14 +1199,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-028",
-      "candidate_key": "70557712732b51b9271adb28e8915f5c03caaaeaebd55ceccceb7f495a7c22dc",
+      "id": "OBL-063",
+      "candidate_key": "82779d0138793612a97923751599ff50bd76e22992eadfe1b77c4c2413a88f9f",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 84,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 183,
       "source_text": "**precedence_invariant:** marca/linha/variante explicitamente observada no texto/caption/rótulo ou sustentada pelo contrato semântico > inferência comercial derivada; ausência de evidência comercial não autoriza promover alimento genérico a produto comercial.",
       "flags": [
         "negative",
@@ -537,14 +1219,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-029",
-      "candidate_key": "36317988e2eb1424723d08243de70269f0b0dc6363a84b94fa2db2ba63aabcc1",
+      "id": "OBL-064",
+      "candidate_key": "58d3b06eacc5fbdf0faac7b03030f76dd9ff6e8c6d431c7f3272b2bd8de1c2b1",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 85,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 184,
       "source_text": "**precedence_invariant:** clarificação de identidade pendente deve ser resolvida antes de persistir a refeição; após resolvida, quantidades pendentes continuam pelo fluxo canônico já existente.",
       "flags": [
         "temporal",
@@ -558,14 +1240,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-030",
-      "candidate_key": "4f588a744a5d7d9803745e947caecb7f5d0367868a8c60f7ecc2d3bfe7c9d360",
+      "id": "OBL-065",
+      "candidate_key": "7659c76ec858472fb2e2f2af86c2db42921e82a54de1eacf136bb6e4e18be290",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 86,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 185,
       "source_text": "**must_not_behave:** não pedir \"variante/linha/sabor\" para alimento genérico apenas porque a nutrição, quantidade ou preparo ainda é incerto.",
       "flags": [
         "negative",
@@ -578,14 +1260,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-031",
-      "candidate_key": "3c854ac7092a15ef304a7ac21e5906aeed37535bb60dee01a68ed8f3cd531c9b",
+      "id": "OBL-066",
+      "candidate_key": "6b3fc433ea32d0398f7579abba0b7b8fb2d4b1cbfb7b67f1212ebdcbed3aed0a",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 87,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 186,
       "source_text": "**must_not_behave:** não persistir parcialmente os itens \"bons\" enquanto outro item da mesma imagem ainda exige clarificação, salvo se um contrato canônico existente explicitamente determinar outra operação independente (ex.: hidratação já separada pelo domínio).",
       "flags": [
         "exhaustive",
@@ -600,14 +1282,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-032",
-      "candidate_key": "55af8b8c6c4710569f8ca330193b80d0334f581e924fe258b07c52d1c5304b8c",
+      "id": "OBL-067",
+      "candidate_key": "4ed830eaf6256a9c876c5058ef4a49ea7908d1dc119b888027052a2a94440c55",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 88,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 187,
       "source_text": "**must_not_behave:** não reexecutar a visão da imagem nem exigir novo upload apenas para recuperar itens que já estavam no `semanticContract`/contexto persistido.",
       "flags": [
         "negative"
@@ -619,14 +1301,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-033",
-      "candidate_key": "b72fc978dbcbd615f3cf2b8da69dc154bde3dc34b881b5fae16574694af1ded1",
+      "id": "OBL-068",
+      "candidate_key": "f290fd8120594e5e5400c95a37cd57526fdf3d1d9e0021762e26593aaa04bb07",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 89,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 188,
       "source_text": "**must_not_depend_on:** a correção não pode depender de lista manual de alimentos conhecidos, horário da mensagem ou memória em processo.",
       "flags": [
         "negative",
@@ -639,14 +1321,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-034",
-      "candidate_key": "22e1df428e43cf695a7df87a78682576fc4ae27be417bff11b6da3f1a75e081b",
+      "id": "OBL-069",
+      "candidate_key": "ed2852016266c1fbcd124c17274e833727c2a211a3658e42756d07eed732f7e2",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 90,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 189,
       "source_text": "**forbidden_implementation:** criar lista hardcoded de alimentos \"sem variante\".",
       "flags": [
         "negative",
@@ -659,14 +1341,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-035",
-      "candidate_key": "8a8e7a6d19e7f7f4e331bcf9c12db92a1865b515bd451d41299ecbce33fe479b",
+      "id": "OBL-070",
+      "candidate_key": "dfad1e3af33e41fa9490cbb4d78cf0ffedd059ed0e587fe53edfe2e819bf967c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 91,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 190,
       "source_text": "**forbidden_implementation:** criar novo store, roteador de pendência ou parser paralelo exclusivo para imagem.",
       "flags": [
         "structural",
@@ -679,14 +1361,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-036",
-      "candidate_key": "136be1ce2003537d693d9cab58b04a72baa5262394d63dbcdf38bdc4108ffea0",
+      "id": "OBL-071",
+      "candidate_key": "159b1172eb9ffffe590e57e9f02938b26fc5ac3f8bfe4ad36ba52f006aac1005",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 92,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 191,
       "source_text": "**forbidden_implementation:** tratar apenas `semanticContract.clarifications[0]` e descartar o restante do contrato multi-item.",
       "flags": [
         "negative"
@@ -698,14 +1380,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-037",
-      "candidate_key": "e9c51c4fd333a6bdc70d61807c125f4102267ed8acf4b717b24cf6754e045545",
+      "id": "OBL-072",
+      "candidate_key": "9b47c0d3256fc81e7bb37a6813c0d3a7db76667221c04d8a97ecd0d5affef06b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 96,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 195,
       "source_text": "**Corrige \"batata-doce\" por exceção textual**, mas outro alimento genérico continua virando variante comercial.",
       "flags": [
         "semantic-effect"
@@ -717,14 +1399,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-038",
-      "candidate_key": "6afb45ad3f5fb935593fca57893ae18784cba9730acccab15e129c24d05698f9",
+      "id": "OBL-073",
+      "candidate_key": "85b790f64dd224838864abd24c7a1296b97b2c9e5bb87e3ceec92bf4a2ecd52c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 97,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 196,
       "source_text": "Controle: usar ao menos outro alimento/preparação genérica sem depender de allowlist.",
       "flags": [
         "negative",
@@ -737,14 +1419,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-039",
-      "candidate_key": "2d41f64429eea650a2e82f6f236972e320355a05bde8237b0cd268b933e97c3b",
+      "id": "OBL-074",
+      "candidate_key": "8c2dc4ecf4d2261cf253aa1c413efe57799212928354590dd224374d6cc287dd",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 98,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 197,
       "source_text": "**Preserva múltiplos itens no caminho feliz**, mas quando um item exige identidade, os demais desaparecem.",
       "flags": [
         "exhaustive"
@@ -756,14 +1438,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-040",
-      "candidate_key": "c3a245ca84aac6b292fd38019aa3b46c3ac5ff6de7ca0c2f780de59fcc6784f1",
+      "id": "OBL-075",
+      "candidate_key": "1a42336f0ca1e012767502cc07ea0faef8658dbfa084dd7aeaab5d8245e77546",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 101,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 200,
       "source_text": "Controle: antes da resposta do usuário, nenhuma refeição parcial deve ter sido criada.",
       "flags": [
         "exhaustive",
@@ -777,14 +1459,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-041",
-      "candidate_key": "ae8cd8b793d5afd481f1b01cb7c47c2505503bb4d5c2afca2dadd05de0e0efe4",
+      "id": "OBL-076",
+      "candidate_key": "4f98e6590517a2ab62c46b44734640d911de03405dd1247debad5a41001a4ec2",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 102,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 201,
       "source_text": "**Reprocessa a imagem após a resposta**, podendo gerar outro conjunto de itens.",
       "flags": [
         "temporal",
@@ -798,14 +1480,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-042",
-      "candidate_key": "25b728cc0bee00d19a90625abd9f55ace5199976d7edf0acfd48f3647e15eecd",
+      "id": "OBL-077",
+      "candidate_key": "4cb3c8b875660777fa9672fd9cc322fd73e1e6eb6487f91870d68f4c9a553c05",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 103,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 202,
       "source_text": "Controle: continuação deve reutilizar o contexto persistido e não exigir segunda chamada de `MEAL_VISION` para o mesmo inbound.",
       "flags": [
         "negative",
@@ -818,14 +1500,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-043",
-      "candidate_key": "3d0a87336766c5abfa79631920da37438171a775e215008f57bcbb1045980e17",
+      "id": "OBL-078",
+      "candidate_key": "6e3067015ac08da46dc00e9b7196c3e61a0f839c1a52322c4f02a486f3c4d0ed",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 112,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 211,
       "source_text": "Cada componente com evidência suficiente deve permanecer como item independente.",
       "flags": [
         "exhaustive"
@@ -837,14 +1519,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-044",
-      "candidate_key": "be3e3e8dc790b3efcb4af2f20d6d7b7415abba9eb7faf8eae0a8825eb0371683",
+      "id": "OBL-079",
+      "candidate_key": "8e594660efdc9d7a9c88623c56471b61adf663a324d1dabea7b45626e7ded235",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 113,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 212,
       "source_text": "Limpeza/deduplicação pode remover ruído real, mas não pode escolher arbitrariamente \"o melhor item\" e descartar os demais.",
       "flags": [
         "exhaustive",
@@ -858,14 +1540,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-045",
-      "candidate_key": "b5cc8e99bef9e43a1349a1019c98939829329cb7172477d144a4bc8785510911",
+      "id": "OBL-080",
+      "candidate_key": "142eb915a336cef891e894eeb6923d1debd62e6da856435039a2c44442db6bac",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 118,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 217,
       "source_text": "Aplicar política comercial somente quando houver evidência compatível de identidade comercial.",
       "flags": [
         "negative"
@@ -877,14 +1559,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-046",
-      "candidate_key": "924e486b923148263dc5ea474736c875c5be3dcae224105a2bca88a3a2202d87",
+      "id": "OBL-081",
+      "candidate_key": "5a1b15c94e1924185aebc6812df34b4b992c4c555c205ec6e4e5a0de90538236",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 120,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 219,
       "source_text": "`brand`, `productVariant`, linha/sabor ou motivo `brand_variant_unresolved` não podem nascer somente de descritor de preparo/apresentação.",
       "flags": [
         "negative"
@@ -896,14 +1578,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-047",
-      "candidate_key": "d8e644db5ac238dccd81e127417e2df00b355a008bc0e59a601f886b454ce7d2",
+      "id": "OBL-082",
+      "candidate_key": "da7459cc2a7ce2a4cd8b538e5501857abea996da76dfbd5dfb1a6d1f9038f59f",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 121,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 220,
       "source_text": "Nome composto de alimento genérico continua sendo identidade alimentar, não marca/variante, salvo evidência adicional.",
       "flags": [
         "negative",
@@ -916,14 +1598,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-048",
-      "candidate_key": "b569fbbd32fa00226266cd4bff1c736b018e3e20553941fdb742f393413b103f",
+      "id": "OBL-083",
+      "candidate_key": "ea06117e8045355a85981560f26b8b5726bbe06027e31a08a63a2dfd3e8353a0",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 122,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 221,
       "source_text": "Produto comercial real mantém a política fail-closed vigente.",
       "flags": [
         "freshness"
@@ -935,14 +1617,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-049",
-      "candidate_key": "6a6f8d8e0e31e59e2220d1e0dbb4e2cb1b08a36226655a95d2be5a2dbc370177",
+      "id": "OBL-084",
+      "candidate_key": "7b4179f240f74165239c0079a77a3f38ab95803d6ce247dbae96a3e94023fbc0",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 123,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 222,
       "source_text": "Não alterar globalmente o vocabulário de variantes sem teste que prove a necessidade; corrigir a fronteira semântica que gerou a classificação indevida.",
       "flags": [
         "negative",
@@ -955,14 +1637,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-050",
-      "candidate_key": "befc3da320747e4759c6f889a21dcab8826836e6e19ad819495c268798dd8bfe",
+      "id": "OBL-085",
+      "candidate_key": "9343624a2cc31405d7788ff013f6d4eb4c5d6195a580ec5397062d5fc84099ca",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 129,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 228,
       "source_text": "usar o `semanticContract` completo do erro como fonte para identificar item alvo e itens já conhecidos;",
       "flags": [],
       "disposition": "covered",
@@ -972,14 +1654,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-051",
-      "candidate_key": "6d14f62244b394b177f8cdd5fba6abcffde26efa9ab288bbfe9234f291daea92",
+      "id": "OBL-086",
+      "candidate_key": "31beecd5d29c1614bc55d92c51bf1f6587f306c02694fcdc49dcfb536d62abbb",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 130,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 229,
       "source_text": "preservar mídia/referência opaca, inbound `message.id`, refeição lógica, itens, índices e evidências necessários para retomada;",
       "flags": [],
       "disposition": "covered",
@@ -989,14 +1671,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-052",
-      "candidate_key": "5ebd407b4d5272d7a338db995f428f95b6a81d12dd7de5ab355a5909647bbb58",
+      "id": "OBL-087",
+      "candidate_key": "73f643c73daa6cafd58ea449a3191b7a7bb62bc103ed918380d3d596dc33cc89",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 132,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 231,
       "source_text": "perguntar somente o atributo realmente ambíguo do item alvo;",
       "flags": [
         "negative"
@@ -1008,14 +1690,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-053",
-      "candidate_key": "4809dfd9d91c5e426eddf9b9c5ad056b6bd810cf3b92b0b54dad915ee5de8cca",
+      "id": "OBL-088",
+      "candidate_key": "4525dbc2105cccc2406f8b81e696459c4ccdaee6039d82db4998067856f7758b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 133,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 232,
       "source_text": "manter os demais itens intactos;",
       "flags": [
         "exhaustive"
@@ -1027,14 +1709,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-054",
-      "candidate_key": "615d17896fcd38536c1350fd29d4b7f5194439abd0ad291848defabc5f8a3e1a",
+      "id": "OBL-089",
+      "candidate_key": "251a0cbd0fbd81863f0f112be4443e53cb005fa2128cf2121d43c052c5425f9d",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 134,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 233,
       "source_text": "uma resposta válida resolve somente o item alvo;",
       "flags": [
         "negative"
@@ -1046,14 +1728,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-055",
-      "candidate_key": "5b0ec8348c2756a857b745deeade4db84477f0faf8b9c61b2e3f331ab6e67e3a",
+      "id": "OBL-090",
+      "candidate_key": "ec67f6bf7bd1f4049efceab9acd176816ed071c627e6a841ec20c43ac6a7eb29",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 137,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 236,
       "source_text": "persistir a refeição somente quando o conjunto estiver apto ao contrato canônico de persistência.",
       "flags": [
         "negative",
@@ -1066,14 +1748,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-056",
-      "candidate_key": "ae7b2c9ab00b9bca085bd8b0dd59149f4f3ad2e8c2b6c729f92a144a77dd3f1d",
+      "id": "OBL-091",
+      "candidate_key": "bd4dfab6893368febc37c6fcc3edd3ce2a15eb130d3449f7e01bd3903af074ee",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 139,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 238,
       "source_text": "É permitido **evoluir o target/resolutionContext canônico ou registrar um subtipo/interação adicional no interaction registry**, se necessário. É proibido criar uma segunda máquina de estados ou store paralelo.",
       "flags": [
         "atomicity"
@@ -1085,14 +1767,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-057",
-      "candidate_key": "a529200dbc2b9e307541efdd18feedba668b11eec6accfa840db13ff03533693",
+      "id": "OBL-092",
+      "candidate_key": "0370ba1861286e368a2265085af24aedcf2f3e09922e701dc5defcf0fc508385",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 143,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 242,
       "source_text": "A pendência deve obedecer ao lifecycle canônico:",
       "flags": [
         "atomicity"
@@ -1104,14 +1786,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-058",
-      "candidate_key": "f312b5f1755c4f1e40e9dad88ee582f95276a2c21bcb9087155c1cad187f6936",
+      "id": "OBL-093",
+      "candidate_key": "ca53ca7773d812901afb21818374d74c9b577c99caf4225505a2efc795f098e0",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 149,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 248,
       "source_text": "**expired:** não persiste refeição parcial e não reutiliza contexto obsoleto;",
       "flags": [
         "negative",
@@ -1124,14 +1806,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-059",
-      "candidate_key": "841262de93bac636b379c35c0d421b87530681e2a4992480aead3be4d13d35b8",
+      "id": "OBL-094",
+      "candidate_key": "bb68a420da6e0a7457d015dbe84ead6007295836bc6b5f58b51a613171f7a84f",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 152,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 251,
       "source_text": "Reentrega da mesma mensagem ou duas respostas concorrentes devem resultar em no máximo uma conclusão válida.",
       "flags": [],
       "disposition": "covered",
@@ -1141,14 +1823,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-060",
-      "candidate_key": "086ca5a7f6e0f8ee2720d88035d71638cd8232438872193a6f582fa75e3fe04c",
+      "id": "OBL-095",
+      "candidate_key": "9db6ffe7bbd6e4d346d5c843f2a6915e6a9c254509a54d7f6fb61c987f34ce69",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 156,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 255,
       "source_text": "Se a imagem não permitir reconhecer alimentos com segurança:",
       "flags": [
         "negative",
@@ -1161,14 +1843,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-061",
-      "candidate_key": "23c51aa77f87536bb16c4c8bbc1fcd03dbfcc01f60bc725d6d1c23fda9ef1f65",
+      "id": "OBL-096",
+      "candidate_key": "d9dcc5a4d182b357000e4dddcf3a70783306226961b201a9e1d0595b104fc50b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 160,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 259,
       "source_text": "responder com clarificação geral apropriada;",
       "flags": [
         "semantic-effect"
@@ -1180,14 +1862,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-062",
-      "candidate_key": "b498b883a06daf8ae0c65cf2b0bd23e2fe9b8d1bb62d4e69f7cf9c718c594567",
+      "id": "OBL-097",
+      "candidate_key": "a6561ba64b41f8ebfcb9aa2be47c618a2639c36f8c41650a5e6c2f0c78b0ea93",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 162,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 261,
       "source_text": "`items: []` validado continua sendo resultado funcional conforme contrato de `MEAL_VISION`, sem retry/fallback apenas por estar vazio.",
       "flags": [
         "negative"
@@ -1199,14 +1881,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-063",
-      "candidate_key": "c703ad138f348188e31d9678fd45a32a9ae08bfc0bc91784ffd3314982fbe86e",
+      "id": "OBL-098",
+      "candidate_key": "3b42883b2535440d527ceecd39f0c20af39aafcb88447447fca9610553495c25",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 168,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 267,
       "source_text": "**Entrada:** foto de prato com múltiplos alimentos visíveis.",
       "flags": [
         "semantic-effect"
@@ -1218,14 +1900,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-064",
-      "candidate_key": "f3e7d6978a13b3a02214f74ddc52697f6ee15cb75f7583ba034da91beb022ab7",
+      "id": "OBL-099",
+      "candidate_key": "ffe19c57d6dcb398ec267be4dff889de65d3f1dd905d4e1522df6628ce2b1a96",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 171,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 270,
       "source_text": "apenas \"Batata-Doce Assada em Rodelas\" domina o fluxo;",
       "flags": [
         "negative"
@@ -1237,14 +1919,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-065",
-      "candidate_key": "09cd22fb6a274424cf0d7950f70eda929a90a2b1984ff2d147d05a4c4224a4ce",
+      "id": "OBL-100",
+      "candidate_key": "bd295961c066c9a1f56f74cfa7c55216156750d2483fc8e313516cec4406aafe",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 176,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 275,
       "source_text": "demais componentes reconhecíveis são preservados;",
       "flags": [
         "exhaustive"
@@ -1256,14 +1938,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-066",
-      "candidate_key": "5a227ce62b8d026682d64ab20d1101f0cc92570bb382c2c9860a45b30912c9cf",
+      "id": "OBL-101",
+      "candidate_key": "d671b75b558ecb97b5c73d541f028e701d195e3d8ae33f7aad067034de1882a9",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 177,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 276,
       "source_text": "batata-doce é alimento/preparação genérica, salvo evidência explícita de produto comercial;",
       "flags": [
         "semantic-effect"
@@ -1275,14 +1957,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-067",
-      "candidate_key": "b6e504e137d445ba388bf44ba15088d59b38bf045cccca218bce214087cad84e",
+      "id": "OBL-102",
+      "candidate_key": "f935c75d931ffb72c4553d472aa01365f9d4cedeb0618fe7ecc308a0da6efbe9",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 186,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 285,
       "source_text": "somente o quarto é clarificado;",
       "flags": [
         "negative"
@@ -1294,14 +1976,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-068",
-      "candidate_key": "ce8a3dfb59e2faf8afb3bbfb4da18b4864c5d2342f16b7860e10472198e9cb77",
+      "id": "OBL-103",
+      "candidate_key": "a55b9adac1c00b8162c37b8397f0b11a614b786297712c66b1c9832ed4cf68e3",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 199,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 298,
       "source_text": "somente o produto com evidência comercial segue regras de marca/variante;",
       "flags": [
         "negative"
@@ -1313,14 +1995,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-069",
-      "candidate_key": "ba85cc8f9e849a235ca73d631770072f5c1123e48b1eb5acc4ef3e12011a7362",
+      "id": "OBL-104",
+      "candidate_key": "83837dba1f86e6ff8c4d211a3819370a2e5cb2185319b425d647b3da115c6b91",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 200,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 299,
       "source_text": "alimentos genéricos não herdam esse estado;",
       "flags": [
         "negative",
@@ -1333,14 +2015,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-070",
-      "candidate_key": "485cf42fd4d4e2525d37a58e73dffdc8ca2656e03911032af7d6a67a2dbc7fab",
+      "id": "OBL-105",
+      "candidate_key": "6090164117970259338d2d6ee50b63ad579dc0501d7bf85bf7eec43ea48f80da",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 207,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 306,
       "source_text": "solicitar descrição/clarificação geral;",
       "flags": [
         "semantic-effect"
@@ -1352,14 +2034,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-071",
-      "candidate_key": "77329f6f8bc31d79e1ce877a3c40bf927e1a9befbb6c5c8d000d448c41ee934e",
+      "id": "OBL-106",
+      "candidate_key": "edeeac8da299279d6c6b84628162dbd7ed9b4934af52917b29b5b31ac41accdd",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 215,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 314,
       "source_text": "Resposta inválida mantém o contexto.",
       "flags": [],
       "disposition": "covered",
@@ -1369,14 +2051,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-072",
-      "candidate_key": "57f4e4a353c95f4845a147f8152eca4eae4391ff35d5af58c44fa27f258e2b06",
+      "id": "OBL-107",
+      "candidate_key": "c82437ca55a6dbf2ddb579babf688e0050f60edd323f8a4c13db7ccb189ed170",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 217,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 316,
       "source_text": "Pendência de um usuário/telefone não pode ser consumida por outro.",
       "flags": [
         "negative",
@@ -1389,14 +2071,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-073",
-      "candidate_key": "0f6d4132c5ec32b275b0bdf8a2e13eba845b1d151272cf8ab0ee05966dae8ed9",
+      "id": "OBL-108",
+      "candidate_key": "a7290762cbd0dc1d8315b7aa8c2892f2b4d786782520b4516a9a6b302a85895a",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 224,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 323,
       "source_text": "Structured Output válido multi-item: preservar os itens até a etapa de domínio correspondente.",
       "flags": [],
       "disposition": "covered",
@@ -1406,14 +2088,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-074",
-      "candidate_key": "4ff937f9510fc84530bf92dc6255be200df601492cbe10f07c6d61d1171d8198",
+      "id": "OBL-109",
+      "candidate_key": "b372d69c5783c6914d99d472a0a0f339199fed2243104caf93f60bb7aaaf21a0",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 226,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 325,
       "source_text": "Falha depois de claim mas antes da persistência final: aplicar recuperação/idempotência canônica; não recriar silenciosamente uma segunda refeição.",
       "flags": [
         "negative",
@@ -1427,14 +2109,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-075",
-      "candidate_key": "ba29819463ec3f13eaab57a5f3d457e8c99666acbdd4a3b0b2564a5d0005f764",
+      "id": "OBL-110",
+      "candidate_key": "33b526125a6183f294f2a534841b7c6d4b573b1a8ea7ce0787c6eb758c4911b1",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 227,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 326,
       "source_text": "Item genérico com nutrição incerta: seguir o caminho genérico permitido pelo contrato de produto.",
       "flags": [],
       "disposition": "covered",
@@ -1444,14 +2126,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-076",
-      "candidate_key": "afad73fe710699a094f2451edb89349b052eddb912a49d79469aab2c7c29152b",
+      "id": "OBL-111",
+      "candidate_key": "aff91c13e80a616402cb6bf8cbd680a1883083a1605e4637e53565e9fb69d2f1",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 228,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 327,
       "source_text": "Produto comercial realmente ambíguo: manter fail-closed.",
       "flags": [],
       "disposition": "covered",
@@ -1461,14 +2143,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-077",
-      "candidate_key": "cfd4d10dd8c86494f0e46ac85f69dc274004bd57270a4054593f704b734d86ec",
+      "id": "OBL-112",
+      "candidate_key": "006d860352848337e7be64e7712b98e245930f74683c91c6d9cbe687863d7c6f",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 233,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 332,
       "source_text": "[ ] A regressão observada não resulta mais em uma refeição reduzida a \"Batata-Doce Assada em Rodelas\" com pedido indevido de variante.",
       "flags": [
         "negative"
@@ -1480,14 +2162,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-078",
-      "candidate_key": "55ca3020f4c58d8d3b2b0afb5e6284df76dc3039c02c274f93516c6cb1006900",
+      "id": "OBL-113",
+      "candidate_key": "f7b78f9b9afaaa132efa71a07ddc84552cbeb6badbb0d591e4b3ad1c7f2799ab",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 234,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 333,
       "source_text": "[ ] Uma imagem com múltiplos componentes reconhecíveis preserva múltiplos itens até a conclusão ou cancelamento.",
       "flags": [],
       "disposition": "covered",
@@ -1497,14 +2179,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-079",
-      "candidate_key": "e443f83b57fbe41a5b0185a616796dae26f1c806a62f39c9b7d2d78f64c47ef3",
+      "id": "OBL-114",
+      "candidate_key": "fbf493c3f5e7d8dc5d33fc98f9dedf8300454ed63aea009275b58b0c7ac2b664",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 235,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 334,
       "source_text": "[ ] Descritores de preparo/formato não são tratados isoladamente como evidência de variante comercial.",
       "flags": [
         "negative"
@@ -1516,14 +2198,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-080",
-      "candidate_key": "7ef7a585af7c767ecc718258bca3e9b36fe267a5ebad1d8f2ef5dd2743e11ef0",
+      "id": "OBL-115",
+      "candidate_key": "edf20a7ab41407045dc85f26d406b1ee6c33554285f1cdbdb2e89fbd7c933cbb",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 236,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 335,
       "source_text": "[ ] Batata-doce genérica não abre clarificação de marca/linha/sabor sem evidência comercial.",
       "flags": [
         "negative"
@@ -1535,14 +2217,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-081",
-      "candidate_key": "4f5bdba59813bd383a59888af8c597fc5f8f9cba80a09db3d1f84dc0e13a4e3b",
+      "id": "OBL-116",
+      "candidate_key": "0080db6cbe6138b06f48d91a68deac591f6f91a3c4b818683e1ee927e41fb25e",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 237,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 336,
       "source_text": "[ ] `MealInferenceError.food_identity_clarification_required` vindo de imagem preserva e torna retomável o `semanticContract` multi-item, em vez de virar apenas resposta terminal genérica.",
       "flags": [
         "negative"
@@ -1554,14 +2236,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-082",
-      "candidate_key": "d6ce67dee05b1fcf4f8a81343688b76beae42f13183a4934ca8a3a9d8e8fba65",
+      "id": "OBL-117",
+      "candidate_key": "861176b8d538bf3ead51f1490697bf827c487923c8d7b6dcc2c6ec102d10203a",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 238,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 337,
       "source_text": "[ ] A pendência é persistida antes da pergunta acionável.",
       "flags": [
         "temporal"
@@ -1573,14 +2255,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-083",
-      "candidate_key": "c849fa86c377462c4ad6d46ff11fc42d4c7758207ac8c8c35ca54359c2ade87c",
+      "id": "OBL-118",
+      "candidate_key": "31a3d8cbde8c3bc03f358fed22c3b865d0e4d20c8bd5a9d7effcb8a9ce780303",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 239,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 338,
       "source_text": "[ ] Resposta a uma clarificação modifica/resolve somente o item alvo e preserva os demais.",
       "flags": [
         "exhaustive",
@@ -1593,14 +2275,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-084",
-      "candidate_key": "bd02764ce744562e2458185781bc17259c1ab73d22df103b24d367f433020cba",
+      "id": "OBL-119",
+      "candidate_key": "2050363f73918c7a7fd15b01d7ecd9ac6eef399cc9968a71e0a6e87ed3b6527b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 240,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 339,
       "source_text": "[ ] Duas ambiguidades de identidade na mesma imagem podem ser resolvidas sequencialmente sem nova chamada de visão.",
       "flags": [
         "negative"
@@ -1612,14 +2294,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-085",
-      "candidate_key": "4edd7ad54b46239bd17b9cb93c56dbd6883e8cc945ecc817e143c8540c409abf",
+      "id": "OBL-120",
+      "candidate_key": "ae1db74702bd3e91dbc9f4fbd428735e0064ce1b646322f9ea5289b26d8831ca",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 241,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 340,
       "source_text": "[ ] Após identidades resolvidas, quantidades ausentes continuam pelo contrato canônico `complete_image_meal`.",
       "flags": [
         "temporal",
@@ -1633,14 +2315,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-086",
-      "candidate_key": "50e5a9159d0846d62b588038993f6820a88219e0385e6f34db3f988540404f48",
+      "id": "OBL-121",
+      "candidate_key": "9f3404c9471dbe9d93076ee1981ac8749e4ad875dc458af2121efe937c0f638c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 242,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 341,
       "source_text": "[ ] Nenhuma refeição parcial é persistida enquanto a imagem ainda possui clarificação obrigatória.",
       "flags": [
         "exhaustive",
@@ -1653,14 +2335,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-087",
-      "candidate_key": "e43ccb942326e4a72a78bad4a1a57f1a6959a8b1b4b10e2e2537e28a8e32f9ba",
+      "id": "OBL-122",
+      "candidate_key": "dad17cd7feeab41f95053f422815cb03355fb53245b3d94348f316e68c68b3c5",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 243,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 342,
       "source_text": "[ ] Cancelamento e expiração não criam refeição parcial.",
       "flags": [
         "negative"
@@ -1672,14 +2354,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-088",
-      "candidate_key": "e04682a8ecdc54234c51c6ba51e157c01383ee829bcdd5e3da690a91c86d2475",
+      "id": "OBL-123",
+      "candidate_key": "482157c8f2e5f5b359722db275969300fcb88e36da13feb442f50d37c542168c",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 244,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 343,
       "source_text": "[ ] Reentrega, retry, reinício e respostas concorrentes não duplicam refeição, pendência ou mutação.",
       "flags": [
         "negative"
@@ -1691,14 +2373,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-089",
-      "candidate_key": "3b40a542748cbc6bbce7c56b5fa5fd16aead3cb9b5feb425eaf481d340593396",
+      "id": "OBL-124",
+      "candidate_key": "fdd136c25f59e1cbc471144aff8671dad1626fe0cff182f7532b7dc53d9fecf6",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 245,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 344,
       "source_text": "[ ] Outro usuário não consome a pendência.",
       "flags": [
         "negative",
@@ -1711,14 +2393,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-090",
-      "candidate_key": "426d6a4f22c3506675cb17c4907a87cc676bd9477052caabf600a910037977b8",
+      "id": "OBL-125",
+      "candidate_key": "5cbf786c4373247fc94761284c3c0331b8b09f863bf0b502363b863d12bed591",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 246,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 345,
       "source_text": "[ ] Produto comercial real continua fail-closed quando a variante não puder ser comprovada.",
       "flags": [
         "negative"
@@ -1730,14 +2412,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-091",
-      "candidate_key": "db89996ed6d834b5aca76084aec95800094205eb278b55553df466aa157f50c8",
+      "id": "OBL-126",
+      "candidate_key": "10d2de520dcce9c9c4f2e7949b59c6401b95fbedd7e500481b53421fc3f249c6",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 247,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 346,
       "source_text": "[ ] Nenhuma lista hardcoded de alimentos \"sem variante\" é usada como correção principal.",
       "flags": [
         "exhaustive",
@@ -1751,14 +2433,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-092",
-      "candidate_key": "799ebdfe0de21f0d755c7d65f22263e335199e895b0ebc9c3e9c5ba8d79124fa",
+      "id": "OBL-127",
+      "candidate_key": "c8602909351c1a68bd07b623cd9b616c0a2221b69472b862539c89b44aea0087",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 248,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 347,
       "source_text": "[ ] Nenhum store/roteador/pipeline paralelo de pendência é criado.",
       "flags": [
         "exhaustive",
@@ -1771,14 +2453,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-093",
-      "candidate_key": "2f5c4a7ae02ca2a5b2953876a618a9e5a90929a9f98400fa9b9cd362c4e40eaf",
+      "id": "OBL-128",
+      "candidate_key": "77113c5ffd3186127befe1fd532b818b3aa55bd95187ecd2e513f89a41703e60",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 249,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 348,
       "source_text": "[ ] `items: []` funcional continua sem retry/fallback indevido.",
       "flags": [
         "negative"
@@ -1790,14 +2472,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-094",
-      "candidate_key": "a6e0989a0e832c6879fd44596b5f02026af48003ccebbbaf8934735f0648c951",
+      "id": "OBL-129",
+      "candidate_key": "2cea63cc5b3e5f0110a5ffcef1475669fd8c53d9f2494d5761782a1378d8782e",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 250,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 349,
       "source_text": "[ ] Testes focados, `pnpm check`, `pnpm architecture:check` e regressões de WhatsApp/MEAL_VISION aplicáveis passam.",
       "flags": [],
       "disposition": "covered",
@@ -1807,14 +2489,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-095",
-      "candidate_key": "61d3d3fb1c748499e8426e6fcecb8ad2b68014bdef7b204688978826accf4ada",
+      "id": "OBL-130",
+      "candidate_key": "543211fafcbc14c7f7889fa6098940a643cf92079bce5369b836b6478107d461",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 257,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 356,
       "source_text": "regressão com alimento genérico contendo descritor de preparo/formato;",
       "flags": [
         "semantic-effect"
@@ -1826,14 +2508,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-096",
-      "candidate_key": "4cf6487b164fbeaae21a37ccf57c4a33b950ba99e97b1f58741c368b4464e359",
+      "id": "OBL-131",
+      "candidate_key": "bc53afa288f82d8ff8f1d7fde7f8d3464701b5c23da2a74946f5d7db09484a01",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 258,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 357,
       "source_text": "controle com outro alimento genérico, provando ausência de allowlist específica;",
       "flags": [
         "semantic-effect"
@@ -1845,14 +2527,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-097",
-      "candidate_key": "53bfb69533df633532187bcb210c60d65cb5befb3d0a1b5091482bfd7c655f17",
+      "id": "OBL-132",
+      "candidate_key": "de03fea173a0e55a7508fe521cb8d01b75ee6174b92e784093a9fde3ef8d63ba",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 259,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 358,
       "source_text": "múltiplos itens com apenas um exigindo clarificação de identidade;",
       "flags": [
         "negative"
@@ -1864,14 +2546,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-098",
-      "candidate_key": "ff7963dffa174be2eda801be61cbdb5e1ebd35eb8f1bf31e98a31f8e05f4bd51",
+      "id": "OBL-133",
+      "candidate_key": "ff5cb2584ad6b7741ef0eee96d46e63619f6fb3a7965d097a7fbdec7edaac691",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 262,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 361,
       "source_text": "produto comercial real junto de alimentos genéricos;",
       "flags": [
         "semantic-effect"
@@ -1883,14 +2565,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-099",
-      "candidate_key": "d09e451c5928490c940609052da3aef57f85d905a1fe32b39ea271bf0e78244e",
+      "id": "OBL-134",
+      "candidate_key": "40eeadda24091e98cd6637fa33e938e80fb5daa137e9e95acb9c10857dac4f2b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 266,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 365,
       "source_text": "normalização/cleanup preservando múltiplos itens válidos;",
       "flags": [],
       "disposition": "covered",
@@ -1900,14 +2582,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-100",
-      "candidate_key": "7ada391ab803d5d33cd3d2f097c5d5e18659331fd736c4657d7e4756bf12f8c8",
+      "id": "OBL-135",
+      "candidate_key": "fc10c9c80b0402f4c91f4fb471c9c2c47e888e379fa5c3b8197a80b2fff01260",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 271,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 370,
       "source_text": "isolamento entre usuários;",
       "flags": [],
       "disposition": "covered",
@@ -1917,14 +2599,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-101",
-      "candidate_key": "98263b34ce6f153b97963a11320e19b912833e004815dc290319b612b59329fd",
+      "id": "OBL-136",
+      "candidate_key": "541e740554f92ff07871dce8a72d0b9775e9e5b39e676fa9c0542a4f995a264b",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 278,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 377,
       "source_text": "A revisão identificou uma regra durável que deve ficar explícita durante a implementação:",
       "flags": [
         "temporal",
@@ -1937,14 +2619,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-102",
-      "candidate_key": "a59776a6118aa82b1a92720d9165307c377cf0122e99e5c489caf6a79433f52c",
+      "id": "OBL-137",
+      "candidate_key": "e18268bbbe02dc7ceae67eb67140ba74a0c1e4bee109b72780938d6396ce5259",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 280,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 379,
       "source_text": "`docs/product-specs/meal-registration.md`: registrar que clarificação obrigatória de **um item** de imagem multi-item preserva o conjunto do rascunho/contrato e não autoriza persistência parcial.",
       "flags": [
         "negative"
@@ -1956,14 +2638,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-103",
-      "candidate_key": "5b2c4c11cb56bedaa4360c04d688d442b681fbc5c4feaa8c6dcac7668805edff",
+      "id": "OBL-138",
+      "candidate_key": "90c27bf7ef19269c7255cd60bd81e4f987c84ae05b77060b1c04b6bbef1e58fe",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 281,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 380,
       "source_text": "`docs/product-specs/whatsapp-flow.md`: ampliar a regra já existente de preservação multi-item durante clarificação de quantidade para também cobrir clarificação de identidade.",
       "flags": [
         "temporal"
@@ -1975,14 +2657,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-104",
-      "candidate_key": "1ea86bfbb1bd6efc1875aa8a7d52976098ebb62771c499616072eabf85c5d87b",
+      "id": "OBL-139",
+      "candidate_key": "dc38c9952254759a8759ad6f751e7441f2f920f2a6f72251321922588ac75ee4",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 282,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 381,
       "source_text": "`docs/design-docs/whatsapp-interaction-registry.md`: atualizar somente se for necessário evoluir target/subtipo/interação registrada; não criar segunda fonte de verdade.",
       "flags": [
         "negative",
@@ -1995,14 +2677,14 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     },
     {
-      "id": "OBL-105",
-      "candidate_key": "17cb4e819ea0e4fd566a0e5bec6700fcae0a49f13f2729cac3b6cb197a73f53e",
+      "id": "OBL-140",
+      "candidate_key": "702054f15e8ca90a227b57feb6f7a80f5a9b0292e229647323e7824d1b20fc1d",
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "source_line": 304,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "source_line": 403,
       "source_text": "A causa exata do exemplo de produção ainda deve ser comprovada por teste de regressão, mas o contrato de comportamento, as fontes canônicas, o lifecycle da continuação, a fronteira de reutilização e os critérios discriminantes estão suficientemente definidos para implementação sem decisão adicional de produto.",
       "flags": [
         "negative",
@@ -2015,14 +2697,33 @@
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Coberto pelo fluxo de imagem multi-item, continuação persistente e regressões exact-head da issue 1177."
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
+    },
+    {
+      "id": "OBL-141",
+      "candidate_key": "9883a3d7e5a280dbcce8c471ecebf2ae045b408c0f1bf71a8a8e14d0f35257bb",
+      "source_id": "SRC-ISSUE-1177-COMMENT-1",
+      "source_sha256": "f6755204e0f3844271022674bc4d42b1f410f78b5e1d611ac545376d02cb7442",
+      "source_line": 1,
+      "source_text": "Implementada e incorporada em develop pela PR #1182 (merge 9014d284). A entrega preserva itens multi-item, adiciona continuação persistente de identidade e mantém o fluxo canônico de quantidade, com checks remotos verdes.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1177"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura rederivada no head exacto: a regressão comercial visual, a preservação multi-item, os guards fail-closed e a continuidade canônica são exercitados pelos testes focados e gates do candidato."
     }
   ],
   "source_coverage": [
     {
       "source_id": "SRC-ISSUE-1177",
-      "source_sha256": "595b60915324d59fb245bf8777d2a830df2ec2ac2b242c4965ef58258b045d38",
-      "candidate_count": 105,
+      "source_sha256": "14aa5623cd32f2d23fcae0f7e9e6cb51c0460ea6d8a3e0adaf38af119b0a0b6e",
+      "candidate_count": 140,
       "obligation_ids": [
         "OBL-001",
         "OBL-002",
@@ -2128,7 +2829,51 @@
         "OBL-102",
         "OBL-103",
         "OBL-104",
-        "OBL-105"
+        "OBL-105",
+        "OBL-106",
+        "OBL-107",
+        "OBL-108",
+        "OBL-109",
+        "OBL-110",
+        "OBL-111",
+        "OBL-112",
+        "OBL-113",
+        "OBL-114",
+        "OBL-115",
+        "OBL-116",
+        "OBL-117",
+        "OBL-118",
+        "OBL-119",
+        "OBL-120",
+        "OBL-121",
+        "OBL-122",
+        "OBL-123",
+        "OBL-124",
+        "OBL-125",
+        "OBL-126",
+        "OBL-127",
+        "OBL-128",
+        "OBL-129",
+        "OBL-130",
+        "OBL-131",
+        "OBL-132",
+        "OBL-133",
+        "OBL-134",
+        "OBL-135",
+        "OBL-136",
+        "OBL-137",
+        "OBL-138",
+        "OBL-139",
+        "OBL-140"
+      ],
+      "unmapped_candidate_keys": []
+    },
+    {
+      "source_id": "SRC-ISSUE-1177-COMMENT-1",
+      "source_sha256": "f6755204e0f3844271022674bc4d42b1f410f78b5e1d611ac545376d02cb7442",
+      "candidate_count": 1,
+      "obligation_ids": [
+        "OBL-141"
       ],
       "unmapped_candidate_keys": []
     }
@@ -2137,107 +2882,132 @@
   "observable_assertions": [],
   "structural_invariant_closures": {
     "status": "passed",
-    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "applicability_reason": "As obrigações estruturais, de fonte canônica e de não criação de pipeline paralelo foram rederivadas e vinculadas a controles negativos exact-head.",
     "entries": [
       {
-        "id": "STR-1177-001",
-        "obligation_ids": [
-          "OBL-009"
-        ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
-      },
-      {
-        "id": "STR-1177-002",
-        "obligation_ids": [
-          "OBL-011"
-        ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
-      },
-      {
-        "id": "STR-1177-003",
+        "id": "STR-1193-OBL-019",
         "obligation_ids": [
           "OBL-019"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-004",
+        "id": "STR-1193-OBL-033",
         "obligation_ids": [
-          "OBL-027"
+          "OBL-033"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-005",
+        "id": "STR-1193-OBL-034",
         "obligation_ids": [
-          "OBL-035"
+          "OBL-034"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-006",
+        "id": "STR-1193-OBL-044",
         "obligation_ids": [
-          "OBL-042"
+          "OBL-044"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-007",
+        "id": "STR-1193-OBL-046",
         "obligation_ids": [
-          "OBL-058"
+          "OBL-046"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-008",
+        "id": "STR-1193-OBL-054",
         "obligation_ids": [
-          "OBL-104"
+          "OBL-054"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       },
       {
-        "id": "STR-1177-009",
+        "id": "STR-1193-OBL-062",
         "obligation_ids": [
-          "OBL-105"
+          "OBL-062"
         ],
-        "plausible_wrong_implementation": "Create a parallel pending route or persist the first item while bypassing the canonical multi-item continuation path.",
-        "negative_control_evidence": "Exact-head regression and architecture gate exercise the canonical production path and reject the parallel shortcut."
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
+      },
+      {
+        "id": "STR-1193-OBL-070",
+        "obligation_ids": [
+          "OBL-070"
+        ],
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
+      },
+      {
+        "id": "STR-1193-OBL-077",
+        "obligation_ids": [
+          "OBL-077"
+        ],
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
+      },
+      {
+        "id": "STR-1193-OBL-093",
+        "obligation_ids": [
+          "OBL-093"
+        ],
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
+      },
+      {
+        "id": "STR-1193-OBL-139",
+        "obligation_ids": [
+          "OBL-139"
+        ],
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
+      },
+      {
+        "id": "STR-1193-OBL-140",
+        "obligation_ids": [
+          "OBL-140"
+        ],
+        "plausible_wrong_implementation": "Criar um caminho paralelo ou aplicar o fallback fora do entrypoint canônico, descartando a representação multi-item persistida.",
+        "negative_control_evidence": "O controle exact-head atravessa o entrypoint produtivo, verifica a fronteira de clarificação e observa ausência de mutação parcial ou reprocessamento indevido."
       }
     ],
     "unresolved_invariants": []
   },
   "read_model_closures": {
     "status": "passed",
-    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "applicability_reason": "Não há novo read model material nesta correção.",
     "entries": [],
     "unconsumed_outputs": [],
     "unmapped_required_fields": []
   },
   "canonical_source_consistency": {
     "status": "passed",
-    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "applicability_reason": "A implementação reutiliza MealSemanticContract, catálogo/identidade comercial e continuidade canônica sem fonte concorrente.",
     "entries": [],
     "unverified_surfaces": [],
     "missing_divergent_tests": []
   },
   "documentation_consistency": {
     "status": "passed",
-    "applicability_reason": "A especificação da issue 1177 foi revisada integralmente contra o diff, os contratos WhatsApp/nutrição e os testes focados; cada obrigação foi mapeada ao requisito agregado REQ-1177 e aos controles da matriz.",
+    "applicability_reason": "A mudança mantém claims documentais sobre preservação multi-item, identidade comercial e fail-closed alinhados ao código exact-head.",
     "old_contract_terms": [
-      "imagem com múltiplos itens podia cair em resposta terminal genérica"
+      "imagem multi-item pode virar resposta global quando apenas um item é ambíguo",
+      "produto visual específico deve ser tratado como produto verificado sem fonte"
     ],
     "new_contract_terms": [
-      "identity persistente por item",
-      "preservação multi-item",
-      "sem persistência parcial"
+      "identidade avaliada por item",
+      "provisional_estimate não verificado somente em imagem com confiança suficiente",
+      "texto genérico e baixa confiança permanecem fail-closed"
     ],
     "occurrences": [
       {
@@ -2247,23 +3017,19 @@
       {
         "path": "docs/product-specs/whatsapp-flow.md",
         "status": "reconciled"
-      },
-      {
-        "path": "docs/design-docs/whatsapp-interaction-registry.md",
-        "status": "reconciled"
       }
     ],
     "unresolved_contradictions": [],
     "searched_outside_diff": true,
     "search_evidence": [
       "pnpm docs:check",
-      "rg -n food_clarification.identity docs server"
+      "rg -n commercial_identity|provisional_estimate|preservação multi-item docs server"
     ]
   },
   "scope_reduction_review": {
     "status": "passed",
     "matches": [],
-    "rationale": "Nenhuma obrigação normativa foi removida; todas as 105 candidatas foram preservadas."
+    "rationale": "Nenhuma obrigação normativa foi removida; todas as fontes atuais foram preservadas na closure."
   },
   "pass_c": {
     "status": "passed",
@@ -2375,14 +3141,51 @@
       "OBL-102",
       "OBL-103",
       "OBL-104",
-      "OBL-105"
+      "OBL-105",
+      "OBL-106",
+      "OBL-107",
+      "OBL-108",
+      "OBL-109",
+      "OBL-110",
+      "OBL-111",
+      "OBL-112",
+      "OBL-113",
+      "OBL-114",
+      "OBL-115",
+      "OBL-116",
+      "OBL-117",
+      "OBL-118",
+      "OBL-119",
+      "OBL-120",
+      "OBL-121",
+      "OBL-122",
+      "OBL-123",
+      "OBL-124",
+      "OBL-125",
+      "OBL-126",
+      "OBL-127",
+      "OBL-128",
+      "OBL-129",
+      "OBL-130",
+      "OBL-131",
+      "OBL-132",
+      "OBL-133",
+      "OBL-134",
+      "OBL-135",
+      "OBL-136",
+      "OBL-137",
+      "OBL-138",
+      "OBL-139",
+      "OBL-140",
+      "OBL-141"
     ],
     "evidence": [
       "server/nutritionEngine.issue1088.test.ts",
+      "server/mealAiExtraction.test.ts",
       "server/whatsappAnnotatedImageWebhook.test.ts",
       "server/modules/whatsapp/foodQuantityClarification.test.ts",
-      "server/catalogMatching.ts",
-      "server/modules/whatsapp/interactionRegistryLegacy.ts"
+      "docs/product-specs/meal-registration.md",
+      "docs/product-specs/whatsapp-flow.md"
     ],
     "rederived_without_pr_description": true,
     "reviewed_user_visible_semantics": true,

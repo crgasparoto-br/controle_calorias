@@ -533,6 +533,228 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     expect(result.semanticContract.clarifications).toEqual([]);
   });
 
+  it("preserva um produto embalado visualmente específico mesmo quando a porção da fonte diverge", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-charge-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.9,
+        reasoning: "Bombom Charge Nestlé identificado visualmente; nutrientes estimados pela porção observada.",
+        items: [{
+          foodName: "Bombom Charge",
+          brand: "Nestlé",
+          quantity: 1,
+          unit: "unidade",
+          portionText: "1 unidade (40 g)",
+          servings: 1,
+          estimatedGrams: 40,
+          estimatedCalories: 190,
+          estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+          confidence: 0.88,
+          foodClassification: {
+            processingLevel: "ultra_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 1,
+            isPlainWater: false,
+          },
+        }],
+      }),
+      raw: {},
+    });
+
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,charge-image",
+    });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "Bombom Charge Nestlé",
+        brand: "Nestlé",
+        source: "hybrid",
+        calories: 190,
+        resolution: expect.objectContaining({
+          nutritionOrigin: "provisional_estimate",
+          nutritionVerified: false,
+          ambiguity: null,
+        }),
+      }),
+    ]);
+    expect(result.semanticContract.needsClarification).toBe(false);
+    expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
+      expect.stringMatching(/Bombom Charge/i),
+      expect.objectContaining({ searchSpecificProduct: true }),
+    );
+  });
+
+  it("mantém fail-closed quando a identidade visual específica tem baixa confiança", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-low-confidence-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.5,
+        reasoning: "A embalagem sugere um produto, mas o rótulo não está legível.",
+        items: [{
+          foodName: "Bombom Charge",
+          brand: "Nestlé",
+          quantity: 1,
+          unit: "unidade",
+          portionText: "1 unidade (40 g)",
+          servings: 1,
+          estimatedGrams: 40,
+          estimatedCalories: 190,
+          estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+          confidence: 0.45,
+          foodClassification: {
+            processingLevel: "ultra_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 1,
+            isPlainWater: false,
+          },
+        }],
+      }),
+      raw: {},
+    });
+
+    await expect(processMealInput({
+      imageUrl: "data:image/jpeg;base64,low-confidence-commercial-image",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        foodName: "Bombom Charge Nestlé",
+        clarificationReason: "brand_variant_unresolved",
+        items: [expect.objectContaining({
+          resolution: expect.objectContaining({
+            nutritionOrigin: "heuristic",
+            nutritionVerified: false,
+          }),
+        })],
+      }),
+    });
+  });
+
+  it.each([
+    { foodName: "Bombom Charge Original", brand: "Nestlé" },
+    { foodName: "Iogurte Danone Light", brand: "Danone" },
+    { foodName: "Refrigerante Coca-Cola Zero", brand: "Coca-Cola" },
+  ])(
+    "mantém fail-closed quando a variante visual explícita ($foodName) tem baixa confiança",
+    async ({ foodName, brand }) => {
+      createTextResponseMock.mockResolvedValue({
+        id: `response-image-low-confidence-variant-${foodName}`,
+        outputText: JSON.stringify({
+          mealLabel: "Lanche",
+          confidence: 0.5,
+          reasoning: "A embalagem sugere a linha, mas o rótulo não está legível.",
+          items: [{
+            foodName,
+            brand,
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 40,
+            estimatedCalories: 190,
+            estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+            confidence: 0.45,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          }],
+        }),
+        raw: {},
+      });
+
+      await expect(processMealInput({
+        imageUrl: `data:image/jpeg;base64,low-confidence-${foodName}`,
+      })).rejects.toMatchObject({
+        code: "food_identity_clarification_required",
+        context: expect.objectContaining({
+          clarificationReason: "commercial_identity_unverified",
+          items: [expect.objectContaining({
+            resolution: expect.objectContaining({
+              nutritionOrigin: "heuristic",
+              nutritionVerified: false,
+            }),
+          })],
+        }),
+      });
+    },
+  );
+
+  it("mantém itens reconhecidos no contexto quando outro produto da foto exige identidade", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-partial-commercial-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.9,
+        reasoning: "Dois produtos embalados visíveis; um ainda precisa de confirmação.",
+        items: [
+          {
+            foodName: "Bombom Charge",
+            brand: "Nestlé",
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade (40 g)",
+            servings: 1,
+            estimatedGrams: 40,
+            estimatedCalories: 190,
+            estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+            confidence: 0.88,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          },
+          {
+            foodName: "Chocolate",
+            brand: "Nestlé",
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 20,
+            estimatedCalories: 100,
+            estimatedMacros: { protein: 1, carbs: 12, fat: 5 },
+            confidence: 0.7,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          },
+        ],
+      }),
+      raw: {},
+    });
+
+    await expect(processMealInput({
+      imageUrl: "data:image/jpeg;base64,partial-commercial-image",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        items: [
+          expect.objectContaining({ foodName: "Bombom Charge Nestlé" }),
+          expect.objectContaining({ foodName: "Chocolate Nestlé" }),
+        ],
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          clarifications: [expect.objectContaining({ itemIndex: 1 })],
+        }),
+      }),
+    });
+  });
+
   it("mantém o fallback genérico somente para alimento sem identidade comercial", async () => {
     installAiFailure();
 

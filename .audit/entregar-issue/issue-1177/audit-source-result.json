@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:dba35242-fbf0-41c9-85da-c155afe25083",
+  "head_sha": "cdacb11564ca8252ba6664cfd5330887cc5a96a7",
+  "identity": {
+    "head_sha": "cdacb11564ca8252ba6664cfd5330887cc5a96a7",
+    "material_head_sha": "cdacb11564ca8252ba6664cfd5330887cc5a96a7",
+    "base_sha": "0dfe5d23d97b65bc9051585bf8fe9ceae16e7ec9"
+  },
+  "findings": [
+    {
+      "id": "A-001",
+      "severity": "BLOCKER",
+      "category": "execution-state-gap",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "Current-target handoff was absent and quantitative provenance was inherited/stale."
+    },
+    {
+      "id": "A-002",
+      "severity": "BLOCKER",
+      "category": "legacy-variant-gap",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "requestedVariant bypassed the image low-confidence fail-closed gate."
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "REC-1177-001",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "REC-1177-002",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "REC-1177-003",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation"
+    },
+    {
+      "id": "REC-1177-004",
+      "actionable": false,
+      "remediation_mode": "targeted-remediation"
+    }
+  ],
+  "return_control_to": "entregar-issue",
+  "reason": "audit-finding",
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false
+}

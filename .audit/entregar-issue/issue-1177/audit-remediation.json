@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:dba35242-fbf0-41c9-85da-c155afe25083",
+    "audit_report_sha256": "ce149fd3342399fb90c77813da0e87153d33e67537c258c0ad787a7bf6f23842",
+    "audited_head_sha": "cdacb11564ca8252ba6664cfd5330887cc5a96a7"
+  },
+  "candidate_head_sha": "bfe63fa314013a3ca08dc300ba8a82b243ab2f9e",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "handoff-rebuild",
+      "changed_files": [
+        ".audit/entregar-issue/issue-1177/handoff-ready.json",
+        ".audit/entregar-issue/issue-1177/evidence-provenance.json"
+      ],
+      "evidence": [
+        "evidence/reaudit-a001-handoff.txt"
+      ],
+      "validations": [
+        "Current-target handoff package rebuilt with subject issue 1177 / PR 1193 and exact-head provenance; terminal certificate validation is rerun after final freeze."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "server/nutritionEngine.ts",
+        "server/nutritionEngine.issue1088.test.ts"
+      ],
+      "evidence": [
+        "evidence/reaudit-a002-variant-confidence.txt"
+      ],
+      "validations": [
+        "Focused regression passed for all three explicit-variant low-confidence cases; code now chooses the image confidence gate whenever preferInferredNutrition is true."
+      ]
+    },
+    {
+      "source_kind": "recommendation",
+      "source_id": "REC-1177-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "handoff-rebuild",
+      "changed_files": [
+        ".audit/entregar-issue/issue-1177/handoff-ready.json",
+        ".audit/entregar-issue/issue-1177/evidence-provenance.json"
+      ],
+      "evidence": [
+        "evidence/reaudit-a001-handoff.txt"
+      ],
+      "validations": [
+        "Recommendation closed by the same exact-head current-target handoff rebuild."
+      ]
+    },
+    {
+      "source_kind": "recommendation",
+      "source_id": "REC-1177-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-regression",
+      "changed_files": [
+        "server/nutritionEngine.issue1088.test.ts"
+      ],
+      "evidence": [
+        "evidence/reaudit-a002-variant-confidence.txt"
+      ],
+      "validations": [
+        "Recommendation closed by the confidence guard applied to requestedVariant in image mode."
+      ]
+    },
+    {
+      "source_kind": "recommendation",
+      "source_id": "REC-1177-003",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-regression",
+      "changed_files": [
+        "server/nutritionEngine.issue1088.test.ts"
+      ],
+      "evidence": [
+        "evidence/reaudit-a002-variant-confidence.txt",
+        "evidence/reaudit-controls.txt"
+      ],
+      "validations": [
+        "Recommendation closed by three discriminant explicit-variant cases and the exact focused command."
+      ]
+    }
+  ]
+}

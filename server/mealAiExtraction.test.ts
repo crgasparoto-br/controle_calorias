@@ -91,6 +91,29 @@ describe("meal extraction capabilities", () => {
     expect(JSON.stringify(request.input)).toContain("serving=<quantidade> <unidade>");
   });
 
+  it("instrui a visão a inventariar produtos distintos sem colapsar uma foto multi-item", async () => {
+    process.env.AI_MEAL_VISION_PROVIDER = "gemini";
+    process.env.AI_MEAL_VISION_MODEL = "gemini-meal-vision";
+    geminiCreateTextResponse.mockResolvedValue({
+      id: "g-multi-item",
+      outputText: JSON.stringify(validExtraction({
+        items: [
+          validExtraction().items[0],
+          { ...validExtraction().items[0], foodName: "biscoito", confidence: 0.7 },
+        ],
+      })),
+      raw: {},
+    });
+
+    await extractWithAi({ imageUrl: "data:image/jpeg;base64,AAAA" });
+
+    const request = geminiCreateTextResponse.mock.calls[0][0];
+    const prompt = JSON.stringify(request.input);
+    expect(prompt).toContain("inventário visual");
+    expect(prompt).toContain("cada produto/linha claramente distinto deve permanecer como item independente");
+    expect(prompt).toContain("não converta a imagem inteira em ausência de alimento");
+  });
+
   it("binds MEAL_VISION independently to Gemini and preserves inline image input", async () => {
     process.env.AI_MEAL_TEXT_PROVIDER = "openai";
     process.env.AI_MEAL_TEXT_MODEL = "must-not-leak";
