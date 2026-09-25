@@ -109,7 +109,7 @@ import {
 } from "./nutritionLabelPhotoInteraction";
 
 const PENDING_PROFESSIONAL_ACCESS_TYPE = "professional_access";
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 11;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 12;
 
 export type WhatsappInteractionClassification = "open" | "closed";
 export type WhatsappInteractionReconstruction = "pending_target" | "domain_reload";
@@ -567,7 +567,7 @@ export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteracti
     reconstruction: "domain_reload",
     invalidResponse: "represent_same_actions",
     staleBehavior: "reply_unavailable_request_new_command",
-    allowedEffects: ["grant_access", "reject_access"],
+    allowedEffects: ["grant_access", "reject_access", "cancel"],
     forbiddenEffects: NUTRITION_FORBIDDEN,
     matches: target => typeof (target as { accessId?: unknown } | null)?.accessId === "string",
     actions: () => buildProfessionalAccessActions(),

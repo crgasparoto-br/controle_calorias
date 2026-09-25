@@ -75,6 +75,8 @@ Depois do claim compare-and-set, a entrada do registro chama o resolvedor canôn
 
 No webhook textual, `whatsapp.interaction.pending_represented` preserva a mesma pendência ativa.
 
+A autorização profissional também aceita `CANCELAR` por texto e pelo componente interativo. O cancelamento encerra apenas a pergunta pendente, sem aprovar, recusar ou alterar o vínculo de acompanhamento; uma decisão de autorização continua exigindo `AUTORIZAR` ou `NEGAR`.
+
 A continuação de rótulo nutricional usa o mesmo tipo persistente `nutrition_label_photo_request`, distinguindo o alvo original de foto do alvo `nutrition_label_photo_clarification`. O segundo guarda a evidência já analisada e os candidatos correlacionados para que uma resposta textual retome a mesma foto. Durante essa interação, correções explícitas de identidade pertencem ao próprio registro; `foodClarificationGate.ts` não substitui a pendência pelo fluxo genérico `não é X, é Y`.
 
 O resolvedor revalida usuário, estado e identidade do item e reivindica a fonte com compare-and-set antes da mutação. Resposta inválida reapresenta a mesma pergunta; cancelamento encerra também as fontes correlacionadas; concorrência ou fonte obsoleta não repetem a atualização.

@@ -15,6 +15,7 @@ import {
   _forTestOnly_setProfessionalSyntheticUserLookup,
   buildProfessionalAccessAuthorizationMessage,
   buildProfessionalAccessDecisionCode,
+  completeWhatsAppProfessionalAccessCallback,
   parseProfessionalAccessWhatsappDecision,
   processProfessionalAccessWhatsappResponse,
   requestPatientAccess,
@@ -49,6 +50,21 @@ describe("professional WhatsApp authorization", () => {
     expect(message).toContain("Motivo: Acompanhamento semanal");
     expect(message).toContain(`AUTORIZAR ${code}`);
     expect(message).toContain(`NEGAR ${code}`);
+    expect(message).toContain("CANCELAR");
+  });
+
+  it("cancela a pergunta de autorização sem alterar o vínculo", async () => {
+    const response = await completeWhatsAppProfessionalAccessCallback(
+      402,
+      { target: { accessId: "abc12345-def6" } },
+      "cancel",
+    );
+
+    expect(response).toMatchObject({
+      action: "professional_access_cancelled",
+      eventType: "professional.access.whatsapp_cancelled",
+    });
+    expect(response.detail).toContain("sem aprovar, recusar ou alterar");
   });
 
   it("interpreta decisões positivas e negativas do paciente", () => {
