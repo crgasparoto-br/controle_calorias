@@ -62,7 +62,7 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
     .jpeg({ quality: 90 })
     .toBuffer();
   const sourceSnapshot = Buffer.from(source);
-  const stored: Array<{ key: string; mimeType: string; bytes: number }> = [];
+  const stored: Array<{ key: string; mimeType: string; bytes: number; data: Buffer }> = [];
 
   const result = await generateAnnotatedMealImage(
     buildSyntheticMeal(),
@@ -78,7 +78,12 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
             ? Buffer.byteLength(data)
             : data.byteLength;
           if (!mimeType) throw new Error("storage_mime_missing");
-          stored.push({ key, mimeType, bytes });
+          stored.push({
+            key,
+            mimeType,
+            bytes,
+            data: typeof data === "string" ? Buffer.from(data) : Buffer.from(data),
+          });
           return { key, url: `memory://issue-925/${key}` };
         },
       },
@@ -93,8 +98,6 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
   if (result.degradation !== "none") {
     throw new Error(`unexpected_degradation:${String(result.degradation)}`);
   }
-  if (!result.buffer?.length) throw new Error("derived_buffer_missing");
-  if (result.buffer.equals(source)) throw new Error("derived_equals_original");
   if (!result.storageKey || result.storageKey === "original-photo") {
     throw new Error("derived_storage_key_missing_or_reused");
   }
@@ -102,11 +105,14 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
   if (stored[0]?.mimeType !== "image/png") {
     throw new Error(`unexpected_storage_mime:${String(stored[0]?.mimeType)}`);
   }
-  if (stored[0]?.bytes !== result.buffer.length) {
+  const derivative = stored[0]?.data;
+  if (!derivative?.length) throw new Error("derived_storage_bytes_missing");
+  if (derivative.equals(source)) throw new Error("derived_equals_original");
+  if (stored[0]?.bytes !== derivative.length) {
     throw new Error(`unexpected_storage_bytes:${String(stored[0]?.bytes)}`);
   }
 
-  const metadata = await sharp(result.buffer).metadata();
+  const metadata = await sharp(derivative).metadata();
   if (metadata.width !== 640 || metadata.height !== 480) {
     throw new Error(`unexpected_dimensions:${metadata.width}x${metadata.height}`);
   }
@@ -123,6 +129,6 @@ export async function runIssue925ImageAnnotationSmoke(): Promise<Issue925ImageAn
     storageWrites: 1,
     storageKey: result.storageKey,
     sourceSha256: sha256(source),
-    derivativeSha256: sha256(result.buffer),
+    derivativeSha256: sha256(derivative),
   };
 }

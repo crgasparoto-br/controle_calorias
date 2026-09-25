@@ -72,10 +72,14 @@ describe("local meal photo overlay", () => {
       },
     }).jpeg().toBuffer();
     const originalSnapshot = Buffer.from(source);
-    const storagePutFn = vi.fn(async (key: string) => ({
+    let uploadedBuffer: Buffer | undefined;
+    const storagePutFn = vi.fn(async (key: string, buffer: Buffer) => {
+      uploadedBuffer = buffer;
+      return {
       url: `https://cdn.test/${key}`,
       key,
-    }));
+      };
+    });
 
     const result = await createLocalMealPhotoOverlay(
       {
@@ -85,9 +89,10 @@ describe("local meal photo overlay", () => {
       { storagePutFn },
     );
 
-    const metadata = await sharp(result.buffer).metadata();
+    const metadata = await sharp(uploadedBuffer!).metadata();
     expect(source.equals(originalSnapshot)).toBe(true);
-    expect(result.buffer.equals(source)).toBe(false);
+    expect(uploadedBuffer!.equals(source)).toBe(false);
+    expect(result).not.toHaveProperty("buffer");
     expect(metadata.width).toBe(640);
     expect(metadata.height).toBe(480);
     expect(result).toMatchObject({

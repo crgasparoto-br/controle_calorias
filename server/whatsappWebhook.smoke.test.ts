@@ -486,7 +486,7 @@ describe("whatsappWebhook smoke", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        arrayBuffer: async () => new TextEncoder().encode("audio-test").buffer,
+        body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("audio-test")); controller.close(); } }),
         headers: {
           get: (name: string) =>
             name.toLowerCase() === "content-type" ? "audio/ogg" : null,
@@ -561,7 +561,7 @@ describe("whatsappWebhook smoke", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        arrayBuffer: async () => new TextEncoder().encode("audio-test").buffer,
+        body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("audio-test")); controller.close(); } }),
         headers: {
           get: (name: string) =>
             name.toLowerCase() === "content-type" ? "audio/ogg" : null,

@@ -239,6 +239,7 @@ export async function sendWhatsAppLogicalReply(
   options?: { origin?: string; traceId?: string },
 ): Promise<WhatsAppLogicalReplySendResult> {
   const sends: WhatsAppOutboundSendResult[] = [];
+  let recorded = false;
   const traceId = options?.traceId ?? getCurrentWhatsappInboundExternalMessageId() ?? undefined;
   const stableSourceMessageId = traceId
     ?? (lifecycle?.handle ? `lifecycle:${lifecycle.handle.messageId}` : undefined);
@@ -362,18 +363,21 @@ export async function sendWhatsAppLogicalReply(
       detail: result.detail,
     }));
     if (role === "primary" && !result.effectiveOk) break;
+
+    // Persist the functional response as soon as its primary physical message
+    // is accepted. Auxiliary media is best-effort; if it crashes or exhausts
+    // memory, a retry must not resend the already delivered nutrition text.
+    if (role === "primary" && reply.kind === "functional" && lifecycle) {
+      const recordText = resolveWhatsAppLogicalReplyRecordText(reply);
+      if (recordText) {
+        const { recordOutboundReply } = await import("./messageLifecycle");
+        await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text: recordText });
+        recorded = true;
+      }
+    }
   }
 
   const primaryEffectiveOk = sends.length > 0 && sends[0].effectiveOk;
-  let recorded = false;
-  if (reply.kind === "functional" && primaryEffectiveOk && lifecycle) {
-    const recordText = resolveWhatsAppLogicalReplyRecordText(reply);
-    if (recordText) {
-      const { recordOutboundReply } = await import("./messageLifecycle");
-      await recordOutboundReply(lifecycle.handle, { userId: lifecycle.userId, text: recordText });
-      recorded = true;
-    }
-  }
 
   return {
     ok: sends.every(send => send.effectiveOk),

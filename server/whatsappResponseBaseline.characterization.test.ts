@@ -236,7 +236,7 @@ describe("Baseline do contrato de respostas do WhatsApp (issue #780)", () => {
         const mediaId = url.split("/").pop() ?? "media";
         return { ok: true, json: async () => ({ url: `https://media.test/${mediaId}`, mime_type: "image/jpeg" }) } as Response;
       }
-      if (url.includes("media.test")) return { ok: true, headers: { get: () => "image/jpeg" }, arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer } as Response;
+      if (url.includes("media.test")) return { ok: true, headers: { get: () => "image/jpeg" }, body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("binary-media")); controller.close(); } }) } as Response;
       return { ok: true, json: async () => ({}) } as Response;
     }) as typeof fetch;
   });

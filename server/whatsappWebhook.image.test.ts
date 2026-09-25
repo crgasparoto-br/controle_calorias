@@ -240,7 +240,7 @@ describe("whatsappWebhook image inbound", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        arrayBuffer: async () => new TextEncoder().encode("image-test").buffer,
+        body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("image-test")); controller.close(); } }),
         headers: {
           get: (name: string) =>
             name.toLowerCase() === "content-type" ? "image/jpeg" : null,
