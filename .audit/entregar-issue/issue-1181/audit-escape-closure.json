@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "ESC-HANDOFF-IDENTITY-DRIFT-001",
+      "status": "passed",
+      "escape_class": "delivery-handoff-identity-drift",
+      "remediation_mode": "targeted-remediation",
+      "source_audit": {
+        "rejection_id": "audit-rejection:1181-1187-1ead5156",
+        "finding_ids": [
+          "A-001"
+        ],
+        "audit_report_sha256": "f097a79c6cd6d45f36e946ca58edf4d6f7454aa6fe36ecc42f5bc637110ffe33"
+      },
+      "revalidated_head_sha": "1ead51560cb6345bc011fa8123af9b591b3bc883",
+      "plausible_wrong_implementation": "A delivery could reuse an otherwise valid handoff certificate after the branch acquired a later material commit, leaving evidence bound to an ancestor SHA.",
+      "literal_case": {
+        "expected": "Material drift after a prior handoff forces a new freeze and a new result-only handoff bound to the current exact head.",
+        "observed": "The prior certified material SHA 5ae7e621f8787eea3f9c0dd4492beed043823177 is historical; the current exact-head candidate 1ead51560cb6345bc011fa8123af9b591b3bc883 has terminal-green CI and is refrozen before a new handoff."
+      },
+      "sibling_cases": [
+        {
+          "id": "SIB-HANDOFF-01",
+          "surface": "material-drift-detection",
+          "status": "passed",
+          "observed": "classify_handoff_recovery returned post-write-refreeze under the auditor recovery floor."
+        },
+        {
+          "id": "SIB-HANDOFF-02",
+          "surface": "result-only-parent-allowlist",
+          "status": "passed",
+          "observed": "The replacement handoff is prepared as a direct result-only child restricted to certified audit paths."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Existing classify_handoff_recovery post-write-refreeze floor prevents handoff-only reuse after material drift."
+      },
+      "detection_change": {
+        "evidence": "Existing validate_terminal_handoff checks parent, allowlist, target binding, published head, and current remote head before audit release."
+      },
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-path-integrity",
+          "dimension": "primary-adversarial-branch"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "event-ordering",
+          "dimension": "primary-adversarial-branch"
+        }
+      ]
+    }
+  ]
+}

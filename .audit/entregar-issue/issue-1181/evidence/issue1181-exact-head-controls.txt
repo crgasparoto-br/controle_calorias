@@ -1,11 +1,13 @@
-material_head_sha=5ae7e621f8787eea3f9c0dd4492beed043823177
-base_sha=f0d32d19223d8ba8547795480fcee6f71aee0d27
+material_head_sha=1ead51560cb6345bc011fa8123af9b591b3bc883
+base_sha=0dfe5d23d97b65bc9051585bf8fe9ceae16e7ec9
 pull_request=1187
-agent_first_run=36081931587 status=completed conclusion=success
-whatsapp_tidb_run=36081931793 status=completed conclusion=success
+merge_preview_sha=ee33f32c48c08a9d9a590ffd72afed4ed69de861
+agent_first_run=36168016297 status=completed conclusion=success
+whatsapp_tidb_run=36168016227 status=completed conclusion=success
 agent_first_manifest_risk_profile=critical
+agent_first_manifest_head_sha=1ead51560cb6345bc011fa8123af9b591b3bc883
 public_entrypoint_test=server/whatsappIntentWebhook.issue1181.test.ts
 resolver_test=server/householdMeasureResolution.issue1181.test.ts
 identity_preflight_test=server/commercialFoodIdentityPreflight.issue1181.test.ts
 regression_docs=docs/testing/whatsapp-response-contract-regression.md
-observed=The exact material head passed the repository Agent-first gate and WhatsApp context TiDB gate. The public WhatsApp entrypoint regressions exercise the real countable-food gate and household measure resolver with only external AI/search boundaries mocked. The multiple-unit golden flow preserves 6 units through the final grams rewrite, while existing commercial identity and ambiguous-measure controls remain in the full suite.
+observed=The exact material head passed the repository Agent-first gate and WhatsApp context TiDB gate. The Agent-first exact-head manifest binds risk profile critical and checkout SHA to this material head. The public WhatsApp entrypoint regressions exercise the real countable-food gate and household measure resolver with only external AI/search boundaries mocked. The multiple-unit golden flow preserves 6 units through the final grams rewrite, while existing commercial identity and ambiguous-measure controls remain in the full suite.

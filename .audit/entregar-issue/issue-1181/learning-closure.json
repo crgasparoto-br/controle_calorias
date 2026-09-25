@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:1181-1187-1ead5156",
+    "audit_report_sha256": "f097a79c6cd6d45f36e946ca58edf4d6f7454aa6fe36ecc42f5bc637110ffe33",
+    "finding_ids": [
+      "A-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "The rejection concerns a stale delivery handoff after material branch drift; the existing generic post-write-refreeze and terminal handoff controls already model and detect this class."
+  },
+  "skill_changes": []
+}

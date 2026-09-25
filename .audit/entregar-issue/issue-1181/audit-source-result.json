@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "status": "rejected",
+  "rejection_id": "audit-rejection:1181-1187-1ead5156",
+  "head_sha": "1ead51560cb6345bc011fa8123af9b591b3bc883",
+  "repository": "crgasparoto-br/controle_calorias",
+  "issue_number": 1181,
+  "pull_request_number": 1187,
+  "findings": [
+    {
+      "id": "A-001",
+      "title": "identidade certificada não corresponde mais ao candidato atual",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "category": "delivery-not-ready",
+      "reason": "handoff-stale",
+      "recovery_scope": "post-write-refreeze",
+      "requires_refreeze": true,
+      "evidence": {
+        "previous_material_head_sha": "5ae7e621f8787eea3f9c0dd4492beed043823177",
+        "current_head_sha": "1ead51560cb6345bc011fa8123af9b591b3bc883",
+        "current_base_sha": "0dfe5d23d97b65bc9051585bf8fe9ceae16e7ec9",
+        "current_merge_preview_sha": "ee33f32c48c08a9d9a590ffd72afed4ed69de861"
+      }
+    }
+  ],
+  "recommendations": []
+}

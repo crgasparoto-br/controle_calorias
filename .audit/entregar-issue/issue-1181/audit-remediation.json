@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "1ead51560cb6345bc011fa8123af9b591b3bc883",
+  "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:1181-1187-1ead5156",
+    "audited_head_sha": "1ead51560cb6345bc011fa8123af9b591b3bc883",
+    "audit_report_sha256": "f097a79c6cd6d45f36e946ca58edf4d6f7454aa6fe36ecc42f5bc637110ffe33"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "post-write-refreeze",
+      "evidence": [
+        "classify_handoff_recovery preserved the independent-audit floor post-write-refreeze for 1ead51560cb6345bc011fa8123af9b591b3bc883",
+        "Agent-first gate run 36168016297 completed success on the exact material head",
+        "WhatsApp context TiDB gate run 36168016227 completed success on the exact material head"
+      ],
+      "validations": [
+        "delivery target binding is current-target",
+        "material head exact-SHA CI is terminal green",
+        "handoff artifacts are rebuilt and revalidated before publication"
+      ]
+    }
+  ]
+}
