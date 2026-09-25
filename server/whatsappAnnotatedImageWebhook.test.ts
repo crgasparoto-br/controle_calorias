@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
@@ -108,6 +109,7 @@ type MockResponse = {
 let sentTextMessages: string[];
 let sentImageMessages: Array<{ link?: string; id?: string; caption: string }>;
 let uploadedMediaRequests: number;
+let downloadedImagePayload: Buffer | null;
 
 function createResponse(): MockResponse {
   return {
@@ -188,6 +190,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     sentTextMessages = [];
     sentImageMessages = [];
     uploadedMediaRequests = 0;
+    downloadedImagePayload = null;
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
     getHabitSnapshotsMock.mockReset();
@@ -325,7 +328,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       return {
         ok: true,
         headers: { get: () => "image/jpeg" },
-        arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer,
+        arrayBuffer: async () => (downloadedImagePayload ?? new TextEncoder().encode("binary-media")).buffer,
       } as Response;
     }) as typeof fetch;
   });
@@ -629,6 +632,40 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       status: "error",
       eventType: "whatsapp.processing_error",
       detail: "provider timeout",
+    }));
+  });
+
+  it("rejeita imagem acima do limite antes da persistência e envia fallback textual", async () => {
+    downloadedImagePayload = await sharp({
+      create: {
+        width: 4_100,
+        height: 4_100,
+        channels: 3,
+        background: { r: 1, g: 2, b: 3 },
+      },
+    }).jpeg({ quality: 70 }).toBuffer();
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-too-many-pixels") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(storagePutMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentTextMessages[0]).toContain("*⚠️ Não foi possível processar a imagem*");
+    expect(recordOutboundReplyMock).toHaveBeenCalledTimes(1);
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      status: "error",
+      eventType: "whatsapp.processing_error",
+      detail: "image_too_many_pixels",
     }));
   });
 
