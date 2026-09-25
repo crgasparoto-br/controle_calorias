@@ -122,7 +122,8 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Edição rápida bem-sucedida envia uma nova confirmação ao WhatsApp sem expor falhas de SQL quando a notificação não puder ser entregue.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
-- A resposta textual funcional é enviada e persistida antes de qualquer imagem auxiliar; falha, reinício ou reentrega durante a mídia não pode apagar nem duplicar o resumo nutricional já entregue.
+- Mídia recebida do WhatsApp é limitada a 20 MiB no `Content-Length` e durante o streaming, antes de normalização, armazenamento ou inferência; excesso é abortado com fallback textual controlado.
+- A resposta textual funcional é enviada e persistida antes de qualquer imagem auxiliar; o entrypoint público faz claim persistente antes de baixar/inferir, e falha, reinício ou reentrega durante a mídia não pode apagar nem duplicar o resumo nutricional já entregue.
 - Somente usuários que habilitaram explicitamente a preferência recebem a imagem anotada; a escolha permanece isolada por usuário e não altera o onboarding inicial.
 - Payload inválido do interpretador LLM não executa ação e cai no classificador determinístico/fallback seguro.
 - Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.

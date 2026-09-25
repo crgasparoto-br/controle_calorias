@@ -278,7 +278,7 @@ describe("WhatsApp persistent multichannel entrypoint", () => {
         return {
           ok: true,
           headers: { get: () => (url.includes("audio") ? "audio/ogg" : "image/jpeg") },
-          arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer,
+          body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("binary-media")); controller.close(); } }),
         } as Response;
       }
       return { ok: true, json: async () => ({}) } as Response;

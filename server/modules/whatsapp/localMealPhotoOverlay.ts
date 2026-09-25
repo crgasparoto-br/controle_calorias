@@ -16,7 +16,7 @@ export type LocalMealPhotoOverlayResult = {
   url?: string;
   storageKey?: string;
   mimeType: "image/png";
-  buffer: Buffer;
+  buffer?: Buffer;
   detail: string;
   artifactKind: "photo_annotation";
   mode: "local";
@@ -392,7 +392,6 @@ export async function createLocalMealPhotoOverlay(
       url: upload.url,
       storageKey: upload.key || storageKey,
       mimeType: "image/png",
-      buffer: imageBuffer,
       detail: "Overlay local determinístico aplicado sobre uma cópia da foto original.",
       artifactKind: "photo_annotation",
       mode: "local",

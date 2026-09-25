@@ -298,6 +298,40 @@ export async function getWhatsAppMediaDownloadUrl(mediaId: string) {
   return { url: payload.url, mimeType: payload.mime_type };
 }
 
+export const MAX_WHATSAPP_MEDIA_BYTES = 20 * 1024 * 1024;
+
+async function readWhatsAppMediaBody(response: Response, maxBytes: number) {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && /^\d+$/u.test(contentLength) && Number(contentLength) > maxBytes) {
+    throw new Error("whatsapp_media_too_large");
+  }
+
+  if (!response.body) {
+    throw new Error("whatsapp_media_body_unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel("whatsapp_media_too_large").catch(() => undefined);
+        throw new Error("whatsapp_media_too_large");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks, totalBytes);
+}
+
 export async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: string) {
   const { accessToken } = await requireWhatsAppMediaConfig();
 
@@ -310,7 +344,7 @@ export async function downloadWhatsAppMedia(mediaId: string, fallbackMimeType?: 
     throw new Error(`Falha ao baixar mídia do WhatsApp: ${response.status} ${response.statusText}`);
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await readWhatsAppMediaBody(response, MAX_WHATSAPP_MEDIA_BYTES);
   return {
     buffer,
     mimeType: response.headers.get("content-type") || meta.mimeType || fallbackMimeType || "application/octet-stream",

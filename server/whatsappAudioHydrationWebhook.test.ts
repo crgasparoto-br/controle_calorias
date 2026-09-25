@@ -106,7 +106,7 @@ describe("whatsappWebhook audio hydration", () => {
         return {
           ok: true,
           headers: { get: () => "audio/ogg" },
-          arrayBuffer: async () => new TextEncoder().encode("audio-binary").buffer,
+          body: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("audio-binary")); controller.close(); } }),
         } as Response;
       }
 
