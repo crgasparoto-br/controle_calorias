@@ -112,7 +112,7 @@ describe("generateExternalImageAnnotation", () => {
       attempts: 1,
       mimeType: "image/png",
     });
-    expect(result.buffer?.toString()).toBe("derived-photo");
+    expect(result.buffer).toBeUndefined();
     expect(result).not.toHaveProperty("raw");
   });
 

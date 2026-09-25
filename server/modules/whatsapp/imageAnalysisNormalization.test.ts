@@ -44,4 +44,18 @@ describe("normalizeImageForAnalysis", () => {
       normalized: false,
     });
   });
+
+  it("falha de forma controlada quando a imagem excede o orçamento de pixels", async () => {
+    const source = await sharp({
+      create: {
+        width: 4_100,
+        height: 4_100,
+        channels: 3,
+        background: { r: 1, g: 2, b: 3 },
+      },
+    }).jpeg({ quality: 70 }).toBuffer();
+
+    await expect(normalizeImageForAnalysis(source, "image/jpeg"))
+      .rejects.toThrow("image_too_many_pixels");
+  });
 });

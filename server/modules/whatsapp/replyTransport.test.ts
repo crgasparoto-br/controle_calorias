@@ -86,6 +86,7 @@ describe("replyTransport", () => {
     );
     // ordem: chamada de texto (primária) antes da chamada de imagem (auxiliar).
     expect(sendWhatsAppTextMessageMock.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImageMessageMock.mock.invocationCallOrder[0]);
+    expect(recordOutboundReplyMock.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImageMessageMock.mock.invocationCallOrder[0]);
   });
 
   it("falha na mídia auxiliar não impede a gravação da resposta funcional primária", async () => {

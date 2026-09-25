@@ -64,7 +64,9 @@ type OverlayLayout = {
 };
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
-const MAX_INPUT_PIXELS = 40_000_000;
+// The overlay keeps an oriented source, an intermediate PNG and a derived PNG
+// alive briefly. Keep the decoded source bounded for the 512 MiB runtime.
+const MAX_INPUT_PIXELS = 16_000_000;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function clamp(value: number, min: number, max: number) {
@@ -324,7 +326,7 @@ export async function createLocalMealPhotoOverlay(
   dependencies: LocalMealPhotoOverlayDependencies = {},
 ): Promise<LocalMealPhotoOverlayResult> {
   const sourceBuffer = decodeSourceImage(input.image);
-  const originalSnapshot = Buffer.from(sourceBuffer);
+  const sourceDigest = createHash("sha256").update(sourceBuffer).digest("hex");
   const sharp = await loadSharp();
 
   const oriented = await sharp(sourceBuffer, {
@@ -350,7 +352,7 @@ export async function createLocalMealPhotoOverlay(
     .png({ compressionLevel: 9 })
     .toBuffer();
 
-  if (!sourceBuffer.equals(originalSnapshot)) {
+  if (createHash("sha256").update(sourceBuffer).digest("hex") !== sourceDigest) {
     throw new Error("source_image_was_mutated");
   }
   if (!imageBuffer.length || imageBuffer.equals(sourceBuffer)) {

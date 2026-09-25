@@ -64,6 +64,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Recursos visuais auxiliares são opcionais. Falha nesse apoio não pode bloquear registro nem confirmação da refeição.
 - A imagem anotada recebida após a análise de uma foto é uma preferência individual, desabilitada por padrão e configurável somente em **Configurações > Perfil**. Ausência, valor inválido ou falha de leitura mantém o recurso desabilitado.
 - Quando a preferência estiver desabilitada, o sistema não gera, persiste nem envia a imagem anotada; a foto original, a análise nutricional, o registro e a resposta textual seguem normalmente.
+- Imagens recebidas acima do limite seguro de pixels são rejeitadas antes da inferência visual; o WhatsApp recebe uma falha controlada, sem persistência parcial nem reinício do processo.
 - Pedidos naturais de orientação alimentar devem responder com sugestão educativa e não devem criar refeição automaticamente.
 - Mensagens naturais de texto devem passar por uma camada de interpretação estruturada antes do fallback genérico de refeição.
 - O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
@@ -121,6 +122,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Edição rápida bem-sucedida envia uma nova confirmação ao WhatsApp sem expor falhas de SQL quando a notificação não puder ser entregue.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.
 - Falha de visual auxiliar não bloqueia o fluxo conversacional principal.
+- A resposta textual funcional é enviada e persistida antes de qualquer imagem auxiliar; falha, reinício ou reentrega durante a mídia não pode apagar nem duplicar o resumo nutricional já entregue.
 - Somente usuários que habilitaram explicitamente a preferência recebem a imagem anotada; a escolha permanece isolada por usuário e não altera o onboarding inicial.
 - Payload inválido do interpretador LLM não executa ação e cai no classificador determinístico/fallback seguro.
 - Baixa confiança ou ambiguidade gera pergunta contextual antes de alterar dados.

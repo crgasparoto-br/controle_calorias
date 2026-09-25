@@ -1,6 +1,9 @@
 import sharp from "sharp";
 
-const MAX_INPUT_PIXELS = 40_000_000;
+// Keep the decoded working copy bounded for the 512 MiB production runtime.
+// Typical WhatsApp phone photos (including 12 MP captures) remain supported;
+// oversized uploads fail closed and are answered by the webhook fallback.
+const MAX_INPUT_PIXELS = 16_000_000;
 const NORMALIZABLE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -54,7 +57,10 @@ export async function normalizeImageForAnalysis(
       mimeType: normalizedMimeType,
       normalized: true,
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && /pixel limit/i.test(error.message)) {
+      throw new Error("image_too_many_pixels");
+    }
     // Keep the existing inline path available when a provider returns an
     // unusual but still downloadable image payload. The vision layer remains
     // responsible for rejecting content it cannot parse safely.
