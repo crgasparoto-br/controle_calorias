@@ -968,7 +968,6 @@ async function buildItemsFromInference(
       resolvedItem.brand
       && alternatives.length === 0
       && !canUseVerifiedNutritionLabel
-      && resolvedItem.confidence >= 0.5
     ) {
       const hasNutrition = hasUsableNutrition(resolvedItem);
       const identitySource = [semanticSource, resolvedItem.brand]
@@ -981,8 +980,14 @@ async function buildItemsFromInference(
         resolvedItem.foodClassification,
         !hasNutrition,
       );
+      const canUseSpecificImageIdentity = Boolean(
+        options.preferInferredNutrition
+        && !requestedVariant
+        && resolvedItem.confidence >= 0.5
+      );
       if (
         specificIdentity
+        && (requestedVariant || canUseSpecificImageIdentity)
         && (hasNutrition || !options.preferInferredNutrition)
         && !hasNutritionLabelEvidenceClaim
       ) {
