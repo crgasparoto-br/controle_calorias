@@ -64,8 +64,10 @@ import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 import {
   beginInboundMessage,
+  claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -422,7 +424,8 @@ async function tryHandleAnnotatedImageMessage(
   intentHints?: Map<
     string,
     import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]
-  >
+  >,
+  res?: Response,
 ) {
   const sourcePhone = message.from || "unknown";
   if (
@@ -456,6 +459,40 @@ async function tryHandleAnnotatedImageMessage(
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
       allowRawContentStorage: true,
     });
+
+    if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega de imagem ignorada após efeito ou resposta persistida.",
+      });
+      return true;
+    }
+
+    const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+    if (claimStatus === "inflight" || claimStatus === "unavailable") {
+      res?.status(503).json({
+        ok: false,
+        retryable: true,
+        reason:
+          claimStatus === "inflight"
+            ? "message_processing_inflight"
+            : "message_processing_unavailable",
+      });
+      return true;
+    }
+    if (claimStatus === "processed") {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega de imagem ignorada após claim persistente concluído.",
+      });
+      return true;
+    }
 
     const timeZoneResolution = await resolveWhatsAppOperationTimeZone(userId);
     const userTimezone = timeZoneResolution.timeZone;
@@ -822,10 +859,14 @@ export async function handleWhatsAppWebhookWithAnnotatedImages(
 
   const handledMessageKeys = new Set<string>();
   for (const message of messages) {
-    const handled = await tryHandleAnnotatedImageMessage(message, intentHints);
+    const handled = await tryHandleAnnotatedImageMessage(message, intentHints, res);
     if (handled) {
       handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
     }
+  }
+
+  if ((res as Response & { statusCode?: number }).statusCode === 503 || res.headersSent) {
+    return res;
   }
 
   if (!handledMessageKeys.size) {

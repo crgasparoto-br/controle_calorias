@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
@@ -17,8 +18,17 @@ const storagePutMock = vi.fn();
 const fallbackWebhookMock = vi.fn();
 const getAnnotatedImagePreferenceMock = vi.fn();
 const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
-const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+const {
+  beginInboundMessageMock,
+  claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessedMock,
+  recordOutboundReplyMock,
+  recordDomainLinkMock,
+  markMessageProcessedMock,
+} = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  claimMessageForProcessingStateMock: vi.fn(async () => "claimed"),
+  wasMessageAlreadyProcessedMock: vi.fn(async () => false),
   recordOutboundReplyMock: vi.fn(async () => undefined),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
@@ -26,6 +36,8 @@ const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, 
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
@@ -96,6 +108,7 @@ vi.mock("./whatsappWebhook", () => ({
 }));
 
 const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { __resetWhatsAppAnnotatedImageDeduplicationForTests } = await import("./whatsappAnnotatedImageWebhook");
 const { MealInferenceError } = await import("./nutritionEngine");
 
 type MockResponse = {
@@ -108,6 +121,7 @@ type MockResponse = {
 let sentTextMessages: string[];
 let sentImageMessages: Array<{ link?: string; id?: string; caption: string }>;
 let uploadedMediaRequests: number;
+let downloadedImagePayload: Buffer | null;
 
 function createResponse(): MockResponse {
   return {
@@ -188,6 +202,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     sentTextMessages = [];
     sentImageMessages = [];
     uploadedMediaRequests = 0;
+    downloadedImagePayload = null;
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
     getHabitSnapshotsMock.mockReset();
@@ -206,6 +221,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     getAnnotatedImagePreferenceMock.mockReset();
     requestWhatsappImageMealIdentityClarificationMock.mockReset();
     beginInboundMessageMock.mockReset();
+    claimMessageForProcessingStateMock.mockReset();
+    wasMessageAlreadyProcessedMock.mockReset();
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
     markMessageProcessedMock.mockReset();
@@ -214,6 +231,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       conversationId: 1,
       messageId: nextLifecycleMessageId++,
     }));
+    claimMessageForProcessingStateMock.mockResolvedValue("claimed");
+    wasMessageAlreadyProcessedMock.mockResolvedValue(false);
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
     getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: true, readFailed: false });
@@ -322,10 +341,16 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         } as Response;
       }
 
+      const mediaPayload = downloadedImagePayload ?? new TextEncoder().encode("binary-media");
       return {
         ok: true,
-        headers: { get: () => "image/jpeg" },
-        arrayBuffer: async () => new TextEncoder().encode("binary-media").buffer,
+        headers: { get: (name: string) => name.toLowerCase() === "content-type" ? "image/jpeg" : null },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(mediaPayload));
+            controller.close();
+          },
+        }),
       } as Response;
     }) as typeof fetch;
   });
@@ -425,6 +450,54 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
     expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
     expect(sentTextMessages).toHaveLength(1);
+  });
+
+  it("ignora a reentrega após o cache local ser reiniciado quando o efeito já está persistido", async () => {
+    const firstResponse = createResponse();
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-persistent-replay") as never,
+      firstResponse as never,
+    );
+
+    __resetWhatsAppAnnotatedImageDeduplicationForTests();
+    const secondResponse = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-persistent-replay") as never,
+      secondResponse as never,
+    );
+
+    expect(firstResponse.body).toEqual({ ok: true, processed: 1 });
+    expect(secondResponse.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).toHaveBeenCalledOnce();
+    expect(confirmPendingMealMock).toHaveBeenCalledOnce();
+    expect(recordOutboundReplyMock).toHaveBeenCalledOnce();
+    expect(sentTextMessages).toHaveLength(1);
+    expect(claimMessageForProcessingStateMock).toHaveBeenCalledOnce();
+  });
+
+  it("responde retryable quando outro owner ainda processa a mesma imagem", async () => {
+    claimMessageForProcessingStateMock.mockResolvedValueOnce("inflight");
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-inflight") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "message_processing_inflight",
+    });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toHaveLength(0);
   });
 
   it("mantém registro, foto original e texto quando a leitura da preferência falha", async () => {
@@ -629,6 +702,40 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       status: "error",
       eventType: "whatsapp.processing_error",
       detail: "provider timeout",
+    }));
+  });
+
+  it("rejeita imagem acima do limite antes da persistência e envia fallback textual", async () => {
+    downloadedImagePayload = await sharp({
+      create: {
+        width: 4_100,
+        height: 4_100,
+        channels: 3,
+        background: { r: 1, g: 2, b: 3 },
+      },
+    }).jpeg({ quality: 70 }).toBuffer();
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-too-many-pixels") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(storagePutMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toHaveLength(1);
+    expect(sentTextMessages[0]).toContain("*⚠️ Não foi possível processar a imagem*");
+    expect(recordOutboundReplyMock).toHaveBeenCalledTimes(1);
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 42,
+      origin: "whatsapp",
+      status: "error",
+      eventType: "whatsapp.processing_error",
+      detail: "image_too_many_pixels",
     }));
   });
 
