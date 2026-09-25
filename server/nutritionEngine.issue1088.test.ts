@@ -634,6 +634,59 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     });
   });
 
+  it.each([
+    { foodName: "Bombom Charge Original", brand: "Nestlé" },
+    { foodName: "Iogurte Danone Light", brand: "Danone" },
+    { foodName: "Refrigerante Coca-Cola Zero", brand: "Coca-Cola" },
+  ])(
+    "mantém fail-closed quando a variante visual explícita ($foodName) tem baixa confiança",
+    async ({ foodName, brand }) => {
+      createTextResponseMock.mockResolvedValue({
+        id: `response-image-low-confidence-variant-${foodName}`,
+        outputText: JSON.stringify({
+          mealLabel: "Lanche",
+          confidence: 0.5,
+          reasoning: "A embalagem sugere a linha, mas o rótulo não está legível.",
+          items: [{
+            foodName,
+            brand,
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 40,
+            estimatedCalories: 190,
+            estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+            confidence: 0.45,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          }],
+        }),
+        raw: {},
+      });
+
+      await expect(processMealInput({
+        imageUrl: `data:image/jpeg;base64,low-confidence-${foodName}`,
+      })).rejects.toMatchObject({
+        code: "food_identity_clarification_required",
+        context: expect.objectContaining({
+          clarificationReason: "commercial_identity_unverified",
+          items: [expect.objectContaining({
+            resolution: expect.objectContaining({
+              nutritionOrigin: "heuristic",
+              nutritionVerified: false,
+            }),
+          })],
+        }),
+      });
+    },
+  );
+
   it("mantém itens reconhecidos no contexto quando outro produto da foto exige identidade", async () => {
     createTextResponseMock.mockResolvedValue({
       id: "response-image-partial-commercial-1177",

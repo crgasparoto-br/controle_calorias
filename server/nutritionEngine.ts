@@ -982,12 +982,14 @@ async function buildItemsFromInference(
       );
       const canUseSpecificImageIdentity = Boolean(
         options.preferInferredNutrition
-        && !requestedVariant
         && resolvedItem.confidence >= 0.5
       );
+      const canUseSpecificIdentity = options.preferInferredNutrition
+        ? canUseSpecificImageIdentity
+        : Boolean(requestedVariant);
       if (
         specificIdentity
-        && (requestedVariant || canUseSpecificImageIdentity)
+        && canUseSpecificIdentity
         && (hasNutrition || !options.preferInferredNutrition)
         && !hasNutritionLabelEvidenceClaim
       ) {
