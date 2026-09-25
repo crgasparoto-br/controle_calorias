@@ -114,6 +114,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
 - Alimento identificado por imagem com identidade comercial pendente permanece em `food_clarification.identity` até uma resposta textual válida; resposta inválida reapresenta a pergunta e não cai no fallback nutricional.
+- Imagem com vários alimentos ou produtos faz inventário por item: linhas comerciais visualmente distintas permanecem separadas (unidades idênticas só são agregadas quando a contagem é clara), e a ambiguidade de um item preserva os demais no mesmo rascunho/contexto em vez de produzir a resposta global de alimento não reconhecido.
 - Correção do último alimento em duas mensagens preserva contexto, substitui somente o item revalidado e confirma macros do estado recarregado.
 - Café com açúcar nunca usa slug, nome canônico ou composição de `cafe-sem-acucar`.
 - Quantidade explícita de açúcar participa dos totais uma única vez; sem quantidade e sem estimativa utilizável, nenhuma refeição ou item é alterado antes da clarificação persistente.

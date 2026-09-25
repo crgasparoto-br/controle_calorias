@@ -533,6 +533,128 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
     expect(result.semanticContract.clarifications).toEqual([]);
   });
 
+  it("preserva um produto embalado visualmente específico mesmo quando a porção da fonte diverge", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-charge-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.9,
+        reasoning: "Bombom Charge Nestlé identificado visualmente; nutrientes estimados pela porção observada.",
+        items: [{
+          foodName: "Bombom Charge",
+          brand: "Nestlé",
+          quantity: 1,
+          unit: "unidade",
+          portionText: "1 unidade (40 g)",
+          servings: 1,
+          estimatedGrams: 40,
+          estimatedCalories: 190,
+          estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+          confidence: 0.88,
+          foodClassification: {
+            processingLevel: "ultra_processed",
+            isFruit: false,
+            isVegetable: false,
+            fiberGrams: 1,
+            isPlainWater: false,
+          },
+        }],
+      }),
+      raw: {},
+    });
+
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,charge-image",
+    });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        foodName: "Bombom Charge Nestlé",
+        brand: "Nestlé",
+        source: "hybrid",
+        calories: 190,
+        resolution: expect.objectContaining({
+          nutritionOrigin: "provisional_estimate",
+          nutritionVerified: false,
+          ambiguity: null,
+        }),
+      }),
+    ]);
+    expect(result.semanticContract.needsClarification).toBe(false);
+    expect(findCatalogFoodSemanticMock).toHaveBeenCalledWith(
+      expect.stringMatching(/Bombom Charge/i),
+      expect.objectContaining({ searchSpecificProduct: true }),
+    );
+  });
+
+  it("mantém itens reconhecidos no contexto quando outro produto da foto exige identidade", async () => {
+    createTextResponseMock.mockResolvedValue({
+      id: "response-image-partial-commercial-1177",
+      outputText: JSON.stringify({
+        mealLabel: "Lanche",
+        confidence: 0.9,
+        reasoning: "Dois produtos embalados visíveis; um ainda precisa de confirmação.",
+        items: [
+          {
+            foodName: "Bombom Charge",
+            brand: "Nestlé",
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade (40 g)",
+            servings: 1,
+            estimatedGrams: 40,
+            estimatedCalories: 190,
+            estimatedMacros: { protein: 3, carbs: 23, fat: 9 },
+            confidence: 0.88,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          },
+          {
+            foodName: "Chocolate",
+            brand: "Nestlé",
+            quantity: 1,
+            unit: "unidade",
+            portionText: "1 unidade",
+            servings: 1,
+            estimatedGrams: 20,
+            estimatedCalories: 100,
+            estimatedMacros: { protein: 1, carbs: 12, fat: 5 },
+            confidence: 0.7,
+            foodClassification: {
+              processingLevel: "ultra_processed",
+              isFruit: false,
+              isVegetable: false,
+              fiberGrams: 1,
+              isPlainWater: false,
+            },
+          },
+        ],
+      }),
+      raw: {},
+    });
+
+    await expect(processMealInput({
+      imageUrl: "data:image/jpeg;base64,partial-commercial-image",
+    })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        items: [
+          expect.objectContaining({ foodName: "Bombom Charge Nestlé" }),
+          expect.objectContaining({ foodName: "Chocolate Nestlé" }),
+        ],
+        semanticContract: expect.objectContaining({
+          needsClarification: true,
+          clarifications: [expect.objectContaining({ itemIndex: 1 })],
+        }),
+      }),
+    });
+  });
+
   it("mantém o fallback genérico somente para alimento sem identidade comercial", async () => {
     installAiFailure();
 

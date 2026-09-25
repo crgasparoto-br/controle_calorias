@@ -647,10 +647,11 @@ function provisionalBrandedResolution(input: {
 function hasSpecificCommercialProductName(
   identitySource: string,
   brand: string,
-  variant: string,
+  variant: string | null,
+  foodClassification: LlmItem["foodClassification"],
   requireExplicitCategory = false,
 ) {
-  const genericProductWords = new Set(["alimento", "amendoim", "bebida", "cerveja", "chocolate", "refrigerante", "salgadinho", "queijo", "requeijao", "iogurte", "leite"]);
+  const genericProductWords = new Set(["alimento", "amendoim", "barra", "bebida", "biscoito", "bombom", "cerveja", "chocolate", "cookie", "refrigerante", "salgadinho", "wafer", "queijo", "requeijao", "iogurte", "leite"]);
   const commercialMeasureTokens = new Set([
     "g", "gr", "grama", "gramas", "kg", "quilo", "quilos", "mg", "ml",
     "mililitro", "mililitros", "l", "litro", "litros",
@@ -664,7 +665,7 @@ function hasSpecificCommercialProductName(
       && !/^\d+(?:[.,]\d+)?(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)?$/u.test(token)
     );
   const brandTokens = normalizeForMatching(brand).split(/\s+/).filter(Boolean);
-  const variantTokens = normalizeForMatching(variant).split(/\s+/).filter(Boolean);
+  const variantTokens = normalizeForMatching(variant ?? "").split(/\s+/).filter(Boolean);
   const includesAll = (tokens: string[]) =>
     tokens.length > 0 && tokens.every(token => sourceTokens.includes(token));
 
@@ -676,11 +677,32 @@ function hasSpecificCommercialProductName(
   if (requireExplicitCategory && !hasExplicitCategory) return false;
 
   if (
-    hasExplicitCategory
+    variant
+    && hasExplicitCategory
     && includesAll(brandTokens)
     && includesAll(variantTokens)
   ) {
     return true;
+  }
+
+  // A single distinctive product token can be enough when the visual extractor
+  // identified an ultra-processed packaged product (for example a line name
+  // after a generic category). Culinary ingredients still require the stricter
+  // evidence path and must not become provisional branded products silently.
+  if (
+    !variant
+    && foodClassification?.processingLevel === "ultra_processed"
+    && includesAll(brandTokens)
+  ) {
+    const genericTokens = new Set([
+      ...genericProductWords,
+      ...commercialMeasureTokens,
+      ...brandTokens,
+    ]);
+    const distinctiveTokens = sourceTokens.filter(
+      token => !genericTokens.has(token) && !variantTokens.includes(token),
+    );
+    if (distinctiveTokens.length === 1) return true;
   }
 
   const excluded = new Set([...brandTokens, ...variantTokens]);
@@ -944,9 +966,9 @@ async function buildItemsFromInference(
 
     if (
       resolvedItem.brand
-      && requestedVariant
       && alternatives.length === 0
       && !canUseVerifiedNutritionLabel
+      && resolvedItem.confidence >= 0.5
     ) {
       const hasNutrition = hasUsableNutrition(resolvedItem);
       const identitySource = [semanticSource, resolvedItem.brand]
@@ -956,6 +978,7 @@ async function buildItemsFromInference(
         identitySource,
         resolvedItem.brand,
         requestedVariant,
+        resolvedItem.foodClassification,
         !hasNutrition,
       );
       if (
@@ -966,12 +989,12 @@ async function buildItemsFromInference(
         const provisionalItem = hasNutrition
           ? buildProvisionalBrandedNutritionItem(
               resolvedItem,
-              requestedVariant,
+              requestedVariant ?? "",
               semanticSource,
             )
           : buildProvisionalBrandedNutritionFallbackItem(
               resolvedItem,
-              requestedVariant,
+              requestedVariant ?? "",
               semanticSource,
             );
         results.push({
