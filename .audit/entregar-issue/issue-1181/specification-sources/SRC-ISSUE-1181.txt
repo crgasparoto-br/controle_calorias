@@ -1,0 +1,399 @@
+specification_version: 4
+
+## Objetivo
+
+Corrigir de forma sistêmica a regressão do registro alimentar via WhatsApp em que **frutas naturais contáveis** informadas por unidade, inclusive com qualificadores naturais e quantidades múltiplas, entram em clarificação de peso antes de esgotar a precedência canônica de resolução de medida.
+
+A correção deve funcionar pelo **entrypoint público real do WhatsApp**, preservar identidade, quantidade e atomicidade da refeição composta e manter os guards fail-closed para produtos realmente comerciais.
+
+Usar `develop` como branch base.
+
+## Evidência de produção e reabertura — 24/09/2026
+
+A issue foi reaberta após reprodução em produção depois da implementação da PR #1183 e da promoção de `develop` para `main` pela PR #1185.
+
+### Golden flow 1 — caso original ainda falha
+
+Entrada:
+
+```text
+1 banana nanica, 1 pêra packans
+```
+
+Resposta observada:
+
+```text
+Preciso de uma informação
+
+Não encontrei uma gramatura verificável nem uma média usual segura para 1 pêra packans.
+Informe somente o peso ou volume correspondente, por exemplo 20 g.
+```
+
+### Golden flow 2 — falha sistêmica com múltiplas unidades
+
+Entrada:
+
+```text
+1 banana nanica, 6 uvas pretas, 1 pêra packans
+```
+
+Resposta observada:
+
+```text
+Preciso de uma informação
+
+Não encontrei uma gramatura verificável nem uma média usual segura para 6 uvas pretas.
+Informe somente o peso ou volume correspondente, por exemplo 20 g.
+```
+
+O segundo caso prova que o defeito não é específico de `packans`: a fronteira afetada é a resolução de **frutas naturais contáveis**, incluindo multiplicadores como `6 unidades`.
+
+## Fontes canônicas
+
+Esta issue corrige drift de implementação e de cobertura; não cria uma política nova de medidas.
+
+- `docs/design-docs/food-portions-household-measures.md`
+  - `1 unidade` pode ser estimada quando a identidade do alimento torna a unidade física suficientemente definida;
+  - `usual_average` e `contextual_estimate` são permitidos sob evidência verificável e coerente;
+  - clarificação é o último recurso;
+  - a relação medida -> gramas pertence à fronteira canônica de medidas, sem pesos paralelos no WhatsApp.
+- `docs/design-docs/whatsapp-food-registration-clarification.md`
+  - precedência: massa/volume explícitos -> porção canônica -> pesquisada exata -> `user_learned` -> `usual_average` -> `contextual_estimate` -> clarificação;
+  - aproximações preservam a medida original e informam a gramatura usada;
+  - a refeição composta permanece atômica enquanto houver clarificação real.
+- `docs/product-specs/meal-registration.md`
+  - produto comercial com marca/variante explícita continua fail-closed sem identidade comprovada;
+  - alimento natural sem identidade comercial pendente não herda esse bloqueio.
+- `docs/testing/whatsapp-response-contract-regression.md`
+  - matriz canônica das regressões do fluxo real do WhatsApp.
+
+Relacionadas: #1016, #1043, #1047, #1051 e #1088.
+
+## Diagnóstico na `develop`
+
+A `develop` já contém a implementação da PR #1183, incluindo:
+
+- preflight que tenta preservar fruta natural antes da heurística comercial;
+- `householdMeasureResolution.ts` como owner da relação medida -> gramas;
+- testes focais de `pêra packans` com `contextual_estimate`, precedência específica, conflito de referências e medida ambígua;
+- testes de variantes naturais e proteção de identidade comercial.
+
+Mesmo assim, o runtime publicado reproduziu os dois golden flows acima. Portanto, a nova correção **não pode assumir que os testes da PR #1183 exercitam a mesma fronteira do entrypoint público que falha em produção**.
+
+A implementação deve localizar e provar o ponto exato em que o item contável é desviado antes de `resolveHouseholdMeasure()`, ou em que quantidade/identidade são degradadas no caminho real. O teste principal não pode mascarar essa fronteira injetando o resolvedor como já concluído.
+
+## Decisão funcional
+
+O comportamento esperado para fruta natural contável é:
+
+```text
+texto original + quantidade contável
+-> classificação/identidade canônica
+-> marca comprovada OU qualificador natural não comprovado
+-> resolução canônica da medida
+-> porção exata / researched_exact / user_learned / usual_average / contextual_estimate
+-> clarificação somente como último recurso
+-> composição nutricional
+-> persistência/resposta
+```
+
+Um token residual após fruta natural **não deve ser automaticamente afirmado como marca nem como cultivar**.
+
+Quando:
+
+1. a classificação canônica identifica alimento natural ou minimamente processado;
+2. o item é fruta/vegetal, ou há evidência canônica equivalente de alimento natural;
+3. o alimento-base é compatível com o segmento original;
+4. não existe marca estruturada retornada pela extração;
+5. `detectKnownBrand` ou outra evidência comercial canônica não identifica marca explícita;
+
+o token residual deve permanecer como **qualificador natural não comprovado**. Ele pode ser preservado no nome exibido/original, mas não pode por si só converter o item em produto comercial fail-closed.
+
+Essa regra não significa “todo token após uma fruta é cultivar”. Evidência comercial real continua tendo precedência e os guards de #1088 permanecem válidos.
+
+Para quantidade, quando o alimento-base natural estiver estabelecido e não houver porção mais específica, uma referência `same_food_type` da mesma fruta/tipo pode sustentar `usual_average` ou `contextual_estimate` conforme os guards existentes. Isso resolve **quantidade**, não prova identidade exata da variedade.
+
+## Escopo
+
+- Restaurar a precedência completa de medida para frutas naturais contáveis.
+- Suportar quantidade unitária e múltipla sem perder o multiplicador, por exemplo `1 pêra` e `6 uvas`.
+- Impedir que qualificador natural não comprovado seja promovido a marca comercial somente por ser token residual.
+- Preservar qualificador e quantidade originais na resposta sem inventar cultivar.
+- Permitir `usual_average` ou `contextual_estimate` do mesmo alimento/tipo apenas para quantidade quando a evidência for segura.
+- Manter precedência de referência específica de variedade/cultivar quando verificável.
+- Manter guards fail-closed de produtos realmente comerciais.
+- Preservar atomicidade da refeição composta.
+- Cobrir o pipeline público real do WhatsApp e a fronteira real que decide medida -> gramas.
+
+## Fora de escopo
+
+- Adicionar peso fixo para pêra, uva, `packans` ou qualquer fruta específica.
+- Criar mapa universal `1 unidade = X g`.
+- Mapear `packans` silenciosamente para `Packham`, `Williams` ou outro cultivar.
+- Criar lista paralela de frutas/cultivares no webhook, parser, prompt ou formatter.
+- Relaxar guards de marca/variante para produtos industrializados.
+- Alterar valores nutricionais canônicos de frutas.
+- Recalcular refeições históricas.
+
+## Requisitos funcionais
+
+1. Fruta natural com quantidade contável deve percorrer a cadeia canônica de resolução antes de qualquer clarificação.
+2. Quantidades múltiplas devem preservar o multiplicador até a gramatura final; `6 uvas` não pode ser reduzido a `1 unidade`, `1 porção` ou medida vaga equivalente.
+3. `1 pêra <qualificador>` deve permanecer fruta natural contável quando a identidade-base estiver estabelecida e não houver evidência comercial conflitante.
+4. A ausência de porção estática exata do qualificador não deve provocar clarificação imediata.
+5. A precedência de quantidade deve permanecer:
+   ```text
+   massa/volume explícitos
+   -> food_portions/porção canônica local
+   -> referência exata verificável da medida
+   -> referência pessoal anterior da mesma identidade/medida
+   -> média usual coerente
+   -> estimativa contextual verificável
+   -> clarificação persistente
+   ```
+6. Qualificador natural não comprovado deve permanecer preservado no texto/identidade apresentada, sem ser promovido automaticamente a marca ou cultivar exato.
+7. Para alimento natural sem marca comprovada, referência `same_food_type` compatível pode resolver apenas a quantidade quando passar pelos guards atuais de identidade, unidade, relação física, fonte e coerência.
+8. Referência verificável mais específica da mesma variedade/cultivar deve vencer estimativa genérica do alimento-base.
+9. Evidência posterior de marca/variante comercial deve acionar integralmente o contrato fail-closed de produto comercial.
+10. Referências verificáveis materialmente conflitantes continuam resultando em clarificação; não selecionar arbitrariamente uma delas.
+11. Medidas estruturalmente vagas (`pedaço`, `porção`, `pacote`, `punhado`) não se tornam estimáveis apenas por esta correção.
+12. Quando `user_learned`, `usual_average` ou `contextual_estimate` forem usados, a resposta deve preservar a medida/quantidade original e mostrar explicitamente a gramatura aproximada usada no cálculo.
+13. Calorias/macros devem usar a gramatura resolvida pelo pipeline canônico e escalar proporcionalmente à quantidade.
+14. Enquanto qualquer item da mesma mensagem ainda exigir clarificação real, nenhum item da refeição composta deve ser parcialmente persistido.
+15. O comportamento não pode depender de hardcode de fruta/qualificador nem de uma segunda inferência livre da IA para inventar peso.
+
+## Cenários obrigatórios
+
+### A. Regressão de produção — qualificador
+
+```text
+1 banana nanica, 1 pêra packans
+```
+
+Com evidência segura para unidade de pêra:
+
+- banana continua no fluxo válido;
+- pêra não pergunta peso apenas por falta de porção específica do qualificador;
+- a quantidade resolve pela melhor fonte canônica disponível;
+- se aproximada, a resposta preserva `1 unidade` e mostra `aprox. X g`;
+- a refeição composta mantém atomicidade.
+
+### B. Regressão de produção — múltiplas unidades
+
+```text
+1 banana nanica, 6 uvas pretas, 1 pêra packans
+```
+
+Com evidência segura para uva e pêra:
+
+- `6 uvas pretas` percorre a precedência canônica de medida;
+- o multiplicador 6 chega ao cálculo da gramatura;
+- a identidade `uvas pretas` é preservada;
+- a resposta preserva `6 unidades` ou medida semanticamente equivalente e mostra `aprox. X g` quando estimada;
+- o caso não depende de qualquer constante dedicada a uva;
+- nenhum item é persistido parcialmente se outro ainda exigir clarificação.
+
+### C. Fruta genérica
+
+```text
+1 pêra
+```
+
+Esperado: mesma precedência canônica; clarificação somente quando nenhuma fonte segura resolver/estimar a unidade.
+
+### D. Segundo qualificador natural desconhecido
+
+Usar caso parametrizado diferente de `packans` e não cadastrado em lista hardcoded.
+
+Esperado:
+
+- token residual não vira marca apenas por ser desconhecido;
+- texto original é preservado;
+- quantidade pode usar alimento-base se os guards permitirem;
+- não afirmar cultivar específico sem evidência.
+
+### E. Cultivar específico verificável
+
+Quando houver evidência verificável para `1 unidade` da variedade/cultivar específica:
+
+- usar a referência específica com precedência;
+- manter identidade específica;
+- não substituí-la por média genérica.
+
+### F. Produto comercial verdadeiro
+
+Usar produto com marca explícita reconhecida/estruturada.
+
+Esperado:
+
+- a exceção de alimento natural não remove o guard comercial;
+- ausência de medida/identidade comercial comprovada continua fail-closed conforme #1088;
+- `same_food_type` não fecha identidade comercial.
+
+### G. Variantes naturais protegidas
+
+Cobrir ao menos:
+
+```text
+laranja pêra
+mamão formosa
+```
+
+Esperado: continuam sem promoção indevida a marca.
+
+### H. Referências conflitantes
+
+Duas referências verificadas da mesma fruta/medida com dispersão materialmente incompatível.
+
+Esperado: clarificação, sem cherry-pick.
+
+### I. Medida ambígua
+
+```text
+1 pedaço de pêra
+```
+
+Sem base específica, manter clarificação.
+
+## Critérios de aceite
+
+- [ ] Os dois golden flows de produção passam pelo **entrypoint público real do WhatsApp** em teste determinístico.
+- [ ] `1 banana nanica, 1 pêra packans` não entra em clarificação de peso quando existe resolução/estimativa segura.
+- [ ] `1 banana nanica, 6 uvas pretas, 1 pêra packans` prova que a solução não é específica de `packans`.
+- [ ] Existe teste focal de fruta contável múltipla atravessando a fronteira real que decide medida -> gramas.
+- [ ] O teste principal não mocka `resolveHouseholdMeasure()` com resultado já resolvido no ponto que precisa ser validado.
+- [ ] Doubles ficam restritos a boundaries externos de pesquisa/IA e integrações equivalentes; a decisão medida -> gramas executa de verdade no teste principal.
+- [ ] A cobertura inclui ao menos três classes: unidade única, múltiplas unidades pequenas e fruta com qualificador.
+- [ ] Um segundo qualificador natural desconhecido prova ausência de hardcode de `packans`.
+- [ ] Marca estruturada/reconhecida continua tendo precedência sobre a heurística natural.
+- [ ] `1 pêra` e `1 pêra <qualificador>` reutilizam a mesma fronteira canônica de medidas.
+- [ ] Referência específica da variedade/cultivar, quando verificável, vence estimativa genérica.
+- [ ] Referência `same_food_type` genérica pode preencher somente quantidade como aproximação; não reescreve identidade específica nem é apresentada como referência exata.
+- [ ] Referências conflitantes continuam gerando clarificação.
+- [ ] `pedaço`, `porção`, `pacote` e `punhado` continuam sem promoção automática a estimativa contextual.
+- [ ] Aproximações preservam quantidade/medida original e informam `aprox. X g`.
+- [ ] Calorias/macros escalam com a gramatura efetivamente resolvida, inclusive para múltiplas unidades.
+- [ ] A refeição composta permanece atômica diante de qualquer clarificação remanescente.
+- [ ] Não existe nova constante/mapa de peso específico de fruta/cultivar em parser, webhook, prompt ou formatter.
+- [ ] Testes de #1088 para produto comercial e variantes naturais continuam passando.
+- [ ] `docs/testing/whatsapp-response-contract-regression.md` registra os dois golden flows, o boundary real protegido e a evidência automatizada correspondente.
+- [ ] `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e `pnpm agent:check` permanecem aprovados.
+- [ ] O smoke pós-deploy repete os dois golden flows no runtime publicado correspondente ao candidato aprovado.
+
+## Cobertura automatizada mínima
+
+1. wrapper/entrypoint público real do WhatsApp para os dois golden flows;
+2. teste focal do boundary que classifica qualificador residual como alimento natural;
+3. caso parametrizado com outro qualificador natural desconhecido;
+4. fruta contável múltipla, como `6 uvas pretas`, preservando multiplicador até a gramatura final;
+5. controle com marca comercial real;
+6. controles com `laranja pêra` e `mamão formosa`;
+7. `resolveHouseholdMeasure` com fruta natural por `unidade` + referência `same_food_type` verificável -> `contextual_estimate`;
+8. duas referências coerentes -> `usual_average`;
+9. referências conflitantes -> clarificação;
+10. referência específica de variedade vencendo referência genérica;
+11. `pedaço` -> clarificação;
+12. resposta final preservando medida/quantidade original e procedência aproximada;
+13. atomicidade da refeição composta quando outro item ainda precisa de clarificação;
+14. regressões relevantes de #1043/#1047/#1088.
+
+## Invariantes estruturais
+
+### `must_behave`
+
+- Fruta natural contável tenta resolução/estimativa segura antes de clarificar.
+- Quantidades múltiplas preservam o multiplicador até a gramatura e composição nutricional finais.
+- Qualificador residual natural pode permanecer não comprovado sem bloquear a resolução quantitativa do alimento-base.
+
+### `must_not_behave`
+
+- Não pedir peso imediatamente apenas porque não existe porção estática exata para a fruta/qualificador.
+- Não tratar `6 uvas` como `1 unidade`, `1 porção` ou medida estruturalmente vaga.
+- Não transformar token residual desconhecido em marca automaticamente.
+- Não afirmar cultivar específico sem evidência.
+- Não aplicar a exceção natural a produto comercial comprovado.
+- Não persistir parcialmente refeição composta enquanto houver clarificação real.
+
+### `must_reuse`
+
+- Reutilizar a classificação/identidade canônica do `nutritionEngine`/preflight para distinguir alimento natural de identidade comercial.
+- Reutilizar `householdMeasureResolution.ts` como owner da gramatura.
+- Reutilizar guards semânticos/evidenciais e o passthrough contável existentes.
+
+### `must_be_single_source`
+
+- Medida -> gramas continua pertencendo à fronteira canônica de medidas.
+- A decisão “marca comprovada vs. qualificador natural não comprovado” não pode ser duplicada em parser, webhook, prompt e formatter.
+
+### `must_not_depend_on`
+
+- Não depender de hardcode de `packans`, uva, pêra ou outra fruta.
+- Não depender de o catálogo estático conhecer todos os cultivares.
+- Não depender de segunda inferência livre da IA para inventar peso.
+
+### `precedence_invariants`
+
+```text
+texto original + quantidade + classificação/identidade
+-> marca comprovada OU qualificador natural não comprovado
+-> resolução canônica de medida
+-> composição nutricional proporcional
+-> persistência/resposta atômica
+```
+
+Marca comprovada vence a heurística natural. Qualificador natural não comprovado não vira marca por default. Referência genérica de quantidade não rebaixa nem substitui identidade específica comprovada.
+
+### `forbidden_implementation`
+
+1. **Adicionar pesos fixos específicos para uva/pêra/cultivar.**
+   - Falha mascarada: os golden flows passam, mas outra fruta volta a falhar.
+   - Controle: terceira fruta natural contável sem constante dedicada + verificação estrutural.
+
+2. **Corrigir somente o token `packans` ou criar alias específico.**
+   - Falha mascarada: o primeiro golden flow passa e `6 uvas pretas` continua falhando.
+   - Controle: segundo golden flow obrigatório pelo entrypoint público + qualificador parametrizado desconhecido.
+
+3. **Mockar o resolvedor no teste end-to-end como já resolvido.**
+   - Falha mascarada: roteamento parece correto sem validar a fronteira que falha em produção.
+   - Controle: doubles somente nos boundaries externos; medida -> gramas executa de verdade.
+
+4. **Remover globalmente o fail-closed de produto comercial.**
+   - Falha mascarada: frutas passam, mas produtos de marca perdem proteção.
+   - Controle: regressão #1088 com produto comercial real.
+
+5. **Tratar todo token residual após fruta como cultivar confirmado.**
+   - Falha mascarada: evita falso positivo de marca, mas fabrica identidade.
+   - Controle: qualificador deve permanecer não comprovado até existir evidência específica.
+
+6. **Usar referência genérica como se fosse exata da variedade.**
+   - Falha mascarada: gramatura pode parecer correta, mas procedência fica falsa.
+   - Controle: exigir `usual_average`/`contextual_estimate` e apresentação aproximada.
+
+7. **Aplicar o peso de uma unidade sem multiplicar pela quantidade.**
+   - Falha mascarada: casos de `1 unidade` passam; `6 uvas` produz gramatura/nutrientes de uma única uva.
+   - Controle: teste assertivo de proporcionalidade para múltiplas unidades.
+
+## Impacto na documentação
+
+As regras duráveis continuam nas fontes canônicas existentes; não criar novo design doc.
+
+A implementação deve atualizar `docs/testing/whatsapp-response-contract-regression.md` para:
+
+- registrar os dois casos reais da reabertura;
+- explicitar que o controle começa no entrypoint público do WhatsApp;
+- atravessar a fronteira real de resolução de medida;
+- registrar a cobertura de múltiplas unidades e atomicidade;
+- apontar os testes que provam o comportamento.
+
+Se a implementação alterar uma regra durável, atualizar a fonte canônica correspondente na mesma PR. Caso contrário, preservar os design docs atuais.
+
+## Riscos e dependências
+
+- Token desconhecido após fruta natural pode ser cultivar, marca ou erro de digitação; a solução deve preservar incerteza em vez de afirmar silenciosamente uma identidade.
+- Usar alimento-base para estimar quantidade é permitido somente quando os guards de medida forem satisfeitos.
+- A correção deve manter intacta a política fail-closed de produto comercial validada pela #1088.
+- Como a PR #1183 já passou testes mas o runtime publicado continuou falhando, a principal dependência de aceite é provar equivalência entre o teste do golden flow e o entrypoint/boundary realmente executado em produção.
+
+## Perguntas em aberto
+
+Nenhuma decisão funcional bloqueante permanece. A implementação deve confirmar por teste a causa concreta no caminho público antes de escolher o ponto mínimo de alteração.

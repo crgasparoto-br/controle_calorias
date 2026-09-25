@@ -1,0 +1,2648 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "/mnt/data/cc1181/repo/.audit/entregar-issue/issue-1181/specification-snapshot.json",
+    "sha256": "9a00c4ec354eaf0f6f88564e03f2408657bb2ac97e0ee31cf704930f796f7933"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1181",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "f08686449c6cdc78a1e884540cd21218e3ac508de01f1085b0b07fb75a1840b5",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 5,
+      "source_text": "Corrigir de forma sistêmica a regressão do registro alimentar via WhatsApp em que **frutas naturais contáveis** informadas por unidade, inclusive com qualificadores naturais e quantidades múltiplas, entram em clarificação de peso antes de esgotar a precedência canônica de resolução de medida.",
+      "flags": [
+        "temporal",
+        "atomicity",
+        "review-surface",
+        "precedence",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "34443378aae2bf0f50724d3c1a7dc62b39b8feeb250eadc8e18757584f3f1dd5",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 7,
+      "source_text": "A correção deve funcionar pelo **entrypoint público real do WhatsApp**, preservar identidade, quantidade e atomicidade da refeição composta e manter os guards fail-closed para produtos realmente comerciais.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "06f21fd89da15f686c385d3b06e931bb27d09e0ef09bf2a2b9ce569f52895448",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 9,
+      "source_text": "Usar `develop` como branch base.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "19d81bca9708495fbf7e3de1be8840ae64429a34dcc01ca6700d4e072a68a567",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 13,
+      "source_text": "A issue foi reaberta após reprodução em produção depois da implementação da PR #1183 e da promoção de `develop` para `main` pela PR #1185.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "3c6175f670011e590c96985a6796885a8ef3ad7b99ccaa530f2ce404652e1da0",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 28,
+      "source_text": "Não encontrei uma gramatura verificável nem uma média usual segura para 1 pêra packans.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "eace87e350a56372436dd3af73be32c966e1e8a09abc7a283930f43094b81ee5",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 29,
+      "source_text": "Informe somente o peso ou volume correspondente, por exemplo 20 g.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "1413fe9dbe5cca7188ce6342f33376ae769943dc0c7b4eb22b2dbb02946afeea",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 45,
+      "source_text": "Não encontrei uma gramatura verificável nem uma média usual segura para 6 uvas pretas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "3859de287dee34f3ae6c467c77d8002bc78a323ef276e2009203aec05cc8b10b",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 46,
+      "source_text": "Informe somente o peso ou volume correspondente, por exemplo 20 g.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "64163093719dd95c0989fc83f5207c9cab0696b937fb6a9fc2ff09a2b124ba6c",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 53,
+      "source_text": "Esta issue corrige drift de implementação e de cobertura; não cria uma política nova de medidas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "d92901f75226672fc6baa9ec938cb526bff27dc55937195595f1ecfb89981a07",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 56,
+      "source_text": "`1 unidade` pode ser estimada quando a identidade do alimento torna a unidade física suficientemente definida;",
+      "flags": [
+        "review-surface",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "093cf8b9b33fbb6b165b451de3de59c99143b621357079dfac2e423a3bc017f9",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 57,
+      "source_text": "`usual_average` e `contextual_estimate` são permitidos sob evidência verificável e coerente;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "1763b52421ad16f058c825abeaa22345aed1940f5182f7380b2075f39c283ce3",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 61,
+      "source_text": "precedência: massa/volume explícitos -> porção canônica -> pesquisada exata -> `user_learned` -> `usual_average` -> `contextual_estimate` -> clarificação;",
+      "flags": [
+        "atomicity",
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "e507d6ccedfa0c5d885c6962d7f61151cd412654dfa0d27f065ad106b67bfe12",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 62,
+      "source_text": "aproximações preservam a medida original e informam a gramatura usada;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "d1d18f014fa523ce7693b7edda33c78c853ece57092d6455666d177626a19944",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 66,
+      "source_text": "alimento natural sem identidade comercial pendente não herda esse bloqueio.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "680482a39d16319c78bbc376b8bd6153279e961dc3c42d4d7f30bf262b8c3203",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 74,
+      "source_text": "A `develop` já contém a implementação da PR #1183, incluindo:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "cd7a1546aad51cc4faabfff9537d30496fc49e2c8767c373a080ef30d2debc35",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 76,
+      "source_text": "preflight que tenta preservar fruta natural antes da heurística comercial;",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "c8511c46c20b3bf4a9b97f7ba6880b8c9b28e5972ce214ad7a50de2c5e35372f",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 81,
+      "source_text": "Mesmo assim, o runtime publicado reproduziu os dois golden flows acima. Portanto, a nova correção **não pode assumir que os testes da PR #1183 exercitam a mesma fronteira do entrypoint público que falha em produção**.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "91e4c59ef48cddfef9686ed28196bebdf7887bee9d2a0a221c906de5a226c180",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 83,
+      "source_text": "A implementação deve localizar e provar o ponto exato em que o item contável é desviado antes de `resolveHouseholdMeasure()`, ou em que quantidade/identidade são degradadas no caminho real. O teste principal não pode mascarar essa fronteira injetando o resolvedor como já concluído.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "28025939f62faa50862c4a26b2c38e2210f19f318e140a18c358cc70efd26c6f",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 94,
+      "source_text": "-> porção exata / researched_exact / user_learned / usual_average / contextual_estimate",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "4818d4be51efd2ee07088ba5621a92aeecf783cb7a954c4ce740e0dbd41af9ca",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 95,
+      "source_text": "-> clarificação somente como último recurso",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "aca6436564ae4367bb54dbe2aeeacad05fcd42f277b3302466ab065c80ac141f",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 100,
+      "source_text": "Um token residual após fruta natural **não deve ser automaticamente afirmado como marca nem como cultivar**.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "0e798b3b9b5ad76cf34e15afddb6571ec68d090f1ad3d868bb39cb151ce0b642",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 104,
+      "source_text": "a classificação canônica identifica alimento natural ou minimamente processado;",
+      "flags": [
+        "atomicity",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "f38f2c6aef02033e5900ba4111f79948d547d4cd1d5b40972e48320280c270eb",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 105,
+      "source_text": "o item é fruta/vegetal, ou há evidência canônica equivalente de alimento natural;",
+      "flags": [
+        "exhaustive",
+        "atomicity",
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "c604499919fc6acf47adb396f0569851293d449fd18458d0b6fef6b3bd662401",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 106,
+      "source_text": "o alimento-base é compatível com o segmento original;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-024"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "b4773c8ec7af3e81e47f89e36fafcc6a6a66206193659675b3651d8c976e63b8",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 110,
+      "source_text": "o token residual deve permanecer como **qualificador natural não comprovado**. Ele pode ser preservado no nome exibido/original, mas não pode por si só converter o item em produto comercial fail-closed.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "014820ff70c63490068935cd2eeace7929c5b09e4bd24e827af7684d2b3c0804",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 114,
+      "source_text": "Para quantidade, quando o alimento-base natural estiver estabelecido e não houver porção mais específica, uma referência `same_food_type` da mesma fruta/tipo pode sustentar `usual_average` ou `contextual_estimate` conforme os guards existentes. Isso resolve **quantidade**, não prova identidade exata da variedade.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "8e100a5b6081af921bd0704293195f0fe0d9c4e7cbc56e48ce2a5f8c6b3725bb",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 118,
+      "source_text": "Restaurar a precedência completa de medida para frutas naturais contáveis.",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "b1862b1c2be3fe871c33b2735b09a6dc287b141ef72dab505884c759217431bc",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 119,
+      "source_text": "Suportar quantidade unitária e múltipla sem perder o multiplicador, por exemplo `1 pêra` e `6 uvas`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-028"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "df8e793f5cc103b47ee514d8e92df05a7be87531f6fb2b5128d9dcf7ca39bfee",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 120,
+      "source_text": "Impedir que qualificador natural não comprovado seja promovido a marca comercial somente por ser token residual.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-029"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "60931d43bc39d71633b6d2848fcaf8c2b48611db2773ea35e3755f2c3e410b0d",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 121,
+      "source_text": "Preservar qualificador e quantidade originais na resposta sem inventar cultivar.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-030"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "8fc33a1f85e072bf75f6d1a5da6b1f24f54563d6a1dbf5536d4ae8f8d0517aff",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 122,
+      "source_text": "Permitir `usual_average` ou `contextual_estimate` do mesmo alimento/tipo apenas para quantidade quando a evidência for segura.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "6c9b2de2d08f5e4080093070405dd51ae56775ab259898aec93e8ea5eb447b9c",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 123,
+      "source_text": "Manter precedência de referência específica de variedade/cultivar quando verificável.",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "07140f4c8adf9c56172e937b827c79a9c5fc0965501621703ee4c7f601fd35c4",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 124,
+      "source_text": "Manter guards fail-closed de produtos realmente comerciais.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "7be3df1567a076d810f3d9a7119a1f35d176b89d6a090caa46e46f68b8f59214",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 125,
+      "source_text": "Preservar atomicidade da refeição composta.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "7116c61f35f20226c2805783e8e1a6b0af1c5bc8cc2566fd10f78eb9f1ecf29c",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 126,
+      "source_text": "Cobrir o pipeline público real do WhatsApp e a fronteira real que decide medida -> gramas.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "e6e9f6fedbd2511d01f7ea0cc1282835e0c27a4940c17aa1b0219c9fdc86529e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 140,
+      "source_text": "Fruta natural com quantidade contável deve percorrer a cadeia canônica de resolução antes de qualquer clarificação.",
+      "flags": [
+        "exhaustive",
+        "temporal",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "ccdfd3c72ecce24869b8b27d78ffe857a64f66b0539aee57739174c9d3a99dff",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 141,
+      "source_text": "Quantidades múltiplas devem preservar o multiplicador até a gramatura final; `6 uvas` não pode ser reduzido a `1 unidade`, `1 porção` ou medida vaga equivalente.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "review-surface",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "63046fcfcec2b78e8f10adf06fefb409e73a2db6bcd28e01334a5f5b000a8ced",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 142,
+      "source_text": "`1 pêra <qualificador>` deve permanecer fruta natural contável quando a identidade-base estiver estabelecida e não houver evidência comercial conflitante.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "e223ce66a9ea399cc829e7a43cc576b115439c8c7225696eff34a3b9aca556ec",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 143,
+      "source_text": "A ausência de porção estática exata do qualificador não deve provocar clarificação imediata.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-039"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "4082fd408024beade801ee795959144ebd7f63c0aff09844168f06dbe1336d8b",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 144,
+      "source_text": "A precedência de quantidade deve permanecer:",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-040"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "bb849ac6292961121b72560d5926514930b4b693af0f57f30b5d5be4bc895d22",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 150,
+      "source_text": "-> média usual coerente",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-041"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "e530570ab3ff8baa8d5cefcb8e82e70c79c05438a4d095f7fc43cee081f0b514",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 154,
+      "source_text": "Qualificador natural não comprovado deve permanecer preservado no texto/identidade apresentada, sem ser promovido automaticamente a marca ou cultivar exato.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-042"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "b573ef86e22708b2b5cd46bdcbf515bc153038d1746ed307a830d512fcb5d901",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 155,
+      "source_text": "Para alimento natural sem marca comprovada, referência `same_food_type` compatível pode resolver apenas a quantidade quando passar pelos guards atuais de identidade, unidade, relação física, fonte e coerência.",
+      "flags": [
+        "negative",
+        "review-surface",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-043"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "a4c829b7e03795318e606f3e95510467309ce64dc10ba734879041e089dcc197",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 156,
+      "source_text": "Referência verificável mais específica da mesma variedade/cultivar deve vencer estimativa genérica do alimento-base.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-044"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "7b3ccf1eedbb3d854f7bc0cd2f71f063b2ff01c52dbf7a2faa62f266f43a77b2",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 157,
+      "source_text": "Evidência posterior de marca/variante comercial deve acionar integralmente o contrato fail-closed de produto comercial.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-045"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "84f686771a0702481697b1ab4b2c63fb00a918652fc5154cc927b167b7015a44",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 158,
+      "source_text": "Referências verificáveis materialmente conflitantes continuam resultando em clarificação; não selecionar arbitrariamente uma delas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-046"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "bd25f200bc5eaaaafc6ef4dda2e906b817b7e4e72be0accfc00eb55312d5db82",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 159,
+      "source_text": "Medidas estruturalmente vagas (`pedaço`, `porção`, `pacote`, `punhado`) não se tornam estimáveis apenas por esta correção.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-047"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "2b222733adaad2905cb35f2c88caa293978cc10c112470cc04e9ba3da239a194",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 160,
+      "source_text": "Quando `user_learned`, `usual_average` ou `contextual_estimate` forem usados, a resposta deve preservar a medida/quantidade original e mostrar explicitamente a gramatura aproximada usada no cálculo.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-048"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "ee16f2831bda6dc80814efb7793f550e8f8b776961b108a9226e04ebf0e56c40",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 161,
+      "source_text": "Calorias/macros devem usar a gramatura resolvida pelo pipeline canônico e escalar proporcionalmente à quantidade.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-049"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "6de95c8c331d63cc8d3d0c2971aa82728c4ef67581b58d40508c98aad82f942e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 162,
+      "source_text": "Enquanto qualquer item da mesma mensagem ainda exigir clarificação real, nenhum item da refeição composta deve ser parcialmente persistido.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-050"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "7f421341b4b907cec28f0060e704001c6076f770670fc0ef123ff332f80a8687",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 163,
+      "source_text": "O comportamento não pode depender de hardcode de fruta/qualificador nem de uma segunda inferência livre da IA para inventar peso.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-051"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "0bca962965588e44985ee0054ce59837eaff8959cfbabda51795d9dbdc6b4f1a",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 176,
+      "source_text": "pêra não pergunta peso apenas por falta de porção específica do qualificador;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-052"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "5d096908295ff90c97ac96bb5595e7f8b0690f70281b9637c25d03dbcd6c7b6d",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 178,
+      "source_text": "se aproximada, a resposta preserva `1 unidade` e mostra `aprox. X g`;",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-053"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "46de029d4332f110aa0e467224612b8a952b1374a8678fe2c558661f76ef481a",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 179,
+      "source_text": "a refeição composta mantém atomicidade.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-054"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "3569410a6dbe061ffcd1ab5f1fca631df67c44e07cdee23adfaca0d9859b85d9",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 191,
+      "source_text": "a identidade `uvas pretas` é preservada;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-055"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "bccd226d444d3c9914e1298e9f1af061815ddf62e47862e88f1d25e1b79b81c8",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 192,
+      "source_text": "a resposta preserva `6 unidades` ou medida semanticamente equivalente e mostra `aprox. X g` quando estimada;",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-056"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "26a8a6c58b2e2cea997f15a8a02c4197ac2a752f78459e3e8c21773c561609ad",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 202,
+      "source_text": "Esperado: mesma precedência canônica; clarificação somente quando nenhuma fonte segura resolver/estimar a unidade.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "atomicity",
+        "review-surface",
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-057"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "5a6dd8537f4fbd0300764775b979bd0829d311883abb444a3666df7d7860c1b8",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 206,
+      "source_text": "Usar caso parametrizado diferente de `packans` e não cadastrado em lista hardcoded.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-058"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "1151f07f6021e3e4763877e990ddfe972d218f40d59fdbe3d4f57efc80835374",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 210,
+      "source_text": "token residual não vira marca apenas por ser desconhecido;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-059"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "7ee2e7f102ee799a7b6ca1c18ec5daab6d1ba40c330f0fff63682b7a261b3048",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 211,
+      "source_text": "texto original é preservado;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-060"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "c89cb5e33828c57a0bf6909af257e8e69f32d9bd1afa5101585390d7c35b0dff",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 212,
+      "source_text": "quantidade pode usar alimento-base se os guards permitirem;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-061"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "0735ee237ca31b71eb6c8e3ad1a846f20519e558baed6b7969d9207c46028c23",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 219,
+      "source_text": "usar a referência específica com precedência;",
+      "flags": [
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-062"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "953856b02718b77397599f1fba82a669bd1e1a49277d2b7f7b45d1ef8707d8e3",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 220,
+      "source_text": "manter identidade específica;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-063"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "d4e9e6450300a2e64eab14f8f2bad50414d2017664c526d0ba3acdbd88483972",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 225,
+      "source_text": "Usar produto com marca explícita reconhecida/estruturada.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-064"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "5d5f550ebffe7504467652df022d35cab2b7038371cf845fe79dfacd672f0376",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 229,
+      "source_text": "a exceção de alimento natural não remove o guard comercial;",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-065"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "a1880acc3da878a344891a23d1f83372b3597ab9d5ea5ae2a551ffa4a9b50c48",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 256,
+      "source_text": "Sem base específica, manter clarificação.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-066"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "d5f48baea061455aea050c69fa2ca8ffa67bc96917a2cf313805600d9b27b349",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 260,
+      "source_text": "[ ] Os dois golden flows de produção passam pelo **entrypoint público real do WhatsApp** em teste determinístico.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-067"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "090ea5773846e479a96e66c3cfe255bdbad31721f29332965030f05d58e423dd",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 261,
+      "source_text": "[ ] `1 banana nanica, 1 pêra packans` não entra em clarificação de peso quando existe resolução/estimativa segura.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-068"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "2e04686d6b09234c43c11059bca7efd90eaaa2a3ab22e60fedc9198997092234",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 262,
+      "source_text": "[ ] `1 banana nanica, 6 uvas pretas, 1 pêra packans` prova que a solução não é específica de `packans`.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-069"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "f04d503cf9e2e942b014a0c9df13baad80bead0715515e6e1092debf74f6f4d8",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 263,
+      "source_text": "[ ] Existe teste focal de fruta contável múltipla atravessando a fronteira real que decide medida -> gramas.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-070"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "393528e841922f7722391aa111a79855d988ef6b877d40f3930d31b87f3901c5",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 264,
+      "source_text": "[ ] O teste principal não mocka `resolveHouseholdMeasure()` com resultado já resolvido no ponto que precisa ser validado.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-071"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "92dff0345608a3c1ee4df4b800013f75689cc2701bf923c2e11b873b20d5d03a",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 265,
+      "source_text": "[ ] Doubles ficam restritos a boundaries externos de pesquisa/IA e integrações equivalentes; a decisão medida -> gramas executa de verdade no teste principal.",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-072"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "ad4b0d60efdf50e0e3c3ec0ec5809c6e416eb1898fcdc404ffd0c720e81fb84e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 266,
+      "source_text": "[ ] A cobertura inclui ao menos três classes: unidade única, múltiplas unidades pequenas e fruta com qualificador.",
+      "flags": [
+        "atomicity",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-073"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "745dd678aa3b64668bd63539033da4695e5ee96cae313c7d9823e8adffca985d",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 267,
+      "source_text": "[ ] Um segundo qualificador natural desconhecido prova ausência de hardcode de `packans`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-074"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "53d2240b1dcdd1e61f4ee0f6af3fd8aed52f3058c3f73080a2c7b1e3e38e75c9",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 268,
+      "source_text": "[ ] Marca estruturada/reconhecida continua tendo precedência sobre a heurística natural.",
+      "flags": [
+        "structural",
+        "precedence"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-075"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "80893e260e9d6cb1ba32011a6b924942496e099e3632ab8fa14916363bde1ad9",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 269,
+      "source_text": "[ ] `1 pêra` e `1 pêra <qualificador>` reutilizam a mesma fronteira canônica de medidas.",
+      "flags": [
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-076"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "f342b4b1fc237f7b8d6c2d12edfde3891fcab8c32eda9d352c0d470058217d56",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 270,
+      "source_text": "[ ] Referência específica da variedade/cultivar, quando verificável, vence estimativa genérica.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-077"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "41095d5fb34669c0f450e5ded010fb7c0bc588ec06d8aed405d22762efd1ca4a",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 271,
+      "source_text": "[ ] Referência `same_food_type` genérica pode preencher somente quantidade como aproximação; não reescreve identidade específica nem é apresentada como referência exata.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-078"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "cd6090fcd61016a6ec281cd3f2062934dd1f068f1c7d98226dcde88614bf9e7c",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 272,
+      "source_text": "[ ] Referências conflitantes continuam gerando clarificação.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-079"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-080",
+      "candidate_key": "80e315d8e452a5fbc45756795eb1bd6f81a4dd395b912ab9080154176de7fb6e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 273,
+      "source_text": "[ ] `pedaço`, `porção`, `pacote` e `punhado` continuam sem promoção automática a estimativa contextual.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-080"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-081",
+      "candidate_key": "fbbf06d20b5b53119909c64377585c6a9dcb8bef772f3c009b650ffaf4bf59a0",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 274,
+      "source_text": "[ ] Aproximações preservam quantidade/medida original e informam `aprox. X g`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-081"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-082",
+      "candidate_key": "b70222792fc1a9c5d4ebb4851e06627cdc4bdd4364440b512fa8abf4f6910f02",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 275,
+      "source_text": "[ ] Calorias/macros escalam com a gramatura efetivamente resolvida, inclusive para múltiplas unidades.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-082"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-083",
+      "candidate_key": "c6bcf582eee9b4026b80c8022e739317ec47a7929c764af7d171ff9567e5f6dd",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 276,
+      "source_text": "[ ] A refeição composta permanece atômica diante de qualquer clarificação remanescente.",
+      "flags": [
+        "exhaustive",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-083"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-084",
+      "candidate_key": "2b737f94015ed08d013d7b5b7acc80ef3fcac7e1ea32fcd43c8d6e895c6f5cfd",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 277,
+      "source_text": "[ ] Não existe nova constante/mapa de peso específico de fruta/cultivar em parser, webhook, prompt ou formatter.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-084"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-085",
+      "candidate_key": "56f9f3187ecbc1b91b6a6a18606732d8e9794c35b710cb39b512a2bf2efaed0e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 278,
+      "source_text": "[ ] Testes de #1088 para produto comercial e variantes naturais continuam passando.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-085"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-086",
+      "candidate_key": "fef0bb9a04be27f03ef3a55c2285a061f9c6fbc130e0abdfc98ac3e30dac4782",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 279,
+      "source_text": "[ ] `docs/testing/whatsapp-response-contract-regression.md` registra os dois golden flows, o boundary real protegido e a evidência automatizada correspondente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-086"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-087",
+      "candidate_key": "22c7e76bbee369d0d2e2c53b6fa437ff91628c17a7e4af9a8ee1625a69221ec8",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 280,
+      "source_text": "[ ] `pnpm check`, `pnpm test`, `pnpm architecture:check`, `pnpm docs:check`, `pnpm build` e `pnpm agent:check` permanecem aprovados.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-087"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-088",
+      "candidate_key": "56747a4c720c5622c39b2a5e4f2d2fb7826eff6eb1885ef450dd5f07c7608b23",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 281,
+      "source_text": "[ ] O smoke pós-deploy repete os dois golden flows no runtime publicado correspondente ao candidato aprovado.",
+      "flags": [
+        "freshness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-088"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-089",
+      "candidate_key": "5e963e319f8715f0bf302923eaaecbfd5249daa43c5efd467497f09ca47ebcab",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 286,
+      "source_text": "teste focal do boundary que classifica qualificador residual como alimento natural;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-089"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-090",
+      "candidate_key": "b886b95f21b9f8f21b5e0c5c870f5bd1aa8614873f5bdc866531a0ba621b1485",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 288,
+      "source_text": "fruta contável múltipla, como `6 uvas pretas`, preservando multiplicador até a gramatura final;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-090"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-091",
+      "candidate_key": "c2c03b8c45a33ee8896e8d4743e307ff7ce5f365cdf082c01b810c67b3ed350f",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 292,
+      "source_text": "duas referências coerentes -> `usual_average`;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-091"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-092",
+      "candidate_key": "89edf059fa97cb59953da04ee8ec3a260f3aea778fff4c03bf95e89818bacca0",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 296,
+      "source_text": "resposta final preservando medida/quantidade original e procedência aproximada;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-092"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-093",
+      "candidate_key": "9feeba8539d742a1d7f2f845326d989cdd224e2617c23547012da2024343ce13",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 305,
+      "source_text": "Quantidades múltiplas preservam o multiplicador até a gramatura e composição nutricional finais.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-093"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-094",
+      "candidate_key": "10e78b76df97327343bd83986a6d468fef1d28994ffd08630258239beb805cb6",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 306,
+      "source_text": "Qualificador residual natural pode permanecer não comprovado sem bloquear a resolução quantitativa do alimento-base.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-094"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-095",
+      "candidate_key": "702778810d923a424fd1ded832fcdbd709814368bfa1c10906861ead59047e74",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 310,
+      "source_text": "Não pedir peso imediatamente apenas porque não existe porção estática exata para a fruta/qualificador.",
+      "flags": [
+        "observable",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-095"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-096",
+      "candidate_key": "039c0036f3740e9c419d580d8f123f44bd7b488ed4b4ba693c7b0c0151280465",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 314,
+      "source_text": "Não aplicar a exceção natural a produto comercial comprovado.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-096"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-097",
+      "candidate_key": "e9381020f1df1aa35f7ff82792bfb266983283c2c7b173f3b2be3039c9d36622",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 319,
+      "source_text": "Reutilizar a classificação/identidade canônica do `nutritionEngine`/preflight para distinguir alimento natural de identidade comercial.",
+      "flags": [
+        "atomicity",
+        "structural",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-097"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-098",
+      "candidate_key": "81f3dc1702be886dafef9671533d0142ab74dede0d70d0d61f783b1dc3366a89",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 320,
+      "source_text": "Reutilizar `householdMeasureResolution.ts` como owner da gramatura.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-098"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-099",
+      "candidate_key": "8a38315de043cfb49559bf4546129f45d5666afa80090352cba4f47f4539f967",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 321,
+      "source_text": "Reutilizar guards semânticos/evidenciais e o passthrough contável existentes.",
+      "flags": [
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-099"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-100",
+      "candidate_key": "101ab4988aaf83fb777172b1ae7d684788f09d53c23c6f14cca8f26f85949d8e",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 326,
+      "source_text": "A decisão “marca comprovada vs. qualificador natural não comprovado” não pode ser duplicada em parser, webhook, prompt e formatter.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-100"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-101",
+      "candidate_key": "73aa046042361fdffae49fd619363da5911f27dcea25b4bf727f057e48ea938f",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 352,
+      "source_text": "**Corrigir somente o token `packans` ou criar alias específico.**",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-101"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-102",
+      "candidate_key": "cabd5e3611220f04b09641b1542de89e14689cb12b51eac567fb7467de8cb0ff",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 357,
+      "source_text": "Falha mascarada: roteamento parece correto sem validar a fronteira que falha em produção.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-102"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-103",
+      "candidate_key": "56e208621c585fb6d71ab1eec675276a19586909143ce11bbeb9a1ea8e50c75b",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 358,
+      "source_text": "Controle: doubles somente nos boundaries externos; medida -> gramas executa de verdade.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-103"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-104",
+      "candidate_key": "c4b8919f251684375408285db175cea2afed7008e34474d2fb1f1727021e2aaf",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 360,
+      "source_text": "**Remover globalmente o fail-closed de produto comercial.**",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-104"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-105",
+      "candidate_key": "70184ae1df0ead3631f8b041c68aab8d7b30fabf59d0e0e5a453e6a65b9dbcd1",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 365,
+      "source_text": "Falha mascarada: evita falso positivo de marca, mas fabrica identidade.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-105"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-106",
+      "candidate_key": "2053925badda12807d7a460db3c060a262db096768915a4926c646d68addd15d",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 366,
+      "source_text": "Controle: qualificador deve permanecer não comprovado até existir evidência específica.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-106"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-107",
+      "candidate_key": "e645a3137c570f1232507bec5be341a1ae7e507d4a6ed30c30b350efe8e08faf",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 368,
+      "source_text": "**Usar referência genérica como se fosse exata da variedade.**",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-107"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-108",
+      "candidate_key": "a45bd19a1ba7a252de139b0ab11a83ca219e5b1674bd14cdc818aa56bc2338e0",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 370,
+      "source_text": "Controle: exigir `usual_average`/`contextual_estimate` e apresentação aproximada.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-108"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-109",
+      "candidate_key": "14f5977c76bc8113187f9b3218de122d6455775cb795e7e12d62e2d833604fcd",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 372,
+      "source_text": "**Aplicar o peso de uma unidade sem multiplicar pela quantidade.**",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-109"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-110",
+      "candidate_key": "59364a598fe4057597f5cd20d38545c0dd0c5ad26d1657f8a31fc6bfb57f21b5",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 380,
+      "source_text": "A implementação deve atualizar `docs/testing/whatsapp-response-contract-regression.md` para:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-110"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-111",
+      "candidate_key": "97f13e0056256178c5afc2dbcfe084d829e516ffcf0433cae30d474883b09c59",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 388,
+      "source_text": "Se a implementação alterar uma regra durável, atualizar a fonte canônica correspondente na mesma PR. Caso contrário, preservar os design docs atuais.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-111"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-112",
+      "candidate_key": "63f4fef674ffec2c6cb3d21fa0ee6da0ac8aa4be9e788bc49886227cadd27085",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 392,
+      "source_text": "Token desconhecido após fruta natural pode ser cultivar, marca ou erro de digitação; a solução deve preservar incerteza em vez de afirmar silenciosamente uma identidade.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-112"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-113",
+      "candidate_key": "e891dbd933a8e99c69a777bfb20ebdd8f54a86993698a58064336985296e4048",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 393,
+      "source_text": "Usar alimento-base para estimar quantidade é permitido somente quando os guards de medida forem satisfeitos.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-113"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-114",
+      "candidate_key": "73dcd299deaf1963aac671317e8182a20073a6d21b2ab1444ff6a1db542bb0ee",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 394,
+      "source_text": "A correção deve manter intacta a política fail-closed de produto comercial validada pela #1088.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-114"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-115",
+      "candidate_key": "da58b992bcedcf266b8a4d4a0f4acc4b897b46535b2f79f08553286f38d09348",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 395,
+      "source_text": "Como a PR #1183 já passou testes mas o runtime publicado continuou falhando, a principal dependência de aceite é provar equivalência entre o teste do golden flow e o entrypoint/boundary realmente executado em produção.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-115"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    },
+    {
+      "id": "OBL-116",
+      "candidate_key": "4bb211806f63e6d01e6a590566c42dae6bba01309c88fb24f3680eada6adf1d0",
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "source_line": 399,
+      "source_text": "Nenhuma decisão funcional bloqueante permanece. A implementação deve confirmar por teste a causa concreta no caminho público antes de escolher o ponto mínimo de alteração.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-116"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the issue-specific implementation, focused regressions, repository-wide CI gates, or preserved canonical behavior at material head 5ae7e621f8787eea3f9c0dd4492beed043823177."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1181",
+      "source_sha256": "37a489c7bf774da0822934c978c3626af1bf355b6a1942933a4fdf6fbfe985e3",
+      "candidate_count": 116,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083",
+        "OBL-084",
+        "OBL-085",
+        "OBL-086",
+        "OBL-087",
+        "OBL-088",
+        "OBL-089",
+        "OBL-090",
+        "OBL-091",
+        "OBL-092",
+        "OBL-093",
+        "OBL-094",
+        "OBL-095",
+        "OBL-096",
+        "OBL-097",
+        "OBL-098",
+        "OBL-099",
+        "OBL-100",
+        "OBL-101",
+        "OBL-102",
+        "OBL-103",
+        "OBL-104",
+        "OBL-105",
+        "OBL-106",
+        "OBL-107",
+        "OBL-108",
+        "OBL-109",
+        "OBL-110",
+        "OBL-111",
+        "OBL-112",
+        "OBL-113",
+        "OBL-114",
+        "OBL-115",
+        "OBL-116"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Structural, precedence, single-source, forbidden-implementation, and atomicity obligations are exercised by public-entrypoint and resolver regressions plus architecture checks.",
+    "entries": [
+      {
+        "id": "STRUCT-1181-PRECEDENCE",
+        "obligation_ids": [
+          "OBL-001",
+          "OBL-012",
+          "OBL-027",
+          "OBL-032",
+          "OBL-040",
+          "OBL-057",
+          "OBL-062",
+          "OBL-075"
+        ],
+        "family": "precedence",
+        "plausible_wrong_implementation": "A fruit qualifier or fallback path could bypass canonical measure precedence, clarify too early, or let a generic quantity source outrank a specific verified reference.",
+        "positive_evidence": "Exact-head public WhatsApp golden-flow tests plus householdMeasureResolution regressions passed in Agent-first gate run 36081931587 for material head 5ae7e621f8787eea3f9c0dd4492beed043823177.",
+        "negative_control_evidence": "Issue #1181 regression controls keep conflicting references and structurally vague measures fail-closed while branded commercial identity retains precedence."
+      },
+      {
+        "id": "STRUCT-1181-SINGLE-SOURCE",
+        "obligation_ids": [
+          "OBL-076",
+          "OBL-097",
+          "OBL-098",
+          "OBL-099"
+        ],
+        "family": "canonical-path",
+        "plausible_wrong_implementation": "The WhatsApp wrapper could duplicate fruit identity or grams logic, allowing qualified fruit and generic fruit to diverge or bypass the canonical household measure resolver and semantic guards.",
+        "positive_evidence": "The exact-head diff carries only a quantity-research hint into resolveHouseholdMeasure; the public wrapper test crosses the real countable gate and resolver rather than mocking a resolved result.",
+        "negative_control_evidence": "Architecture and regression checks on the exact material head prove no fruit-specific weight map or parallel webhook grams owner was introduced."
+      },
+      {
+        "id": "STRUCT-1181-FAIL-CLOSED",
+        "obligation_ids": [
+          "OBL-047",
+          "OBL-064"
+        ],
+        "family": "forbidden-implementation",
+        "plausible_wrong_implementation": "Broadening natural-food quantity research could accidentally make vague measures estimable or let true branded commercial products reuse same-food-type evidence to bypass commercial identity safeguards.",
+        "positive_evidence": "Exact-head tests retain commercial-product and natural-variant controls while allowing only source-backed natural quantity references.",
+        "negative_control_evidence": "The ambiguous-measure and branded-product controls remain fail-closed in the full exact-head CI suite."
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "No independent read-model projection contract is introduced by this delivery; nutrition output remains on existing canonical consumers.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": [],
+    "unresolved_invariants": null
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "The change reuses catalogMatching and householdMeasureResolution as canonical identity and measure boundaries and does not introduce a competing weight map.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": [],
+    "unresolved_invariants": null
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "The canonical testing matrix was updated while durable design documents remain unchanged because the delivery fixes implementation drift rather than policy.",
+    "old_contract_terms": [],
+    "new_contract_terms": [],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "CI docs:check passed on exact material head; canonical docs referenced by issue were inspected and no contradictory policy change was introduced."
+    ],
+    "unresolved_invariants": null
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-007",
+      "REQ-008",
+      "REQ-009",
+      "REQ-010",
+      "REQ-011",
+      "REQ-012",
+      "REQ-013",
+      "REQ-014",
+      "REQ-015",
+      "REQ-016",
+      "REQ-017",
+      "REQ-018",
+      "REQ-019",
+      "REQ-020",
+      "REQ-021",
+      "REQ-022",
+      "REQ-023",
+      "REQ-024",
+      "REQ-025",
+      "REQ-026",
+      "REQ-027",
+      "REQ-028",
+      "REQ-029",
+      "REQ-030",
+      "REQ-031",
+      "REQ-032",
+      "REQ-033",
+      "REQ-034",
+      "REQ-035",
+      "REQ-036",
+      "REQ-037",
+      "REQ-038",
+      "REQ-039",
+      "REQ-040",
+      "REQ-041",
+      "REQ-042",
+      "REQ-043",
+      "REQ-044",
+      "REQ-045",
+      "REQ-046",
+      "REQ-047",
+      "REQ-048",
+      "REQ-049",
+      "REQ-050",
+      "REQ-051",
+      "REQ-052",
+      "REQ-053",
+      "REQ-054",
+      "REQ-055",
+      "REQ-056",
+      "REQ-057",
+      "REQ-058",
+      "REQ-059",
+      "REQ-060",
+      "REQ-061",
+      "REQ-062",
+      "REQ-063",
+      "REQ-064",
+      "REQ-065",
+      "REQ-066",
+      "REQ-067",
+      "REQ-068",
+      "REQ-069",
+      "REQ-070",
+      "REQ-071",
+      "REQ-072",
+      "REQ-073",
+      "REQ-074",
+      "REQ-075",
+      "REQ-076",
+      "REQ-077",
+      "REQ-078",
+      "REQ-079",
+      "REQ-080",
+      "REQ-081",
+      "REQ-082",
+      "REQ-083",
+      "REQ-084",
+      "REQ-085",
+      "REQ-086",
+      "REQ-087",
+      "REQ-088",
+      "REQ-089",
+      "REQ-090",
+      "REQ-091",
+      "REQ-092",
+      "REQ-093",
+      "REQ-094",
+      "REQ-095",
+      "REQ-096",
+      "REQ-097",
+      "REQ-098",
+      "REQ-099",
+      "REQ-100",
+      "REQ-101",
+      "REQ-102",
+      "REQ-103",
+      "REQ-104",
+      "REQ-105",
+      "REQ-106",
+      "REQ-107",
+      "REQ-108",
+      "REQ-109",
+      "REQ-110",
+      "REQ-111",
+      "REQ-112",
+      "REQ-113",
+      "REQ-114",
+      "REQ-115",
+      "REQ-116"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-056",
+      "OBL-057",
+      "OBL-058",
+      "OBL-059",
+      "OBL-060",
+      "OBL-061",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-076",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079",
+      "OBL-080",
+      "OBL-081",
+      "OBL-082",
+      "OBL-083",
+      "OBL-084",
+      "OBL-085",
+      "OBL-086",
+      "OBL-087",
+      "OBL-088",
+      "OBL-089",
+      "OBL-090",
+      "OBL-091",
+      "OBL-092",
+      "OBL-093",
+      "OBL-094",
+      "OBL-095",
+      "OBL-096",
+      "OBL-097",
+      "OBL-098",
+      "OBL-099",
+      "OBL-100",
+      "OBL-101",
+      "OBL-102",
+      "OBL-103",
+      "OBL-104",
+      "OBL-105",
+      "OBL-106",
+      "OBL-107",
+      "OBL-108",
+      "OBL-109",
+      "OBL-110",
+      "OBL-111",
+      "OBL-112",
+      "OBL-113",
+      "OBL-114",
+      "OBL-115",
+      "OBL-116"
+    ],
+    "evidence": [
+      "Agent-first gate run 36081931587 completed success on material head 5ae7e621f8787eea3f9c0dd4492beed043823177.",
+      "WhatsApp context TiDB gate run 36081931793 completed success on the same material head."
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

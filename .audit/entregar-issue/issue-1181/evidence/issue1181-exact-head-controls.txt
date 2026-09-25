@@ -1,0 +1,11 @@
+material_head_sha=5ae7e621f8787eea3f9c0dd4492beed043823177
+base_sha=f0d32d19223d8ba8547795480fcee6f71aee0d27
+pull_request=1187
+agent_first_run=36081931587 status=completed conclusion=success
+whatsapp_tidb_run=36081931793 status=completed conclusion=success
+agent_first_manifest_risk_profile=critical
+public_entrypoint_test=server/whatsappIntentWebhook.issue1181.test.ts
+resolver_test=server/householdMeasureResolution.issue1181.test.ts
+identity_preflight_test=server/commercialFoodIdentityPreflight.issue1181.test.ts
+regression_docs=docs/testing/whatsapp-response-contract-regression.md
+observed=The exact material head passed the repository Agent-first gate and WhatsApp context TiDB gate. The public WhatsApp entrypoint regressions exercise the real countable-food gate and household measure resolver with only external AI/search boundaries mocked. The multiple-unit golden flow preserves 6 units through the final grams rewrite, while existing commercial identity and ambiguous-measure controls remain in the full suite.
