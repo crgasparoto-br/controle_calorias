@@ -4,13 +4,15 @@ import {
   isCatalogFoodSemanticallyCompatible,
 } from "./catalogMatching";
 import { resolveStructuredCommercialIdentity } from "./commercialFoodIdentityPreflight";
+import { parseFoodText } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 
 describe("issue #1198 — identidade genérica não-branded", () => {
-  it.each(["Queijo Muçarela", "Queijo Mozarela"])(
+  it.each(["Queijo Muçarela", "Queijo Mozarela", "100 g de Queijo Muçarela"])(
     "aceita %s como referência genérica compatível sem clarificação comercial",
     foodName => {
       const reference = findGenericCatalogFood(foodName);
+      const semanticName = parseFoodText(foodName).foodName;
 
       expect(reference).toMatchObject({
         slug: "taco-queijo-mozarela",
@@ -18,10 +20,10 @@ describe("issue #1198 — identidade genérica não-branded", () => {
       });
       expect(reference?.brandName ?? null).toBeNull();
       expect(reference?.isBrandedProduct ?? false).toBe(false);
-      expect(isCatalogFoodSemanticallyCompatible(reference!, foodName)).toBe(true);
+      expect(isCatalogFoodSemanticallyCompatible(reference!, semanticName)).toBe(true);
       expect(resolveStructuredCommercialIdentity({
-        segment: `100 g de ${foodName}`,
-        foodName,
+        segment: foodName.startsWith("100 g") ? foodName : `100 g de ${foodName}`,
+        foodName: semanticName,
         brand: null,
       })).toEqual({ brand: null });
       expect(reference?.calories).toBeGreaterThan(300);

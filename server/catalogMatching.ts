@@ -8,6 +8,7 @@ import {
   normalizeForMatching,
   normalizedTokenIncludes,
   normalizeText,
+  parseFoodText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -735,13 +736,11 @@ const BROAD_GENERIC_FOOD_TOKENS = new Set([
   "bombom",
   "carne",
   "chocolate",
-  "feijao",
   "iogurte",
   "manteiga",
   "pao",
   "queijo",
   "refrigerante",
-  "requeijao",
 ]);
 
 export function containsBroadGenericFoodToken(value: string) {
@@ -794,14 +793,15 @@ function genericCatalogIdentityMatchesQuery(
  * product or an ambiguous category.
  */
 export function findGenericCatalogFood(foodName: string): CatalogFood | null {
-  const candidates = [findCatalogFood(foodName), findTacoFood(foodName)]
+  const normalizedFoodName = parseFoodText(foodName).foodName || foodName;
+  const candidates = [findCatalogFood(normalizedFoodName), findTacoFood(normalizedFoodName)]
     .filter((food): food is CatalogFood => Boolean(food))
     .filter((food, index, all) =>
       all.findIndex(candidate => candidate.slug === food.slug) === index
     )
     .filter(food => !food.isBrandedProduct && !food.brandName?.trim())
-    .filter(food => isCatalogFoodSemanticallyCompatible(food, foodName))
-    .filter(food => genericCatalogIdentityMatchesQuery(food, foodName));
+    .filter(food => isCatalogFoodSemanticallyCompatible(food, normalizedFoodName))
+    .filter(food => genericCatalogIdentityMatchesQuery(food, normalizedFoodName));
 
   return candidates.length === 1 ? candidates[0] : null;
 }

@@ -121,4 +121,43 @@ describe("issue #1198 — referência genérica no processamento real", () => {
       }),
     });
   });
+
+  it("resolve Queijo Muçarela pelo catálogo mesmo quando a IA está indisponível", async () => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    const result = await processMealInput({
+      text: "100 g de Queijo Muçarela",
+    });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      canonicalName: "Queijo Mozarela",
+      source: "catalog",
+      resolution: expect.objectContaining({
+        productVariant: null,
+        nutritionOrigin: "catalog",
+        nutritionVerified: true,
+      }),
+    }));
+    expect(result.items[0].calories).toBeGreaterThan(300);
+    expect(result.semanticContract.needsClarification).toBe(false);
+  });
+
+  it.each([
+    "100 g de Queijo Muçarela Marca X",
+    "100 g de Queijo Muçarela light",
+    "100 g de Queijo Muçarela zero",
+    "100 g de Queijo Muçarela diet",
+    "100 g de Queijo",
+    "100 g de Chocolate",
+    "100 g de Iogurte",
+  ])("não permite que o fallback textual escolha uma referência genérica para %s", async text => {
+    createTextResponseMock.mockRejectedValue(new Error("provider indisponível"));
+
+    await expect(processMealInput({ text })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({
+        semanticContract: expect.objectContaining({ needsClarification: true }),
+      }),
+    });
+  });
 });

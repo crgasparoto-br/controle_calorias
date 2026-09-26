@@ -129,6 +129,37 @@ function clampConfidence(value: number) {
   return Math.min(Math.max(value || 0.6, 0.1), 0.99);
 }
 
+const GENERIC_IDENTITY_STOP_WORDS = new Set([
+  "a",
+  "as",
+  "da",
+  "das",
+  "de",
+  "do",
+  "dos",
+  "e",
+  "em",
+  "o",
+  "os",
+  "tipo",
+]);
+
+function requiresGenericCatalogReference(value: string) {
+  const identity = parseFoodText(value).foodName || value;
+  const tokens = normalizeForMatching(identity)
+    .trim()
+    .split(/\s+/)
+    .filter(token => token.length >= 3 && !GENERIC_IDENTITY_STOP_WORDS.has(token));
+  const requestedVariant = extractCommercialVariant(identity);
+
+  return Boolean(
+    requestedVariant && containsBroadGenericFoodToken(requestedVariant)
+  ) || (
+    tokens.length === 1
+    && containsBroadGenericFoodToken(tokens[0])
+  );
+}
+
 function addCatalogCandidate(
   candidates: string[],
   value: string | null | undefined
@@ -389,10 +420,7 @@ function isAllowedUnbrandedCatalogReference(
     return true;
   }
 
-  const requestedVariant = extractCommercialVariant(semanticSource);
-  if (!requestedVariant || !containsBroadGenericFoodToken(requestedVariant)) {
-    return true;
-  }
+  if (!requiresGenericCatalogReference(semanticSource)) return true;
 
   return findGenericCatalogFood(semanticSource)?.slug === catalog.slug;
 }
@@ -944,6 +972,7 @@ async function buildItemsFromInference(
       options.nutritionLabelEvidenceText ?? ""
     );
     const requestedVariant = extractCommercialVariant(semanticSource);
+    const genericIdentitySource = sourceFoodName ?? semanticSource;
     const canUseVerifiedNutritionLabel = Boolean(
       resolvedItem.brand &&
         options.preferInferredNutrition &&
@@ -970,23 +999,30 @@ async function buildItemsFromInference(
 
     const { catalog, isExactMatch, alternatives } =
       await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+    const usableCatalog = catalog && isAllowedUnbrandedCatalogReference(
+      resolvedItem,
+      catalog,
+      genericIdentitySource,
+    )
+      ? catalog
+      : undefined;
 
-    if (!catalog) {
+    if (!usableCatalog) {
       observeFallback?.("catalog_miss");
     }
     const canUseCatalog = Boolean(
-      catalog &&
+      usableCatalog &&
         (isExactMatch ||
           resolvedItem.brand ||
           hasUsableNutrition(resolvedItem)) &&
         (!options.preferInferredNutrition ||
-          isVerifiedBrandedCatalogFood(catalog) ||
-          (!catalog.isBrandedProduct && !verifiedNutritionLabelEvidence))
+          isVerifiedBrandedCatalogFood(usableCatalog) ||
+          (!usableCatalog.isBrandedProduct && !verifiedNutritionLabelEvidence))
     );
-    if (canUseCatalog && catalog) {
+    if (canUseCatalog && usableCatalog) {
       results.push({
-        ...buildItemFromCatalog(catalog, resolvedItem),
-        resolution: catalogResolution(catalog),
+        ...buildItemFromCatalog(usableCatalog, resolvedItem),
+        resolution: catalogResolution(usableCatalog),
       });
       continue;
     }
@@ -1056,9 +1092,8 @@ async function buildItemsFromInference(
 
     if (
       !resolvedItem.brand
-      && requestedVariant
-      && containsBroadGenericFoodToken(requestedVariant)
-      && !findGenericCatalogFood(semanticSource)
+      && requiresGenericCatalogReference(genericIdentitySource)
+      && !findGenericCatalogFood(genericIdentitySource)
     ) {
       results.push({
         ...buildUnresolvedBrandedNutritionItem(resolvedItem),
@@ -1076,8 +1111,8 @@ async function buildItemsFromInference(
       const fallbackItem = sourceFoodName
         ? { ...resolvedItem, foodName: sourceFoodName }
         : resolvedItem;
-      const result = buildEstimatedNutritionFallbackItem(fallbackItem, catalog);
-      if (!catalog && isGenericNutritionFallbackItem(result)) {
+      const result = buildEstimatedNutritionFallbackItem(fallbackItem, usableCatalog);
+      if (!usableCatalog && isGenericNutritionFallbackItem(result)) {
         observeFallback?.("generic_nutrition_fallback");
       }
       results.push({
@@ -1304,8 +1339,22 @@ async function resolveCommercialItemsFromTextFallback(
 ) {
   const resolved: MealDraftItem[] = [];
   for (const item of items) {
-    if (!item.brand?.trim() || !item.resolution?.ambiguity) {
-      resolved.push(item);
+    const genericReference = findGenericCatalogFood(item.foodName);
+    const needsGenericReview = Boolean(
+      !item.brand?.trim()
+      && requiresGenericCatalogReference(item.foodName)
+      && !genericReference
+    );
+    const needsIdentityReview = Boolean(
+      (item.brand?.trim() && item.resolution?.ambiguity)
+      || needsGenericReview
+    );
+    if (!needsIdentityReview) {
+      resolved.push(
+        genericReference && item.source === "catalog"
+          ? { ...item, resolution: catalogResolution(genericReference) }
+          : item,
+      );
       continue;
     }
 
