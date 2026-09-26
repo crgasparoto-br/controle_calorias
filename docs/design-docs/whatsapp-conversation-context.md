@@ -19,6 +19,8 @@ A solução separa seis responsabilidades:
 5. **Pendência operacional** — `whatsappPendingOperations` mantém seleção, confirmação ou informação faltante separada do histórico semântico e com consumo protegido por compare-and-set.
 6. **Dados de domínio** — refeições, água, peso, exercícios e metas continuam sendo consultados no banco antes de responder ou executar ações.
 
+Uma oferta de continuação criada pela capacidade `QUESTION` é permitida somente quando existe uma ação suportada pelo registro de interações. Seu snapshot estruturado (por exemplo, itens e totais de uma opção de café da tarde) é persistido em `whatsappPendingOperations` antes do outbound que pede confirmação. A resposta histórica da IA nunca é reanalisada para descobrir uma ação futura; se a pendência não puder ser persistida, a oferta não é apresentada.
+
 ## Modelo de dados
 
 - `whatsappConversations`: sessão lógica por usuário e canal, status, atividade, expiração e versão para concorrência otimista.
@@ -45,6 +47,8 @@ A ordem funcional é:
 10. persistência do resultado e vínculo de domínio;
 11. gravação da resposta funcional;
 12. finalização de `processedAt` somente quando o escopo HTTP termina com sucesso.
+
+Para `question.meal_calculation`, `sim`, `pode`, `quero`, `ok`, `calcule` e `faça isso` são aliases textuais resolvidos no gate de pendências, depois dos comandos explícitos e antes da intenção genérica. O claim versionado consome o snapshot uma única vez; o cálculo não registra consumo. Cancelamento, expiração e resposta inválida não autorizam nova ação.
 
 Acknowledgements intermediários de processamento não substituem a resposta funcional no histórico. Uma exceção descarta a finalização pendente. Falhas controladas podem liberar explicitamente a propriedade para retry; em término abrupto, a reentrega continua sendo não terminal até que uma resposta funcional seja concluída ou uma nova tentativa obtenha propriedade segura.
 
@@ -82,6 +86,7 @@ O histórico semântico ajuda a entender `isso`, `o segundo`, `e a proteína?` o
 - somente uma confirmação posterior `sim` consome a pendência e executa uma vez;
 - contexto expirado não resolve silenciosamente alvo destrutivo;
 - resposta do assistente não é reinterpretada como instrução do usuário;
+- oferta QUESTION só é executável quando a continuação registrada foi persistida antes do outbound; a redação apresentada ao usuário não é fonte de estado;
 - conteúdo bloqueado pelo guard de prompt injection não entra em resumo confiável.
 
 ## Expiração e retenção
@@ -112,7 +117,8 @@ Eventos de contexto registram, sem conteúdo de mensagem:
 - classificação distinta entre duplicata terminal já processada, reentrega ainda em processamento e retomada de owner órfão;
 - fallback para banco ou clarificação;
 - latência, tamanho e custo quando disponíveis;
-- erro de persistência ou envio.
+- erro de persistência ou envio;
+- continuação QUESTION criada, ausente, expirada, cancelada, consumida, concluída ou recuperada após falha, sempre com tipo/interaction id e status, sem conteúdo da opção.
 
 A comparação funcional calcula o fingerprint do alvo somente em memória. Logs guardam apenas os booleanos de equivalência, nomes das intenções, fontes e status de validação; texto, alimentos e fingerprints não são registrados.
 

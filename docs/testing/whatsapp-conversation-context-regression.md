@@ -37,6 +37,7 @@ O claim não protege apenas a entrada do handler. Toda fronteira material deve r
 | Shadow, ativação por fluxo/percentual e rollback sem apagar dados | `server/modules/whatsapp/conversationContextRollout.test.ts`, `server/modules/whatsapp/intentContext.rollout.test.ts` |
 | Janela, profundidade e resumo progressivo | `server/modules/whatsapp/conversationContextBudget.test.ts`, `server/modules/whatsapp/conversationSummaryService.test.ts`, `server/modules/whatsapp/intentContext.test.ts` |
 | Consumo concorrente de pendências | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
+| QUESTION → continuação de cálculo persistida → confirmação curta | `server/modules/whatsapp/questionMealCalculationInteraction.test.ts` |
 | Retenção sem apagar domínio nutricional | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
 | Migrations e integridade em TiDB | `.github/workflows/whatsapp-context-tidb.yml` |
 
@@ -66,6 +67,9 @@ O claim não protege apenas a entrada do handler. Toda fronteira material deve r
 | Conteúdo bloqueado | guard de segurança | conteúdo não vira memória confiável |
 | Mudança de data/refeição | intent actions/delete guard | alvo revalidado no banco antes da mutação |
 | Retenção | retention service | contexto expira; refeições/água/peso/exercícios permanecem |
+| Oferta QUESTION suportada | produtor QUESTION + registro `question.meal_calculation` | snapshot nutricional persistido antes do outbound; `sim`/equivalentes calculam uma vez sem registrar consumo |
+| Restart entre a oferta e a confirmação | `questionMealCalculationInteraction.test.ts` | segunda instância recupera a pendência durável e não depende de histórico nem cache local |
+| Cancelamento, inválido e expiração da continuação | registro/gate + teste da interação | cancelamento não calcula; inválido reapresenta; expirada/consumida não executa ação antiga |
 
 ## Rollout operacional
 
@@ -166,5 +170,7 @@ pnpm docs:check
 pnpm build
 pnpm agent:check
 ```
+
+Para a regressão da continuação QUESTION, o controle negativo obrigatório é: variar ou remover a frase da resposta textual da IA não pode alterar a resolução de `sim`, porque a ação é derivada exclusivamente do snapshot estruturado persistido. Outro controle é executar duas confirmações concorrentes para provar que o CAS entrega apenas uma resolução material.
 
 A PR só pode sair de draft quando os gates automatizados, o job TiDB e o checklist aplicável ao ambiente de staging estiverem documentados como concluídos.

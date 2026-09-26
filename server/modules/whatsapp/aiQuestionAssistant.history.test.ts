@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const buildWhatsappIntentContextMock = vi.fn();
 const createOpenAiClientMock = vi.fn();
 const responsesCreateMock = vi.fn();
+const processMealInputMock = vi.fn();
 
 vi.mock("./intentContext", () => ({
   buildWhatsappIntentContext: (...args: unknown[]) => buildWhatsappIntentContextMock(...args),
@@ -12,6 +13,10 @@ vi.mock("../../db", () => ({
   getDb: vi.fn(),
   logPersistenceWarning: vi.fn(),
   logInferenceEvent: vi.fn(),
+}));
+
+vi.mock("../../nutritionEngine", () => ({
+  processMealInput: processMealInputMock,
 }));
 
 vi.mock("../../_core/ai/configResolver", () => ({
@@ -80,6 +85,10 @@ vi.mock("../insights/service", () => ({
 }));
 
 const { executeWhatsappAiQuestionIntent } = await import("./aiQuestionAssistant");
+const { resolveQuestionMealCalculationText } = await import("./questionMealCalculationInteraction");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "../../repositories/whatsappPendingOperationRepository"
+);
 const originalEnv = { ...process.env };
 
 function contextWithTurns(recentTurns: Array<{ direction: "inbound" | "outbound"; text: string | null }>) {
@@ -99,6 +108,29 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
     buildWhatsappIntentContextMock.mockResolvedValue(contextWithTurns([]));
     createOpenAiClientMock.mockReturnValue({ responses: { create: responsesCreateMock } });
     responsesCreateMock.mockResolvedValue({ output_text: "ok" });
+    processMealInputMock.mockReset();
+    processMealInputMock.mockResolvedValue({
+      detectedMealLabel: "Café da tarde",
+      sourceText: "1 fatia de pão integral, 20 g de mussarela e 6 tomates-cereja",
+      confidence: 0.9,
+      reasoning: "Snapshot estruturado.",
+      items: [{
+        foodName: "Pão integral",
+        canonicalName: "Pão integral",
+        quantity: 1,
+        unit: "fatia",
+        portionText: "1 fatia",
+        servings: 1,
+        estimatedGrams: 25,
+        calories: 100,
+        protein: 4,
+        carbs: 18,
+        fat: 1,
+        confidence: 0.9,
+        source: "catalog",
+      }],
+      totals: { calories: 100, protein: 4, carbs: 18, fat: 1 },
+    });
   });
 
   afterEach(() => {
@@ -217,5 +249,45 @@ describe("executeWhatsappAiQuestionIntent — continuidade de contexto", () => {
     const requestArgs = responsesCreateMock.mock.calls[0][0];
     const promptText = requestArgs.input[0].content[0].text as string;
     expect(promptText).not.toContain("Histórico recente da conversa");
+  });
+
+  it("atravessa o produtor QUESTION real e resolve sim pelo snapshot persistido do consumer", async () => {
+    const userId = 120950;
+    const receivedAt = new Date("2026-07-29T16:00:00Z");
+    const produced = await executeWhatsappAiQuestionIntent(userId, {
+      text: "/ me dê uma opção de café da tarde",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      externalMessageId: "question-producer-1209",
+    });
+
+    expect(produced).toEqual(expect.objectContaining({
+      action: "ai_question_answered",
+      reply: expect.stringContaining("Quer que eu calcule"),
+      interactiveReply: expect.any(Object),
+    }));
+    expect(produced?.data).toEqual(expect.objectContaining({
+      interactionId: "question.meal_calculation",
+      structuredContinuation: true,
+    }));
+
+    const repository = createDrizzleWhatsAppPendingOperationRepository({
+      getDb: vi.fn(),
+      onWarning: vi.fn(),
+    });
+    const pending = await repository.getActivePendingOperation(userId, new Date("2026-07-29T16:01:00Z"));
+    const resumed = await resolveQuestionMealCalculationText({
+      userId,
+      pendingOperation: pending!,
+      text: "sim",
+      receivedAt: new Date("2026-07-29T16:01:00Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(resumed).toEqual(expect.objectContaining({
+      action: "question_meal_calculation_completed",
+      eventType: "whatsapp.question_meal_calculation.completed",
+    }));
+    expect(processMealInputMock).toHaveBeenCalledTimes(1);
   });
 });

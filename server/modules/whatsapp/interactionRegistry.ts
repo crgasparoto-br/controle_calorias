@@ -17,6 +17,17 @@ import {
 import { buildWhatsappInteractionTelemetry, selectWhatsappInteractionComponent } from "./interactionPresentation";
 import type { WhatsappInteractionTextInput } from "./interactionTextHandlers";
 import type { WhatsAppLogicalReply } from "./replyContract";
+import {
+  completeQuestionMealCalculationCallback,
+  classifyQuestionMealCalculationText,
+  isPendingQuestionMealCalculation,
+  PENDING_QUESTION_MEAL_CALCULATION_ORIGIN,
+  PENDING_QUESTION_MEAL_CALCULATION_TYPE,
+  rebuildQuestionMealCalculation,
+  resolveQuestionMealCalculationText,
+  QUESTION_MEAL_CALCULATION_ACTIONS,
+  QUESTION_MEAL_CALCULATION_INTERACTION_ID,
+} from "./questionMealCalculationInteraction";
 
 export type {
   WhatsappInteractionCallbackInput,
@@ -25,7 +36,7 @@ export type {
   WhatsappRegisteredInteraction,
 } from "./interactionRegistryLegacy";
 
-export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 12;
+export const WHATSAPP_INTERACTION_REGISTRY_VERSION = 13;
 
 const coffeePreparationInteraction: WhatsappRegisteredInteraction = {
   id: "coffee_preparation.sugar_choice",
@@ -54,9 +65,35 @@ const coffeePreparationInteraction: WhatsappRegisteredInteraction = {
   }),
 };
 
+const questionMealCalculationInteraction: WhatsappRegisteredInteraction = {
+  id: QUESTION_MEAL_CALCULATION_INTERACTION_ID,
+  pendingType: PENDING_QUESTION_MEAL_CALCULATION_TYPE,
+  origin: PENDING_QUESTION_MEAL_CALCULATION_ORIGIN,
+  entrypoints: ["whatsappWebhook", "whatsappIntentWebhook", "simulator", "audioTranscription"],
+  classification: "closed",
+  reconstruction: "pending_target",
+  invalidResponse: "represent_same_actions",
+  staleBehavior: "reply_unavailable_request_new_command",
+  allowedEffects: ["calculate", "cancel", "calculate_suggestion_once"],
+  forbiddenEffects: ["meal_creation", "llm_reinterpretation", "history_reparse"],
+  matches: isPendingQuestionMealCalculation,
+  actions: target => isPendingQuestionMealCalculation(target)
+    ? target.actions.map(action => ({ ...action }))
+    : [...QUESTION_MEAL_CALCULATION_ACTIONS],
+  classifyText: classifyQuestionMealCalculationText,
+  resolveText: resolveQuestionMealCalculationText,
+  rebuild: input => rebuildQuestionMealCalculation(input.pendingOperation),
+  completeCallback: input => completeQuestionMealCalculationCallback({
+    userId: input.userId,
+    pendingOperation: input.pendingOperation,
+    action: input.action,
+  }),
+};
+
 export const WHATSAPP_INTERACTION_REGISTRY: readonly WhatsappRegisteredInteraction[] = [
   ...LEGACY_REGISTRY,
   coffeePreparationInteraction,
+  questionMealCalculationInteraction,
 ];
 
 export function findWhatsappRegisteredInteraction(type: string, target: unknown) {

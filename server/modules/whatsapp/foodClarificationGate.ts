@@ -17,6 +17,11 @@ import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelation
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
 import { buildWhatsAppActionCancelledReplyMessage } from "./replyMessages";
 import {
+  isPendingQuestionMealCalculation,
+  parseQuestionMealCalculationAction,
+  PENDING_QUESTION_MEAL_CALCULATION_TYPE,
+} from "./questionMealCalculationInteraction";
+import {
   parseMealIntentDecisionTextAction,
   PENDING_MEAL_INTENT_DECISION_TYPE,
 } from "./mealIntentDecisionInteraction";
@@ -312,6 +317,27 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         data: {
           fallbackBlocked: true,
           fallbackBlockReason: "stale_meal_intent_registration_details",
+          interactionLifecycle: "blocked",
+        },
+      };
+    }
+    if (
+      latest?.type === PENDING_QUESTION_MEAL_CALCULATION_TYPE
+      && isPendingQuestionMealCalculation(latest.target)
+      && parseQuestionMealCalculationAction(input.text)
+      && (latest.state !== "active"
+        || new Date(latest.expiresAt).getTime() < (input.receivedAt ?? new Date()).getTime())
+    ) {
+      return {
+        handled: true,
+        action: "clarification_needed",
+        reply: "Essa opção de cálculo não está mais disponível. Envie novamente a pergunta para receber uma nova sugestão.",
+        eventType: "whatsapp.question_meal_calculation.unavailable",
+        detail: "Resposta curta para continuação de cálculo consumida, cancelada ou expirada foi bloqueada antes do fallback.",
+        data: {
+          fallbackBlocked: true,
+          fallbackBlockReason: "stale_question_meal_calculation",
+          interactionId: latest.target.interactionId,
           interactionLifecycle: "blocked",
         },
       };
