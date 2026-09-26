@@ -42,6 +42,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
+  releaseMessageForRetry: vi.fn(async () => true),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
@@ -427,6 +428,9 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
   it("mantém a foto original e a resposta textual sem gerar ou persistir imagem anotada quando desabilitada", async () => {
     getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: false, readFailed: false });
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
 
     const res = createResponse();
     await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-disabled") as never, res as never);

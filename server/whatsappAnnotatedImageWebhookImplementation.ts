@@ -75,6 +75,7 @@ import {
   claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  releaseMessageForRetry,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -408,6 +409,7 @@ async function sendAnnotatedImageFallbackText(input: {
   mealId?: number | null;
   logicalReply?: import("./modules/whatsapp/replyContract").WhatsAppLogicalReply;
   lifecycleHandle?: MessageLifecycleHandle;
+  response?: Response;
   acknowledgement?: ProcessingAcknowledgementCoordinator | null;
 }) {
   await input.acknowledgement?.beforeFinalReply();
@@ -428,6 +430,15 @@ async function sendAnnotatedImageFallbackText(input: {
       detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
+  if (!delivery.result.primaryOk) {
+    await releaseMessageForRetry(input.lifecycleHandle ?? null);
+    input.response?.status(503).json({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
+    return;
+  }
   await markMessageProcessed(input.lifecycleHandle ?? null);
 }
 
@@ -445,10 +456,6 @@ async function tryHandleAnnotatedImageMessage(
     !canHandleAnnotatedImageMessage(message)
   ) {
     return false;
-  }
-
-  if (wasAnnotatedImageMessageAlreadyHandled(message.id)) {
-    return true;
   }
 
   let userId: number | null = null;
@@ -560,6 +567,7 @@ async function tryHandleAnnotatedImageMessage(
         sourcePhone,
         reply: buildSuspiciousWhatsAppContentReply(),
         lifecycleHandle,
+        response: res,
         acknowledgement,
       });
       markAnnotatedImageMessageHandled(message.id);
@@ -587,6 +595,7 @@ async function tryHandleAnnotatedImageMessage(
                 : null,
           logicalReply: deleteResult.interactiveReply,
           lifecycleHandle,
+          response: res,
           acknowledgement,
         });
         markAnnotatedImageMessageHandled(message.id);
@@ -651,6 +660,7 @@ async function tryHandleAnnotatedImageMessage(
           sourcePhone,
           reply: identityResult.reply,
           lifecycleHandle,
+          response: res,
           acknowledgement,
         });
         markAnnotatedImageMessageHandled(message.id);
@@ -661,6 +671,7 @@ async function tryHandleAnnotatedImageMessage(
         sourcePhone,
         reply: buildImageInferenceFailureReply(processingOutcome.error),
         lifecycleHandle,
+        response: res,
         acknowledgement,
       });
       markAnnotatedImageMessageHandled(message.id);
@@ -718,6 +729,7 @@ async function tryHandleAnnotatedImageMessage(
           sourcePhone,
           reply: identityResult.reply,
           lifecycleHandle,
+          response: res,
           acknowledgement,
         });
         markAnnotatedImageMessageHandled(message.id);
@@ -729,6 +741,7 @@ async function tryHandleAnnotatedImageMessage(
         sourcePhone,
         reply: buildWhatsAppImageNotRecognizedReplyMessage(),
         lifecycleHandle,
+        response: res,
         acknowledgement,
       });
       markAnnotatedImageMessageHandled(message.id);
@@ -853,6 +866,13 @@ async function tryHandleAnnotatedImageMessage(
         eventType: "whatsapp.reply_failed",
         detail: "Falha ao enviar resposta funcional de refeição pelo WhatsApp.",
       });
+      await releaseMessageForRetry(lifecycleHandle);
+      res?.status(503).json({
+        ok: false,
+        retryable: true,
+        reason: "whatsapp_reply_delivery_failed",
+      });
+      return true;
     } else if (auxiliaryImage && !delivery.result.ok) {
       logInferenceEvent({
         userId,
@@ -884,7 +904,6 @@ async function tryHandleAnnotatedImageMessage(
     }
 
     await markMessageProcessed(lifecycleHandle);
-    markAnnotatedImageMessageHandled(message.id);
     return true;
   } catch (error) {
     console.warn(
@@ -908,6 +927,7 @@ async function tryHandleAnnotatedImageMessage(
         sourcePhone,
         reply: buildWhatsAppImageProcessingFailureReplyMessage(),
         lifecycleHandle,
+        response: res,
         acknowledgement,
       });
     }

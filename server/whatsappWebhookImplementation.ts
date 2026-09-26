@@ -114,6 +114,7 @@ import {
   claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  releaseMessageForRetry,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
@@ -331,6 +332,7 @@ async function sendInterpretedTextIntentReply(input: {
   interpreted: WhatsAppTextIntentResult;
   lifecycleHandle: MessageLifecycleHandle;
   replyText?: string;
+  response?: Response;
 }) {
   logInferenceEvent({
     userId: input.userId,
@@ -365,6 +367,15 @@ async function sendInterpretedTextIntentReply(input: {
       detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
+  if (!delivery.result.primaryOk) {
+    await releaseMessageForRetry(input.lifecycleHandle);
+    input.response?.status(503).json({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
+    return;
+  }
   if (mealId) {
     await recordDomainLink(input.lifecycleHandle, { mealId });
   }
@@ -382,14 +393,6 @@ function canInterpretAudioTranscriptIntent(
 
 function isSupportedMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.text?.body || message.image?.id || message.audio?.id);
-}
-
-function reserveWhatsAppMessageForProcessing(messageId?: string) {
-  if (!messageId) {
-    return true;
-  }
-
-  return !whatsAppMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 export function __resetWhatsAppWebhookDeduplicationForTests() {
@@ -417,10 +420,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
   for (const message of messages) {
     const sourcePhone = message.from || "unknown";
-
-    if (!reserveWhatsAppMessageForProcessing(message.id)) {
-      continue;
-    }
 
     if (!isWhatsAppMessageForConfiguredChannel(message)) {
       logInferenceEvent({
@@ -536,11 +535,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       });
     }
 
-    // O cache local só é marcado depois que o claim persistente confirmou o
-    // ownership. Assim, falhas de disponibilidade continuam retryable mesmo
-    // dentro do mesmo processo e o cache nunca substitui a decisão durável.
-    whatsAppMessageDeduplicationCache.markHandled(message.id);
-
     const deferredReply = getWhatsAppDeferredLogicalReply(req, message.id);
     for (const link of deferredReply?.domainLinks ?? []) {
       await recordDomainLink(lifecycleHandle, link);
@@ -564,6 +558,20 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         replyText: finalReply,
         lifecycleHandle,
       });
+      if (!delivery.result.primaryOk) {
+        await releaseMessageForRetry(lifecycleHandle);
+        res.status(503).json({
+          ok: false,
+          retryable: true,
+          reason: "whatsapp_reply_delivery_failed",
+        });
+        return {
+          ok: false,
+          detail:
+            delivery.result.sends.find(send => !send.ok)?.detail ??
+            "Resposta funcional não foi aceita pelo provedor; processamento permanecerá retryable.",
+        };
+      }
       await markMessageProcessed(lifecycleHandle);
       return {
         ok: delivery.result.primaryOk,
@@ -839,6 +847,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             interpreted,
             lifecycleHandle,
             replyText: composeFinalReply(interpreted.reply),
+            response: res,
           });
           continue;
         }
@@ -1297,6 +1306,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
         });
       }
+      if (!delivery.result.primaryOk) {
+        await releaseMessageForRetry(lifecycleHandle);
+        res.status(503).json({
+          ok: false,
+          retryable: true,
+          reason: "whatsapp_reply_delivery_failed",
+        });
+        continue;
+      }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
       const identityContext =
@@ -1351,7 +1369,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
           });
         }
-        await markMessageProcessed(lifecycleHandle);
         continue;
       }
       logInferenceEvent({
@@ -1381,5 +1398,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
   }
 
+  if (res.headersSent || (res as Response & { statusCode?: number }).statusCode === 503) {
+    return res;
+  }
   return res.status(200).json({ ok: true, processed: messages.length });
 }

@@ -14,12 +14,14 @@ const {
   claimMessageForProcessingStateMock,
   recordDomainLinkMock,
   markMessageProcessedMock,
+  releaseMessageForRetryMock,
   wasMessageAlreadyProcessedMock,
 } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
   claimMessageForProcessingStateMock: vi.fn(async () => "claimed" as const),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
+  releaseMessageForRetryMock: vi.fn(async () => true),
   wasMessageAlreadyProcessedMock: vi.fn(async () => false),
 }));
 
@@ -30,6 +32,7 @@ vi.mock("./messageLifecycle", () => ({
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
+  releaseMessageForRetry: releaseMessageForRetryMock,
   wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   enrichInboundMessage: vi.fn(async () => true),
@@ -204,6 +207,8 @@ describe("issue #924 WhatsApp transcription continuity", () => {
     beginInboundMessageMock.mockClear();
     recordDomainLinkMock.mockClear();
     markMessageProcessedMock.mockClear();
+    wasMessageAlreadyProcessedMock.mockReset();
+    wasMessageAlreadyProcessedMock.mockResolvedValue(false);
     transcribeAudioMock.mockResolvedValue({
       task: "transcribe",
       text: "arroz e feijão",
@@ -239,6 +244,9 @@ describe("issue #924 WhatsApp transcription continuity", () => {
   });
 
   it("does not download, transcribe or mutate again for a duplicate callback", async () => {
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
     const request = { body: createMetaAudioPayload() };
     const firstResponse = createResponse();
     const duplicateResponse = createResponse();
@@ -254,7 +262,7 @@ describe("issue #924 WhatsApp transcription continuity", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
-    expect(beginInboundMessageMock).toHaveBeenCalledTimes(1);
+    expect(beginInboundMessageMock).toHaveBeenCalledTimes(2);
     expect(processMealInputMock).toHaveBeenCalledWith(
       expect.objectContaining({ transcript: "arroz e feijão" }),
     );

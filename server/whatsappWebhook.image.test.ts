@@ -24,6 +24,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   markMessageProcessed: vi.fn(async () => undefined),
+  releaseMessageForRetry: vi.fn(async () => true),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
@@ -393,6 +394,66 @@ describe("whatsappWebhook image inbound", () => {
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
   });
 
+  it("reconhece duas latas de Spaten Munich sem perder marca, variante ou quantidade", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Bebidas",
+      sourceText: "",
+      confidence: 0.96,
+      needsConfirmation: true,
+      reasoning: "As duas latas exibem marca e linha legíveis.",
+      items: [{
+        foodName: "Cerveja Spaten Munich",
+        canonicalName: "Cerveja Spaten Munich",
+        brand: "Spaten",
+        portionText: "1 lata (350 ml)",
+        quantity: 2,
+        unit: "lata",
+        servings: 2,
+        estimatedGrams: 700,
+        calories: 294,
+        protein: 2.8,
+        carbs: 22,
+        fat: 0,
+        confidence: 0.96,
+        source: "catalog" as const,
+        resolution: {
+          nutritionOrigin: "catalog" as const,
+          nutritionVerified: true,
+          productVariant: "Munich",
+          sourceEvidence: "Catálogo comercial Spaten Munich 350 ml",
+        },
+      }],
+      totals: { calories: 294, protein: 2.8, carbs: 22, fat: 0 },
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createMetaImagePayload("wamid.image-spaten-munich") } as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({
+        items: [expect.objectContaining({
+          foodName: "Cerveja Spaten Munich",
+          canonicalName: "Cerveja Spaten Munich",
+          brand: "Spaten",
+          quantity: 2,
+          unit: "lata",
+          portionText: "1 lata (350 ml)",
+          resolution: expect.objectContaining({ productVariant: "Munich" }),
+        })],
+        totals: { calories: 294, protein: 2.8, carbs: 22, fat: 0 },
+      }),
+      expect.any(Array),
+    );
+    expect(findFetchCallByBody("Cerveja Spaten Munich")).toBeTruthy();
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  });
+
   it("preserva itens reconhecidos e abre identidade somente para o item ambíguo", async () => {
     processMealInputMock.mockResolvedValueOnce({
       detectedMealLabel: "Lanche",
@@ -589,6 +650,9 @@ describe("whatsappWebhook image inbound", () => {
   });
 
   it("ignora reentrega do mesmo wamid sem reenviar respostas nem criar refeição duplicada", async () => {
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
     const req = { body: createMetaImagePayload("wamid.image-duplicate") };
     const firstRes = createResponse();
     const duplicateRes = createResponse();
@@ -637,5 +701,44 @@ describe("whatsappWebhook image inbound", () => {
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
     expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("mantém a imagem retryable quando a resposta primária é rejeitada pelo provider", async () => {
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 1,
+      messageId: 101,
+      wasNewInsert: true,
+    });
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: "https://media.test/image-download", mime_type: "image/jpeg" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("image-test"));
+            controller.close();
+          },
+        }),
+        headers: { get: () => "image/jpeg" },
+      })
+      .mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: "provider unavailable" }) }) as typeof fetch;
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createMetaImagePayload("wamid.image-provider-retry") } as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
   });
 });
