@@ -1,6 +1,8 @@
 import { findCatalogFoodSemantic } from "./catalogSemanticSearch";
 import {
+  containsBroadGenericFoodToken,
   findCatalogFood,
+  findGenericCatalogFood,
   findNaturalProduceCatalogFood,
   inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
@@ -378,6 +380,23 @@ function catalogMatchesCommercialIdentity(
   });
 }
 
+function isAllowedUnbrandedCatalogReference(
+  item: LlmItem,
+  catalog: CatalogFood,
+  semanticSource: string,
+) {
+  if (item.brand || catalog.isBrandedProduct || catalog.brandName?.trim()) {
+    return true;
+  }
+
+  const requestedVariant = extractCommercialVariant(semanticSource);
+  if (!requestedVariant || !containsBroadGenericFoodToken(requestedVariant)) {
+    return true;
+  }
+
+  return findGenericCatalogFood(semanticSource)?.slug === catalog.slug;
+}
+
 function isCatalogFoodNameIdentityMatch(
   catalog: CatalogFood,
   semanticSource: string
@@ -514,6 +533,8 @@ async function findMostSpecificCatalogForInferenceItem(
       !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)
     )
       continue;
+    if (!catalog || !isAllowedUnbrandedCatalogReference(item, catalog, semanticSource))
+      continue;
     if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource))
       continue;
     if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
@@ -562,6 +583,8 @@ async function findMostSpecificCatalogForInferenceItem(
       !isCatalogFoodSemanticallyCompatible(catalog, semanticSource)
     )
       continue;
+    if (!catalog || !isAllowedUnbrandedCatalogReference(item, catalog, semanticSource))
+      continue;
     if (!catalogMatchesCommercialIdentity(item, catalog, semanticSource))
       continue;
     if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
@@ -595,7 +618,8 @@ function isVerifiedBrandedCatalogFood(food: CatalogFood | undefined) {
 function catalogResolution(food: CatalogFood): MealItemResolutionMetadata {
   const researched = isResearchVerifiedCatalogFood(food);
   return {
-    productVariant: food.productVariant ?? extractCommercialVariant(food.name),
+    productVariant: food.productVariant
+      ?? (food.isBrandedProduct ? extractCommercialVariant(food.name) : null),
     nutritionOrigin: researched ? "web_research" : "catalog",
     nutritionVerified: food.isBrandedProduct
       ? isVerifiedBrandedCatalogFood(food)
@@ -1020,6 +1044,22 @@ async function buildItemsFromInference(
     }
 
     if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
+      results.push({
+        ...buildUnresolvedBrandedNutritionItem(resolvedItem),
+        resolution: unresolvedBrandedResolution({
+          semanticSource,
+          alternatives,
+        }),
+      });
+      continue;
+    }
+
+    if (
+      !resolvedItem.brand
+      && requestedVariant
+      && containsBroadGenericFoodToken(requestedVariant)
+      && !findGenericCatalogFood(semanticSource)
+    ) {
       results.push({
         ...buildUnresolvedBrandedNutritionItem(resolvedItem),
         resolution: unresolvedBrandedResolution({

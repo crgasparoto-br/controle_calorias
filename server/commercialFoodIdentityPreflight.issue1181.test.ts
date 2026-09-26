@@ -21,10 +21,10 @@ describe("issue #1181 — identidade natural antes da heurística comercial", ()
     })).toEqual({ brand: "Batavo" });
   });
 
-  it("não transforma produto industrializado sem marca comprovada em alimento natural", () => {
+  it("mantém fail-closed quando um industrializado traz marcador de marca sem comprovação", () => {
     expect(resolveStructuredCommercialIdentity({
-      segment: "1 refrigerante laranja",
-      foodName: "refrigerante laranja",
+      segment: "1 refrigerante laranja Marca X",
+      foodName: "refrigerante laranja Marca X",
       brand: null,
     })).toMatchObject({
       brand: null,
