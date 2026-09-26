@@ -107,17 +107,17 @@ export function getWhatsappImageMissingPortionIndexes(items: MealDraftItem[]) {
 
 export type WhatsappImageMealPersistenceInspection =
   | { status: "persistable" }
-  | { status: "missing_identity" }
+  | { status: "missing_identity"; itemIndexes: number[] }
   | { status: "missing_portion"; item: MealDraftItem; itemIndex: number };
 
 export function inspectWhatsappImageMealItemsPersistence(
   items: MealDraftItem[]
 ): WhatsappImageMealPersistenceInspection {
-  if (
-    !items.length ||
-    items.some(item => !resolveWhatsappImageVisibleFoodName(item))
-  ) {
-    return { status: "missing_identity" };
+  const missingIdentityIndexes = items.flatMap((item, index) =>
+    resolveWhatsappImageVisibleFoodName(item) ? [] : [index]
+  );
+  if (missingIdentityIndexes.length > 0 || !items.length) {
+    return { status: "missing_identity", itemIndexes: missingIdentityIndexes };
   }
   const itemIndex = items.findIndex(candidate => !hasSafePortion(candidate));
   return itemIndex >= 0

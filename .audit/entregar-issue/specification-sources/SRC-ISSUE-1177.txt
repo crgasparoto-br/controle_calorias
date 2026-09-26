@@ -401,3 +401,4 @@ Partir da **develop** atual.
 **Pronta.**
 
 A causa exata do exemplo de produção ainda deve ser comprovada por teste de regressão, mas o contrato de comportamento, as fontes canônicas, o lifecycle da continuação, a fronteira de reutilização e os critérios discriminantes estão suficientemente definidos para implementação sem decisão adicional de produto.
+

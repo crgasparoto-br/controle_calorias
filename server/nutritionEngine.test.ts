@@ -442,6 +442,8 @@ describe("nutritionEngine.processMealInput", () => {
     expect(textInput?.text).toContain("Nunca transforme lista de ingredientes em itens separados da refeição");
     expect(textInput?.text).toContain("Se houver peso líquido, peso drenado, peso na etiqueta da balança ou porção declarada visível");
     expect(textInput?.text).toContain("não use água como fallback apenas por transparência, brilho, reflexo ou plástico translúcido");
+    expect(textInput?.text).toContain("Latas, garrafas, copos e outros recipientes que sejam o objeto principal da foto representam alimento ou bebida consumível");
+    expect(textInput?.text).toContain("em latas ou garrafas, leia o texto frontal legível antes de decidir que não há alimento");
   });
 
   it("inclui no prompt regra para não inferir alimento a partir de saudação", async () => {

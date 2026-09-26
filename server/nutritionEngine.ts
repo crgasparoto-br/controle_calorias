@@ -88,6 +88,7 @@ export { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 export type MealInferenceErrorCode =
   | "food_component_quantity_required"
   | "food_identity_clarification_required"
+  | "image_identity_unresolved"
   | "meal_inference_unavailable";
 
 export type MealInferenceErrorContext = {

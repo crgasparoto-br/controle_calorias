@@ -1,57 +1,83 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-26T01:07:40.104767+00:00",
+  "created_at": "2026-09-26T21:41:05.746743+00:00",
   "identity": {
-    "head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
-    "material_head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
-    "base_sha": "e7b0b9d47b5a8b4ba10add433a7ce3e18db19ebb",
+    "head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+    "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+    "base_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
     "merge_preview_sha": null,
     "material_merge_preview_sha": null
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
-    "issue_number": 1194,
-    "pull_request_number": 1195,
+    "issue_number": 1177,
+    "pull_request_number": 1210,
     "work_item_kind": "pr",
-    "work_item_number": 1195,
-    "pull_request": 1195,
+    "work_item_number": 1210,
+    "pull_request": 1210,
     "base_ref": "develop",
-    "head_ref": "fix/1194-generic-nutrition-fallback"
+    "head_ref": "fix/1177-image-commercial-recognition"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "e7b0b9d47b5a8b4ba10add433a7ce3e18db19ebb",
-    "material_head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
+    "work_item_start_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
+    "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
     "issue_changed_paths": [
-      "docs/design-docs/nutrition-engine.md",
-      "server/catalogMatching.semanticCompatibility.test.ts",
-      "server/mealNutritionFallback.ts",
-      "server/nutritionEngine.issue1037.test.ts",
-      "server/nutritionEngine.issue1194.test.ts",
+      "docs/product-specs/meal-registration.md",
+      "docs/product-specs/whatsapp-flow.md",
+      "server/mealAiExtraction.ts",
+      "server/mealSemanticContract.ts",
+      "server/mealSemanticContract.visualIdentity.test.ts",
+      "server/modules/meals/schemas.ts",
+      "server/modules/whatsapp/visualMealInferenceValidation.test.ts",
+      "server/modules/whatsapp/visualMealInferenceValidation.ts",
+      "server/modules/whatsapp/webhookMediaPipeline.issue924.test.ts",
+      "server/nutritionEngine.test.ts",
       "server/nutritionEngine.ts",
-      "server/tacoCatalog.json",
-      "server/tacoLookup.ts"
+      "server/nutritionEngineTypes.ts",
+      "server/whatsappAnnotatedImageWebhook.test.ts",
+      "server/whatsappAnnotatedImageWebhookImplementation.ts",
+      "server/whatsappWebhook.image.test.ts",
+      "server/whatsappWebhook.image.water.test.ts",
+      "server/whatsappWebhook.mediaIntent.test.ts",
+      "server/whatsappWebhook.reply.test.ts",
+      "server/whatsappWebhook.smoke.test.ts",
+      "server/whatsappWebhookImplementation.ts"
     ],
-    "issue_delta_sha256": "341cecdc425cbb41c5a97201ed77ece04f1823b50b35fd710f5f28e2ab5df979"
+    "issue_delta_sha256": "ae85fe1484c036ac340c9b8b0dd745abae5436e419bdd57175333a8920c8e940"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
+      ".audit/entregar-issue/applicability-ledger.json",
+      ".audit/entregar-issue/audit-escape-closure.json",
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/delivery-state.json",
+      ".audit/entregar-issue/documentation-impact.json",
       ".audit/entregar-issue/evidence-provenance.json",
-      ".audit/entregar-issue/evidence/issue1194-exact-head-controls.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-008.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-043.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-056.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-060.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-065.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-138.txt",
+      ".audit/entregar-issue/evidence/benchmark-inventory-OBL-045.txt",
+      ".audit/entregar-issue/execution-plan.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
+      ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
       ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1194.txt"
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1177.txt"
     ]
   },
   "contract_version": "2026-08-20.3",
   "evidence_profile": "critical",
-  "remediation_mode": null,
+  "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
     "skill_sha256": "e5c235031c3c8117c765da8132369148cf8accf1a01c9df9806e594ffd3b3e13"
@@ -78,9 +104,9 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "5ce3c4c74ec8be613ba085d5ea5269b99e59464226975b59cf758f6572b444b5",
-      "logical_sha256": "5ce3c4c74ec8be613ba085d5ea5269b99e59464226975b59cf758f6572b444b5",
-      "logical_size": 580,
+      "sha256": "b6b6522b279768a4b4fc0be4beb862b8377a789f2b46ae34240095e3a5dc7cb6",
+      "logical_sha256": "b6b6522b279768a4b4fc0be4beb862b8377a789f2b46ae34240095e3a5dc7cb6",
+      "logical_size": 567,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -88,9 +114,9 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "01b74bb8cecd7f7394f50c07222a84260a4e5188236f973b241ff77fbff40b42",
-      "logical_sha256": "01b74bb8cecd7f7394f50c07222a84260a4e5188236f973b241ff77fbff40b42",
-      "logical_size": 13758,
+      "sha256": "3f9d58fadec20136f4028c9c7c2115c50fdb47b14f907427f9654969c8c24e19",
+      "logical_sha256": "3f9d58fadec20136f4028c9c7c2115c50fdb47b14f907427f9654969c8c24e19",
+      "logical_size": 134532,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -98,9 +124,9 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "a998294a3a297f6717b07fa3ce99d7e41ab506447e1a61d00c4117886b021b88",
-      "logical_sha256": "a998294a3a297f6717b07fa3ce99d7e41ab506447e1a61d00c4117886b021b88",
-      "logical_size": 36407,
+      "sha256": "5193c696261bb39f76a5370ca38bcefe64c43d0ffdfb78dafc2dbee3c80ce37d",
+      "logical_sha256": "5193c696261bb39f76a5370ca38bcefe64c43d0ffdfb78dafc2dbee3c80ce37d",
+      "logical_size": 553381,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -108,9 +134,9 @@
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "05602a0d05cef8287afe5e7d6510f2fb112ebce3ca2872582076f4371c965b76",
-      "logical_sha256": "05602a0d05cef8287afe5e7d6510f2fb112ebce3ca2872582076f4371c965b76",
-      "logical_size": 6355,
+      "sha256": "53fddd869bca4dab8a8f865e1357f2ea9d6d78411d9e3b6fff0773c696f0bb96",
+      "logical_sha256": "53fddd869bca4dab8a8f865e1357f2ea9d6d78411d9e3b6fff0773c696f0bb96",
+      "logical_size": 15697,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -118,9 +144,9 @@
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "be3929e23db03fc0c33cddf59dadbda171b4f43b854b7e534862d83eff98b766",
-      "logical_sha256": "be3929e23db03fc0c33cddf59dadbda171b4f43b854b7e534862d83eff98b766",
-      "logical_size": 42496,
+      "sha256": "3ce665ad8c7c21afc3cf41135d7c296f754316c70df14ba6f640437494c83148",
+      "logical_sha256": "3ce665ad8c7c21afc3cf41135d7c296f754316c70df14ba6f640437494c83148",
+      "logical_size": 50596,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -128,14 +154,54 @@
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "4b89e9a419ee3711456bc6fa94636e27f5a92a669a339f86b32db6d18e381800",
-      "logical_sha256": "4b89e9a419ee3711456bc6fa94636e27f5a92a669a339f86b32db6d18e381800",
-      "logical_size": 773,
+      "sha256": "07f07d575b7942ab5807fd3b8078444225fbfe8205c66003f02b39b40d1809b2",
+      "logical_sha256": "07f07d575b7942ab5807fd3b8078444225fbfe8205c66003f02b39b40d1809b2",
+      "logical_size": 3548,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_escape_closure": {
+      "name": "audit-escape-closure.json",
+      "sha256": "45f3443b12f806bc5a72cf0b95eaf988adea6e0a18682ca392012ed5161a6118",
+      "logical_sha256": "45f3443b12f806bc5a72cf0b95eaf988adea6e0a18682ca392012ed5161a6118",
+      "logical_size": 11093,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "learning_closure": {
+      "name": "learning-closure.json",
+      "sha256": "db0a182d273946975a8c9ab0c02c05a98e55068b0879f826dcdbc17c9f90f9d5",
+      "logical_sha256": "db0a182d273946975a8c9ab0c02c05a98e55068b0879f826dcdbc17c9f90f9d5",
+      "logical_size": 599,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "3c8667ae617ac5543d6a9c7dc63f1f09824fef6f8847596a3b5ace65d1dc401a",
+      "logical_sha256": "3c8667ae617ac5543d6a9c7dc63f1f09824fef6f8847596a3b5ace65d1dc401a",
+      "logical_size": 1745,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+      "logical_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+      "logical_size": 965,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
       }
     }
   },
-  "previous_independent_rejection": false
+  "previous_independent_rejection": true
 }

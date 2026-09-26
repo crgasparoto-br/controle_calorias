@@ -1,10 +1,8 @@
 {
-  "schema_version": 1,
-  "status": "passed",
+  "status": "updated",
   "paths": [
-    "docs/testing/whatsapp-response-contract-regression.md",
-    "docs/design-docs/whatsapp-countable-measure-passthrough.md",
-    "docs/testing/whatsapp-response-contract-regression.baseline.md"
+    "docs/product-specs/meal-registration.md",
+    "docs/product-specs/whatsapp-flow.md"
   ],
-  "docs_check": "passed in Agent-first gate #6040"
+  "reason": "Durable multi-item and persistent ownership behavior is documented in the existing canonical product specifications."
 }

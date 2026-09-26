@@ -809,8 +809,12 @@ describe("whatsappWebhook", () => {
 
     await handleWhatsAppWebhook(req as never, res as never);
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
     const savedMeals = (await listUserMeals(1)).filter(
       meal => meal.source === "whatsapp"
     );

@@ -1,200 +1,527 @@
 {
   "schema_version": 1,
-  "head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
+  "head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires authorization; explicitly not applicable.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "concurrency-atomicity",
       "applicable": true,
-      "status": "passed",
-      "reason": "Exact-head controls and inherited audit-escape dimensions cover concurrency-atomicity for issue #1194 / PR #1195.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-1194-ESC-001"
+        "NEG-OBL-063-01",
+        "NEG-OBL-137-01"
       ],
       "dimensions": [
         {
-          "surface": "concurrent-resolution",
-          "status": "passed",
-          "reason": "Exact-head control covers concurrency-atomicity:concurrent-resolution.",
+          "surface": "session-target-binding",
+          "reason": "Authentication/session scope must not be replaced by request-selected target.",
           "control_ids": [
-            "NEG-1194-ESC-001"
-          ]
+            "NEG-OBL-063-01",
+            "NEG-OBL-137-01"
+          ],
+          "status": "passed"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
-      "family": "documentation",
+      "family": "tenant-isolation",
       "applicable": true,
-      "status": "passed",
-      "reason": "Exact-head controls and inherited audit-escape dimensions cover documentation for issue #1194 / PR #1195.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-1194-004"
+        "NEG-OBL-031-01",
+        "NEG-OBL-124-01"
       ],
       "dimensions": [
         {
-          "surface": "canonical-claims",
-          "status": "passed",
-          "reason": "Exact-head control covers documentation:canonical-claims.",
+          "surface": "tenant-scope-isolation",
+          "reason": "A second user or profile must not consume the first user's pending meal state.",
           "control_ids": [
-            "NEG-1194-004"
-          ]
+            "NEG-OBL-031-01",
+            "NEG-OBL-124-01"
+          ],
+          "status": "passed"
         }
-      ]
-    },
-    {
-      "family": "historical-immutability",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires historical-immutability; explicitly not applicable.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "idempotency",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires idempotency; explicitly not applicable.",
-      "control_ids": [],
-      "dimensions": []
+      ],
+      "status": "passed"
     },
     {
       "family": "public-boundary",
       "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires public-boundary; explicitly not applicable.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
-      "dimensions": []
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "reference-liveness",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires reference-liveness; explicitly not applicable.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "rollback",
-      "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires rollback; explicitly not applicable.",
-      "control_ids": [],
-      "dimensions": []
-    },
-    {
-      "family": "structural-contract",
       "applicable": true,
-      "status": "passed",
-      "reason": "Exact-head controls and inherited audit-escape dimensions cover structural-contract for issue #1194 / PR #1195.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-1194-001",
-        "NEG-1194-002",
-        "NEG-1194-003",
-        "NEG-1194-ESC-002",
-        "NEG-1194-ESC-003",
-        "NEG-1194-ESC-004",
-        "NEG-1194-ESC-005"
+        "NEG-OBL-010-01",
+        "NEG-OBL-083-01"
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:benchmark-path-fidelity.",
+          "surface": "reference-validity",
+          "reason": "A persisted reference must remain valid and eligible when continuation consumes it.",
           "control_ids": [
-            "NEG-1194-001"
-          ]
-        },
-        {
-          "surface": "canonical-continuation-path",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:canonical-continuation-path.",
-          "control_ids": [
-            "NEG-1194-ESC-002"
-          ]
-        },
-        {
-          "surface": "canonical-source-consistency",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:canonical-source-consistency.",
-          "control_ids": [
-            "NEG-1194-002"
-          ]
-        },
-        {
-          "surface": "clarification-resolution",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:clarification-resolution.",
-          "control_ids": [
-            "NEG-1194-ESC-003"
-          ]
-        },
-        {
-          "surface": "commercial-identity-validation",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:commercial-identity-validation.",
-          "control_ids": [
-            "NEG-1194-ESC-004"
-          ]
-        },
-        {
-          "surface": "risk-classification",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:risk-classification.",
-          "control_ids": [
-            "NEG-1194-ESC-005"
-          ]
-        },
-        {
-          "surface": "specified-test-matrix",
-          "status": "passed",
-          "reason": "Exact-head control covers structural-contract:specified-test-matrix.",
-          "control_ids": [
-            "NEG-1194-003"
-          ]
+            "NEG-OBL-010-01",
+            "NEG-OBL-083-01"
+          ],
+          "status": "passed"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "status": "passed",
-      "reason": "Exact-head controls and inherited audit-escape dimensions cover temporal-consistency for issue #1194 / PR #1195.",
+      "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "NEG-1194-ESC-006"
+        "NEG-INHERITED-TEMPORAL-CONSISTENCY-PENDING-LIFECYCLE-WINDOW",
+        "NEG-OBL-005-01",
+        "NEG-OBL-013-01",
+        "NEG-OBL-040-01",
+        "NEG-OBL-049-01",
+        "NEG-OBL-060-01",
+        "NEG-OBL-062-02",
+        "NEG-OBL-064-01",
+        "NEG-OBL-075-01",
+        "NEG-OBL-076-02",
+        "NEG-OBL-109-02",
+        "NEG-OBL-117-01",
+        "NEG-OBL-120-01",
+        "NEG-OBL-136-01",
+        "NEG-OBL-138-02"
       ],
       "dimensions": [
         {
           "surface": "pending-lifecycle-window",
-          "status": "passed",
-          "reason": "Exact-head control covers temporal-consistency:pending-lifecycle-window.",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
           "control_ids": [
-            "NEG-1194-ESC-006"
-          ]
+            "NEG-INHERITED-TEMPORAL-CONSISTENCY-PENDING-LIFECYCLE-WINDOW"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "state-reuse-window",
+          "reason": "Continuation must use the current pending state without stale or future state substitution.",
+          "control_ids": [
+            "NEG-OBL-005-01",
+            "NEG-OBL-013-01",
+            "NEG-OBL-040-01",
+            "NEG-OBL-049-01",
+            "NEG-OBL-060-01",
+            "NEG-OBL-062-02",
+            "NEG-OBL-064-01",
+            "NEG-OBL-075-01",
+            "NEG-OBL-076-02",
+            "NEG-OBL-109-02",
+            "NEG-OBL-117-01",
+            "NEG-OBL-120-01",
+            "NEG-OBL-136-01",
+            "NEG-OBL-138-02"
+          ],
+          "status": "passed"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires temporal-destination; explicitly not applicable.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
-      "dimensions": []
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
-      "family": "tenant-isolation",
+      "family": "concurrency-atomicity",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-INHERITED-CONCURRENCY-ATOMICITY-CONCURRENT-RESOLUTION"
+      ],
+      "dimensions": [
+        {
+          "surface": "concurrent-resolution",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
+          "control_ids": [
+            "NEG-INHERITED-CONCURRENCY-ATOMICITY-CONCURRENT-RESOLUTION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-076-01",
+        "NEG-OBL-097-01",
+        "NEG-OBL-109-01",
+        "NEG-OBL-123-01",
+        "NEG-OBL-128-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
+          "control_ids": [
+            "NEG-OBL-076-01",
+            "NEG-OBL-097-01",
+            "NEG-OBL-109-01",
+            "NEG-OBL-123-01",
+            "NEG-OBL-128-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "rollback",
       "applicable": false,
-      "status": "not-applicable",
-      "reason": "No canonical obligation in issue #1194 requires tenant-isolation; explicitly not applicable.",
+      "reason": "No current contract or diff signal requires this family.",
       "control_ids": [],
-      "dimensions": []
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-INHERITED-STRUCTURAL-CONTRACT-CANONICAL-CONTINUATION-PATH",
+        "NEG-INHERITED-STRUCTURAL-CONTRACT-CLARIFICATION-RESOLUTION",
+        "NEG-INHERITED-STRUCTURAL-CONTRACT-COMMERCIAL-IDENTITY-VALIDATION",
+        "NEG-INHERITED-STRUCTURAL-CONTRACT-RISK-CLASSIFICATION",
+        "NEG-OBL-001-01",
+        "NEG-OBL-002-01",
+        "NEG-OBL-003-01",
+        "NEG-OBL-004-01",
+        "NEG-OBL-006-01",
+        "NEG-OBL-007-01",
+        "NEG-OBL-008-01",
+        "NEG-OBL-009-01",
+        "NEG-OBL-011-01",
+        "NEG-OBL-012-01",
+        "NEG-OBL-014-01",
+        "NEG-OBL-015-01",
+        "NEG-OBL-016-01",
+        "NEG-OBL-017-01",
+        "NEG-OBL-018-01",
+        "NEG-OBL-019-01",
+        "NEG-OBL-020-01",
+        "NEG-OBL-021-01",
+        "NEG-OBL-022-01",
+        "NEG-OBL-023-01",
+        "NEG-OBL-024-01",
+        "NEG-OBL-025-01",
+        "NEG-OBL-026-01",
+        "NEG-OBL-027-01",
+        "NEG-OBL-028-01",
+        "NEG-OBL-029-01",
+        "NEG-OBL-030-01",
+        "NEG-OBL-032-01",
+        "NEG-OBL-033-01",
+        "NEG-OBL-034-01",
+        "NEG-OBL-035-01",
+        "NEG-OBL-036-01",
+        "NEG-OBL-037-01",
+        "NEG-OBL-038-01",
+        "NEG-OBL-039-01",
+        "NEG-OBL-041-01",
+        "NEG-OBL-042-01",
+        "NEG-OBL-043-01",
+        "NEG-OBL-044-01",
+        "NEG-OBL-045-01",
+        "NEG-OBL-046-01",
+        "NEG-OBL-047-01",
+        "NEG-OBL-048-01",
+        "NEG-OBL-050-01",
+        "NEG-OBL-051-01",
+        "NEG-OBL-052-01",
+        "NEG-OBL-053-01",
+        "NEG-OBL-054-01",
+        "NEG-OBL-055-01",
+        "NEG-OBL-056-01",
+        "NEG-OBL-057-01",
+        "NEG-OBL-058-01",
+        "NEG-OBL-059-01",
+        "NEG-OBL-061-01",
+        "NEG-OBL-062-01",
+        "NEG-OBL-065-01",
+        "NEG-OBL-066-01",
+        "NEG-OBL-067-01",
+        "NEG-OBL-068-01",
+        "NEG-OBL-069-01",
+        "NEG-OBL-070-01",
+        "NEG-OBL-071-01",
+        "NEG-OBL-072-01",
+        "NEG-OBL-073-01",
+        "NEG-OBL-074-01",
+        "NEG-OBL-077-01",
+        "NEG-OBL-078-01",
+        "NEG-OBL-079-01",
+        "NEG-OBL-080-01",
+        "NEG-OBL-081-01",
+        "NEG-OBL-082-01",
+        "NEG-OBL-084-01",
+        "NEG-OBL-085-01",
+        "NEG-OBL-086-01",
+        "NEG-OBL-087-01",
+        "NEG-OBL-088-01",
+        "NEG-OBL-089-01",
+        "NEG-OBL-090-01",
+        "NEG-OBL-091-01",
+        "NEG-OBL-092-01",
+        "NEG-OBL-093-01",
+        "NEG-OBL-094-01",
+        "NEG-OBL-095-01",
+        "NEG-OBL-096-01",
+        "NEG-OBL-098-01",
+        "NEG-OBL-099-01",
+        "NEG-OBL-100-01",
+        "NEG-OBL-101-01",
+        "NEG-OBL-102-01",
+        "NEG-OBL-103-01",
+        "NEG-OBL-104-01",
+        "NEG-OBL-105-01",
+        "NEG-OBL-106-01",
+        "NEG-OBL-107-01",
+        "NEG-OBL-108-01",
+        "NEG-OBL-110-01",
+        "NEG-OBL-111-01",
+        "NEG-OBL-112-01",
+        "NEG-OBL-113-01",
+        "NEG-OBL-114-01",
+        "NEG-OBL-115-01",
+        "NEG-OBL-116-01",
+        "NEG-OBL-118-01",
+        "NEG-OBL-119-01",
+        "NEG-OBL-121-01",
+        "NEG-OBL-122-01",
+        "NEG-OBL-125-01",
+        "NEG-OBL-126-01",
+        "NEG-OBL-127-01",
+        "NEG-OBL-129-01",
+        "NEG-OBL-130-01",
+        "NEG-OBL-131-01",
+        "NEG-OBL-132-01",
+        "NEG-OBL-133-01",
+        "NEG-OBL-134-01",
+        "NEG-OBL-135-01",
+        "NEG-OBL-139-02",
+        "NEG-OBL-140-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
+          "control_ids": [
+            "NEG-OBL-045-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-continuation-path",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
+          "control_ids": [
+            "NEG-INHERITED-STRUCTURAL-CONTRACT-CANONICAL-CONTINUATION-PATH"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "canonical-source-consistency",
+          "reason": "The canonical semantic contract must remain the single source of truth.",
+          "control_ids": [
+            "NEG-OBL-001-01",
+            "NEG-OBL-002-01",
+            "NEG-OBL-003-01",
+            "NEG-OBL-004-01",
+            "NEG-OBL-006-01",
+            "NEG-OBL-007-01",
+            "NEG-OBL-008-01",
+            "NEG-OBL-009-01",
+            "NEG-OBL-011-01",
+            "NEG-OBL-012-01",
+            "NEG-OBL-014-01",
+            "NEG-OBL-015-01",
+            "NEG-OBL-016-01",
+            "NEG-OBL-017-01",
+            "NEG-OBL-018-01",
+            "NEG-OBL-019-01",
+            "NEG-OBL-020-01",
+            "NEG-OBL-021-01",
+            "NEG-OBL-022-01",
+            "NEG-OBL-023-01",
+            "NEG-OBL-024-01",
+            "NEG-OBL-025-01",
+            "NEG-OBL-026-01",
+            "NEG-OBL-027-01",
+            "NEG-OBL-028-01",
+            "NEG-OBL-029-01",
+            "NEG-OBL-030-01",
+            "NEG-OBL-032-01",
+            "NEG-OBL-033-01",
+            "NEG-OBL-035-01",
+            "NEG-OBL-036-01",
+            "NEG-OBL-037-01",
+            "NEG-OBL-038-01",
+            "NEG-OBL-039-01",
+            "NEG-OBL-041-01",
+            "NEG-OBL-042-01",
+            "NEG-OBL-043-01",
+            "NEG-OBL-044-01",
+            "NEG-OBL-046-01",
+            "NEG-OBL-047-01",
+            "NEG-OBL-048-01",
+            "NEG-OBL-050-01",
+            "NEG-OBL-051-01",
+            "NEG-OBL-052-01",
+            "NEG-OBL-053-01",
+            "NEG-OBL-054-01",
+            "NEG-OBL-055-01",
+            "NEG-OBL-056-01",
+            "NEG-OBL-057-01",
+            "NEG-OBL-058-01",
+            "NEG-OBL-059-01",
+            "NEG-OBL-061-01",
+            "NEG-OBL-065-01",
+            "NEG-OBL-066-01",
+            "NEG-OBL-067-01",
+            "NEG-OBL-068-01",
+            "NEG-OBL-069-01",
+            "NEG-OBL-070-01",
+            "NEG-OBL-071-01",
+            "NEG-OBL-072-01",
+            "NEG-OBL-073-01",
+            "NEG-OBL-074-01",
+            "NEG-OBL-077-01",
+            "NEG-OBL-078-01",
+            "NEG-OBL-079-01",
+            "NEG-OBL-080-01",
+            "NEG-OBL-081-01",
+            "NEG-OBL-082-01",
+            "NEG-OBL-084-01",
+            "NEG-OBL-085-01",
+            "NEG-OBL-086-01",
+            "NEG-OBL-087-01",
+            "NEG-OBL-088-01",
+            "NEG-OBL-089-01",
+            "NEG-OBL-090-01",
+            "NEG-OBL-091-01",
+            "NEG-OBL-092-01",
+            "NEG-OBL-093-01",
+            "NEG-OBL-094-01",
+            "NEG-OBL-095-01",
+            "NEG-OBL-096-01",
+            "NEG-OBL-098-01",
+            "NEG-OBL-099-01",
+            "NEG-OBL-100-01",
+            "NEG-OBL-101-01",
+            "NEG-OBL-102-01",
+            "NEG-OBL-103-01",
+            "NEG-OBL-104-01",
+            "NEG-OBL-105-01",
+            "NEG-OBL-106-01",
+            "NEG-OBL-107-01",
+            "NEG-OBL-108-01",
+            "NEG-OBL-110-01",
+            "NEG-OBL-111-01",
+            "NEG-OBL-112-01",
+            "NEG-OBL-113-01",
+            "NEG-OBL-114-01",
+            "NEG-OBL-115-01",
+            "NEG-OBL-116-01",
+            "NEG-OBL-118-01",
+            "NEG-OBL-119-01",
+            "NEG-OBL-121-01",
+            "NEG-OBL-122-01",
+            "NEG-OBL-125-01",
+            "NEG-OBL-126-01",
+            "NEG-OBL-127-01",
+            "NEG-OBL-129-01",
+            "NEG-OBL-130-01",
+            "NEG-OBL-131-01",
+            "NEG-OBL-132-01",
+            "NEG-OBL-133-01",
+            "NEG-OBL-134-01",
+            "NEG-OBL-135-01",
+            "NEG-OBL-139-02",
+            "NEG-OBL-140-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "clarification-resolution",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
+          "control_ids": [
+            "NEG-INHERITED-STRUCTURAL-CONTRACT-CLARIFICATION-RESOLUTION"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "commercial-identity-validation",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
+          "control_ids": [
+            "NEG-INHERITED-STRUCTURAL-CONTRACT-COMMERCIAL-IDENTITY-VALIDATION"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "NEG-OBL-034-01",
+            "NEG-OBL-062-01"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "risk-classification",
+          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
+          "control_ids": [
+            "NEG-INHERITED-STRUCTURAL-CONTRACT-RISK-CLASSIFICATION"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "reason": "Derived from requirement attack matrix.",
+      "control_ids": [
+        "NEG-OBL-137-02",
+        "NEG-OBL-138-01",
+        "NEG-OBL-139-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "contract-claim-consistency",
+          "reason": "Documentation must match the implemented multi-item contract.",
+          "control_ids": [
+            "NEG-OBL-137-02",
+            "NEG-OBL-138-01",
+            "NEG-OBL-139-01"
+          ],
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
     }
   ],
   "material_families_missing_controls": []

@@ -129,7 +129,7 @@ describe("whatsapp messageLifecycle", () => {
     expect(await wasMessageAlreadyProcessed(null)).toBe(false);
   });
 
-  it("grava a resposta de saída e vincula à mensagem de entrada", async () => {
+  it("grava a resposta de saída com vínculo atômico à mensagem de entrada", async () => {
     repositoryMock.appendMessage.mockResolvedValue({ message: { id: 101 }, wasNewInsert: true });
 
     await recordOutboundReply({ conversationId: 10, messageId: 100, wasNewInsert: true }, { userId: 1, text: "Registrado!" });
@@ -144,7 +144,7 @@ describe("whatsapp messageLifecycle", () => {
         respondsToMessageId: 100,
       }),
     );
-    expect(repositoryMock.linkResponse).toHaveBeenCalledWith(100, 101);
+    expect(repositoryMock.linkResponse).not.toHaveBeenCalled();
   });
 
   it("não faz nada ao gravar resposta quando o handle é nulo (sem banco)", async () => {

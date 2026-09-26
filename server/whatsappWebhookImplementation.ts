@@ -98,7 +98,10 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
-import { buildMealSemanticContract } from "./mealSemanticContract";
+import {
+  addImageIdentityClarifications,
+  buildMealSemanticContract,
+} from "./mealSemanticContract";
 import {
   createProvisionalNutritionLabelPhotoRequests,
   resolveNutritionLabelPhotoEvidence,
@@ -108,8 +111,11 @@ import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import {
   beginInboundMessage,
+  claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  releaseMessageForRetry,
+  wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -181,11 +187,15 @@ function buildProcessingFailureReply(
     message.image?.id &&
     notRecognized &&
     error instanceof MealInferenceError &&
-    error.code === "food_identity_clarification_required" &&
+    (error.code === "food_identity_clarification_required" ||
+      error.code === "image_identity_unresolved") &&
     error.message.trim()
   ) {
+    const prefix = error.code === "image_identity_unresolved"
+      ? "Não consegui identificar com segurança um item da imagem."
+      : "Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança.";
     return buildWhatsAppRecoverableErrorReplyMessage(
-      `Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. ${error.message.trim()}`
+      `${prefix} ${error.message.trim()}`
     );
   }
   if (message.image?.id) {
@@ -322,6 +332,7 @@ async function sendInterpretedTextIntentReply(input: {
   interpreted: WhatsAppTextIntentResult;
   lifecycleHandle: MessageLifecycleHandle;
   replyText?: string;
+  response?: Response;
 }) {
   logInferenceEvent({
     userId: input.userId,
@@ -356,6 +367,15 @@ async function sendInterpretedTextIntentReply(input: {
       detail: "Falha ao enviar resposta lógica do WhatsApp.",
     });
   }
+  if (!delivery.result.primaryOk) {
+    await releaseMessageForRetry(input.lifecycleHandle);
+    input.response?.status(503).json({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
+    return;
+  }
   if (mealId) {
     await recordDomainLink(input.lifecycleHandle, { mealId });
   }
@@ -373,19 +393,6 @@ function canInterpretAudioTranscriptIntent(
 
 function isSupportedMessage(message: WhatsAppWebhookMessage) {
   return Boolean(message.text?.body || message.image?.id || message.audio?.id);
-}
-
-function reserveWhatsAppMessageForProcessing(messageId?: string) {
-  if (!messageId) {
-    return true;
-  }
-
-  if (whatsAppMessageDeduplicationCache.wasAlreadyHandled(messageId)) {
-    return false;
-  }
-
-  whatsAppMessageDeduplicationCache.markHandled(messageId);
-  return true;
 }
 
 export function __resetWhatsAppWebhookDeduplicationForTests() {
@@ -413,10 +420,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
   for (const message of messages) {
     const sourcePhone = message.from || "unknown";
-
-    if (!reserveWhatsAppMessageForProcessing(message.id)) {
-      continue;
-    }
 
     if (!isWhatsAppMessageForConfiguredChannel(message)) {
       logInferenceEvent({
@@ -486,6 +489,52 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
       allowRawContentStorage: true,
     });
+
+    if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega ignorada após efeito ou resposta persistida.",
+      });
+      await markMessageProcessed(lifecycleHandle);
+      continue;
+    }
+
+    const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+    if (claimStatus === "processed") {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega ignorada após claim concorrente concluir o efeito.",
+      });
+      await markMessageProcessed(lifecycleHandle);
+      continue;
+    }
+    if (claimStatus === "inflight" || claimStatus === "unavailable") {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.idempotency.inflight_retry",
+        detail:
+          claimStatus === "inflight"
+            ? "Outro owner ainda processa esta mensagem; o provedor deve tentar novamente."
+            : "Não foi possível obter ownership persistente; a mensagem permanece retryable.",
+      });
+      return res.status(503).json({
+        ok: false,
+        retryable: true,
+        reason:
+          claimStatus === "inflight"
+            ? "message_processing_inflight"
+            : "message_processing_unavailable",
+      });
+    }
+
     const deferredReply = getWhatsAppDeferredLogicalReply(req, message.id);
     for (const link of deferredReply?.domainLinks ?? []) {
       await recordDomainLink(lifecycleHandle, link);
@@ -509,6 +558,20 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         replyText: finalReply,
         lifecycleHandle,
       });
+      if (!delivery.result.primaryOk) {
+        await releaseMessageForRetry(lifecycleHandle);
+        res.status(503).json({
+          ok: false,
+          retryable: true,
+          reason: "whatsapp_reply_delivery_failed",
+        });
+        return {
+          ok: false,
+          detail:
+            delivery.result.sends.find(send => !send.ok)?.detail ??
+            "Resposta funcional não foi aceita pelo provedor; processamento permanecerá retryable.",
+        };
+      }
       await markMessageProcessed(lifecycleHandle);
       return {
         ok: delivery.result.primaryOk,
@@ -784,6 +847,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             interpreted,
             lifecycleHandle,
             replyText: composeFinalReply(interpreted.reply),
+            response: res,
           });
           continue;
         }
@@ -917,6 +981,66 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         const imagePersistence = inspectWhatsappImageMealItemsPersistence(
           processed.items
         );
+        if (
+          imagePersistence.status === "missing_identity" &&
+          imagePersistence.itemIndexes.length > 0 &&
+          imagePersistence.itemIndexes.length < processed.items.length
+        ) {
+          const semanticContract = addImageIdentityClarifications({
+            contract: processed.semanticContract ?? buildMealSemanticContract({
+              processingInput: {
+                text: processed.sourceText,
+                transcript: processed.transcript,
+                imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+                audioUrl: prepared.audioUrl,
+                occurredAt,
+                timeZone: userTimezone,
+              },
+              sourceText: processed.sourceText,
+              items: processed.items,
+            }),
+            items: processed.items,
+            itemIndexes: imagePersistence.itemIndexes,
+          });
+          const identityClarification = await requestWhatsappImageMealIdentityClarification({
+            userId,
+            detectedMealLabel: processed.detectedMealLabel,
+            sourceText: processed.sourceText,
+            transcript: processed.transcript,
+            reasoning: processed.reasoning,
+            confidence: processed.confidence,
+            occurredAt,
+            items: processed.items,
+            semanticContract,
+            media: prepared.media,
+            pendingItemIndexes: imagePersistence.itemIndexes,
+            currentItemIndex: imagePersistence.itemIndexes[0],
+            messageId: message.id,
+            instructionText: semanticContract.clarifications.find(
+              clarification => clarification.itemIndex === imagePersistence.itemIndexes[0]
+            )?.message,
+          });
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: identityClarification.action === "food_clarification_requested"
+              ? "success"
+              : "warning",
+            eventType: identityClarification.eventType,
+            detail: identityClarification.detail,
+          });
+          const replyResult = await sendFinalText(identityClarification.reply);
+          if (!replyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
+            });
+          }
+          continue;
+        }
         if (imagePersistence.status === "missing_portion") {
           const clarification =
             await requestWhatsappImageMealQuantityClarification({
@@ -1182,6 +1306,15 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           detail: "Falha ao enviar resposta lógica de refeição pelo WhatsApp.",
         });
       }
+      if (!delivery.result.primaryOk) {
+        await releaseMessageForRetry(lifecycleHandle);
+        res.status(503).json({
+          ok: false,
+          retryable: true,
+          reason: "whatsapp_reply_delivery_failed",
+        });
+        continue;
+      }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
       const identityContext =
@@ -1192,7 +1325,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const identityIndexes = identityContext?.semanticContract?.clarifications
         .filter(clarification =>
           clarification.code === "commercial_identity_unverified" ||
-          clarification.code === "brand_variant_unresolved"
+          clarification.code === "brand_variant_unresolved" ||
+          clarification.code === "image_identity_unresolved"
         )
         .map(clarification => clarification.itemIndex)
         .filter(index => Number.isInteger(index)) ?? [];
@@ -1235,7 +1369,6 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
             detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
           });
         }
-        await markMessageProcessed(lifecycleHandle);
         continue;
       }
       logInferenceEvent({
@@ -1265,5 +1398,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
     }
   }
 
+  if (res.headersSent || (res as Response & { statusCode?: number }).statusCode === 503) {
+    return res;
+  }
   return res.status(200).json({ ok: true, processed: messages.length });
 }

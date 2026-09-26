@@ -1,7 +1,14 @@
 {
-  "schema_version": 1,
-  "status": "internally-approved-pending-independent-audit",
-  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-  "ci_state": "green",
-  "terminal_handoff": "READY"
+  "schema_version": 5,
+  "status": "frozen",
+  "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "base_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
+  "branch": "fix/1177-image-commercial-recognition",
+  "issue_number": 1177,
+  "pull_request_number": 1210,
+  "checks": {
+    "pnpm check": "passed",
+    "pnpm architecture:check": "passed",
+    "pnpm test": "passed"
+  }
 }

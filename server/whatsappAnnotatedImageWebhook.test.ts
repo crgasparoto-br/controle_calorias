@@ -42,6 +42,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
+  releaseMessageForRetry: vi.fn(async () => true),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
@@ -427,6 +428,9 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
 
   it("mantém a foto original e a resposta textual sem gerar ou persistir imagem anotada quando desabilitada", async () => {
     getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: false, readFailed: false });
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
 
     const res = createResponse();
     await handleWhatsAppWebhookWithTextIntent(createImageWebhookRequest("image-disabled") as never, res as never);
@@ -958,6 +962,84 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
     expect(sentTextMessages).toEqual(["Informe a marca ou variante exata do bombom."]);
+  });
+
+  it("abre identidade para um item visual ambíguo sem persistir os itens reconhecidos isoladamente", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      confidence: 0.88,
+      needsConfirmation: true,
+      reasoning: "Um produto foi reconhecido e outro permaneceu ambíguo.",
+      items: [
+        {
+          foodName: "Cerveja Lager",
+          canonicalName: "Cerveja Lager",
+          portionText: "1 lata (350 ml)",
+          quantity: 350,
+          unit: "ml",
+          servings: 1,
+          estimatedGrams: 350,
+          calories: 140,
+          protein: 1.2,
+          carbs: 10,
+          fat: 0,
+          confidence: 0.92,
+          source: "heuristic",
+        },
+        {
+          foodName: "item 2",
+          canonicalName: "item 2",
+          portionText: "1 unidade",
+          quantity: 1,
+          unit: "unidade",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 100,
+          protein: 3,
+          carbs: 10,
+          fat: 2,
+          confidence: 0.42,
+          source: "heuristic",
+        },
+      ],
+      totals: { calories: 240, protein: 4.2, carbs: 20, fat: 2 },
+    });
+    requestWhatsappImageMealIdentityClarificationMock.mockResolvedValueOnce({
+      action: "food_clarification_requested",
+      reply: "Informe qual é o alimento do item 2.",
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Clarificação persistida.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-partial-visual-identity") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(requestWhatsappImageMealIdentityClarificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pendingItemIndexes: [1],
+        currentItemIndex: 1,
+        items: expect.arrayContaining([
+          expect.objectContaining({ foodName: "Cerveja Lager" }),
+          expect.objectContaining({ foodName: "item 2" }),
+        ]),
+        semanticContract: expect.objectContaining({
+          clarifications: [expect.objectContaining({
+            itemIndex: 1,
+            code: "image_identity_unresolved",
+          })],
+        }),
+      }),
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages.at(-1)).toContain("Informe qual é o alimento do item 2");
+    expect(sentTextMessages.at(-1)).not.toContain("Não consegui identificar o alimento na imagem");
   });
 
   it("usa o estado persistido ao responder uma refeição nova criada por imagem", async () => {
