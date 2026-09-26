@@ -14,8 +14,17 @@ const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const transcribeAudioMock = vi.fn();
 const storagePutMock = vi.fn();
-const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+const {
+  beginInboundMessageMock,
+  claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessedMock,
+  recordOutboundReplyMock,
+  recordDomainLinkMock,
+  markMessageProcessedMock,
+} = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  claimMessageForProcessingStateMock: vi.fn(async () => "claimed" as const),
+  wasMessageAlreadyProcessedMock: vi.fn(async () => false),
   recordOutboundReplyMock: vi.fn(async () => undefined),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
@@ -23,6 +32,8 @@ const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, 
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,

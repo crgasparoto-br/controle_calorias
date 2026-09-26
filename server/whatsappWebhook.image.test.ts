@@ -13,13 +13,19 @@ const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
 const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
 const requestWhatsappImageMealQuantityClarificationMock = vi.fn();
+const beginInboundMessageMock = vi.fn(async () => null);
+const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
-  beginInboundMessage: vi.fn(async () => null),
+  beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   markMessageProcessed: vi.fn(async () => undefined),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
 }));
 
@@ -193,6 +199,12 @@ describe("whatsappWebhook image inbound", () => {
     confirmPendingMealMock.mockReset();
     requestWhatsappImageMealIdentityClarificationMock.mockReset();
     requestWhatsappImageMealQuantityClarificationMock.mockReset();
+    beginInboundMessageMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue(null);
+    claimMessageForProcessingStateMock.mockReset();
+    claimMessageForProcessingStateMock.mockResolvedValue("claimed");
+    wasMessageAlreadyProcessedMock.mockReset();
+    wasMessageAlreadyProcessedMock.mockResolvedValue(false);
     requestWhatsappImageMealIdentityClarificationMock.mockResolvedValue({
       action: "food_clarification_requested",
       reply: "Informe qual é o alimento do item 2 e a quantidade consumida.",
@@ -595,5 +607,35 @@ describe("whatsappWebhook image inbound", () => {
       return typeof body === "string" && body.includes("Recebi sua imagem e estou processando");
     });
     expect(acknowledgementCalls).toHaveLength(0);
+  });
+
+  it("responde retryable quando outro owner persistente processa a mesma imagem", async () => {
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 1,
+      messageId: 99,
+      wasNewInsert: false,
+    });
+    claimMessageForProcessingStateMock
+      .mockResolvedValueOnce("claimed")
+      .mockResolvedValueOnce("inflight");
+
+    const req = { body: createMetaImagePayload("wamid.image-inflight") };
+    const firstRes = createResponse();
+    await handleWhatsAppWebhook(req as never, firstRes as never);
+
+    __resetWhatsAppWebhookDeduplicationForTests();
+    const secondRes = createResponse();
+    await handleWhatsAppWebhook(req as never, secondRes as never);
+
+    expect(firstRes.statusCode).toBe(200);
+    expect(secondRes.statusCode).toBe(503);
+    expect(secondRes.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "message_processing_inflight",
+    });
+    expect(processMealInputMock).toHaveBeenCalledTimes(1);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,9 +11,13 @@ const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
+const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   markMessageProcessed: vi.fn(async () => undefined),

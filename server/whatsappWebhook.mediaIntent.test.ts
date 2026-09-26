@@ -9,6 +9,8 @@ const processMealInputMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const transcribeAudioMock = vi.fn();
+const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 
 vi.mock("./modules/water/service", () => ({
   createWaterLog: createWaterLogMock,
@@ -21,6 +23,8 @@ vi.mock("./modules/meals/service", () => ({
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   markMessageProcessed: vi.fn(async () => undefined),

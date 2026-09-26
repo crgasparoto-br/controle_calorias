@@ -111,8 +111,10 @@ import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import {
   beginInboundMessage,
+  claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
 } from "./modules/whatsapp/messageLifecycle";
 
@@ -387,12 +389,7 @@ function reserveWhatsAppMessageForProcessing(messageId?: string) {
     return true;
   }
 
-  if (whatsAppMessageDeduplicationCache.wasAlreadyHandled(messageId)) {
-    return false;
-  }
-
-  whatsAppMessageDeduplicationCache.markHandled(messageId);
-  return true;
+  return !whatsAppMessageDeduplicationCache.wasAlreadyHandled(messageId);
 }
 
 export function __resetWhatsAppWebhookDeduplicationForTests() {
@@ -493,6 +490,57 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       occurredAt: resolveWhatsAppMessageOccurredAt(message),
       allowRawContentStorage: true,
     });
+
+    if (await wasMessageAlreadyProcessed(lifecycleHandle)) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega ignorada após efeito ou resposta persistida.",
+      });
+      await markMessageProcessed(lifecycleHandle);
+      continue;
+    }
+
+    const claimStatus = await claimMessageForProcessingState(lifecycleHandle);
+    if (claimStatus === "processed") {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "success",
+        eventType: "whatsapp.idempotency.processed_duplicate",
+        detail: "Reentrega ignorada após claim concorrente concluir o efeito.",
+      });
+      await markMessageProcessed(lifecycleHandle);
+      continue;
+    }
+    if (claimStatus === "inflight" || claimStatus === "unavailable") {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: "whatsapp.idempotency.inflight_retry",
+        detail:
+          claimStatus === "inflight"
+            ? "Outro owner ainda processa esta mensagem; o provedor deve tentar novamente."
+            : "Não foi possível obter ownership persistente; a mensagem permanece retryable.",
+      });
+      return res.status(503).json({
+        ok: false,
+        retryable: true,
+        reason:
+          claimStatus === "inflight"
+            ? "message_processing_inflight"
+            : "message_processing_unavailable",
+      });
+    }
+
+    // O cache local só é marcado depois que o claim persistente confirmou o
+    // ownership. Assim, falhas de disponibilidade continuam retryable mesmo
+    // dentro do mesmo processo e o cache nunca substitui a decisão durável.
+    whatsAppMessageDeduplicationCache.markHandled(message.id);
+
     const deferredReply = getWhatsAppDeferredLogicalReply(req, message.id);
     for (const link of deferredReply?.domainLinks ?? []) {
       await recordDomainLink(lifecycleHandle, link);
