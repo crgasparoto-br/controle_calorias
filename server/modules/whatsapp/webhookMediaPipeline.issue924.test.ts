@@ -11,20 +11,26 @@ const transcribeAudioMock = vi.fn();
 const storagePutMock = vi.fn();
 const {
   beginInboundMessageMock,
+  claimMessageForProcessingStateMock,
   recordDomainLinkMock,
   markMessageProcessedMock,
+  wasMessageAlreadyProcessedMock,
 } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
+  claimMessageForProcessingStateMock: vi.fn(async () => "claimed" as const),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
+  wasMessageAlreadyProcessedMock: vi.fn(async () => false),
 }));
 
 vi.mock("./messageLifecycle", () => ({
   beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
   ensureMessageProcessingOwnership: vi.fn(async () => true),
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   enrichInboundMessage: vi.fn(async () => true),
 }));
