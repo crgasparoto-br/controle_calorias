@@ -332,7 +332,12 @@ describe("handleWhatsAppWebhook slash AI question routing (webhook real)", () =>
 
     const res = await sendTextMessage(phoneNumber, "/como está minha meta hoje?");
 
-    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
     expect(processMealInputMock).not.toHaveBeenCalled();
     const savedMeals = (await listUserMeals(5)).filter(meal => meal.source === "whatsapp");
     expect(savedMeals).toHaveLength(0);
@@ -348,7 +353,7 @@ describe("handleWhatsAppWebhook slash AI question routing (webhook real)", () =>
     }));
   });
 
-  it("é idempotente para reentrega do mesmo message.id", async () => {
+  it("não usa cache local como autoridade quando o lifecycle persistente está indisponível", async () => {
     const phoneNumber = `5511705${Date.now().toString().slice(-6)}`;
     await upsertUserWhatsappConnection({ userId: 6, phoneNumber, displayName: "Gaspa" });
 
@@ -366,8 +371,8 @@ describe("handleWhatsAppWebhook slash AI question routing (webhook real)", () =>
     await sendTextMessage(phoneNumber, "/como está minha meta hoje?", { id: "dup-message-1" });
     await sendTextMessage(phoneNumber, "/como está minha meta hoje?", { id: "dup-message-1" });
 
-    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledTimes(1);
-    expect(sentWhatsAppPayloads.filter(payload => payload.type === "text")).toHaveLength(1);
+    expect(executeWhatsappAiQuestionIntentMock).toHaveBeenCalledTimes(2);
+    expect(sentWhatsAppPayloads.filter(payload => payload.type === "text")).toHaveLength(2);
   });
 
   it("mantém o fluxo alimentar normal para mensagens sem /", async () => {
