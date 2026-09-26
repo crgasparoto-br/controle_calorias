@@ -35,7 +35,10 @@ import {
   isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
-import { isGenericNutritionFallbackItem } from "./mealNutritionFallback";
+import {
+  isGenericNutritionFallbackItem,
+  isGenericNutritionPlaceholder,
+} from "./mealNutritionFallback";
 import { buildMealSemanticContract } from "./mealSemanticContract";
 import {
   extractExplicitQuantities,
@@ -969,7 +972,8 @@ async function buildItemsFromInference(
       && alternatives.length === 0
       && !canUseVerifiedNutritionLabel
     ) {
-      const hasNutrition = hasUsableNutrition(resolvedItem);
+      const hasNutrition = hasUsableNutrition(resolvedItem)
+        && !isGenericNutritionPlaceholder(resolvedItem);
       const identitySource = [semanticSource, resolvedItem.brand]
         .filter(Boolean)
         .join(" ");
@@ -1026,7 +1030,9 @@ async function buildItemsFromInference(
       continue;
     }
 
-    if (!hasUsableNutrition(resolvedItem)) {
+    const hasGroundedOrNonPlaceholderNutrition = hasUsableNutrition(resolvedItem)
+      && !isGenericNutritionPlaceholder(resolvedItem);
+    if (!hasGroundedOrNonPlaceholderNutrition) {
       const fallbackItem = sourceFoodName
         ? { ...resolvedItem, foodName: sourceFoodName }
         : resolvedItem;

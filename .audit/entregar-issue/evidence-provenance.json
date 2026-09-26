@@ -1,37 +1,18 @@
 {
   "schema_version": 1,
-  "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
-  "base_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
+  "material_head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
+  "base_sha": "e7b0b9d47b5a8b4ba10add433a7ce3e18db19ebb",
   "evidence": [
     {
-      "evidence_id": "EVID-QUANT-LABEL-SCALING",
+      "evidence_id": "EVID-1194-GATES",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/quantitative-label-scaling.json",
-      "sha256": "c9100dd62ee7a69e593c763cd5ae5bfd98fc0eeaa37d7b6a7d56db49b00ed42c",
-      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "status": "passed",
+      "producer": "Exact-head local and GitHub Actions gate manifest",
+      "subject_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
       "freshness_policy": "exact-material-head",
-      "producer": "exact-head nutrition label regression plus arithmetic verification",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-EXACT-HEAD-REMEDIATION",
-      "kind": "behavioral",
-      "path": ".audit/entregar-issue/evidence/exact-head-remediation.txt",
-      "sha256": "77c8f5669af541ecb549c67a89f2e557508147ca58df602eed02a9399e5488ef",
-      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
-      "freshness_policy": "exact-material-head",
-      "producer": "focused exact-head regression suite",
-      "status": "passed"
-    },
-    {
-      "evidence_id": "EVID-DOC-SEMANTIC-DRIFT",
-      "kind": "documentation",
-      "path": ".audit/entregar-issue/evidence/documentation-semantic-drift.txt",
-      "sha256": "c78853d0404524b09fc59123950be0e2bd1f4f3e3524e3863a558432f9f627e7",
-      "subject_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
-      "freshness_policy": "exact-material-head",
-      "producer": "exact-head repository documentation and type/architecture gates",
-      "status": "passed"
+      "path": ".audit/entregar-issue/evidence/issue1194-exact-head-controls.txt",
+      "sha256": "90da8790f07f571adecc72ef2ba3cdd61d752663114a55f90282fc0a89fab6f6",
+      "observed": "Issue-specific regressions, full repository tests and all required static/build/policy gates passed at the material head."
     }
   ]
 }

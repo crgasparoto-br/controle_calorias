@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "repository": "crgasparoto-br/controle_calorias",
-  "issue": 1174,
-  "created_at": "2026-09-24T01:16:07.625250+00:00",
-  "primary_source_id": "SRC-ISSUE-1174",
+  "issue": 1194,
+  "created_at": "2026-09-26T00:54:34.025780+00:00",
+  "primary_source_id": "SRC-ISSUE-1194",
   "sources": [
     {
-      "id": "SRC-ISSUE-1174",
+      "id": "SRC-ISSUE-1194",
       "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-1174.txt",
-      "locator": "/home/ubuntu/controle_calorias/.audit/entregar-issue/specification-sources/SRC-ISSUE-1174.txt",
-      "sha256": "5a3ba4bfba5a0971f3dd3d440090cc5e13311be475c2b04f8f6982fc605fe245",
+      "path": "specification-sources/SRC-ISSUE-1194.txt",
+      "locator": "/tmp/spec-src-1194/SRC-ISSUE-1194.md",
+      "sha256": "99699a86973a67674e39b98d2664058df007fc84a824319752a54e3dda69d541",
       "textual": true,
       "extract_source_id": null,
       "required": true,
-      "line_count": 253
+      "line_count": 31
     }
   ]
 }
