@@ -40,6 +40,27 @@ describe("visualMealInferenceValidation", () => {
     expect(resolveWhatsappImageVisibleFoodName(candidate)).toBeNull();
     expect(inspectWhatsappImageMealItemsPersistence([candidate])).toEqual({
       status: "missing_identity",
+      itemIndexes: [0],
+    });
+  });
+
+  it("preserva os itens confiáveis e aponta somente a identidade ausente", () => {
+    const inspection = inspectWhatsappImageMealItemsPersistence([
+      item({ foodName: "Cerveja Lager", canonicalName: "Cerveja Lager" }),
+      item({ foodName: "item 2", canonicalName: "item 2" }),
+      item({ foodName: "Batata assada", canonicalName: "Batata assada" }),
+    ]);
+
+    expect(inspection).toEqual({
+      status: "missing_identity",
+      itemIndexes: [1],
+    });
+  });
+
+  it("mantém a ausência global quando nenhum item é reconhecível", () => {
+    expect(inspectWhatsappImageMealItemsPersistence([])).toEqual({
+      status: "missing_identity",
+      itemIndexes: [],
     });
   });
 

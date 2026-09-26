@@ -54,9 +54,13 @@ const mealItemResolutionSchema = z.object({
     kind: z.string(), grams: z.number(), requestedQuantity: z.number(), requestedUnit: z.string(),
     sourceUrls: z.array(z.string()), sourceEvidence: z.string().nullable(),
     referenceCount: z.number().int().nonnegative(), verified: z.boolean(),
-  }).optional(),
+  }).nullable().optional(),
   ambiguity: z.object({
-    reason: z.enum(["brand_variant_unresolved", "commercial_identity_unverified"]),
+    reason: z.enum([
+      "brand_variant_unresolved",
+      "commercial_identity_unverified",
+      "image_identity_unresolved",
+    ]),
     alternatives: z.array(z.object({
       name: z.string(), brand: z.string().nullable(), productVariant: z.string().nullable(),
       servingLabel: z.string(), gramsPerServing: z.number(),

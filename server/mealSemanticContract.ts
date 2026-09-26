@@ -147,6 +147,9 @@ function clarificationMessage(
   const identity = item.brand
     ? `${item.foodName} (${item.brand})`
     : item.foodName;
+  if (code === "image_identity_unresolved") {
+    return `Não consegui identificar com segurança ${identity || "este item"} na imagem. Informe o nome do alimento, a marca/variante se aplicável e a quantidade consumida.`;
+  }
   if (code === "brand_variant_unresolved") {
     const alternatives = item.resolution?.ambiguity?.alternatives ?? [];
     if (alternatives.length > 1) {
@@ -310,6 +313,49 @@ export function buildMealSemanticContract(input: {
     normalizedText: normalizeForMatching(input.sourceText).trim(),
     inputType: resolveInputType(input.processingInput),
     intent: input.processingInput.intentHint?.intent ?? "add_foods_to_meal",
+    items,
+    needsClarification: clarifications.length > 0,
+    clarifications,
+  };
+}
+
+/**
+ * Marca somente os itens visualmente ambíguos no contrato já produzido pela
+ * inferência. O conjunto permanece único e os itens reconhecidos continuam
+ * disponíveis para a continuação persistente de identidade/quantidade.
+ */
+export function addImageIdentityClarifications(input: {
+  contract: MealSemanticContract;
+  items: MealDraftItem[];
+  itemIndexes: number[];
+}): MealSemanticContract {
+  const pendingIndexes = new Set(input.itemIndexes);
+  const items = input.contract.items.map(item => {
+    if (!pendingIndexes.has(item.itemIndex) || item.clarificationReason) return item;
+    const draftItem = input.items[item.itemIndex];
+    const message = draftItem
+      ? clarificationMessage(draftItem, "image_identity_unresolved")
+      : "Não consegui identificar com segurança um item da imagem. Informe o alimento e a quantidade consumida.";
+    return {
+      ...item,
+      needsClarification: true,
+      clarificationReason: {
+        code: "image_identity_unresolved" as const,
+        message,
+      },
+    };
+  });
+  const clarifications = items
+    .filter((item): item is MealSemanticItem & { clarificationReason: NonNullable<MealSemanticItem["clarificationReason"]> } => Boolean(item.clarificationReason))
+    .map(item => ({
+      itemIndex: item.itemIndex,
+      code: item.clarificationReason.code,
+      message: item.clarificationReason.message,
+      alternatives: [...item.alternatives],
+    }));
+
+  return {
+    ...input.contract,
     items,
     needsClarification: clarifications.length > 0,
     clarifications,

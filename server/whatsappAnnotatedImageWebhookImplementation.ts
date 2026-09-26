@@ -20,6 +20,14 @@ import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDedup
 import { consolidateWhatsAppMealAfterSave } from "./modules/whatsapp/mealConsolidationService";
 import { requestWhatsappImageMealIdentityClarification } from "./modules/whatsapp/foodQuantityClarification";
 import {
+  addImageIdentityClarifications,
+  buildMealSemanticContract,
+} from "./mealSemanticContract";
+import {
+  inspectWhatsappImageMealItemsPersistence,
+  normalizeWhatsappImageMealItemsForPersistence,
+} from "./modules/whatsapp/visualMealInferenceValidation";
+import {
   buildSuspiciousWhatsAppContentReply,
   inspectWhatsAppUserContentSafety,
 } from "./modules/whatsapp/promptInjectionGuard";
@@ -265,11 +273,15 @@ async function processImageMealInputWithFallback(input: {
 
 function buildImageInferenceFailureReply(error: MealInferenceError) {
   if (
-    error.code === "food_identity_clarification_required" &&
+    (error.code === "food_identity_clarification_required" ||
+      error.code === "image_identity_unresolved") &&
     error.message.trim()
   ) {
+    const prefix = error.code === "image_identity_unresolved"
+      ? "Não consegui identificar com segurança um item da imagem."
+      : "Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança.";
     return buildWhatsAppRecoverableErrorReplyMessage(
-      `Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. ${error.message.trim()}`
+      `${prefix} ${error.message.trim()}`
     );
   }
 
@@ -656,6 +668,72 @@ async function tryHandleAnnotatedImageMessage(
     }
 
     const processed = processingOutcome.meal;
+    processed.items = normalizeWhatsappImageMealItemsForPersistence(processed.items);
+    const imagePersistence = inspectWhatsappImageMealItemsPersistence(processed.items);
+    if (imagePersistence.status === "missing_identity") {
+      if (
+        imagePersistence.itemIndexes.length > 0 &&
+        imagePersistence.itemIndexes.length < processed.items.length
+      ) {
+        const semanticContract = addImageIdentityClarifications({
+          contract: processed.semanticContract ?? buildMealSemanticContract({
+            processingInput: {
+              text: processed.sourceText,
+              imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+              occurredAt,
+              timeZone: userTimezone,
+            },
+            sourceText: processed.sourceText,
+            items: processed.items,
+          }),
+          items: processed.items,
+          itemIndexes: imagePersistence.itemIndexes,
+        });
+        const identityResult = await requestWhatsappImageMealIdentityClarification({
+          userId,
+          detectedMealLabel: processed.detectedMealLabel || "Refeição",
+          sourceText: processed.sourceText,
+          reasoning: processed.reasoning,
+          confidence: processed.confidence,
+          occurredAt,
+          items: processed.items,
+          semanticContract,
+          media: prepared.media,
+          pendingItemIndexes: imagePersistence.itemIndexes,
+          currentItemIndex: imagePersistence.itemIndexes[0],
+          messageId: message.id,
+          instructionText: semanticContract.clarifications.find(
+            clarification => clarification.itemIndex === imagePersistence.itemIndexes[0]
+          )?.message,
+        });
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: identityResult.action === "food_clarification_requested" ? "warning" : "error",
+          eventType: identityResult.eventType,
+          detail: identityResult.detail,
+        });
+        await sendAnnotatedImageFallbackText({
+          userId,
+          sourcePhone,
+          reply: identityResult.reply,
+          lifecycleHandle,
+          acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
+
+      await sendAnnotatedImageFallbackText({
+        userId,
+        sourcePhone,
+        reply: buildWhatsAppImageNotRecognizedReplyMessage(),
+        lifecycleHandle,
+        acknowledgement,
+      });
+      markAnnotatedImageMessageHandled(message.id);
+      return true;
+    }
 
     const processedForPersistence = {
       ...processed,

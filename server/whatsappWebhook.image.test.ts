@@ -11,6 +11,8 @@ const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
+const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
+const requestWhatsappImageMealQuantityClarificationMock = vi.fn();
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
@@ -53,6 +55,11 @@ vi.mock("./_core/imageGeneration", () => ({
 
 vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
+}));
+
+vi.mock("./modules/whatsapp/foodQuantityClarification", () => ({
+  requestWhatsappImageMealIdentityClarification: requestWhatsappImageMealIdentityClarificationMock,
+  requestWhatsappImageMealQuantityClarification: requestWhatsappImageMealQuantityClarificationMock,
 }));
 
 vi.mock("./modules/whatsapp/goalProgressService", () => ({
@@ -184,6 +191,14 @@ describe("whatsappWebhook image inbound", () => {
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReset();
     confirmPendingMealMock.mockReset();
+    requestWhatsappImageMealIdentityClarificationMock.mockReset();
+    requestWhatsappImageMealQuantityClarificationMock.mockReset();
+    requestWhatsappImageMealIdentityClarificationMock.mockResolvedValue({
+      action: "food_clarification_requested",
+      reply: "Informe qual é o alimento do item 2 e a quantidade consumida.",
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Clarificação de identidade visual persistida.",
+    });
     logInferenceEventMock.mockReset();
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
@@ -364,6 +379,77 @@ describe("whatsappWebhook image inbound", () => {
       body: expect.stringContaining("211 kcal | P 2,4 g | C 17,3 g | G 0 g"),
     }));
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserva itens reconhecidos e abre identidade somente para o item ambíguo", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      imageUrl: "data:image/jpeg;base64,image-test",
+      confidence: 0.88,
+      needsConfirmation: true,
+      reasoning: "Dois produtos visíveis; um item não tem identidade confiável.",
+      items: [
+        {
+          foodName: "Cerveja Lager",
+          canonicalName: "Cerveja Lager",
+          portionText: "1 lata (350 ml)",
+          quantity: 350,
+          unit: "ml",
+          servings: 1,
+          estimatedGrams: 350,
+          calories: 140,
+          protein: 1.2,
+          carbs: 10,
+          fat: 0,
+          confidence: 0.92,
+          source: "heuristic" as const,
+        },
+        {
+          foodName: "item 2",
+          canonicalName: "item 2",
+          portionText: "1 unidade",
+          quantity: 1,
+          unit: "unidade",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 100,
+          protein: 3,
+          carbs: 10,
+          fat: 2,
+          confidence: 0.42,
+          source: "heuristic" as const,
+        },
+      ],
+      totals: { calories: 240, protein: 4.2, carbs: 20, fat: 2 },
+    });
+
+    const req = { body: createMetaImagePayload("wamid.image-partial-identity") };
+    const res = createResponse();
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(requestWhatsappImageMealIdentityClarificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pendingItemIndexes: [1],
+        currentItemIndex: 1,
+        items: expect.arrayContaining([
+          expect.objectContaining({ foodName: "Cerveja Lager" }),
+          expect.objectContaining({ foodName: "item 2" }),
+        ]),
+        semanticContract: expect.objectContaining({
+          clarifications: [expect.objectContaining({
+            itemIndex: 1,
+            code: "image_identity_unresolved",
+          })],
+        }),
+      }),
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(findFetchCallByBody("Informe qual é o alimento do item 2")).toBeTruthy();
+    expect(findFetchCallByBody("Não consegui identificar o alimento na imagem")).toBeUndefined();
   });
 
   it("envia imagem anotada quando o overlay local retorna URL", async () => {

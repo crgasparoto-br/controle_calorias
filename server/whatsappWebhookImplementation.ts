@@ -98,7 +98,10 @@ import {
 } from "./modules/whatsapp/webhookUtils";
 import { MealInferenceError, MealProcessingResult } from "./nutritionEngine";
 import { processMealInputWithPartialFailures } from "./partialMealProcessing";
-import { buildMealSemanticContract } from "./mealSemanticContract";
+import {
+  addImageIdentityClarifications,
+  buildMealSemanticContract,
+} from "./mealSemanticContract";
 import {
   createProvisionalNutritionLabelPhotoRequests,
   resolveNutritionLabelPhotoEvidence,
@@ -181,11 +184,15 @@ function buildProcessingFailureReply(
     message.image?.id &&
     notRecognized &&
     error instanceof MealInferenceError &&
-    error.code === "food_identity_clarification_required" &&
+    (error.code === "food_identity_clarification_required" ||
+      error.code === "image_identity_unresolved") &&
     error.message.trim()
   ) {
+    const prefix = error.code === "image_identity_unresolved"
+      ? "Não consegui identificar com segurança um item da imagem."
+      : "Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança.";
     return buildWhatsAppRecoverableErrorReplyMessage(
-      `Identifiquei um produto na imagem, mas ainda não consegui confirmar a variante/nutrição com segurança. ${error.message.trim()}`
+      `${prefix} ${error.message.trim()}`
     );
   }
   if (message.image?.id) {
@@ -917,6 +924,66 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         const imagePersistence = inspectWhatsappImageMealItemsPersistence(
           processed.items
         );
+        if (
+          imagePersistence.status === "missing_identity" &&
+          imagePersistence.itemIndexes.length > 0 &&
+          imagePersistence.itemIndexes.length < processed.items.length
+        ) {
+          const semanticContract = addImageIdentityClarifications({
+            contract: processed.semanticContract ?? buildMealSemanticContract({
+              processingInput: {
+                text: processed.sourceText,
+                transcript: processed.transcript,
+                imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+                audioUrl: prepared.audioUrl,
+                occurredAt,
+                timeZone: userTimezone,
+              },
+              sourceText: processed.sourceText,
+              items: processed.items,
+            }),
+            items: processed.items,
+            itemIndexes: imagePersistence.itemIndexes,
+          });
+          const identityClarification = await requestWhatsappImageMealIdentityClarification({
+            userId,
+            detectedMealLabel: processed.detectedMealLabel,
+            sourceText: processed.sourceText,
+            transcript: processed.transcript,
+            reasoning: processed.reasoning,
+            confidence: processed.confidence,
+            occurredAt,
+            items: processed.items,
+            semanticContract,
+            media: prepared.media,
+            pendingItemIndexes: imagePersistence.itemIndexes,
+            currentItemIndex: imagePersistence.itemIndexes[0],
+            messageId: message.id,
+            instructionText: semanticContract.clarifications.find(
+              clarification => clarification.itemIndex === imagePersistence.itemIndexes[0]
+            )?.message,
+          });
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: identityClarification.action === "food_clarification_requested"
+              ? "success"
+              : "warning",
+            eventType: identityClarification.eventType,
+            detail: identityClarification.detail,
+          });
+          const replyResult = await sendFinalText(identityClarification.reply);
+          if (!replyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail: "Falha ao enviar pergunta de identidade pelo WhatsApp.",
+            });
+          }
+          continue;
+        }
         if (imagePersistence.status === "missing_portion") {
           const clarification =
             await requestWhatsappImageMealQuantityClarification({
@@ -1192,7 +1259,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const identityIndexes = identityContext?.semanticContract?.clarifications
         .filter(clarification =>
           clarification.code === "commercial_identity_unverified" ||
-          clarification.code === "brand_variant_unresolved"
+          clarification.code === "brand_variant_unresolved" ||
+          clarification.code === "image_identity_unresolved"
         )
         .map(clarification => clarification.itemIndex)
         .filter(index => Number.isInteger(index)) ?? [];
