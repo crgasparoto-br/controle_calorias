@@ -1,0 +1,629 @@
+{
+  "schema_version": 1,
+  "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+  "requirements": [
+    {
+      "requirement_id": "REQ-1198",
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036"
+      ],
+      "source_texts": [
+        "Permitir que alimento genérico não-branded reconhecido por imagem ou texto use uma referência nutricional genérica compatível do catálogo/TACO sem exigir identidade comercial inexistente, preservando o fail-closed para produtos com marca, linha, sabor ou variante comercial.",
+        "No fluxo de imagem do WhatsApp, uma foto de alimento comum foi interpretada como **“Queijo Muçarela”** e o sistema pediu confirmação de variante comercial/rótulo:",
+        "`docs/product-specs/meal-registration.md`: alimento sem marca/variante explícita pode usar referência genérica/estimativa transparente; produto de marca/variante explícita permanece fail-closed;",
+        "`docs/design-docs/nutrition-engine.md`: busca deve preferir referência específica quando houver identidade comercial, mas alimento genérico pode usar referência menos específica compatível.",
+        "Corrigir o preflight de identidade comercial para reconhecer alimento genérico não-branded quando existir referência genérica compatível no catálogo/TACO.",
+        "Considerar aliases/normalizações TACO necessários para equivalências como `muçarela` ↔ `mozarela` sem transformar termo genérico em marca/variante.",
+        "Usar a referência genérica somente quando não houver evidência de marca, linha, sabor ou variante comercial.",
+        "Preservar a política fail-closed para qualquer identidade comercial explícita não comprovada.",
+        "Reutilizar o motor nutricional e o catálogo existentes; não criar exceção específica de queijo nem mapa hardcoded de produtos.",
+        "Termos genéricos de categoria/alimento que não expressem marca/linha/sabor/variante não podem, isoladamente, virar `commercial_identity_unverified`.",
+        "Antes de abrir clarificação comercial, o preflight deve considerar a referência genérica compatível retornada pelo catálogo/TACO quando o item for não-branded.",
+        "A compatibilidade deve preservar tipo de alimento e semântica; alias ortográfico válido não autoriza correspondência com produto diferente.",
+        "Quando houver marca ou variante comercial explícita, a referência genérica não pode satisfazer a identidade nem fechar a composição nutricional.",
+        "Uma referência genérica aceita deve seguir a mesma proveniência nutricional/cálculo de porção do motor existente e não usar o placeholder genérico.",
+        "Falha de catálogo, múltiplas referências semanticamente conflitantes ou baixa confiança de identidade devem seguir o comportamento seguro existente, sem promover uma correspondência arbitrária.",
+        "**must_be_single_source:** a decisão nutricional continua pertencendo ao motor nutricional/catálogo canônico.",
+        "**must_not_behave:** não inferir que `queijo` é marca/variante comercial apenas por aparecer como token estrutural do nome.",
+        "**must_not_behave:** não usar TACO genérico para fechar produto branded.",
+        "**must_reuse:** `resolveStructuredCommercialIdentity`/preflight canônico e `findTacoFood` ou lookup equivalente já existente.",
+        "**precedência:** evidência comercial explícita > referência genérica; ausência de evidência comercial + referência genérica compatível permite o caminho genérico.",
+        "Implementação plausível errada: adicionar um `if (nome.includes(\"muçarela\"))` para ignorar o preflight. Isso resolve o caso reportado, mas não corrige a regra geral e pode mascarar produtos branded. O controle deve usar exemplos positivos e negativos fora da frase original.",
+        "`Muçarela light Marca X` → referência genérica não pode substituir a variante comercial.",
+        "Entrada textual e imagem equivalentes devem chegar à mesma decisão semântica quando descrevem o mesmo alimento genérico.",
+        "[ ] Entrada visual/textual equivalente a `Queijo Muçarela`, sem marca/linha/sabor comercial, não gera `commercial_identity_unverified` quando houver referência genérica compatível no TACO/catálogo.",
+        "[ ] A referência genérica é usada para calcular a nutrição da porção indicada e o item não recebe o perfil placeholder `150 kcal/100 g`.",
+        "[ ] Alias ortográfico compatível, como `muçarela` ↔ `mozarela`, não muda a identidade para produto comercial.",
+        "[ ] Entradas com marca ou variante comercial não comprovada continuam exigindo clarificação e não recebem silenciosamente a referência genérica.",
+        "[ ] Falha/ambiguidade do catálogo não promove correspondência arbitrária nem fecha identidade como verificada.",
+        "[ ] Testes atravessam o preflight real e o caminho público de processamento de imagem; incluir também um controle textual equivalente.",
+        "[ ] Regressões de identidade comercial, frutas contáveis e fallback nutricional permanecem verdes.",
+        "Regressão do caso observado pelo usuário no caminho público de imagem.",
+        "Caso textual semanticamente equivalente.",
+        "Teste discriminante provando que o preflight usa a referência genérica somente quando não há identidade comercial explícita.",
+        "Teste de que a composição resultante não é o placeholder genérico e mantém proveniência do catálogo/TACO.",
+        "A regra durável já está definida em `docs/product-specs/meal-registration.md` e `docs/design-docs/nutrition-engine.md`. Não duplicar a regra em outro documento. Atualizar a documentação somente se a implementação alterar essa fronteira; caso contrário, registrar apenas a nova cobertura de regressão.",
+        "**Pronta.** A fronteira entre alimento genérico e identidade comercial está definida pelas fontes canônicas e os critérios discriminam o caminho correto do workaround específico."
+      ],
+      "risk_families": [
+        "authorization",
+        "documentation",
+        "idempotency",
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "reason": "Commercial evidence must remain scoped to the item being resolved."
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "reason": "The durable generic/commercial boundary must remain documented."
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "reason": "Equivalent public inputs must not produce conflicting or duplicate resolution effects."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "reason": "Text and image public paths must cross the real guard."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "reason": "Generic references cannot mutate explicit commercial identity."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "reason": "The catalog/TACO producer and consumers must remain aligned."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "reason": "Catalog success, miss and retry states must keep safe resolution boundaries."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "reason": "The decision remains stable and observable at the availability boundary."
+        }
+      ],
+      "plausible_wrong_implementation": "Add an if containing mozzarella to bypass the preflight, accept a generic reference for branded products, or fix only the helper while leaving public fallback consumers unsafe.",
+      "positive_control": {
+        "id": "POS-1198-001",
+        "status": "passed",
+        "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+        "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+        "procedure": "Process unbranded Queijo Muçarela and Queijo Mozarela through real text and image-equivalent paths.",
+        "expected": "Both resolve to one compatible generic catalog/TACO reference with catalog provenance and no placeholder/clarification.",
+        "observed": "Focused and public image/text controls passed.",
+        "evidence_kind": "quantitative",
+        "evidence_id": "EVID-1198-EXACT-HEAD"
+      },
+      "negative_controls": [
+        {
+          "id": "NEG-1198-001",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "dimension": "session-target-binding-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Apply generic evidence to one item and explicit branded evidence to a sibling item in the same public request. Observe the originating session-target binding and a deliberately distinct target.",
+          "expected": "Each item is resolved only from its own identity evidence; generic evidence cannot authorize a branded effect.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-001-S1",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "Each item is resolved only from its own identity evidence; generic evidence cannot authorize a branded effect.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-001-S2",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-002",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Compare executable guard and normative product/nutrition-engine claims for generic and branded paths.",
+          "expected": "Documentation and executable behavior agree on generic acceptance and branded fail-closed behavior.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-002-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "Documentation and executable behavior agree on generic acceptance and branded fail-closed behavior.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-002-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-003",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "duplicate-processing-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Replay the same textual/image-equivalent identity decision through the public processing path.",
+          "expected": "The same catalog/TACO identity and provenance are returned without duplicate or conflicting resolution.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-003-S1",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "The same catalog/TACO identity and provenance are returned without duplicate or conflicting resolution.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-003-S2",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-004",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "benchmark-path-fidelity-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Run both public text fallback and public WhatsApp image path through the real preflight and nutrition engine.",
+          "expected": "Both public paths apply the shared guard; helper-only success cannot bypass the consumer.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-004-S1",
+              "status": "passed",
+              "surface": "benchmark-path-fidelity",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "Both public paths apply the shared guard; helper-only success cannot bypass the consumer.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-004-S2",
+              "status": "passed",
+              "surface": "benchmark-path-fidelity",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-005",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "dimension": "relational-semantic-integrity-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Use Queijo Muçarela/Mozarela, Marca X, light/zero and broad aliases against compatible/incompatible catalog references. Trace the canonical producer/mutation boundary, linked catalog/TACO reference and downstream absence of an invalid branded relation.",
+          "expected": "Orthographic aliases preserve generic identity; explicit commercial evidence cannot be closed by generic TACO.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-005-S1",
+              "status": "passed",
+              "surface": "relational-semantic-integrity",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "Orthographic aliases preserve generic identity; explicit commercial evidence cannot be closed by generic TACO.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-005-S2",
+              "status": "passed",
+              "surface": "relational-semantic-integrity",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-006",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "dimension": "temporal-consistency-contract-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Run generic decision with catalog success, catalog miss and retry-equivalent fallback states.",
+          "expected": "A safe generic result remains provenance-backed; ambiguity/miss remains clarification or safe fallback and never silently promotes stale identity.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-006-S1",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "A safe generic result remains provenance-backed; ambiguity/miss remains clarification or safe fallback and never silently promotes stale identity.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-006-S2",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-007",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "canonical-source-consistency-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Compare the canonical catalog/TACO producer with the direct and fallback consumers. Compare the canonical catalog/TACO producer with the consumer and detect source drift.",
+          "expected": "No consumer accepts a reference that the canonical source/compatibility guard rejects.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-007-S1",
+              "status": "passed",
+              "surface": "canonical-source-consistency",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "No consumer accepts a reference that the canonical source/compatibility guard rejects.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-007-S2",
+              "status": "passed",
+              "surface": "canonical-source-consistency",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1198-008",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "risk_family": "temporal-consistency",
+          "surface": "reporting-availability-window",
+          "dimension": "reporting-availability-window-discriminant",
+          "failure_mode": "A plausible wrong implementation bypasses the shared generic/commercial identity boundary.",
+          "plausible_wrong_implementation": "Use a local exception, generic fallback or stale resolution that ignores explicit commercial evidence.",
+          "procedure": "Run the public generic decision and its retry-equivalent outcome at the reporting/availability boundary. Record the decision and retry-equivalent outcome at the availability boundary.",
+          "expected": "The safe decision remains observable and stable across the availability window.",
+          "observed": "Exact-head adversarial/public regression matrix passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1198-008-S1",
+              "status": "passed",
+              "surface": "reporting-availability-window",
+              "dimension": "alternate-input",
+              "procedure": "Repeat the control with the orthographic alias or equivalent public input.",
+              "expected": "The safe decision remains observable and stable across the availability window.",
+              "observed": "Exact-head matrix passed."
+            },
+            {
+              "id": "NEG-1198-008-S2",
+              "status": "passed",
+              "surface": "reporting-availability-window",
+              "dimension": "negative-control",
+              "procedure": "Repeat with an explicit brand/variant or incompatible reference.",
+              "expected": "The unsafe resolution is rejected or remains clarification-pending without generic substitution.",
+              "observed": "Exact-head matrix passed."
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-1198-001",
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "procedure": "Run full suite, focused #1198 matrix, build, type-check, architecture and docs checks.",
+          "expected": "All identity, natural-food, fallback, image and public-path regressions pass.",
+          "observed": "709 files/4564 tests and all static gates passed."
+        }
+      ],
+      "obligation_control_map": [
+        {
+          "obligation_id": "OBL-001",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-002",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-003",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-004",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-005",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-006",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-007",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-008",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-009",
+          "primary_negative_control_id": "NEG-1198-007"
+        },
+        {
+          "obligation_id": "OBL-010",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-011",
+          "primary_negative_control_id": "NEG-1198-008"
+        },
+        {
+          "obligation_id": "OBL-012",
+          "primary_negative_control_id": "NEG-1198-001"
+        },
+        {
+          "obligation_id": "OBL-013",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-014",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-015",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-016",
+          "primary_negative_control_id": "NEG-1198-007"
+        },
+        {
+          "obligation_id": "OBL-017",
+          "primary_negative_control_id": "NEG-1198-007"
+        },
+        {
+          "obligation_id": "OBL-018",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-019",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-020",
+          "primary_negative_control_id": "NEG-1198-007"
+        },
+        {
+          "obligation_id": "OBL-021",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-022",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-023",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-024",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-025",
+          "primary_negative_control_id": "NEG-1198-001"
+        },
+        {
+          "obligation_id": "OBL-026",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-027",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-028",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-029",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-030",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-031",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-032",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-033",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-034",
+          "primary_negative_control_id": "NEG-1198-005"
+        },
+        {
+          "obligation_id": "OBL-035",
+          "primary_negative_control_id": "NEG-1198-003"
+        },
+        {
+          "obligation_id": "OBL-036",
+          "primary_negative_control_id": "NEG-1198-005"
+        }
+      ],
+      "performance_contract": {
+        "production_entrypoint": "server/nutritionEngine.ts:processMealInput and server/whatsappAnnotatedImageWebhook.ts",
+        "terminal_boundary": "server/nutritionEngine.ts:buildItemsFromInference / resolveCommercialItemsFromTextFallback",
+        "inventory_evidence": {
+          "status": "passed",
+          "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+          "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+          "procedure": "Trace public text/image inputs through preflight, catalog/TACO lookup and final nutrition provenance.",
+          "observed": "Exact-head public image/text and direct consumer regressions passed."
+        },
+        "operations": [
+          {
+            "id": "op-generic-identity",
+            "source": "server/whatsappAnnotatedImageWebhook.ts -> server/nutritionEngine.ts -> server/catalogMatching.ts",
+            "stage": "other",
+            "metric": null,
+            "before_terminal": true,
+            "required_for_contract": true
+          }
+        ],
+        "optimized_branches": [],
+        "benchmark": {
+          "mode": "production-direct",
+          "production_entrypoint": "server/whatsappAnnotatedImageWebhook.ts",
+          "harness_entrypoint": "server/whatsappAnnotatedImageWebhook.test.ts",
+          "covered_operation_ids": [
+            "op-generic-identity"
+          ],
+          "bridged_operation_ids": [],
+          "omitted_operation_ids": []
+        }
+      }
+    }
+  ],
+  "uncovered_requirements": []
+}

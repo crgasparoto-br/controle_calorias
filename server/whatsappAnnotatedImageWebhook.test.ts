@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
+import { resolveStructuredCommercialIdentity } from "./commercialFoodIdentityPreflight";
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
@@ -811,6 +812,72 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
         items: [expect.objectContaining({ foodName: "Ouro Branco Duo Nuts" })],
       })
     );
+  });
+
+  it("não abre clarificação comercial para imagem de alimento genérico compatível", async () => {
+    const identity = resolveStructuredCommercialIdentity({
+      segment: "100 g de Queijo Muçarela",
+      foodName: "Queijo Muçarela",
+      brand: null,
+    });
+    expect(identity).toEqual({ brand: null });
+
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Almoço",
+      sourceText: "Queijo Muçarela",
+      confidence: 0.94,
+      needsConfirmation: true,
+      reasoning: "Referência genérica TACO compatível.",
+      items: [{
+        ...savedImageMeal.items[0],
+        foodName: "Queijo Muçarela",
+        canonicalName: "Queijo, mozarela",
+        brand: null,
+        calories: 329.87,
+        protein: 22.65,
+        carbs: 3.05,
+        fat: 25.18,
+        source: "catalog",
+        resolution: {
+          productVariant: null,
+          nutritionOrigin: "catalog",
+          nutritionVerified: true,
+          sourceUrls: [],
+          sourceEvidence: null,
+          sourceVerifiedAt: null,
+          sourceConfidence: 0.95,
+          ambiguity: null,
+        },
+      }],
+      totals: {
+        calories: 329.87,
+        protein: 22.65,
+        carbs: 3.05,
+        fat: 25.18,
+      },
+      semanticContract: {
+        version: 1,
+        originalText: "Queijo Muçarela",
+        normalizedText: "queijo muçarela",
+        inputType: "image",
+        intent: "register_meal",
+        items: [],
+        needsClarification: false,
+        clarifications: [],
+      },
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-generic-cheese") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(requestWhatsappImageMealIdentityClarificationMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).toHaveBeenCalledOnce();
+    expect(sentTextMessages.join(" ")).not.toContain("variante");
   });
 
   it("preserva todos os itens identificados ao abrir identidade persistente para um item", async () => {

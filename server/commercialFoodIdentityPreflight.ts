@@ -1,5 +1,6 @@
 import {
   findCatalogFood,
+  findGenericCatalogFood,
   findNaturalProduceCatalogFood,
   inferUnresolvedCommercialIdentityHint,
 } from "./catalogMatching";
@@ -89,6 +90,12 @@ export function resolveStructuredCommercialIdentity(
   if (knownBrand) return { brand: knownBrand };
 
   if (findNaturalProduceCatalogFood(request.foodName)) return { brand: null };
+
+  // A referência genérica compatível é a evidência canônica de que tokens
+  // estruturais como "queijo" não representam uma variante comercial. O
+  // helper rejeita aliases amplos, marcadores de marca e referências
+  // conflitantes; por isso esta saída não relaxa o fail-closed comercial.
+  if (findGenericCatalogFood(request.foodName)) return { brand: null };
 
   const hint = inferUnresolvedCommercialIdentityHint(request.foodName);
   if (hint?.brand) return { brand: hint.brand };

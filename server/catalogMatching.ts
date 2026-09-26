@@ -8,6 +8,7 @@ import {
   normalizeForMatching,
   normalizedTokenIncludes,
   normalizeText,
+  parseFoodText,
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -703,6 +704,106 @@ export function findCatalogFood(
   }
 
   return bestFood;
+}
+
+const GENERIC_CATALOG_STRUCTURAL_TOKENS = new Set([
+  "a",
+  "as",
+  "da",
+  "das",
+  "de",
+  "do",
+  "dos",
+  "o",
+  "os",
+  "tipo",
+]);
+
+const GENERIC_CATALOG_PRESENTATION_TOKENS = new Set([
+  "em",
+  "fatia",
+  "fatias",
+  "fatiada",
+  "fatiadas",
+  "fatiado",
+  "fatiados",
+]);
+
+const BROAD_GENERIC_FOOD_TOKENS = new Set([
+  "bebida",
+  "biscoito",
+  "bolacha",
+  "bombom",
+  "carne",
+  "chocolate",
+  "iogurte",
+  "manteiga",
+  "pao",
+  "queijo",
+  "refrigerante",
+]);
+
+export function containsBroadGenericFoodToken(value: string) {
+  return normalizedWords(value).some(token => BROAD_GENERIC_FOOD_TOKENS.has(token));
+}
+
+function genericCatalogIdentityTokens(value: string) {
+  return normalizedWords(value).filter(
+    token => !GENERIC_CATALOG_STRUCTURAL_TOKENS.has(token),
+  );
+}
+
+function genericCatalogIdentityMatchesQuery(
+  food: CatalogFood,
+  foodName: string,
+) {
+  const queryTokens = genericCatalogIdentityTokens(foodName);
+  if (!queryTokens.length) return false;
+  if (queryTokens.length === 1 && containsBroadGenericFoodToken(queryTokens[0])) {
+    return false;
+  }
+
+  const queryTokenSet = new Set(queryTokens);
+  return [food.name, ...food.aliases].some(alias => {
+    const candidateTokens = genericCatalogIdentityTokens(alias);
+    const candidateSpecificTokens = candidateTokens.filter(
+      token => !BROAD_GENERIC_FOOD_TOKENS.has(token),
+    );
+    const querySpecificTokens = queryTokens.filter(
+      token => !BROAD_GENERIC_FOOD_TOKENS.has(token),
+    );
+    const candidateIdentityMatches = candidateSpecificTokens.every(token =>
+      queryTokenSet.has(token)
+    );
+    const queryIdentityMatches = querySpecificTokens.every(token =>
+      candidateTokens.includes(token)
+    );
+    const queryPresentationOnly = queryTokens.every(token =>
+      candidateTokens.includes(token)
+      || GENERIC_CATALOG_PRESENTATION_TOKENS.has(token)
+    );
+    return candidateIdentityMatches && queryIdentityMatches && queryPresentationOnly;
+  });
+}
+
+/**
+ * Finds one unbranded catalog/TACO reference only when the whole food identity
+ * is compatible. Broad aliases and competing local/TACO references remain
+ * unresolved so a generic reference cannot silently stand in for a different
+ * product or an ambiguous category.
+ */
+export function findGenericCatalogFood(foodName: string): CatalogFood | null {
+  const normalizedFoodName = parseFoodText(foodName).foodName || foodName;
+  const candidates = [findCatalogFood(normalizedFoodName), findTacoFood(normalizedFoodName)]
+    .filter((food): food is CatalogFood => Boolean(food))
+    .filter((food, index, all) =>
+      all.findIndex(candidate => candidate.slug === food.slug) === index
+    )
+    .filter(food => !food.isBrandedProduct && !food.brandName?.trim())
+    .filter(food => isCatalogFoodSemanticallyCompatible(food, normalizedFoodName))
+    .filter(food => genericCatalogIdentityMatchesQuery(food, normalizedFoodName));
+
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 export function inferItemBrand(
