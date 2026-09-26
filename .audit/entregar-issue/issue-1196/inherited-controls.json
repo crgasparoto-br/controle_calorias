@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "controls": [
+    {
+      "id": "INH-1196-001",
+      "status": "passed",
+      "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "subject_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+      "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+      "control_type": "test",
+      "risk_family": "structural-contract",
+      "surface": "benchmark-path-fidelity",
+      "dimension": "benchmark-path-fidelity-discriminant",
+      "attack_control_id": "NEG-1196-004",
+      "procedure": "Run the public text webhook with the real quantity resolver.",
+      "expected": "The productive entrypoint and helper contract agree.",
+      "observed": "Exact-head public characterization passed."
+    },
+    {
+      "id": "INH-1196-002",
+      "status": "passed",
+      "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "subject_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+      "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+      "control_type": "test",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "duplicate-processing-discriminant",
+      "attack_control_id": "NEG-1196-003",
+      "procedure": "Replay the same mixed-batch inbound after runtime restart.",
+      "expected": "No duplicate meal or pending mutation occurs.",
+      "observed": "Exact-head scenario 15 passed."
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": [],
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
+      "status": "closed"
+    }
+  ]
+}
