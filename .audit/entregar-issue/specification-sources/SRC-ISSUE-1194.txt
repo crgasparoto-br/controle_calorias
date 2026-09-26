@@ -1,0 +1,31 @@
+# [bug][nutrition][whatsapp] Evitar que itens reconhecidos caiam no fallback genérico de 150 kcal
+
+## Contexto
+
+No teste operacional de 2026-09-25, uma refeição com itens comuns foi registrada com a assinatura do fallback genérico de `150 kcal / 100 g` (`6 g` proteína, `15 g` carboidratos, `5 g` gorduras). O resultado observado foi:
+
+- mussarela — 20 g → 30 kcal / 1,2 g / 3 g / 1 g;
+- presunto — 18 g → 27 kcal / 1,1 g / 2,7 g / 0,9 g;
+- requeijão — 40 g → 60 kcal / 2,4 g / 6 g / 2 g;
+- manteiga — 20 g → 30 kcal / 1,2 g / 3 g / 1 g.
+
+Esses valores não representam a composição dos alimentos e indicam que a estimativa genérica foi aceita como nutrição válida ou que a referência local não foi alcançada no caminho produtivo. O problema precisa ser corrigido sem substituir uma identidade comercial ambígua por uma média silenciosa.
+
+## Objetivo
+
+Garantir que o pipeline de texto e imagem:
+
+1. reutilize uma referência local/TACO ou uma fonte nutricional verificada quando ela existir;
+2. reconheça e descarte a assinatura `150/6/15/5` quando ela vier da inferência como placeholder genérico;
+3. preserve quantidade, unidade e gramatura ao escalar a referência;
+4. permaneça fail-closed para produto comercial sem variante/fonte verificável, solicitando clarificação em vez de inventar nutrição;
+5. só use o fallback genérico quando não houver referência segura, deixando a origem explícita.
+
+## Critérios de aceite
+
+- Regressão automatizada para os caminhos textual e visual com mussarela e presunto, provando que o resultado não é `150/6/15/5` escalado.
+- Regressão para requeijão e manteiga, cobrindo referência local ou pesquisa nutricional verificada; sem confundir marca/variante comercial.
+- Controle negativo para alimento realmente desconhecido, que continua no fallback genérico explícito ou em clarificação quando houver identidade comercial.
+- Nenhum item visualmente identificado com baixa confiança pode bypassar a política de identidade/grounding.
+- `pnpm check`, testes focados, `pnpm test`, `pnpm build`, `pnpm agent:check`, `pnpm architecture:check`, `pnpm docs:check` e `git diff --check` verdes no candidato.
+
