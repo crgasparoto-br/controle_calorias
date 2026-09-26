@@ -1,1 +1,2371 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-closure","compression":"gzip","encoded_size":16200,"encoded_sha256":"d950b300c1e582ca8ce0092238de25b5762e56d1a7d3cccc96743b2bad300ed7","decoded_size":74889,"decoded_sha256":"136b5ac5da6f6d42ba6ba45623d66ec045893587f9f27a92ef2a1489fad6cfb1","parts":[{"path":"requirement-closure.parts/part-000.b64","size":2000,"sha256":"336414de2a2f1cd4b1d7b17e0cb43af62bf65463c8b41550b6e46dcb88381ffa"},{"path":"requirement-closure.parts/part-001.b64","size":2000,"sha256":"4551b000c4dae10af685f77455869e7270d7fa17bda17ae614692cc2c546637d"},{"path":"requirement-closure.parts/part-002.b64","size":2000,"sha256":"4848e06993c47f5c560a31212ab920cefb77769767a4dc0c5bdd1866d695168a"},{"path":"requirement-closure.parts/part-003.b64","size":2000,"sha256":"a3774f21bfcd7dba92b978b0b6072a0659906fed69647b84556eb805a9012c79"},{"path":"requirement-closure.parts/part-004.b64","size":2000,"sha256":"84ff9c99f6b59c79285fb5e83948a6ce69cbfab455782849028475a8f8ef7286"},{"path":"requirement-closure.parts/part-005.b64","size":2000,"sha256":"22ac497953b484c598685e1bc789043659482ad58d2823559808866c97b15cd7"},{"path":"requirement-closure.parts/part-006.b64","size":2000,"sha256":"2e0a01de48a2f963493cc54619acb06e48c8047d73fd77c9994ff6116efc0a8f"},{"path":"requirement-closure.parts/part-007.b64","size":2000,"sha256":"53244cd958414af5d82556db6235fe5ba8f7cf7284c5e67f417a1ea0d104af0e"},{"path":"requirement-closure.parts/part-008.b64","size":200,"sha256":"6c0fdedea8ced0269d04c29a67d928b6d3af3a8c893ef07afc0e6e30e83eb30b"}]}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "/tmp/audit1061-current/specification-snapshot.json",
+    "sha256": "983891a92f86fd6751dcd31a8f7c51083f18dc09d3c7155c88f3e6463d60de44"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1061",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "c87b94245ef12e82ef1d906d486c59e3dbe6787ca952315dab25b4007f898e30",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 5,
+      "source_text": "Garantir que perguntas iniciadas por `/` no WhatsApp tenham duas propriedades independentes e verificáveis:",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "4e3e727b43bd6980dd81a2225ef331563157fbb72b46033a771851fbb4015e90",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 7,
+      "source_text": "**feedback funcional**: ACK curto antes da resposta final, sem serializar contexto/IA atrás do ACK;",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "0e3bf0300cf3414ddb0a53fef72ba329336bb67a814e830b94c62c78e78baa4a",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 8,
+      "source_text": "**confiabilidade de entrega**: uma pergunta não pode virar silêncio permanente por falha de outbound, crash/restart após o claim ou indisponibilidade do runtime antes de qualquer persistência do inbound.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "7774f6018501b40048bf4cc45c6cb5cb0a1078e74d0739a49ad454ee397c2971",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 10,
+      "source_text": "A implementação deve partir de `develop` e preservar a fundação multi-provider, pesquisa web, contexto conversacional persistente, lifecycle/idempotência, governança de uso e políticas centrais existentes.",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "dfffcc047eba2534ddb5614a23598f1101e06735f15319f73fadf8f04af35242",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 20,
+      "source_text": "Em 11/09/2026, uma pergunta `/` ficou sem ACK e sem resposta durante restart da instância. O lifecycle possuía lease de processamento; após término abrupto, o processo não executava `releaseMessageForRetry()`. Uma reentrega do mesmo `message.id` ainda não processado podia encontrar claim ocupado e ser classificada como duplicata terminal, encerrando o retry com HTTP 200 sem resposta funcional.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "9f90e93f881671f1e52fe8c0c614900d2c4f46cb7bbec67763b0210272e03a80",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 28,
+      "source_text": "ACK não pode ser enviado porque o runtime não recebeu a requisição;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "71fff3bf074a999f14d23d7d0d84c9369b2201b8190990271c498e566d07b5df",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 35,
+      "source_text": "Nova reprodução real após a implementação do recovery durável já presente na `develop`.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "dff5fe9e934cbc887a668aed95b7b89ddf240fb0182e8073ce02f900e551e651",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 60,
+      "source_text": "A `develop` já inicia `startWhatsappQuestionRecoveryScheduler()` após o HTTP ficar disponível. O scheduler roda um ciclo inicial após 1 s e depois a cada 15 s. O repositório de recovery seleciona somente mensagens:",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "fce2cfcbf20d44698d7badc41dbe1591e5445feb0b200a912ed76d284f7195eb",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 84,
+      "source_text": "O ciclo de recovery deve tornar observável, sem PII, a diferença entre **nenhum candidato elegível**, **candidato bloqueado por owner ativo**, **falha de lookup**, **candidato recuperado** e **candidato descartado por regra**.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "06cb1c62048b78ac5c129726c2b80d75af116e1f7d21a251e0e03825c9be7b5a",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 85,
+      "source_text": "A telemetria deve permitir correlacionar pelo identificador/fingerprint opaco o inbound original e a decisão posterior do recovery quando houver candidato.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "a734f91a637c71edbec845c49fba66566bb054a461b1137fb3d7690ab97d709d",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 86,
+      "source_text": "O teste de regressão deve usar o repositório/persistência real controlada, não um `findRecoverableQuestions` mockado para devolver diretamente o candidato no cenário principal.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "fff8f991602e9e5c78b93444181fd7242917d865ce2d59c32f87588668e91ec2",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 87,
+      "source_text": "Deve existir um controle que persista uma `QUESTION` real via entrypoint, interrompa o runtime após o claim, reinicie sobre a mesma persistência e prove que o **finder real** reencontra a mensagem.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "fd6215a432030ea366883452884279ae6db4c0ca279d7e64a3e02b2e69205433",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 88,
+      "source_text": "Se o finder real não reencontrar a mensagem, o teste deve falhar antes de exercitar `recoverPendingWhatsappQuestion()`.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "99a729e489ad2f21717a3f21b2668d6157ecb6e2e5a65f951734dc0e404d80a4",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 89,
+      "source_text": "Restarts repetidos não podem reiniciar indefinidamente a janela de recuperação nem tornar a mensagem invisível.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "60219253bc1d25b779c92dc93407924226894c57e235c9bd613fd44bf0115a25",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 90,
+      "source_text": "O recovery continua proibido de roubar owner saudável ou duplicar ACK/final.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "b57b609a6a0b0230965a52c0313358fd0a7a440d07ba231eba876a57e83e1f61",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 98,
+      "source_text": "**Controle discriminante:** cenário persistente usando o mesmo schema/repositório de produção, começando no entrypoint HTTP e terminando na descoberta pelo finder real.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "a393243504919e46e6a0b4094bec08e87ac0650b0b8915a4a1fe8a61e3b29f53",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 102,
+      "source_text": "[ ] O caso de 24/09/2026 é coberto por regressão com persistência real controlada.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "4c828b0d1aa2d8815a1d33faa5856b792de99b203786fcb858d575a0fa86b866",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 103,
+      "source_text": "[ ] O finder produtivo reencontra uma `QUESTION` não concluída depois de perda do runtime.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "2c8a72db0729db90912bb2ffb5f4684602637bbea6ac1dcfbb2a0189fd8ff405",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 104,
+      "source_text": "[ ] Zero candidatos em um ciclo relevante deixa diagnóstico estruturado suficiente para explicar a exclusão sem registrar conteúdo sensível.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "2a3a651c7ba41dc52c4e4e19e0c71f5e95a5456a52cd962748691d847e6a615d",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 105,
+      "source_text": "[ ] Falha do lookup não é silenciosamente indistinguível de “não há trabalho”.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "1061a0fefb698a300a537e1805287f1bf5eca7ae88d77127b2f47fa8b0f35d80",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 106,
+      "source_text": "[ ] O cenário principal de restart não injeta manualmente um candidato no recovery.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "f974b6cc745e547b59f961017c6fa9ca154635251f9c170127816101ae259d9b",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 107,
+      "source_text": "[ ] O mesmo fingerprint/inbound pode ser rastreado de `request_entering_lifecycle` até `orphan_recovered`/`recovered` ou até uma razão terminal explícita.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "982f923ebe8e462e41bc9f2ecfbf2aef15a4763ebf0169ecd62b4023af5fc74d",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 108,
+      "source_text": "[ ] Restarts sucessivos não fazem uma `QUESTION` persistida desaparecer do horizonte antes de conclusão.",
+      "flags": [
+        "negative",
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "20faa0cf9dabd70ebcdac16e111fbac96e05ed3fc8b714f4b1d16863a9ba47d9",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 109,
+      "source_text": "[ ] O gate operacional `RESTART-CORR-001` usa o finder real e permanece obrigatório antes de fechar a issue.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "4ce05945bd6b466eaf4d0bcb366cd38075cabb52703c5915b2cc216bf8a145f9",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 114,
+      "source_text": "`processedAt`/resposta funcional persistida definem conclusão terminal;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "c8ca8ded0b3c976357cce9dd7fa423ba58dcbcf2cd75c58f03f5da5d1a8ce5cd",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 115,
+      "source_text": "mensagem ainda não processada não pode virar duplicata terminal apenas por existir lease/claim;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "f99726366d6f0be50799744ed219aa8f87126e9ab89ce43a02b9ad6f24de4762",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 116,
+      "source_text": "owner órfão deve ser recuperável sem esperar o lease global inteiro;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "a11c6bab6953c6b1a37a57b808d720e48a40532d7c4f05e2a7489a68c986c211",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 117,
+      "source_text": "owner ativo mantém exclusividade;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-028"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "b82725ee10dc447251af2c109ae8215f43caabe929334e30faf75f754ad48120",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 124,
+      "source_text": "A fronteira **pré-claim** é anterior ao lifecycle persistente. Se a validação de redelivery do provider mostrar garantia insuficiente, não inventar solução na issue: registrar a evidência e escolher uma estratégia suportada de disponibilidade/ingestão durável antes de encerrar a entrega.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "3afa4472b2e5cb98f41cea005c9119dc37c78898dbae7598eedf1c1526c02ac0",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 131,
+      "source_text": "/como está meu consumo de proteína hoje?",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-030"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "b9c98345026f875ac59b0721250b5ac5fabf319b170ebbcbe2d338b99f3215ae",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 134,
+      "source_text": "validar/persistir o inbound quando o runtime recebeu a requisição;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "bcc2af74c5f84e8c60f5db01349f121e948e27d119ad875006c539cdf55ec817",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 135,
+      "source_text": "reconhecer deterministicamente `/` e verificar a capacidade `QUESTION`;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "30e46eacd9a8a270328bec42d4482d5881077d9f96bf53a2455d8ebc34cdff45",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 136,
+      "source_text": "disparar ACK curto, por exemplo `✅ Recebi sua pergunta. Estou preparando a resposta…`;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "c29b66c2f5b51db81f7019689a319cf9a10f81141845291bdbda546afab28625",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 137,
+      "source_text": "iniciar contexto/IA sem esperar serialmente o ACK;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "3141385a1ebd3859830caca3bf1953ed281a1c38aa0f6eff734801bc134c5061",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 138,
+      "source_text": "impedir que a resposta final seja liberada antes de terminar a tentativa do ACK necessária para preservar ordem visual;",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "147c7d8abb932639f2562884161d440143ecaad1f097aa015de125ded030c5a9",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 139,
+      "source_text": "enviar a resposta final;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "a872192879a963b16b08eded13faf4e0508b4cd45553e40161e7f749cc07f778",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 140,
+      "source_text": "se a primeira entrega final falhar de forma transitória, executar no máximo uma recuperação imediata com identidade física distinta;",
+      "flags": [
+        "exhaustive",
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "fa21f8f9ea0eaa152f2875b51b501e836b47c0af553aa1ff95729c361a9097b8",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 141,
+      "source_text": "se nenhuma tentativa final for entregue, não gravar resposta funcional nem `processedAt`, liberar o claim quando o processo continuar vivo e devolver resposta HTTP retryável;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "bee19a0d65d33c1daa25e34dd073ea2bbb21dba83fc9da554900cc9e20a23508",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 142,
+      "source_text": "se o processo morrer após persistência/claim e antes da conclusão, redelivery do mesmo POST + `message.id` deve continuar não terminal e retomar com exclusividade segura;",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "4f1f4f374c4819e85dfe7f35119fa6137879ee6abe189f99ea15b9c38bbd6d25",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 143,
+      "source_text": "se não houver redelivery do provider em tempo útil, um novo runtime deve recuperar de forma durável e limitada a `QUESTION` persistida, não concluída e com owner comprovadamente órfão/stale, reutilizando o mesmo lifecycle, fences e idempotência;",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "fc11f297e64df7cb28c2bae4a60dbeccfac3fd43780f14359e0832b817c4714e",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 144,
+      "source_text": "se a primeira tentativa nem chegar a `beginInboundMessage`, 5xx/502 não pode ser tratado como conclusão: após recuperação do runtime, o redelivery do mesmo payload/messageId deve entrar no lifecycle canônico;",
+      "flags": [
+        "negative",
+        "temporal",
+        "atomicity",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "d94460ccac7dba95c9bd04b8a73b8568576f4bb0a61f7def288c21367d2e4910",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 145,
+      "source_text": "retries/restarts devem preservar idempotência: no máximo um ACK efetivamente entregue, uma resposta final efetivamente entregue e um conjunto de efeitos de domínio;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-042"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "b4b7b3980862c9fa1c54a7f54ecdd767e36e1a1f5a7434c5b33af7d41d496a9f",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 146,
+      "source_text": "falha do ACK é observável, mas não suprime a tentativa da resposta final.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-043"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "44b8cc1f3df50b8cb0798ac828b52686ab6823abdb31edabc172c5c71d7bb69b",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 152,
+      "source_text": "manter o hook canônico de aceitação da pergunta `/`;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-044"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "d7f96a68b21a40e79663f6183593b198778b3e93def96ab3ac1e782e55320158",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 154,
+      "source_text": "preservar ordem ACK -> resposta final;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-045"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "9241c69fba995a623dd3a6df7b62cc9b0e30169c3283135feab9551fb89c57e4",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 155,
+      "source_text": "manter ACK e resposta final idempotentes;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-046"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "b2f5a2700c4f75c9f82c0648e579bc6bd78cec7815b1d80094cfd0887b9cf1ae",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 157,
+      "source_text": "preservar as métricas `time_to_ack_ms`, `ack_delivery_ok`, `total_ms`, `db_ms`, `context_ms`, `llm_ms` e `persist_ms` com a semântica documentada.",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "1826fe853bca3cb555f92e199c55c9b688b73ae795e0205c095b15a68da63f14",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 161,
+      "source_text": "manter `messageLifecycle`/claim persistente como fonte canônica;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-048"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "91beaf6c07f215e43731cafe466a4922892da0e77b4b108f2c0e81116f25e27d",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 163,
+      "source_text": "impedir HTTP 200 terminal quando o inbound segue sem `processedAt`/resposta funcional e a nova tentativa não conseguiu adquirir propriedade;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-049"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "845dd5d29d8e3c1237337a879966f5f1db9a634b83b704c4ca401cc9fbc370a1",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 164,
+      "source_text": "permitir takeover de owner órfão sem depender exclusivamente de 15 minutos de lease;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-050"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "e5f6d691156a45f2a20cb975fd8605bfd855c54893203fe3b1e99ca71e8896cf",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 166,
+      "source_text": "revalidar ownership antes de efeitos materiais para impedir runtime antigo de agir depois de takeover;",
+      "flags": [
+        "temporal",
+        "reference-liveness"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-051"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "9d7dbc1cf459e682bc18fd3edc8ccda6e5a40feed280ca0a52047cd0a73eac4f",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 167,
+      "source_text": "usar o mesmo `POST /api/whatsapp/webhook` e o mesmo `message.id` da Meta;",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "1b4b59fbd2d692486cb5e41752bb664a3373099fedb5ceee17e1af0bcc1be84d",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 169,
+      "source_text": "o recovery interno deve ser bounded, com lote limitado e backoff/retry explícito, sem loop agressivo de IA/outbound;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-053"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "f1c63c5c387e3eb2b77b1697d96679b51feafa9080df07a65e626a5bbb771e27",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 171,
+      "source_text": "o recovery interno pode rodar no boot e/ou em intervalo controlado no mesmo serviço, mas não pode criar segunda fonte de verdade, fila externa, serviço ou endpoint paralelo.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-054"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "85b193f330030d70494a66f783d1bfc1691210610dd0e11f9fef68c5534dc1fa",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 175,
+      "source_text": "investigar e registrar a causa dos restarts sem deploy observados em produção; quando estiver sob controle da aplicação/configuração, corrigir a causa;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-055"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-056",
+      "candidate_key": "f8def497c1d24e84f79395bb0536b5d798cc6c8c19ccedb28d99c3383032d54c",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 177,
+      "source_text": "validar em ambiente controlado o comportamento de redelivery da Meta após resposta não-2xx/indisponibilidade;",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-057",
+      "candidate_key": "38e3543b710aa8efe435636117f05150ea30456c3df43165d2b231258edb0cb1",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 180,
+      "source_text": "se o provider não oferecer garantia suficiente para eliminar perda silenciosa nessa janela, definir e implementar uma estratégia suportada de disponibilidade/ingestão durável em decisão explícita, sem assumir previamente fila externa.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-058",
+      "candidate_key": "002825e6b46d8f3adcd1ed3a261fa81c84f7337dcab7586955aae7b2a7e382de",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 201,
+      "source_text": "todas as falhas de entrega final mantêm o inbound não processado e retryável;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-058"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-059",
+      "candidate_key": "10c01e113cf505ff39f14df4c2689cfb8fd313b0a2e64214f22d4b732a0a7ff6",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 202,
+      "source_text": "crash pós-claim permite progresso com o mesmo `message.id` sem esperar o lease integral;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-059"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-060",
+      "candidate_key": "4907f7ff9115f3adbc132541776f2156d1d014a61e0d9515ab6e37619d7c050f",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 203,
+      "source_text": "`QUESTION` já persistida e não concluída permite progresso após restart mesmo sem redelivery imediato da Meta, quando o owner anterior estiver órfão/stale;",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-061",
+      "candidate_key": "eeab965da83857091d5a1466a495497c2970e3cb4dfd4386840ab0f52da9296b",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 204,
+      "source_text": "falha pré-claim permite redelivery posterior entrar no lifecycle canônico;",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-062",
+      "candidate_key": "d7be988985e34674f669660fa7e53f9e4a8042904a52690e63ed167e0a393b71",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 205,
+      "source_text": "resposta funcional já persistida é reconhecida como conclusão idempotente.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-062"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-063",
+      "candidate_key": "6ab2229dff24ec631d65cc493796617b7ab6cdb9655e715e7116ad3529aa4bf6",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 212,
+      "source_text": "não marcar como processado quando nenhuma resposta funcional foi entregue;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-063"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-064",
+      "candidate_key": "8b3c3c0ac9a298f3e18723a7beb6ef9495e0fa2561e31560e1f6236601142e83",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 213,
+      "source_text": "não responder HTTP 200 apenas como `duplicate` para inbound sem conclusão persistida;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-064"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-065",
+      "candidate_key": "a0602c6796129995bb3e89459b76261f6e3789ee432a49e92ac8f910b411037e",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 229,
+      "source_text": "conclusão terminal vem do estado persistido (`processedAt`, resposta funcional e vínculos idempotentes), nunca de cache local;",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-065"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-066",
+      "candidate_key": "c6d88f432aa863e5e1f8d901a3f05515970b7d5f8d90b33c29ad786fc074ed98",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 230,
+      "source_text": "ownership/retry possui uma única semântica no lifecycle compartilhado;",
+      "flags": [
+        "atomicity",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-066"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-067",
+      "candidate_key": "86619451775651a8a29aceb05f29c4179c641378822c1504ba33b53e190de541",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 231,
+      "source_text": "estado de ingress pré-runtime deve ser diagnosticado por telemetria operacional, não por inventar um segundo lifecycle de mensagem.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-067"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-068",
+      "candidate_key": "53eee9b1bf823298ac1a513f81dc16b1e81a20157591c37bfdf622c83852a2de",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 248,
+      "source_text": "owner ativo mantém exclusividade; owner perdido pode ser recuperado;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-068"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-069",
+      "candidate_key": "e4c0a24a93a38da9cba262d90b11ac904130374c726c0f63ba96ad5637f462b3",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 250,
+      "source_text": "cache local nunca prevalece sobre persistência.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-069"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-070",
+      "candidate_key": "c03a31265501726854ec9a30e46d25f87880bd3123b8cc614b1072b1498a351a",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 254,
+      "source_text": "reduzir o lease global até permitir dois owners;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-070"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-071",
+      "candidate_key": "eaef0192ae54d01a53dcab0f0f8fa956fa3f60ab946a9492be628e928160762a",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 258,
+      "source_text": "simular a falha pré-claim usando apenas `releaseMessageForRetry()` ou takeover pós-claim;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-071"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-072",
+      "candidate_key": "905f930fd335d5b627fcf540ed47003b438acbdf70fc269676b7a82330682c1f",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 259,
+      "source_text": "criar fila/endpoint paralelo apenas para o caso `/`;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-072"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-073",
+      "candidate_key": "32bd248efb2d636825df803cc88a869bf194f971d93b88e690e3de4ff7b5f33e",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 267,
+      "source_text": "ACK falha: resposta final ainda é gerada/tentada.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-073"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-074",
+      "candidate_key": "8546dbbbca9aa76d9df3248d694a784f2cabaf57a1e6c417a12558a78791469a",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 269,
+      "source_text": "Primeira entrega final falha e segunda funciona: uma única resposta final efetiva.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-074"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-075",
+      "candidate_key": "dc368d2e4b20924625db5b52d7b19c4177b91079177ef5f6709930f94852dea2",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 270,
+      "source_text": "Todas as entregas finais falham: sem resposta funcional/`processedAt`, claim liberado quando possível e HTTP retryável.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-075"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-076",
+      "candidate_key": "fe5575e39bbf368455ab470b1681d8af108f788f5919504f8290750f83707549",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 280,
+      "source_text": "Redelivery real/controlado do provider: confirmar que tentativa posterior percorre o mesmo `POST /api/whatsapp/webhook` e preserva identidade idempotente.",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-077",
+      "candidate_key": "f37be2da3c0d61d49437595517404743e734a099f4533495ff49141203627c80",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 286,
+      "source_text": "`bounded_recovery`: falha transitória repetida respeita lote/backoff e não gera loop apertado nem múltiplos outbounds físicos sem controle.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-077"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-078",
+      "candidate_key": "089d7ded262826f6017999cdaa3a2f0e4c15e38bcf89a0ff79e637b46de5748e",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 290,
+      "source_text": "[ ] Pergunta `/` válida gera ACK antes da resposta final sem serializar contexto/LLM.",
+      "flags": [
+        "negative",
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-078"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-079",
+      "candidate_key": "30f18dc01f877d7d011d215677588e3ddf5b73e9b2d658c005a8a00eda33347b",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 291,
+      "source_text": "[ ] Falha do ACK é observável e não impede a resposta final.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-079"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-080",
+      "candidate_key": "c3b3c507e49b5d15459a2db04702aae1c2b68784018b9353b9f7f5b6633126a7",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 292,
+      "source_text": "[ ] `/` vazio e `QUESTION` indisponível não recebem ACK enganoso.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-080"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-081",
+      "candidate_key": "91ff86cbe4c013b79fa0e6473761598c4c01f1a06d4c70a8acda12a23cc3efba",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 293,
+      "source_text": "[ ] Primeira falha transitória da resposta final executa no máximo uma recuperação imediata com identidade física distinta.",
+      "flags": [
+        "exhaustive",
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-081"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-082",
+      "candidate_key": "75e981c4ef5eaf3342b1a624c66f1b8c12f789f201cf0b7fa8de701d6025c342",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 294,
+      "source_text": "[ ] Falha de todas as tentativas finais não grava resposta funcional nem `processedAt` e devolve HTTP retryável.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-082"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-083",
+      "candidate_key": "ad198b2af617c59e1c16672bdf362924f2706046eda1e8331005268bf88827e2",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 295,
+      "source_text": "[ ] Redelivery de inbound concluído é idempotente e não duplica efeitos.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-084",
+      "candidate_key": "10ba25f5fa4d6ac3862b76487a094cdf9da1a6cff3656a3555eb9b93423b34bc",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 296,
+      "source_text": "[ ] Redelivery de inbound persistido sem conclusão não vira HTTP 200 terminal somente por claim ocupado.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-085",
+      "candidate_key": "2c16d9f6a59e5f77b28825a1714a6990afc4d815e02509ed9bc7fc9fbeebd6b7",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 297,
+      "source_text": "[ ] Crash/restart pós-claim retoma com o mesmo POST/messageId sem esperar o lease integral quando houver redelivery.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-086",
+      "candidate_key": "4bc5c4bdb7e03475644a39a504966782e842172c854b5c5516c01f9f32c382a4",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 298,
+      "source_text": "[ ] Crash/restart pós-claim também é recuperado sem redelivery imediato da Meta quando a `QUESTION` persistida estiver não concluída e o owner anterior estiver órfão/stale.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-087",
+      "candidate_key": "aaf5570d6a9e86991e8b0724b9a7c72ea545b07d7c3e8320cf1e201a601a2244",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 299,
+      "source_text": "[ ] Recovery sem redelivery preserva no máximo um ACK efetivamente entregue, uma resposta final efetivamente entregue e um conjunto de efeitos de domínio.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-088",
+      "candidate_key": "3588b0c0aabb4bb375f682be358e0b3d13fdbacca136790b61d43cdac6c48b67",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 300,
+      "source_text": "[ ] Recovery interno é bounded e não entra em retry infinito/agressivo para falhas não-retryable ou repetidas.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-088"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-089",
+      "candidate_key": "97d0ce50457a5a67ca17d3f62333adac45bb8e8b882d28b0fabe4dd40bfa3ed8",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 301,
+      "source_text": "[ ] Owner saudável permanece exclusivo sob concorrência.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-089"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-090",
+      "candidate_key": "f871bf08fec993b653820eb0dd0719a225476c5997801537a30999905ecb2919",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 302,
+      "source_text": "[ ] Existe regressão específica para falha antes de `beginInboundMessage`/claim, comprovando ausência de persistência na primeira tentativa.",
+      "flags": [
+        "temporal"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-090"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-091",
+      "candidate_key": "786c0400dc096bb151b5c53915918306562ab43b9511b7e02f5e290cac53a3ea",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 303,
+      "source_text": "[ ] 5xx/502 pré-claim não é tratado como conclusão/deduplicação.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-092",
+      "candidate_key": "43dfd104bb9601c14ff2472000100d355c85761af32d4c6ad2601c58aed35395",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 304,
+      "source_text": "[ ] Após recuperação do runtime, redelivery do mesmo payload/messageId entra no lifecycle e produz no máximo um ACK e uma resposta final.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-093",
+      "candidate_key": "0e862124a993b58a3258c7ecc9e57295c7d188773866de6e012fa61f21f9e0c7",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 305,
+      "source_text": "[ ] A causa dos restarts sem deploy observados em 13/09/2026 é investigada e registrada; quando controlável pela aplicação/configuração, é corrigida.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-093"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-094",
+      "candidate_key": "404a09acf20dd1debbf73c0d585e93b355775fb4f6d75847115de8de83f1377e",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 306,
+      "source_text": "[ ] O comportamento real de retry/redelivery da Meta após 5xx/502 é validado e documentado.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-095",
+      "candidate_key": "22833eed1ae12ebfb4d999f4e03ff6432a5d928a8e9d1c163c3f03d0e6c260e0",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 307,
+      "source_text": "[ ] Se o redelivery não oferecer garantia suficiente, existe decisão explícita e mecanismo suportado que elimine a perda silenciosa antes de encerrar a issue.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "temporal"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-096",
+      "candidate_key": "8a0d56241a7ce9443089aa66bed612b863ffd7824d9e907cc9c940c08f5d753b",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 308,
+      "source_text": "[ ] Métricas/logs distinguem ingress pré-runtime, processamento persistido, retry inflight, takeover de órfão e duplicata concluída.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-096"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-097",
+      "candidate_key": "f3fbf8a88afd5644ce2da2a45c876c1b475ffa496a99cc2042e01d540371a143",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 309,
+      "source_text": "[ ] `time_to_ack_ms`, `ack_delivery_ok`, `total_ms`, `db_ms`, `context_ms`, `llm_ms` e `persist_ms` preservam a semântica documentada.",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-098",
+      "candidate_key": "6fe9e2ac5bb982062c9f43973c9d7840c6db6fae9bc5a1576547e0c8057b3371",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 310,
+      "source_text": "[ ] Testes atravessam o entrypoint HTTP real e o lifecycle persistente; não basta testar helpers isolados.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-098"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-099",
+      "candidate_key": "5fdef473071f0c7b66c02883444b0457996ad742e863a68ca38b1dd9ea5be266",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 311,
+      "source_text": "[ ] Type-check, testes, architecture/docs checks, TiDB gate aplicável e build passam.",
+      "flags": [],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-100",
+      "candidate_key": "622154d0b4f37ed97c354287c63be017a0b3b7961e1da14de037aac51b927d53",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 315,
+      "source_text": "`docs/design-docs/whatsapp-conversation-context.md`: manter a semântica canônica de conclusão vs. owner/inflight e atualizar somente se a implementação alterar o contrato durável pós-claim.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-100"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-101",
+      "candidate_key": "54555a55e6a79ed3fc0778eb3bd6c1b318c6ee7ef1c9457b1d61739786e05132",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 317,
+      "source_text": "`docs/benchmarks/question-latency/README-v3.md`: manter ACK/latência/retry e registrar os controles de replay/restart da capacidade `QUESTION`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-101"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-102",
+      "candidate_key": "874cc44d4e314e4baf6b48818c1de95f130d2b28c7a10aeb15f7edcda4f1d090",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 318,
+      "source_text": "se a solução pré-claim exigir nova garantia operacional de disponibilidade/ingestão, registrar a regra durável na fonte operacional apropriada em vez de mantê-la apenas nesta issue.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-102"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-103",
+      "candidate_key": "d00de2f56bf4491591376e37f26a82be79a9705637e9111119e898106e94bced",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 322,
+      "source_text": "O mecanismo concreto para distinguir owner ativo de órfão é detalhe de implementação, desde que preserve exclusividade e os controles acima.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1061-103"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "in-scope",
+      "rationale": "Covered by the exact-head implementation, focused regression, repository-wide checks, and the preserved canonical lifecycle/runtime contracts; external operational proofs are not substituted."
+    },
+    {
+      "id": "OBL-104",
+      "candidate_key": "7aac263d9e71202b071cfa47b1a61700f2fcc5cccfe0d93307c4522d37353eb8",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 324,
+      "source_text": "Para `QUESTION` **já persistida**, recuperação pós-restart não pode depender exclusivamente de redelivery da Meta; é permitido recovery runner interno, durável e bounded no mesmo serviço, reutilizando lifecycle/ownership/fences existentes.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-105",
+      "candidate_key": "bd23ce6e3204b0b4389a8bbbb4967d9ce3ccbd660eb212cf274dd8d7d91d75aa",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 325,
+      "source_text": "**Decisão condicionada à evidência somente para a fronteira pré-claim:** fila/ingestão durável externa não é requisito pré-definido. Só se torna necessária se a validação real do redelivery/disponibilidade provar que a arquitetura atual ainda permite perda silenciosa antes de `beginInboundMessage`.",
+      "flags": [
+        "negative",
+        "temporal",
+        "freshness",
+        "structural"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    },
+    {
+      "id": "OBL-106",
+      "candidate_key": "566a3ac688c3c538fcc369f8510808216bd6d9408f9f23f5b0e6fbc8b7114d01",
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "source_line": 333,
+      "source_text": "**Pronta com decisão condicionada à evidência pré-claim.** O contrato pós-claim está fechado: `QUESTION` persistida e não concluída deve sobreviver a restart com ou sem redelivery imediato da Meta, preservando ownership e idempotência. O encerramento ainda depende de provar que a janela anterior ao lifecycle não permite perda silenciosa — por redelivery suportado ou por mecanismo de disponibilidade/ingestão explicitamente justificado.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "deferred",
+      "requirement_ids": [],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": "deferred-external-operational-evidence",
+      "rationale": "External WABA/TiDB/Render/provider evidence is intentionally not claimed by this code PR; the operational acceptance gate remains open and must be executed before closing issue #1061."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1061",
+      "source_sha256": "bd2bb01ef2a7368d19a97369523b1499b5cb0b594a3a30c8b1049a0767037604",
+      "candidate_count": 106,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055",
+        "OBL-056",
+        "OBL-057",
+        "OBL-058",
+        "OBL-059",
+        "OBL-060",
+        "OBL-061",
+        "OBL-062",
+        "OBL-063",
+        "OBL-064",
+        "OBL-065",
+        "OBL-066",
+        "OBL-067",
+        "OBL-068",
+        "OBL-069",
+        "OBL-070",
+        "OBL-071",
+        "OBL-072",
+        "OBL-073",
+        "OBL-074",
+        "OBL-075",
+        "OBL-076",
+        "OBL-077",
+        "OBL-078",
+        "OBL-079",
+        "OBL-080",
+        "OBL-081",
+        "OBL-082",
+        "OBL-083",
+        "OBL-084",
+        "OBL-085",
+        "OBL-086",
+        "OBL-087",
+        "OBL-088",
+        "OBL-089",
+        "OBL-090",
+        "OBL-091",
+        "OBL-092",
+        "OBL-093",
+        "OBL-094",
+        "OBL-095",
+        "OBL-096",
+        "OBL-097",
+        "OBL-098",
+        "OBL-099",
+        "OBL-100",
+        "OBL-101",
+        "OBL-102",
+        "OBL-103",
+        "OBL-104",
+        "OBL-105",
+        "OBL-106"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "The current specification contains structural, canonical-path, precedence and forbidden-implementation obligations; each covered obligation is linked to an exact-head negative control.",
+    "entries": [
+      {
+        "id": "INV-1061-001",
+        "obligation_ids": [
+          "OBL-019"
+        ],
+        "plausible_wrong_implementation": "A plausible wrong implementation could keep the old unbounded catalog read or bypass the canonical lifecycle while passing a nominal happy-path test.",
+        "negative_control_evidence": [
+          {
+            "control_id": "CTRL-1061-001-01",
+            "evidence": "evidence/issue1061-exact-head-controls.txt",
+            "evidence_sha256": "061c6ac67757820566c324086e8399d7c12cc909b3ca0d43bff7ccf4cccfbce9",
+            "status": "passed",
+            "observed": "The exact-head focused controls exercised the structural boundary and observed the bounded query/fallback behavior."
+          }
+        ]
+      },
+      {
+        "id": "INV-1061-002",
+        "obligation_ids": [
+          "OBL-066"
+        ],
+        "plausible_wrong_implementation": "A plausible wrong implementation could keep the old unbounded catalog read or bypass the canonical lifecycle while passing a nominal happy-path test.",
+        "negative_control_evidence": [
+          {
+            "control_id": "CTRL-1061-002-01",
+            "evidence": "evidence/issue1061-exact-head-controls.txt",
+            "evidence_sha256": "061c6ac67757820566c324086e8399d7c12cc909b3ca0d43bff7ccf4cccfbce9",
+            "status": "passed",
+            "observed": "The exact-head focused controls exercised the structural boundary and observed the bounded query/fallback behavior."
+          }
+        ]
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "The catalog cache is a read model and its bounded projection is validated against canonical static references and the fields consumed by matching.",
+    "entries": [
+      {
+        "id": "READ-1061-001",
+        "status": "passed",
+        "evidence": "evidence/issue1061-exact-head-controls.txt",
+        "observed": "The query projection and static-reference merge preserve the consumed read model."
+      }
+    ],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "The runtime cache and static reference catalog must converge on the same canonical lookup surface; the exact-head regression checks the divergent recent-window case.",
+    "entries": [
+      {
+        "id": "CANON-1061-001",
+        "status": "passed",
+        "evidence": "evidence/issue1061-exact-head-controls.txt",
+        "observed": "Canonical static references remain present when the database recency window omits them."
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "The runtime change alters the operational recovery runbook and explicitly records that PRECLAIM/RESTART WABA evidence remains required.",
+    "old_contract_terms": [
+      "SELECT *",
+      "unbounded catalog cache"
+    ],
+    "new_contract_terms": [
+      "active-only bounded projection",
+      "static canonical fallback",
+      "PRECLAIM-IDEM-001 remains required"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/testing/whatsapp-ingress-recovery.md",
+        "status": "updated",
+        "evidence": "evidence/issue1061-exact-head-controls.txt"
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "rg -n 'PRECLAIM-IDEM-001|RESTART-CORR-001|oomKilled|http_ready|food-catalog-sync' docs/testing/whatsapp-ingress-recovery.md"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [
+      {
+        "scope": "boot catalog cache",
+        "decision": "in-scope"
+      },
+      {
+        "scope": "real WABA/TiDB closure",
+        "decision": "deferred"
+      }
+    ]
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-1061-001",
+      "REQ-1061-002",
+      "REQ-1061-003",
+      "REQ-1061-005",
+      "REQ-1061-006",
+      "REQ-1061-007",
+      "REQ-1061-008",
+      "REQ-1061-009",
+      "REQ-1061-010",
+      "REQ-1061-011",
+      "REQ-1061-012",
+      "REQ-1061-013",
+      "REQ-1061-014",
+      "REQ-1061-015",
+      "REQ-1061-016",
+      "REQ-1061-017",
+      "REQ-1061-018",
+      "REQ-1061-019",
+      "REQ-1061-020",
+      "REQ-1061-021",
+      "REQ-1061-022",
+      "REQ-1061-023",
+      "REQ-1061-025",
+      "REQ-1061-026",
+      "REQ-1061-027",
+      "REQ-1061-028",
+      "REQ-1061-030",
+      "REQ-1061-031",
+      "REQ-1061-032",
+      "REQ-1061-033",
+      "REQ-1061-034",
+      "REQ-1061-035",
+      "REQ-1061-036",
+      "REQ-1061-037",
+      "REQ-1061-038",
+      "REQ-1061-042",
+      "REQ-1061-043",
+      "REQ-1061-044",
+      "REQ-1061-045",
+      "REQ-1061-046",
+      "REQ-1061-048",
+      "REQ-1061-049",
+      "REQ-1061-050",
+      "REQ-1061-051",
+      "REQ-1061-053",
+      "REQ-1061-054",
+      "REQ-1061-055",
+      "REQ-1061-058",
+      "REQ-1061-059",
+      "REQ-1061-062",
+      "REQ-1061-063",
+      "REQ-1061-064",
+      "REQ-1061-065",
+      "REQ-1061-066",
+      "REQ-1061-067",
+      "REQ-1061-068",
+      "REQ-1061-069",
+      "REQ-1061-070",
+      "REQ-1061-071",
+      "REQ-1061-072",
+      "REQ-1061-073",
+      "REQ-1061-074",
+      "REQ-1061-075",
+      "REQ-1061-077",
+      "REQ-1061-078",
+      "REQ-1061-079",
+      "REQ-1061-080",
+      "REQ-1061-081",
+      "REQ-1061-082",
+      "REQ-1061-088",
+      "REQ-1061-089",
+      "REQ-1061-090",
+      "REQ-1061-093",
+      "REQ-1061-096",
+      "REQ-1061-098",
+      "REQ-1061-100",
+      "REQ-1061-101",
+      "REQ-1061-102",
+      "REQ-1061-103"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055",
+      "OBL-058",
+      "OBL-059",
+      "OBL-062",
+      "OBL-063",
+      "OBL-064",
+      "OBL-065",
+      "OBL-066",
+      "OBL-067",
+      "OBL-068",
+      "OBL-069",
+      "OBL-070",
+      "OBL-071",
+      "OBL-072",
+      "OBL-073",
+      "OBL-074",
+      "OBL-075",
+      "OBL-077",
+      "OBL-078",
+      "OBL-079",
+      "OBL-080",
+      "OBL-081",
+      "OBL-082",
+      "OBL-088",
+      "OBL-089",
+      "OBL-090",
+      "OBL-093",
+      "OBL-096",
+      "OBL-098",
+      "OBL-100",
+      "OBL-101",
+      "OBL-102",
+      "OBL-103"
+    ],
+    "evidence": [
+      {
+        "path": "evidence/issue1061-exact-head-controls.txt",
+        "sha256": "061c6ac67757820566c324086e8399d7c12cc909b3ca0d43bff7ccf4cccfbce9",
+        "observed": "All covered obligations were reviewed against the current source and exact-head evidence; deferred obligations are explicitly external operational gates."
+      }
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

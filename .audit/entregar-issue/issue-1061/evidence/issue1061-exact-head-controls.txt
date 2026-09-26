@@ -1,0 +1,20 @@
+Issue #1061 exact-head evidence
+material_head_sha=d002d5c5d47697978f0866747788e3ddf12bc048
+base_sha=b456f6e3f85d54890c99f1d3cb8f7cd651619b25
+
+Functional candidate controls executed at the exact material head:
+- focused catalog/runtime regression: 4 files, 26 tests passed; this includes active-only filtering, explicit projection, bounded limit, static canonical fallback, database-unavailable fallback, and HTTP-ready ordering.
+- pnpm agent:check: 710 test files passed, 4,567 tests passed, 1 skipped file, 4 skipped tests; architecture, professional-retirement, documentation, provider-policy self-tests, build and related repository gates passed.
+- pnpm build passed.
+- pnpm architecture:check passed.
+- pnpm docs:check passed.
+- pnpm exec tsc --noEmit --pretty false passed.
+- git diff --check passed.
+- GitHub Actions exact-head run 36263322151 passed: Delivery V2 risk, Merge preview integration, and Agent-first gate all succeeded on d002d5c5.
+
+Negative controls executed:
+- an unbounded SELECT * path is rejected by the focused query-shape assertions; the observed query uses explicit columns, status=active, recency ordering and limit=1000.
+- database unavailable preserves the static canonical catalog and does not publish runtime-only rows.
+- a database window without canonical references preserves the static references used by resolution.
+
+The implementation does not claim PRECLAIM-IDEM-001, RESTART-CORR-001, real WABA redelivery, or issue closure. Those external acceptance gates remain deferred and the issue remains open; CI TiDB preparation/integrity is not a substitute for coordinated real-provider PRECLAIM evidence.

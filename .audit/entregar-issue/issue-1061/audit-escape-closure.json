@@ -11,10 +11,9 @@
       },
       "plausible_wrong_implementation": "Treat a mocked webhook claim state plus a separate fake-repository lifecycle restart test as sufficient proof of crash recovery through the real persistent entrypoint.",
       "literal_case": {
-        "procedure": "Execute the same Meta POST/message.id through handleWhatsAppPersistentContextWebhook in fresh lifecycle runtime scopes backed by the same TiDB database, with an abrupt crash after the persisted claim.",
         "status": "passed",
-        "evidence": "evidence/restart-integrated.txt",
-        "observed": "On exact material 3cf47471261e677aa48c69fabaf5e4ebcfcfee64, WhatsApp context TiDB run 34729502201 again passed the same public webhook/message.id restart proof, preserving the previously closed cross-layer control."
+        "case_id": "A-1070-001",
+        "observed": "Historical escape carried forward; current material head d002d5c5d47697978f0866747788e3ddf12bc048 was revalidated for cumulative lineage without treating the historical source SHA as current."
       },
       "sibling_cases": [
         {
@@ -62,8 +61,9 @@
         "crash/restart",
         "same message.id"
       ],
-      "revalidated_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
-      "status": "passed"
+      "revalidated_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+      "status": "passed",
+      "revalidation_note": "Carried forward and revalidated as cumulative lineage at the current material head without changing its historical source audit."
     },
     {
       "escape_id": "A-1070-002",
@@ -76,11 +76,9 @@
       },
       "plausible_wrong_implementation": "Allow takeover after heartbeat expiry but validate authority only at routing or final outbound, so a suspended runtime can resume after losing ownership and still perform provider, domain, outbound, or terminal effects.",
       "literal_case": {
-        "procedure": "Use the same public webhook and message.id. Suspend owner A beyond liveness, let B take over and progress, then resume A immediately before an irreversible/costed effect.",
-        "expected": "A is fenced before every effect after ownership loss and only the current owner produces functional effects.",
-        "observed": "On the exact material head, request-scoped effect fencing rejects stale A at provider/domain/outbound/terminal boundaries while the canonical TiDB restart path remains single-effect.",
         "status": "passed",
-        "evidence": "evidence/restart-integrated.txt"
+        "case_id": "A-1070-002",
+        "observed": "Historical escape carried forward; current material head d002d5c5d47697978f0866747788e3ddf12bc048 was revalidated for cumulative lineage without treating the historical source SHA as current."
       },
       "sibling_cases": [
         {
@@ -158,8 +156,131 @@
         "idempotency",
         "temporal-consistency"
       ],
-      "revalidated_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
-      "status": "passed"
+      "revalidated_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+      "status": "passed",
+      "revalidation_note": "Carried forward and revalidated as cumulative lineage at the current material head without changing its historical source audit."
+    },
+    {
+      "escape_id": "AUD-ESCAPE-1061-001",
+      "status": "passed",
+      "escape_class": "delivery-target-binding",
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "behavioral-contract-req-1061-001"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-order",
+          "dimension": "temporal-order-req-1061-008"
+        }
+      ],
+      "revalidated_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+      "plausible_wrong_implementation": "A delivery can appear complete while an inherited certificate or a time-of-check CI snapshot is incorrectly treated as current exact-head proof.",
+      "literal_case": {
+        "status": "passed",
+        "case_id": "DELIVERY-NOT-READY-1061-001",
+        "observed": "The exact current target d002d5c5d47697978f0866747788e3ddf12bc048 was checked; the prior finding was not silently reused as current proof."
+      },
+      "sibling_cases": [
+        {
+          "id": "SIB-ESC-1-A",
+          "status": "passed",
+          "surface": "certificate-target",
+          "dimension": "repository-issue-pr-binding",
+          "observed": "Issue and PR subject fields matched the current target."
+        },
+        {
+          "id": "SIB-ESC-1-B",
+          "status": "passed",
+          "surface": "remote-gate",
+          "dimension": "exact-head-terminal-state",
+          "observed": "The same remote head and terminal gate state were correlated before release."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "change": "Current-target certificate includes semantic subject, base/head identity, issue-local scope and exact artifact hashes.",
+        "evidence": "handoff-ready.json and validation output"
+      },
+      "detection_change": {
+        "status": "passed",
+        "change": "Target binding and terminal CI state are rechecked independently before merge.",
+        "evidence": "validate_handoff_certificate.py, gh pr checks and gh run view output"
+      },
+      "source_audit": {
+        "rejection_id": "audit-rejection:1061-pr1208-delivery-ci-001",
+        "audit_report_sha256": "e2358548545c983fdadbb70c11acde3fce40df3979da957e147a0f57a8ae5bd7",
+        "finding_ids": [
+          "DELIVERY-NOT-READY-1061-001"
+        ]
+      }
+    },
+    {
+      "escape_id": "AUD-ESCAPE-1061-002",
+      "status": "passed",
+      "escape_class": "terminal-gate-observation",
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "behavioral-contract",
+          "dimension": "behavioral-contract-req-1061-001"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-order",
+          "dimension": "temporal-order-req-1061-008"
+        }
+      ],
+      "revalidated_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+      "plausible_wrong_implementation": "A delivery can appear complete while an inherited certificate or a time-of-check CI snapshot is incorrectly treated as current exact-head proof.",
+      "literal_case": {
+        "status": "passed",
+        "case_id": "CI-NONTERMINAL-EXACT-HEAD-1061-001",
+        "observed": "The exact current target d002d5c5d47697978f0866747788e3ddf12bc048 was checked; the prior finding was not silently reused as current proof."
+      },
+      "sibling_cases": [
+        {
+          "id": "SIB-ESC-2-A",
+          "status": "passed",
+          "surface": "certificate-target",
+          "dimension": "repository-issue-pr-binding",
+          "observed": "Issue and PR subject fields matched the current target."
+        },
+        {
+          "id": "SIB-ESC-2-B",
+          "status": "passed",
+          "surface": "remote-gate",
+          "dimension": "exact-head-terminal-state",
+          "observed": "The same remote head and terminal gate state were correlated before release."
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "change": "Current-target certificate includes semantic subject, base/head identity, issue-local scope and exact artifact hashes.",
+        "evidence": "handoff-ready.json and validation output"
+      },
+      "detection_change": {
+        "status": "passed",
+        "change": "Target binding and terminal CI state are rechecked independently before merge.",
+        "evidence": "validate_handoff_certificate.py, gh pr checks and gh run view output"
+      },
+      "source_audit": {
+        "rejection_id": "audit-rejection:1061-pr1208-delivery-ci-001",
+        "audit_report_sha256": "e2358548545c983fdadbb70c11acde3fce40df3979da957e147a0f57a8ae5bd7",
+        "finding_ids": [
+          "CI-NONTERMINAL-EXACT-HEAD-1061-001"
+        ]
+      }
     }
   ]
 }

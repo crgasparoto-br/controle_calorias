@@ -1,50 +1,38 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
+  "remediation_mode": "targeted-remediation",
   "resolution_policy": "all-actionable-items",
-  "source": {
-    "rejection_id": "audit-rejection:259be11e-620c-4172-91a6-2debe9c096a0",
-    "audit_report_sha256": "28975569cfe1b874d6774531b8ab2a3f1905ff7bf71a55bfc2e985597ef7860f",
-    "audited_head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467"
-  },
-  "candidate_head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
-  "remediation_mode": "systemic-remediation",
   "status": "closed",
+  "candidate_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+  "source": {
+    "rejection_id": "audit-rejection:1061-pr1208-delivery-ci-001",
+    "audited_head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+    "audit_report_sha256": "e2358548545c983fdadbb70c11acde3fce40df3979da957e147a0f57a8ae5bd7"
+  },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1070-002",
-      "remediation_mode": "systemic-remediation",
+      "source_id": "DELIVERY-NOT-READY-1061-001",
+      "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
-      "changed_files": [
-        "server/_core/effectFenceContext.ts",
-        "server/_core/ai/capabilityExecutor.ts",
-        "server/_core/ai/providerBoundary.ts",
-        "server/modules/water/store.ts",
-        "server/modules/users/service.ts",
-        "server/modules/meals/service.ts",
-        "server/modules/whatsapp/confirmedMealRegistration.ts",
-        "server/modules/whatsapp/intentActions.ts",
-        "server/modules/whatsapp/messageLifecycle.ts",
-        "server/modules/whatsapp/questionAcknowledgement.ts",
-        "server/modules/whatsapp/messageLifecycle.effectFence.test.ts",
-        "server/modules/water/store.test.ts",
-        "server/modules/whatsapp/questionAcknowledgement.test.ts",
-        "docs/design-docs/whatsapp-conversation-context.md",
-        "docs/testing/whatsapp-conversation-context-regression.md",
-        "docs/benchmarks/question-latency/README-v3.md"
-      ],
-      "evidence": [
-        "evidence/restart-integrated.txt",
-        "evidence/ci-exact-head.txt",
-        "evidence/documentation-delta.txt"
-      ],
+      "evidence": "The current-target handoff artifacts are rebuilt from the current issue source, validated by official coverage/readiness validators, and bound to issue 1061/PR 1208/head d002d5c5.",
       "validations": [
-        "Agent-first run 34729502259 completed successfully on exact material 3cf47471261e677aa48c69fabaf5e4ebcfcfee64.",
-        "WhatsApp context TiDB run 34729502201 passed the canonical public same-message restart regression on the same material head.",
-        "Stale-owner discriminants fence provider attempts, water-domain persistence, ACK transport and terminal processedAt after takeover, while preserving immediate ACK/AI parallel start.",
-        "The generalized prevention and detection rules were promoted to entregar-issue and auditar-issue skill packages with RESTART-FENCE-001 contract tests."
+        "validate_specification_coverage.py passed",
+        "validate_handoff_readiness.py passed",
+        "validate_handoff_certificate.py passed after result-only publication"
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "CI-NONTERMINAL-EXACT-HEAD-1061-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": "The exact-head CI run was reconsulted without dispatching a replacement run; the terminal result is recorded in the current evidence package before release approval.",
+      "validations": [
+        "gh run view exact-head recorded",
+        "gh pr checks exact-head recorded",
+        "no replacement workflow dispatched"
       ]
     }
   ]
