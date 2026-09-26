@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+  "evidence": [
+    {
+      "evidence_id": "EVID-1198-EXACT-HEAD",
+      "kind": "quantitative",
+      "status": "passed",
+      "producer": "Exact-head repository regression and gate runner",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "freshness_policy": "exact-material-head",
+      "path": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "observed": "Public text/image controls, focused matrix and local gates passed."
+    }
+  ]
+}

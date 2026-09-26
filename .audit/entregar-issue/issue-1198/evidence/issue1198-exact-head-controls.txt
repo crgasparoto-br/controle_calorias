@@ -1,0 +1,22 @@
+Issue #1198 exact-head evidence
+subject_sha=2c7e85408ef96465a755a9bad5560b695a7b14db
+material_head_sha=2c7e85408ef96465a755a9bad5560b695a7b14db
+base_sha=e50dd3230623dacc6e293534261aa55ed0bd09e8
+
+Local exact-head controls:
+- pnpm test: 709 test files passed, 1 skipped; 4564 tests passed, 4 skipped.
+- focused #1198 and immediate regression matrix: 94 tests passed.
+- pnpm build: passed.
+- pnpm exec tsc --noEmit --pretty false: passed.
+- pnpm architecture:check: passed.
+- pnpm docs:check: passed.
+
+Adversarial controls:
+- positive generic Queijo Muçarela and Queijo Mozarela resolve through the real catalog/TACO path.
+- negative branded/variant inputs Marca X, light, zero, diet remain clarification/fail-closed.
+- broad aliases Queijo, Chocolate and Iogurte do not select arbitrary generic references.
+- textual fallback and public image path share the same identity guard.
+- Ameixa Roxa, Maçã Fuji, Feijão, Requeijão, coffee composition and zero-beverage regressions remain green.
+
+Remote exact-head checks terminally passed: WhatsApp context TiDB gate run 36248528514; Agent-first gate run 36248528615. All four PR checks were successful on the exact material head. No payload, phone, token, database URL or personal content is included.
+observed_at=2026-09-26T14:28:45Z

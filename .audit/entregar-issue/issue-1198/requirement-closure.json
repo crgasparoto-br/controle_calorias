@@ -1,0 +1,921 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "e5eda35f8a78b0f4fd0475da9166aee3504c006d45205f13ad9f96aba8f9ab2a"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1198",
+  "obligations": [
+    {
+      "candidate_key": "debe12f044845071c34ee6c96f999994cf4871b13001cf3ab72c6007f5bcdbf3",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 3,
+      "source_text": "Permitir que alimento genérico não-branded reconhecido por imagem ou texto use uma referência nutricional genérica compatível do catálogo/TACO sem exigir identidade comercial inexistente, preservando o fail-closed para produtos com marca, linha, sabor ou variante comercial.",
+      "flags": [
+        "negative",
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "id": "OBL-001",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "0bc481c468f74390e148197befbc51c3db426904dac600491f56d27141080527",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 7,
+      "source_text": "No fluxo de imagem do WhatsApp, uma foto de alimento comum foi interpretada como **“Queijo Muçarela”** e o sistema pediu confirmação de variante comercial/rótulo:",
+      "flags": [
+        "aftermath",
+        "semantic-effect"
+      ],
+      "id": "OBL-002",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "1143096a006858bf83b7f7f38a524e792270abe591db39d0f8daf90c86dec3b4",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 14,
+      "source_text": "`docs/product-specs/meal-registration.md`: alimento sem marca/variante explícita pode usar referência genérica/estimativa transparente; produto de marca/variante explícita permanece fail-closed;",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "OBL-003",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "7a90b3774405f7c49d2130623d5990d0d1555cba3b87c699aa0b41fc6992d051",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 15,
+      "source_text": "`docs/design-docs/nutrition-engine.md`: busca deve preferir referência específica quando houver identidade comercial, mas alimento genérico pode usar referência menos específica compatível.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "id": "OBL-004",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "bb13439d83240c108d5afcad0d53941d0e6c753ea472e79caf4089b2c7938cc8",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 19,
+      "source_text": "Corrigir o preflight de identidade comercial para reconhecer alimento genérico não-branded quando existir referência genérica compatível no catálogo/TACO.",
+      "flags": [
+        "negative",
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "id": "OBL-005",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "9cc1494aa1ccb86183989138b7a720bc2de4d2d1802e507c5a86869dd2c62d25",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 20,
+      "source_text": "Considerar aliases/normalizações TACO necessários para equivalências como `muçarela` ↔ `mozarela` sem transformar termo genérico em marca/variante.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-006",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "7287c50b3f24d9f600562fbab7156b486323b86ad53b937daf2e9c3fffbbda6c",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 21,
+      "source_text": "Usar a referência genérica somente quando não houver evidência de marca, linha, sabor ou variante comercial.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-007",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "fb009fb8b59a35bad4ae537f513d34b03e7e042e774afb5960d55c49e34b697e",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 22,
+      "source_text": "Preservar a política fail-closed para qualquer identidade comercial explícita não comprovada.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "id": "OBL-008",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "8883a2745db80277b3abe5b63f28681d3444c52cb5fe2f8e17ed4e7dab0432cf",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 23,
+      "source_text": "Reutilizar o motor nutricional e o catálogo existentes; não criar exceção específica de queijo nem mapa hardcoded de produtos.",
+      "flags": [
+        "negative",
+        "source-catalog",
+        "structural"
+      ],
+      "id": "OBL-009",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "1a79f1d3d531321c7318aa15e3e5d6f4897683793ded576f51822cfe4f31469e",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 35,
+      "source_text": "Termos genéricos de categoria/alimento que não expressem marca/linha/sabor/variante não podem, isoladamente, virar `commercial_identity_unverified`.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "OBL-010",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "66e7f630a39a26d21c3a1b1a1ddd482dd2ef2b9f8d8ec22e45098dd7e5d94c47",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 36,
+      "source_text": "Antes de abrir clarificação comercial, o preflight deve considerar a referência genérica compatível retornada pelo catálogo/TACO quando o item for não-branded.",
+      "flags": [
+        "negative",
+        "temporal",
+        "source-catalog"
+      ],
+      "id": "OBL-011",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "f33a8b4c69a254b315a92c82ff9f4f386a1b265cc667243ae740dddce33a26f6",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 37,
+      "source_text": "A compatibilidade deve preservar tipo de alimento e semântica; alias ortográfico válido não autoriza correspondência com produto diferente.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "OBL-012",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "340e71e9a30f4504b67f68409768ab6dc26ffdc7b4a027748437f945e69d49d3",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 38,
+      "source_text": "Quando houver marca ou variante comercial explícita, a referência genérica não pode satisfazer a identidade nem fechar a composição nutricional.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-013",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "7aba318f4ac54014f7b302484d69bf3f9efbb7348980af6e153a763af278bb10",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 39,
+      "source_text": "Uma referência genérica aceita deve seguir a mesma proveniência nutricional/cálculo de porção do motor existente e não usar o placeholder genérico.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-014",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "fe5899a21aa8602d57bf9186914fddd7fb467e0eb480cfa5bd4fca7609c4aa7b",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 40,
+      "source_text": "Falha de catálogo, múltiplas referências semanticamente conflitantes ou baixa confiança de identidade devem seguir o comportamento seguro existente, sem promover uma correspondência arbitrária.",
+      "flags": [
+        "negative",
+        "source-catalog"
+      ],
+      "id": "OBL-015",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "c8f0ededcc07bea44452300de225b22858c4ab2406f9d01eac165d23d93cf5cb",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 44,
+      "source_text": "**must_be_single_source:** a decisão nutricional continua pertencendo ao motor nutricional/catálogo canônico.",
+      "flags": [
+        "atomicity",
+        "source-catalog"
+      ],
+      "id": "OBL-016",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "959f63d582393a7dcb782115296c439eb0fbdc2812b893e801d26c959b2b4d82",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 45,
+      "source_text": "**must_not_behave:** não inferir que `queijo` é marca/variante comercial apenas por aparecer como token estrutural do nome.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "id": "OBL-017",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "a03a81d14afc9b905cd34770a73f576c9404f468841465e9db8f482634e1340f",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 46,
+      "source_text": "**must_not_behave:** não usar TACO genérico para fechar produto branded.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-018",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "0a72dff8a96f8b60be03f4e253f2a4bd1954814f62756e3893f1bb681f48855f",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 47,
+      "source_text": "**must_reuse:** `resolveStructuredCommercialIdentity`/preflight canônico e `findTacoFood` ou lookup equivalente já existente.",
+      "flags": [
+        "exhaustive",
+        "atomicity",
+        "source-catalog"
+      ],
+      "id": "OBL-019",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "f444dd77aea8fb5507ae2b4a502e9b2b295baaa4a3982318d60a3fac9d30fb25",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 48,
+      "source_text": "**precedência:** evidência comercial explícita > referência genérica; ausência de evidência comercial + referência genérica compatível permite o caminho genérico.",
+      "flags": [
+        "precedence"
+      ],
+      "id": "OBL-020",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "1fcf7783601f22a4443027336fe0f5b0194b5a216c7c03331a80946908403299",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 50,
+      "source_text": "Implementação plausível errada: adicionar um `if (nome.includes(\"muçarela\"))` para ignorar o preflight. Isso resolve o caso reportado, mas não corrige a regra geral e pode mascarar produtos branded. O controle deve usar exemplos positivos e negativos fora da frase original.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "OBL-021",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "f905fd3cef8c36d4a173beb60945f8c773b2f2d54579df3c6488c6c40a4bdff0",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 57,
+      "source_text": "`Muçarela light Marca X` → referência genérica não pode substituir a variante comercial.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-022",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "846a0e8cd5567fe53ef82e1c5e70ec25c8aa4156cdcaf575875a1be9b4e90e65",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 60,
+      "source_text": "Entrada textual e imagem equivalentes devem chegar à mesma decisão semântica quando descrevem o mesmo alimento genérico.",
+      "flags": [
+        "exhaustive",
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "id": "OBL-023",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "d0caf4076c43df7b377ac928ec14f5204ece9b5aca4a731911cda0c31cea6111",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 64,
+      "source_text": "[ ] Entrada visual/textual equivalente a `Queijo Muçarela`, sem marca/linha/sabor comercial, não gera `commercial_identity_unverified` quando houver referência genérica compatível no TACO/catálogo.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "source-catalog",
+        "semantic-effect"
+      ],
+      "id": "OBL-024",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "f56846a13225ddf937fd299803c2cc7749690f210c8d9ed4cc9ae55abc15a8a3",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 65,
+      "source_text": "[ ] A referência genérica é usada para calcular a nutrição da porção indicada e o item não recebe o perfil placeholder `150 kcal/100 g`.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-025",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "b160398bc3bce08dcfc63360c7c77b5f1acbd0f7aa39a78b1a0c3b2d58fa057e",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 66,
+      "source_text": "[ ] Alias ortográfico compatível, como `muçarela` ↔ `mozarela`, não muda a identidade para produto comercial.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-026",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "a3211f8e72b0a2f1b10f1733f98d09466616d2df810aa6c5b4bf796aaf5e5d6a",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 67,
+      "source_text": "[ ] Entradas com marca ou variante comercial não comprovada continuam exigindo clarificação e não recebem silenciosamente a referência genérica.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-027",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "dccfb04973845a8f1acf280688c1967a7f3e28381391d2ae8c1d45104ccd5f47",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 68,
+      "source_text": "[ ] Falha/ambiguidade do catálogo não promove correspondência arbitrária nem fecha identidade como verificada.",
+      "flags": [
+        "negative",
+        "source-catalog"
+      ],
+      "id": "OBL-028",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "a0627a95bf3e4e7242eb54b33df03775792e6e6db94254d46a748643706e8d39",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 69,
+      "source_text": "[ ] Testes atravessam o preflight real e o caminho público de processamento de imagem; incluir também um controle textual equivalente.",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "id": "OBL-029",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "eae80f95bcbc50eaa4860c1fa355a455d9d5721882173cd9227056ed088187b0",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 70,
+      "source_text": "[ ] Regressões de identidade comercial, frutas contáveis e fallback nutricional permanecem verdes.",
+      "flags": [],
+      "id": "OBL-030",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "3910e888ffcd9ea51714b931b9403f079e79930e21a6fb7c71e924e48823c3a8",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 74,
+      "source_text": "Regressão do caso observado pelo usuário no caminho público de imagem.",
+      "flags": [],
+      "id": "OBL-031",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "0b47e57c4553e9120c2ffd0537a562de15e76f34b81c66110250bb48985bc3e0",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 75,
+      "source_text": "Caso textual semanticamente equivalente.",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "id": "OBL-032",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "831c464185e19083407cfa67d1e813a8a495594dff59efaf342b7f038c03e281",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 77,
+      "source_text": "Teste discriminante provando que o preflight usa a referência genérica somente quando não há identidade comercial explícita.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-033",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "795643017c31fb4d2a46c11aa8f5dc65d07865cedeb8d796f3acd9b2dd7341d1",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 78,
+      "source_text": "Teste de que a composição resultante não é o placeholder genérico e mantém proveniência do catálogo/TACO.",
+      "flags": [
+        "negative",
+        "source-catalog"
+      ],
+      "id": "OBL-034",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "82d0e919c98b38b33d6be39715db09628ae66dee0fb0c547784a4f0ed8f4f5a3",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 82,
+      "source_text": "A regra durável já está definida em `docs/product-specs/meal-registration.md` e `docs/design-docs/nutrition-engine.md`. Não duplicar a regra em outro documento. Atualizar a documentação somente se a implementação alterar essa fronteira; caso contrário, registrar apenas a nova cobertura de regressão.",
+      "flags": [
+        "negative",
+        "forbidden-implementation"
+      ],
+      "id": "OBL-035",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    },
+    {
+      "candidate_key": "01d0760ed06e83ffddd0262ff39f76c209340d0fcc8a9080c052ad69a2787302",
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "source_line": 90,
+      "source_text": "**Pronta.** A fronteira entre alimento genérico e identidade comercial está definida pelas fontes canônicas e os critérios discriminam o caminho correto do workaround específico.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "id": "OBL-036",
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1198"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by exact-head public text/image, direct-consumer and fail-closed adversarial controls."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1198",
+      "source_sha256": "5fa1cbfd8638d0873e3b18c0aa9c369db8c2a89183b0e9bb73ccd59332eabf42",
+      "candidate_count": 36,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "The change crosses the canonical preflight, catalog/TACO resolution, textual fallback and public image processing boundary.",
+    "entries": [
+      {
+        "id": "STR-1198-001",
+        "obligation_ids": [
+          "OBL-001",
+          "OBL-002",
+          "OBL-003",
+          "OBL-004",
+          "OBL-005",
+          "OBL-006",
+          "OBL-007",
+          "OBL-008",
+          "OBL-009",
+          "OBL-010",
+          "OBL-011",
+          "OBL-012",
+          "OBL-013",
+          "OBL-014",
+          "OBL-015",
+          "OBL-016",
+          "OBL-017",
+          "OBL-018",
+          "OBL-019",
+          "OBL-020",
+          "OBL-021",
+          "OBL-022",
+          "OBL-023",
+          "OBL-024",
+          "OBL-025",
+          "OBL-026",
+          "OBL-027",
+          "OBL-028",
+          "OBL-029",
+          "OBL-030",
+          "OBL-031",
+          "OBL-032",
+          "OBL-033",
+          "OBL-034",
+          "OBL-035",
+          "OBL-036"
+        ],
+        "plausible_wrong_implementation": "Add a mozzarella-only bypass or accept a generic reference for a branded/variant product while testing only a helper.",
+        "negative_control_evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "No new read model is introduced; the existing catalog/TACO provenance is preserved.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "The implementation reuses the canonical commercial preflight, catalog matcher, TACO lookup and nutrition engine.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "The durable generic-versus-commercial boundary remains in the existing normative product and nutrition-engine documents; only regression coverage was added.",
+    "old_contract_terms": [
+      "generic category token is treated as commercial identity",
+      "generic TACO reference silently closes branded product"
+    ],
+    "new_contract_terms": [
+      "compatible unbranded generic reference may resolve",
+      "explicit commercial evidence remains fail-closed"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/product-specs/meal-registration.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "status": "reconciled"
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "pnpm docs:check",
+      "rg -n generic commercial identity catalog TACO docs server"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [],
+    "rationale": "No acceptance criterion or invariant was removed; the implementation is generalized beyond a mozzarella-specific exception."
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-1198"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036"
+    ],
+    "evidence": [
+      "server/catalogMatching.ts",
+      "server/commercialFoodIdentityPreflight.ts",
+      "server/nutritionEngine.ts",
+      "server/whatsappAnnotatedImageWebhook.test.ts",
+      "server/nutritionEngine.issue1198.test.ts",
+      "server/commercialFoodIdentityPreflight.issue1198.test.ts",
+      ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}
