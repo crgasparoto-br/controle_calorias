@@ -1,6 +1,60 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "escapes": [
+    {
+      "escape_id": "ESC-AUD-1210-BUILD-001",
+      "status": "passed",
+      "escape_class": "deterministic-type-gate-escape",
+      "source_audit": {
+        "rejection_id": "audit-rejection:pr1210-ts-compile-001",
+        "audit_report_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+        "finding_ids": [
+          "AUD-1210-BUILD-001"
+        ]
+      },
+      "plausible_wrong_implementation": "Runtime-transpiled tests can pass while a newly introduced error literal remains absent from the effective TypeScript union.",
+      "sibling_cases": [
+        {
+          "id": "ESC-S1",
+          "status": "passed",
+          "surface": "normal-webhook-type-boundary"
+        },
+        {
+          "id": "ESC-S2",
+          "status": "passed",
+          "surface": "annotated-webhook-type-boundary"
+        }
+      ],
+      "prevention_change": {
+        "status": "passed",
+        "evidence": "pnpm check is a required final gate and the canonical error union/schema now share the literal."
+      },
+      "detection_change": {
+        "status": "passed",
+        "evidence": "The exact failed command pnpm check was replayed at 701f8f92 with exit 0."
+      },
+      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "required_risk_families": [
+        "structural-contract",
+        "idempotency"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "dimension": "canonical-write-binding"
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "restart-or-replay"
+        }
+      ],
+      "literal_case": {
+        "status": "passed",
+        "observed": "The exact-head typecheck reaches both WhatsApp entrypoints and exits 0 without TS2367."
+      }
+    },
     {
       "escape_id": "AUDESC-COMMERCIAL-IDENTITY-PARTIAL-MATCH-001",
       "escape_class": "commercial-identity-partial-match",
@@ -14,7 +68,7 @@
       "literal_case": {
         "procedure": "Send evidence for a different product from the same brand while the original pending item remains active.",
         "expected": "Mutation is blocked and product-specific clarification is persisted.",
-        "observed": "Exact-head regression blocks the same-brand different-product case and requires product confirmation.",
+        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
       },
@@ -63,7 +117,7 @@
       "required_risk_families": [
         "structural-contract"
       ],
-      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
       "status": "passed"
     },
     {
@@ -79,7 +133,7 @@
       "literal_case": {
         "procedure": "Force pending-operation creation to return no durable state after the provisional meal is saved.",
         "expected": "Keep provisional values but suppress the actionable invitation to send a later label.",
-        "observed": "Exact-head reply regression emits unavailable-now wording and no send-label invitation when persistence is absent.",
+        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
       },
@@ -129,7 +183,7 @@
         "temporal-consistency",
         "structural-contract"
       ],
-      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
       "status": "passed"
     },
     {
@@ -145,7 +199,7 @@
       "literal_case": {
         "procedure": "Classify a clause with two concurrent responses and a single valid conclusion.",
         "expected": "Concurrency-atomicity is material and receives an exact-head adversarial control.",
-        "observed": "The generic risk classifier now detects concurrent response/message/callback wording and current saturation includes concurrency-atomicity.",
+        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
         "status": "passed",
         "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
       },
@@ -195,7 +249,7 @@
         "concurrency-atomicity",
         "structural-contract"
       ],
-      "revalidated_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
       "status": "passed"
     }
   ]

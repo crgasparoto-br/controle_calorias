@@ -1,18 +1,87 @@
 {
   "schema_version": 1,
-  "material_head_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
-  "base_sha": "e7b0b9d47b5a8b4ba10add433a7ce3e18db19ebb",
+  "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "base_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
   "evidence": [
     {
-      "evidence_id": "EVID-1194-GATES",
+      "evidence_id": "EV-1177-FOCUSED",
+      "kind": "behavioral",
+      "status": "passed",
+      "path": "server/whatsappWebhook.image.test.ts",
+      "sha256": "1932d37f45d7287fc1458734161b2a53d2311677d6b2f689270ad7387c78eae2",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-1177-CHECK",
+      "kind": "structural",
+      "status": "passed",
+      "path": "pnpm-check-701f8f92.txt",
+      "sha256": "990b14741541f4e65226ad84a273d4530d6ef0aafdaa3ab2197852d6d1b2febb",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-008",
       "kind": "quantitative",
       "status": "passed",
-      "producer": "Exact-head local and GitHub Actions gate manifest",
-      "subject_sha": "de5047783c9cc3bd0cfb1701a28ac8d001bf2aff",
+      "path": "evidence/EV-QUANT-OBL-008.txt",
+      "sha256": "59407fe68b1b49e4eb23dfcea7b839880d946c871c6ae646298beb7c05f3769b",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
       "freshness_policy": "exact-material-head",
-      "path": ".audit/entregar-issue/evidence/issue1194-exact-head-controls.txt",
-      "sha256": "90da8790f07f571adecc72ef2ba3cdd61d752663114a55f90282fc0a89fab6f6",
-      "observed": "Issue-specific regressions, full repository tests and all required static/build/policy gates passed at the material head."
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-043",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence/EV-QUANT-OBL-043.txt",
+      "sha256": "3496dc964297d527accfeaeed5e64ac3b1ea627db499ec8a641dd8cc8161b70b",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-056",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence/EV-QUANT-OBL-056.txt",
+      "sha256": "e836cdbc42fd19d7e0946b4aaaf93db3752c5da90c232d4348d1dcf14d7fe467",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-060",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence/EV-QUANT-OBL-060.txt",
+      "sha256": "11ca8df351fce13142c339d88d846ec1fcae3736b5f1633eae07747889b4dc1b",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-065",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence/EV-QUANT-OBL-065.txt",
+      "sha256": "678ca0a0122878bbf946580da8c639f569d073061e60378ba2d50fcc1f5c0c95",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
+    },
+    {
+      "evidence_id": "EV-QUANT-OBL-138",
+      "kind": "quantitative",
+      "status": "passed",
+      "path": "evidence/EV-QUANT-OBL-138.txt",
+      "sha256": "98b27f13945cb0ffbb37cca78028d9d9e22ee3f363b2fc3a0c765a2c9bd1474d",
+      "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+      "freshness_policy": "exact-material-head",
+      "producer": "exact-head validation on the delivery candidate"
     }
   ]
 }
