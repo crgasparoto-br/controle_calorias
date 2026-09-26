@@ -109,6 +109,11 @@ export type HouseholdMeasureResolutionInput = {
   variant?: string | null;
   context?: string | null;
   portionLabel?: string | null;
+  /**
+   * Canonical natural-food base used only to broaden quantity research.
+   * It must never replace foodName or prove brand/cultivar identity.
+   */
+  quantityReferenceFoodName?: string | null;
   quantity: number;
   unit: string;
   /** Identity already accepted by the canonical nutrition resolver. */
@@ -788,7 +793,8 @@ async function searchVerifiedMeasure(
               "Você pesquisa peso verificável de medidas caseiras de alimentos.",
               "Pesquise apenas a mesma medida física e o mesmo alimento/tipo/preparo solicitado.",
               "Para referenceKind=exact_product, marca/variante e produto devem corresponder exatamente ao pedido.",
-              "Para referenceKind=same_food_type, outra marca pode contribuir somente como referência de quantidade do mesmo alimento/tipo/preparo; nunca a apresente como produto exato.",
+              "Para referenceKind=same_food_type, outra marca ou qualificador pode contribuir somente como referência de quantidade do mesmo alimento/tipo/preparo; nunca a apresente como produto exato.",
+              "Quando houver uma referência canônica do alimento-base para quantidade, use-a apenas para ampliar a pesquisa de same_food_type; ela não confirma cultivar, marca nem identidade exata.",
               "describesTypicalMeasure=true somente quando a fonte declarar explicitamente média, usual, típica ou equivalente.",
               "Não invente gramatura e não use categoria ampla quando o alimento específico estiver identificado.",
               "Cada evidência deve sustentar explicitamente a relação entre quantidade, unidade da medida e gramatura retornadas.",
@@ -801,8 +807,11 @@ async function searchVerifiedMeasure(
               content: [{
                 type: "input_text",
                 text: [
-                  `Alimento: ${input.foodName}`,
+                  `Alimento informado: ${input.foodName}`,
                   input.brand ? `Marca/variante informada: ${input.brand}` : "Marca/variante informada: não especificada",
+                  input.quantityReferenceFoodName
+                    ? `Referência canônica do alimento-base para pesquisa exclusiva de quantidade: ${input.quantityReferenceFoodName}`
+                    : "Referência canônica do alimento-base para quantidade: não disponível",
                   `Medida: ${input.quantity} ${input.unit}`,
                   "Busque a gramatura dessa medida. Cada referência deve citar URL e evidência verificável com quantidade, unidade e gramatura da mesma relação física.",
                 ].join("\n"),

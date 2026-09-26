@@ -1,0 +1,23 @@
+## Problema observado
+Em 2026-09-26, o fluxo WhatsApp ainda pediu a gramatura para uma entrada composta como `1 banana nanica, 6 uvas pretas, 1 pera packans`, embora frutas naturais contáveis devam poder usar uma relação verificável do alimento-base para calcular a quantidade. Isso deixa o registro inteiro bloqueado por um único item e não preserva o multiplicador das uvas.
+A regressão foi reproduzida na PR aberta #1187. A causa é que o caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não carregava a referência canônica `uva` exclusivamente para pesquisa de quantidade.
+
+## Escopo
+- preservar a identidade original e seus qualificadores;
+- usar a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`;
+- preservar o multiplicador (`6 unidades` -> gramatura proporcional);
+- não promover a referência-base a marca, cultivar ou identidade exata;
+- manter o fail-closed para alimentos comerciais e medidas ambíguas;
+- registrar os itens válidos e explicar somente os itens inconsistentes quando houver lote misto.
+
+## Critérios de aceite
+1. `1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável da unidade de pera.
+2. `1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` para pesquisa com medida `6 unidade` e registra a gramatura multiplicada.
+3. A busca mantém `uvas pretas`/`pera packans` como identidade do usuário e usa `uva`/`pera` apenas como referência de quantidade.
+4. Referências divergentes, fonte ausente, marca conhecida ou unidade estruturalmente ambígua continuam em clarificação; não há fallback silencioso.
+5. Os testes atravessam o entrypoint público `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida.
+
+## Referências
+- Regressão operacional relatada pelo usuário em 2026-09-26.
+- PR histórica #1187, preservada sem alteração de histórico.
+- Issue encerrada #1181, cujo fluxo foi reaberto por este novo caso.

@@ -1,0 +1,451 @@
+{
+  "schema_version": 1,
+  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "requirements": [
+    {
+      "requirement_id": "REQ-1196",
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013"
+      ],
+      "source_texts": [
+        "Em 2026-09-26, o fluxo WhatsApp ainda pediu a gramatura para uma entrada composta como `1 banana nanica, 6 uvas pretas, 1 pera packans`, embora frutas naturais contáveis devam poder usar uma relação verificável do alimento-base para calcular a quantidade. Isso deixa o registro inteiro bloqueado por um único item e não preserva o multiplicador das uvas.",
+        "A regressão foi reproduzida na PR aberta #1187. A causa é que o caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não carregava a referência canônica `uva` exclusivamente para pesquisa de quantidade.",
+        "preservar a identidade original e seus qualificadores;",
+        "usar a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`;",
+        "preservar o multiplicador (`6 unidades` -> gramatura proporcional);",
+        "não promover a referência-base a marca, cultivar ou identidade exata;",
+        "manter o fail-closed para alimentos comerciais e medidas ambíguas;",
+        "registrar os itens válidos e explicar somente os itens inconsistentes quando houver lote misto.",
+        "`1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável da unidade de pera.",
+        "`1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` para pesquisa com medida `6 unidade` e registra a gramatura multiplicada.",
+        "A busca mantém `uvas pretas`/`pera packans` como identidade do usuário e usa `uva`/`pera` apenas como referência de quantidade.",
+        "Referências divergentes, fonte ausente, marca conhecida ou unidade estruturalmente ambígua continuam em clarificação; não há fallback silencioso.",
+        "Os testes atravessam o entrypoint público `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida."
+      ],
+      "risk_families": [
+        "authorization",
+        "documentation",
+        "idempotency",
+        "structural-contract",
+        "temporal-consistency",
+        "tenant-isolation"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "reason": "Pending context remains bound to the originating WhatsApp target."
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "reason": "Normative docs must describe partial quantitative passthrough and fail-closed identity."
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "reason": "Same inbound replay/restart must not duplicate resolved meals or pending mutations."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "reason": "Controls must traverse handleWhatsAppWebhookWithTextIntent and the real measure resolver."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "reason": "Original qualified food identity and canonical quantity reference must remain separate."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "reason": "Partial registration and retry must respect pending/terminal lifecycle boundaries."
+        },
+        {
+          "risk_family": "tenant-isolation",
+          "surface": "tenant-scope-isolation",
+          "reason": "A pending quantity clarification must not cross user/phone scope."
+        }
+      ],
+      "plausible_wrong_implementation": "Use the canonical natural reference as the user identity, block the whole mixed batch for one quantitative pending item, or replay the inbound after restart and duplicate effects.",
+      "positive_control": {
+        "id": "POS-1196-001",
+        "status": "passed",
+        "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+        "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+        "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+        "procedure": "Run the public mixed-batch WhatsApp flow with natural qualified items and a quantitative pending sibling, then inspect order, persistence and user-facing explanation.",
+        "expected": "Natural quantity references resolve without changing identity; valid siblings are registered; only the inconsistent quantity is explained; replay is idempotent.",
+        "observed": "The exact-head characterization and focused public-entrypoint suites passed.",
+        "evidence_kind": "quantitative",
+        "evidence_id": "EVID-1196-EXACT-HEAD"
+      },
+      "negative_controls": [
+        {
+          "id": "NEG-1196-001",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "dimension": "session-target-binding-discriminant",
+          "failure_mode": "Bypass the authorization:session-target-binding boundary and collapse or duplicate the mixed-batch contract.",
+          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across authorization:session-target-binding.",
+          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across authorization:session-target-binding.",
+          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
+          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-001-S1",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through authorization:session-target-binding.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-001-S2",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through authorization:session-target-binding.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-002",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-discriminant",
+          "failure_mode": "Bypass the documentation:canonical-claims boundary and collapse or duplicate the mixed-batch contract.",
+          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across documentation:canonical-claims.",
+          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across documentation:canonical-claims.",
+          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
+          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-002-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through documentation:canonical-claims.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-002-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through documentation:canonical-claims.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-003",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "duplicate-processing-discriminant",
+          "failure_mode": "Bypass the idempotency:duplicate-processing boundary and collapse or duplicate the mixed-batch contract.",
+          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across idempotency:duplicate-processing.",
+          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across idempotency:duplicate-processing.",
+          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
+          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-003-S1",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through idempotency:duplicate-processing.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-003-S2",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through idempotency:duplicate-processing.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-004",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "benchmark-path-fidelity-discriminant",
+          "failure_mode": "A helper-only test passes while the public entrypoint still blocks or drops valid siblings.",
+          "plausible_wrong_implementation": "Bypass handleWhatsAppWebhookWithTextIntent and validate only a helper, leaving the productive public path untested.",
+          "procedure": "Execute the public handleWhatsAppWebhookWithTextIntent entrypoint with a valid item before and after a quantitatively pending item, then inspect the canonical mutation boundary.",
+          "expected": "The public entrypoint reaches the real measure resolver and preserves the valid siblings while explaining only the pending item.",
+          "observed": "The public characterization suite exercised the productive entrypoint and passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-004-S1",
+              "status": "passed",
+              "surface": "benchmark-path-fidelity",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through structural-contract:benchmark-path-fidelity.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-004-S2",
+              "status": "passed",
+              "surface": "benchmark-path-fidelity",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through structural-contract:benchmark-path-fidelity.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-005",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "dimension": "relational-semantic-integrity-discriminant",
+          "failure_mode": "A divergent natural reference is persisted as the user identity or linked to the wrong meal item.",
+          "plausible_wrong_implementation": "Use the canonical base reference as the exact identity and write an incompatible linked item relation at the canonical mutation boundary.",
+          "procedure": "Send deliberately incompatible qualified values (uvas pretas/uva and pera packans/pera) through extraction, measure resolution and linked meal persistence; inspect rejection/absence of the invalid relation.",
+          "expected": "The original qualified identity remains linked; the base reference is used only for quantity search; an invalid divergent relation is rejected or absent downstream.",
+          "observed": "Exact-head public and quantity regressions preserved qualified identity and passed the linked mutation boundary.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-005-S1",
+              "status": "passed",
+              "surface": "relational-semantic-integrity",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through structural-contract:relational-semantic-integrity.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-005-S2",
+              "status": "passed",
+              "surface": "relational-semantic-integrity",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through structural-contract:relational-semantic-integrity.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-006",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "dimension": "temporal-consistency-contract-discriminant",
+          "failure_mode": "Bypass the temporal-consistency:temporal-consistency-contract boundary and collapse or duplicate the mixed-batch contract.",
+          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across temporal-consistency:temporal-consistency-contract.",
+          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across temporal-consistency:temporal-consistency-contract.",
+          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
+          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-006-S1",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through temporal-consistency:temporal-consistency-contract.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-006-S2",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through temporal-consistency:temporal-consistency-contract.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-007",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "risk_family": "tenant-isolation",
+          "surface": "tenant-scope-isolation",
+          "dimension": "tenant-scope-isolation-discriminant",
+          "failure_mode": "A pending quantity context from one user/phone is consumed by a distinct scope.",
+          "plausible_wrong_implementation": "Treat a pending clarification as globally addressable instead of binding it to the originating user and phone.",
+          "procedure": "Create a pending quantity context in one user/phone scope and attempt the same continuation from a deliberately distinct user/phone scope.",
+          "expected": "The distinct tenant/profile scope is deliberately different and cannot consume or mutate the origin pending context; the pending record is excluded, isolated, and there is no data leak across scopes.",
+          "observed": "The exact-head lifecycle and public webhook controls preserve originating tenant/profile scope binding and show no cross-scope leak.",
+          "control_type": "test",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-007-S1",
+              "status": "passed",
+              "surface": "tenant-scope-isolation",
+              "dimension": "alternate-order",
+              "procedure": "Run a sibling item order through tenant-isolation:tenant-scope-isolation.",
+              "expected": "The same contract remains true for the alternate order.",
+              "observed": "Covered by the exact-head characterization suite."
+            },
+            {
+              "id": "NEG-1196-007-S2",
+              "status": "passed",
+              "surface": "tenant-scope-isolation",
+              "dimension": "retry-restart",
+              "procedure": "Replay after restart through tenant-isolation:tenant-scope-isolation.",
+              "expected": "No duplicate effects or cross-scope mutation occurs.",
+              "observed": "Covered by the exact-head retry/restart scenario."
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-1196-001",
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "procedure": "Run the complete characterization, focused quantity/public-entrypoint regressions, static gates, build, agent policy gate and remote exact-head workflows.",
+          "expected": "All direct quantity, mixed-batch, identity, retry/restart and delivery controls pass on the exact material head.",
+          "observed": "Local and remote exact-head gates completed successfully."
+        }
+      ],
+      "obligation_control_map": [
+        {
+          "obligation_id": "OBL-001",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-002",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-003",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-004",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-005",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-006",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-007",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-008",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-009",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-010",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-011",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-012",
+          "primary_negative_control_id": "NEG-1196-004"
+        },
+        {
+          "obligation_id": "OBL-013",
+          "primary_negative_control_id": "NEG-1196-004"
+        }
+      ],
+      "performance_contract": {
+        "production_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
+        "terminal_boundary": "server/modules/whatsapp/countableFoodRegistrationGate.ts:prepareWhatsappCountableFoodRegistration",
+        "inventory_evidence": {
+          "status": "passed",
+          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "procedure": "Trace public text webhook through natural quantity resolution, partial registration, pending explanation and terminal persistence.",
+          "observed": "Exact-head characterization exercised the productive entrypoint and real measure resolver."
+        },
+        "operations": [
+          {
+            "id": "op-quantity-resolution",
+            "source": "server/whatsappIntentWebhook.ts -> server/householdMeasureResolution.ts -> server/modules/whatsapp/countableFoodRegistrationGate.ts",
+            "stage": "other",
+            "metric": null,
+            "before_terminal": true,
+            "required_for_contract": true
+          }
+        ],
+        "optimized_branches": [],
+        "benchmark": {
+          "mode": "production-direct",
+          "production_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
+          "harness_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
+          "covered_operation_ids": [
+            "op-quantity-resolution"
+          ],
+          "bridged_operation_ids": [],
+          "omitted_operation_ids": []
+        }
+      }
+    }
+  ],
+  "uncovered_requirements": []
+}

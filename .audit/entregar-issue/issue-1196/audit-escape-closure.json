@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "foreign-result-only-handoff-reuse",
+      "source_audit": {
+        "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
+        "finding_id": "A-001",
+        "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040"
+      },
+      "plausible_wrong_implementation": "Treat an inherited certificate from another issue or pull request as current readiness without binding it to the current target.",
+      "literal_case": {
+        "procedure": "Compare repository, issue, PR, base, material head, parent and changed paths before independent audit.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+        "observed": "Fresh current-target certificate and terminal handoff validation bind the package to the current material head."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "surface": "target-binding",
+          "dimension": "foreign-issue-certificate",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt"
+        },
+        {
+          "id": "A-001-S2",
+          "surface": "target-binding",
+          "dimension": "foreign-pr-certificate",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "Fresh current-target handoff is generated and bound before audit.",
+        "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt"
+      },
+      "detection_change": {
+        "control": "Official target binding and terminal handoff validators.",
+        "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "benchmark-path-fidelity-discriminant"
+        },
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-discriminant"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "documentation"
+      ],
+      "revalidated_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "status": "passed"
+    }
+  ]
+}

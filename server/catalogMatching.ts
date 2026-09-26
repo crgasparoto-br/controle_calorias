@@ -232,6 +232,40 @@ export function findNaturalProduceCatalogFood(foodName: string) {
   return null;
 }
 
+function singularNaturalProduceToken(token: string) {
+  return token.length > 3 && token.endsWith("s") ? token.slice(0, -1) : token;
+}
+
+/**
+ * Returns a source-derived food-base hint for quantity research only.
+ * It never proves a cultivar/brand and is only emitted after a prefix resolves
+ * to a canonical natural-produce catalog entry.
+ */
+export function findNaturalProduceQuantityReferenceName(foodName: string) {
+  const sourceTokens = normalizedWords(foodName);
+  if (
+    !sourceTokens.length ||
+    sourceTokens.some(token => NON_NATURAL_PRODUCE_QUALIFIER_TOKENS.has(token))
+  ) {
+    return null;
+  }
+
+  for (let length = 1; length <= sourceTokens.length; length += 1) {
+    const prefixTokens = sourceTokens.slice(0, length);
+    const candidates = [
+      prefixTokens.join(" "),
+      [...prefixTokens.slice(0, -1), singularNaturalProduceToken(prefixTokens.at(-1) ?? "")].join(" "),
+    ].filter((value, index, values) => value && values.indexOf(value) === index);
+
+    for (const candidateName of candidates) {
+      const candidate = findCatalogFood(candidateName) ?? findTacoFood(candidateName);
+      if (isNaturalProduceCatalogFood(candidate)) return candidateName;
+    }
+  }
+
+  return null;
+}
+
 function normalizedWords(value: string) {
   return normalizeText(value)
     .replace(/\b(?:mucarela|mozarela|mussarela)\b/g, "mussarela")

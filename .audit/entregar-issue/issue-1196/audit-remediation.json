@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
+    "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
+    "audited_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9"
+  },
+  "candidate_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        ".audit/entregar-issue/issue-1196/handoff-ready.json",
+        ".audit/entregar-issue/issue-1196/requirement-closure.json",
+        ".audit/entregar-issue/issue-1196/requirement-attack-matrix.json",
+        ".audit/entregar-issue/issue-1196/risk-saturation.json",
+        ".audit/entregar-issue/issue-1196/inherited-controls.json",
+        ".audit/entregar-issue/issue-1196/evidence-provenance.json",
+        ".audit/entregar-issue/issue-1196/audit-source-result.json",
+        ".audit/entregar-issue/issue-1196/audit-remediation.json"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+        "Fresh current-target certificate binds issue #1196, PR #1197, base, head, parent and changed paths."
+      ],
+      "validations": [
+        "Official handoff readiness validators pass on the current target.",
+        "Terminal handoff validation proves the result-only child is a direct child of the material head and contains only allowlisted result paths."
+      ]
+    },
+    {
+      "source_kind": "recommendation",
+      "source_id": "R-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "not-applicable",
+      "changed_files": [
+        ".audit/entregar-issue/issue-1196/evidence-provenance.json",
+        ".audit/entregar-issue/issue-1196/audit-remediation.json"
+      ],
+      "evidence": [
+        "Remote Agent-first gate run 36243022121 completed successfully on exact head d08698af."
+      ],
+      "validations": [
+        "gh pr checks 1197 reports 4 successful and 0 pending checks."
+      ]
+    }
+  ]
+}
