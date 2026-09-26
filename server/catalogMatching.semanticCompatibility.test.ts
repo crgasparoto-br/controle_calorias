@@ -55,6 +55,23 @@ describe("compatibilidade semântica do catálogo", () => {
     );
   });
 
+  it.each([
+    ["mussarela fatiada", /mozarela/i],
+    ["presunto fatiado", /presunto/i],
+  ])("ignora qualificadores de apresentação não nutricionais em %s", (sourceText, expectedName) => {
+    expect(findTacoFood(sourceText)?.name).toMatch(expectedName);
+  });
+
+  it("resolve requeijão cremoso pela referência TACO local", () => {
+    expect(findTacoFood("40 g de requeijão")?.name).toMatch(/requeijão/i);
+    expect(findTacoFood("40 g de requeijão")).toEqual(expect.objectContaining({
+      calories: 257,
+      protein: 9.6,
+      carbs: 2.4,
+      fat: 23.4,
+    }));
+  });
+
   it("não confunde os dois cafés da regressão", () => {
     const sweetened = findCatalogFood("1 xícara de café com açúcar");
     const unsweetened = findCatalogFood("1 xícara de café sem açúcar");

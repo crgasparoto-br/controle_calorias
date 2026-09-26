@@ -71,6 +71,20 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+const PRESENTATION_QUALIFIER_PATTERN =
+  /\b(?:fatiad[oa]s?|em\s+fatias)\b/g;
+
+function getNormalizedQueryVariants(value: string) {
+  const normalized = normalizeText(value);
+  const presentationFree = normalized
+    .replace(PRESENTATION_QUALIFIER_PATTERN, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return presentationFree && presentationFree !== normalized
+    ? [normalized, presentationFree]
+    : [normalized];
+}
+
 function getSearchTerms(food: TacoEntry): string[] {
   return [food.name, ...food.aliases].map(normalizeText).filter(Boolean);
 }
@@ -114,23 +128,28 @@ export function findTacoFood(foodName: string): CatalogFood | null {
   const catalog = loadTacoData();
   if (!catalog.length) return null;
 
-  const query = normalizeText(foodName);
-  if (!query) return null;
+  const queryVariants = getNormalizedQueryVariants(foodName);
+  if (!queryVariants[0]) return null;
 
   const exact = catalog.find(item =>
     isSemanticallyCompatible(item, foodName)
-      && getSearchTerms(item).some(term => term === query),
+      && queryVariants.some(query => getSearchTerms(item).some(term => term === query)),
   );
   if (exact) return tacoToCatalogFood(exact);
 
   const substring = catalog
-    .map(item => ({ item, score: scoreTacoSubstringMatch(item, query, foodName) }))
+    .map(item => ({
+      item,
+      score: Math.max(
+        ...queryVariants.map(query => scoreTacoSubstringMatch(item, query, foodName)),
+      ),
+    }))
     .filter(match => match.score > 0)
     .sort((a, b) => b.score - a.score)[0]?.item;
   if (substring) return tacoToCatalogFood(substring);
 
-  const queryWords = query.split(/\s+/).filter(w => w.length >= 3);
-  if (queryWords.length > 0) {
+  for (const query of queryVariants) {
+    const queryWords = query.split(/\s+/).filter(w => w.length >= 3);
     const keyword = catalog.find(item => {
       if (!isSemanticallyCompatible(item, foodName)) return false;
       const allTerms = getSearchTerms(item).join(" ");
@@ -139,7 +158,9 @@ export function findTacoFood(foodName: string): CatalogFood | null {
     if (keyword) return tacoToCatalogFood(keyword);
   }
 
-  if (queryWords.length > 0) {
+  for (const query of queryVariants) {
+    const queryWords = query.split(/\s+/).filter(w => w.length >= 3);
+    if (queryWords.length === 0) continue;
     const fuzzy = catalog.find(item => {
       if (!isSemanticallyCompatible(item, foodName)) return false;
       const allTerms = getSearchTerms(item).join(" ");
