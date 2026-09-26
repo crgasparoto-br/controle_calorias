@@ -198,6 +198,18 @@ function buildCountableResolutionPrefixBlock(
   return ["Medidas usadas no cálculo:", ...lines].join("\n");
 }
 
+function buildCountableSkippedItemsPrefixBlock(
+  skippedItems: ReadyCountableFoodRegistration["skippedItems"],
+) {
+  if (!skippedItems?.length) return null;
+  const lines = skippedItems.map(item => `• ${item.segment}`);
+  return [
+    "Não registrei estes itens porque faltou uma quantidade verificável:",
+    ...lines,
+    "Você pode enviar o peso/volume ou os detalhes do item para registrá-lo depois.",
+  ].join("\n");
+}
+
 function parseWeightKg(text: string) {
   const normalized = normalizeTextPreservingQuantities(text);
   const weightFirstMatch = normalized.match(
@@ -863,9 +875,12 @@ async function tryHandleTextIntent(
       const countableResolutionPrefix = buildCountableResolutionPrefixBlock(
         countableGate.resolutions
       );
+      const countableSkippedItemsPrefix =
+        buildCountableSkippedItemsPrefixBlock(countableGate.skippedItems);
       const prefixBlocks = [
         ...waterPrefixBlocks,
         ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
+        ...(countableSkippedItemsPrefix ? [countableSkippedItemsPrefix] : []),
       ];
       setWhatsAppDeferredLogicalReply(req, message.id, {
         prefixBlocks,
@@ -1100,10 +1115,15 @@ async function tryHandleTextIntent(
     const hasCountableResolution =
       countableGate?.kind === "ready" &&
       (countableGate.resolutions.length > 0 ||
-        Boolean(countableGate.resolvedSegments?.length));
+        Boolean(countableGate.resolvedSegments?.length) ||
+        Boolean(countableGate.skippedItems?.length));
     const countableResolutionPrefix =
       countableGate?.kind === "ready"
         ? buildCountableResolutionPrefixBlock(countableGate.resolutions)
+        : null;
+    const countableSkippedItemsPrefix =
+      countableGate?.kind === "ready"
+        ? buildCountableSkippedItemsPrefixBlock(countableGate.skippedItems)
         : null;
 
     let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
@@ -1117,9 +1137,10 @@ async function tryHandleTextIntent(
     // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
     if (!result && hasCountableResolution && countableGate?.kind === "ready") {
       setWhatsAppDeferredLogicalReply(req, message.id, {
-        prefixBlocks: countableResolutionPrefix
-          ? [countableResolutionPrefix]
-          : [],
+        prefixBlocks: [
+          ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
+          ...(countableSkippedItemsPrefix ? [countableSkippedItemsPrefix] : []),
+        ],
         domainLinks: [],
         resolvedSegments: countableGate.resolvedSegments,
       });
@@ -1177,9 +1198,15 @@ async function tryHandleTextIntent(
         const fallbackResolutionPrefix = buildCountableResolutionPrefixBlock(
           fallbackGate.resolutions
         );
-        if (fallbackResolutionPrefix) {
+        const fallbackSkippedItemsPrefix = buildCountableSkippedItemsPrefixBlock(
+          fallbackGate.skippedItems,
+        );
+        if (fallbackResolutionPrefix || fallbackSkippedItemsPrefix) {
           setWhatsAppDeferredLogicalReply(req, message.id, {
-            prefixBlocks: [fallbackResolutionPrefix],
+            prefixBlocks: [
+              ...(fallbackResolutionPrefix ? [fallbackResolutionPrefix] : []),
+              ...(fallbackSkippedItemsPrefix ? [fallbackSkippedItemsPrefix] : []),
+            ],
             domainLinks: [],
           });
         }

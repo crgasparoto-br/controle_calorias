@@ -1704,8 +1704,8 @@ const scenarioDefinitions = [
     expectedResult: "registered",
   },
   {
-    id: "12-clarification-resume",
-    title: "Clarificação e retomada com irmãos preservados",
+    id: "12-mixed-partial",
+    title: "Lote misto com pendência quantitativa",
     expectedResult: "registered",
   },
   {
@@ -1719,8 +1719,8 @@ const scenarioDefinitions = [
     expectedResult: "registered",
   },
   {
-    id: "15-durable-restart-resume",
-    title: "Retomada da clarificação após reinicialização do runtime",
+    id: "15-durable-partial-idempotency",
+    title: "Idempotência de lote parcial após reinicialização do runtime",
     expectedResult: "registered",
   },
 ] as const;
@@ -2439,142 +2439,80 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     await finishScenario("11-multi-item-atomic", "registered");
   });
 
-  it("12 — persiste clarificação antes da pergunta, preserva irmão, rejeita resposta incompatível e retoma idempotentemente", async () => {
-    await startScenario({
-      catalog: defaultCatalog().filter(
-        food => food.name !== "Pão de Forma Panco Premium"
-      ),
-    });
-    const initial = await post(
-      activeUrl,
-      payload({
-        id: "wamid-1094-12-a",
-        timestamp: "1789557060",
-        type: "text",
-        text: {
-          body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
-        },
-      })
-    );
-    expect(initial.status).toBe(200);
-    expect(state.metrics.nutritionSearchAttempts).toBe(2);
-    expect(state.metrics.nutritionSearchOutbound).toBe(1);
-    expect(state.metrics.pendingCreated).toBe(1);
-    expect(state.metrics.persistedMeals).toBe(0);
-    expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
-      { attempts: 1, outbound: 1 },
-    ]);
-    assertOpaqueSearchKeys([/Panco Premium/u]);
-    expect(state.pendingRows.get(1)).toEqual(
-      expect.objectContaining({
-        userId: nextUserId - 1,
-        type: "food_registration_clarification",
-        origin: "foodClarification",
-        state: "active",
-        version: 1,
-        consumedAt: null,
-        target: expect.objectContaining({
-          originalText:
-            "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
-          pendingKind: "quantity",
-          resolutionContext: expect.objectContaining({
-            resolvedSegments: expect.arrayContaining([
-              expect.objectContaining({
-                processed: expect.objectContaining({
-                  items: expect.arrayContaining([
-                    expect.objectContaining({
-                      brand: "Panco",
-                      estimatedGrams: 25,
-                    }),
-                  ]),
-                }),
-              }),
-            ]),
-          }),
-        }),
-      })
-    );
+	it("12 — registra irmãos válidos e explica somente a pendência quantitativa", async () => {
+		await startScenario({
+			catalog: defaultCatalog().filter(
+				food => food.name !== "Pão de Forma Panco Premium"
+			),
+		});
+		const initial = await post(
+			activeUrl,
+			payload({
+				id: "wamid-1094-12-a",
+				timestamp: "1789557060",
+				type: "text",
+				text: {
+					body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
+				},
+			})
+		);
+		expect(initial.status).toBe(200);
+		expect(state.metrics.nutritionSearchAttempts).toBe(2);
+		expect(state.metrics.nutritionSearchOutbound).toBe(1);
+		expect(state.metrics.pendingCreated).toBe(0);
+		expect(state.metrics.persistedMeals).toBe(1);
+		expect(state.pendingRows.size).toBe(0);
+		expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
+			{ attempts: 1, outbound: 1 },
+		]);
+		assertOpaqueSearchKeys([/Panco Premium/u]);
+		const meals = await listUserMeals(nextUserId - 1);
+		expect(meals).toHaveLength(1);
+		expect(meals[0].items).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ brand: "Panco", estimatedGrams: 25 }),
+		])
+		);
+		expect(meals[0].items).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ foodName: expect.stringMatching(/iogurte/i) })])
+		);
 
-    const outboundBeforeInitialRetry = state.outboundReplies.length;
-    resetCaches();
-    const initialRetry = await post(
-      activeUrl,
-      payload({
-        id: "wamid-1094-12-a",
-        timestamp: "1789557060",
-        type: "text",
-        text: {
-          body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
-        },
-      })
-    );
-    expect(initialRetry.status).toBe(200);
-    expect(state.metrics.pendingCreated).toBe(1);
-    expect(state.metrics.nutritionSearchAttempts).toBe(2);
-    expect(state.metrics.nutritionSearchOutbound).toBe(1);
-    expect(state.outboundReplies).toHaveLength(outboundBeforeInitialRetry);
+		const outboundBeforeInitialRetry = state.outboundReplies.length;
+		resetCaches();
+		const initialRetry = await post(
+			activeUrl,
+			payload({
+				id: "wamid-1094-12-a",
+				timestamp: "1789557060",
+				type: "text",
+				text: {
+					body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
+				},
+			})
+		);
+		expect(initialRetry.status).toBe(200);
+		expect(state.metrics.pendingCreated).toBe(0);
+		expect(state.metrics.persistedMeals).toBe(1);
+		expect(state.metrics.nutritionSearchAttempts).toBe(2);
+		expect(state.metrics.nutritionSearchOutbound).toBe(1);
+		expect(state.outboundReplies).toHaveLength(outboundBeforeInitialRetry);
 
-    const incompatible = await post(
-      activeUrl,
-      payload({
-        id: "wamid-1094-12-b",
-        timestamp: "1789557120",
-        type: "interactive",
-        interactive: { button_reply: { id: "not-a-real-callback" } },
-      })
-    );
-    expect(incompatible.status).toBe(200);
-    expect(state.metrics.pendingConsumed).toBe(0);
-    expect(state.metrics.persistedMeals).toBe(0);
-    expect(state.pendingRows.get(1)?.state).toBe("active");
-
-    const resumedMessage = {
-      id: "wamid-1094-12-c",
-      timestamp: "1789557180",
-      type: "text",
-      text: { body: "170 g" },
-    };
-    const resumed = await post(activeUrl, payload(resumedMessage));
-    expect(resumed.status).toBe(200);
-    expect(state.metrics.pendingConsumed).toBe(1);
-    expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.metrics.nutritionSearchAttempts).toBe(2);
-    expect(state.metrics.nutritionSearchOutbound).toBe(1);
-    expect(Object.values(state.metrics.nutritionSearchByItem)).toEqual([
-      { attempts: 1, outbound: 1 },
-    ]);
-    const afterResume = await listUserMeals(nextUserId - 1);
-    expect(afterResume).toHaveLength(1);
-    expect(afterResume[0].items.length).toBeGreaterThanOrEqual(2);
-    expect(afterResume[0].userId).toBe(nextUserId - 1);
-    expect(afterResume[0].items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ brand: "Panco", estimatedGrams: 25 }),
-        expect.objectContaining({
-          foodName: expect.stringMatching(/iogurte/i),
-          estimatedGrams: 170,
-        }),
-      ])
-    );
-    expect(state.pendingRows.get(1)).toEqual(
-      expect.objectContaining({
-        origin: "foodClarification",
-        state: "consumed",
-        version: 2,
-        consumedAt: expect.any(Date),
-      })
-    );
-
-    const outboundBeforeResumeRetry = state.outboundReplies.length;
-    resetCaches();
-    const retry = await post(activeUrl, payload(resumedMessage));
-    expect(retry.status).toBe(200);
-    expect(state.metrics.pendingConsumed).toBe(1);
-    expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.outboundReplies).toHaveLength(outboundBeforeResumeRetry);
-    expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
-    await finishScenario("12-clarification-resume", "registered");
-  });
+		const incompatible = await post(
+			activeUrl,
+			payload({
+				id: "wamid-1094-12-b",
+				timestamp: "1789557120",
+				type: "interactive",
+				interactive: { button_reply: { id: "not-a-real-callback" } },
+			})
+		);
+		expect(incompatible.status).toBe(200);
+		expect(state.metrics.pendingConsumed).toBe(0);
+		expect(state.metrics.persistedMeals).toBe(1);
+		expect(state.pendingRows.size).toBe(0);
+		expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
+		await finishScenario("12-mixed-partial", "registered");
+	});
 
   it("13 — converge áudio/transcrição no mesmo contrato alimentar sem duplicar inbound", async () => {
     await startScenario({ transcript: "100 g de arroz branco" });
@@ -2672,7 +2610,7 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
     await finishScenario("14-image-convergent", "registered");
   });
 
-  it("15 — retoma clarificação persistida depois de reiniciar o runtime sem duplicar o inbound", async () => {
+	it("15 — mantém idempotência do lote parcial depois de reiniciar o runtime", async () => {
     const pendingStorePath = join(
       mkdtempSync(join(tmpdir(), "issue-1094-pending-")),
       "pending.json"
@@ -2694,26 +2632,21 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
           body: "1 iogurte natural desnatado, 1 fatia de pão de forma Panco Premium",
         },
       })
-    );
-    expect(initial.status).toBe(200);
-    expect(state.metrics.pendingCreated).toBe(1);
-    expect(state.metrics.persistedMeals).toBe(0);
-    expect(state.pendingRows.size).toBe(0);
-    expect(readPendingRows().find(row => row.id === 1)).toEqual(
-      expect.objectContaining({
-        state: "active",
-        origin: "foodClarification",
-      })
-    );
+		);
+		expect(initial.status).toBe(200);
+		expect(state.metrics.pendingCreated).toBe(0);
+		expect(state.metrics.persistedMeals).toBe(1);
+		expect(state.pendingRows.size).toBe(0);
+		expect(readPendingRows()).toHaveLength(0);
+		expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
 
-    await restartScenarioRuntime();
-    expect(activeLifecycle).not.toBe(initialLifecycle);
-    expect(state.pendingRows.size).toBe(0);
-    expect(readPendingRows().find(row => row.id === 1)).toEqual(
-      expect.objectContaining({ state: "active", version: 1 })
-    );
-    const outboundBeforeDurableRetry = state.outboundReplies.length;
-    const pendingCreatedBeforeDurableRetry = state.metrics.pendingCreated;
+		await restartScenarioRuntime();
+		expect(activeLifecycle).not.toBe(initialLifecycle);
+		expect(state.pendingRows.size).toBe(0);
+		expect(readPendingRows()).toHaveLength(0);
+		const outboundBeforeDurableRetry = state.outboundReplies.length;
+		const pendingCreatedBeforeDurableRetry = state.metrics.pendingCreated;
+		const persistedMealsBeforeDurableRetry = state.metrics.persistedMeals;
     const searchAttemptsBeforeDurableRetry =
       state.metrics.nutritionSearchAttempts;
     const durableRetry = await post(
@@ -2728,42 +2661,26 @@ describe("Issue #1094 — golden flows iniciados no POST público do WhatsApp", 
       })
     );
     expect(durableRetry.status).toBe(200);
-    expect(state.outboundReplies).toHaveLength(outboundBeforeDurableRetry);
-    expect(state.metrics.pendingCreated).toBe(pendingCreatedBeforeDurableRetry);
-    expect(state.metrics.nutritionSearchAttempts).toBe(
-      searchAttemptsBeforeDurableRetry
-    );
-    expect(readPendingRows().find(row => row.id === 1)).toEqual(
-      expect.objectContaining({ state: "active", version: 1 })
-    );
+		expect(state.outboundReplies).toHaveLength(outboundBeforeDurableRetry);
+		expect(state.metrics.pendingCreated).toBe(pendingCreatedBeforeDurableRetry);
+		expect(state.metrics.persistedMeals).toBe(persistedMealsBeforeDurableRetry);
+		expect(state.metrics.nutritionSearchAttempts).toBe(
+			searchAttemptsBeforeDurableRetry
+		);
+		expect(readPendingRows()).toHaveLength(0);
     expect(
       activeLifecycle.messages.filter(
         message => message.direction === "inbound"
       )
     ).toHaveLength(1);
-    const resumed = await post(
-      activeUrl,
-      payload({
-        id: "wamid-1094-15-b",
-        timestamp: "1789557420",
-        type: "text",
-        text: { body: "170 g" },
-      })
-    );
-    expect(resumed.status).toBe(200);
-    expect(state.metrics.pendingConsumed).toBe(1);
-    expect(state.metrics.persistedMeals).toBe(1);
-    expect(state.pendingRows.size).toBe(0);
-    expect(readPendingRows().find(row => row.id === 1)).toEqual(
-      expect.objectContaining({ state: "consumed", version: 2 })
-    );
-    expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
-    expect(
+		expect(state.metrics.pendingConsumed).toBe(0);
+		expect(await listUserMeals(nextUserId - 1)).toHaveLength(1);
+		expect(
       activeLifecycle.messages.filter(
         message => message.direction === "inbound"
       )
-    ).toHaveLength(2);
-    await finishScenario("15-durable-restart-resume", "registered");
+		).toHaveLength(1);
+		await finishScenario("15-durable-partial-idempotency", "registered");
   });
 
   it("controle — falha ao persistir clarificação não emite pergunta órfã nem mutação parcial", async () => {

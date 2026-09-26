@@ -69,7 +69,7 @@ No registro textual do WhatsApp a precedência é:
 7. clarificação persistente de peso/volume somente quando nenhuma das etapas anteriores resolver ou estimar a quantidade com segurança suficiente;
 8. nunca promover a base nutricional de `100 g` a medida caseira implícita.
 
-O preflight compartilhado por webhook, simulador e registro confirmado deve tentar resolver cada item seguindo essa precedência antes de criar uma pendência. Itens resolvidos por porção canônica, referência exata, referência pessoal, média usual ou estimativa contextual são quantitativamente resolvidos. Enquanto existir item que realmente dependa de clarificação, a refeição completa permanece em `whatsappPendingOperations` e nenhum item da mesma mensagem é persistido.
+O preflight compartilhado por webhook, simulador e registro confirmado deve tentar resolver cada item seguindo essa precedência antes de criar uma pendência. Itens resolvidos por porção canônica, referência exata, referência pessoal, média usual ou estimativa contextual são quantitativamente resolvidos. Quando todos os itens dependem de clarificação, a refeição completa permanece em `whatsappPendingOperations` e nada é persistido. Quando o lote é misto e a única pendência é de medida, somente os itens válidos são encaminhados para registro; os itens sem gramatura verificável são omitidos e listados na resposta, sem assumir 100 g nem criar um fallback silencioso. Uma identidade comercial não comprovada continua bloqueando o lote inteiro.
 
 ### Média usual e estimativa contextual
 

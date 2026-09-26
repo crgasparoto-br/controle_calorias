@@ -185,9 +185,12 @@ function promptText(call: any[]) {
 }
 
 describe("issue #1181 — golden flows pelo entrypoint público do WhatsApp", () => {
+  let forceGrapeMeasureUnavailable = false;
+
   beforeEach(() => {
     __resetWhatsAppTextIntentContextForTests();
     vi.clearAllMocks();
+    forceGrapeMeasureUnavailable = false;
     getUserIdByWhatsappPhoneMock.mockResolvedValue(1181);
     getUserNutritionGoalMock.mockResolvedValue({ today: { calories: 2200 } });
     listUserExercisesMock.mockResolvedValue([]);
@@ -243,5 +246,41 @@ describe("issue #1181 — golden flows pelo entrypoint público do WhatsApp", ()
       .find(prompt => /uvas pretas/i.test(prompt));
     expect(grapePrompt).toContain("Medida: 6 unidade");
     expect(grapePrompt).toContain("pesquisa exclusiva de quantidade: uva");
+  });
+
+  it("registra os itens resolvidos e omite somente o item contável pendente", async () => {
+    forceGrapeMeasureUnavailable = true;
+    createDomainTextResponseMock.mockImplementation(async (_provider, request) => {
+      const prompt = request.input?.[0]?.content?.[0]?.text ?? "";
+      if (/uvas pretas/i.test(prompt) && forceGrapeMeasureUnavailable) {
+        return {
+          id: "measure-uva-unavailable",
+          outputText: JSON.stringify({ found: false, references: [] }),
+          webSearch: { executed: true, searchCount: 1, sources: [] },
+          raw: {},
+        };
+      }
+      if (/banana nanica/i.test(prompt)) return searchedMeasure("Banana", "banana", 80);
+      throw new Error(`unexpected household-measure prompt: ${prompt}`);
+    });
+
+    const req = createTextWebhookRequest("1 banana nanica, 6 uvas pretas");
+    const res = createResponse();
+    const messageId = req.body.entry[0].changes[0].value.messages[0].id;
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(annotatedWebhookMock).toHaveBeenCalledOnce();
+    const forwarded = annotatedWebhookMock.mock.calls[0]?.[0] as any;
+    expect(forwarded.body.entry[0].changes[0].value.messages[0].text.body)
+      .toBe("80 g de banana nanica");
+
+    const { getWhatsAppDeferredLogicalReply } = await import("./modules/whatsapp/deferredLogicalReply");
+    const deferred = getWhatsAppDeferredLogicalReply(
+      forwarded,
+      messageId,
+    );
+    expect(deferred?.prefixBlocks.join("\n")).toContain("6 uvas pretas");
+    expect(deferred?.prefixBlocks.join("\n")).toContain("Não registrei estes itens");
   });
 });
