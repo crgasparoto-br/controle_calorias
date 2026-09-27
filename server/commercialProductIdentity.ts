@@ -78,6 +78,7 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
 
 const COMMERCIAL_VARIANT_TOKENS = new Set([
   "amargo",
+  "artesanal",
   "avela",
   "baunilha",
   "branco",
@@ -94,11 +95,14 @@ const COMMERCIAL_VARIANT_TOKENS = new Set([
   "laranja",
   "light",
   "limao",
+  "malte",
   "maxi",
   "menta",
   "mini",
+  "munich",
   "morango",
   "premium",
+  "puro",
   "original",
   "pilsen",
   "recheado",
