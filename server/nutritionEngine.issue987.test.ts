@@ -221,6 +221,51 @@ describe("issue #987 — identidade comercial no MEAL_VISION", () => {
     }));
   });
 
+  it("resolve Coca-Cola Original no caminho visual sem aceitar outra variante", async () => {
+    catalogFixtures = [brandedBeverage({
+      slug: "coca-cola-original",
+      name: "Coca-Cola Original",
+      aliases: ["coca cola original", "coca-cola original"],
+      brandName: "Coca-Cola",
+      productVariant: "original",
+      servingLabel: "200 ml",
+      gramsPerServing: 200,
+      calories: 85,
+      carbs: 21,
+      researchIdentityKey: "coca-cola:original:br",
+      sourceUrls: ["https://www.coca-cola.com/br/pt/brands/coca-cola/produtos"],
+      sourceEvidence: "Coca-Cola Sabor Original — porção de 200 ml: 85 kcal, 21 g de carboidratos.",
+      sourceVerifiedAt: new Date("2026-09-27T00:00:00.000Z"),
+      sourceConfidence: 0.99,
+    })];
+    createTextResponseMock.mockResolvedValue(visionResponse([{
+      foodName: "Coca-Cola Original",
+      brand: "Coca-Cola",
+      quantity: 200,
+      unit: "ml",
+      portionText: "200 ml",
+      estimatedGrams: 200,
+    }]));
+
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({ imageUrl: "data:image/jpeg;base64,Y29jYQ==" });
+
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      foodName: "Coca-Cola Original",
+      brand: "Coca-Cola",
+      productVariant: "original",
+      calories: 85,
+      carbs: 21,
+      source: "catalog",
+      resolution: expect.objectContaining({
+        nutritionOrigin: "web_research",
+        nutritionVerified: true,
+        sourceUrls: ["https://www.coca-cola.com/br/pt/brands/coca-cola/produtos"],
+      }),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
+  });
+
   it("preserva identidade e marca em pendência quando nenhuma fonte é confiável", async () => {
     await expectBrandedIdentityClarification({
       foodName: "Bebida Light",

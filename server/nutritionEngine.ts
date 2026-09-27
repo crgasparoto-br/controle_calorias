@@ -1340,7 +1340,9 @@ async function resolveCommercialItemsFromTextFallback(
 ) {
   const resolved: MealDraftItem[] = [];
   for (const item of items) {
+    const catalogReference = findCatalogFood(item.foodName);
     const genericReference = findGenericCatalogFood(item.foodName);
+    const resolutionReference = catalogReference ?? genericReference;
     const needsGenericReview = Boolean(
       !item.brand?.trim()
       && requiresGenericCatalogReference(item.foodName)
@@ -1352,8 +1354,8 @@ async function resolveCommercialItemsFromTextFallback(
     );
     if (!needsIdentityReview) {
       resolved.push(
-        genericReference && item.source === "catalog"
-          ? { ...item, resolution: catalogResolution(genericReference) }
+        resolutionReference && item.source === "catalog"
+          ? { ...item, resolution: catalogResolution(resolutionReference) }
           : item,
       );
       continue;

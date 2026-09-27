@@ -51,10 +51,44 @@ describe("nutritionEngine branded catalog selection", () => {
     expect(result.items[0]).toEqual(expect.objectContaining({
       canonicalName: "Coca-Cola Zero Lata",
       brand: "Coca-Cola",
-      portionText: "1 lata",
+      portionText: "1 lata (350 ml)",
       calories: 0,
       carbs: 0,
       source: "catalog",
+    }));
+  });
+
+  it("reconhece Coca-Cola Original e escala a porcao explicitamente informada", async () => {
+    const { processMealInput } = await import("./nutritionEngine");
+    const result = await processMealInput({
+      text: "200 ml de coca cola original",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      canonicalName: "Coca-Cola Original",
+      brand: "Coca-Cola",
+      quantity: 200,
+      unit: "ml",
+      estimatedGrams: 200,
+      portionText: "200 ml",
+      calories: 85,
+      carbs: 21,
+      source: "catalog",
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
+    expect(result.semanticContract.items[0]).toEqual(expect.objectContaining({
+      productVariant: "original",
+      evidence: expect.objectContaining({
+        nutrition: expect.objectContaining({
+          origin: "web_research",
+          verified: true,
+          value: expect.objectContaining({
+            sourceUrls: ["https://www.coca-cola.com/br/pt/brands/coca-cola/produtos"],
+            sourceEvidence: expect.stringContaining("85 kcal"),
+          }),
+        }),
+      }),
     }));
   });
 

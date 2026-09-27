@@ -3,6 +3,29 @@ import { isCatalogFoodSemanticallyCompatible } from "./catalogMatching";
 import { FOOD_CATALOG_REFERENCE } from "./foodCatalogReference";
 
 describe("food catalog reference branded snacks", () => {
+  it("contains Coca-Cola Original with official serving provenance", () => {
+    const food = FOOD_CATALOG_REFERENCE.find(
+      item => item.slug === "coca-cola-original"
+    );
+
+    expect(food).toEqual(
+      expect.objectContaining({
+        name: "Coca-Cola Original",
+        brandName: "Coca-Cola",
+        productVariant: "original",
+        servingLabel: "200 ml (1 copo)",
+        gramsPerServing: 200,
+        calories: 85,
+        carbs: 21,
+        sourceUrls: ["https://www.coca-cola.com/br/pt/brands/coca-cola/produtos"],
+        sourceConfidence: 0.99,
+        isBrandedProduct: true,
+      })
+    );
+    expect(food?.sourceEvidence).toContain("85 kcal");
+    expect(food?.sourceEvidence).toContain("21 g de carboidratos");
+  });
+
   it("contains the commercial identity and serving nutrition for Ouro Branco Duo Nuts", () => {
     const food = FOOD_CATALOG_REFERENCE.find(
       item => item.slug === "ouro-branco-duo-nuts-lacta"
