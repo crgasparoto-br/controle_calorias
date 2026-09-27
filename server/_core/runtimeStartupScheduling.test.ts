@@ -86,14 +86,13 @@ describe("runtime startup scheduling (#1061)", () => {
 
     callbacks[0]?.();
     callbacks[1]?.();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
 
-    expect(second).toHaveBeenCalledTimes(1);
-    expect(logWarn).toHaveBeenCalledWith(
-      "[Runtime] startup_task_failed",
-      expect.objectContaining({ name: "broken" }),
-    );
+    await vi.waitFor(() => {
+      expect(second).toHaveBeenCalledTimes(1);
+      expect(logWarn).toHaveBeenCalledWith(
+        "[Runtime] startup_task_failed",
+        expect.objectContaining({ name: "broken" }),
+      );
+    });
   });
 });
