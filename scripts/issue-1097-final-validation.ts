@@ -17,8 +17,8 @@ const baselineTotals = {
   roundTrips: 29,
   persistedMeals: 12,
   persistedItems: 16,
-  pendingClaimed: 2,
-  pendingConsumed: 2,
+  pendingClaimed: 0,
+  pendingConsumed: 0,
   domainLinks: 12,
 } as const;
 
@@ -77,6 +77,7 @@ const requiredMetricKeys = [
   "pendingReplyOrderViolations",
   "processMealInput",
   "mealProcessingResults",
+  "householdMeasureAttempts",
   "nutritionSearchAttempts",
   "nutritionSearchOutbound",
   "webNutritionCacheLookups",
@@ -107,10 +108,10 @@ const requiredScenarioResults: Record<
   "09-empty-cache": "registered",
   "10-incompatible-cache": "registered",
   "11-multi-item-atomic": "registered",
-  "12-clarification-resume": "registered",
+  "12-mixed-partial": "registered",
   "13-audio-convergent": "registered",
   "14-image-convergent": "registered",
-  "15-durable-restart-resume": "registered",
+  "15-durable-partial-idempotency": "registered",
 };
 
 function currentSha() {
