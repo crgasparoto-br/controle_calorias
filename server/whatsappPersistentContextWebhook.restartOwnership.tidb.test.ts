@@ -357,13 +357,16 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
     const candidate = await findPersistedRecoveryCandidate(messageId);
     expect(candidate).toBeTruthy();
+    const recoveryRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+      getDb,
+      onWarning: logPersistenceWarning,
+    });
+    const recoveryNow = new Date(Date.now() + 31_000);
 
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
-        repository: {
-          findRecoverableQuestions: async () => [candidate!],
-        },
-        now: new Date(),
+        repository: recoveryRepository,
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),
@@ -434,13 +437,16 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
     await new Promise(resolve => setTimeout(resolve, HEARTBEAT_TIMEOUT_MS + 750));
     const candidate = await findPersistedRecoveryCandidate(messageId);
     expect(candidate).toBeTruthy();
+    const recoveryRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+      getDb,
+      onWarning: logPersistenceWarning,
+    });
+    const recoveryNow = new Date(Date.now() + 31_000);
 
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
-        repository: {
-          findRecoverableQuestions: async () => [candidate!],
-        },
-        now: new Date(),
+        repository: recoveryRepository,
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),
@@ -513,10 +519,15 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
 
     const candidate = await findPersistedRecoveryCandidate(messageId);
     expect(candidate).toBeTruthy();
+    const recoveryRepository = createDrizzleWhatsAppQuestionRecoveryRepository({
+      getDb,
+      onWarning: logPersistenceWarning,
+    });
+    const recoveryNow = new Date(Date.now() + 31_000);
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
-        repository: { findRecoverableQuestions: async () => [candidate!] },
-        now: new Date(),
+        repository: recoveryRepository,
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),

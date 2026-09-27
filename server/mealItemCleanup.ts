@@ -150,6 +150,11 @@ function isLikelyNonFoodNoise(item: MealDraftItem) {
   if (isConversationalOnlyText(item.foodName) || isConversationalOnlyText(item.canonicalName)) {
     return true;
   }
+  // Uma identidade comercial com marca e resolução ambígua é evidência
+  // positiva de produto rotulado. Ela deve sobreviver ao classificador lexical
+  // de recipiente para que o WhatsApp possa pedir variante/nutrição específica,
+  // em vez de converter a imagem em ausência global.
+  if (item.brand?.trim() && item.resolution?.ambiguity) return false;
 
   const normalizedNames = [item.foodName, item.canonicalName]
     .map(value => normalizeForMatching(value).trim().replace(/\s+/g, " "))
@@ -162,7 +167,12 @@ function isLikelyNonFoodNoise(item: MealDraftItem) {
 export function cleanMealItems(items: MealDraftItem[]) {
   const deduplicated = new Map<string, MealDraftItem>();
 
-  for (const item of items) {
+  for (const candidate of items) {
+    // O provider visual pode preservar o nome comercial no foodName, mas
+    // deixar brand separado como null. Reaproveite a mesma heurística
+    // fail-closed do fallback textual para que uma marca/variante legível não
+    // seja registrada com nutrição genérica nem rebaixada a ausência global.
+    const item = failClosedBrandedHeuristic(candidate);
     if (
       (!item.resolution?.ambiguity && item.confidence < 0.25) ||
       isLikelyNonFoodNoise(item)
