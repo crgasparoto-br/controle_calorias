@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
+  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "identity": {
+    "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+    "base_sha": "0993e650d2efc3d6e418914977ad127803bc5092",
+    "parent_sha": "590c38721756934fa205fa42ea388727288ad7cc",
+    "issue_number": 1196,
+    "pull_request_number": 1197
+  },
+  "findings": [
+    {
+      "id": "A-001",
+      "severity": "BLOCKER",
+      "category": "delivery-handoff-identity",
+      "gate": "handoff-readiness",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "Current head inherited a foreign handoff for issue #1194 / PR #1195."
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "R-002",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "Confirm Agent-first gate terminal success on exact head."
+    }
+  ],
+  "return_control_to": "entregar-issue",
+  "reason": "audit-finding",
+  "recovery_scope": "handoff-only",
+  "requires_refreeze": false
+}

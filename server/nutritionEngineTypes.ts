@@ -80,7 +80,8 @@ export type MealSemanticInputEvidenceOrigin = Extract<
 
 export type MealSemanticClarificationCode =
   | "brand_variant_unresolved"
-  | "commercial_identity_unverified";
+  | "commercial_identity_unverified"
+  | "image_identity_unresolved";
 
 export type MealSemanticAlternative = {
   name: string;
@@ -113,7 +114,7 @@ export type MealItemResolutionMetadata = {
     sourceEvidence: string | null;
     referenceCount: number;
     verified: boolean;
-  };
+  } | null;
   ambiguity?: {
     reason: MealSemanticClarificationCode;
     alternatives: MealSemanticAlternative[];

@@ -1,0 +1,385 @@
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "e1915b6e2924368bea8acf1ddd3bf656ef88e280dbad17ca322d2c9b2d01eef0"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1196",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "6e252d166ae62633c208a2aa68b0c5dde2a9e702cded585c5dcbe4f6179ea291",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 2,
+      "source_text": "Em 2026-09-26, o fluxo WhatsApp ainda pediu a gramatura para uma entrada composta como `1 banana nanica, 6 uvas pretas, 1 pera packans`, embora frutas naturais contáveis devam poder usar uma relação verificável do alimento-base para calcular a quantidade. Isso deixa o registro inteiro bloqueado por um único item e não preserva o multiplicador das uvas.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "658f24daf13b619fadc3b210f17221511e7fdfbdadb4d385d1a52cf41e086cb4",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 3,
+      "source_text": "A regressão foi reproduzida na PR aberta #1187. A causa é que o caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não carregava a referência canônica `uva` exclusivamente para pesquisa de quantidade.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "a3dd8c74af655f61073bbe607ee7bed592ce95267b07e78299a1b66d3190c484",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 6,
+      "source_text": "preservar a identidade original e seus qualificadores;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "c4868639b244815ea44c5feb963856534238248bf2df87c6e66bffcb79c742fb",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 7,
+      "source_text": "usar a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`;",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "0824ab3f5ab15275a6bfe58096b5f338ee2f412edd5e98677fe46ce22d0394d6",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 8,
+      "source_text": "preservar o multiplicador (`6 unidades` -> gramatura proporcional);",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "46b4e8a49ae01e88e30b922c0378ef160ea19f8a585be59aad76606bdc807f4b",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 9,
+      "source_text": "não promover a referência-base a marca, cultivar ou identidade exata;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "32b23abf90734f35eb1e747588815193f160b9302046a6f71b78eeae7406ccba",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 10,
+      "source_text": "manter o fail-closed para alimentos comerciais e medidas ambíguas;",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "84eab09a05a59fa34b99b6c0b695ad11754eda370c7011254b96ef0e54fbeb28",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 11,
+      "source_text": "registrar os itens válidos e explicar somente os itens inconsistentes quando houver lote misto.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "5bd9b6dcd41f13eb2ccb2924a5dc3b6aeb60eb3aed00e1643598c70d536f0b0b",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 14,
+      "source_text": "`1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável da unidade de pera.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "479d0e93860a1ebb535c9ff005ca25cf477fcfe5d8f7577c7485408f5621ca78",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 15,
+      "source_text": "`1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` para pesquisa com medida `6 unidade` e registra a gramatura multiplicada.",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "c846342fbc71a635d0a6e3a78e1ed294c57fc2d6e3ac3c90704e5de39f0b4815",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 16,
+      "source_text": "A busca mantém `uvas pretas`/`pera packans` como identidade do usuário e usa `uva`/`pera` apenas como referência de quantidade.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "038fffb1e6c97e90a33f4e508de3ebe11e799e77ca6c1ed3f8d9d2cbeba1eeb4",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 17,
+      "source_text": "Referências divergentes, fonte ausente, marca conhecida ou unidade estruturalmente ambígua continuam em clarificação; não há fallback silencioso.",
+      "flags": [
+        "negative",
+        "review-surface",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "16cfa9d0a4b16e7bcd4d86fbf4f3820adc4dfbab215bb7d7d01a0bbca432916a",
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "source_line": 18,
+      "source_text": "Os testes atravessam o entrypoint público `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "REQ-1196"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Cobertura exact-head rederivada a partir da issue: identidade natural preservada, referência-base usada somente para medida, multiplicador de unidades, fail-closed e registro parcial/retry no entrypoint público."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1196",
+      "source_sha256": "66a8c2a36b3b90c687143ce0dc403f41f1f6d00092832fce44a42ef32bb57634",
+      "candidate_count": 13,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "A mudança atravessa o entrypoint público, o resolvedor real de medida e a fronteira de persistência; os controles negativos verificam identidade, ordem e retry.",
+    "entries": [
+      {
+        "id": "STR-1196-001",
+        "obligation_ids": [
+          "OBL-004",
+          "OBL-006",
+          "OBL-012",
+          "OBL-013"
+        ],
+        "plausible_wrong_implementation": "Usar a referência natural como identidade exata ou testar somente o helper sem atravessar o webhook público.",
+        "negative_control_evidence": "Caracterização pública exact-head e regressões do resolvedor passaram, mantendo a identidade qualificada e o fail-closed."
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "Não há novo read model; o contrato opera sobre itens e pendências já existentes.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "A implementação reutiliza o catálogo natural, o resolvedor canônico de medidas e o entrypoint WhatsApp existente.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "A documentação do passthrough e das medidas caseiras foi atualizada junto do contrato executável.",
+    "old_contract_terms": [
+      "lote inteiro bloqueado por pendência de quantidade",
+      "referência-base confundida com identidade do usuário"
+    ],
+    "new_contract_terms": [
+      "registro parcial seguro para pendência quantitativa",
+      "referência natural somente para pesquisa de medida",
+      "identidade original e qualificadores preservados"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/design-docs/whatsapp-countable-measure-passthrough.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/design-docs/food-portions-household-measures.md",
+        "status": "reconciled"
+      },
+      {
+        "path": "docs/testing/whatsapp-response-contract-regression.md",
+        "status": "reconciled"
+      }
+    ],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "pnpm docs:check",
+      "rg -n pendingItems|same_food_type|partial docs server"
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [],
+    "rationale": "Nenhuma obrigação da issue foi removida; a PR #1197 contém a correção funcional e a regressão adversarial correspondente."
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "REQ-1196"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013"
+    ],
+    "evidence": [
+      "server/countableFoodQuantity.ts",
+      "server/householdMeasureResolution.ts",
+      "server/modules/whatsapp/countableFoodRegistrationGate.ts",
+      "server/whatsappIntentWebhook.ts",
+      "server/whatsappWebhook.issue1094.characterization.test.ts"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

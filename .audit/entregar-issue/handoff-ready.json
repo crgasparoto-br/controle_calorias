@@ -1,124 +1,83 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-24T01:28:46.064663+00:00",
+  "created_at": "2026-09-26T21:41:05.746743+00:00",
   "identity": {
-    "head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
-    "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
-    "base_sha": "d8584e915fadf646503a67324eb31a8546b3c86f",
+    "head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+    "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+    "base_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
     "merge_preview_sha": null,
     "material_merge_preview_sha": null
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
-    "issue_number": 1174,
-    "pull_request_number": 1175,
-    "work_item_kind": "issue",
-    "work_item_number": 1174,
-    "pull_request": 1175,
+    "issue_number": 1177,
+    "pull_request_number": 1210,
+    "work_item_kind": "pr",
+    "work_item_number": 1210,
+    "pull_request": 1210,
     "base_ref": "develop",
-    "head_ref": "fix/1174-nutrition-label-correlation"
+    "head_ref": "fix/1177-image-commercial-recognition"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "b30f5ce6363fda197895c9437ae5d93eaa1f24d7",
-    "material_head_sha": "40e3fb87ed4f670c25931d43f33e35153ee3b18c",
+    "work_item_start_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
+    "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
     "issue_changed_paths": [
-      ".audit/entregar-issue/evidence-provenance.json",
-      ".audit/entregar-issue/evidence-summary.json",
-      ".audit/entregar-issue/handoff-ready.json",
-      ".audit/entregar-issue/inherited-controls.json",
-      ".audit/entregar-issue/inherited-controls.parts/part-000.b64",
-      ".audit/entregar-issue/reaudit-current/audit-escape-closure.json",
-      ".audit/entregar-issue/reaudit-current/audit-remediation.json",
-      ".audit/entregar-issue/reaudit-current/audit-source-result.json",
-      ".audit/entregar-issue/reaudit-current/evidence-provenance.json",
-      ".audit/entregar-issue/reaudit-current/inherited-controls.json",
-      ".audit/entregar-issue/reaudit-current/inherited-controls.parts/part-000.b64",
-      ".audit/entregar-issue/reaudit-current/learning-closure.json",
-      ".audit/entregar-issue/reaudit-current/requirement-attack-matrix.json",
-      ".audit/entregar-issue/reaudit-current/requirement-attack-matrix.parts/part-000.b64",
-      ".audit/entregar-issue/reaudit-current/requirement-attack-matrix.parts/part-001.b64",
-      ".audit/entregar-issue/reaudit-current/requirement-attack-matrix.parts/part-002.b64",
-      ".audit/entregar-issue/reaudit-current/requirement-closure.json",
-      ".audit/entregar-issue/reaudit-current/requirement-closure.parts/part-000.b64",
-      ".audit/entregar-issue/reaudit-current/requirement-closure.parts/part-001.b64",
-      ".audit/entregar-issue/reaudit-current/risk-saturation.json",
-      ".audit/entregar-issue/reaudit-current/specification-snapshot.json",
-      ".audit/entregar-issue/requirement-attack-matrix.json",
-      ".audit/entregar-issue/requirement-attack-matrix.parts/part-000.b64",
-      ".audit/entregar-issue/requirement-attack-matrix.parts/part-001.b64",
-      ".audit/entregar-issue/requirement-closure.json",
-      ".audit/entregar-issue/requirement-closure.parts/part-000.b64",
-      ".audit/entregar-issue/requirement-closure.parts/part-001.b64",
-      ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json",
-      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1174.txt",
-      ".github/workflows/agent-check.yml",
-      "client/src/pages/AdminPage.test.tsx",
-      "client/src/pages/AdminPage.tsx",
-      "client/src/pages/nutritionPages.test.tsx",
-      "docs/RELIABILITY.md",
-      "docs/design-docs/whatsapp-interaction-registry.md",
-      "docs/generated/db-schema.md",
-      "docs/generated/trpc-routes.md",
-      "docs/issue-1158-provisional-branded-catalog.md",
       "docs/product-specs/meal-registration.md",
       "docs/product-specs/whatsapp-flow.md",
-      "drizzle/0052_whatsapp_pending_operation_dedupe.sql",
-      "drizzle/meta/0052_snapshot.json",
-      "drizzle/meta/_journal.json",
-      "drizzle/schema.ts",
-      "scripts/check-ci-gate-docs.ts",
-      "server/dbImplementation.ts",
-      "server/modules/admin/logs.test.ts",
-      "server/modules/admin/schemas.ts",
-      "server/modules/admin/service.ts",
-      "server/modules/whatsapp/foodClarificationGate.ts",
-      "server/modules/whatsapp/interactionRegistry.ts",
-      "server/modules/whatsapp/interactionRegistryLegacy.ts",
-      "server/modules/whatsapp/issue857RegressionMatrix.ts",
-      "server/modules/whatsapp/replyMessages.ts",
-      "server/modules/whatsapp/replyTemplates.test.ts",
-      "server/modules/whatsapp/replyTemplates.ts",
-      "server/nutritionLabelCandidateService.provisional.test.ts",
-      "server/nutritionLabelCandidateService.ts",
-      "server/nutritionLabelPhotoClarificationService.ts",
-      "server/nutritionLabelPhotoMutationService.ts",
-      "server/nutritionLabelPhotoRequestService.ts",
-      "server/nutritionRouter.ts",
-      "server/repositories/logsRepository.ts",
-      "server/repositories/usersRepository.ts",
-      "server/repositories/whatsappPendingOperationRepository.test.ts",
-      "server/repositories/whatsappPendingOperationRepository.ts",
+      "server/mealAiExtraction.ts",
+      "server/mealSemanticContract.ts",
+      "server/mealSemanticContract.visualIdentity.test.ts",
+      "server/modules/meals/schemas.ts",
+      "server/modules/whatsapp/visualMealInferenceValidation.test.ts",
+      "server/modules/whatsapp/visualMealInferenceValidation.ts",
+      "server/modules/whatsapp/webhookMediaPipeline.issue924.test.ts",
+      "server/nutritionEngine.test.ts",
+      "server/nutritionEngine.ts",
+      "server/nutritionEngineTypes.ts",
+      "server/whatsappAnnotatedImageWebhook.test.ts",
+      "server/whatsappAnnotatedImageWebhookImplementation.ts",
+      "server/whatsappWebhook.image.test.ts",
+      "server/whatsappWebhook.image.water.test.ts",
+      "server/whatsappWebhook.mediaIntent.test.ts",
       "server/whatsappWebhook.reply.test.ts",
+      "server/whatsappWebhook.smoke.test.ts",
       "server/whatsappWebhookImplementation.ts"
     ],
-    "issue_delta_sha256": "34a496e5bb1d98de916601164b0a49a04327c439bd19a395d43d76a764735b26"
+    "issue_delta_sha256": "ae85fe1484c036ac340c9b8b0dd745abae5436e419bdd57175333a8920c8e940"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
     "allowed_paths": [
+      ".audit/entregar-issue/applicability-ledger.json",
       ".audit/entregar-issue/audit-escape-closure.json",
       ".audit/entregar-issue/audit-remediation.json",
       ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/delivery-state.json",
+      ".audit/entregar-issue/documentation-impact.json",
       ".audit/entregar-issue/evidence-provenance.json",
-      ".audit/entregar-issue/evidence/documentation-semantic-drift.txt",
-      ".audit/entregar-issue/evidence/exact-head-remediation.txt",
-      ".audit/entregar-issue/evidence/quantitative-label-scaling.json",
-      ".audit/entregar-issue/evidence/skill-risk-inference-remediation.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-008.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-043.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-056.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-060.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-065.txt",
+      ".audit/entregar-issue/evidence/EV-QUANT-OBL-138.txt",
+      ".audit/entregar-issue/evidence/benchmark-inventory-OBL-045.txt",
+      ".audit/entregar-issue/execution-plan.json",
       ".audit/entregar-issue/handoff-ready.json",
       ".audit/entregar-issue/inherited-controls.json",
       ".audit/entregar-issue/learning-closure.json",
       ".audit/entregar-issue/requirement-attack-matrix.json",
       ".audit/entregar-issue/requirement-closure.json",
       ".audit/entregar-issue/risk-saturation.json",
-      ".audit/entregar-issue/specification-snapshot.json"
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1177.txt"
     ]
   },
   "contract_version": "2026-08-20.3",
   "evidence_profile": "critical",
-  "remediation_mode": "mixed-remediation",
+  "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
     "skill_sha256": "e5c235031c3c8117c765da8132369148cf8accf1a01c9df9806e594ffd3b3e13"
@@ -145,9 +104,9 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "cd3705cd79020e4ea54cacceb2a673b7a35c676a0388d04203bd0c3a99fbef92",
-      "logical_sha256": "cd3705cd79020e4ea54cacceb2a673b7a35c676a0388d04203bd0c3a99fbef92",
-      "logical_size": 638,
+      "sha256": "b6b6522b279768a4b4fc0be4beb862b8377a789f2b46ae34240095e3a5dc7cb6",
+      "logical_sha256": "b6b6522b279768a4b4fc0be4beb862b8377a789f2b46ae34240095e3a5dc7cb6",
+      "logical_size": 567,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -155,9 +114,9 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "a26affae7c94df2c1f3d0eb8565c5b083f3d05fc511e391a865bb2ebbd033b26",
-      "logical_sha256": "a26affae7c94df2c1f3d0eb8565c5b083f3d05fc511e391a865bb2ebbd033b26",
-      "logical_size": 81259,
+      "sha256": "3f9d58fadec20136f4028c9c7c2115c50fdb47b14f907427f9654969c8c24e19",
+      "logical_sha256": "3f9d58fadec20136f4028c9c7c2115c50fdb47b14f907427f9654969c8c24e19",
+      "logical_size": 134532,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -165,9 +124,9 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "922148627d0efb6e6f01d27be42ba83590fbb6b83d56292cf4d466ba4dfdf684",
-      "logical_sha256": "922148627d0efb6e6f01d27be42ba83590fbb6b83d56292cf4d466ba4dfdf684",
-      "logical_size": 356238,
+      "sha256": "5193c696261bb39f76a5370ca38bcefe64c43d0ffdfb78dafc2dbee3c80ce37d",
+      "logical_sha256": "5193c696261bb39f76a5370ca38bcefe64c43d0ffdfb78dafc2dbee3c80ce37d",
+      "logical_size": 553381,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -175,9 +134,9 @@
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "33631b7bd120a54587922b32a3c9ba9acbf9cad3be2b8eeb66d0148b489e08d3",
-      "logical_sha256": "33631b7bd120a54587922b32a3c9ba9acbf9cad3be2b8eeb66d0148b489e08d3",
-      "logical_size": 11550,
+      "sha256": "53fddd869bca4dab8a8f865e1357f2ea9d6d78411d9e3b6fff0773c696f0bb96",
+      "logical_sha256": "53fddd869bca4dab8a8f865e1357f2ea9d6d78411d9e3b6fff0773c696f0bb96",
+      "logical_size": 15697,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -185,9 +144,9 @@
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "e227b323df048adf18c619d2a41474322373c0629cc06f1e19c03176b1f2d722",
-      "logical_sha256": "e227b323df048adf18c619d2a41474322373c0629cc06f1e19c03176b1f2d722",
-      "logical_size": 40882,
+      "sha256": "3ce665ad8c7c21afc3cf41135d7c296f754316c70df14ba6f640437494c83148",
+      "logical_sha256": "3ce665ad8c7c21afc3cf41135d7c296f754316c70df14ba6f640437494c83148",
+      "logical_size": 50596,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -195,9 +154,9 @@
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "5f505525c0389574e5453ca86a5d7342112cc470772d54c5e09f952c9c20725b",
-      "logical_sha256": "5f505525c0389574e5453ca86a5d7342112cc470772d54c5e09f952c9c20725b",
-      "logical_size": 1583,
+      "sha256": "07f07d575b7942ab5807fd3b8078444225fbfe8205c66003f02b39b40d1809b2",
+      "logical_sha256": "07f07d575b7942ab5807fd3b8078444225fbfe8205c66003f02b39b40d1809b2",
+      "logical_size": 3548,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -205,9 +164,9 @@
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "3fc82edd4ddd7e7eff6ae3dde2dcdd1481bb194d3355cc53f17847efe14f3cda",
-      "logical_sha256": "3fc82edd4ddd7e7eff6ae3dde2dcdd1481bb194d3355cc53f17847efe14f3cda",
-      "logical_size": 9168,
+      "sha256": "45f3443b12f806bc5a72cf0b95eaf988adea6e0a18682ca392012ed5161a6118",
+      "logical_sha256": "45f3443b12f806bc5a72cf0b95eaf988adea6e0a18682ca392012ed5161a6118",
+      "logical_size": 11093,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -215,9 +174,9 @@
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "f93f1c29240d7cf7d270ca371f6d3aed4a5c69589162809a7ec84449cc8ef81c",
-      "logical_sha256": "f93f1c29240d7cf7d270ca371f6d3aed4a5c69589162809a7ec84449cc8ef81c",
-      "logical_size": 2683,
+      "sha256": "db0a182d273946975a8c9ab0c02c05a98e55068b0879f826dcdbc17c9f90f9d5",
+      "logical_sha256": "db0a182d273946975a8c9ab0c02c05a98e55068b0879f826dcdbc17c9f90f9d5",
+      "logical_size": 599,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -225,9 +184,9 @@
     },
     "audit_remediation": {
       "name": "audit-remediation.json",
-      "sha256": "034f70dad5c550858787af3288b56f8fd6e7e4830a9e6eb4e171d6fc2d1e4c64",
-      "logical_sha256": "034f70dad5c550858787af3288b56f8fd6e7e4830a9e6eb4e171d6fc2d1e4c64",
-      "logical_size": 2244,
+      "sha256": "3c8667ae617ac5543d6a9c7dc63f1f09824fef6f8847596a3b5ace65d1dc401a",
+      "logical_sha256": "3c8667ae617ac5543d6a9c7dc63f1f09824fef6f8847596a3b5ace65d1dc401a",
+      "logical_size": 1745,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -235,9 +194,9 @@
     },
     "audit_source_result": {
       "name": "audit-source-result.json",
-      "sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b",
-      "logical_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b",
-      "logical_size": 1802,
+      "sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+      "logical_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+      "logical_size": 965,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1

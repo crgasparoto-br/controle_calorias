@@ -258,8 +258,6 @@ export function createMessageLifecycleService(input: {
           allowRawContentStorage: true,
         });
         if (!appended) return;
-
-        await input.conversationRepository.linkResponse(handle.messageId, appended.message.id);
       } finally {
         if (persistenceStartedAt !== null) {
           recordCurrentQuestionPersistenceMs(performance.now() - persistenceStartedAt);

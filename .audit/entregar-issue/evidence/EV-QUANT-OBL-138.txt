@@ -1,0 +1,1 @@
+Exact-head behavioral evidence for REQ-OBL-138 at 872873d8b2cf85579aceab0c52d0b15d73374b19; assertions cover the quantity/portion boundary declared by the source obligation.

@@ -1,31 +1,65 @@
 {
   "schema_version": 1,
   "result": "REPROVADA",
-  "validity": "Independente",
+  "head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+  "reason": "Independent audit blocked release on a stale target handoff and a non-terminal exact-head CI gate; functional code review passed the bounded catalog/runtime scope.",
+  "rejection_id": "audit-rejection:1061-pr1208-delivery-ci-001",
   "release_allowed": false,
-  "rejection_id": "audit-rejection:259be11e-620c-4172-91a6-2debe9c096a0",
-  "head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467",
+  "requires_refreeze": false,
+  "return_control_to": "entregar-issue",
+  "recovery_scope": "fresh-handoff-required",
   "identity": {
-    "head_sha": "3be891c49eb38e8339f5ea4ffe27351b2744d467",
-    "material_head_sha": "99f5189eb41498aca9879d20fa7900f53e6e92e7",
-    "base_sha": "6507bdc0dc14ebc744de75393e5dc0c6bda8b112"
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1061,
+    "pull_request_number": 1208,
+    "base_sha": "b456f6e3f85d54890c99f1d3cb8f7cd651619b25",
+    "head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
+    "head_ref": "fix/1061-runtime-oom",
+    "base_ref": "develop"
   },
   "findings": [
     {
-      "id": "A-1070-002",
-      "severity": "BLOCKER",
-      "category": "control-propagation-gap",
-      "gate": "F29",
-      "disposition": "blocking",
+      "id": "DELIVERY-NOT-READY-1061-001",
+      "severity": "Bloqueador",
+      "blocking": true,
       "status": "open",
       "actionable": true,
-      "remediation_mode": "systemic-remediation",
-      "reason": "Ownership was revalidated too late: after runtime A passed the initial guard, its heartbeat could expire, runtime B could take over the same persisted claim, and A could resume into provider/domain/terminal effects before discovering that it had lost authority. The control must fence every irreversible or costed effect boundary, not only final outbound delivery."
+      "disposition": "blocking",
+      "remediation_mode": "targeted-remediation",
+      "title": "Handoff certificado ausente para o alvo atual: artefato herdado e vinculado a outra issue/PR",
+      "evidence": "O artefato handoff-ready herdado do base declara outro alvo; o certificado current-target da issue 1061/PR 1208 precisa ser produzido e validado no head exacto.",
+      "recommendation": "Produzir e validar um handoff certificado semanticamente ligado à issue 1061, PR 1208 e ao head exacto."
+    },
+    {
+      "id": "CI-NONTERMINAL-EXACT-HEAD-1061-001",
+      "severity": "Alto",
+      "blocking": true,
+      "status": "open",
+      "actionable": true,
+      "disposition": "blocking",
+      "remediation_mode": "targeted-remediation",
+      "title": "Gate remoto exact-head ainda não terminal",
+      "evidence": "O Agent-first gate do run exact-head ainda estava in_progress durante a auditoria; o mesmo run/SHA deve ser reconsultado até estado terminal antes da aprovação.",
+      "recommendation": "Reconsultar o mesmo run e não liberar merge enquanto o estado não for terminal."
     }
   ],
   "recommendations": [],
-  "return_control_to": "entregar-issue",
-  "reason": "audit-finding",
-  "recovery_scope": "post-write-refreeze",
-  "requires_refreeze": true
+  "tests": [
+    {
+      "command": "pnpm vitest run server/catalogRuntime.issue1061.test.ts server/_core/runtimeAvailability.test.ts server/foodCatalogReference.test.ts server/catalogMatching.semanticCompatibility.test.ts --pool=threads --maxWorkers=1 --minWorkers=1 --reporter=dot",
+      "status": "passed",
+      "observation": "4 arquivos e 26 testes passaram no head exacto; cobriu projeção ativa, limite, fallback estático e ordem HTTP."
+    },
+    {
+      "command": "pnpm exec tsc --noEmit --pretty false",
+      "status": "passed",
+      "observation": "TypeScript terminou com exit code 0."
+    },
+    {
+      "command": "git diff --check b456f6e3f85d54890c99f1d3cb8f7cd651619b25 d002d5c5d47697978f0866747788e3ddf12bc048",
+      "status": "passed",
+      "observation": "Nenhum erro de whitespace."
+    }
+  ],
+  "summary": "A implementação funcional do recorte de cache/runtime foi aprovada, mas o merge foi bloqueado por handoff stale e CI exact-head não terminal. A auditoria não alterou código, branch, PR, issue, Render, banco ou workflow."
 }

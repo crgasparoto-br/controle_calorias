@@ -107,34 +107,34 @@ describe("issue #1037 — gramatura resolvida no motor nutricional", () => {
         mealLabel: "Café da manhã",
         confidence: 0.95,
         reasoning: "Fixture determinística da busca genérica #1037.",
-        items: [genericInferenceItem("requeijão", 40)],
+        items: [genericInferenceItem("creme de ricota", 40)],
       }),
       raw: { mocked: true },
     });
     findCatalogFoodSemanticMock
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
-      slug: "web-nutrition-requeijao",
-      name: "Requeijão",
-      aliases: ["requeijão"],
+      slug: "web-nutrition-creme-de-ricota",
+      name: "Creme de ricota",
+      aliases: ["creme de ricota"],
       servingLabel: "100 g",
       gramsPerServing: 100,
       calories: 260,
       protein: 8,
       carbs: 4,
       fat: 23,
-      sourceUrls: ["https://tabela.example/requeijao"],
-      sourceEvidence: "Requeijão 100 g: 260 kcal, 8 g proteínas, 4 g carboidratos e 23 g gorduras.",
+      sourceUrls: ["https://tabela.example/creme-de-ricota"],
+      sourceEvidence: "Creme de ricota 100 g: 260 kcal, 8 g proteínas, 4 g carboidratos e 23 g gorduras.",
       sourceVerifiedAt: new Date("2026-09-02T12:00:00.000Z"),
       sourceConfidence: 0.9,
       isBrandedProduct: false,
       });
 
     const { processMealInput } = await import("./nutritionEngine");
-    const result = await processMealInput({ text: "40 g de requeijão" });
+    const result = await processMealInput({ text: "40 g de creme de ricota" });
 
     expect(result.items[0]).toEqual(expect.objectContaining({
-      foodName: expect.stringMatching(/requeijão/i),
+      foodName: expect.stringMatching(/creme de ricota/i),
       calories: 104,
       source: "catalog",
       resolution: expect.objectContaining({

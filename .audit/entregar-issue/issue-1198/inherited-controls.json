@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+  "controls": [
+    {
+      "id": "INH-1198-001",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "structural-contract",
+      "surface": "benchmark-path-fidelity",
+      "dimension": "benchmark-path-fidelity-discriminant",
+      "attack_control_id": "NEG-1198-001",
+      "procedure": "Run the public text and image paths through the real generic identity guard.",
+      "expected": "The productive entrypoints and guard agree.",
+      "observed": "Exact-head evidence passed."
+    },
+    {
+      "id": "INH-1198-002",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "structural-contract",
+      "surface": "relational-semantic-integrity",
+      "dimension": "relational-semantic-integrity-discriminant",
+      "attack_control_id": "NEG-1198-002",
+      "procedure": "Run generic aliases beside explicit branded/variant negatives.",
+      "expected": "Generic reference cannot mutate branded identity.",
+      "observed": "Exact-head evidence passed."
+    },
+    {
+      "id": "INH-1198-003",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "duplicate-processing-discriminant",
+      "attack_control_id": "NEG-1198-003",
+      "procedure": "Replay equivalent generic input through the same public path.",
+      "expected": "Resolution/provenance remains stable.",
+      "observed": "Exact-head evidence passed."
+    },
+    {
+      "id": "INH-1198-004",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "documentation",
+      "surface": "canonical-claims",
+      "dimension": "canonical-claims-discriminant",
+      "attack_control_id": "NEG-1198-004",
+      "procedure": "Compare executable and normative generic/commercial claims.",
+      "expected": "Claims remain reconciled.",
+      "observed": "Exact-head evidence passed."
+    },
+    {
+      "id": "INH-1196-001",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "structural-contract",
+      "surface": "benchmark-path-fidelity",
+      "dimension": "benchmark-path-fidelity-discriminant",
+      "attack_control_id": "NEG-1198-004",
+      "procedure": "Run public text and image paths through the real identity guard.",
+      "expected": "Productive entrypoints and helper contract agree.",
+      "observed": "Current exact-head regression evidence passed."
+    },
+    {
+      "id": "INH-1196-002",
+      "status": "passed",
+      "head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "subject_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+      "evidence_sha256": "a89983639c0e30cfb946c8615747f8e469cf141a31eab6248634b2731baf30bb",
+      "control_type": "test",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "duplicate-processing-discriminant",
+      "attack_control_id": "NEG-1198-003",
+      "procedure": "Replay equivalent generic input through the public processing path.",
+      "expected": "No duplicate or conflicting resolution occurs.",
+      "observed": "Current exact-head regression evidence passed."
+    }
+  ],
+  "retired_controls": [],
+  "unresolved_controls": [],
+  "source_audits": [
+    {
+      "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
+      "finding_ids": [
+        "A-001"
+      ],
+      "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
+      "status": "closed"
+    },
+    {
+      "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+      "finding_ids": [
+        "A-001",
+        "A-002"
+      ],
+      "audit_report_sha256": "63195d983567c131472ee108629740df7e88adf3fd6a2c7b709aad93b0f9282c",
+      "status": "closed"
+    }
+  ]
+}

@@ -11,13 +11,22 @@ const getWhatsAppAccessTokenMock = vi.fn();
 const storagePutMock = vi.fn();
 const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
+const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
+const requestWhatsappImageMealQuantityClarificationMock = vi.fn();
+const beginInboundMessageMock = vi.fn(async () => null);
+const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
+const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
-  beginInboundMessage: vi.fn(async () => null),
+  beginInboundMessage: beginInboundMessageMock,
+  claimMessageForProcessingState: claimMessageForProcessingStateMock,
+  wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: vi.fn(async () => undefined),
   recordDomainLink: vi.fn(async () => undefined),
   markMessageProcessed: vi.fn(async () => undefined),
+  releaseMessageForRetry: vi.fn(async () => true),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
+  ensureMessageProcessingOwnership: vi.fn(async () => true),
   enrichInboundMessage: vi.fn(async () => true),
 }));
 
@@ -53,6 +62,11 @@ vi.mock("./_core/imageGeneration", () => ({
 
 vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
   createLocalMealPhotoOverlay: createLocalMealPhotoOverlayMock,
+}));
+
+vi.mock("./modules/whatsapp/foodQuantityClarification", () => ({
+  requestWhatsappImageMealIdentityClarification: requestWhatsappImageMealIdentityClarificationMock,
+  requestWhatsappImageMealQuantityClarification: requestWhatsappImageMealQuantityClarificationMock,
 }));
 
 vi.mock("./modules/whatsapp/goalProgressService", () => ({
@@ -184,6 +198,20 @@ describe("whatsappWebhook image inbound", () => {
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
     createPendingMealInferenceMock.mockReset();
     confirmPendingMealMock.mockReset();
+    requestWhatsappImageMealIdentityClarificationMock.mockReset();
+    requestWhatsappImageMealQuantityClarificationMock.mockReset();
+    beginInboundMessageMock.mockReset();
+    beginInboundMessageMock.mockResolvedValue(null);
+    claimMessageForProcessingStateMock.mockReset();
+    claimMessageForProcessingStateMock.mockResolvedValue("claimed");
+    wasMessageAlreadyProcessedMock.mockReset();
+    wasMessageAlreadyProcessedMock.mockResolvedValue(false);
+    requestWhatsappImageMealIdentityClarificationMock.mockResolvedValue({
+      action: "food_clarification_requested",
+      reply: "Informe qual é o alimento do item 2 e a quantidade consumida.",
+      eventType: "whatsapp.food_clarification.identity_requested",
+      detail: "Clarificação de identidade visual persistida.",
+    });
     logInferenceEventMock.mockReset();
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
@@ -366,6 +394,137 @@ describe("whatsappWebhook image inbound", () => {
     expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
   });
 
+  it("reconhece duas latas de Spaten Munich sem perder marca, variante ou quantidade", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Bebidas",
+      sourceText: "",
+      confidence: 0.96,
+      needsConfirmation: true,
+      reasoning: "As duas latas exibem marca e linha legíveis.",
+      items: [{
+        foodName: "Cerveja Spaten Munich",
+        canonicalName: "Cerveja Spaten Munich",
+        brand: "Spaten",
+        portionText: "1 lata (350 ml)",
+        quantity: 2,
+        unit: "lata",
+        servings: 2,
+        estimatedGrams: 700,
+        calories: 294,
+        protein: 2.8,
+        carbs: 22,
+        fat: 0,
+        confidence: 0.96,
+        source: "catalog" as const,
+        resolution: {
+          nutritionOrigin: "catalog" as const,
+          nutritionVerified: true,
+          productVariant: "Munich",
+          sourceEvidence: "Catálogo comercial Spaten Munich 350 ml",
+        },
+      }],
+      totals: { calories: 294, protein: 2.8, carbs: 22, fat: 0 },
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createMetaImagePayload("wamid.image-spaten-munich") } as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledWith(
+      123,
+      "whatsapp",
+      expect.objectContaining({
+        items: [expect.objectContaining({
+          foodName: "Cerveja Spaten Munich",
+          canonicalName: "Cerveja Spaten Munich",
+          brand: "Spaten",
+          quantity: 2,
+          unit: "lata",
+          portionText: "1 lata (350 ml)",
+          resolution: expect.objectContaining({ productVariant: "Munich" }),
+        })],
+        totals: { calories: 294, protein: 2.8, carbs: 22, fat: 0 },
+      }),
+      expect.any(Array),
+    );
+    expect(findFetchCallByBody("Cerveja Spaten Munich")).toBeTruthy();
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserva itens reconhecidos e abre identidade somente para o item ambíguo", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Lanche",
+      sourceText: "",
+      imageUrl: "data:image/jpeg;base64,image-test",
+      confidence: 0.88,
+      needsConfirmation: true,
+      reasoning: "Dois produtos visíveis; um item não tem identidade confiável.",
+      items: [
+        {
+          foodName: "Cerveja Lager",
+          canonicalName: "Cerveja Lager",
+          portionText: "1 lata (350 ml)",
+          quantity: 350,
+          unit: "ml",
+          servings: 1,
+          estimatedGrams: 350,
+          calories: 140,
+          protein: 1.2,
+          carbs: 10,
+          fat: 0,
+          confidence: 0.92,
+          source: "heuristic" as const,
+        },
+        {
+          foodName: "item 2",
+          canonicalName: "item 2",
+          portionText: "1 unidade",
+          quantity: 1,
+          unit: "unidade",
+          servings: 1,
+          estimatedGrams: 100,
+          calories: 100,
+          protein: 3,
+          carbs: 10,
+          fat: 2,
+          confidence: 0.42,
+          source: "heuristic" as const,
+        },
+      ],
+      totals: { calories: 240, protein: 4.2, carbs: 20, fat: 2 },
+    });
+
+    const req = { body: createMetaImagePayload("wamid.image-partial-identity") };
+    const res = createResponse();
+    await handleWhatsAppWebhook(req as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(requestWhatsappImageMealIdentityClarificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pendingItemIndexes: [1],
+        currentItemIndex: 1,
+        items: expect.arrayContaining([
+          expect.objectContaining({ foodName: "Cerveja Lager" }),
+          expect.objectContaining({ foodName: "item 2" }),
+        ]),
+        semanticContract: expect.objectContaining({
+          clarifications: [expect.objectContaining({
+            itemIndex: 1,
+            code: "image_identity_unresolved",
+          })],
+        }),
+      }),
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(findFetchCallByBody("Informe qual é o alimento do item 2")).toBeTruthy();
+    expect(findFetchCallByBody("Não consegui identificar o alimento na imagem")).toBeUndefined();
+  });
+
   it("envia imagem anotada quando o overlay local retorna URL", async () => {
     createLocalMealPhotoOverlayMock.mockResolvedValueOnce({
       url: "https://storage.test/generated/meal-support/annotated.png",
@@ -491,6 +650,9 @@ describe("whatsappWebhook image inbound", () => {
   });
 
   it("ignora reentrega do mesmo wamid sem reenviar respostas nem criar refeição duplicada", async () => {
+    wasMessageAlreadyProcessedMock
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
     const req = { body: createMetaImagePayload("wamid.image-duplicate") };
     const firstRes = createResponse();
     const duplicateRes = createResponse();
@@ -509,5 +671,74 @@ describe("whatsappWebhook image inbound", () => {
       return typeof body === "string" && body.includes("Recebi sua imagem e estou processando");
     });
     expect(acknowledgementCalls).toHaveLength(0);
+  });
+
+  it("responde retryable quando outro owner persistente processa a mesma imagem", async () => {
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 1,
+      messageId: 99,
+      wasNewInsert: false,
+    });
+    claimMessageForProcessingStateMock
+      .mockResolvedValueOnce("claimed")
+      .mockResolvedValueOnce("inflight");
+
+    const req = { body: createMetaImagePayload("wamid.image-inflight") };
+    const firstRes = createResponse();
+    await handleWhatsAppWebhook(req as never, firstRes as never);
+
+    __resetWhatsAppWebhookDeduplicationForTests();
+    const secondRes = createResponse();
+    await handleWhatsAppWebhook(req as never, secondRes as never);
+
+    expect(firstRes.statusCode).toBe(200);
+    expect(secondRes.statusCode).toBe(503);
+    expect(secondRes.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "message_processing_inflight",
+    });
+    expect(processMealInputMock).toHaveBeenCalledTimes(1);
+    expect(createPendingMealInferenceMock).toHaveBeenCalledTimes(1);
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("mantém a imagem retryable quando a resposta primária é rejeitada pelo provider", async () => {
+    beginInboundMessageMock.mockResolvedValue({
+      conversationId: 1,
+      messageId: 101,
+      wasNewInsert: true,
+    });
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(createWhatsAppOkResponse())
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: "https://media.test/image-download", mime_type: "image/jpeg" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("image-test"));
+            controller.close();
+          },
+        }),
+        headers: { get: () => "image/jpeg" },
+      })
+      .mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: "provider unavailable" }) }) as typeof fetch;
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createMetaImagePayload("wamid.image-provider-retry") } as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
   });
 });

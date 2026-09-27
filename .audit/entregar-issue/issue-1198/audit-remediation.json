@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+    "audit_report_sha256": "63195d983567c131472ee108629740df7e88adf3fd6a2c7b709aad93b0f9282c",
+    "audited_head_sha": "d70eb4f54382678a6b69b8c654573970cf5dc072"
+  },
+  "candidate_head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "server/catalogMatching.ts",
+        "server/nutritionEngine.ts",
+        "server/nutritionEngine.issue1198.test.ts"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+        "The guard is applied at direct catalog resolution and final consumer boundaries."
+      ],
+      "validations": [
+        "Focused adversarial matrix passed.",
+        "Full suite, build, type-check, architecture and docs checks passed."
+      ]
+    },
+    {
+      "source_kind": "finding",
+      "source_id": "A-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [
+        "server/nutritionEngine.ts",
+        "server/nutritionEngine.issue1198.test.ts",
+        "server/whatsappAnnotatedImageWebhook.test.ts"
+      ],
+      "evidence": [
+        ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+        "Text fallback and public image path use the same identity boundary."
+      ],
+      "validations": [
+        "Public text/image controls passed on the exact material head.",
+        "Natural-food and commercial-identity regressions passed."
+      ]
+    }
+  ]
+}

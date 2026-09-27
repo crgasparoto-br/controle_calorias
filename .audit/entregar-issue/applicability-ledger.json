@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-  "applicable": [
-    "structural-contract",
-    "idempotency",
-    "reference-liveness",
-    "temporal-consistency",
-    "documentation"
-  ],
-  "not_applicable": [
-    "visual-interface",
-    "database-migration",
-    "secrets"
+  "head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "entries": [
+    {
+      "gate": "fluxos-conversacionais",
+      "applicable": true,
+      "reason": "Persistent clarification, retry, idempotency, and concurrent ownership are in scope."
+    },
+    {
+      "gate": "design-interface",
+      "applicable": false,
+      "reason": "No UI screen, route, or visual composition changed."
+    }
   ]
 }

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "material_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "evidence": [
+    {
+      "evidence_id": "EVID-1196-EXACT-HEAD",
+      "kind": "quantitative",
+      "status": "passed",
+      "producer": "Exact-head repository regression and gate runner",
+      "subject_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "freshness_policy": "exact-material-head",
+      "path": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+      "sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+      "observed": "Public characterization, focused quantity regressions, local gates and remote exact-head checks passed."
+    }
+  ]
+}

@@ -93,16 +93,61 @@ describe("countableFoodRegistrationGate issue #1037", () => {
       originalText: "1 banana nanica, 2 ovos cozidos",
     });
 
-    expect(result.kind).toBe("clarification");
-    expect(mocks.requestClarification).toHaveBeenCalledWith(expect.objectContaining({
-      foodName: "ovos cozidos",
-      registrationSegments: ["80 g de banana nanica", "2 ovos cozidos"],
-      pendingItems: [expect.objectContaining({
+    expect(result).toEqual({
+      kind: "ready",
+      registrationText: "80 g de banana nanica",
+      resolutions: [expect.objectContaining({
+        segmentIndex: 0,
+        request: expect.objectContaining({
+          foodName: "banana nanica",
+        }),
+      })],
+      skippedItems: [expect.objectContaining({
         segmentIndex: 1,
         foodName: "ovos cozidos",
       })],
-      currentPendingIndex: 0,
-    }));
+    });
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
+  });
+
+  it("retorna somente os segmentos resolvidos em um lote misto", async () => {
+    const pendingItems = [{
+      segmentIndex: 1,
+      segment: "6 uvas pretas",
+      foodName: "uvas pretas",
+      count: 6,
+      requestedUnit: "un",
+    }];
+    const resolutions = [{
+      segmentIndex: 0,
+      request: {
+        segment: "1 banana nanica",
+        foodName: "banana nanica",
+        count: 1,
+        requestedUnit: "un",
+      },
+      resolution: { kind: "canonical_portion" as const, grams: 80 },
+    }];
+    mocks.prepareResolved.mockResolvedValue({
+      registrationSegments: ["80 g de banana nanica", "6 uvas pretas"],
+      pendingItems,
+      resolutions,
+      registrationText: "80 g de banana nanica\n6 uvas pretas",
+    });
+
+    const result = await prepareWhatsappCountableFoodRegistration({
+      userId: 42,
+      text: "1 banana nanica, 6 uvas pretas",
+      originalText: "1 banana nanica, 6 uvas pretas",
+    });
+
+    expect(result).toEqual({
+      kind: "ready",
+      registrationText: "80 g de banana nanica",
+      resolutions,
+      skippedItems: pendingItems,
+    });
+    expect(mocks.requestClarification).not.toHaveBeenCalled();
   });
 
 });

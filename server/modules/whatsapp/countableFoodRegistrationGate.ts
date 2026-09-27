@@ -2,6 +2,7 @@ import { DEFAULT_APP_TIME_ZONE } from "../../../shared/timeZone";
 import {
   prepareCountableFoodRegistrationResolved,
   type CountableFoodResolvedMeasure,
+  type CountableFoodPendingItem,
 } from "../../countableFoodQuantity";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
@@ -33,6 +34,7 @@ export type CountableFoodRegistrationGateResult =
       registrationText: string;
       resolutions: CountableFoodResolvedMeasure[];
       resolvedSegments?: ResolvedRegistrationSegment[];
+      skippedItems?: CountableFoodPendingItem[];
     }
   | { kind: "clarification"; result: WhatsappIntentResult };
 
@@ -121,6 +123,54 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       }
     }
   }
+  const pendingIndexes = new Set(
+    prepared.pendingItems.map(item => item.segmentIndex),
+  );
+  const retainedRegistrationSegments = prepared.registrationSegments.filter(
+    (_segment, segmentIndex) => !pendingIndexes.has(segmentIndex),
+  );
+  const retainedSegmentIndexes = new Map<number, number>();
+  let retainedIndex = 0;
+  for (const [segmentIndex] of prepared.registrationSegments.entries()) {
+    if (pendingIndexes.has(segmentIndex)) continue;
+    retainedSegmentIndexes.set(segmentIndex, retainedIndex);
+    retainedIndex += 1;
+  }
+  const retainedResolutions = prepared.resolutions.filter(
+    resolution => !pendingIndexes.has(resolution.segmentIndex),
+  );
+  const retainedResolvedSegments = resolvedSegments.filter(
+    segment => !pendingIndexes.has(segment.segmentIndex),
+  ).map(segment => ({
+    ...segment,
+    segmentIndex: retainedSegmentIndexes.get(segment.segmentIndex) ?? segment.segmentIndex,
+  }));
+
+  // Um lote misto não deve perder os itens já resolvidos só porque outro
+  // segmento precisa de uma medida. Remova somente os segmentos com pendência
+  // quantitativa do passthrough; a resposta final avisará quais ficaram de
+  // fora. Identidade comercial não comprovada continua atômica e fail-closed.
+  // Quando todos os segmentos estão pendentes, mantemos a clarificação
+  // histórica para não registrar uma refeição vazia.
+  const hasIdentityClarification = prepared.pendingItems.some(
+    item => Boolean(item.identityClarification),
+  );
+  if (
+    prepared.pendingItems.length > 0 &&
+    retainedRegistrationSegments.length > 0 &&
+    !hasIdentityClarification
+  ) {
+    return {
+      kind: "ready",
+      registrationText: retainedRegistrationSegments.join("\n"),
+      resolutions: retainedResolutions,
+      skippedItems: prepared.pendingItems,
+      ...(retainedResolvedSegments.length
+        ? { resolvedSegments: retainedResolvedSegments }
+        : {}),
+    };
+  }
+
   const firstIdentity = prepared.pendingItems.find(
     item => item.identityClarification
   );

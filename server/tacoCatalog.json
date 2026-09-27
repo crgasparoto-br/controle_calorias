@@ -9774,5 +9774,22 @@
     "fat": 3.0,
     "fiber": 2.5,
     "source": "extra"
+  },
+  {
+    "slug": "taco-queijo-requeijao-cremoso",
+    "name": "Queijo, requeijão, cremoso",
+    "aliases": [
+      "Queijo requeijão cremoso",
+      "Requeijão cremoso",
+      "Requeijão"
+    ],
+    "servingLabel": "100 g",
+    "gramsPerServing": 100,
+    "calories": 257,
+    "protein": 9.6,
+    "carbs": 2.4,
+    "fat": 23.4,
+    "fiber": 0.0,
+    "source": "taco"
   }
 ]

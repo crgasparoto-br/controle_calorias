@@ -16,6 +16,8 @@ Os logs disponíveis do Render registram `Instance ... restarted`, mas não exp�
 
 Há um amplificador controlável pela aplicação que já foi corrigido: `syncFoodCatalogReference()` deixou de bloquear `server.listen()`. Depois dessa mudança, os boots observados voltaram a `http_ready` em aproximadamente 9–10 s e o sync de catálogo passou a ocorrer depois da abertura HTTP.
 
+Na revalidação operacional de 26/09/2026, o mesmo serviço passou a registrar `http_ready` e, em seguida, encerramentos `oomKilled` no limite de 512 MiB, sem novo webhook correspondente. A causa controlável foi localizada no caminho não crítico de `food-catalog-sync`: `refreshCatalogCache()` fazia `SELECT *` da tabela `foodCatalog` e materializava todos os registros, inclusive histórico e evidências textuais de pesquisas. A correção mantém a tarefa após `http_ready`, consulta somente registros `active`, projeta apenas os campos usados pelo resolvedor, limita o cache a `CATALOG_CACHE_MAX_ROWS` e preserva as referências canônicas estáticas quando o recorte recente não as contém. Esse controle evita que o cache de lookup se comporte como arquivo histórico e reduz a janela pré-claim causada por OOM; ele não substitui os controles PRECLAIM/RESTART nem a prova real de redelivery do WABA.
+
 ## Contrato de disponibilidade pré-claim
 
 1. Compatibilidade de schema continua sendo pré-condição de startup em produção.

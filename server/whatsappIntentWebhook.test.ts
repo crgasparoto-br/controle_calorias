@@ -13,11 +13,12 @@ const getWhatsAppUserTimeZoneMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
-const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock } = vi.hoisted(() => ({
+const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock, releaseMessageForRetryMock } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
   recordOutboundReplyMock: vi.fn(async () => undefined),
   recordDomainLinkMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
+  releaseMessageForRetryMock: vi.fn(async () => true),
 }));
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
@@ -25,6 +26,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
   markMessageProcessed: markMessageProcessedMock,
+  releaseMessageForRetry: releaseMessageForRetryMock,
   wasMessageAlreadyProcessed: vi.fn(async () => false),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
   ensureMessageProcessingOwnership: vi.fn(async () => true),
@@ -33,6 +35,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: (col: { name: string }, val: unknown) => ({ __op: "eq", col, val }),
+  lt: (col: { name: string }, val: unknown) => ({ __op: "lt", col, val }),
   desc: (col: { name: string }) => ({ __op: "desc", col }),
   and: (...conditions: unknown[]) => ({ __op: "and", conditions }),
 }));
@@ -147,6 +150,9 @@ vi.mock("./modules/meals/service", () => ({
 }));
 
 const { __resetWhatsAppTextIntentContextForTests, handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { createDrizzleWhatsAppPendingOperationRepository } = await import(
+  "./repositories/whatsappPendingOperationRepository"
+);
 
 type MockResponse = {
   statusCode: number;
@@ -269,6 +275,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
     markMessageProcessedMock.mockReset();
+    releaseMessageForRetryMock.mockReset();
     let nextLifecycleMessageId = 1;
     beginInboundMessageMock.mockImplementation(async () => ({
       conversationId: 1,
@@ -338,6 +345,84 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       expect.objectContaining({ userId: 42, text: expect.stringContaining("Registrei 500 ml de água") }),
     );
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+  });
+
+  it("libera o retry e preserva a confirmação QUESTION quando o provider rejeita o primeiro envio", async () => {
+    const pendingWarningMock = vi.fn();
+    const repository = createDrizzleWhatsAppPendingOperationRepository({
+      getDb: async () => fakePendingOperationDb,
+      onWarning: pendingWarningMock,
+    });
+    const target = {
+      contractVersion: 1,
+      interactionId: "question.meal_calculation",
+      kind: "question_meal_calculation",
+      originalQuestion: "me dê uma opção de café da tarde",
+      inboundMessageId: "question-delivery-retry",
+      userTimezone: "America/Sao_Paulo",
+      option: {
+        detectedMealLabel: "Café da tarde",
+        sourceText: "1 porção de arroz",
+        confidence: 0.9,
+        reasoning: "fixture",
+        items: [riceItem],
+        totals: { calories: 195, protein: 4.1, carbs: 42, fat: 0.5 },
+      },
+      actions: [
+        { id: "calculate", label: "Calcular", effect: "calculate_suggestion_once" },
+        { id: "cancel", label: "Cancelar", effect: "cancel_without_persistence" },
+      ],
+    };
+    const pending = await repository.createPendingOperation({
+      userId: 42,
+      type: "question_meal_calculation",
+      origin: "aiQuestionAssistant",
+      target,
+      ttlMs: 600_000,
+      now: new Date("2026-06-03T12:00:00.000Z"),
+      dedupeKey: "question_meal_calculation:question-delivery-retry",
+    });
+    expect(pending).not.toBeNull();
+
+    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const payload = init?.body ? JSON.parse(String(init.body)) : {};
+      sentPayloads.push(payload);
+      return {
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+        text: async () => "temporary",
+        json: async () => ({ error: "temporary" }),
+      } as Response;
+    }) as typeof fetch;
+    const firstResponse = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createTextWebhookRequest("sim", { id: "question-delivery-retry", timestamp: "1780488000" }) as never,
+      firstResponse as never,
+    );
+
+    expect(firstResponse.statusCode).toBe(503);
+    expect(firstResponse.body).toEqual(expect.objectContaining({ retryable: true }));
+    expect(releaseMessageForRetryMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+    expect(markMessageProcessedMock).not.toHaveBeenCalled();
+    expect(await repository.getActivePendingOperation(42, new Date("2026-06-03T12:01:00.000Z"))).toEqual(
+      expect.objectContaining({ type: "question_meal_calculation", state: "active" }),
+    );
+
+    global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const payload = init?.body ? JSON.parse(String(init.body)) : {};
+      sentPayloads.push(payload);
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    }) as typeof fetch;
+    const retryResponse = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createTextWebhookRequest("sim", { id: "question-delivery-retry", timestamp: "1780488000" }) as never,
+      retryResponse as never,
+    );
+
+    expect(retryResponse.statusCode).toBe(200);
+    expect(markMessageProcessedMock).toHaveBeenCalled();
+    expect(sentPayloads.length).toBeGreaterThanOrEqual(2);
   });
 
   it("água + alimento na mesma mensagem compõe uma única resposta funcional diferida (#785)", async () => {

@@ -1,0 +1,24 @@
+Issue #1194 / PR #1195 exact-head evidence
+material_head_sha=de5047783c9cc3bd0cfb1701a28ac8d001bf2aff
+base_sha=e7b0b9d47b5a8b4ba10add433a7ce3e18db19ebb
+
+Focused regression commands:
+pnpm vitest run server/nutritionEngine.issue1194.test.ts server/catalogMatching.semanticCompatibility.test.ts --reporter=verbose
+pnpm vitest run server/nutritionEngine.issue1088.test.ts server/nutritionEngine.brandTypeSpecificity.test.ts server/nutritionEngine.issue1037.test.ts
+Observed: exit code 0; the issue-specific text/visual cases for mussarela, presunto, requeijao and manteiga passed, the generic placeholder rejection passed, and the historical branded/fallback regressions passed.
+
+Final local gates:
+pnpm check
+pnpm test
+pnpm build
+pnpm agent:check
+pnpm architecture:check
+pnpm docs:check
+git diff --check
+Observed: all commands exited 0 on the candidate head.
+
+Remote exact-head gate:
+GitHub Actions run 36206235511, Agent-first gate, head de5047783c9cc3bd0cfb1701a28ac8d001bf2aff
+Observed: success. TypeScript check, full tests, architecture check, documentation check, build, agent check, CI gate docs check, TiDB validation and gate summary all completed successfully; Delivery V2 risk and merge-preview integration also succeeded.
+
+The exact-head test manifest contains no user content, secrets, phone identifiers or database credentials.

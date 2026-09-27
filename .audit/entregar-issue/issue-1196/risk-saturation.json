@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "families": [
+    {
+      "family": "authorization",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover authorization for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-001"
+      ],
+      "dimensions": [
+        {
+          "surface": "session-target-binding",
+          "status": "passed",
+          "reason": "Pending context remains bound to the originating WhatsApp target.",
+          "control_ids": [
+            "NEG-1196-001"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "concurrency-atomicity",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires concurrency-atomicity; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "documentation",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover documentation for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-002"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "status": "passed",
+          "reason": "Normative docs must describe partial quantitative passthrough and fail-closed identity.",
+          "control_ids": [
+            "NEG-1196-002"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "historical-immutability",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires historical-immutability; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "idempotency",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover idempotency for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-003"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "status": "passed",
+          "reason": "Same inbound replay/restart must not duplicate resolved meals or pending mutations.",
+          "control_ids": [
+            "NEG-1196-003"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "public-boundary",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires public-boundary; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "reference-liveness",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires reference-liveness; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "rollback",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires rollback; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "structural-contract",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover structural-contract for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-004",
+        "NEG-1196-005"
+      ],
+      "dimensions": [
+        {
+          "surface": "benchmark-path-fidelity",
+          "status": "passed",
+          "reason": "Controls must traverse handleWhatsAppWebhookWithTextIntent and the real measure resolver.",
+          "control_ids": [
+            "NEG-1196-004"
+          ]
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "status": "passed",
+          "reason": "Original qualified food identity and canonical quantity reference must remain separate.",
+          "control_ids": [
+            "NEG-1196-005"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "temporal-consistency",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover temporal-consistency for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-006"
+      ],
+      "dimensions": [
+        {
+          "surface": "temporal-consistency-contract",
+          "status": "passed",
+          "reason": "Partial registration and retry must respect pending/terminal lifecycle boundaries.",
+          "control_ids": [
+            "NEG-1196-006"
+          ]
+        }
+      ]
+    },
+    {
+      "family": "temporal-destination",
+      "applicable": false,
+      "status": "not-applicable",
+      "reason": "No obligation in the current issue requires temporal-destination; explicitly out of scope.",
+      "control_ids": [],
+      "dimensions": []
+    },
+    {
+      "family": "tenant-isolation",
+      "applicable": true,
+      "status": "passed",
+      "reason": "Exact-head controls cover tenant-isolation for issue #1196 / PR #1197.",
+      "control_ids": [
+        "NEG-1196-007"
+      ],
+      "dimensions": [
+        {
+          "surface": "tenant-scope-isolation",
+          "status": "passed",
+          "reason": "A pending quantity clarification must not cross user/phone scope.",
+          "control_ids": [
+            "NEG-1196-007"
+          ]
+        }
+      ]
+    }
+  ]
+}

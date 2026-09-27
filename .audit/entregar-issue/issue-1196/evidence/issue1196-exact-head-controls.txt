@@ -1,0 +1,24 @@
+Issue #1196 / PR #1197 exact-head evidence
+material_head_sha=d08698af64bead7b8bf09e32c6ce89b9f47885a9
+base_sha=0993e650d2efc3d6e418914977ad127803bc5092
+parent_sha=590c38721756934fa205fa42ea388727288ad7cc
+
+Focused public-flow regressions:
+pnpm vitest run server/whatsappWebhook.issue1094.characterization.test.ts --reporter=dot
+Observed: 17/17 characterization tests passed, including the valid-pending-valid mixed batch and retry/restart scenarios.
+
+Focused quantity and public-entrypoint regressions:
+pnpm vitest run server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts server/householdMeasureResolution.issue1181.test.ts server/whatsappIntentWebhook.issue1181.test.ts --reporter=dot
+Observed: 3 files and 12/12 tests passed.
+
+Exact-head local gates:
+pnpm check; pnpm architecture:check; pnpm docs:check; pnpm agent:check; pnpm test; pnpm build; git diff --check
+Observed: all local gates exited successfully on the material head.
+
+Remote exact-head gates:
+Agent-first gate run 36243022121: success.
+Merge preview integration and Delivery V2 risk: success.
+WhatsApp context TiDB gate run 36243022043: success.
+
+Previous audit remediation:
+The stale foreign handoff for issue #1194/PR #1195 was replaced by a current-target handoff for issue #1196/PR #1197. No material source/test/documentation file was changed by this remediation.

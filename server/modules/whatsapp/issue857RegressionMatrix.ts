@@ -150,6 +150,15 @@ const INTERACTION_SCENARIOS: Record<string, {
       },
     ],
   },
+  "question.meal_calculation": {
+    modalities: ["text", "callback", "audio_transcription", "simulator"],
+    evidence: [
+      {
+        file: "server/modules/whatsapp/questionMealCalculationInteraction.test.ts",
+        requiredTokens: ["structured snapshot", "sim", "cancel", "simulated restart"],
+      },
+    ],
+  },
   "food_clarification.quantity": {
     modalities: ["text", "audio_transcription", "simulator", "image_context"],
     evidence: [

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "result": "REPROVADA",
+  "validity": "Independente",
+  "release_allowed": false,
+  "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+  "head_sha": "d70eb4f54382678a6b69b8c654573970cf5dc072",
+  "identity": {
+    "head_sha": "d70eb4f54382678a6b69b8c654573970cf5dc072",
+    "base_sha": "e50dd3230623dacc6e293534261aa55ed0bd09e8",
+    "parent_sha": "e50dd3230623dacc6e293534261aa55ed0bd09e8",
+    "issue_number": 1198,
+    "pull_request_number": 1207
+  },
+  "findings": [
+    {
+      "id": "A-001",
+      "severity": "BLOCKER",
+      "category": "identity-guard-consumer-bypass",
+      "gate": "functional-boundary",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "A direct catalog/nutrition consumer could accept an unbranded generic reference without applying the complete commercial-identity guard, so a broad or explicit commercial description could be resolved unsafely."
+    },
+    {
+      "id": "A-002",
+      "severity": "BLOCKER",
+      "category": "identity-guard-fallback-bypass",
+      "gate": "public-fallback",
+      "disposition": "blocking",
+      "status": "open",
+      "actionable": true,
+      "remediation_mode": "targeted-remediation",
+      "reason": "The textual fallback consumer could bypass the shared generic-identity decision, allowing a generic catalog result or fallback to avoid the same fail-closed policy used by the canonical path."
+    }
+  ],
+  "recommendations": [],
+  "return_control_to": "entregar-issue",
+  "reason": "audit-finding",
+  "recovery_scope": "functional-identity-guard",
+  "requires_refreeze": true
+}

@@ -1,0 +1,95 @@
+## Objetivo
+
+Permitir que alimento genérico não-branded reconhecido por imagem ou texto use uma referência nutricional genérica compatível do catálogo/TACO sem exigir identidade comercial inexistente, preservando o fail-closed para produtos com marca, linha, sabor ou variante comercial.
+
+## Contexto
+
+No fluxo de imagem do WhatsApp, uma foto de alimento comum foi interpretada como **“Queijo Muçarela”** e o sistema pediu confirmação de variante comercial/rótulo:
+
+> Não consegui comprovar a identidade comercial exata de Queijo Muçarela. Confirme a variante ou envie um rótulo legível antes de registrar os nutrientes.
+
+Não havia marca, linha ou produto industrial específico informado. A reprodução em `develop` mostra que `findTacoFood("Queijo Muçarela")` encontra `Queijo, mozarela`, porém o preflight extrai `queijo` como se fosse variante comercial e termina em `commercial_identity_unverified`.
+
+As fontes canônicas já estabelecem a fronteira:
+- `docs/product-specs/meal-registration.md`: alimento sem marca/variante explícita pode usar referência genérica/estimativa transparente; produto de marca/variante explícita permanece fail-closed;
+- `docs/design-docs/nutrition-engine.md`: busca deve preferir referência específica quando houver identidade comercial, mas alimento genérico pode usar referência menos específica compatível.
+
+## Escopo
+
+- Corrigir o preflight de identidade comercial para reconhecer alimento genérico não-branded quando existir referência genérica compatível no catálogo/TACO.
+- Considerar aliases/normalizações TACO necessários para equivalências como `muçarela` ↔ `mozarela` sem transformar termo genérico em marca/variante.
+- Usar a referência genérica somente quando não houver evidência de marca, linha, sabor ou variante comercial.
+- Preservar a política fail-closed para qualquer identidade comercial explícita não comprovada.
+- Reutilizar o motor nutricional e o catálogo existentes; não criar exceção específica de queijo nem mapa hardcoded de produtos.
+
+## Fora de escopo
+
+- Relaxar o contrato de identidade comercial de produtos branded.
+- Usar referência genérica como se fosse específica de uma marca.
+- Criar fallback fixo de macros ou manter o perfil placeholder `150 kcal/100 g`.
+- Alterar a PR #1197, que trata quantidades de frutas naturais contáveis e registro parcial de lotes com pendência de quantidade.
+- Adicionar novos provedores nutricionais.
+
+## Requisitos funcionais
+
+1. Termos genéricos de categoria/alimento que não expressem marca/linha/sabor/variante não podem, isoladamente, virar `commercial_identity_unverified`.
+2. Antes de abrir clarificação comercial, o preflight deve considerar a referência genérica compatível retornada pelo catálogo/TACO quando o item for não-branded.
+3. A compatibilidade deve preservar tipo de alimento e semântica; alias ortográfico válido não autoriza correspondência com produto diferente.
+4. Quando houver marca ou variante comercial explícita, a referência genérica não pode satisfazer a identidade nem fechar a composição nutricional.
+5. Uma referência genérica aceita deve seguir a mesma proveniência nutricional/cálculo de porção do motor existente e não usar o placeholder genérico.
+6. Falha de catálogo, múltiplas referências semanticamente conflitantes ou baixa confiança de identidade devem seguir o comportamento seguro existente, sem promover uma correspondência arbitrária.
+
+## Invariantes
+
+- **must_be_single_source:** a decisão nutricional continua pertencendo ao motor nutricional/catálogo canônico.
+- **must_not_behave:** não inferir que `queijo` é marca/variante comercial apenas por aparecer como token estrutural do nome.
+- **must_not_behave:** não usar TACO genérico para fechar produto branded.
+- **must_reuse:** `resolveStructuredCommercialIdentity`/preflight canônico e `findTacoFood` ou lookup equivalente já existente.
+- **precedência:** evidência comercial explícita > referência genérica; ausência de evidência comercial + referência genérica compatível permite o caminho genérico.
+
+Implementação plausível errada: adicionar um `if (nome.includes("muçarela"))` para ignorar o preflight. Isso resolve o caso reportado, mas não corrige a regra geral e pode mascarar produtos branded. O controle deve usar exemplos positivos e negativos fora da frase original.
+
+## Cenários e casos extremos
+
+- `Queijo Muçarela` sem marca → referência genérica compatível, sem clarificação comercial.
+- Variante ortográfica `Queijo Mozarela` → mesma fronteira semântica.
+- `Queijo Muçarela Marca X` → permanece fail-closed se identidade comercial não for comprovada.
+- `Muçarela light Marca X` → referência genérica não pode substituir a variante comercial.
+- Catálogo/TACO sem correspondência compatível → comportamento seguro existente, sem placeholder silencioso.
+- Várias referências genéricas conflitantes → não escolher arbitrariamente.
+- Entrada textual e imagem equivalentes devem chegar à mesma decisão semântica quando descrevem o mesmo alimento genérico.
+
+## Critérios de aceite
+
+- [ ] Entrada visual/textual equivalente a `Queijo Muçarela`, sem marca/linha/sabor comercial, não gera `commercial_identity_unverified` quando houver referência genérica compatível no TACO/catálogo.
+- [ ] A referência genérica é usada para calcular a nutrição da porção indicada e o item não recebe o perfil placeholder `150 kcal/100 g`.
+- [ ] Alias ortográfico compatível, como `muçarela` ↔ `mozarela`, não muda a identidade para produto comercial.
+- [ ] Entradas com marca ou variante comercial não comprovada continuam exigindo clarificação e não recebem silenciosamente a referência genérica.
+- [ ] Falha/ambiguidade do catálogo não promove correspondência arbitrária nem fecha identidade como verificada.
+- [ ] Testes atravessam o preflight real e o caminho público de processamento de imagem; incluir também um controle textual equivalente.
+- [ ] Regressões de identidade comercial, frutas contáveis e fallback nutricional permanecem verdes.
+
+## Considerações de testes
+
+- Regressão do caso observado pelo usuário no caminho público de imagem.
+- Caso textual semanticamente equivalente.
+- Controles negativos com marca, variante `light/zero` e múltiplas referências.
+- Teste discriminante provando que o preflight usa a referência genérica somente quando não há identidade comercial explícita.
+- Teste de que a composição resultante não é o placeholder genérico e mantém proveniência do catálogo/TACO.
+
+## Impacto na documentação
+
+A regra durável já está definida em `docs/product-specs/meal-registration.md` e `docs/design-docs/nutrition-engine.md`. Não duplicar a regra em outro documento. Atualizar a documentação somente se a implementação alterar essa fronteira; caso contrário, registrar apenas a nova cobertura de regressão.
+
+## Base de implementação
+
+Partir da branch `develop` de `crgasparoto-br/controle_calorias`.
+
+## Prontidão
+
+**Pronta.** A fronteira entre alimento genérico e identidade comercial está definida pelas fontes canônicas e os critérios discriminam o caminho correto do workaround específico.
+
+## Evidência
+
+- Em `develop`, `findTacoFood("Queijo Muçarela")` retorna `Queijo, mozarela`, mas `resolveStructuredCommercialIdentity` produz `commercial_identity_unverified`.
+- Caso observado no WhatsApp em 2026-09-26.

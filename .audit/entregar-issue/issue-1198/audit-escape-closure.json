@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "escapes": [
+    {
+      "escape_id": "A-001",
+      "escape_class": "generic-identity-consumer-bypass",
+      "source_audit": {
+        "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+        "finding_id": "A-001",
+        "audit_report_sha256": "63195d983567c131472ee108629740df7e88adf3fd6a2c7b709aad93b0f9282c"
+      },
+      "plausible_wrong_implementation": "Accept a generic TACO reference from a direct consumer without checking the complete identity.",
+      "literal_case": {
+        "procedure": "Compare the direct consumer and public fallback behavior against the canonical preflight on the current exact head.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+        "observed": "Current target 2c7e85408ef96465a755a9bad5560b695a7b14db applies the shared identity guard and preserves catalog provenance."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "surface": "relational-semantic-integrity",
+          "dimension": "orthographic-alias",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+        },
+        {
+          "id": "A-001-S2",
+          "surface": "relational-semantic-integrity",
+          "dimension": "explicit-commercial-negative",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "Centralized generic reference and commercial-identity guard is applied before accepting a catalog or fallback result.",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+      },
+      "detection_change": {
+        "control": "Public text/image and direct-consumer adversarial regression controls detect guard bypasses.",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "relational-semantic-integrity",
+          "dimension": "relational-semantic-integrity-discriminant"
+        },
+        {
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "dimension": "session-target-binding-discriminant"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "authorization"
+      ],
+      "revalidated_head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "status": "passed"
+    },
+    {
+      "escape_id": "A-002",
+      "escape_class": "generic-identity-consumer-bypass",
+      "source_audit": {
+        "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+        "finding_id": "A-002",
+        "audit_report_sha256": "63195d983567c131472ee108629740df7e88adf3fd6a2c7b709aad93b0f9282c"
+      },
+      "plausible_wrong_implementation": "Let textual fallback accept a generic catalog item without crossing the shared public identity guard.",
+      "literal_case": {
+        "procedure": "Compare the direct consumer and public fallback behavior against the canonical preflight on the current exact head.",
+        "status": "passed",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt",
+        "observed": "Current target 2c7e85408ef96465a755a9bad5560b695a7b14db applies the shared identity guard and preserves catalog provenance."
+      },
+      "sibling_cases": [
+        {
+          "id": "A-002-S1",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "orthographic-alias",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+        },
+        {
+          "id": "A-002-S2",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "explicit-commercial-negative",
+          "status": "passed",
+          "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+        }
+      ],
+      "prevention_change": {
+        "control": "Centralized generic reference and commercial-identity guard is applied before accepting a catalog or fallback result.",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+      },
+      "detection_change": {
+        "control": "Public text/image and direct-consumer adversarial regression controls detect guard bypasses.",
+        "evidence": ".audit/entregar-issue/issue-1198/evidence/issue1198-exact-head-controls.txt"
+      },
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "benchmark-path-fidelity",
+          "dimension": "benchmark-path-fidelity-discriminant"
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "dimension": "temporal-consistency-contract-discriminant"
+        }
+      ],
+      "required_risk_families": [
+        "structural-contract",
+        "temporal-consistency"
+      ],
+      "revalidated_head_sha": "2c7e85408ef96465a755a9bad5560b695a7b14db",
+      "status": "passed"
+    }
+  ]
+}

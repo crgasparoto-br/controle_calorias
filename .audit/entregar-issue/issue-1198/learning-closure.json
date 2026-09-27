@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "classification": "systemic-escape",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:1198-pr1207-a001-a002",
+    "audit_report_sha256": "63195d983567c131472ee108629740df7e88adf3fd6a2c7b709aad93b0f9282c",
+    "finding_ids": ["A-001", "A-002"]
+  },
+  "generalized_learning": {
+    "escape_class": "generic-identity-consumer-boundary-gap",
+    "generalized_failure_pattern": "A canonical generic/commercial identity guard can be correct while a direct catalog consumer or textual fallback accepts a result without crossing that guard, allowing broad aliases or explicit commercial evidence to resolve inconsistently.",
+    "plausible_wrong_implementation": "Fix only the preflight helper or add a mozzarella-specific exception, while direct resolution, fallback and public image consumers continue to accept generic references for branded or ambiguous inputs.",
+    "trigger_signals": ["generic catalog reference", "commercial identity", "textual fallback", "public image path", "brand", "variant", "orthographic alias"],
+    "risk_families": ["structural-contract", "authorization", "temporal-consistency"],
+    "reusable_control": "GENERIC-IDENTITY-CONSUMER-GUARD-001",
+    "prevention_rule": "Every consumer that accepts a catalog/TACO or fallback nutrition result must apply the same compatibility and explicit-commercial-evidence guard before producing a verified result.",
+    "detection_rule": "Exercise direct catalog resolution, textual fallback and public image paths with generic positives, orthographic aliases, broad aliases, explicit brands/variants and catalog misses; reject any path that diverges from the canonical guard.",
+    "transfer_cases": [
+      {"id": "transfer-textual-fallback", "surface": "textual-fallback-consumer", "scenario": "A broad alias or explicit brand reaches the source-text fallback.", "expected": "The shared guard rejects unsafe generic substitution.", "status": "passed"},
+      {"id": "transfer-public-image", "surface": "public-image-consumer", "scenario": "An unbranded generic image and a branded/variant image reach the public image path.", "expected": "Equivalent generic inputs resolve consistently and branded inputs remain fail-closed.", "status": "passed"},
+      {"id": "transfer-catalog-consumer", "surface": "direct-catalog-consumer", "scenario": "A direct catalog/TACO result is offered beside an incompatible commercial description.", "expected": "The invalid relation is not accepted or persisted as verified.", "status": "passed"}
+    ],
+    "promotion_status": "promoted"
+  },
+  "skill_changes": [
+    {"role": "prevention", "status": "passed", "path": "server/nutritionEngine.ts", "evidence": "The direct catalog, final consumer and textual fallback paths share the exact-head generic/commercial guard."},
+    {"role": "detection", "status": "passed", "path": "server/nutritionEngine.issue1198.test.ts", "evidence": "Adversarial controls cover generic, alias, broad, branded, variant, catalog-miss and public-path cases."}
+  ]
+}

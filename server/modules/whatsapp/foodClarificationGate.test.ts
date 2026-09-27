@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getActivePendingOperationMock = vi.hoisted(() => vi.fn());
+const getPendingOperationByIdMock = vi.hoisted(() => vi.fn());
 const createPendingOperationMock = vi.hoisted(() => vi.fn());
 const supersedePendingOperationMock = vi.hoisted(() => vi.fn());
 const handleWhatsappFoodClarificationMock = vi.hoisted(() => vi.fn());
@@ -16,6 +17,7 @@ vi.mock("../../db", () => ({
 vi.mock("../../repositories/whatsappPendingOperationRepository", () => ({
   createDrizzleWhatsAppPendingOperationRepository: vi.fn(() => ({
     getActivePendingOperation: getActivePendingOperationMock,
+    getPendingOperationById: getPendingOperationByIdMock,
     createPendingOperation: createPendingOperationMock,
     supersedePendingOperation: supersedePendingOperationMock,
     cancelPendingOperation: vi.fn(),
@@ -38,6 +40,7 @@ const { resolvePendingWhatsappFoodClarification } = await import("./foodClarific
 describe("resolvePendingWhatsappFoodClarification", () => {
   beforeEach(() => {
     getActivePendingOperationMock.mockReset();
+    getPendingOperationByIdMock.mockReset();
     createPendingOperationMock.mockReset();
     supersedePendingOperationMock.mockReset();
     handleWhatsappFoodClarificationMock.mockReset();
@@ -45,6 +48,7 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     rebuildWhatsappRegisteredInteractionMock.mockReset();
     resolveWhatsappRegisteredTextMock.mockReset();
     getActivePendingOperationMock.mockResolvedValue(null);
+    getPendingOperationByIdMock.mockResolvedValue(null);
     createPendingOperationMock.mockImplementation(async input => ({
       id: 99,
       userId: input.userId,
@@ -129,6 +133,45 @@ describe("resolvePendingWhatsappFoodClarification", () => {
     expect(result).toBeNull();
     expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
     expect(createPendingOperationMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia replay quando outro worker consumiu a pendência durante o CAS", async () => {
+    const active = {
+      id: 27,
+      userId: 42,
+      type: "question_meal_calculation",
+      origin: "aiQuestionAssistant",
+      target: { interactionId: "question.meal_calculation" },
+      state: "active",
+      version: 1,
+    };
+    getActivePendingOperationMock.mockResolvedValue(active);
+    getPendingOperationByIdMock.mockResolvedValue({ ...active, state: "consumed", version: 2 });
+    findWhatsappRegisteredInteractionMock.mockReturnValue({
+      id: "question.meal_calculation",
+      origin: "aiQuestionAssistant",
+      classification: "closed",
+      actions: vi.fn(() => []),
+      classifyText: vi.fn(() => "resolve"),
+    });
+    resolveWhatsappRegisteredTextMock.mockResolvedValue(null);
+
+    const result = await resolvePendingWhatsappFoodClarification({
+      userId: 42,
+      text: "sim",
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      eventType: "whatsapp.interaction.claim_unavailable",
+      data: expect.objectContaining({
+        noReplay: true,
+        fallbackBlocked: true,
+        interactionLifecycle: "blocked",
+      }),
+    }));
+    expect(rebuildWhatsappRegisteredInteractionMock).not.toHaveBeenCalled();
+    expect(handleWhatsappFoodClarificationMock).not.toHaveBeenCalled();
   });
 
   it("transforma comando operacional isolado em clarificação genérica interativa", async () => {

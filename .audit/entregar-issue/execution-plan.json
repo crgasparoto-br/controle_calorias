@@ -1,9 +1,12 @@
 {
   "schema_version": 1,
-  "status": "completed",
-  "base_ref": "develop",
-  "head_ref": "fix/1037-whatsapp-countable-passthrough",
-  "material_head_sha": "35a3dc2de732aac8a1be058c1034c4f32c383900",
-  "write_owner": "entregar-issue",
-  "ci_owner_returned": "corrigir-ci-green"
+  "status": "complete",
+  "issue": 1177,
+  "material_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "implementation_scope": [
+    "visual identity per item",
+    "persistent clarification",
+    "normal webhook ownership claim"
+  ],
+  "write_owner": "entregar-issue"
 }

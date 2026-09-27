@@ -69,6 +69,7 @@ import {
 import {
   beginInboundMessage,
   markMessageProcessed,
+  releaseMessageForRetry,
   recordDomainLink,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
@@ -196,6 +197,18 @@ function buildCountableResolutionPrefixBlock(
     return `• ${request.foodName}: ${requested} → ${approximate ? "aprox. " : ""}${grams} g (${sourceLabel})`;
   });
   return ["Medidas usadas no cálculo:", ...lines].join("\n");
+}
+
+function buildCountableSkippedItemsPrefixBlock(
+  skippedItems: ReadyCountableFoodRegistration["skippedItems"],
+) {
+  if (!skippedItems?.length) return null;
+  const lines = skippedItems.map(item => `• ${item.segment}`);
+  return [
+    "Não registrei estes itens porque faltou uma quantidade verificável:",
+    ...lines,
+    "Você pode enviar o peso/volume ou os detalhes do item para registrá-lo depois.",
+  ].join("\n");
 }
 
 function parseWeightKg(text: string) {
@@ -445,6 +458,9 @@ async function sendAndLogTextReply(input: {
   mealId?: number | null;
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
+  messageId?: string | null;
+  pendingOperationId?: number | null;
+  pendingType?: string | null;
   interactiveReply?: WhatsAppLogicalReply;
   outcome?: WhatsAppWebhookOutcome;
 }) {
@@ -484,6 +500,39 @@ async function sendAndLogTextReply(input: {
     });
   }
 
+  const shouldRetryQuestionContinuation =
+    !replyOk
+    && input.pendingType === "question_meal_calculation"
+    && typeof input.pendingOperationId === "number";
+  if (shouldRetryQuestionContinuation) {
+    const pendingOperationId = input.pendingOperationId as number;
+    const {
+      recoverQuestionMealCalculationAfterDeliveryFailure,
+    } = await import("./modules/whatsapp/questionMealCalculationInteraction");
+    const recovery = await recoverQuestionMealCalculationAfterDeliveryFailure({
+      userId: input.userId,
+      pendingOperationId,
+      receivedAt: input.occurredAtMs ? new Date(input.occurredAtMs) : new Date(),
+    });
+    if (recovery) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: recovery.eventType,
+        detail: recovery.detail,
+      });
+    }
+    if (input.messageId) textIntentMessageDeduplicationCache.forget(input.messageId);
+    await releaseMessageForRetry(input.lifecycleHandle ?? null);
+    input.response.status(503).json({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
+    return false;
+  }
+
   recordConversationTurn(
     input.userId,
     input.userMessage,
@@ -495,6 +544,7 @@ async function sendAndLogTextReply(input: {
       mealId: input.mealId,
     });
   await markMessageProcessed(input.lifecycleHandle ?? null);
+  return true;
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -649,6 +699,15 @@ async function tryHandleTextIntent(
         mealId: extractEditableMealId(precedenceGate.result),
         occurredAtMs,
         lifecycleHandle,
+        messageId: message.id,
+        pendingOperationId:
+          typeof precedenceGate.result.data?.pendingOperationId === "number"
+            ? precedenceGate.result.data.pendingOperationId
+            : null,
+        pendingType:
+          typeof precedenceGate.result.data?.pendingType === "string"
+            ? precedenceGate.result.data.pendingType
+            : null,
         interactiveReply:
           "interactiveReply" in precedenceGate.result
             ? precedenceGate.result.interactiveReply
@@ -863,9 +922,12 @@ async function tryHandleTextIntent(
       const countableResolutionPrefix = buildCountableResolutionPrefixBlock(
         countableGate.resolutions
       );
+      const countableSkippedItemsPrefix =
+        buildCountableSkippedItemsPrefixBlock(countableGate.skippedItems);
       const prefixBlocks = [
         ...waterPrefixBlocks,
         ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
+        ...(countableSkippedItemsPrefix ? [countableSkippedItemsPrefix] : []),
       ];
       setWhatsAppDeferredLogicalReply(req, message.id, {
         prefixBlocks,
@@ -1100,10 +1162,15 @@ async function tryHandleTextIntent(
     const hasCountableResolution =
       countableGate?.kind === "ready" &&
       (countableGate.resolutions.length > 0 ||
-        Boolean(countableGate.resolvedSegments?.length));
+        Boolean(countableGate.resolvedSegments?.length) ||
+        Boolean(countableGate.skippedItems?.length));
     const countableResolutionPrefix =
       countableGate?.kind === "ready"
         ? buildCountableResolutionPrefixBlock(countableGate.resolutions)
+        : null;
+    const countableSkippedItemsPrefix =
+      countableGate?.kind === "ready"
+        ? buildCountableSkippedItemsPrefixBlock(countableGate.skippedItems)
         : null;
 
     let nutritionFallback: WhatsappLlmNutritionFallback | null = null;
@@ -1117,9 +1184,10 @@ async function tryHandleTextIntent(
     // para ambiguidade; o texto canônico segue direto ao pipeline nutricional.
     if (!result && hasCountableResolution && countableGate?.kind === "ready") {
       setWhatsAppDeferredLogicalReply(req, message.id, {
-        prefixBlocks: countableResolutionPrefix
-          ? [countableResolutionPrefix]
-          : [],
+        prefixBlocks: [
+          ...(countableResolutionPrefix ? [countableResolutionPrefix] : []),
+          ...(countableSkippedItemsPrefix ? [countableSkippedItemsPrefix] : []),
+        ],
         domainLinks: [],
         resolvedSegments: countableGate.resolvedSegments,
       });
@@ -1177,9 +1245,15 @@ async function tryHandleTextIntent(
         const fallbackResolutionPrefix = buildCountableResolutionPrefixBlock(
           fallbackGate.resolutions
         );
-        if (fallbackResolutionPrefix) {
+        const fallbackSkippedItemsPrefix = buildCountableSkippedItemsPrefixBlock(
+          fallbackGate.skippedItems,
+        );
+        if (fallbackResolutionPrefix || fallbackSkippedItemsPrefix) {
           setWhatsAppDeferredLogicalReply(req, message.id, {
-            prefixBlocks: [fallbackResolutionPrefix],
+            prefixBlocks: [
+              ...(fallbackResolutionPrefix ? [fallbackResolutionPrefix] : []),
+              ...(fallbackSkippedItemsPrefix ? [fallbackSkippedItemsPrefix] : []),
+            ],
             domainLinks: [],
           });
         }
@@ -1226,6 +1300,15 @@ async function tryHandleTextIntent(
       mealId: extractMealId(result.data),
       occurredAtMs,
       lifecycleHandle,
+      messageId: message.id,
+      pendingOperationId:
+        typeof result.data?.pendingOperationId === "number"
+          ? result.data.pendingOperationId
+          : null,
+      pendingType:
+        typeof result.data?.pendingType === "string"
+          ? result.data.pendingType
+          : null,
       interactiveReply:
         pendingInteractiveReply ??
         ("interactiveReply" in result ? result.interactiveReply : undefined),
@@ -1325,6 +1408,9 @@ export async function handleWhatsAppWebhookWithTextIntent(
     !Array.isArray(remainingPayload?.entry) ||
     remainingPayload.entry.length === 0
   ) {
+    if ((res as Response & { statusCode?: number }).statusCode === 503) {
+      return res;
+    }
     return res.status(200).json({ ok: true, processed: messages.length });
   }
 

@@ -1,44 +1,22 @@
 {
   "schema_version": 1,
-  "head_sha": "3cf47471261e677aa48c69fabaf5e4ebcfcfee64",
+  "head_sha": "d002d5c5d47697978f0866747788e3ddf12bc048",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "CTRL-REQ-1061-081-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "scope-preservation",
-          "reason": "The canonical requirement exposes authorization:scope-preservation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
-          "control_ids": [
-            "CTRL-REQ-1061-081-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "CTRL-REQ-1061-037-02"
-      ],
-      "dimensions": [
-        {
-          "surface": "attempt-identity-isolation",
-          "reason": "The canonical requirement exposes tenant-isolation:attempt-identity-isolation; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
-          "control_ids": [
-            "CTRL-REQ-1061-037-02"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current contract or diff signal requires this family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "public-boundary",
@@ -53,16 +31,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-011-01",
-        "CTRL-REQ-1061-015-01"
+        "CTRL-1061-088"
       ],
       "dimensions": [
         {
-          "surface": "processing-owner-liveness",
-          "reason": "The canonical requirement exposes reference-liveness:processing-owner-liveness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "surface": "reference-freshness",
+          "reason": "Exact-head adversarial control for reference-liveness:reference-freshness; it exercises a divergent sibling rather than only the nominal happy path.",
           "control_ids": [
-            "CTRL-REQ-1061-011-01",
-            "CTRL-REQ-1061-015-01"
+            "CTRL-1061-088"
           ],
           "status": "passed"
         }
@@ -74,50 +50,27 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-001-01",
-        "CTRL-REQ-1061-012-01",
-        "CTRL-REQ-1061-013-01",
-        "CTRL-REQ-1061-015-02",
-        "CTRL-REQ-1061-019-01",
-        "CTRL-REQ-1061-032-02",
-        "CTRL-REQ-1061-035-01",
-        "CTRL-REQ-1061-036-01",
-        "CTRL-REQ-1061-050-01",
-        "CTRL-REQ-1061-054-01",
-        "CTRL-REQ-1061-055-01",
-        "CTRL-REQ-1061-065-01",
-        "CTRL-REQ-1061-066-02",
-        "CTRL-REQ-1061-067-02",
-        "CTRL-REQ-1061-071-02",
-        "CTRL-REQ-1061-073-02",
-        "CTRL-REQ-1061-076-01",
-        "CTRL-REQ-1061-079-02",
-        "CTRL-REQ-1061-071-03"
+        "CTRL-1061-013",
+        "CTRL-1061-025",
+        "CTRL-1061-166",
+        "CTRL-1061-167"
       ],
       "dimensions": [
         {
           "surface": "ordering-and-retry",
-          "reason": "The canonical requirement exposes temporal-consistency:ordering-and-retry; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "reason": "Cumulative material-parent operational discriminant retained and re-executed at the current material head.",
           "control_ids": [
-            "CTRL-REQ-1061-001-01",
-            "CTRL-REQ-1061-012-01",
-            "CTRL-REQ-1061-013-01",
-            "CTRL-REQ-1061-015-02",
-            "CTRL-REQ-1061-019-01",
-            "CTRL-REQ-1061-032-02",
-            "CTRL-REQ-1061-035-01",
-            "CTRL-REQ-1061-036-01",
-            "CTRL-REQ-1061-050-01",
-            "CTRL-REQ-1061-054-01",
-            "CTRL-REQ-1061-055-01",
-            "CTRL-REQ-1061-065-01",
-            "CTRL-REQ-1061-066-02",
-            "CTRL-REQ-1061-067-02",
-            "CTRL-REQ-1061-071-02",
-            "CTRL-REQ-1061-073-02",
-            "CTRL-REQ-1061-076-01",
-            "CTRL-REQ-1061-079-02",
-            "CTRL-REQ-1061-071-03"
+            "CTRL-1061-166",
+            "CTRL-1061-167"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "temporal-order",
+          "reason": "Exact-head adversarial control for temporal-consistency:temporal-order; it exercises a divergent sibling rather than only the nominal happy path.",
+          "control_ids": [
+            "CTRL-1061-013",
+            "CTRL-1061-025"
           ],
           "status": "passed"
         }
@@ -137,27 +90,25 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-044-01",
-        "CTRL-REQ-1061-051-01",
-        "CTRL-REQ-1061-052-02",
-        "CTRL-REQ-1061-052-03"
+        "CTRL-1061-142",
+        "CTRL-1061-162",
+        "CTRL-1061-163"
       ],
       "dimensions": [
         {
-          "surface": "processing-owner-exclusivity",
-          "reason": "The canonical requirement exposes concurrency-atomicity:processing-owner-exclusivity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "surface": "atomic-state",
+          "reason": "Exact-head adversarial control for concurrency-atomicity:atomic-state; it exercises a divergent sibling rather than only the nominal happy path.",
           "control_ids": [
-            "CTRL-REQ-1061-044-01",
-            "CTRL-REQ-1061-051-01"
+            "CTRL-1061-142"
           ],
           "status": "passed"
         },
         {
           "surface": "stale-owner-effect-fencing",
-          "reason": "A worker can become stale after takeover while still executing; effect-boundary fencing must discriminate provider and domain effects.",
+          "reason": "Cumulative material-parent operational discriminant retained and re-executed at the current material head.",
           "control_ids": [
-            "CTRL-REQ-1061-052-02",
-            "CTRL-REQ-1061-052-03"
+            "CTRL-1061-162",
+            "CTRL-1061-163"
           ],
           "status": "passed"
         }
@@ -169,63 +120,47 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-020-01",
-        "CTRL-REQ-1061-024-01",
-        "CTRL-REQ-1061-027-01",
-        "CTRL-REQ-1061-030-01",
-        "CTRL-REQ-1061-031-01",
-        "CTRL-REQ-1061-032-01",
-        "CTRL-REQ-1061-034-01",
-        "CTRL-REQ-1061-039-01",
-        "CTRL-REQ-1061-041-01",
-        "CTRL-REQ-1061-042-01",
-        "CTRL-REQ-1061-043-01",
-        "CTRL-REQ-1061-049-01",
-        "CTRL-REQ-1061-063-01",
-        "CTRL-REQ-1061-066-01",
-        "CTRL-REQ-1061-067-01",
-        "CTRL-REQ-1061-070-01",
-        "CTRL-REQ-1061-071-01",
-        "CTRL-REQ-1061-072-01",
-        "CTRL-REQ-1061-073-01",
-        "CTRL-REQ-1061-079-01",
-        "CTRL-REQ-1061-081-02",
-        "CTRL-REQ-1061-020-02"
+        "CTRL-1061-007",
+        "CTRL-1061-047",
+        "CTRL-1061-071",
+        "CTRL-1061-079",
+        "CTRL-1061-090",
+        "CTRL-1061-100",
+        "CTRL-1061-104",
+        "CTRL-1061-106",
+        "CTRL-1061-108",
+        "CTRL-1061-140",
+        "CTRL-1061-148",
+        "CTRL-1061-155",
+        "CTRL-1061-164",
+        "CTRL-1061-165"
       ],
       "dimensions": [
         {
           "surface": "duplicate-processing",
-          "reason": "The canonical requirement exposes idempotency:duplicate-processing; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
           "control_ids": [
-            "CTRL-REQ-1061-020-01",
-            "CTRL-REQ-1061-024-01",
-            "CTRL-REQ-1061-027-01",
-            "CTRL-REQ-1061-030-01",
-            "CTRL-REQ-1061-031-01",
-            "CTRL-REQ-1061-032-01",
-            "CTRL-REQ-1061-034-01",
-            "CTRL-REQ-1061-039-01",
-            "CTRL-REQ-1061-041-01",
-            "CTRL-REQ-1061-042-01",
-            "CTRL-REQ-1061-043-01",
-            "CTRL-REQ-1061-049-01",
-            "CTRL-REQ-1061-063-01",
-            "CTRL-REQ-1061-066-01",
-            "CTRL-REQ-1061-067-01",
-            "CTRL-REQ-1061-070-01",
-            "CTRL-REQ-1061-071-01",
-            "CTRL-REQ-1061-072-01",
-            "CTRL-REQ-1061-073-01",
-            "CTRL-REQ-1061-079-01",
-            "CTRL-REQ-1061-081-02"
+            "CTRL-1061-007",
+            "CTRL-1061-047",
+            "CTRL-1061-071",
+            "CTRL-1061-079",
+            "CTRL-1061-090",
+            "CTRL-1061-100",
+            "CTRL-1061-104",
+            "CTRL-1061-106",
+            "CTRL-1061-108",
+            "CTRL-1061-140",
+            "CTRL-1061-148",
+            "CTRL-1061-155",
+            "CTRL-1061-164"
           ],
           "status": "passed"
         },
         {
           "surface": "stale-owner-effect-fencing",
-          "reason": "Idempotency must fence stale owners before duplicate outbound effects after takeover.",
+          "reason": "Cumulative material-parent operational discriminant retained and re-executed at the current material head.",
           "control_ids": [
-            "CTRL-REQ-1061-020-02"
+            "CTRL-1061-165"
           ],
           "status": "passed"
         }
@@ -253,40 +188,170 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-022-01",
-        "CTRL-REQ-1061-033-02",
-        "CTRL-REQ-1061-037-01",
-        "CTRL-REQ-1061-042-02",
-        "CTRL-REQ-1061-060-01",
-        "CTRL-REQ-1061-072-02",
-        "CTRL-REQ-1061-081-03"
+        "CTRL-1061-001",
+        "CTRL-1061-003",
+        "CTRL-1061-005",
+        "CTRL-1061-009",
+        "CTRL-1061-011",
+        "CTRL-1061-015",
+        "CTRL-1061-017",
+        "CTRL-1061-019",
+        "CTRL-1061-021",
+        "CTRL-1061-023",
+        "CTRL-1061-027",
+        "CTRL-1061-029",
+        "CTRL-1061-031",
+        "CTRL-1061-033",
+        "CTRL-1061-035",
+        "CTRL-1061-037",
+        "CTRL-1061-039",
+        "CTRL-1061-041",
+        "CTRL-1061-043",
+        "CTRL-1061-045",
+        "CTRL-1061-049",
+        "CTRL-1061-051",
+        "CTRL-1061-053",
+        "CTRL-1061-055",
+        "CTRL-1061-057",
+        "CTRL-1061-059",
+        "CTRL-1061-061",
+        "CTRL-1061-063",
+        "CTRL-1061-065",
+        "CTRL-1061-067",
+        "CTRL-1061-069",
+        "CTRL-1061-073",
+        "CTRL-1061-075",
+        "CTRL-1061-077",
+        "CTRL-1061-081",
+        "CTRL-1061-082",
+        "CTRL-1061-084",
+        "CTRL-1061-086",
+        "CTRL-1061-092",
+        "CTRL-1061-094",
+        "CTRL-1061-096",
+        "CTRL-1061-098",
+        "CTRL-1061-102",
+        "CTRL-1061-110",
+        "CTRL-1061-112",
+        "CTRL-1061-114",
+        "CTRL-1061-116",
+        "CTRL-1061-118",
+        "CTRL-1061-120",
+        "CTRL-1061-122",
+        "CTRL-1061-124",
+        "CTRL-1061-126",
+        "CTRL-1061-128",
+        "CTRL-1061-130",
+        "CTRL-1061-132",
+        "CTRL-1061-134",
+        "CTRL-1061-136",
+        "CTRL-1061-138",
+        "CTRL-1061-144",
+        "CTRL-1061-146",
+        "CTRL-1061-150",
+        "CTRL-1061-152",
+        "CTRL-1061-154",
+        "CTRL-1061-158",
+        "CTRL-1061-160"
       ],
       "dimensions": [
         {
           "surface": "behavioral-contract",
-          "reason": "The canonical requirement exposes structural-contract:behavioral-contract; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "reason": "Exact-head adversarial control for structural-contract:behavioral-contract; it exercises a divergent sibling rather than only the nominal happy path.",
           "control_ids": [
-            "CTRL-REQ-1061-022-01",
-            "CTRL-REQ-1061-037-01",
-            "CTRL-REQ-1061-042-02",
-            "CTRL-REQ-1061-081-03"
+            "CTRL-1061-001",
+            "CTRL-1061-003",
+            "CTRL-1061-005",
+            "CTRL-1061-009",
+            "CTRL-1061-011",
+            "CTRL-1061-021",
+            "CTRL-1061-023",
+            "CTRL-1061-027",
+            "CTRL-1061-029",
+            "CTRL-1061-031",
+            "CTRL-1061-033",
+            "CTRL-1061-035",
+            "CTRL-1061-037",
+            "CTRL-1061-041",
+            "CTRL-1061-043",
+            "CTRL-1061-045",
+            "CTRL-1061-049",
+            "CTRL-1061-051",
+            "CTRL-1061-053",
+            "CTRL-1061-055",
+            "CTRL-1061-057",
+            "CTRL-1061-059",
+            "CTRL-1061-061",
+            "CTRL-1061-063",
+            "CTRL-1061-065",
+            "CTRL-1061-067",
+            "CTRL-1061-069",
+            "CTRL-1061-073",
+            "CTRL-1061-075",
+            "CTRL-1061-077",
+            "CTRL-1061-084",
+            "CTRL-1061-086",
+            "CTRL-1061-092",
+            "CTRL-1061-094",
+            "CTRL-1061-096",
+            "CTRL-1061-098",
+            "CTRL-1061-102",
+            "CTRL-1061-110",
+            "CTRL-1061-112",
+            "CTRL-1061-114",
+            "CTRL-1061-116",
+            "CTRL-1061-118",
+            "CTRL-1061-120",
+            "CTRL-1061-122",
+            "CTRL-1061-124",
+            "CTRL-1061-126",
+            "CTRL-1061-128",
+            "CTRL-1061-130",
+            "CTRL-1061-132",
+            "CTRL-1061-134",
+            "CTRL-1061-136",
+            "CTRL-1061-138",
+            "CTRL-1061-144",
+            "CTRL-1061-146",
+            "CTRL-1061-150",
+            "CTRL-1061-152",
+            "CTRL-1061-158",
+            "CTRL-1061-160"
           ],
           "status": "passed"
         },
         {
           "surface": "benchmark-path-fidelity",
-          "reason": "The canonical requirement exposes structural-contract:benchmark-path-fidelity; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
           "control_ids": [
-            "CTRL-REQ-1061-033-02",
-            "CTRL-REQ-1061-072-02"
+            "CTRL-1061-015",
+            "CTRL-1061-017",
+            "CTRL-1061-019",
+            "CTRL-1061-039"
           ],
           "status": "passed"
         },
         {
-          "surface": "stage-attribution-completeness",
-          "reason": "The canonical requirement exposes structural-contract:stage-attribution-completeness; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "surface": "canonical-source-consistency",
+          "reason": "Equivalent runtime, seed, import or maintenance paths can drift when they do not consume the same canonical product definition.",
           "control_ids": [
-            "CTRL-REQ-1061-060-01"
+            "CTRL-1061-081"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "critical-path-necessity",
+          "reason": "Latency can improve while expensive operations remain on the productive path even when their outputs are not consumed by the selected branch.",
+          "control_ids": [
+            "CTRL-1061-154"
+          ],
+          "status": "passed"
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
+          "control_ids": [
+            "CTRL-1061-082"
           ],
           "status": "passed"
         }
@@ -298,14 +363,14 @@
       "applicable": true,
       "reason": "Derived from requirement attack matrix.",
       "control_ids": [
-        "CTRL-REQ-1061-033-01"
+        "CTRL-1061-156"
       ],
       "dimensions": [
         {
           "surface": "canonical-claims",
-          "reason": "The canonical requirement exposes documentation:canonical-claims; the control must distinguish a plausible happy-path shortcut from exact-head behavior at the persisted/public boundary.",
+          "reason": "Exact-head adversarial control for documentation:canonical-claims; it exercises a divergent sibling rather than only the nominal happy path.",
           "control_ids": [
-            "CTRL-REQ-1061-033-01"
+            "CTRL-1061-156"
           ],
           "status": "passed"
         }
