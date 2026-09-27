@@ -18,6 +18,19 @@ Há um amplificador controlável pela aplicação que já foi corrigido: `syncFo
 
 Na revalidação operacional de 26/09/2026, o mesmo serviço passou a registrar `http_ready` e, em seguida, encerramentos `oomKilled` no limite de 512 MiB, sem novo webhook correspondente. A causa controlável foi localizada no caminho não crítico de `food-catalog-sync`: `refreshCatalogCache()` fazia `SELECT *` da tabela `foodCatalog` e materializava todos os registros, inclusive histórico e evidências textuais de pesquisas. A correção mantém a tarefa após `http_ready`, consulta somente registros `active`, projeta apenas os campos usados pelo resolvedor, limita o cache a `CATALOG_CACHE_MAX_ROWS` e preserva as referências canônicas estáticas quando o recorte recente não as contém. Esse controle evita que o cache de lookup se comporte como arquivo histórico e reduz a janela pré-claim causada por OOM; ele não substitui os controles PRECLAIM/RESTART nem a prova real de redelivery do WABA.
 
+## Revalidação de produção de 27/09/2026
+
+Uma nova pergunta `/` comprovou que a latência percebida ainda podia ser dominada pela disponibilidade do runtime, não pelo provider de IA. O inbound com fingerprint opaco `09d9cb648463f0459378` entrou no lifecycle por volta de 08:46 BRT. A instância reiniciou repetidamente às 08:47:14, 08:47:51, 08:48:35 e 08:49:42. Depois que o processo permaneceu vivo, o ACK foi entregue às 08:50:16 e a resposta final às 08:50:24; o recovery registrou a mensagem original como recuperada. Assim, aproximadamente quatro minutos do tempo percebido vieram da indisponibilidade/restart, enquanto o trecho ACK -> final levou cerca de oito segundos.
+
+Na mesma investigação, o limite do container permaneceu em 512 MiB. Houve janela anterior próxima de 495 MB, mas uma sequência posterior de restarts mostrou amostras de 30 s na faixa de 240–263 MB. Como continuaram ausentes `termination_signal`, `process_exit`, `uncaught_exception_monitor` e `startup_failed`, uma coleta de baixa frequência não é suficiente para excluir um pico curto imediatamente anterior a um kill externo.
+
+A rodada atual adiciona duas proteções complementares:
+
+- o runtime amostra memória em alta frequência, conserva high-water mark de RSS/heap/container e emite `memory_pressure`, `memory_window` e `memory_checkpoint` correlacionados pelo mesmo `bootId`; quando cgroup expõe `memory.max`/equivalente, a pressão é calculada contra o limite real do container;
+- após `http_ready`, o recovery de `QUESTION` é iniciado antes dos jobs de manutenção. `food-catalog-sync`, usage governance e reconciliações Asaas são escalonados em janelas distintas para evitar burst concorrente de startup. O endpoint `/healthz` é deliberadamente barato e não consulta banco, IA ou schedulers; ele existe apenas para health checking operacional e não participa da recuperação de mensagens.
+
+Esses controles não afirmam que todo restart anterior foi OOM. O objetivo é eliminar a sobreposição controlável no boot e produzir evidência suficiente para distinguir pressão de memória de reinício externo em uma próxima ocorrência.
+
 ## Contrato de disponibilidade pré-claim
 
 1. Compatibilidade de schema continua sendo pré-condição de startup em produção.

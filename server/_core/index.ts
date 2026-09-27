@@ -14,7 +14,7 @@ import {
 } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { exposeHttpAvailabilityBeforeBackgroundTasks } from "./runtimeAvailability";
-import { installRuntimeTerminationDiagnostics } from "./runtimeTerminationDiagnostics";
+import { installRuntimeTerminationDiagnostics } from "./runtimeTerminationDiagnostics";\nimport { installRuntimeResourceDiagnostics } from "./runtimeResourceDiagnostics";\nimport { RUNTIME_STARTUP_DELAYS_MS, scheduleRuntimeStartupSteps } from "./runtimeStartupScheduling";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import {
@@ -127,6 +127,11 @@ async function startServer() {
     bootStartedAt: runtimeBootStartedAt,
     commit: runtimeCommit,
   });
+  const runtimeResources = installRuntimeResourceDiagnostics({
+    bootId: runtimeBootId,
+    bootStartedAt: runtimeBootStartedAt,
+    commit: runtimeCommit,
+  });
 
   validateRuntimeEnv();
   configureAiObservabilityLogging();
@@ -136,6 +141,13 @@ async function startServer() {
 
   const app = express();
   const server = createServer(app);
+
+  // Deliberately independent of database, providers and background schedulers.
+  // Render can use this endpoint as a cheap liveness/readiness probe without
+  // making WhatsApp recovery depend on a health-check side effect.
+  app.get("/healthz", (_req, res) => {
+    res.status(200).type("text/plain").send("ok");
+  });
   try {
     const schemaCompatibility = await ensureRuntimeSchemaCompatibility();
     if (
@@ -251,26 +263,55 @@ async function startServer() {
         port,
         startupMs: Date.now() - runtimeBootStartedAt,
       });
+      runtimeResources.checkpoint("http_ready");
     },
-    tasks: [
+    tasks: [],
+  });
+
+  // Recovery de mensagem persistida é a primeira responsabilidade pós-HTTP.
+  // Os jobs de manutenção abaixo são escalonados para não competir todos no
+  // mesmo instante de boot em instâncias com orçamento de memória pequeno.
+  startWhatsappQuestionRecoveryScheduler();
+  startConversationRetentionScheduler();
+
+  scheduleRuntimeStartupSteps({
+    steps: [
       {
         name: "food-catalog-sync",
-        run: async () => {
+        delayMs: RUNTIME_STARTUP_DELAYS_MS.foodCatalogSync,
+        start: async () => {
+          runtimeResources.checkpoint("food-catalog-sync:before");
           const catalogSync = await syncFoodCatalogReference();
           console.log("[Nutrition] Food catalog sync:", catalogSync);
+          runtimeResources.checkpoint("food-catalog-sync:after");
         },
-        onError: error => {
-          console.warn("[Nutrition] Food catalog sync skipped:", error);
+      },
+      {
+        name: "usage-governance",
+        delayMs: RUNTIME_STARTUP_DELAYS_MS.usageGovernance,
+        start: () => {
+          runtimeResources.checkpoint("usage-governance:start");
+          return startUsageGovernanceRetentionScheduler();
+        },
+      },
+      {
+        name: "asaas-reconciliation",
+        delayMs: RUNTIME_STARTUP_DELAYS_MS.asaasBilling,
+        start: () => {
+          runtimeResources.checkpoint("asaas-reconciliation:start");
+          return startAsaasBillingReconciliationScheduler();
+        },
+      },
+      {
+        name: "asaas-pix-authorization-recovery",
+        delayMs: RUNTIME_STARTUP_DELAYS_MS.asaasPixAuthorization,
+        start: () => {
+          runtimeResources.checkpoint("asaas-pix-authorization-recovery:start");
+          return startAsaasPixAuthorizationRecoveryScheduler();
         },
       },
     ],
   });
-
-  startConversationRetentionScheduler();
-  startUsageGovernanceRetentionScheduler();
-  startAsaasBillingReconciliationScheduler();
-  startAsaasPixAuthorizationRecoveryScheduler();
-  startWhatsappQuestionRecoveryScheduler();
 }
 
 startServer().catch(error => {
