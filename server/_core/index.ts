@@ -14,7 +14,12 @@ import {
 } from "./rateLimit";
 import { serveStatic, setupVite } from "./vite";
 import { exposeHttpAvailabilityBeforeBackgroundTasks } from "./runtimeAvailability";
-import { installRuntimeTerminationDiagnostics } from "./runtimeTerminationDiagnostics";\nimport { installRuntimeResourceDiagnostics } from "./runtimeResourceDiagnostics";\nimport { RUNTIME_STARTUP_DELAYS_MS, scheduleRuntimeStartupSteps } from "./runtimeStartupScheduling";
+import { installRuntimeTerminationDiagnostics } from "./runtimeTerminationDiagnostics";
+import { installRuntimeResourceDiagnostics } from "./runtimeResourceDiagnostics";
+import {
+  RUNTIME_STARTUP_DELAYS_MS,
+  scheduleRuntimeStartupSteps,
+} from "./runtimeStartupScheduling";
 import { handleStravaOAuthCallback } from "../healthIntegrationsOAuth";
 import { handleMediaRequest } from "../mediaProxy";
 import {
