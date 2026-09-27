@@ -3,6 +3,7 @@ import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppQuestionRecoveryRepository,
   type RecoverableWhatsappQuestion,
+  type WhatsAppQuestionRecoveryLookupDiagnostics,
   type WhatsAppQuestionRecoveryRepository,
 } from "../../repositories/whatsappQuestionRecoveryRepository";
 import { sendWhatsAppLogicalDomainReply } from "./logicalReplyDelivery";
@@ -203,14 +204,44 @@ export async function runWhatsappQuestionRecoveryCycle(input: {
 } = {}) {
   const repository = input.repository ?? defaultRepository;
   const now = input.now ?? new Date();
-  const candidates = await repository.findRecoverableQuestions({
+  const lookupInput = {
     now,
     horizonMs: input.horizonMs ?? DEFAULT_QUESTION_RECOVERY_HORIZON_MS,
     limit: input.limit ?? DEFAULT_QUESTION_RECOVERY_BATCH_SIZE,
     processingStaleBefore: new Date(
       now.getTime() - DEFAULT_PROCESSING_HEARTBEAT_TIMEOUT_MS,
     ),
-  });
+  };
+  const lookup = repository.findRecoverableQuestionsWithDiagnostics
+    ? await repository.findRecoverableQuestionsWithDiagnostics(lookupInput)
+    : await repository.findRecoverableQuestions(lookupInput).then(candidates => ({
+        candidates,
+        diagnostics: {
+          status: candidates.length > 0
+            ? "candidates"
+            : "no_eligible_candidates",
+          scanned: candidates.length,
+          eligible: candidates.length,
+          activeOwnerBlocked: 0,
+          ineligible: 0,
+          truncated: false,
+        } satisfies WhatsAppQuestionRecoveryLookupDiagnostics,
+      }));
+  const { candidates } = lookup;
+  const lookupLog = {
+    status: lookup.diagnostics.status,
+    scanned: lookup.diagnostics.scanned,
+    eligible: lookup.diagnostics.eligible,
+    activeOwnerBlocked: lookup.diagnostics.activeOwnerBlocked,
+    ineligible: lookup.diagnostics.ineligible,
+    truncated: lookup.diagnostics.truncated,
+    candidates: candidates.length,
+  };
+  if (lookup.diagnostics.status === "lookup_failed") {
+    console.error("[WhatsAppQuestionRecovery] lookup_failed", lookupLog);
+  } else {
+    console.info("[WhatsAppQuestionRecovery] lookup", lookupLog);
+  }
   const outcomes: Array<{
     messageId: number;
     outcome: WhatsappQuestionRecoveryOutcome | "error";
