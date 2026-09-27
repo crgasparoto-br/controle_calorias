@@ -298,6 +298,9 @@ async function recreateAfterRecoverableFailure(input: {
 }) {
   const target = input.pendingOperation.target;
   if (!isPendingQuestionMealCalculation(target)) return buildPersistenceFailure();
+  const recoveryDedupeKey = target.inboundMessageId
+    ? `${PENDING_QUESTION_MEAL_CALCULATION_TYPE}:${target.inboundMessageId}:recovery`
+    : `${PENDING_QUESTION_MEAL_CALCULATION_TYPE}:recovery:${input.pendingOperation.id}`;
   const recreated = await pendingOperationRepository.createPendingOperation({
     userId: input.userId,
     type: PENDING_QUESTION_MEAL_CALCULATION_TYPE,
@@ -305,6 +308,7 @@ async function recreateAfterRecoverableFailure(input: {
     target,
     ttlMs: QUESTION_MEAL_CALCULATION_TTL_MS,
     now: input.receivedAt,
+    dedupeKey: recoveryDedupeKey,
   });
   if (!recreated) return buildPersistenceFailure();
   return {
@@ -320,6 +324,46 @@ async function recreateAfterRecoverableFailure(input: {
       retryable: true,
     },
   };
+}
+
+/**
+ * Reabre uma continuação que já foi consumida quando a resposta primária não
+ * chegou ao WhatsApp. A chave estável evita duas pendências quando duas
+ * tentativas de recuperação ocorrem ao mesmo tempo.
+ */
+export async function recoverQuestionMealCalculationAfterDeliveryFailure(input: {
+  userId: number;
+  pendingOperationId: number;
+  receivedAt?: Date;
+}) {
+  const pendingOperation = await pendingOperationRepository.getPendingOperationById(
+    input.pendingOperationId,
+  );
+  if (
+    !pendingOperation
+    || pendingOperation.userId !== input.userId
+    || pendingOperation.type !== PENDING_QUESTION_MEAL_CALCULATION_TYPE
+    || !isPendingQuestionMealCalculation(pendingOperation.target)
+  ) {
+    return null;
+  }
+
+  const now = input.receivedAt ?? new Date();
+  const active = await pendingOperationRepository.getActivePendingOperation(input.userId, now);
+  if (
+    active
+    && active.type === PENDING_QUESTION_MEAL_CALCULATION_TYPE
+    && isPendingQuestionMealCalculation(active.target)
+  ) {
+    return buildPendingResult(active, "represented");
+  }
+
+  if (pendingOperation.state === "active") return buildPendingResult(pendingOperation);
+  return recreateAfterRecoverableFailure({
+    userId: input.userId,
+    pendingOperation,
+    receivedAt: now,
+  });
 }
 
 export async function resolveQuestionMealCalculationText(
@@ -350,6 +394,8 @@ export async function resolveQuestionMealCalculationText(
         interactionId: target.interactionId,
         structuredContinuation: true,
         consumptionPersisted: false,
+        pendingOperationId: claim.pendingOperation.id,
+        pendingType: claim.pendingOperation.type,
       },
     };
   }
@@ -389,7 +435,12 @@ export async function completeQuestionMealCalculationCallback(input: {
       reply: buildWhatsAppActionCancelledReplyMessage("Tudo certo. Não calculei nem registrei a sugestão."),
       eventType: "whatsapp.question_meal_calculation.cancelled",
       detail: "Continuação de cálculo cancelada por callback sem executar a ação.",
-      data: { interactionId: target.interactionId, consumptionPersisted: false },
+      data: {
+        interactionId: target.interactionId,
+        consumptionPersisted: false,
+        pendingOperationId: input.pendingOperation.id,
+        pendingType: input.pendingOperation.type,
+      },
     };
   }
   if (input.action !== "calculate") return null;

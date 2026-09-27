@@ -38,6 +38,8 @@ O claim não protege apenas a entrada do handler. Toda fronteira material deve r
 | Janela, profundidade e resumo progressivo | `server/modules/whatsapp/conversationContextBudget.test.ts`, `server/modules/whatsapp/conversationSummaryService.test.ts`, `server/modules/whatsapp/intentContext.test.ts` |
 | Consumo concorrente de pendências | `server/repositories/whatsappPendingOperationRepository.test.ts`, `server/modules/whatsapp/messageRouter.test.ts` |
 | QUESTION → continuação de cálculo persistida → confirmação curta | `server/modules/whatsapp/questionMealCalculationInteraction.test.ts` |
+| Claim perdido durante confirmação não reapresenta botões nem cai no fallback | `server/modules/whatsapp/foodClarificationGate.test.ts` |
+| Falha do provider após claim libera o inbound, preserva a continuação e permite reentrega | `server/whatsappIntentWebhook.test.ts`, `server/modules/whatsapp/questionMealCalculationInteraction.test.ts` |
 | Retenção sem apagar domínio nutricional | `server/modules/whatsapp/conversationRetentionService.test.ts`, `server/repositories/accountRepository.test.ts` |
 | Migrations e integridade em TiDB | `.github/workflows/whatsapp-context-tidb.yml` |
 
@@ -69,7 +71,8 @@ O claim não protege apenas a entrada do handler. Toda fronteira material deve r
 | Retenção | retention service | contexto expira; refeições/água/peso/exercícios permanecem |
 | Oferta QUESTION suportada | produtor QUESTION + registro `question.meal_calculation` | snapshot nutricional persistido antes do outbound; `sim`/equivalentes calculam uma vez sem registrar consumo |
 | Restart entre a oferta e a confirmação | `questionMealCalculationInteraction.test.ts` | segunda instância recupera a pendência durável e não depende de histórico nem cache local |
-| Cancelamento, inválido e expiração da continuação | registro/gate + teste da interação | cancelamento não calcula; inválido reapresenta; expirada/consumida não executa ação antiga |
+| Claim concorrente, cancelamento, inválido e expiração da continuação | registro/gate + testes da interação | CAS executa no máximo uma vez; claim perdido bloqueia replay; cancelamento não calcula; inválido reapresenta; expirada/consumida não executa ação antiga |
+| Falha de entrega após confirmação | webhook textual + recuperação da interação | resposta HTTP 503 retryable; claim de inbound liberado; snapshot recriado com chave deduplicada; reentrega pode confirmar uma única vez |
 
 ## Rollout operacional
 
@@ -171,6 +174,6 @@ pnpm build
 pnpm agent:check
 ```
 
-Para a regressão da continuação QUESTION, o controle negativo obrigatório é: variar ou remover a frase da resposta textual da IA não pode alterar a resolução de `sim`, porque a ação é derivada exclusivamente do snapshot estruturado persistido. Outro controle é executar duas confirmações concorrentes para provar que o CAS entrega apenas uma resolução material.
+Para a regressão da continuação QUESTION, os controles negativos obrigatórios são: variar ou remover a frase da resposta textual da IA não pode alterar a resolução de `sim`, porque a ação é derivada exclusivamente do snapshot estruturado persistido; executar duas confirmações concorrentes não pode produzir duas resoluções materiais; e simular falha do provider após o claim deve liberar o retry, recriar no máximo uma continuação e nunca retornar 200 terminal para a tentativa sem outbound aceito.
 
 A PR só pode sair de draft quando os gates automatizados, o job TiDB e o checklist aplicável ao ambiente de staging estiverem documentados como concluídos.

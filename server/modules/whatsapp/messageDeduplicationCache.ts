@@ -3,6 +3,7 @@ import * as messageLifecycle from "./messageLifecycle";
 export type MessageDeduplicationCache = {
   wasAlreadyHandled: (messageId?: string) => boolean;
   markHandled: (messageId?: string) => void;
+  forget: (messageId?: string) => void;
   clear: () => void;
 };
 
@@ -32,6 +33,9 @@ export function createMessageDeduplicationCache(ttlMs = DEFAULT_TTL_MS): Message
     },
     markHandled(messageId) {
       if (messageId) expiresAtByMessageId.set(messageId, Date.now() + ttlMs);
+    },
+    forget(messageId) {
+      if (messageId) expiresAtByMessageId.delete(messageId);
     },
     clear() {
       expiresAtByMessageId.clear();

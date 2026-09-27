@@ -11,6 +11,7 @@ const {
   isPendingQuestionMealCalculation,
   parseQuestionMealCalculationAction,
   rebuildQuestionMealCalculation,
+  recoverQuestionMealCalculationAfterDeliveryFailure,
   resolveQuestionMealCalculationText,
   supportsQuestionMealCalculation,
   PENDING_QUESTION_MEAL_CALCULATION_TYPE,
@@ -261,5 +262,46 @@ describe("question.meal_calculation", () => {
     ]);
     expect([first, second].filter(Boolean)).toHaveLength(1);
     expect(processMealInputMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recreates the consumed continuation after delivery failure without duplicating recovery", async () => {
+    const userId = 120941;
+    await createQuestionMealCalculationContinuation({
+      userId,
+      question: "me dê uma opção de café da tarde",
+      messageId: "recover-delivery-1209",
+      receivedAt: new Date("2026-09-26T20:00:00.000Z"),
+    });
+    const original = await repository.getActivePendingOperation(userId, new Date("2026-09-26T20:01:00.000Z"));
+    expect(original).not.toBeNull();
+
+    const completed = await resolveQuestionMealCalculationText({
+      ...inputFor(userId, "sim"),
+      pendingOperation: original!,
+    });
+    expect(completed?.action).toBe("question_meal_calculation_completed");
+
+    const recovered = await recoverQuestionMealCalculationAfterDeliveryFailure({
+      userId,
+      pendingOperationId: original!.id,
+      receivedAt: new Date("2026-09-26T20:02:00.000Z"),
+    });
+    expect(recovered).toEqual(expect.objectContaining({
+      eventType: "whatsapp.question_meal_calculation.recovery_requested",
+      action: "clarification_needed",
+      data: expect.objectContaining({ recovery: true, retryable: true }),
+    }));
+
+    const secondRecovery = await recoverQuestionMealCalculationAfterDeliveryFailure({
+      userId,
+      pendingOperationId: original!.id,
+      receivedAt: new Date("2026-09-26T20:02:01.000Z"),
+    });
+    expect(secondRecovery?.eventType).toBe("whatsapp.question_meal_calculation.represented");
+    expect(await repository.listActivePendingOperationsByType?.(
+      userId,
+      PENDING_QUESTION_MEAL_CALCULATION_TYPE,
+      new Date("2026-09-26T20:03:00.000Z"),
+    )).toHaveLength(1);
   });
 });

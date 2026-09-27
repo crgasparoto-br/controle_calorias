@@ -197,6 +197,31 @@ function buildUnregisteredPendingResult(
   };
 }
 
+function buildClaimUnavailableResult(
+  pending: WhatsAppPendingOperationRecord,
+): PendingInteractionResult {
+  const interactionId =
+    pending.target && typeof pending.target === "object" && "interactionId" in pending.target
+      ? (pending.target as { interactionId?: unknown }).interactionId
+      : null;
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: "Essa confirmação já está sendo processada ou não está mais disponível. Aguarde a resposta ou envie o comando novamente.",
+    eventType: "whatsapp.interaction.claim_unavailable",
+    detail: "A resposta compatível perdeu o claim versionado; o replay e o fallback foram bloqueados para evitar execução duplicada.",
+    data: {
+      pendingOperationId: pending.id,
+      pendingType: pending.type,
+      ...(typeof interactionId === "string" ? { interactionId } : {}),
+      fallbackBlocked: true,
+      fallbackBlockReason: "pending_interaction_claim_unavailable",
+      interactionLifecycle: "blocked",
+      noReplay: true,
+    },
+  };
+}
+
 export async function resolvePendingWhatsappFoodClarification(input: {
   userId: number;
   text?: string | null;
@@ -415,6 +440,13 @@ export async function resolvePendingWhatsappFoodClarification(input: {
         result: resolved,
         timeZone: input.userTimezone,
       });
+    }
+    // A classificação foi compatível, mas o CAS pode ter perdido a pendência
+    // para outra entrega concorrente. Nunca reapresente os botões nem deixe o
+    // texto cair no fallback genérico, pois isso executaria a ação duas vezes.
+    const current = await pendingOperationRepository.getPendingOperationById(active.id);
+    if (!current || current.state !== "active") {
+      return buildClaimUnavailableResult(current ?? active);
     }
   } else if (isCompleteWhatsappCommand(input.text?.trim() ?? "")) {
     // Somente um comando completo incompatível substitui a pendência. Rótulos
