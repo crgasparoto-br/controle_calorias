@@ -141,6 +141,63 @@ describe("#1061 — recovery durável de QUESTION", () => {
     });
   });
 
+  it("diferencia owner ativo de ausência de candidato no diagnóstico do ciclo", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const repository = {
+      findRecoverableQuestions: vi.fn(async () => []),
+      findRecoverableQuestionsWithDiagnostics: vi.fn(async () => ({
+        candidates: [],
+        diagnostics: {
+          status: "active_owner_blocked" as const,
+          scanned: 1,
+          eligible: 0,
+          activeOwnerBlocked: 1,
+          ineligible: 0,
+          truncated: false,
+        },
+      })),
+    };
+
+    await expect(runWhatsappQuestionRecoveryCycle({ repository })).resolves.toEqual({
+      candidates: 0,
+      outcomes: [],
+    });
+
+    expect(repository.findRecoverableQuestions).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith("[WhatsAppQuestionRecovery] lookup", expect.objectContaining({
+      status: "active_owner_blocked",
+      activeOwnerBlocked: 1,
+      candidates: 0,
+    }));
+    info.mockRestore();
+  });
+
+  it("torna falha de lookup distinguível de ciclo sem trabalho", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const repository = {
+      findRecoverableQuestions: vi.fn(async () => []),
+      findRecoverableQuestionsWithDiagnostics: vi.fn(async () => ({
+        candidates: [],
+        diagnostics: {
+          status: "lookup_failed" as const,
+          scanned: 0,
+          eligible: 0,
+          activeOwnerBlocked: 0,
+          ineligible: 0,
+          truncated: false,
+        },
+      })),
+    };
+
+    await runWhatsappQuestionRecoveryCycle({ repository });
+
+    expect(error).toHaveBeenCalledWith("[WhatsAppQuestionRecovery] lookup_failed", expect.objectContaining({
+      status: "lookup_failed",
+      candidates: 0,
+    }));
+    error.mockRestore();
+  });
+
   it("não rouba owner ainda ativo", async () => {
     mocks.claim.mockResolvedValue("inflight");
 
