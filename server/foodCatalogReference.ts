@@ -16,8 +16,14 @@ export type CatalogFoodReference = {
   isVegetable?: boolean;
   isUltraProcessed?: boolean;
   brandName?: string | null;
+  productVariant?: string | null;
   variants?: string[];
   isBrandedProduct?: boolean;
+  researchIdentityKey?: string | null;
+  sourceUrls?: string[];
+  sourceEvidence?: string | null;
+  sourceVerifiedAt?: Date | string | null;
+  sourceConfidence?: number | null;
 };
 
 export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
@@ -285,7 +291,7 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
       "refrigerante coca zero",
       "refrigerante coca-cola zero",
     ],
-    servingLabel: "1 lata",
+    servingLabel: "1 lata (350 ml)",
     gramsPerServing: 350,
     calories: 0,
     protein: 0,
@@ -297,6 +303,39 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     variants: ["zero", "sem acucar", "sem açúcar"],
     isUltraProcessed: true,
     isBrandedProduct: true,
+  },
+  {
+    // Valores da tabela nutricional oficial da Coca-Cola Brasil, porção de
+    // 200 ml (1 copo), consultada em 27/09/2026.
+    slug: "coca-cola-original",
+    name: "Coca-Cola Original",
+    aliases: [
+      "coca cola original",
+      "coca-cola original",
+      "coca cola sabor original",
+      "coca-cola sabor original",
+      "refrigerante coca-cola original",
+      "refrigerante coca cola original",
+    ],
+    servingLabel: "200 ml (1 copo)",
+    gramsPerServing: 200,
+    calories: 85,
+    protein: 0,
+    carbs: 21,
+    fat: 0,
+    fiber: 0,
+    processingLevel: "ultra_processed",
+    brandName: "Coca-Cola",
+    productVariant: "original",
+    variants: ["original"],
+    isUltraProcessed: true,
+    isBrandedProduct: true,
+    researchIdentityKey: "official:coca-cola-br:original:200ml",
+    sourceUrls: ["https://www.coca-cola.com/br/pt/brands/coca-cola/produtos"],
+    sourceEvidence:
+      "Coca-Cola Sabor Original — porção de 200 ml (1 copo): 85 kcal, 21 g de carboidratos; não contém quantidade significativa de proteínas, gorduras totais ou fibras alimentares.",
+    sourceVerifiedAt: "2026-09-27T00:00:00.000Z",
+    sourceConfidence: 0.99,
   },
   {
     slug: "leite-molico-desnatado",

@@ -9,6 +9,7 @@ function buildFoodCatalogValues(item: CatalogFoodReference) {
     name: item.name,
     aliases: JSON.stringify(item.aliases),
     brandName: item.brandName ?? null,
+    productVariant: item.productVariant ?? undefined,
     foodType: item.isBrandedProduct ? "branded" as const : "generic" as const,
     servingLabel: item.servingLabel,
     gramsPerServing: item.gramsPerServing,
@@ -20,6 +21,11 @@ function buildFoodCatalogValues(item: CatalogFoodReference) {
     isFruit: item.isFruit ? 1 : 0,
     isVegetable: item.isVegetable ? 1 : 0,
     isUltraProcessed: item.isUltraProcessed ? 1 : 0,
+    researchIdentityKey: item.researchIdentityKey ?? undefined,
+    sourceUrls: item.sourceUrls ? JSON.stringify(item.sourceUrls) : undefined,
+    sourceEvidence: item.sourceEvidence ?? undefined,
+    sourceVerifiedAt: item.sourceVerifiedAt ? new Date(item.sourceVerifiedAt) : undefined,
+    sourceConfidence: item.sourceConfidence ?? undefined,
   };
 }
 

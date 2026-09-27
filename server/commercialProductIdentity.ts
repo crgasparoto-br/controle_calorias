@@ -20,6 +20,8 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "bolachas",
   "bombom",
   "bombons",
+  "caixa",
+  "caixas",
   "chocolate",
   "cookie",
   "cookies",
@@ -37,6 +39,10 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "falta",
   "fatia",
   "fatias",
+  "frasco",
+  "frascos",
+  "garrafa",
+  "garrafas",
   "g",
   "gr",
   "grama",
@@ -49,11 +55,21 @@ const COMMERCIAL_GENERIC_TOKENS = new Set([
   "os",
   "pacote",
   "pacotes",
+  "pack",
+  "packs",
+  "pet",
+  "pote",
+  "potes",
   "porcao",
   "produto",
+  "refil",
   "sabor",
+  "sache",
+  "saches",
   "colher",
   "colheres",
+  "lata",
+  "latas",
   "unidade",
   "unidades",
   "wafer",
@@ -172,6 +188,10 @@ function measuresMatch(
   );
 }
 
+function areVolumeMeasures(measures: CommercialMeasure[]) {
+  return measures.length > 0 && measures.every(measure => measure.kind === "volume");
+}
+
 function extractCountableMeasure(value: string) {
   return extractExplicitQuantities(value).find(item =>
     !PHYSICAL_MEASURE_UNITS.has(normalizeUnit(item.unit))
@@ -271,11 +291,25 @@ export function isCommercialServingMeasureCompatible(input: {
     return measuresMatch(requestedMeasures, proportionalMeasures);
   }
 
-  if (productMeasures.length && !measuresMatch(requestedMeasures, productMeasures)) {
+  if (
+    productMeasures.length &&
+    !measuresMatch(requestedMeasures, productMeasures) &&
+    !(areVolumeMeasures(requestedMeasures) && areVolumeMeasures(productMeasures))
+  ) {
     return false;
   }
 
   const candidateMeasures = [...servingMeasures];
+  if (
+    areVolumeMeasures(requestedMeasures) &&
+    areVolumeMeasures(candidateMeasures)
+  ) {
+    // A beverage can be consumed by the requested volume even when the
+    // nutritional source describes the whole bottle/can. The nutrition builder
+    // applies the resulting factor; package size must not become identity.
+    return true;
+  }
+
   if (
     !candidateMeasures.some(measure => measure.kind === "mass") &&
     requestedMeasures.some(measure => measure.kind === "mass") &&
@@ -287,6 +321,7 @@ export function isCommercialServingMeasureCompatible(input: {
 
   if (
     requestedMeasures.length === 1 &&
+    requestedMeasures[0].kind === "mass" &&
     Number.isFinite(input.gramsPerServing) &&
     input.gramsPerServing > 0 &&
     !servingAmountMatches(requestedMeasures[0].value, input.gramsPerServing)
