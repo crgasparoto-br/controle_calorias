@@ -361,11 +361,12 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
       getDb,
       onWarning: logPersistenceWarning,
     });
+    const recoveryNow = new Date(Date.now() + 31_000);
 
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
         repository: recoveryRepository,
-        now: new Date(),
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),
@@ -440,11 +441,12 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
       getDb,
       onWarning: logPersistenceWarning,
     });
+    const recoveryNow = new Date(Date.now() + 31_000);
 
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
         repository: recoveryRepository,
-        now: new Date(),
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),
@@ -521,10 +523,11 @@ describeTidb("RESTART-IDEM-001: webhook canônico + lifecycle persistente em TiD
       getDb,
       onWarning: logPersistenceWarning,
     });
+    const recoveryNow = new Date(Date.now() + 31_000);
     const cycle = await withMessageLifecycleService(runtimeB, () =>
       runWhatsappQuestionRecoveryCycle({
         repository: recoveryRepository,
-        now: new Date(),
+        now: recoveryNow,
         horizonMs: 20 * 60 * 1000,
         limit: 1,
       }),
