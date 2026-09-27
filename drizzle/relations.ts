@@ -5,6 +5,8 @@ import {
   exercises,
   foodBrands,
   foodCatalog,
+  foodSourceImports,
+  foodSources,
   habitMemories,
   inferenceLogs,
   mealInferences,
@@ -60,6 +62,17 @@ export const nutritionGoalsRelations = relations(nutritionGoals, ({ one }) => ({
 
 export const foodBrandsRelations = relations(foodBrands, ({ many }) => ({
   foods: many(foodCatalog),
+}));
+
+export const foodSourcesRelations = relations(foodSources, ({ many }) => ({
+  imports: many(foodSourceImports),
+}));
+
+export const foodSourceImportsRelations = relations(foodSourceImports, ({ one }) => ({
+  source: one(foodSources, {
+    fields: [foodSourceImports.sourceId],
+    references: [foodSources.id],
+  }),
 }));
 
 export const foodCatalogRelations = relations(foodCatalog, ({ many, one }) => ({
