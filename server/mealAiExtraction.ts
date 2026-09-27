@@ -255,6 +255,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         "Use o histórico apenas para calibrar porções de alimentos já mencionados ou claramente visíveis; nunca inclua alimentos apenas porque aparecem nos hábitos do usuário.",
         "Em fotos de embalagem, pote, rótulo, etiqueta ou balança, identifique no máximo os alimentos consumíveis claramente visíveis ou rotulados; não transforme a cena em uma refeição completa.",
         "Latas, garrafas, copos e outros recipientes que sejam o objeto principal da foto representam alimento ou bebida consumível quando houver evidência visual suficiente; isso inclui bebidas alcoólicas e não alcoólicas. Não descarte uma bebida reconhecível como se fosse apenas embalagem vazia.",
+        "Quando uma embalagem consumível principal tiver marca, categoria ou produto legível no texto frontal, retorne pelo menos um item com essa identidade mesmo que volume, variante exata ou tabela nutricional ainda estejam incertos; preserve a marca em brand, a categoria/linha em foodName e a contagem visual quando segura. Não transforme essa identidade parcial em items vazio.",
         "Separe quantidade, unidade e alimento quando o usuário escrever algo como '140g Carne moída suína': quantity deve ser 140, unit deve ser 'g', foodName deve ser apenas 'Carne moída suína' e portionText deve ser derivado como '140 g'.",
         "Separe marca em brand quando ela estiver explícita no texto, foto, rótulo ou etiqueta; use null quando não houver evidência clara de marca.",
         "Em fotos de produtos embalados, preserve em foodName a categoria e todos os termos visíveis que diferenciam linha, versão, estilo ou sabor (por exemplo Original, Pilsen, Lager, Weissbier, Zero, Light ou Sem lactose), mesmo quando brand estiver preenchida separadamente; em latas ou garrafas, leia o texto frontal legível antes de decidir que não há alimento.",
@@ -309,7 +310,19 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
 
   const capability = input.imageUrl ? "MEAL_VISION" : "MEAL_TEXT";
   const instructions = "Você é um nutricionista assistente especializado em análise visual de refeições. Identifique apenas alimentos e bebidas consumíveis presentes na entrada, incluindo bebidas em latas ou garrafas quando forem o objeto principal e o rótulo permitir identificação, estime porções realistas usando referências visuais de escala (talheres, pratos, copos) e devolva apenas JSON estruturado para um rascunho revisável. Nunca inclua texto fora do JSON. Quando a entrada não mencionar nem mostrar alimento ou bebida com segurança, devolva items como lista vazia em vez de chutar. Priorize quantity e unit separados, mantendo portionText apenas como rótulo derivado. Separe marcas explícitas em brand e use null quando a marca não estiver clara.";
-  return runMealExtractionWithPolicy(capability, instructions, aiInput);
+  const result = await runMealExtractionWithPolicy(capability, instructions, aiInput);
+  if (!input.imageUrl || !result || result.items.length > 0) return result;
+
+  // Uma resposta estruturada vazia é válida para uma imagem sem alimento, mas
+  // um modelo pode desistir cedo ao ver uma embalagem com rótulo. Reusa a
+  // mesma capability/imagem em uma segunda passagem; cleanup, resolução
+  // comercial e fail-closed continuam sendo aplicados depois desta fronteira.
+  const recovered = await runMealExtractionWithPolicy(
+    "MEAL_VISION",
+    `${instructions}\n\nPassagem de recuperação: revise a imagem uma segunda vez. Faça um inventário do objeto principal antes de decidir que não há alimento. Se houver qualquer texto frontal legível que identifique uma embalagem consumível, preserve a melhor identidade observável em foodName e brand e mantenha a contagem segura. Não invente volume, variante ou nutrição; deixe esses dados para a clarificação/resolução canônica. Só retorne items vazio se não houver nenhuma evidência visual confiável de alimento ou bebida consumível.`,
+    aiInput,
+  );
+  return recovered ?? result;
 }
 
 const PLAIN_WATER_CLASSIFICATION_GUIDE = [
