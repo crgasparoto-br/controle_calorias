@@ -69,6 +69,7 @@ import {
 import {
   beginInboundMessage,
   markMessageProcessed,
+  releaseMessageForRetry,
   recordDomainLink,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
@@ -457,6 +458,9 @@ async function sendAndLogTextReply(input: {
   mealId?: number | null;
   occurredAtMs?: number;
   lifecycleHandle?: MessageLifecycleHandle;
+  messageId?: string | null;
+  pendingOperationId?: number | null;
+  pendingType?: string | null;
   interactiveReply?: WhatsAppLogicalReply;
   outcome?: WhatsAppWebhookOutcome;
 }) {
@@ -496,6 +500,39 @@ async function sendAndLogTextReply(input: {
     });
   }
 
+  const shouldRetryQuestionContinuation =
+    !replyOk
+    && input.pendingType === "question_meal_calculation"
+    && typeof input.pendingOperationId === "number";
+  if (shouldRetryQuestionContinuation) {
+    const pendingOperationId = input.pendingOperationId as number;
+    const {
+      recoverQuestionMealCalculationAfterDeliveryFailure,
+    } = await import("./modules/whatsapp/questionMealCalculationInteraction");
+    const recovery = await recoverQuestionMealCalculationAfterDeliveryFailure({
+      userId: input.userId,
+      pendingOperationId,
+      receivedAt: input.occurredAtMs ? new Date(input.occurredAtMs) : new Date(),
+    });
+    if (recovery) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "warning",
+        eventType: recovery.eventType,
+        detail: recovery.detail,
+      });
+    }
+    if (input.messageId) textIntentMessageDeduplicationCache.forget(input.messageId);
+    await releaseMessageForRetry(input.lifecycleHandle ?? null);
+    input.response.status(503).json({
+      ok: false,
+      retryable: true,
+      reason: "whatsapp_reply_delivery_failed",
+    });
+    return false;
+  }
+
   recordConversationTurn(
     input.userId,
     input.userMessage,
@@ -507,6 +544,7 @@ async function sendAndLogTextReply(input: {
       mealId: input.mealId,
     });
   await markMessageProcessed(input.lifecycleHandle ?? null);
+  return true;
 }
 
 function extractMealId(data: Record<string, unknown> | undefined) {
@@ -661,6 +699,15 @@ async function tryHandleTextIntent(
         mealId: extractEditableMealId(precedenceGate.result),
         occurredAtMs,
         lifecycleHandle,
+        messageId: message.id,
+        pendingOperationId:
+          typeof precedenceGate.result.data?.pendingOperationId === "number"
+            ? precedenceGate.result.data.pendingOperationId
+            : null,
+        pendingType:
+          typeof precedenceGate.result.data?.pendingType === "string"
+            ? precedenceGate.result.data.pendingType
+            : null,
         interactiveReply:
           "interactiveReply" in precedenceGate.result
             ? precedenceGate.result.interactiveReply
@@ -1253,6 +1300,15 @@ async function tryHandleTextIntent(
       mealId: extractMealId(result.data),
       occurredAtMs,
       lifecycleHandle,
+      messageId: message.id,
+      pendingOperationId:
+        typeof result.data?.pendingOperationId === "number"
+          ? result.data.pendingOperationId
+          : null,
+      pendingType:
+        typeof result.data?.pendingType === "string"
+          ? result.data.pendingType
+          : null,
       interactiveReply:
         pendingInteractiveReply ??
         ("interactiveReply" in result ? result.interactiveReply : undefined),
@@ -1352,6 +1408,9 @@ export async function handleWhatsAppWebhookWithTextIntent(
     !Array.isArray(remainingPayload?.entry) ||
     remainingPayload.entry.length === 0
   ) {
+    if ((res as Response & { statusCode?: number }).statusCode === 503) {
+      return res;
+    }
     return res.status(200).json({ ok: true, processed: messages.length });
   }
 

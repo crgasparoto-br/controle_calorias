@@ -359,6 +359,25 @@ export function buildWhatsAppMealReplyMessage(processed: MealProcessingResult, o
   });
 }
 
+export function buildWhatsAppMealCalculationReplyMessage(processed: MealProcessingResult, options: WhatsAppMealReplyOptions = {}) {
+  const calculatedAt = options.registeredAt;
+  const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
+  const time = formatReplyTime(calculatedAt, timeZone);
+  const suffix = time ? ` às ${time}hs.` : ".";
+  const title = buildWhatsAppTitle(`Cálculo da opção sugerida${suffix}`, { bold: true });
+  const contextLine = `🍽️ ${buildWhatsAppTitle("Sugestão de café da tarde", { bold: true })}${time ? ` — ${time}` : ""}`;
+  const goalLines = buildMealGoalProgressLines(options.goalProgress, calculatedAt, timeZone);
+  return buildMealReplyBody({
+    title,
+    contextLine,
+    sourceText: processed.sourceText,
+    items: processed.items,
+    totals: processed.totals,
+    goalLines,
+    nutritionLabelContinuationAvailable: options.nutritionLabelContinuationAvailable,
+  });
+}
+
 export function buildWhatsAppConsolidatedMealReplyMessage(meal: WhatsAppConsolidatedMealReplyInput, options: WhatsAppMealReplyOptions = {}) {
   const registeredAt = options.registeredAt ?? normalizeReplyDate(meal.occurredAt);
   const timeZone = options.timeZone ?? DEFAULT_APP_TIME_ZONE;
