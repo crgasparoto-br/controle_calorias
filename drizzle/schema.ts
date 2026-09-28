@@ -81,12 +81,40 @@ export const foodSources = mysqlTable("food_sources", {
   version: varchar("version", { length: 80 }).notNull(),
   countryCode: varchar("country_code", { length: 2 }),
   sourceUrl: varchar("source_url", { length: 255 }),
+  sourceReference: varchar("source_reference", { length: 255 }),
+  contentHash: varchar("content_hash", { length: 64 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, table => ({
   slugIdx: index("food_sources_slug_idx").on(table.slug),
+  contentHashIdx: index("food_sources_content_hash_idx").on(table.contentHash),
   slugVersionUnique: uniqueIndex("food_sources_slug_version_unique").on(table.slug, table.version),
+}));
+
+export const foodSourceImports = mysqlTable("food_source_imports", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceId: int("source_id").notNull().references(() => foodSources.id, { onDelete: "restrict" }),
+  contentHash: varchar("content_hash", { length: 64 }).notNull(),
+  initiatedBy: varchar("initiated_by", { length: 120 }).notNull(),
+  status: mysqlEnum("status", ["running", "succeeded", "warning", "failed"]).default("running").notNull(),
+  collectedAt: timestamp("collected_at"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  recordCount: int("record_count").default(0).notNull(),
+  insertedCount: int("inserted_count").default(0).notNull(),
+  updatedCount: int("updated_count").default(0).notNull(),
+  ignoredCount: int("ignored_count").default(0).notNull(),
+  aliasesInserted: int("aliases_inserted").default(0).notNull(),
+  portionsInserted: int("portions_inserted").default(0).notNull(),
+  errorCode: varchar("error_code", { length: 120 }),
+  resultJson: text("result_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  sourceCreatedAtIdx: index("food_source_imports_source_created_at_idx").on(table.sourceId, table.createdAt),
+  statusCreatedAtIdx: index("food_source_imports_status_created_at_idx").on(table.status, table.createdAt),
+  contentHashIdx: index("food_source_imports_content_hash_idx").on(table.contentHash),
 }));
 
 export const foods = mysqlTable("foods", {
@@ -747,6 +775,8 @@ export type FoodBrand = typeof foodBrands.$inferSelect;
 export type InsertFoodBrand = typeof foodBrands.$inferInsert;
 export type FoodSource = typeof foodSources.$inferSelect;
 export type InsertFoodSource = typeof foodSources.$inferInsert;
+export type FoodSourceImport = typeof foodSourceImports.$inferSelect;
+export type InsertFoodSourceImport = typeof foodSourceImports.$inferInsert;
 export type GlobalFood = typeof foods.$inferSelect;
 export type InsertGlobalFood = typeof foods.$inferInsert;
 export type FoodAlias = typeof foodAliases.$inferSelect;

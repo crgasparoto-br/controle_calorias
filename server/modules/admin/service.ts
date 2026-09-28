@@ -6,18 +6,25 @@ import {
   upsertAdminWhatsAppAccessToken,
 } from "../../db";
 import { runFoodImportJob as runFoodImportJobService } from "./foodImportJobs";
-import type { RunFoodImportJobInput, UpdateWhatsappTokenInput } from "./schemas";
+import type {
+  RunFoodImportJobInput,
+  UpdateWhatsappTokenInput,
+} from "./schemas";
 import { buildQuestionLatencyPercentiles } from "../whatsapp/questionLatencyMetrics";
 
 export async function getAdminOverview() {
   const snapshot = await getAdminSnapshot();
   return {
     ...snapshot,
-    questionLatency: buildQuestionLatencyPercentiles(snapshot.recentInferenceLogs),
+    questionLatency: buildQuestionLatencyPercentiles(
+      snapshot.recentInferenceLogs
+    ),
   };
 }
 
-export function getAdminActivityPage(input: Parameters<typeof getAdminActivities>[0]) {
+export function getAdminActivityPage(
+  input: Parameters<typeof getAdminActivities>[0]
+) {
   return getAdminActivities(input);
 }
 
@@ -25,7 +32,10 @@ export async function getWhatsappTokenStatus() {
   return getAdminWhatsAppTokenStatus();
 }
 
-export async function updateWhatsappToken(userId: number, input: UpdateWhatsappTokenInput) {
+export async function updateWhatsappToken(
+  userId: number,
+  input: UpdateWhatsappTokenInput
+) {
   const status = await upsertAdminWhatsAppAccessToken({
     value: input.accessToken,
     updatedByUserId: userId,
@@ -42,8 +52,13 @@ export async function updateWhatsappToken(userId: number, input: UpdateWhatsappT
   return status;
 }
 
-export async function runFoodImportJob(userId: number, input: RunFoodImportJobInput) {
-  const report = await runFoodImportJobService(input);
+export async function runFoodImportJob(
+  userId: number,
+  input: RunFoodImportJobInput
+) {
+  const report = await runFoodImportJobService(input, {
+    initiatedBy: `admin:user:${userId}`,
+  });
 
   logInferenceEvent({
     userId,

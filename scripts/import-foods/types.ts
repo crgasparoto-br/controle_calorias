@@ -4,6 +4,8 @@ export type ImportFoodSource = {
   version: string;
   countryCode?: string;
   sourceUrl?: string;
+  sourceReference?: string;
+  collectedAt?: string;
   notes?: string;
 };
 
@@ -42,6 +44,8 @@ export type ImportPayload = {
 export type ImportReport = {
   sourceSlug: string;
   sourceVersion: string;
+  sourceContentHash: string;
+  importId: number;
   inserted: number;
   updated: number;
   ignored: number;

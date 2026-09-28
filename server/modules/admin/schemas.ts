@@ -35,13 +35,13 @@ export const runFoodImportJobSchema = z.discriminatedUnion("job", [
     job: z.literal("import_taco"),
     csvContent: z.string().min(10).max(8_000_000),
     fileName: z.string().max(255).optional(),
-    sourceVersion: z.string().trim().min(1).max(120).optional(),
+    sourceVersion: z.string().trim().min(1).max(80).optional(),
   }),
   z.object({
     job: z.literal("import_tbca"),
     csvContent: z.string().min(10).max(8_000_000),
     fileName: z.string().max(255).optional(),
-    sourceVersion: z.string().trim().min(1).max(120).optional(),
+    sourceVersion: z.string().trim().min(1).max(80).optional(),
   }),
 ]);
 
