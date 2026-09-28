@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 export type CsvRow = Record<string, string>;
 
-function parseLine(line: string) {
+function parseLine(line: string, delimiter: string) {
   const values: string[] = [];
   let current = "";
   let quoted = false;
@@ -22,7 +22,7 @@ function parseLine(line: string) {
       continue;
     }
 
-    if (char === "," && !quoted) {
+    if (char === delimiter && !quoted) {
       values.push(current.trim());
       current = "";
       continue;
@@ -37,10 +37,15 @@ function parseLine(line: string) {
 
 export function parseCsvContent(content: string) {
   const lines = content.split(/\r?\n/).filter(line => line.trim());
-  const headers = parseLine(lines[0] ?? "").map(header => header.trim());
+  const firstLine = lines[0] ?? "";
+  const delimiter = [";", ",", "\t"].sort(
+    (left, right) =>
+      firstLine.split(right).length - firstLine.split(left).length
+  )[0];
+  const headers = parseLine(firstLine, delimiter).map(header => header.trim());
 
   return lines.slice(1).map(line => {
-    const values = parseLine(line);
+    const values = parseLine(line, delimiter);
     return headers.reduce<CsvRow>((row, header, index) => {
       row[header] = values[index] ?? "";
       return row;
@@ -55,7 +60,9 @@ export async function readCsv(filePath: string) {
 
 export function pick(row: CsvRow, candidates: string[]) {
   const keys = Object.keys(row);
-  const normalized = new Map(keys.map(key => [key.toLowerCase().replace(/[^a-z0-9]+/g, ""), key]));
+  const normalized = new Map(
+    keys.map(key => [key.toLowerCase().replace(/[^a-z0-9]+/g, ""), key])
+  );
 
   for (const candidate of candidates) {
     const key = normalized.get(candidate.toLowerCase().replace(/[^a-z0-9]+/g, ""));
@@ -66,7 +73,20 @@ export function pick(row: CsvRow, candidates: string[]) {
 }
 
 export function parseNumber(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".").replace(/[^0-9.-]/g, "");
+  const raw = value.trim();
+  if (!raw) return Number.NaN;
+  let normalized = raw.replace(/\s/g, "").replace(/[^0-9,.-]/g, "");
+  if (!/[0-9]/.test(normalized)) return Number.NaN;
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized =
+      lastComma > lastDot
+        ? normalized.replace(/\./g, "").replace(",", ".")
+        : normalized.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    normalized = normalized.replace(/,/g, ".");
+  }
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }

@@ -28,10 +28,38 @@ type EnsuredSource = {
   contentConflict: boolean;
 };
 
+type ImportIssue = {
+  sourceFoodCode?: string;
+  name?: string;
+  reason: string;
+};
+
+export type ImportPreviewReport = {
+  phase: "preview";
+  sourceSlug: string;
+  sourceVersion: string;
+  sourceContentHash: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  missingRequired: number;
+  duplicateCodes: string[];
+  unitConversionsApplied: number;
+  possibleDuplicates: Array<{
+    sourceFoodCode: string;
+    normalizedName: string;
+    existingFoodIds: number[];
+  }>;
+  errors: ImportIssue[];
+  sourceConflict: boolean;
+  canPublish: boolean;
+};
+
 export type ImportFoodsOptions = {
   transactionBatchSize?: number;
   connectionFactory?: () => Promise<DbConnection>;
   initiatedBy?: string;
+  expectedPreviewHash?: string;
 };
 
 export class FoodImportValidationError extends Error {
@@ -53,6 +81,15 @@ export class SourceContentConflictError extends Error {
       `Fonte ${sourceSlug}@${sourceVersion} já possui outra identidade material; use uma nova versão`
     );
     this.name = "SourceContentConflictError";
+  }
+}
+
+export class ImportPreviewMismatchError extends Error {
+  constructor() {
+    super(
+      "A prévia não corresponde exatamente ao arquivo, fonte, versão ou origem informados"
+    );
+    this.name = "ImportPreviewMismatchError";
   }
 }
 
@@ -235,10 +272,8 @@ function validateFood(food: ImportFood) {
   return null;
 }
 
-function validatePayload(payload: ImportPayload) {
-  if (payload.foods.length === 0) {
-    throw new FoodImportValidationError([{ reason: "foods vazio" }]);
-  }
+export function collectValidationErrors(payload: ImportPayload): ImportIssue[] {
+  if (payload.foods.length === 0) return [{ reason: "foods vazio" }];
   const seenCodes = new Set<string>();
   const errors = payload.foods.flatMap(food => {
     const reason = validateFood(food);
@@ -259,6 +294,11 @@ function validatePayload(payload: ImportPayload) {
         ]
       : [];
   });
+  return errors;
+}
+
+function validatePayload(payload: ImportPayload) {
+  const errors = collectValidationErrors(payload);
   if (errors.length > 0) throw new FoodImportValidationError(errors);
 }
 
@@ -420,6 +460,7 @@ function errorCode(error: unknown) {
   if (error instanceof FoodImportValidationError) return "invalid_food_row";
   if (error instanceof SourceContentConflictError)
     return "source_content_conflict";
+  if (error instanceof ImportPreviewMismatchError) return "preview_mismatch";
   return "persistence_error";
 }
 
@@ -466,6 +507,105 @@ async function findPossibleDuplicates(
     [normalizedName, sourceId, sourceFoodCode]
   );
   return { normalizedName, existingFoodIds: rows.map(row => row.id) };
+}
+
+async function findExistingSource(
+  connection: DbConnection,
+  payload: ImportPayload
+): Promise<SourceRow | undefined> {
+  const [rows] = await connection.execute<SourceRow[]>(
+    "SELECT id, content_hash AS contentHash FROM food_sources WHERE slug = ? AND version = ? LIMIT 1",
+    [payload.source.slug, payload.source.version]
+  );
+  return rows[0];
+}
+
+function countUnitConversions(payload: ImportPayload) {
+  return payload.foods.reduce(
+    (count, food) =>
+      count +
+      (food.portions?.filter(
+        portion =>
+          portion.unit?.toLowerCase() === "g" &&
+          Number.isFinite(portion.grams) &&
+          Number.isFinite(portion.quantity) &&
+          portion.grams !== portion.quantity
+      ).length ?? 0),
+    0
+  );
+}
+
+export async function previewFoods(
+  payload: ImportPayload,
+  options: Pick<ImportFoodsOptions, "connectionFactory"> = {}
+): Promise<ImportPreviewReport> {
+  const normalizedPayload = normalizeImportPayload(payload);
+  validateSource(normalizedPayload);
+  const sourceContentHash = createSourceContentHash(normalizedPayload);
+  const errors = collectValidationErrors(normalizedPayload);
+  const connection = await (
+    options.connectionFactory ?? createImportConnection
+  )();
+
+  try {
+    const existingSource = await findExistingSource(connection, normalizedPayload);
+    const sourceConflict = Boolean(
+      existingSource?.contentHash &&
+        existingSource.contentHash !== sourceContentHash
+    );
+    const sourceId = existingSource?.id ?? 0;
+    const possibleDuplicates: ImportPreviewReport["possibleDuplicates"] = [];
+    for (const food of normalizedPayload.foods) {
+      const hasRowError = errors.some(
+        error =>
+          error.sourceFoodCode === food.sourceFoodCode ||
+          error.name === food.name
+      );
+      if (hasRowError) continue;
+      const duplicateInfo = await findPossibleDuplicates(connection, sourceId, food);
+      if (duplicateInfo.existingFoodIds.length > 0) {
+        possibleDuplicates.push({
+          sourceFoodCode: normalizeSourceCode(food.sourceFoodCode),
+          normalizedName: duplicateInfo.normalizedName,
+          existingFoodIds: duplicateInfo.existingFoodIds,
+        });
+      }
+    }
+    const allErrors = sourceConflict
+      ? [
+          ...errors,
+          {
+            reason:
+              "A mesma fonte e versão já estão vinculadas a outro conteúdo; publique uma nova versão.",
+          },
+        ]
+      : errors;
+    const duplicateCodes = allErrors
+      .filter(error => error.reason.includes("sourceFoodCode duplicado"))
+      .map(error => normalizeSourceCode(error.sourceFoodCode ?? ""))
+      .filter(Boolean);
+    const missingRequired = allErrors.filter(error =>
+      /vazio|macros principais invalidos|porcao invalida/i.test(error.reason)
+    ).length;
+    return {
+      phase: "preview",
+      sourceSlug: normalizedPayload.source.slug,
+      sourceVersion: normalizedPayload.source.version,
+      sourceContentHash,
+      totalRows: normalizedPayload.foods.length,
+      validRows: Math.max(0, normalizedPayload.foods.length - errors.length),
+      invalidRows: errors.length,
+      missingRequired,
+      duplicateCodes: [...new Set(duplicateCodes)],
+      unitConversionsApplied: countUnitConversions(normalizedPayload),
+      possibleDuplicates,
+      errors: allErrors,
+      sourceConflict,
+      canPublish: errors.length === 0 && !sourceConflict,
+    };
+  } finally {
+    await connection.end();
+  }
 }
 
 async function upsertFood(
@@ -631,6 +771,12 @@ export async function importFoods(
   const normalizedPayload = normalizeImportPayload(payload);
   validateSource(normalizedPayload);
   const sourceContentHash = createSourceContentHash(normalizedPayload);
+  if (
+    options.expectedPreviewHash &&
+    options.expectedPreviewHash !== sourceContentHash
+  ) {
+    throw new ImportPreviewMismatchError();
+  }
   const connection = await (
     options.connectionFactory ?? createImportConnection
   )();

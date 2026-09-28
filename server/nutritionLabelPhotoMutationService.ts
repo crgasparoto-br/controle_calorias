@@ -22,7 +22,7 @@ export async function markNutritionLabelPhotoReceived(input: {
   const updated = await updateCandidate(artifact, {
     photoReceivedAt: nowIso(),
     status:
-      artifact.value.status === "published" ? "published" : "pending_review",
+      artifact.value.status === "published" ? "published" : "photo_received",
   });
   await recordCandidateAudit({
     candidateId: artifact.id,
@@ -91,6 +91,18 @@ export async function applyNutritionLabelPhotoToCandidate(input: {
 }) {
   const artifact = await findCandidateArtifact(input.candidateId);
   if (!artifact || artifact.value.userId !== input.userId) return null;
+  await updateCandidate(artifact, {
+    status: "processing",
+    photoReceivedAt: nowIso(),
+  });
+  await recordCandidateAudit({
+    candidateId: artifact.id,
+    identityKey: artifact.value.identityKey,
+    action: "processing",
+    actorUserId: input.userId,
+    detail:
+      "Processamento canônico de OCR/IA iniciado; o candidato continua fora do catálogo ativo.",
+  });
   const candidate = toCandidate({
     userId: input.userId,
     mealId: artifact.value.mealId,
@@ -98,7 +110,20 @@ export async function applyNutritionLabelPhotoToCandidate(input: {
     sourceText: input.sourceText ?? artifact.value.sourceText,
     item: input.item,
   });
-  if (!candidate) return null;
+  if (!candidate) {
+    await updateCandidate(artifact, {
+      status: "evidence_unreadable",
+    });
+    await recordCandidateAudit({
+      candidateId: artifact.id,
+      identityKey: artifact.value.identityKey,
+      action: "evidence_unreadable",
+      actorUserId: input.userId,
+      detail:
+        "Evidência incompleta ou ilegível; nenhum nutriente foi inventado e nova revisão é necessária.",
+    });
+    return null;
+  }
   const updated = await updateCandidate(artifact, {
     ...candidate,
     identityKey: artifact.value.identityKey,

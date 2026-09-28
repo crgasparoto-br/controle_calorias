@@ -16,6 +16,7 @@ import {
 } from "./legacyDeletion";
 import type {
   AdminCatalogFoodCurationInput,
+  AdminCatalogFoodSearchInput,
   CatalogFoodFavoriteInput,
   CatalogFoodRecentInput,
   CatalogFoodSearchInput,
@@ -414,6 +415,85 @@ export async function searchGlobalFoodCatalog(
   );
 
   return rows.map(row => mapCatalogFood(row));
+}
+
+export async function searchAdminFoodCatalog(input: AdminCatalogFoodSearchInput) {
+  const db = await getCatalogDb();
+  const normalizedQuery = normalizeCatalogSearchTerm(input.query);
+  const likeQuery = `%${normalizedQuery}%`;
+  const conditions: SQL[] = [sql`1 = 1`];
+  if (normalizedQuery) {
+    conditions.push(sql`(
+      f.normalized_name LIKE ${likeQuery}
+      OR f.brand_name LIKE ${likeQuery}
+      OR EXISTS (
+        SELECT 1 FROM food_aliases fa
+        WHERE fa.food_id = f.id AND fa.normalized_alias LIKE ${likeQuery}
+      )
+    )`);
+  }
+  if (input.sourceSlug) conditions.push(sql`fs.slug = ${input.sourceSlug}`);
+  if (input.sourceVersion)
+    conditions.push(sql`fs.version = ${input.sourceVersion}`);
+  if (input.status !== "all") conditions.push(sql`f.status = ${input.status}`);
+  if (input.foodType === "branded")
+    conditions.push(sql`f.brand_name IS NOT NULL AND f.brand_name <> ''`);
+  if (input.foodType === "generic")
+    conditions.push(sql`(f.brand_name IS NULL OR f.brand_name = '')`);
+  const where = sql.join(conditions, sql` AND `);
+  const offset = (input.page - 1) * input.pageSize;
+  const baseSelect = sql`
+    FROM foods f
+    LEFT JOIN food_sources fs ON fs.id = f.source_id
+    WHERE ${where}
+  `;
+  const countRows = extractRows<{ total: number }>(
+    await db.execute(sql`SELECT COUNT(*) AS total ${baseSelect}`)
+  );
+  const rows = extractRows<CatalogFoodRow>(
+    await db.execute(sql`
+      SELECT
+        f.id AS id,
+        f.owner_user_id AS ownerUserId,
+        f.source_id AS sourceId,
+        fs.slug AS sourceSlug,
+        fs.name AS sourceName,
+        fs.version AS sourceVersion,
+        f.source_food_code AS sourceFoodCode,
+        f.name AS name,
+        f.normalized_name AS normalizedName,
+        f.brand_name AS brandName,
+        f.category AS category,
+        f.description AS description,
+        f.status AS status,
+        f.merged_into_food_id AS mergedIntoFoodId,
+        f.calories_kcal_per_100g AS caloriesKcalPer100g,
+        f.protein_grams_per_100g AS proteinGramsPer100g,
+        f.carbs_grams_per_100g AS carbsGramsPer100g,
+        f.fat_grams_per_100g AS fatGramsPer100g,
+        f.fiber_grams_per_100g AS fiberGramsPer100g,
+        f.sugar_grams_per_100g AS sugarGramsPer100g,
+        f.sodium_mg_per_100g AS sodiumMgPer100g,
+        f.nutrients_json AS nutrientsJson,
+        CASE WHEN f.owner_user_id IS NULL THEN 1 ELSE 0 END AS isGlobal,
+        0 AS isFavorite,
+        0 AS usageCount,
+        NULL AS lastUsedAt
+      ${baseSelect}
+      ORDER BY
+        CASE f.status WHEN 'active' THEN 0 WHEN 'deprecated' THEN 1 ELSE 2 END,
+        f.name ASC
+      LIMIT ${input.pageSize} OFFSET ${offset}
+    `)
+  );
+  const total = Number(countRows[0]?.total ?? 0);
+  return {
+    items: rows.map(row => mapCatalogFood(row)),
+    total,
+    page: input.page,
+    pageSize: input.pageSize,
+    totalPages: Math.max(1, Math.ceil(total / input.pageSize)),
+  };
 }
 
 export async function getGlobalFoodCatalogItem(userId: number, foodId: number) {

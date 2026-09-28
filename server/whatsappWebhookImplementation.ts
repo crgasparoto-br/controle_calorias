@@ -1093,6 +1093,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           sourceText: processed.sourceText,
           captionText: getOriginalInboundText(req, message),
           sourceMessageId: message.id,
+          evidence: prepared.media.find(media => media.mediaType === "image") ?? null,
         });
         if (nutritionLabelResult.handled) {
           logInferenceEvent({

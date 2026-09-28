@@ -10,6 +10,7 @@ import {
   type NutritionLabelPhotoClarificationCandidate,
   type NutritionLabelPhotoClarificationTarget,
   type NutritionLabelPhotoRequestTarget,
+  persistNutritionLabelEvidenceReference,
 } from "./nutritionLabelCandidateService";
 import {
   applyNutritionLabelClarificationCandidate,
@@ -239,6 +240,12 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
   sourceText?: string | null;
   captionText?: string | null;
   sourceMessageId?: string | null;
+  evidence?: {
+    storageKey: string;
+    storageUrl?: string | null;
+    mimeType: string;
+    originalFileName?: string | null;
+  } | null;
 }) {
   const allOperations = await listActiveNutritionLabelOperations(input.userId);
   const activeClarification = allOperations.find(operation =>
@@ -262,7 +269,41 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
     isNutritionLabelPhotoRequestTarget(operation.target)
   );
   if (!requests.length) return { handled: false as const };
+  const evidenceReference =
+    input.evidence && input.sourceMessageId
+      ? await persistNutritionLabelEvidenceReference({
+          userId: input.userId,
+          sourceMessageId: input.sourceMessageId,
+          storageKey: input.evidence.storageKey,
+          storageUrl: input.evidence.storageUrl,
+          mimeType: input.evidence.mimeType,
+          originalFileName: input.evidence.originalFileName,
+        })
+      : null;
+  if (evidenceReference?.status === "pending_review") {
+    return {
+      handled: true as const,
+      action: "nutrition_label_photo_already_processed",
+      reply:
+        "Essa foto já foi processada e permanece aguardando revisão administrativa. Não apliquei a evidência novamente.",
+      eventType: "whatsapp.nutrition_label_photo.duplicate",
+      detail: "Hash da evidência já estava em revisão; redelivery ignorado.",
+    };
+  }
   if (!isValidNutritionLabelEvidence(input.item)) {
+    if (evidenceReference) {
+      await persistNutritionLabelEvidenceReference(
+        {
+          userId: input.userId,
+          sourceMessageId: input.sourceMessageId!,
+          storageKey: input.evidence!.storageKey,
+          storageUrl: input.evidence!.storageUrl,
+          mimeType: input.evidence!.mimeType,
+          originalFileName: input.evidence!.originalFileName,
+        },
+        "evidence_unreadable"
+      );
+    }
     return {
       handled: true as const,
       action: "nutrition_label_photo_unreadable",
@@ -273,6 +314,40 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
         "Evidência nutrition_label incompleta; nenhuma pendência foi consumida.",
     };
   }
+
+  if (evidenceReference && input.evidence && input.sourceMessageId) {
+    await persistNutritionLabelEvidenceReference(
+      {
+        userId: input.userId,
+        sourceMessageId: input.sourceMessageId,
+        storageKey: input.evidence.storageKey,
+        storageUrl: input.evidence.storageUrl,
+        mimeType: input.evidence.mimeType,
+        originalFileName: input.evidence.originalFileName,
+      },
+      "processing"
+    );
+  }
+  const updateEvidenceStatus = async (
+    status:
+      | "pending_review"
+      | "error_retryable"
+      | "evidence_unreadable"
+      | "identity_conflict"
+  ) => {
+    if (!input.evidence || !input.sourceMessageId) return;
+    await persistNutritionLabelEvidenceReference(
+      {
+        userId: input.userId,
+        sourceMessageId: input.sourceMessageId,
+        storageKey: input.evidence.storageKey,
+        storageUrl: input.evidence.storageUrl,
+        mimeType: input.evidence.mimeType,
+        originalFileName: input.evidence.originalFileName,
+      },
+      status
+    );
+  };
 
   const labelItem = input.item;
   const candidates = await buildNutritionLabelClarificationCandidates(
@@ -357,6 +432,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
       selected
     ) > 0;
   if (conflict || !explicitOriginalIdentity) {
+    await updateEvidenceStatus("identity_conflict");
     const clarification = await createNutritionLabelPhotoClarification({
       userId: input.userId,
       candidates: [selected],
@@ -404,16 +480,18 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
       sourceText: input.sourceText,
     });
     if (!updated) {
+      await updateEvidenceStatus("error_retryable");
       return {
         handled: true as const,
         action: "nutrition_label_photo_stale_item",
         reply:
           "O item mudou desde a solicitação do rótulo e não foi alterado novamente.",
-        eventType: "whatsapp.nutrition_label_photo.stale_item",
-        detail:
-          "Item não preservou identidade/estado provisório esperado após claim.",
+      eventType: "whatsapp.nutrition_label_photo.stale_item",
+      detail:
+        "Item não preservou identidade/estado provisório esperado após claim.",
       };
     }
+    await updateEvidenceStatus("pending_review");
     return {
       handled: true as const,
       action: "nutrition_label_photo_applied",
@@ -426,6 +504,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
         "Rótulo correlacionado por usuário, pendência e identidade após claim compare-and-set.",
     };
   } catch (error) {
+    await updateEvidenceStatus("error_retryable");
     const recovery = await createNutritionLabelPhotoClarification({
       userId: input.userId,
       candidates: [
