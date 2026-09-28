@@ -2,255 +2,59 @@
   "schema_version": 1,
   "escapes": [
     {
-      "escape_id": "ESC-AUD-1210-BUILD-001",
+      "escape_id": "A-001",
       "status": "passed",
-      "escape_class": "deterministic-type-gate-escape",
+      "escape_class": "delivery-readiness/inherited-base-artifact",
+      "plausible_wrong_implementation": "Treat a byte-identical certificate from the develop base as current evidence for a different pull request and skip target binding.",
+      "required_risk_families": [
+        "semantic-effect",
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "semantic-effect",
+          "surface": "countable-unit-resolution",
+          "dimension": "escape-1"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "escape-1"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-001-S1",
+          "status": "passed",
+          "surface": "base-artifact-inheritance",
+          "dimension": "foreign-target-reuse",
+          "evidence": "The binding preflight identified the inherited PR 1228 subject as foreign."
+        },
+        {
+          "id": "A-001-S2",
+          "status": "passed",
+          "surface": "result-only-publication",
+          "dimension": "exact-sha-child",
+          "evidence": "The terminal simulation requires a direct result-only child whose parent is the material head."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "The current package is rebuilt from a fresh target snapshot and the builder is bound to PR 1233, base develop, and material head bfe1ccff."
+      },
+      "detection_change": {
+        "evidence": "The delivery target binding and terminal handoff validators are run against the exact base/head and reject inherited or foreign identity artifacts."
+      },
+      "revalidated_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
       "source_audit": {
-        "rejection_id": "audit-rejection:pr1210-ts-compile-001",
-        "audit_report_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+        "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
+        "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
         "finding_ids": [
-          "AUD-1210-BUILD-001"
+          "A-001"
         ]
       },
-      "plausible_wrong_implementation": "Runtime-transpiled tests can pass while a newly introduced error literal remains absent from the effective TypeScript union.",
-      "sibling_cases": [
-        {
-          "id": "ESC-S1",
-          "status": "passed",
-          "surface": "normal-webhook-type-boundary"
-        },
-        {
-          "id": "ESC-S2",
-          "status": "passed",
-          "surface": "annotated-webhook-type-boundary"
-        }
-      ],
-      "prevention_change": {
-        "status": "passed",
-        "evidence": "pnpm check is a required final gate and the canonical error union/schema now share the literal."
-      },
-      "detection_change": {
-        "status": "passed",
-        "evidence": "The exact failed command pnpm check was replayed at 701f8f92 with exit 0."
-      },
-      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
-      "required_risk_families": [
-        "structural-contract",
-        "idempotency"
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "relational-semantic-integrity",
-          "dimension": "canonical-write-binding"
-        },
-        {
-          "risk_family": "idempotency",
-          "surface": "duplicate-processing",
-          "dimension": "restart-or-replay"
-        }
-      ],
       "literal_case": {
-        "status": "passed",
-        "observed": "The exact-head typecheck reaches both WhatsApp entrypoints and exits 0 without TS2367."
+        "observed": "Current candidate material head is bfe1ccffa43712d3816141cbe6a4e4369e31c2a3; the stale base certificate is historical and is not included as current evidence."
       }
-    },
-    {
-      "escape_id": "AUDESC-COMMERCIAL-IDENTITY-PARTIAL-MATCH-001",
-      "escape_class": "commercial-identity-partial-match",
-      "source_audit": {
-        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
-        "rejection_id": "audit-rejection:ee6f493cc3407c30",
-        "finding_id": "AUD-1175-SAME-BRAND-PRODUCT-001",
-        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
-      },
-      "plausible_wrong_implementation": "Treat one matching commercial identity field such as brand as sufficient and apply evidence from a different product that shares that brand.",
-      "literal_case": {
-        "procedure": "Send evidence for a different product from the same brand while the original pending item remains active.",
-        "expected": "Mutation is blocked and product-specific clarification is persisted.",
-        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
-        "status": "passed",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "sibling_cases": [
-        {
-          "id": "different-brand-same-category",
-          "surface": "commercial-identity-validation",
-          "dimension": "different-brand-same-category",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-        },
-        {
-          "id": "same-brand-same-product",
-          "surface": "commercial-identity-validation",
-          "dimension": "same-brand-same-product-compatible",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "commercial-identity-validation",
-          "dimension": "same-brand-different-product"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "clarification-resolution",
-          "dimension": "brand-only-cannot-resolve-product-conflict"
-        }
-      ],
-      "prevention_change": {
-        "skill_or_code": "Product-aware label identity comparison and conflict-resolution guard",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "detection_change": {
-        "skill_or_gate": "Exact-head same-brand different-product regression",
-        "control_id": "NEG-068-01",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "trigger_terms": [
-        "partial commercial identity match",
-        "same brand different product",
-        "identity conflict"
-      ],
-      "required_risk_families": [
-        "structural-contract"
-      ],
-      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
-      "status": "passed"
-    },
-    {
-      "escape_id": "AUDESC-CONTINUATION-OUTBOUND-WITHOUT-DURABLE-STATE-001",
-      "escape_class": "continuation-outbound-without-durable-state",
-      "source_audit": {
-        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
-        "rejection_id": "audit-rejection:ee6f493cc3407c30",
-        "finding_id": "AUD-1175-ORPHAN-LABEL-CONTINUATION-002",
-        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
-      },
-      "plausible_wrong_implementation": "Continue sending an actionable follow-up invitation after durable pending-state persistence fails, producing an orphaned later response.",
-      "literal_case": {
-        "procedure": "Force pending-operation creation to return no durable state after the provisional meal is saved.",
-        "expected": "Keep provisional values but suppress the actionable invitation to send a later label.",
-        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
-        "status": "passed",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "sibling_cases": [
-        {
-          "id": "partial-multi-item-persistence",
-          "surface": "pending-lifecycle-window",
-          "dimension": "partial-multi-item-persistence",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-        },
-        {
-          "id": "persistence-available-control",
-          "surface": "canonical-continuation-path",
-          "dimension": "durable-state-retains-invite",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "temporal-consistency",
-          "surface": "pending-lifecycle-window",
-          "dimension": "persistence-failure-suppresses-invite"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "canonical-continuation-path",
-          "dimension": "partial-persistence-fail-closed"
-        }
-      ],
-      "prevention_change": {
-        "skill_or_code": "Outbound reply receives durable-continuation availability and fails closed when persistence is incomplete",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "detection_change": {
-        "skill_or_gate": "Exact-head webhook and reply-template persistence-failure regression",
-        "control_id": "NEG-061-01",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/exact-head-remediation.txt"
-      },
-      "trigger_terms": [
-        "persist before outbound",
-        "durable continuation",
-        "orphaned follow-up"
-      ],
-      "required_risk_families": [
-        "temporal-consistency",
-        "structural-contract"
-      ],
-      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
-      "status": "passed"
-    },
-    {
-      "escape_id": "AUDESC-RISK-FAMILY-LEXICAL-MISS-001",
-      "escape_class": "risk-family-lexical-classification-gap",
-      "source_audit": {
-        "head_sha": "9a563012ff92e9ca41e0679046706f9fb70239ff",
-        "rejection_id": "audit-rejection:ee6f493cc3407c30",
-        "finding_id": "AUD-1175-CONCURRENCY-SATURATION-003",
-        "audit_report_sha256": "fc30f733490434f205879899ba156b68cc0b108d04ae90bc2047345765d0524b"
-      },
-      "plausible_wrong_implementation": "Use a narrow lexical classifier that fails to recognize a normative concurrent-response clause and therefore marks a required risk family not applicable.",
-      "literal_case": {
-        "procedure": "Classify a clause with two concurrent responses and a single valid conclusion.",
-        "expected": "Concurrency-atomicity is material and receives an exact-head adversarial control.",
-        "observed": "The inherited escape remains represented and revalidated on exact material head 872873d8b2cf85579aceab0c52d0b15d73374b19.",
-        "status": "passed",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
-      },
-      "sibling_cases": [
-        {
-          "id": "concurrent-callbacks",
-          "surface": "concurrent-resolution",
-          "dimension": "concurrent-callbacks",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
-        },
-        {
-          "id": "simultaneous-messages",
-          "surface": "risk-classification",
-          "dimension": "simultaneous-messages",
-          "status": "passed",
-          "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
-        }
-      ],
-      "required_attack_dimensions": [
-        {
-          "risk_family": "concurrency-atomicity",
-          "surface": "concurrent-resolution",
-          "dimension": "parallel-responses"
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "risk-classification",
-          "dimension": "concurrency-language-detection"
-        }
-      ],
-      "prevention_change": {
-        "skill_or_code": "Generic risk-family inference vocabulary recognizes response-like concurrent actors",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
-      },
-      "detection_change": {
-        "skill_or_gate": "Lexical precision and saturation regression suite",
-        "control_id": "NEG-054-02",
-        "evidence": ".audit/entregar-issue/reaudit-current/evidence/skill-risk-inference-remediation.txt"
-      },
-      "trigger_terms": [
-        "concurrent responses",
-        "parallel callbacks",
-        "simultaneous messages"
-      ],
-      "required_risk_families": [
-        "concurrency-atomicity",
-        "structural-contract"
-      ],
-      "revalidated_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
-      "status": "passed"
     }
   ]
 }

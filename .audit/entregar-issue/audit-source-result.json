@@ -1,31 +1,29 @@
 {
   "schema_version": 1,
-  "status": "REPROVADA",
-  "rejection_id": "audit-rejection:pr1210-ts-compile-001",
-  "head_sha": "eac10829b6c638b62e6a058880d2af11249a4575",
+  "status": "REJECTED",
+  "decision": "REJECTED",
+  "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
+  "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
-    "issue_number": 1177,
-    "pull_request_number": 1210,
-    "base_sha": "d2694865185aadd8c8e5e86b8dec7374a3b26fc2",
-    "head_sha": "eac10829b6c638b62e6a058880d2af11249a4575"
+    "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+    "base_sha": "05c019abb8d926648934ccb6c2c79d88978931e0",
+    "pull_request": 1233,
+    "base_ref": "develop",
+    "head_ref": "fix/egg-unit-and-natural-fruit-identity"
   },
   "findings": [
     {
-      "id": "AUD-1210-BUILD-001",
+      "id": "A-001",
+      "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "failed_gate": {
-        "name": "pnpm check",
-        "command": "pnpm check",
-        "deterministic": true,
-        "subject_sha": "eac10829b6c638b62e6a058880d2af11249a4575",
-        "observed_exit_code": 2,
-        "evidence_sha256": "5bfcaa317083efa3c8f55ae267a5a5c3e7fa604c37d9e2ca6701198f71c792e8"
-      }
+      "title": "Inherited handoff certificate belongs to another delivery target.",
+      "description": "The base branch contains a stale handoff for PR 1228; the current candidate needs a fresh exact-SHA certificate for PR 1233."
     }
   ],
-  "recommendations": []
+  "functional_requirements_status": "passed",
+  "transport": "certified-handoff"
 }
