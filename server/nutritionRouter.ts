@@ -149,6 +149,7 @@ import {
   removeMealGroup,
   saveMealGroupFavorite,
   updateMealGroup,
+  updateMealItem,
 } from "./modules/meals/groupOperations";
 import {
   confirmMeal,
@@ -178,6 +179,7 @@ import {
   saveFavoriteMealGroupSchema,
   saveFavoriteMealSchema,
   updateMealGroupSchema,
+  updateMealItemSchema,
   updateMealSchema,
 } from "./modules/meals/schemas";
 import {
@@ -829,6 +831,9 @@ export const nutritionRouter = router({
           occurredAt: toOwnerOccurredAt(dateTimeLocal, timeZone),
         });
       }),
+    updateItem: protectedProcedure
+      .input(updateMealItemSchema)
+      .mutation(async ({ ctx, input }) => updateMealItem(ctx.user.id, input)),
     updateGroup: protectedProcedure
       .input(updateMealGroupMutationSchema)
       .mutation(async ({ ctx, input }) => {

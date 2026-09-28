@@ -75,6 +75,8 @@ Alimentos criados pelo próprio usuário no catálogo legado podem ser removidos
 - Produto com marca/variante sem evidência específica não recebe macros genéricos ou estimativa da IA como composição exata.
 - Marca sem variante com múltiplas opções plausíveis gera clarificação antes de qualquer mutação.
 - Confirmação persiste refeição e itens com macros por item.
+- Na tela de registros, editar um alimento individual e trocar sua refeição move somente esse item; os demais itens do registro original mantêm sua classificação.
+- Quando o alimento movido for o único item do registro, o próprio registro é reclassificado, sem criar refeição vazia.
 - Erros de rascunho inexistente retornam mensagem amigável.
 - Alterações no fluxo rodam `pnpm agent:check`.
 
