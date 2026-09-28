@@ -59,6 +59,9 @@ const {
   isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
   parseNutritionLabelPhotoClarificationText,
+  recordNutritionLabelCandidates,
+  toCandidate,
+  updateNutritionLabelCandidate,
   resolveNutritionLabelPhotoClarificationText,
   resolveNutritionLabelPhotoEvidence,
 } = await import("./nutritionLabelCandidateService");
@@ -711,5 +714,156 @@ describe("nutrition label provisional WhatsApp flow", () => {
       })
     );
     expect(updateUserMealMock).not.toHaveBeenCalled();
+  });
+
+  it("persiste a URL da foto junto ao candidato global que entra na fila", async () => {
+    const evidenceReference = {
+      evidenceHash: "evidence-hash",
+      storageKey: "labels/evidence.jpg",
+      storageUrl: "https://storage.example/labels/evidence.jpg",
+      mimeType: "image/jpeg",
+      receivedAt: "2026-09-22T10:55:00.000Z",
+      status: "pending_review" as const,
+    };
+
+    const created = await recordNutritionLabelCandidates({
+      userId: 42,
+      mealId: 900,
+      sourceText: "Amendoim",
+      items: [labelItem],
+      itemIndexes: [0],
+      evidenceReference,
+    });
+
+    expect(created[0]?.evidenceReference).toEqual(evidenceReference);
+    expect(persistArtifactMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        kind: "nutrition_label_candidate",
+        value: expect.objectContaining({ evidenceReference }),
+      })
+    );
+  });
+
+  it("edita um candidato preservando a evidência original e devolvendo-o à revisão", async () => {
+    const candidate = toCandidate({
+      userId: 42,
+      mealId: 900,
+      itemIndex: 0,
+      sourceText: "Amendoim",
+      item: labelItem,
+    });
+    if (!candidate) throw new Error("fixture de candidato inválida");
+    candidate.evidenceReference = {
+      evidenceHash: "evidence-hash",
+      storageKey: "labels/evidence.jpg",
+      storageUrl: "https://storage.example/labels/evidence.jpg",
+      mimeType: "image/jpeg",
+      receivedAt: "2026-09-22T10:55:00.000Z",
+      status: "pending_review",
+    };
+    listArtifactsMock.mockResolvedValue([
+      {
+        id: 501,
+        scope: "global",
+        userId: null,
+        kind: "nutrition_label_candidate",
+        key: candidate.identityKey,
+        value: candidate,
+        version: "test",
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt,
+      },
+    ]);
+
+    const updated = await updateNutritionLabelCandidate({
+      candidateId: 501,
+      adminUserId: 7,
+      foodName: "Amendoim Japonês Dori",
+      canonicalName: "Amendoim Japonês Dori",
+      brand: "Dori",
+      productVariant: "Tradicional",
+      barcode: "7890000000000",
+      servingLabel: "50 g",
+      servingUnit: "g",
+      gramsPerServing: 50,
+      calories: 200,
+      protein: 8,
+      carbs: 16,
+      fat: 12,
+      fiber: 3,
+    });
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        id: 501,
+        foodName: "Amendoim Japonês Dori",
+        status: "pending_review",
+        extractionMethod: "manual",
+        evidenceReference: expect.objectContaining({
+          storageUrl: "https://storage.example/labels/evidence.jpg",
+        }),
+        nutritionOriginal: expect.objectContaining({ calories: 127 }),
+        nutritionPer100g: expect.objectContaining({
+          calories: 400,
+          fiber: 6,
+        }),
+      })
+    );
+    expect(persistArtifactMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        kind: "nutrition_label_candidate_audit",
+        value: expect.objectContaining({
+          action: "edited",
+          actorUserId: 7,
+          detail: expect.stringContaining("foodName"),
+        }),
+      })
+    );
+  });
+
+  it("não edita candidato já publicado", async () => {
+    const candidate = toCandidate({
+      userId: 42,
+      mealId: 900,
+      itemIndex: 0,
+      sourceText: "Amendoim",
+      item: labelItem,
+    });
+    if (!candidate) throw new Error("fixture de candidato inválida");
+    listArtifactsMock.mockResolvedValue([
+      {
+        id: 502,
+        scope: "global",
+        userId: null,
+        kind: "nutrition_label_candidate",
+        key: candidate.identityKey,
+        value: { ...candidate, status: "published" },
+        version: "test",
+        createdAt: candidate.createdAt,
+        updatedAt: candidate.updatedAt,
+      },
+    ]);
+    persistArtifactMock.mockClear();
+
+    await expect(
+      updateNutritionLabelCandidate({
+        candidateId: 502,
+        adminUserId: 7,
+        foodName: candidate.foodName,
+        canonicalName: candidate.canonicalName,
+        brand: candidate.brand,
+        productVariant: candidate.productVariant,
+        barcode: candidate.barcode ?? null,
+        servingLabel: candidate.servingLabel,
+        servingUnit: candidate.servingUnit,
+        gramsPerServing: candidate.gramsPerServing,
+        calories: candidate.calories,
+        protein: candidate.protein,
+        carbs: candidate.carbs,
+        fat: candidate.fat,
+        fiber: candidate.fiber ?? null,
+      })
+    ).rejects.toThrow("não pode ser editado");
+    expect(persistArtifactMock).not.toHaveBeenCalled();
   });
 });

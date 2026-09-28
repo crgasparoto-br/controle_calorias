@@ -19,7 +19,16 @@ const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 const mutateUpdateWhatsappTokenMock = vi.fn();
 const mutateRunFoodImportJobMock = vi.fn();
+const mutateUpdateNutritionLabelCandidateMock = vi.fn();
 const activityQueryInputMock = vi.fn();
+let nutritionLabelQueueData: any = {
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: 20,
+  totalPages: 1,
+  pendingTotal: 0,
+};
 
 vi.mock("@/components/DashboardLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) =>
@@ -45,6 +54,9 @@ vi.mock("@/lib/trpc", () => ({
         },
         whatsapp: {
           status: { invalidate: invalidateWhatsappStatusMock },
+        },
+        foods: {
+          catalogSearch: { invalidate: refetchFoodCatalogMock },
         },
       },
     }),
@@ -162,6 +174,40 @@ vi.mock("@/lib/trpc", () => ({
             },
           }),
         },
+        nutritionLabelReviewQueue: {
+          useQuery: () => ({
+            data: nutritionLabelQueueData,
+            isLoading: false,
+            isError: false,
+          }),
+        },
+        nutritionLabelCandidateAudits: {
+          useQuery: () => ({ data: [] }),
+        },
+        publishNutritionLabelCandidate: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        rejectNutritionLabelCandidate: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        requestNutritionLabelCandidatePhoto: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        rollbackNutritionLabelCandidate: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
+        updateNutritionLabelCandidate: {
+          useMutation: (options?: {
+            onSuccess?: () => Promise<void> | void;
+            onError?: (error: Error) => void;
+          }) => ({
+            isPending: false,
+            mutate: (input: unknown) => {
+              mutateUpdateNutritionLabelCandidateMock(input);
+              void options?.onSuccess?.();
+            },
+          }),
+        },
         updateWhatsappToken: {
           useMutation: (options?: {
             onSuccess?: () => Promise<void> | void;
@@ -207,6 +253,15 @@ describe("AdminPage", () => {
   beforeEach(() => {
     mutateUpdateWhatsappTokenMock.mockReset();
     mutateRunFoodImportJobMock.mockReset();
+    mutateUpdateNutritionLabelCandidateMock.mockReset();
+    nutritionLabelQueueData = {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      pendingTotal: 0,
+    };
     refetchFoodCatalogMock.mockClear();
     invalidateAdminOverviewMock.mockClear();
     invalidateAdminWhatsappTokenStatusMock.mockClear();
@@ -393,5 +448,78 @@ describe("AdminPage", () => {
     expect(screen.getByText("1 usuários encontrados")).toBeTruthy();
     expect(screen.getByText("Maria Profissional")).toBeTruthy();
     expect(screen.queryByText("Usuário Antigo")).toBeNull();
+  });
+
+  it("exibe a foto do rótulo ampliável e permite editar os dados do candidato", async () => {
+    nutritionLabelQueueData = {
+      items: [
+        {
+          id: 77,
+          foodName: "Amendoim Japonês Dori",
+          canonicalName: "Amendoim Japonês Dori",
+          brand: "Dori",
+          productVariant: "Tradicional",
+          barcode: null,
+          servingLabel: "25 g",
+          servingUnit: "g",
+          gramsPerServing: 25,
+          calories: 127,
+          protein: 4.5,
+          carbs: 9.8,
+          fat: 7.8,
+          fiber: null,
+          sourceEvidence: "Tabela nutricional da embalagem",
+          sourceConfidence: 0.95,
+          evidenceKind: "label_photo",
+          extractionMethod: "ocr",
+          evidenceReference: {
+            storageUrl: "https://storage.example/label.jpg",
+            mimeType: "image/jpeg",
+          },
+          nutritionOriginal: { servingLabel: "25 g" },
+          nutritionPer100g: { calories: 508 },
+          status: "pending_review",
+          publishedCatalogId: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      pendingTotal: 1,
+    };
+    const { default: AdminPage } = await import("./AdminPage");
+    const user = userEvent.setup();
+    render(React.createElement(AdminPage));
+    await user.click(screen.getByRole("tab", { name: "Atividades" }));
+
+    await user.click(screen.getByRole("button", { name: /Ampliar imagem/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("img", {
+        name: /Imagem ampliada do rótulo de Amendoim Japonês Dori/,
+      })
+    ).toBeTruthy();
+    await user.keyboard("{Escape}");
+
+    await user.click(
+      screen.getByRole("button", { name: "Editar informações" })
+    );
+    await user.clear(screen.getByLabelText("Calorias (kcal)"));
+    await user.type(screen.getByLabelText("Calorias (kcal)"), "140");
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => {
+      expect(mutateUpdateNutritionLabelCandidateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          candidateId: 77,
+          calories: 140,
+          foodName: "Amendoim Japonês Dori",
+        })
+      );
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      "Informações do candidato atualizadas para nova revisão."
+    );
   });
 });

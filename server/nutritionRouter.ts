@@ -6,6 +6,7 @@ import {
   listNutritionLabelCandidates,
   listNutritionLabelReviewQueue,
   listNutritionLabelCandidateAudits,
+  updateNutritionLabelCandidate,
   publishNutritionLabelCandidate,
   rejectNutritionLabelCandidate,
   requestNutritionLabelCandidatePhoto,
@@ -39,6 +40,7 @@ import {
 import {
   adminActivitiesSchema,
   nutritionLabelReviewQueueSchema,
+  updateNutritionLabelCandidateSchema,
   previewFoodImportJobSchema,
   publishFoodImportJobSchema,
   runFoodImportJobSchema,
@@ -1182,6 +1184,11 @@ export const nutritionRouter = router({
     nutritionLabelCandidateAudits: adminProcedure
       .input(z.object({ candidateId: z.number().int().positive() }))
       .query(async ({ input }) => listNutritionLabelCandidateAudits(input.candidateId)),
+    updateNutritionLabelCandidate: adminProcedure
+      .input(updateNutritionLabelCandidateSchema)
+      .mutation(async ({ ctx, input }) =>
+        updateNutritionLabelCandidate({ ...input, adminUserId: ctx.user.id })
+      ),
     publishNutritionLabelCandidate: adminProcedure
       .input(z.object({ candidateId: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => publishNutritionLabelCandidate({ ...input, adminUserId: ctx.user.id })),

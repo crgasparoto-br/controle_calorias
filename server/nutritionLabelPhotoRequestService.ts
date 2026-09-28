@@ -15,6 +15,7 @@ import {
   normalize,
   pendingOperationRepository,
   recordNutritionLabelCandidates,
+  type NutritionLabelEvidenceReference,
   type NutritionLabelPhotoClarificationCandidate,
   type NutritionLabelPhotoClarificationTarget,
   type NutritionLabelPhotoRequestTarget,
@@ -143,6 +144,7 @@ export async function applyNutritionLabelPhotoToMeal(input: {
   userId: number;
   item: MealDraftItem;
   expectedIdentityKey?: string | null;
+  evidenceReference?: NutritionLabelEvidenceReference | null;
 }) {
   const meal = (await listUserMeals(input.userId)).find(
     candidate => candidate.id === input.mealId
@@ -178,6 +180,7 @@ export async function applyNutritionLabelPhotoToMeal(input: {
     sourceText: meal.sourceText,
     items: [updatedItem],
     itemIndexes: [input.itemIndex],
+    evidenceReference: input.evidenceReference,
   });
 
   const updatedMeal = await updateUserMeal(
@@ -545,6 +548,7 @@ export async function applyNutritionLabelClarificationCandidate(input: {
   candidate: NutritionLabelPhotoClarificationCandidate;
   item: MealDraftItem;
   sourceText?: string | null;
+  evidenceReference?: NutritionLabelEvidenceReference | null;
 }) {
   if (
     Number.isInteger(input.candidate.mealId) &&
@@ -556,6 +560,7 @@ export async function applyNutritionLabelClarificationCandidate(input: {
       userId: input.userId,
       item: input.item,
       expectedIdentityKey: input.candidate.identityKey,
+      evidenceReference: input.evidenceReference,
     });
   }
   if (Number.isInteger(input.candidate.candidateId)) {
@@ -564,6 +569,7 @@ export async function applyNutritionLabelClarificationCandidate(input: {
       userId: input.userId,
       sourceText: input.sourceText,
       item: input.item,
+      evidenceReference: input.evidenceReference,
     });
   }
   return null;
