@@ -223,6 +223,85 @@ describe("issue #1088 — identidade comercial no fallback textual", () => {
   });
 
   it.each([
+    ["ovo frito", "frito"],
+    ["batata frita", "frita"],
+    ["ovos fritos", "fritos"],
+    ["batatas fritas", "fritas"],
+  ])("trata a flexão culinária %s como preparo, não como marca", (foodName, descriptor) => {
+    const hint = inferUnresolvedCommercialIdentityHint(foodName);
+
+    expect(hint).toBeNull();
+    expect(foodName).toContain(descriptor);
+  });
+
+  it("preserva frito na identidade genérica do pipeline em vez de degradar para ovo", async () => {
+    installAiFailure();
+
+    const result = await processMealInput({ text: "1 ovo frito" });
+    const item = result.items[0];
+
+    expect(item).toEqual(expect.objectContaining({
+      brand: null,
+      foodName: expect.stringMatching(/ovo.*frit/i),
+      source: expect.any(String),
+    }));
+    expect(result.semanticContract).toEqual(expect.objectContaining({
+      needsClarification: false,
+      items: [expect.objectContaining({
+        brand: null,
+        needsClarification: false,
+      })],
+    }));
+  });
+
+  it("preserva frita na identidade nutricional de batata frita", async () => {
+    installAiFailure();
+
+    const result = await processMealInput({ text: "100g batata frita" });
+    const item = result.items[0];
+
+    expect(item).toEqual(expect.objectContaining({
+      brand: null,
+      foodName: expect.stringMatching(/batata.*frit/i),
+    }));
+    expect(result.semanticContract.needsClarification).toBe(false);
+  });
+
+  it("preserva os itens distintos e o preparo frito em uma entrada multi-item", async () => {
+    installAiFailure();
+
+    const result = await processMealInput({
+      text: "50g tapioca, 1 ovo frito, 40g requeijão",
+    });
+    const friedItem = result.items.find(item => /ovo.*frit/i.test(item.foodName));
+
+    expect(result.items).toHaveLength(3);
+    expect(friedItem).toEqual(expect.objectContaining({
+      brand: null,
+      foodName: expect.stringMatching(/ovo.*frit/i),
+    }));
+    expect(result.semanticContract).toEqual(expect.objectContaining({
+      needsClarification: false,
+      items: expect.arrayContaining([
+        expect.objectContaining({ commercialName: expect.stringMatching(/tapioca/i) }),
+        expect.objectContaining({ commercialName: expect.stringMatching(/requeij/i) }),
+      ]),
+    }));
+  });
+
+  it("mantém a inferência dos demais itens em uma entrada composta", () => {
+    expect(inferUnresolvedCommercialIdentityHint("tapioca da terrinha")).toEqual({
+      brand: "Terrinha",
+      productVariant: null,
+    });
+    expect(inferUnresolvedCommercialIdentityHint("ovo frito")).toBeNull();
+    expect(inferUnresolvedCommercialIdentityHint("requeijão catupiry light")).toEqual({
+      brand: "Catupiry",
+      productVariant: "light",
+    });
+  });
+
+  it.each([
     "iogurte grego",
     "iogurte proteico",
     "iogurte cremoso",
