@@ -1,4 +1,4 @@
-# [bug][nutrition][whatsapp] Evitar que itens reconhecidos caiam no fallback genérico de 150 kcal
+<!-- specification_version: 2 -->
 
 ## Contexto
 
@@ -9,7 +9,46 @@ No teste operacional de 2026-09-25, uma refeição com itens comuns foi registra
 - requeijão — 40 g → 60 kcal / 2,4 g / 6 g / 2 g;
 - manteiga — 20 g → 30 kcal / 1,2 g / 3 g / 1 g.
 
-Esses valores não representam a composição dos alimentos e indicam que a estimativa genérica foi aceita como nutrição válida ou que a referência local não foi alcançada no caminho produtivo. O problema precisa ser corrigido sem substituir uma identidade comercial ambígua por uma média silenciosa.
+Esses valores não representam a composição dos alimentos e indicam que a estimativa genérica foi aceita como nutrição válida ou que a referência local não foi alcançada no caminho produtivo.
+
+A implementação deve partir da branch `develop`.
+
+## Nova evidência de produção — 2026-09-28
+
+Entrada no WhatsApp:
+
+```text
+185g melão dino
+```
+
+Resposta observada:
+
+```text
+Melão Dino — 185g
+277,5 kcal | P 11,1 g | C 27,8 g | G 9,3 g
+```
+
+Os números correspondem exatamente à assinatura do placeholder genérico `150/6/15/5` escalada para 185 g:
+
+- calorias: `185 × 150 / 100 = 277,5 kcal`;
+- proteína: `185 × 6 / 100 = 11,1 g`;
+- carboidratos: `185 × 15 / 100 = 27,75 g`;
+- gorduras: `185 × 5 / 100 = 9,25 g`.
+
+Esse caso amplia a regressão: o problema não afeta apenas itens como mussarela, presunto, requeijão ou manteiga. Um **alimento natural reconhecível**, com quantidade explícita, também pode cair no placeholder genérico mesmo quando o pipeline deveria preferir uma referência nutricional específica ou uma estimativa nutricional defensável e identificada como tal.
+
+## Fontes canônicas em `develop`
+
+A regra durável já está documentada e não deve ser duplicada por uma solução paralela:
+
+- `docs/design-docs/nutrition-engine.md`
+  - alimentos reconhecidos devem preferir referência local/TACO ou pesquisa verificada antes de usar estimativa;
+  - a assinatura `150 kcal / 6 P / 15 C / 5 G por 100 g` é um **placeholder de inferência, não evidência nutricional**;
+  - alimentos genéricos podem usar estimativa somente quando não houver referência melhor e com procedência adequada;
+  - produtos comerciais com identidade explícita permanecem fail-closed sem fonte compatível.
+- `docs/product-specs/meal-registration.md`
+  - inferência nutricional deve ser revisável e sua origem precisa ser distinguível;
+  - alimentos sem marca podem usar estimativa quando necessário, mas isso não transforma o placeholder `150/6/15/5` em referência nutricional específica.
 
 ## Objetivo
 
@@ -17,15 +56,110 @@ Garantir que o pipeline de texto e imagem:
 
 1. reutilize uma referência local/TACO ou uma fonte nutricional verificada quando ela existir;
 2. reconheça e descarte a assinatura `150/6/15/5` quando ela vier da inferência como placeholder genérico;
-3. preserve quantidade, unidade e gramatura ao escalar a referência;
-4. permaneça fail-closed para produto comercial sem variante/fonte verificável, solicitando clarificação em vez de inventar nutrição;
-5. só use o fallback genérico quando não houver referência segura, deixando a origem explícita.
+3. para alimento natural/genérico reconhecido, tente a cadeia nutricional canônica antes de aceitar qualquer estimativa;
+4. preserve quantidade, unidade e gramatura ao escalar a referência;
+5. permaneça fail-closed para produto comercial sem variante/fonte verificável, solicitando clarificação em vez de inventar nutrição;
+6. só use uma estimativa genérica quando não houver referência segura e quando a política canônica realmente permitir, deixando a origem explícita.
+
+## Escopo
+
+- Cobrir o caminho produtivo que transforma item reconhecido em composição nutricional.
+- Tratar tanto alimentos naturais/genéricos quanto produtos comerciais conforme as regras canônicas correspondentes.
+- Impedir que `150/6/15/5` sobreviva como se fosse composição específica de um alimento reconhecido quando existir fonte melhor ou quando o próprio valor tiver origem de placeholder.
+- Preservar quantidade explícita e escala proporcional.
+- Manter o comportamento fail-closed de identidade comercial.
+
+## Fora de escopo
+
+- Proibir toda estimativa nutricional para alimentos genéricos.
+- Cadastrar valores fixos específicos de melão, presunto, mussarela, requeijão ou manteiga apenas para fazer os testes passarem.
+- Criar um segundo resolvedor nutricional exclusivo do WhatsApp.
+- Relaxar a validação de marca/variante comercial.
+
+## Requisitos e invariantes
+
+### `must_behave`
+
+- Um alimento reconhecido com quantidade explícita deve tentar a melhor referência nutricional canônica disponível antes de qualquer fallback.
+- `185g melão dino` não pode concluir com `277,5 kcal / 11,1 P / 27,8 C / 9,3 G` quando esses valores forem apenas a assinatura `150/6/15/5` escalada.
+- Quando houver referência compatível para o alimento-base, o cálculo deve usar essa referência e escalar para a quantidade informada.
+- Se não houver referência melhor e a política permitir estimativa para alimento genérico, a origem deve permanecer explicitamente estimada e não pode ser apresentada como dado específico verificado.
+
+### `must_not_behave`
+
+- Não aceitar `150/6/15/5` como evidência nutricional específica apenas porque o item foi reconhecido.
+- Não corrigir o caso adicionando hardcode para `melão dino` ou para os itens já conhecidos da regressão.
+- Não degradar produto comercial para alimento genérico apenas para escapar da clarificação.
+
+### `must_reuse` / `must_be_single_source`
+
+- Reutilizar o resolvedor nutricional, matching local/TACO, pesquisa verificada e política de fallback já existentes.
+- A decisão de aceitar ou rejeitar o placeholder `150/6/15/5` deve permanecer na fronteira canônica do motor nutricional, não ser duplicada em formatter, webhook ou persistência.
+
+### `precedence_invariant`
+
+```text
+identidade + quantidade
+-> referência local/TACO compatível
+-> pesquisa/fonte verificável compatível
+-> estimativa permitida e explicitamente marcada
+-> clarificação quando exigida pela identidade comercial
+```
+
+O placeholder `150/6/15/5` nunca deve vencer uma referência nutricional canônica compatível.
+
+### `forbidden_implementation`
+
+Uma implementação que apenas adiciona `melão dino` ao catálogo ou cria um `if` para os alimentos observados pode fazer os casos conhecidos passarem, mas deixa a classe de erro intacta.
+
+**Controle discriminante:** incluir um segundo alimento natural reconhecido que não esteja hardcoded e comprovar que a mesma cadeia rejeita o placeholder e seleciona a fonte canônica apropriada.
+
+## Cenários obrigatórios
+
+| Entrada | Resultado esperado |
+| --- | --- |
+| `185g melão dino` | Não usa `150/6/15/5` escalado; resolve referência canônica compatível ou estimativa permitida com origem explícita. |
+| alimento natural reconhecido diferente de melão, sem hardcode | Mesmo comportamento sistêmico. |
+| mussarela / presunto | Não usa placeholder quando houver referência local/TACO compatível. |
+| requeijão / manteiga genéricos | Preferem referência compatível; se houver identidade comercial explícita sem fonte comprovada, seguem fail-closed. |
+| alimento realmente desconhecido e sem marca | Pode usar estimativa genérica somente quando a política canônica permitir e com procedência explícita. |
+| produto comercial sem fonte compatível | Clarificação antes de mutação; não usa placeholder genérico. |
 
 ## Critérios de aceite
 
-- Regressão automatizada para os caminhos textual e visual com mussarela e presunto, provando que o resultado não é `150/6/15/5` escalado.
-- Regressão para requeijão e manteiga, cobrindo referência local ou pesquisa nutricional verificada; sem confundir marca/variante comercial.
-- Controle negativo para alimento realmente desconhecido, que continua no fallback genérico explícito ou em clarificação quando houver identidade comercial.
-- Nenhum item visualmente identificado com baixa confiança pode bypassar a política de identidade/grounding.
-- `pnpm check`, testes focados, `pnpm test`, `pnpm build`, `pnpm agent:check`, `pnpm architecture:check`, `pnpm docs:check` e `git diff --check` verdes no candidato.
+- [ ] Existe regressão automatizada para `185g melão dino` provando que o resultado não é `277,5 kcal / 11,1 P / 27,8 C / 9,3 G` quando esses valores vierem do placeholder genérico.
+- [ ] O teste do melão atravessa a fronteira real de resolução nutricional; não injeta o item já resolvido depois do ponto que precisa ser validado.
+- [ ] Existe ao menos um segundo alimento natural reconhecido que prova ausência de hardcode específico para melão.
+- [ ] Regressões automatizadas para os caminhos textual e visual com mussarela e presunto provam que o resultado não é `150/6/15/5` escalado.
+- [ ] Regressões para requeijão e manteiga cobrem referência local/pesquisa nutricional verificada sem confundir marca/variante comercial.
+- [ ] Controle negativo para alimento realmente desconhecido continua permitindo fallback genérico explícito quando a política canônica permitir.
+- [ ] Produto comercial sem fonte compatível continua em clarificação fail-closed e não recebe macros genéricos.
+- [ ] Quantidade, unidade e gramatura são preservadas até o cálculo final.
+- [ ] Nenhum item visualmente identificado com baixa confiança pode bypassar a política de identidade/grounding.
+- [ ] A correção atua no mecanismo canônico, sem hardcode dos alimentos observados.
+- [ ] `pnpm check`, testes focados, `pnpm test`, `pnpm build`, `pnpm agent:check`, `pnpm architecture:check`, `pnpm docs:check` e `git diff --check` ficam verdes no candidato.
 
+## Considerações de testes
+
+Cobrir, no mínimo:
+
+1. `185g melão dino` pelo pipeline real;
+2. outro alimento natural reconhecido não hardcoded;
+3. mussarela e presunto com referência local/TACO;
+4. requeijão e manteiga;
+5. alimento realmente desconhecido e genérico;
+6. produto comercial com fonte ausente/incompatível;
+7. asserção explícita de que a assinatura `150/6/15/5` não foi aceita como evidência nutricional;
+8. preservação da quantidade e escala proporcional.
+
+## Impacto na documentação
+
+As fontes canônicas em `develop` já descrevem corretamente a precedência e classificam `150/6/15/5` como placeholder de inferência. **Não há mudança documental obrigatória se a implementação apenas restaurar esse contrato.**
+
+Atualizar documentação somente se a investigação mostrar que a política durável precisa mudar.
+
+## Prontidão
+
+**Pronta.**
+
+A nova evidência do melão confirma a classe sistêmica de falha e elimina a interpretação de que o defeito estaria restrito a alimentos processados ou comerciais.
