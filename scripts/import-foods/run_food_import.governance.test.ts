@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   FoodImportValidationError,
+  ImportPreviewMismatchError,
   SourceContentConflictError,
   importFoods,
+  previewFoods,
 } from "./run_food_import.ts";
 import { createSourceContentHash } from "./sourceFingerprint.ts";
 import type { ImportPayload } from "./types.ts";
@@ -147,6 +149,37 @@ function connectionFactory(connection: FakeConnection) {
 }
 
 describe("importFoods governance", () => {
+  it("gera prévia sem criar fonte, carga ou alimento", async () => {
+    const connection = new FakeConnection();
+    const report = await previewFoods(payload(food("preview")), {
+      connectionFactory: connectionFactory(connection),
+    });
+    expect(report).toMatchObject({
+      phase: "preview",
+      totalRows: 1,
+      validRows: 1,
+      invalidRows: 0,
+      canPublish: true,
+    });
+    expect(connection.beginCount).toBe(0);
+    expect(connection.statuses).toEqual([]);
+    expect(connection.sourceContentHash).toBeNull();
+    expect(connection.statements.some(statement => statement.includes("insert"))).toBe(false);
+    expect(connection.ended).toBe(true);
+  });
+
+  it("bloqueia publicação quando a prévia não corresponde ao conteúdo confirmado", async () => {
+    const connection = new FakeConnection();
+    await expect(
+      importFoods(payload(food("hash")), {
+        connectionFactory: connectionFactory(connection),
+        expectedPreviewHash: "0".repeat(64),
+      })
+    ).rejects.toBeInstanceOf(ImportPreviewMismatchError);
+    expect(connection.ended).toBe(false);
+    expect(connection.statements).toEqual([]);
+  });
+
   it("rejeita linha inválida antes de abrir a transação e registra falha sem publicar alimento", async () => {
     const connection = new FakeConnection();
     const invalid = payload(food("bad", -1));

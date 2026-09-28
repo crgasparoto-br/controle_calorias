@@ -95,6 +95,8 @@ type FoodCatalogItem = {
 };
 
 type FoodImportJob = "import_taco" | "import_tbca";
+type FoodCatalogStatus = "all" | "active" | "deprecated" | "merged";
+type FoodCatalogType = "all" | "generic" | "branded";
 
 type FoodImportReport = {
   sourceSlug: string;
@@ -110,6 +112,23 @@ type FoodImportReport = {
     existingFoodIds: number[];
   }>;
   errors: Array<{ sourceFoodCode?: string; name?: string; reason: string }>;
+};
+
+type FoodImportPreview = {
+  phase: "preview";
+  sourceSlug: string;
+  sourceVersion: string;
+  sourceContentHash: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  missingRequired: number;
+  duplicateCodes: string[];
+  unitConversionsApplied: number;
+  possibleDuplicates: FoodImportReport["possibleDuplicates"];
+  errors: FoodImportReport["errors"];
+  sourceConflict: boolean;
+  canPublish: boolean;
 };
 
 const AREA_LABELS: Record<AdminArea, string> = {
@@ -198,6 +217,15 @@ export default function AdminPage() {
     useState<FoodImportJob>("import_taco");
   const [foodImportFile, setFoodImportFile] = useState<File | null>(null);
   const [foodImportSourceVersion, setFoodImportSourceVersion] = useState("");
+  const [foodImportSourceReference, setFoodImportSourceReference] = useState("");
+  const [foodImportPreview, setFoodImportPreview] =
+    useState<FoodImportPreview | null>(null);
+  const [foodCatalogSource, setFoodCatalogSource] = useState("");
+  const [foodCatalogVersion, setFoodCatalogVersion] = useState("");
+  const [foodCatalogStatus, setFoodCatalogStatus] =
+    useState<FoodCatalogStatus>("all");
+  const [foodCatalogType, setFoodCatalogType] =
+    useState<FoodCatalogType>("all");
   const [foodImportReport, setFoodImportReport] =
     useState<FoodImportReport | null>(null);
 
@@ -255,22 +283,29 @@ export default function AdminPage() {
       })
     : { data: undefined, isLoading: false, isError: false };
 
-  const foodCatalog = trpc.nutrition.foods.catalogSearch?.useQuery?.(
-    {
-      query: foodCatalogQuery,
-      limit: 500,
-      includeInactive: true,
-    },
-    {
-      retry: false,
-    }
-  ) ?? {
-    data: [],
+  const adminFoodCatalogEndpoint = (
+    trpc.nutrition.admin as unknown as { foodCatalog?: { useQuery?: Function } }
+  ).foodCatalog;
+  const foodCatalog = adminFoodCatalogEndpoint?.useQuery
+    ? adminFoodCatalogEndpoint.useQuery(
+        {
+          query: foodCatalogQuery,
+          sourceSlug: foodCatalogSource,
+          sourceVersion: foodCatalogVersion,
+          status: foodCatalogStatus,
+          foodType: foodCatalogType,
+          page: foodCatalogPage,
+          pageSize: FOOD_CATALOG_PAGE_SIZE,
+        },
+        { retry: false, enabled: activeArea === "foods" }
+      )
+    : {
+        data: { items: [], total: 0, page: 1, pageSize: FOOD_CATALOG_PAGE_SIZE, totalPages: 1 },
     isLoading: false,
     isError: false,
     error: null,
     refetch: undefined,
-  };
+      };
 
   useEffect(() => {
     setAccessToken("");
@@ -278,7 +313,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     setFoodCatalogPage(1);
-  }, [foodCatalogQuery]);
+  }, [foodCatalogQuery, foodCatalogSource, foodCatalogVersion, foodCatalogStatus, foodCatalogType]);
 
   useEffect(() => {
     setActivityPage(1);
@@ -307,13 +342,18 @@ export default function AdminPage() {
       },
     });
 
-  const runFoodImportJob = trpc.nutrition.admin.runFoodImportJob?.useMutation?.(
+  const seedFoodImportJob = trpc.nutrition.admin.runFoodImportJob?.useMutation?.(
     {
       onSuccess: async report => {
-        setFoodImportReport(report as FoodImportReport);
-        toast.success(
-          `Carga concluída: ${formatCountPtBr(report.inserted)} inseridos e ${formatCountPtBr(report.updated)} atualizados.`
-        );
+        if ("inserted" in report) {
+          setFoodImportReport(report as FoodImportReport);
+          toast.success(
+            `Carga concluída: ${formatCountPtBr(report.inserted)} inseridos e ${formatCountPtBr(report.updated)} atualizados.`
+          );
+        } else {
+          setFoodImportPreview(report as FoodImportPreview);
+          toast.success("Prévia criada; nenhuma alteração foi publicada.");
+        }
         await foodCatalog.refetch?.();
       },
       onError: () => {
@@ -326,6 +366,46 @@ export default function AdminPage() {
       toast.error("A importação de alimentos não está disponível agora."),
   };
 
+  const previewFoodImportJob =
+    trpc.nutrition.admin.previewFoodImportJob?.useMutation?.({
+      onSuccess: (preview: FoodImportPreview) => {
+        setFoodImportPreview(preview);
+        setFoodImportReport(null);
+        toast.success(
+          preview.canPublish
+            ? "Prévia criada. Revise os alertas antes de publicar."
+            : "Prévia criada com bloqueios; corrija o arquivo antes de publicar."
+        );
+      },
+      onError: () => toast.error("Não foi possível validar o arquivo agora."),
+    }) ?? {
+      isPending: false,
+      mutate: () =>
+        toast.error("A prévia de importação não está disponível agora."),
+    };
+
+  const publishFoodImportJob =
+    trpc.nutrition.admin.publishFoodImportJob?.useMutation?.({
+      onSuccess: async (report: FoodImportReport) => {
+        setFoodImportReport(report);
+        setFoodImportPreview(null);
+        toast.success(
+          `Carga concluída: ${formatCountPtBr(report.inserted)} inseridos e ${formatCountPtBr(report.updated)} atualizados.`
+        );
+        await Promise.all([
+          foodCatalog.refetch?.(),
+          (utils.nutrition.admin as unknown as { foodCatalog?: { invalidate?: () => Promise<void> } })
+            .foodCatalog?.invalidate?.(),
+        ]);
+      },
+      onError: () =>
+        toast.error("A publicação não foi concluída; o catálogo ativo não foi considerado atualizado."),
+    }) ?? {
+      isPending: false,
+      mutate: () =>
+        toast.error("A publicação de importação não está disponível agora."),
+    };
+
   async function handleRunCsvImport() {
     if (!foodImportFile) {
       toast.error("Selecione um arquivo CSV antes de executar a importação.");
@@ -333,18 +413,44 @@ export default function AdminPage() {
     }
 
     const csvContent = await foodImportFile.text();
-    runFoodImportJob.mutate({
+    if (!foodImportSourceVersion.trim()) {
+      toast.error("Informe a versão da fonte antes de criar a prévia.");
+      return;
+    }
+    previewFoodImportJob.mutate({
       job: foodImportJob,
       csvContent,
       fileName: foodImportFile.name,
-      sourceVersion: foodImportSourceVersion.trim() || undefined,
+      sourceVersion: foodImportSourceVersion.trim(),
+      sourceReference: foodImportSourceReference.trim() || undefined,
+    });
+  }
+
+  async function handlePublishCsvImport() {
+    if (!foodImportFile || !foodImportPreview?.canPublish) return;
+    const csvContent = await foodImportFile.text();
+    publishFoodImportJob.mutate({
+      job: foodImportJob,
+      csvContent,
+      fileName: foodImportFile.name,
+      sourceVersion: foodImportSourceVersion.trim(),
+      sourceReference: foodImportSourceReference.trim() || undefined,
+      previewHash: foodImportPreview.sourceContentHash,
+      confirmPreview: true,
     });
   }
 
   const tokenStatus = whatsappTokenStatus.data ?? admin.data?.whatsappToken;
   const canSaveToken =
     accessToken.trim().length >= 20 && !updateWhatsappToken.isPending;
-  const foodCatalogItems = (foodCatalog.data ?? []) as FoodCatalogItem[];
+  const foodCatalogData = foodCatalog.data ?? {
+    items: [],
+    total: 0,
+    page: 1,
+    pageSize: FOOD_CATALOG_PAGE_SIZE,
+    totalPages: 1,
+  };
+  const foodCatalogItems = (foodCatalogData.items ?? []) as FoodCatalogItem[];
   const globalFoodCount = useMemo(
     () => foodCatalogItems.filter(food => food.scope === "global").length,
     [foodCatalogItems]
@@ -357,21 +463,15 @@ export default function AdminPage() {
     () => foodCatalogItems.filter(food => food.status !== "active").length,
     [foodCatalogItems]
   );
-  const foodCatalogTotalPages = Math.max(
-    1,
-    Math.ceil(foodCatalogItems.length / FOOD_CATALOG_PAGE_SIZE)
-  );
+  const foodCatalogTotalPages = Math.max(1, foodCatalogData.totalPages ?? 1);
   const foodCatalogPageStart = foodCatalogItems.length
-    ? (foodCatalogPage - 1) * FOOD_CATALOG_PAGE_SIZE + 1
+    ? (foodCatalogData.page - 1) * FOOD_CATALOG_PAGE_SIZE + 1
     : 0;
   const foodCatalogPageEnd = Math.min(
-    foodCatalogPage * FOOD_CATALOG_PAGE_SIZE,
-    foodCatalogItems.length
+    foodCatalogPageStart + foodCatalogItems.length - 1,
+    foodCatalogData.total
   );
-  const paginatedFoodCatalogItems = useMemo(() => {
-    const start = (foodCatalogPage - 1) * FOOD_CATALOG_PAGE_SIZE;
-    return foodCatalogItems.slice(start, start + FOOD_CATALOG_PAGE_SIZE);
-  }, [foodCatalogItems, foodCatalogPage]);
+  const paginatedFoodCatalogItems = foodCatalogItems;
 
   useEffect(() => {
     setFoodCatalogPage(currentPage =>
@@ -487,9 +587,15 @@ export default function AdminPage() {
               customFoodCount={customFoodCount}
               inactiveFoodCount={inactiveFoodCount}
               foodImportReport={foodImportReport}
+              foodImportPreview={foodImportPreview}
               foodImportJob={foodImportJob}
               foodImportFile={foodImportFile}
               foodImportSourceVersion={foodImportSourceVersion}
+              foodImportSourceReference={foodImportSourceReference}
+              foodCatalogSource={foodCatalogSource}
+              foodCatalogVersion={foodCatalogVersion}
+              foodCatalogStatus={foodCatalogStatus}
+              foodCatalogType={foodCatalogType}
               foodCatalogQuery={foodCatalogQuery}
               foodCatalog={foodCatalog}
               paginatedFoodCatalogItems={paginatedFoodCatalogItems}
@@ -497,13 +603,22 @@ export default function AdminPage() {
               foodCatalogTotalPages={foodCatalogTotalPages}
               foodCatalogPageStart={foodCatalogPageStart}
               foodCatalogPageEnd={foodCatalogPageEnd}
-              runFoodImportJob={runFoodImportJob}
+              seedFoodImportJob={seedFoodImportJob}
+              previewFoodImportJob={previewFoodImportJob}
+              publishFoodImportJob={publishFoodImportJob}
               onFoodImportJobChange={setFoodImportJob}
               onFoodImportFileChange={setFoodImportFile}
               onFoodImportSourceVersionChange={setFoodImportSourceVersion}
+              onFoodImportSourceReferenceChange={setFoodImportSourceReference}
+              onFoodCatalogSourceChange={setFoodCatalogSource}
+              onFoodCatalogVersionChange={setFoodCatalogVersion}
+              onFoodCatalogStatusChange={setFoodCatalogStatus}
+              onFoodCatalogTypeChange={setFoodCatalogType}
               onFoodCatalogQueryChange={setFoodCatalogQuery}
               onFoodCatalogPageChange={setFoodCatalogPage}
               onRunCsvImport={handleRunCsvImport}
+              onPublishCsvImport={handlePublishCsvImport}
+              onOpenActivities={() => setActiveArea("activities")}
             />
           </TabsContent>
           <TabsContent value="settings">
@@ -862,6 +977,7 @@ function ActivitiesArea({
   const totalPages = data?.totalPages ?? 1;
   return (
     <section aria-labelledby="admin-activities-heading" className="space-y-4">
+      <NutritionLabelReviewQueue />
       <div>
         <p className="text-sm font-medium text-primary">
           Monitoramento administrativo
@@ -1232,9 +1348,15 @@ function FoodsArea({
   customFoodCount,
   inactiveFoodCount,
   foodImportReport,
+  foodImportPreview,
   foodImportJob,
   foodImportFile,
   foodImportSourceVersion,
+  foodImportSourceReference,
+  foodCatalogSource,
+  foodCatalogVersion,
+  foodCatalogStatus,
+  foodCatalogType,
   foodCatalogQuery,
   foodCatalog,
   paginatedFoodCatalogItems,
@@ -1242,14 +1364,30 @@ function FoodsArea({
   foodCatalogTotalPages,
   foodCatalogPageStart,
   foodCatalogPageEnd,
-  runFoodImportJob,
+  seedFoodImportJob,
+  previewFoodImportJob,
+  publishFoodImportJob,
   onFoodImportJobChange,
   onFoodImportFileChange,
   onFoodImportSourceVersionChange,
+  onFoodImportSourceReferenceChange,
+  onFoodCatalogSourceChange,
+  onFoodCatalogVersionChange,
+  onFoodCatalogStatusChange,
+  onFoodCatalogTypeChange,
   onFoodCatalogQueryChange,
   onFoodCatalogPageChange,
   onRunCsvImport,
+  onPublishCsvImport,
+  onOpenActivities,
 }: any) {
+  const hasFoodCatalogFilters = Boolean(
+    foodCatalogQuery.trim() ||
+      foodCatalogSource ||
+      foodCatalogVersion.trim() ||
+      foodCatalogStatus !== "all" ||
+      foodCatalogType !== "all"
+  );
   return (
     <div className="space-y-6">
       <div>
@@ -1258,15 +1396,15 @@ function FoodsArea({
           Base de alimentos
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Importação, revisão, busca e paginação permanecem disponíveis nesta
-          área.
+          Fontes, versões, importações e catálogo ativo permanecem disponíveis
+          aqui. A fila operacional de rótulos fica em Atividades.
         </p>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <IntroStat
           label="Itens carregados"
-          value={formatCountPtBr(foodCatalogItems.length)}
-          supporting="resultado atual da consulta"
+          value={formatCountPtBr(foodCatalog.data?.total ?? foodCatalogItems.length)}
+          supporting="resultado total dos filtros no backend"
         />
         <IntroStat
           label="Compartilhados"
@@ -1305,13 +1443,13 @@ function FoodsArea({
               </div>
               <Button
                 className="gap-2"
-                disabled={runFoodImportJob.isPending}
+                disabled={seedFoodImportJob.isPending}
                 onClick={() =>
-                  runFoodImportJob.mutate({ job: "seed_common_br" })
+                  seedFoodImportJob.mutate({ job: "seed_common_br" })
                 }
               >
                 <PlayCircle className="h-4 w-4" />
-                {runFoodImportJob.isPending
+                {seedFoodImportJob.isPending
                   ? "Carregando..."
                   : "Carregar base inicial"}
               </Button>
@@ -1345,7 +1483,7 @@ function FoodsArea({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="admin-food-import-version">
-                    Versão da fonte
+                    Versão da fonte (obrigatória)
                   </Label>
                   <Input
                     id="admin-food-import-version"
@@ -1357,6 +1495,19 @@ function FoodsArea({
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-food-import-reference">
+                  Origem / referência do arquivo
+                </Label>
+                <Input
+                  id="admin-food-import-reference"
+                  value={foodImportSourceReference}
+                  onChange={event =>
+                    onFoodImportSourceReferenceChange(event.target.value)
+                  }
+                  placeholder="ex.: TACO 2024 · arquivo oficial recebido"
+                />
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
                   {foodImportFile
@@ -1366,23 +1517,50 @@ function FoodsArea({
                 <Button
                   variant="outline"
                   className="gap-2"
-                  disabled={runFoodImportJob.isPending || !foodImportFile}
+                  disabled={previewFoodImportJob.isPending || !foodImportFile}
                   onClick={onRunCsvImport}
                 >
                   <Upload className="h-4 w-4" />
-                  {runFoodImportJob.isPending
-                    ? "Importando..."
-                    : "Importar arquivo"}
+                  {previewFoodImportJob.isPending ? "Validando..." : "Criar prévia"}
                 </Button>
+                {foodImportPreview?.canPublish ? (
+                  <Button
+                    className="gap-2"
+                    disabled={publishFoodImportJob.isPending}
+                    onClick={onPublishCsvImport}
+                  >
+                    <Check className="h-4 w-4" />
+                    {publishFoodImportJob.isPending
+                      ? "Publicando..."
+                      : "Confirmar e publicar"}
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>
+          {foodImportPreview ? (
+            <FoodImportPreviewSummary preview={foodImportPreview} />
+          ) : null}
           {foodImportReport ? (
             <FoodImportReportSummary report={foodImportReport} />
           ) : null}
         </CardContent>
       </Card>
-      <NutritionLabelCandidateReview />
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle>Revisão de rótulos</CardTitle>
+          <CardDescription>
+            A fila única de decisão está em Atividades. A Base mantém apenas a
+            consulta do catálogo ativo e das fontes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" className="gap-2" onClick={onOpenActivities}>
+            <Shield className="h-4 w-4" />
+            Abrir fila em Atividades
+          </Button>
+        </CardContent>
+      </Card>
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -1394,8 +1572,53 @@ function FoodsArea({
             usados nas buscas nutricionais. A consulta carrega até 500 itens e
             exibe 25 por página.
           </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </CardHeader>
+          <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <FilterSelect
+              id="admin-food-source-filter"
+              label="Fonte"
+              value={foodCatalogSource}
+              onChange={onFoodCatalogSourceChange}
+              options={[
+                { value: "", label: "Todas as fontes" },
+                { value: "taco", label: "TACO" },
+                { value: "tbca", label: "TBCA" },
+              ]}
+            />
+            <div className="space-y-2">
+              <Label htmlFor="admin-food-version-filter">Versão</Label>
+              <Input
+                id="admin-food-version-filter"
+                value={foodCatalogVersion}
+                onChange={event => onFoodCatalogVersionChange(event.target.value)}
+                placeholder="Todas as versões"
+              />
+            </div>
+            <FilterSelect
+              id="admin-food-status-filter"
+              label="Status"
+              value={foodCatalogStatus}
+              onChange={value => onFoodCatalogStatusChange(value as FoodCatalogStatus)}
+              options={[
+                { value: "all", label: "Todos os status" },
+                { value: "active", label: "Disponível" },
+                { value: "deprecated", label: "Indisponível" },
+                { value: "merged", label: "Mesclado" },
+              ]}
+            />
+            <FilterSelect
+              id="admin-food-type-filter"
+              label="Tipo"
+              value={foodCatalogType}
+              onChange={value => onFoodCatalogTypeChange(value as FoodCatalogType)}
+              options={[
+                { value: "all", label: "Todos os tipos" },
+                { value: "generic", label: "Genérico" },
+                { value: "branded", label: "Com marca" },
+              ]}
+            />
+          </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -1416,7 +1639,7 @@ function FoodsArea({
                 <p>
                   Exibindo {formatCountPtBr(foodCatalogPageStart)}-
                   {formatCountPtBr(foodCatalogPageEnd)} de{" "}
-                  {formatCountPtBr(foodCatalogItems.length)} itens carregados.
+                  {formatCountPtBr(foodCatalog.data?.total ?? foodCatalogItems.length)} itens no conjunto filtrado.
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1452,11 +1675,208 @@ function FoodsArea({
               </div>
             </div>
           ) : (
-            <FilteredEmptyState text="Nenhum alimento encontrado nesta consulta." />
+            <FilteredEmptyState
+              text={
+                hasFoodCatalogFilters
+                  ? "Nenhum alimento corresponde à combinação de filtros."
+                  : "O catálogo não possui itens disponíveis para esta consulta."
+              }
+              onClear={
+                hasFoodCatalogFilters
+                  ? () => {
+                      onFoodCatalogQueryChange("");
+                      onFoodCatalogSourceChange("");
+                      onFoodCatalogVersionChange("");
+                      onFoodCatalogStatusChange("all");
+                      onFoodCatalogTypeChange("all");
+                    }
+                  : undefined
+              }
+            />
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function NutritionLabelReviewQueue() {
+  const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const [detailsId, setDetailsId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [rejectId, setRejectId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const queueEndpoint = (
+    trpc.nutrition.admin as unknown as {
+      nutritionLabelReviewQueue?: { useQuery?: (input: any, options?: any) => any };
+    }
+  ).nutritionLabelReviewQueue;
+  if (!queueEndpoint?.useQuery) return null;
+  const utils = trpc.useUtils();
+  const queue = queueEndpoint.useQuery(
+    { status, page, pageSize: 20 },
+    { retry: false }
+  );
+  const auditsEndpoint = (
+    trpc.nutrition.admin as unknown as {
+      nutritionLabelCandidateAudits?: { useQuery?: (input: any, options?: any) => any };
+    }
+  ).nutritionLabelCandidateAudits;
+  const audits = auditsEndpoint?.useQuery
+    ? auditsEndpoint.useQuery(
+        { candidateId: detailsId ?? 0 },
+        { retry: false, enabled: detailsId != null }
+      )
+    : { data: [] };
+  const refresh = async () =>
+    Promise.all([
+      (utils.nutrition.admin as any).nutritionLabelReviewQueue?.invalidate?.(),
+      (utils.nutrition.admin as any).nutritionLabelCandidates?.invalidate?.(),
+      (utils.nutrition.admin as any).foodCatalog?.invalidate?.(),
+      utils.nutrition.foods.catalogSearch.invalidate(),
+    ]);
+  const publish = trpc.nutrition.admin.publishNutritionLabelCandidate.useMutation({
+    onSuccess: async () => {
+      setConfirmId(null);
+      toast.success("Atualização aprovada e publicada no catálogo global.");
+      await refresh();
+    },
+    onError: () => toast.error("A publicação não foi concluída; o candidato continua fora do catálogo ativo."),
+  });
+  const reject = trpc.nutrition.admin.rejectNutritionLabelCandidate.useMutation({
+    onSuccess: async () => {
+      setRejectId(null);
+      setRejectReason("");
+      toast.success("Candidato rejeitado com motivo registrado.");
+      await refresh();
+    },
+    onError: () => toast.error("Não foi possível rejeitar o candidato agora."),
+  });
+  const requestPhoto = trpc.nutrition.admin.requestNutritionLabelCandidatePhoto.useMutation({
+    onSuccess: async () => {
+      toast.success("Pedido de nova foto enviado pelo WhatsApp.");
+      await refresh();
+    },
+    onError: () => toast.error("Não foi possível solicitar nova foto; verifique o canal do usuário."),
+  });
+  const rollback = trpc.nutrition.admin.rollbackNutritionLabelCandidate.useMutation({
+    onSuccess: async () => {
+      toast.success("Publicação desativada por rollback.");
+      await refresh();
+    },
+    onError: () => toast.error("Não foi possível executar o rollback agora."),
+  });
+  const busy = publish.isPending || reject.isPending || requestPhoto.isPending || rollback.isPending;
+  const data = queue.data;
+  return (
+    <Card className="border-primary/20 shadow-sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-primary" />
+          Revisão de rótulos nutricionais
+          <Badge variant="secondary">{formatCountPtBr(data?.pendingTotal ?? 0)} pendentes</Badge>
+        </CardTitle>
+        <CardDescription>
+          Fila canônica de candidatos persistidos. O histórico de atividades abaixo
+          continua sendo somente log e não decide o estado do candidato.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="max-w-xs">
+          <FilterSelect
+            id="admin-label-review-status"
+            label="Estado da evidência"
+            value={status}
+            onChange={value => {
+              setStatus(value);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: "Todas as pendências" },
+              { value: "pending_review", label: "Pendente de revisão" },
+              { value: "photo_requested", label: "Foto solicitada" },
+              { value: "photo_received", label: "Foto recebida" },
+              { value: "processing", label: "Processando" },
+              { value: "error_retryable", label: "Erro reprocessável" },
+              { value: "evidence_unreadable", label: "Evidência ilegível" },
+              { value: "identity_conflict", label: "Conflito de identidade" },
+            ]}
+          />
+        </div>
+        {queue.isLoading ? (
+          <LoadingState text="Carregando fila de revisão..." />
+        ) : queue.isError ? (
+          <ErrorState text="Não foi possível carregar a fila de revisão agora." />
+        ) : data?.items?.length ? (
+          <div className="space-y-3">
+            {data.items.map((candidate: any) => (
+              <div key={candidate.id} className="rounded-2xl border bg-background p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{candidate.foodName}</p>
+                      <Badge variant="outline">{nutritionLabelCandidateStatusLabel(candidate.status)}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {candidate.brand || "sem marca"}{candidate.productVariant ? ` · ${candidate.productVariant}` : ""} · {candidate.servingLabel} ({candidate.gramsPerServing} g)
+                    </p>
+                    <p className="mt-1 text-sm">
+                      {formatNutritionValue(candidate.calories)} kcal · P {formatNutritionValue(candidate.protein)}g · C {formatNutritionValue(candidate.carbs)}g · G {formatNutritionValue(candidate.fat)}g
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Origem: {candidate.evidenceKind ?? "rótulo"} · método: {candidate.extractionMethod ?? "não informado"} · confiança: {Math.round((candidate.sourceConfidence ?? 0) * 100)}%
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {candidate.status !== "published" && candidate.status !== "rejected" && candidate.status !== "rolled_back" ? (
+                      <>
+                        {confirmId === candidate.id ? (
+                          <Button size="sm" disabled={busy} onClick={() => publish.mutate({ candidateId: candidate.id })}>
+                            Confirmar publicação
+                          </Button>
+                        ) : (
+                          <Button size="sm" disabled={busy || ["processing", "photo_received"].includes(candidate.status)} onClick={() => setConfirmId(candidate.id)}>
+                            <Check className="mr-1 h-3 w-3" /> Aprovar atualização
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => requestPhoto.mutate({ candidateId: candidate.id })}>
+                          <Camera className="mr-1 h-3 w-3" /> Nova foto
+                        </Button>
+                        {rejectId === candidate.id ? (
+                          <div className="flex min-w-[240px] gap-2">
+                            <Input aria-label="Motivo da rejeição" value={rejectReason} onChange={event => setRejectReason(event.target.value)} placeholder="Motivo obrigatório" />
+                            <Button size="sm" variant="destructive" disabled={busy || !rejectReason.trim()} onClick={() => reject.mutate({ candidateId: candidate.id, reason: rejectReason.trim() })}>Confirmar</Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejectId(candidate.id)}><X className="mr-1 h-3 w-3" /> Rejeitar</Button>
+                        )}
+                      </>
+                    ) : null}
+                    {candidate.status === "published" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => rollback.mutate({ candidateId: candidate.id })}><RotateCcw className="mr-1 h-3 w-3" /> Rollback</Button> : null}
+                    <Button size="sm" variant="ghost" onClick={() => setDetailsId(detailsId === candidate.id ? null : candidate.id)}>Ver detalhes</Button>
+                  </div>
+                </div>
+                {detailsId === candidate.id ? (
+                  <div className="mt-4 space-y-2 rounded-xl bg-muted/30 p-3 text-sm">
+                    <p><strong>Evidência:</strong> {candidate.sourceEvidence || "indisponível"}</p>
+                    <p><strong>Valor vigente:</strong> {candidate.publishedCatalogId ? `catálogo #${candidate.publishedCatalogId}; comparação detalhada disponível no histórico` : "não há publicação vigente"}</p>
+                    <p><strong>Original:</strong> {candidate.nutritionOriginal?.servingLabel ?? candidate.servingLabel}; normalizado por 100 g: {candidate.nutritionPer100g ? `${formatNutritionValue(candidate.nutritionPer100g.calories)} kcal` : "indisponível"}.</p>
+                    {audits.data?.length ? <ul className="list-disc pl-5">{audits.data.map((audit: any) => <li key={audit.id}>{audit.action} · {new Date(audit.createdAt).toLocaleString("pt-BR")} · {audit.detail}</li>)}</ul> : <p className="text-muted-foreground">Histórico de auditoria indisponível para este candidato.</p>}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            <div className="flex items-center justify-between rounded-2xl border bg-muted/20 p-3 text-sm">
+              <span>{formatCountPtBr(data.total)} candidatos · página {data.page} de {data.totalPages}</span>
+              <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Anterior</Button><Button size="sm" variant="outline" disabled={page >= data.totalPages} onClick={() => setPage(value => value + 1)}>Próxima</Button></div>
+            </div>
+          </div>
+        ) : (
+          <FilteredEmptyState text={status === "all" ? "Não há candidatos aguardando decisão." : "Nenhum candidato corresponde ao estado selecionado."} onClear={status === "all" ? undefined : () => setStatus("all")} />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1859,6 +2279,58 @@ function FoodImportReportSummary({ report }: { report: FoodImportReport }) {
   );
 }
 
+function FoodImportPreviewSummary({ preview }: { preview: FoodImportPreview }) {
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-medium tracking-tight">
+            Prévia {preview.sourceSlug.toUpperCase()} · versão {preview.sourceVersion}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {formatCountPtBr(preview.validRows)} válidas de {formatCountPtBr(preview.totalRows)} linhas ·{" "}
+            {formatCountPtBr(preview.invalidRows)} inválidas ·{" "}
+            {formatCountPtBr(preview.missingRequired)} com campos obrigatórios ausentes ·{" "}
+            {formatCountPtBr(preview.unitConversionsApplied)} conversões de unidade aplicadas.
+          </p>
+        </div>
+        <Badge variant={preview.canPublish ? "default" : "destructive"}>
+          {preview.canPublish ? "Pronta para confirmação" : "Publicação bloqueada"}
+        </Badge>
+      </div>
+      <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
+        Hash da prévia: {preview.sourceContentHash}
+      </p>
+      {preview.duplicateCodes.length ? (
+        <p className="mt-3 text-sm text-amber-700">
+          Códigos duplicados: {preview.duplicateCodes.join(", ")}.
+        </p>
+      ) : null}
+      {preview.possibleDuplicates.length ? (
+        <p className="mt-1 text-sm text-amber-700">
+          {formatCountPtBr(preview.possibleDuplicates.length)} possíveis duplicidades
+          com o catálogo precisam de revisão.
+        </p>
+      ) : null}
+      {preview.errors.length ? (
+        <div className="mt-3 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
+          <p className="font-medium">Erros que impedem ou exigem revisão</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {preview.errors.slice(0, 8).map((error, index) => (
+              <li key={`${error.sourceFoodCode ?? error.name ?? "erro"}-${index}`}>
+                {error.sourceFoodCode || error.name || "Carga"}: {error.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <p className="mt-3 text-xs text-muted-foreground">
+        A publicação usa este hash e falha se arquivo, origem ou versão forem alterados.
+      </p>
+    </div>
+  );
+}
+
 function FoodCatalogTable({ foods }: { foods: FoodCatalogItem[] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border">
@@ -1901,6 +2373,9 @@ function FoodCatalogTable({ foods }: { foods: FoodCatalogItem[] }) {
                 {food.source?.version ? (
                   <p className="text-xs">Versão: {food.source.version}</p>
                 ) : null}
+                <p className="text-xs">
+                  Evidência: {food.source ? "metadado da fonte disponível" : "não disponível"}
+                </p>
               </TableCell>
               <TableCell className="align-top">
                 <div className="flex flex-wrap gap-1.5">
@@ -2019,6 +2494,11 @@ function nutritionLabelCandidateStatusLabel(status: string) {
       {
         pending_review: "Pendente de revisão",
         photo_requested: "Foto solicitada",
+        photo_received: "Foto recebida",
+        processing: "Processando evidência",
+        error_retryable: "Erro reprocessável",
+        evidence_unreadable: "Evidência ilegível",
+        identity_conflict: "Conflito de identidade",
         published: "Publicado",
         rejected: "Rejeitado",
         rolled_back: "Em rollback",

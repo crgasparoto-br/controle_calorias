@@ -51,6 +51,7 @@ Exemplos principais:
 - `design-docs/manual-meal-catalog-search.md`
 - `design-docs/food-portions-household-measures.md`
 - `design-docs/custom-foods.md`
+- `design-docs/open-food-facts-provider.md`
 - `design-docs/whatsapp-conversation-context.md`
 - `design-docs/whatsapp-ingestion.md`
 - `design-docs/ai-observability-pricing.md`
@@ -69,6 +70,7 @@ Use `docs/testing/` para matrizes e roteiros de validação que precisam permane
 - `testing/whatsapp-conversation-context-regression.md` — matriz multicanal, profundidade, reinício, múltiplas instâncias, rollout e rollback do contexto persistente.
 - `testing/whatsapp-response-contract-regression.md` — inventário dos pontos de resposta/envio do WhatsApp e baseline de caracterização da migração para o contrato único (epic #779).
 - `testing/professional-legacy-retirement-regression.md` — inventário completo, substituições e matriz reproduzível da regressão final da Área Profissional (#815).
+- `testing/open-food-facts-sample-2026-09-28.md` — amostra sanitizada de EANs brasileiros e decisão de não habilitar o rollout (#1204).
 
 ## Documentação operacional e sensível
 

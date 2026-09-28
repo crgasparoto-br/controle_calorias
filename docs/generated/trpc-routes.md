@@ -19,12 +19,12 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `dashboard` | 2 | 2 | 0 | protected | Visão consolidada diária |
 | `goals` | 2 | 1 | 1 | protected | Leitura e atualização de metas |
 | `gamification` | 2 | 1 | 1 | protected | Configurações e estado de gamificação |
-| `foods` | 13 | 5 | 8 | protected | Catálogo, favoritos e busca de alimentos |
+| `foods` | 14 | 5 | 9 | protected | Catálogo, favoritos e busca de alimentos |
 | `meals` | 15 | 3 | 12 | protected | CRUD, rascunho, confirmação, favoritos e totais de refeições |
 | `exercises` | 4 | 1 | 3 | protected | Registro de exercícios |
 | `water` | 5 | 2 | 3 | protected | Meta e registros de água |
 | `reports` | 6 | 6 | 0 | protected | Relatórios semanais e insights |
-| `admin` | 12 | 5 | 7 | admin | Visão operacional administrativa |
+| `admin` | 16 | 7 | 9 | admin | Visão operacional administrativa |
 | `whatsapp` | 3 | 1 | 2 | protected | Status, vínculo e simulação inbound |
 | `professionalRecord` | 14 | 6 | 8 | professional-entitled | Prontuário, ciclo e metas profissionais oficiais |
 | `professionalRecord.messages` | 6 | 4 | 2 | professional-entitled | Mensagens profissionais e histórico do paciente |
@@ -143,6 +143,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `catalogSearch` | query | protected |
 | `catalogGet` | query | protected |
 | `catalogRecent` | query | protected |
+| `lookupOpenFoodFacts` | mutation | protected |
 | `catalogFavorite` | mutation | protected |
 | `customCreate` | mutation | protected |
 | `customUpdate` | mutation | protected |
@@ -208,12 +209,16 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | Procedure | Operação | Escopo |
 |---|---|---|
 | `overview` | query | admin |
+| `foodCatalog` | query | admin |
 | `activities` | query | admin |
 | `whatsappTokenStatus` | query | admin |
 | `updateWhatsappToken` | mutation | admin |
 | `runFoodImportJob` | mutation | admin |
+| `previewFoodImportJob` | mutation | admin |
+| `publishFoodImportJob` | mutation | admin |
 | `curateGlobalFood` | mutation | admin |
 | `nutritionLabelCandidates` | query | admin |
+| `nutritionLabelReviewQueue` | query | admin |
 | `nutritionLabelCandidateAudits` | query | admin |
 | `publishNutritionLabelCandidate` | mutation | admin |
 | `rejectNutritionLabelCandidate` | mutation | admin |
