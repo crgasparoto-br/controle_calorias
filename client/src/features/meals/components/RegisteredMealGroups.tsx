@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
@@ -396,7 +396,6 @@ export function RegisteredMealGroups({
   renderEditingForm,
 }: RegisteredMealGroupsProps) {
   const utils = trpc.useUtils();
-  const itemMutationActionRef = useRef<"save" | "delete">("save");
   const [editingItemTarget, setEditingItemTarget] = useState<RegisteredMealItemEditTarget | null>(null);
 
   const invalidateNutritionViews = async () => {
@@ -463,7 +462,6 @@ export function RegisteredMealGroups({
       return;
     }
 
-    itemMutationActionRef.current = "save";
     updateMealItem.mutate({
       mealId: editingItemTarget.meal.id,
       itemIndex: editingItemTarget.itemIndex,
@@ -477,7 +475,6 @@ export function RegisteredMealGroups({
       return;
     }
 
-    itemMutationActionRef.current = "delete";
 
     if (editingItemTarget.meal.items.length <= 1) {
       removeMealFromItemDialog.mutate({ mealId: editingItemTarget.meal.id });
