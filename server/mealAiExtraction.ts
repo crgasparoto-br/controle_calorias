@@ -169,6 +169,28 @@ function habitsToPrompt(habits: HabitSnapshot[] = []) {
     .join("\n");
 }
 
+function nutritionLabelIdentityContextToPrompt(
+  context: MealProcessingInput["nutritionLabelIdentityContext"]
+) {
+  if (!context) return null;
+  const identity = [
+    context.originalFoodName,
+    context.originalCanonicalName,
+    context.originalBrand,
+    context.originalProductVariant,
+  ]
+    .map(value => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(" ");
+  if (!identity) return null;
+  return [
+    "Continuação autorizada de uma solicitação de foto de rótulo nutricional já persistida.",
+    `Identidade comercial original do item pendente: ${identity}.`,
+    "Use essa identidade somente para correlacionar o rótulo posterior ao item já registrado; não crie uma nova refeição e não substitua a identidade persistida por outra variante.",
+  ].join("\n");
+}
+
 type MealExtraction = z.infer<typeof mealExtractionSchema>;
 
 async function callMealExtraction(
@@ -239,6 +261,9 @@ async function runMealExtractionWithPolicy(
 export async function extractWithAi(input: MealProcessingInput): Promise<z.infer<typeof mealExtractionSchema> | null> {
   const composedText = [input.text?.trim(), input.transcript?.trim()].filter(Boolean).join("\n");
   const suggestedMealLabel = input.suggestedMealLabel?.trim() || inferMealLabelByTime(input.occurredAt, input.timeZone);
+  const nutritionLabelIdentityPrompt = nutritionLabelIdentityContextToPrompt(
+    input.nutritionLabelIdentityContext
+  );
   const content: AiInputContentItem[] = [
     {
       type: "input_text",
@@ -248,6 +273,7 @@ export async function extractWithAi(input: MealProcessingInput): Promise<z.infer
         `Rótulo sugerido pelo horário: ${suggestedMealLabel}`,
         `Histórico relevante do usuário:\n${habitsToPrompt(input.habits)}`,
         ...(intentHintToPrompt(input.intentHint) ? [`Contexto do classificador de intenção:\n${intentHintToPrompt(input.intentHint)}`] : []),
+        ...(nutritionLabelIdentityPrompt ? [nutritionLabelIdentityPrompt] : []),
         "Retorne apenas JSON válido no schema solicitado.",
         "Inclua somente alimentos ou bebidas explicitamente mencionados, fotografados ou claramente visíveis.",
         "Se a mensagem tiver apenas saudação, conversa genérica ou texto sem alimento, retorne items como lista vazia e confidence baixo.",

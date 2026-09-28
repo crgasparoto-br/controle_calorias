@@ -7,12 +7,29 @@ const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
 const createUserWaterLogMock = vi.fn();
+const prepareMessageInputMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const processMealInputMock = vi.fn();
 const getWhatsAppAccessTokenMock = vi.fn();
 const createProvisionalNutritionLabelPhotoRequestsMock = vi.fn();
+const listActiveNutritionLabelPhotoRequestsMock = vi.fn();
+const resolveNutritionLabelPhotoEvidenceMock = vi.fn();
 const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
 const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
+class MockMealInferenceError extends Error {
+  code: string;
+  context: Record<string, unknown>;
+
+  constructor(
+    message: string,
+    input: { code: string; context?: Record<string, unknown> }
+  ) {
+    super(message);
+    this.name = "MealInferenceError";
+    this.code = input.code;
+    this.context = input.context ?? {};
+  }
+}
 
 vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   beginInboundMessage: vi.fn(async () => null),
@@ -45,7 +62,9 @@ vi.mock("./db", () => ({
   removeUserMeal: vi.fn(),
 }));
 
-vi.mock("./nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
+vi.mock("./nutritionEngine", () => ({
+  MealInferenceError: MockMealInferenceError,
+  resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
 }));
 
@@ -57,10 +76,21 @@ vi.mock("./_core/voiceTranscription", () => ({
   transcribeAudio: vi.fn(),
 }));
 
+vi.mock("./modules/whatsapp/webhookMediaPipeline", () => ({
+  prepareMessageInput: prepareMessageInputMock,
+}));
+
 vi.mock("./nutritionLabelCandidateService", () => ({
   createProvisionalNutritionLabelPhotoRequests:
     createProvisionalNutritionLabelPhotoRequestsMock,
-  resolveNutritionLabelPhotoEvidence: vi.fn(async () => ({ handled: false })),
+  isNutritionLabelPhotoRequestTarget: (target: unknown) =>
+    Boolean(
+      target &&
+        (target as { kind?: string }).kind === "nutrition_label_photo_request"
+    ),
+  listActiveNutritionLabelPhotoRequests:
+    listActiveNutritionLabelPhotoRequestsMock,
+  resolveNutritionLabelPhotoEvidence: resolveNutritionLabelPhotoEvidenceMock,
 }));
 
 const { handleWhatsAppWebhook } = await import("./whatsappWebhook");
@@ -123,6 +153,37 @@ function createTextPayload(text: string, messageId = "wamid.reply-1") {
   };
 }
 
+function createImagePayload(messageId = "wamid.reply-image-1") {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        changes: [
+          {
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "5511000000000",
+                phone_number_id: "phone-number-test",
+              },
+              messages: [
+                {
+                  from: "5511999999999",
+                  id: messageId,
+                  timestamp: "1713708840",
+                  type: "image",
+                  image: { id: "label-image-id", mime_type: "image/jpeg" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function outboundTextBodies() {
   return (global.fetch as unknown as { mock: { calls: Array<[string, { body?: string }]> } }).mock.calls
     .map(([, init]) => {
@@ -165,9 +226,36 @@ describe("whatsappWebhook detailed replies", () => {
     });
     getWhatsAppAccessTokenMock.mockResolvedValue("access-token-test");
     createUserWaterLogMock.mockResolvedValue({ id: 789, userId: 123, amountMl: 250 });
+    prepareMessageInputMock.mockImplementation(async (message: {
+      text?: { body?: string };
+      image?: { id?: string };
+    }) => ({
+      text: message.text?.body,
+      imageAnalysisUrl: message.image?.id
+        ? "data:image/jpeg;base64,label-image"
+        : undefined,
+      media: message.image?.id
+        ? [
+            {
+              mediaType: "image",
+              storageKey: "whatsapp/image/label.jpg",
+              storageUrl: "https://storage.test/label.jpg",
+              mimeType: "image/jpeg",
+              originalFileName: "label.jpg",
+            },
+          ]
+        : [],
+      summary: message.image?.id ? "imagem" : "texto",
+    }));
     createPendingMealInferenceMock.mockReturnValue({ draftId: "draft-reply" });
     createProvisionalNutritionLabelPhotoRequestsMock.mockReset();
     createProvisionalNutritionLabelPhotoRequestsMock.mockResolvedValue([]);
+    listActiveNutritionLabelPhotoRequestsMock.mockReset();
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValue([]);
+    resolveNutritionLabelPhotoEvidenceMock.mockReset();
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValue({
+      handled: false,
+    });
     confirmPendingMealMock.mockImplementation(async (input: Record<string, unknown>) => ({
       id: 456,
       mealLabel: input.mealLabel as string,
@@ -390,6 +478,149 @@ describe("whatsappWebhook detailed replies", () => {
 
     const finalReply = outboundTextBodies().at(-1) ?? "";
     expect(finalReply).toMatch(/envie uma foto legível do rótulo/i);
+  });
+
+  it("prioriza a continuação de rótulo quando a inferência visual lança erro de identidade", async () => {
+    const provisionalItem = {
+      foodName: "Iogurte Natural Integral Danone",
+      canonicalName: "Iogurte Natural Integral Danone",
+      brand: "Danone",
+      portionText: "1 pote (160 g)",
+      quantity: 1,
+      unit: "pote",
+      servings: 1,
+      estimatedGrams: 160,
+      calories: 105,
+      protein: 5.6,
+      carbs: 8.8,
+      fat: 5.3,
+      confidence: 0.62,
+      source: "heuristic" as const,
+      resolution: {
+        nutritionOrigin: "provisional_estimate" as const,
+        nutritionVerified: false,
+        sourceEvidence: null,
+      },
+    };
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValue([
+      {
+        target: {
+          kind: "nutrition_label_photo_request",
+          mealId: 321,
+          itemIndex: 2,
+          identityKey: "danone-identity",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone",
+          originalProductVariant: "Natural Integral",
+          actions: [{ id: "cancel", title: "Cancelar" }],
+        },
+      },
+    ]);
+    processMealInputMock.mockRejectedValueOnce(
+      new MockMealInferenceError(
+        "Não consegui determinar a variante exata de iogurte Danone.",
+        {
+          code: "food_identity_clarification_required",
+          context: {
+            originalText: "Iogurte Natural Integral Danone",
+            items: [provisionalItem],
+            semanticContract: {
+              clarifications: [
+                { code: "brand_variant_unresolved", itemIndex: 0 },
+              ],
+            },
+          },
+        }
+      )
+    );
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+      handled: true,
+      action: "nutrition_label_photo_unreadable",
+      reply:
+        "Recebi a imagem, mas não consegui validar uma tabela nutricional completa. A solicitação continua aberta; envie uma foto legível da porção e dos nutrientes.",
+      eventType: "whatsapp.nutrition_label_photo.unreadable",
+      detail: "Evidência nutrition_label incompleta; nenhuma pendência foi consumida.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createImagePayload("wamid.reply-label-identity-error") } as never,
+      res as never
+    );
+
+    expect(processMealInputMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: undefined,
+        nutritionLabelIdentityContext: expect.objectContaining({
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone",
+          originalProductVariant: "Natural Integral",
+        }),
+      })
+    );
+    expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 123,
+        item: provisionalItem,
+        sourceMessageId: "wamid.reply-label-identity-error",
+      })
+    );
+    expect(outboundTextBodies().at(-1)).toMatch(
+      /a solicitação continua aberta/i
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+  });
+
+  it("preserva a continuação de rótulo quando a visão fica indisponível", async () => {
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValue([
+      {
+        target: {
+          kind: "nutrition_label_photo_request",
+          mealId: 321,
+          itemIndex: 2,
+          identityKey: "danone-identity",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone",
+          originalProductVariant: "Natural Integral",
+          actions: [{ id: "cancel", title: "Cancelar" }],
+        },
+      },
+    ]);
+    processMealInputMock.mockRejectedValueOnce(
+      new MockMealInferenceError("A visão está temporariamente indisponível.", {
+        code: "meal_inference_unavailable",
+      })
+    );
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+      handled: true,
+      action: "nutrition_label_photo_unreadable",
+      reply:
+        "Recebi a imagem, mas não consegui validar uma tabela nutricional completa. A solicitação continua aberta; envie uma foto legível da porção e dos nutrientes.",
+      eventType: "whatsapp.nutrition_label_photo.unreadable",
+      detail: "Evidência nutrition_label incompleta; nenhuma pendência foi consumida.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createImagePayload("wamid.reply-label-vision-unavailable") } as never,
+      res as never
+    );
+
+    expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 123,
+        item: null,
+        sourceMessageId: "wamid.reply-label-vision-unavailable",
+      })
+    );
+    expect(outboundTextBodies().at(-1)).toMatch(
+      /a solicitação continua aberta/i
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
   });
 
 });
