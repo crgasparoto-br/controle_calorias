@@ -27,25 +27,76 @@ export const adminActivitiesSchema = z.object({
 
 export type AdminActivitiesInput = z.infer<typeof adminActivitiesSchema>;
 
+const csvImportFields = {
+  csvContent: z.string().min(10).max(8_000_000),
+  fileName: z.string().max(255).optional(),
+  sourceVersion: z.string().trim().min(1).max(80),
+  sourceReference: z.string().trim().min(1).max(255).optional(),
+};
+
+const optionalVersionCsvImportFields = {
+  ...csvImportFields,
+  sourceVersion: z.string().trim().min(1).max(80).optional(),
+};
+
 export const runFoodImportJobSchema = z.discriminatedUnion("job", [
   z.object({
     job: z.literal("seed_common_br"),
   }),
   z.object({
     job: z.literal("import_taco"),
-    csvContent: z.string().min(10).max(8_000_000),
-    fileName: z.string().max(255).optional(),
-    sourceVersion: z.string().trim().min(1).max(80).optional(),
+    ...optionalVersionCsvImportFields,
   }),
   z.object({
     job: z.literal("import_tbca"),
-    csvContent: z.string().min(10).max(8_000_000),
-    fileName: z.string().max(255).optional(),
-    sourceVersion: z.string().trim().min(1).max(80).optional(),
+    ...optionalVersionCsvImportFields,
   }),
 ]);
+
+export const previewFoodImportJobSchema = z.discriminatedUnion("job", [
+  z.object({ job: z.literal("import_taco"), ...csvImportFields }),
+  z.object({ job: z.literal("import_tbca"), ...csvImportFields }),
+]);
+
+export const publishFoodImportJobSchema = z.discriminatedUnion("job", [
+  z.object({
+    job: z.literal("import_taco"),
+    ...csvImportFields,
+    previewHash: z.string().regex(/^[a-f0-9]{64}$/i),
+    confirmPreview: z.literal(true),
+  }),
+  z.object({
+    job: z.literal("import_tbca"),
+    ...csvImportFields,
+    previewHash: z.string().regex(/^[a-f0-9]{64}$/i),
+    confirmPreview: z.literal(true),
+  }),
+]);
+
+export const nutritionLabelReviewQueueSchema = z.object({
+  status: z
+    .enum([
+      "all",
+      "pending_review",
+      "photo_requested",
+      "photo_received",
+      "processing",
+      "error_retryable",
+      "evidence_unreadable",
+      "identity_conflict",
+    ])
+    .default("all"),
+  page: z.number().int().min(1).max(10_000).default(1),
+  pageSize: z.number().int().min(1).max(100).default(20),
+});
 
 export type UpdateWhatsappTokenInput = z.infer<
   typeof updateWhatsappTokenSchema
 >;
 export type RunFoodImportJobInput = z.infer<typeof runFoodImportJobSchema>;
+export type PreviewFoodImportJobInput = z.infer<
+  typeof previewFoodImportJobSchema
+>;
+export type PublishFoodImportJobInput = z.infer<
+  typeof publishFoodImportJobSchema
+>;

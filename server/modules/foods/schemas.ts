@@ -22,12 +22,26 @@ export const catalogFoodSearchSchema = z.object({
   includeInactive: z.boolean().default(false),
 });
 
+export const adminCatalogFoodSearchSchema = z.object({
+  query: z.string().trim().max(255).default(""),
+  sourceSlug: z.string().trim().max(80).default(""),
+  sourceVersion: z.string().trim().max(80).default(""),
+  status: z.enum(["all", "active", "deprecated", "merged"]).default("all"),
+  foodType: z.enum(["all", "generic", "branded"]).default("all"),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
 export const catalogFoodGetSchema = z.object({
   foodId: z.number().int().positive(),
 });
 
 export const catalogFoodRecentSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const barcodeLookupSchema = z.object({
+  barcode: z.string().trim().min(1).max(32),
 });
 
 export const customFoodPortionSchema = z.object({
@@ -124,7 +138,11 @@ export const deleteFoodSchema = z.object({
 
 export type FoodFormInput = z.infer<typeof foodFormSchema>;
 export type CatalogFoodSearchInput = z.infer<typeof catalogFoodSearchSchema>;
+export type AdminCatalogFoodSearchInput = z.infer<
+  typeof adminCatalogFoodSearchSchema
+>;
 export type CatalogFoodRecentInput = z.infer<typeof catalogFoodRecentSchema>;
+export type BarcodeLookupInput = z.infer<typeof barcodeLookupSchema>;
 export type CatalogFoodFavoriteInput = z.infer<
   typeof catalogFoodFavoriteSchema
 >;

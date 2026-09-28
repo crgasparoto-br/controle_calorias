@@ -33,11 +33,17 @@ export const NUTRITION_LABEL_CANDIDATE_AUDIT_KIND =
   "nutrition_label_candidate_audit";
 export const NUTRITION_LABEL_PHOTO_REQUEST_TYPE =
   PENDING_NUTRITION_LABEL_PHOTO_REQUEST_TYPE;
+export const NUTRITION_LABEL_EVIDENCE_KIND = "nutrition_label_evidence";
 export const NUTRITION_LABEL_PHOTO_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type NutritionLabelCandidateStatus =
   | "pending_review"
   | "photo_requested"
+  | "photo_received"
+  | "processing"
+  | "error_retryable"
+  | "evidence_unreadable"
+  | "identity_conflict"
   | "published"
   | "rejected"
   | "rolled_back";
@@ -65,6 +71,40 @@ export type NutritionLabelCandidate = {
   sourceEvidence: string;
   sourceVerifiedAt: string;
   sourceConfidence: number;
+  evidenceKind: "label_photo" | "label_url" | "manual_reference";
+  extractionMethod: "manual" | "ocr" | "ai_assisted" | "rule_normalized";
+  nutritionOriginal: {
+    servingLabel: string;
+    servingUnit: string;
+    grams: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number | null;
+  };
+  nutritionPer100g: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number | null;
+  } | null;
+  fieldConfidence: Record<string, number | null>;
+  evidenceReference?: {
+    evidenceHash: string;
+    storageKey: string;
+    storageUrl?: string | null;
+    mimeType: string;
+    receivedAt: string;
+    status:
+      | "photo_received"
+      | "processing"
+      | "pending_review"
+      | "error_retryable"
+      | "evidence_unreadable"
+      | "identity_conflict";
+  } | null;
   status: NutritionLabelCandidateStatus;
   publishedCatalogId?: number | null;
   photoRequestedAt?: string | null;
@@ -80,6 +120,10 @@ export type NutritionLabelCandidateAudit = {
     | "created"
     | "photo_requested"
     | "photo_received"
+    | "processing"
+    | "error_retryable"
+    | "evidence_unreadable"
+    | "identity_conflict"
     | "published"
     | "rejected"
     | "rolled_back";
@@ -193,6 +237,64 @@ export function buildCandidateIdentityKey(item: MealDraftItem) {
   return createHash("sha256").update(identity).digest("hex");
 }
 
+export type NutritionLabelEvidenceInput = {
+  userId: number;
+  sourceMessageId: string;
+  storageKey: string;
+  storageUrl?: string | null;
+  mimeType: string;
+  originalFileName?: string | null;
+};
+
+export async function persistNutritionLabelEvidenceReference(
+  input: NutritionLabelEvidenceInput,
+  status:
+    | "photo_received"
+    | "processing"
+    | "pending_review"
+    | "error_retryable"
+    | "evidence_unreadable"
+    | "identity_conflict" = "photo_received"
+) {
+  const evidenceHash = createHash("sha256")
+    .update(
+      [input.userId, input.sourceMessageId, input.storageKey, input.mimeType].join(
+        "|"
+      )
+    )
+    .digest("hex");
+  const existing = (
+    (await listPersistedWhatsappLearningArtifacts<{
+      userId: number;
+      sourceMessageId: string;
+      evidenceHash: string;
+      status: string;
+      receivedAt?: string;
+    }>({
+      scope: "global",
+      kind: NUTRITION_LABEL_EVIDENCE_KIND,
+    })) ?? []
+  ).find(artifact => artifact.value.evidenceHash === evidenceHash);
+  if (existing?.value.status === "pending_review") return existing.value;
+  const persisted = await persistWhatsappLearningArtifact({
+    scope: "global",
+    kind: NUTRITION_LABEL_EVIDENCE_KIND,
+    key: evidenceHash,
+    value: {
+      userId: input.userId,
+      sourceMessageId: input.sourceMessageId,
+      evidenceHash,
+      storageKey: input.storageKey,
+      storageUrl: input.storageUrl ?? null,
+      mimeType: input.mimeType,
+      originalFileName: input.originalFileName ?? null,
+      receivedAt: existing?.value.receivedAt ?? nowIso(),
+      status,
+    },
+  });
+  return persisted?.value ?? null;
+}
+
 function toArtifact(candidate: CandidateArtifact | null) {
   return candidate && candidate.value?.identityKey ? candidate : null;
 }
@@ -278,6 +380,16 @@ export function toCandidate(input: {
     Math.max(resolution.sourceConfidence ?? input.item.confidence, 0),
     1
   );
+  const grams = input.item.estimatedGrams;
+  const per100 = (value: number) =>
+    Number.isFinite(value) && grams > 0 ? (value * 100) / grams : null;
+  const extractionMethod =
+    input.item.source === "heuristic" ? "ai_assisted" : "manual";
+  const evidenceKind = /foto|imagem|whatsapp|arquivo/i.test(sourceEvidence)
+    ? "label_photo"
+    : sourceUrls.length
+      ? "label_url"
+      : "manual_reference";
   return {
     identityKey: buildCandidateIdentityKey(input.item),
     userId: input.userId,
@@ -304,6 +416,33 @@ export function toCandidate(input: {
     sourceEvidence,
     sourceVerifiedAt,
     sourceConfidence,
+    evidenceKind,
+    extractionMethod,
+    nutritionOriginal: {
+      servingLabel: input.item.portionText,
+      servingUnit: input.item.unit,
+      grams,
+      calories: input.item.calories,
+      protein: input.item.protein,
+      carbs: input.item.carbs,
+      fat: input.item.fat,
+      fiber: input.item.classification?.fiberGrams ?? null,
+    },
+    nutritionPer100g: {
+      calories: per100(input.item.calories) ?? 0,
+      protein: per100(input.item.protein) ?? 0,
+      carbs: per100(input.item.carbs) ?? 0,
+      fat: per100(input.item.fat) ?? 0,
+      fiber: per100(input.item.classification?.fiberGrams ?? Number.NaN),
+    },
+    fieldConfidence: {
+      calories: sourceConfidence,
+      protein: sourceConfidence,
+      carbs: sourceConfidence,
+      fat: sourceConfidence,
+      fiber: input.item.classification?.fiberGrams == null ? null : sourceConfidence,
+    },
+    evidenceReference: null,
     status: "pending_review",
     publishedCatalogId: null,
     photoRequestedAt: null,
@@ -332,6 +471,8 @@ export async function recordNutritionLabelCandidates(input: {
       ? {
           ...existing.value,
           ...candidate,
+          evidenceReference:
+            existing.value.evidenceReference ?? candidate.evidenceReference,
           status: (existing.value.status === "published"
             ? "published"
             : "pending_review") as NutritionLabelCandidateStatus,
@@ -386,6 +527,40 @@ export async function listNutritionLabelCandidates(
       right.value.updatedAt.localeCompare(left.value.updatedAt)
     )
     .map(artifact => ({ id: artifact.id, ...artifact.value }));
+}
+
+export async function listNutritionLabelReviewQueue(input: {
+  status?: NutritionLabelCandidateStatus | "all";
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const all = await listNutritionLabelCandidates();
+  const activeStatuses: NutritionLabelCandidateStatus[] = [
+    "pending_review",
+    "photo_requested",
+    "photo_received",
+    "processing",
+    "error_retryable",
+    "evidence_unreadable",
+    "identity_conflict",
+  ];
+  const filtered = all.filter(candidate =>
+    input.status && input.status !== "all"
+      ? candidate.status === input.status
+      : activeStatuses.includes(candidate.status)
+  );
+  const page = Math.max(1, input.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 20));
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  return {
+    items: filtered.slice(start, start + pageSize),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    pendingTotal: all.filter(candidate => activeStatuses.includes(candidate.status)).length,
+  };
 }
 
 export async function updateCandidate(
@@ -447,6 +622,14 @@ export async function publishNutritionLabelCandidate(input: {
     artifact.value.status === "rolled_back"
   ) {
     throw new Error("Candidato nutricional encerrado não pode ser publicado.");
+  }
+  if (
+    !["pending_review", "published"].includes(artifact.value.status) ||
+    !artifact.value.sourceEvidence?.trim()
+  ) {
+    throw new Error(
+      "Candidato ainda está em processamento ou sem evidência revisável; publicação bloqueada."
+    );
   }
   const repository =
     input.repository ??

@@ -4,6 +4,7 @@ import { getDateKeyInTimeZone } from "../shared/timeZone";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import {
   listNutritionLabelCandidates,
+  listNutritionLabelReviewQueue,
   listNutritionLabelCandidateAudits,
   publishNutritionLabelCandidate,
   rejectNutritionLabelCandidate,
@@ -30,11 +31,16 @@ import {
   getAdminActivityPage,
   getAdminOverview,
   getWhatsappTokenStatus,
+  previewFoodImportJob,
+  publishFoodImportJob,
   runFoodImportJob,
   updateWhatsappToken,
 } from "./modules/admin/service";
 import {
   adminActivitiesSchema,
+  nutritionLabelReviewQueueSchema,
+  previewFoodImportJobSchema,
+  publishFoodImportJobSchema,
   runFoodImportJobSchema,
   updateWhatsappTokenSchema,
 } from "./modules/admin/schemas";
@@ -79,14 +85,18 @@ import {
   listGlobalRecentlyUsedFoods,
   listRecentlyUsedFoods,
   searchFoodCatalog,
+  searchAdminFoodCatalog,
   searchGlobalFoodCatalog,
   setFoodFavorite,
   setGlobalFoodFavorite,
   updateCustomFood,
   updateFood,
 } from "./modules/foods/service";
+import { lookupOpenFoodFactsProduct } from "./modules/foods/openFoodFactsProvider";
 import {
   adminCatalogFoodCurationSchema,
+  adminCatalogFoodSearchSchema,
+  barcodeLookupSchema,
   catalogFoodFavoriteSchema,
   catalogFoodGetSchema,
   catalogFoodRecentSchema,
@@ -693,6 +703,17 @@ export const nutritionRouter = router({
       .query(async ({ ctx, input }) =>
         listGlobalRecentlyUsedFoods(ctx.user.id, input)
       ),
+    lookupOpenFoodFacts: protectedProcedure
+      .input(barcodeLookupSchema)
+      .mutation(async ({ input }) => {
+        const result = await lookupOpenFoodFactsProduct(input);
+        void analyticsService.track("food_open_food_facts_lookup", {
+          status: result.status,
+          attempts: result.attempts,
+          cached: result.cached,
+        });
+        return result;
+      }),
     catalogFavorite: protectedProcedure
       .input(catalogFoodFavoriteSchema)
       .mutation(async ({ ctx, input }) => {
@@ -1111,6 +1132,9 @@ export const nutritionRouter = router({
 
   admin: router({
     overview: adminProcedure.query(async () => getAdminOverview()),
+    foodCatalog: adminProcedure
+      .input(adminCatalogFoodSearchSchema)
+      .query(async ({ input }) => searchAdminFoodCatalog(input)),
     activities: adminProcedure
       .input(adminActivitiesSchema)
       .query(async ({ input }) => getAdminActivityPage(input)),
@@ -1124,7 +1148,25 @@ export const nutritionRouter = router({
       ),
     runFoodImportJob: adminProcedure
       .input(runFoodImportJobSchema)
-      .mutation(async ({ ctx, input }) => runFoodImportJob(ctx.user.id, input)),
+      .mutation(async ({ ctx, input }) =>
+        input.job === "seed_common_br"
+          ? runFoodImportJob(ctx.user.id, input)
+          : previewFoodImportJob(ctx.user.id, {
+              ...input,
+              sourceVersion:
+                input.sourceVersion?.trim() || "admin-upload-legacy",
+            })
+      ),
+    previewFoodImportJob: adminProcedure
+      .input(previewFoodImportJobSchema)
+      .mutation(async ({ ctx, input }) =>
+        previewFoodImportJob(ctx.user.id, input)
+      ),
+    publishFoodImportJob: adminProcedure
+      .input(publishFoodImportJobSchema)
+      .mutation(async ({ ctx, input }) =>
+        publishFoodImportJob(ctx.user.id, input)
+      ),
     curateGlobalFood: adminProcedure
       .input(adminCatalogFoodCurationSchema)
       .mutation(async ({ ctx, input }) => curateGlobalFood(ctx.user.id, input)),
@@ -1134,6 +1176,9 @@ export const nutritionRouter = router({
         userId: z.number().int().positive().optional(),
       }).optional())
       .query(async ({ input }) => listNutritionLabelCandidates(input ?? {})),
+    nutritionLabelReviewQueue: adminProcedure
+      .input(nutritionLabelReviewQueueSchema)
+      .query(async ({ input }) => listNutritionLabelReviewQueue(input)),
     nutritionLabelCandidateAudits: adminProcedure
       .input(z.object({ candidateId: z.number().int().positive() }))
       .query(async ({ input }) => listNutritionLabelCandidateAudits(input.candidateId)),
