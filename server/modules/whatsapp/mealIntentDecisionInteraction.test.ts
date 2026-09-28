@@ -98,14 +98,14 @@ describe("mealIntentDecisionInteraction", () => {
     {
       label: "webhook textual",
       userId: 899101,
-      text: "1 xícara de café com açúcar",
+      text: "café com açúcar",
       messageId: "wamid.issue-899-text",
       entrypoint: undefined,
     },
     {
       label: "áudio transcrito",
       userId: 899102,
-      text: "200 ml café com açúcar",
+      text: "café da manhã com açúcar",
       messageId: "wamid.issue-899-audio",
       entrypoint: "audioTranscription" as const,
     },
