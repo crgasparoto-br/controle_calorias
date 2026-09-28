@@ -7,6 +7,7 @@ import type {
   RemoveMealGroupInput,
   SaveFavoriteMealGroupInput,
   UpdateMealGroupInput,
+  UpdateMealItemInput,
 } from "./schemas";
 import { createManualMeal, listMeals, removeMeal, updateMeal } from "./service";
 
@@ -40,6 +41,77 @@ function buildGroupNotes(meals: MealForGroupOperation[]) {
 
 function buildGroupItems(meals: MealForGroupOperation[]) {
   return meals.flatMap(meal => meal.items.map(item => ({ ...item })));
+}
+
+export async function updateMealItem(userId: number, input: UpdateMealItemInput) {
+  const meals = await listMeals(userId);
+  const sourceMeal = meals.find(meal => meal.id === input.mealId);
+  if (!sourceMeal) {
+    throw new Error("Refeição não encontrada.");
+  }
+
+  if (input.itemIndex < 0 || input.itemIndex >= sourceMeal.items.length) {
+    throw new Error("Alimento não encontrado na refeição.");
+  }
+
+  const targetMealLabel = input.mealLabel.trim();
+  const sourceMealLabel = sourceMeal.mealLabel.trim();
+  const updatedItem = { ...input.item };
+  const occurredAt = new Date(sourceMeal.occurredAt).toISOString();
+
+  if (sourceMeal.items.length === 1 || sourceMealLabel === targetMealLabel) {
+    const meal = await updateMeal(userId, {
+      mealId: sourceMeal.id,
+      mealLabel: targetMealLabel,
+      occurredAt,
+      notes: sourceMeal.notes,
+      items: sourceMeal.items.map((item, index) => index === input.itemIndex ? updatedItem : item),
+    });
+
+    return {
+      moved: sourceMealLabel !== targetMealLabel,
+      meal,
+      sourceMeal: meal,
+    };
+  }
+
+  const remainingItems = sourceMeal.items.filter((_, index) => index !== input.itemIndex);
+  const movedMeal = await createManualMeal(userId, {
+    mealLabel: targetMealLabel,
+    occurredAt,
+    items: [updatedItem],
+  });
+
+  try {
+    const updatedSourceMeal = await updateMeal(userId, {
+      mealId: sourceMeal.id,
+      mealLabel: sourceMeal.mealLabel,
+      occurredAt,
+      notes: sourceMeal.notes,
+      items: remainingItems,
+    });
+
+    logInferenceEvent({
+      userId,
+      origin: "web",
+      status: "success",
+      eventType: "meal.item_moved",
+      detail: `Um alimento foi movido de ${sourceMeal.mealLabel} para ${targetMealLabel}.`,
+    });
+
+    return {
+      moved: true,
+      meal: movedMeal,
+      sourceMeal: updatedSourceMeal,
+    };
+  } catch (error) {
+    try {
+      await removeMeal(userId, movedMeal.id);
+    } catch {
+      // Best-effort compensation: preserve the original error for the caller.
+    }
+    throw error;
+  }
 }
 
 export async function updateMealGroup(userId: number, input: UpdateMealGroupInput) {
