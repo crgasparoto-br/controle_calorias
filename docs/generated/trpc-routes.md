@@ -162,6 +162,7 @@ Fontes: `server/nutritionRouter.ts`, routers em `server/modules/professionals/*R
 | `dayTotals` | query | protected |
 | `createManual` | mutation | protected |
 | `update` | mutation | protected |
+| `updateItem` | mutation | protected |
 | `updateGroup` | mutation | protected |
 | `copy` | mutation | protected |
 | `copyGroup` | mutation | protected |
