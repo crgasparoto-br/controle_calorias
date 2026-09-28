@@ -2,16 +2,16 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:pr1210-ts-compile-001",
-    "audit_report_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab",
+    "kind": "independent-audit-rejection",
+    "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
+    "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
     "finding_ids": [
-      "AUD-1210-BUILD-001"
+      "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection was a single implementation typing omission closed by the exact failed-gate replay; no repository-wide control change is warranted."
+    "reason": "The rejection exposed a delivery-specific inherited artifact; the current cycle closes it by rebuilding the target-bound certificate and does not change a product-wide rule."
   },
   "skill_changes": []
 }

@@ -40,6 +40,24 @@ export const COUNTABLE_FOOD_REGISTRATION_PARITY_CASES = [
     ],
   },
   {
+    id: "ovo-unit",
+    input: "1 ovo",
+    simulatorText: "1 ovo",
+    registrationText: "50 g de ovo",
+    items: [
+      { segment: "1 ovo", foodName: "ovo", count: 1, grams: 50 },
+    ],
+  },
+  {
+    id: "ovo-frito-unit",
+    input: "1 ovo frito",
+    simulatorText: "1 ovo frito",
+    registrationText: "50 g de ovo frito",
+    items: [
+      { segment: "1 ovo frito", foodName: "ovo frito", count: 1, grams: 50 },
+    ],
+  },
+  {
     id: "multi-item-alias",
     input: "1 banana nanica, 1 maca fuji",
     simulatorText: "1 banana nanica, 1 maca fuji",
