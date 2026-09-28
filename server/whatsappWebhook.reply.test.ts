@@ -573,4 +573,54 @@ describe("whatsappWebhook detailed replies", () => {
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
   });
 
+  it("preserva a continuação de rótulo quando a visão fica indisponível", async () => {
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValue([
+      {
+        target: {
+          kind: "nutrition_label_photo_request",
+          mealId: 321,
+          itemIndex: 2,
+          identityKey: "danone-identity",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone",
+          originalProductVariant: "Natural Integral",
+          actions: [{ id: "cancel", title: "Cancelar" }],
+        },
+      },
+    ]);
+    processMealInputMock.mockRejectedValueOnce(
+      new MockMealInferenceError("A visão está temporariamente indisponível.", {
+        code: "meal_inference_unavailable",
+      })
+    );
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+      handled: true,
+      action: "nutrition_label_photo_unreadable",
+      reply:
+        "Recebi a imagem, mas não consegui validar uma tabela nutricional completa. A solicitação continua aberta; envie uma foto legível da porção e dos nutrientes.",
+      eventType: "whatsapp.nutrition_label_photo.unreadable",
+      detail: "Evidência nutrition_label incompleta; nenhuma pendência foi consumida.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhook(
+      { body: createImagePayload("wamid.reply-label-vision-unavailable") } as never,
+      res as never
+    );
+
+    expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 123,
+        item: null,
+        sourceMessageId: "wamid.reply-label-vision-unavailable",
+      })
+    );
+    expect(outboundTextBodies().at(-1)).toMatch(
+      /a solicitação continua aberta/i
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+  });
+
 });

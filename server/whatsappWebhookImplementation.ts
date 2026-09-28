@@ -1334,6 +1334,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
+      const inferenceContext =
+        error instanceof MealInferenceError ? error.context : null;
       const identityContext =
         error instanceof MealInferenceError &&
         error.code === "food_identity_clarification_required"
@@ -1349,21 +1351,18 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         .filter(index => Number.isInteger(index)) ?? [];
       if (
         message.image?.id &&
-        preparedForError &&
-        error instanceof MealInferenceError &&
-        (error.code === "food_identity_clarification_required" ||
-          error.code === "image_identity_unresolved")
+        preparedForError
       ) {
         const nutritionLabelResult = await resolveNutritionLabelPhotoEvidence({
           userId,
           item:
-            identityContext?.items?.find(
+            inferenceContext?.items?.find(
               item => item.resolution?.nutritionOrigin === "nutrition_label"
             ) ??
-            identityContext?.items?.[0] ??
+            inferenceContext?.items?.[0] ??
             null,
           sourceText:
-            identityContext?.originalText ??
+            inferenceContext?.originalText ??
             preparedForError.text ??
             preparedForError.transcript ??
             null,
