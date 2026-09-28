@@ -3,7 +3,9 @@ import {
   containsBroadGenericFoodToken,
   findCatalogFood,
   findGenericCatalogFood,
+  findLocalNutritionReference,
   findNaturalProduceCatalogFood,
+  findNaturalProduceNutritionReference,
   inferUnresolvedCommercialIdentityHint,
   isCatalogFoodSemanticallyCompatible,
   sourceMentionsFood,
@@ -267,7 +269,11 @@ function findExplicitBrandedVariantIdentity(
 
 function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
   const classification = item.foodClassification;
-  if (!classification || !sourceFoodName) return false;
+  if (!sourceFoodName) return false;
+  // Without an extractor classification, follow the identity preflight: a
+  // residual token after a canonical natural-produce base is a cultivar, not
+  // brand evidence. An explicit processed classification keeps fail-closed.
+  if (!classification) return Boolean(findNaturalProduceNutritionReference(sourceFoodName));
 
   const normalizedSource = normalizeForMatching(sourceFoodName).trim();
   const normalizedItem = normalizeForMatching(item.foodName).trim();
@@ -568,6 +574,27 @@ async function findMostSpecificCatalogForInferenceItem(
       continue;
     if (item.brand && !isVerifiedBrandedCatalogFood(catalog)) continue;
     return { catalog, isExactMatch: true, alternatives, semanticSource };
+  }
+
+  // A cultivar/variety qualifier ("melão dino", "abacaxi pérola") must not
+  // hide the local natural-produce reference and push the item into web search
+  // or the generic placeholder. The identity preflight already applies this
+  // same base-produce policy, so nutrition reuses it instead of diverging.
+  if (!item.brand) {
+    const naturalProduce = findNaturalProduceNutritionReference(
+      parseFoodText(semanticSource).foodName || semanticSource
+    );
+    if (
+      naturalProduce &&
+      isAllowedUnbrandedCatalogReference(item, naturalProduce, semanticSource)
+    ) {
+      return {
+        catalog: naturalProduce,
+        isExactMatch: true,
+        alternatives,
+        semanticSource,
+      };
+    }
   }
 
   if (options.skipCommercialNutritionSearch) {
@@ -1340,7 +1367,7 @@ async function resolveCommercialItemsFromTextFallback(
 ) {
   const resolved: MealDraftItem[] = [];
   for (const item of items) {
-    const catalogReference = findCatalogFood(item.foodName);
+    const catalogReference = findLocalNutritionReference(item.foodName);
     const genericReference = findGenericCatalogFood(item.foodName);
     const resolutionReference = catalogReference ?? genericReference;
     const needsGenericReview = Boolean(

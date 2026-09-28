@@ -1,5 +1,11 @@
 import { roundNutritionValue } from "../shared/mealTotals";
-import { findCatalogFood, inferItemBrand, normalizeBrandName, sourceMentionsFood } from "./catalogMatching";
+import {
+  findCatalogFood,
+  findLocalNutritionReference,
+  inferItemBrand,
+  normalizeBrandName,
+  sourceMentionsFood,
+} from "./catalogMatching";
 import { detectKnownBrand } from "./foodBrandDetection";
 import {
   buildPortionText,
@@ -558,6 +564,10 @@ export function buildHeuristicItem(foodName: string): MealDraftItem {
   const catalog = directCatalog ?? (
     tacoCatalog && (!explicitZeroBeverage || isExplicitZeroBeverage(tacoCatalog.name))
       ? tacoCatalog
+      : null
+  ) ?? (
+    allowCatalogFallback && !explicitZeroBeverage
+      ? findLocalNutritionReference(parsed.foodName)
       : null
   );
   const quantity = parsed.quantity ?? 1;
