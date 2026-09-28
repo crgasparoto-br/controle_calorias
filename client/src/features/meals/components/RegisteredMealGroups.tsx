@@ -411,13 +411,22 @@ export function RegisteredMealGroups({
     ]);
   };
 
-  const updateMealItem = trpc.nutrition.meals.update.useMutation({
-    onSuccess: async () => {
+  const updateMealItem = trpc.nutrition.meals.updateItem.useMutation({
+    onSuccess: async result => {
       await invalidateNutritionViews();
-      toast.success(itemMutationActionRef.current === "delete" ? "Alimento removido com sucesso." : "Alimento atualizado com sucesso.");
+      toast.success(result.moved ? "Alimento movido para outra refeição." : "Alimento atualizado com sucesso.");
       setEditingItemTarget(null);
     },
     onError: error => toast.error(error.message || "Não foi possível atualizar o alimento."),
+  });
+
+  const updateMealAfterItemDelete = trpc.nutrition.meals.update.useMutation({
+    onSuccess: async () => {
+      await invalidateNutritionViews();
+      toast.success("Alimento removido com sucesso.");
+      setEditingItemTarget(null);
+    },
+    onError: error => toast.error(error.message || "Não foi possível remover o alimento."),
   });
 
   const removeMealFromItemDialog = trpc.nutrition.meals.remove.useMutation({
@@ -455,14 +464,12 @@ export function RegisteredMealGroups({
     }
 
     itemMutationActionRef.current = "save";
-    updateMealItem.mutate(buildMealItemUpdatePayload(
-      editingItemTarget.meal,
-      userTimeZone,
-      editingItemTarget.meal.items.map((currentItem, currentIndex) =>
-        currentIndex === editingItemTarget.itemIndex ? normalizedItem : normalizeItemForSave(currentItem),
-      ),
-      normalizedMealLabel,
-    ));
+    updateMealItem.mutate({
+      mealId: editingItemTarget.meal.id,
+      itemIndex: editingItemTarget.itemIndex,
+      mealLabel: normalizedMealLabel,
+      item: normalizedItem,
+    });
   };
 
   const handleDeleteMealItem = () => {
@@ -477,7 +484,7 @@ export function RegisteredMealGroups({
       return;
     }
 
-    updateMealItem.mutate(buildMealItemUpdatePayload(
+    updateMealAfterItemDelete.mutate(buildMealItemUpdatePayload(
       editingItemTarget.meal,
       userTimeZone,
       editingItemTarget.meal.items
@@ -494,7 +501,7 @@ export function RegisteredMealGroups({
       return;
     }
 
-    updateMealItem.mutate(buildMealItemUpdatePayload(
+    updateMealAfterItemDelete.mutate(buildMealItemUpdatePayload(
       meal,
       userTimeZone,
       meal.items
@@ -524,7 +531,7 @@ export function RegisteredMealGroups({
             isCopyPending={isCopyPending}
             isFavoritePending={isFavoritePending}
             isRemovePending={isRemovePending}
-            isItemDeleting={updateMealItem.isPending || removeMealFromItemDialog.isPending}
+            isItemDeleting={updateMealAfterItemDelete.isPending || removeMealFromItemDialog.isPending}
             onEditMeal={onEditMeal}
             onEditMealGroup={onEditMealGroup}
             onEditMealItem={handleEditMealItem}
@@ -542,7 +549,7 @@ export function RegisteredMealGroups({
 
       <RegisteredMealItemEditDialog
         target={editingItemTarget}
-        isSaving={updateMealItem.isPending || removeMealFromItemDialog.isPending}
+        isSaving={updateMealItem.isPending || updateMealAfterItemDelete.isPending || removeMealFromItemDialog.isPending}
         onOpenChange={open => {
           if (!open) {
             setEditingItemTarget(null);
