@@ -90,6 +90,23 @@ export const nutritionLabelReviewQueueSchema = z.object({
   pageSize: z.number().int().min(1).max(100).default(20),
 });
 
+export const updateNutritionLabelCandidateSchema = z.object({
+  candidateId: z.number().int().positive(),
+  foodName: z.string().trim().min(1).max(255),
+  canonicalName: z.string().trim().min(1).max(255),
+  brand: z.string().trim().max(255).nullable(),
+  productVariant: z.string().trim().max(255).nullable(),
+  barcode: z.string().trim().max(32).nullable(),
+  servingLabel: z.string().trim().min(1).max(120),
+  servingUnit: z.string().trim().min(1).max(40),
+  gramsPerServing: z.number().finite().positive().max(100_000),
+  calories: z.number().finite().min(0).max(100_000),
+  protein: z.number().finite().min(0).max(100_000),
+  carbs: z.number().finite().min(0).max(100_000),
+  fat: z.number().finite().min(0).max(100_000),
+  fiber: z.number().finite().min(0).max(100_000).nullable(),
+});
+
 export type UpdateWhatsappTokenInput = z.infer<
   typeof updateWhatsappTokenSchema
 >;
@@ -99,4 +116,7 @@ export type PreviewFoodImportJobInput = z.infer<
 >;
 export type PublishFoodImportJobInput = z.infer<
   typeof publishFoodImportJobSchema
+>;
+export type UpdateNutritionLabelCandidateInput = z.infer<
+  typeof updateNutritionLabelCandidateSchema
 >;

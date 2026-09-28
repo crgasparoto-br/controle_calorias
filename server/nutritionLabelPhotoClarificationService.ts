@@ -3,6 +3,7 @@ import { logInferenceEvent } from "./db";
 import {
   NUTRITION_LABEL_PHOTO_REQUEST_TYPE,
   buildCandidateIdentityKey,
+  findNutritionLabelEvidenceReference,
   isNutritionLabelPhotoClarificationTarget,
   isNutritionLabelPhotoRequestTarget,
   normalize,
@@ -154,12 +155,19 @@ export async function resolveNutritionLabelPhotoClarificationText(input: {
         "Fonte correlacionada não estava mais ativa; mutação duplicada bloqueada.",
     };
   }
+  const evidenceReference = target.sourceMessageId
+    ? await findNutritionLabelEvidenceReference({
+        userId: input.userId,
+        sourceMessageId: target.sourceMessageId,
+      })
+    : null;
   try {
     const updated = await applyNutritionLabelClarificationCandidate({
       userId: input.userId,
       candidate,
       item: target.evidenceItem,
       sourceText: target.sourceText,
+      evidenceReference,
     });
     if (!updated) {
       return {
@@ -478,6 +486,7 @@ export async function resolveNutritionLabelPhotoEvidence(input: {
       candidate: selected,
       item: labelItem,
       sourceText: input.sourceText,
+      evidenceReference,
     });
     if (!updated) {
       await updateEvidenceStatus("error_retryable");
