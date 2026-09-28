@@ -104,6 +104,8 @@ import {
 } from "./mealSemanticContract";
 import {
   createProvisionalNutritionLabelPhotoRequests,
+  isNutritionLabelPhotoRequestTarget,
+  listActiveNutritionLabelPhotoRequests,
   resolveNutritionLabelPhotoEvidence,
 } from "./nutritionLabelCandidateService";
 import { getWhatsAppChannelConfig } from "./whatsappConfig";
@@ -784,6 +786,19 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
 
       const prepared = await prepareMessageInput(message, sourcePhone);
       preparedForError = prepared;
+      const labelRequestsWithoutCaption =
+        message.image?.id &&
+        !prepared.text?.trim() &&
+        !prepared.transcript?.trim()
+          ? await listActiveNutritionLabelPhotoRequests(userId)
+          : [];
+      const nutritionLabelProcessingContext =
+        labelRequestsWithoutCaption.length === 1 &&
+        isNutritionLabelPhotoRequestTarget(
+          labelRequestsWithoutCaption[0]?.target
+        )
+          ? labelRequestsWithoutCaption[0].target
+          : null;
       if (prepared.audioTranscriptionFailure?.blockedMealProcessing) {
         const replyResult = await sendFinalText(
           prepared.audioTranscriptionFailure.reply
@@ -865,6 +880,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
               transcript: prepared.transcript,
               imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
               audioUrl: prepared.audioUrl,
+              nutritionLabelIdentityContext: nutritionLabelProcessingContext,
               habits,
               occurredAt,
               timeZone: userTimezone,
@@ -1318,6 +1334,8 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       }
       await markMessageProcessed(lifecycleHandle);
     } catch (error) {
+      const inferenceContext =
+        error instanceof MealInferenceError ? error.context : null;
       const identityContext =
         error instanceof MealInferenceError &&
         error.code === "food_identity_clarification_required"
@@ -1331,6 +1349,55 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
         )
         .map(clarification => clarification.itemIndex)
         .filter(index => Number.isInteger(index)) ?? [];
+      if (
+        message.image?.id &&
+        preparedForError
+      ) {
+        const nutritionLabelResult = await resolveNutritionLabelPhotoEvidence({
+          userId,
+          item:
+            inferenceContext?.items?.find(
+              item => item.resolution?.nutritionOrigin === "nutrition_label"
+            ) ??
+            inferenceContext?.items?.[0] ??
+            null,
+          sourceText:
+            inferenceContext?.originalText ??
+            preparedForError.text ??
+            preparedForError.transcript ??
+            null,
+          captionText: getOriginalInboundText(req, message),
+          sourceMessageId: message.id,
+          evidence:
+            preparedForError.media.find(media => media.mediaType === "image") ??
+            null,
+        });
+        if (nutritionLabelResult.handled) {
+          logInferenceEvent({
+            userId,
+            origin: "whatsapp",
+            status: nutritionLabelResult.action.includes("failed")
+              ? "warning"
+              : "success",
+            eventType: nutritionLabelResult.eventType,
+            detail: nutritionLabelResult.detail,
+          });
+          const nutritionLabelReplyResult = await sendFinalText(
+            nutritionLabelResult.reply
+          );
+          if (!nutritionLabelReplyResult.ok) {
+            logInferenceEvent({
+              userId,
+              origin: "whatsapp",
+              status: "warning",
+              eventType: "whatsapp.reply_failed",
+              detail:
+                "Falha ao enviar resposta da continuação de rótulo nutricional.",
+            });
+          }
+          continue;
+        }
+      }
       if (
         message.image?.id &&
         preparedForError &&

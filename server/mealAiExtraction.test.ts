@@ -114,6 +114,31 @@ describe("meal extraction capabilities", () => {
     expect(prompt).toContain("não converta a imagem inteira em ausência de alimento");
   });
 
+  it("fornece a identidade persistida como contexto autorizado para foto posterior de rótulo", async () => {
+    process.env.AI_MEAL_VISION_PROVIDER = "gemini";
+    process.env.AI_MEAL_VISION_MODEL = "gemini-meal-vision";
+    geminiCreateTextResponse.mockResolvedValue({
+      id: "g-label-context",
+      outputText: JSON.stringify(validExtraction()),
+      raw: {},
+    });
+
+    await extractWithAi({
+      imageUrl: "data:image/jpeg;base64,AAAA",
+      nutritionLabelIdentityContext: {
+        originalFoodName: "Iogurte Natural Integral Danone",
+        originalCanonicalName: "Iogurte Natural Integral Danone",
+        originalBrand: "Danone",
+        originalProductVariant: "Natural Integral",
+      },
+    });
+
+    const prompt = JSON.stringify(geminiCreateTextResponse.mock.calls[0][0].input);
+    expect(prompt).toContain("Continuação autorizada de uma solicitação de foto de rótulo nutricional já persistida");
+    expect(prompt).toContain("Iogurte Natural Integral Danone");
+    expect(prompt).toContain("não crie uma nova refeição");
+  });
+
   it("binds MEAL_VISION independently to Gemini and preserves inline image input", async () => {
     process.env.AI_MEAL_TEXT_PROVIDER = "openai";
     process.env.AI_MEAL_TEXT_MODEL = "must-not-leak";

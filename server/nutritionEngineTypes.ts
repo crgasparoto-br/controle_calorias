@@ -168,6 +168,13 @@ export type IntentHint = {
   reasoning?: string | null;
 };
 
+export type NutritionLabelIdentityContext = {
+  originalFoodName: string;
+  originalCanonicalName?: string | null;
+  originalBrand?: string | null;
+  originalProductVariant?: string | null;
+};
+
 export type MealProcessingInput = {
   text?: string;
   transcript?: string;
@@ -190,6 +197,8 @@ export type MealProcessingInput = {
   suggestedMealLabel?: string | null;
   /** Contexto opcional do LLM classificador para coordenar a extração nutricional */
   intentHint?: IntentHint | null;
+  /** Identidade persistida usada somente para correlacionar uma foto posterior de rótulo. */
+  nutritionLabelIdentityContext?: NutritionLabelIdentityContext | null;
 };
 
 export type MealSemanticFieldEvidence<T> = {
@@ -319,6 +328,8 @@ export type ExplicitQuantity = {
 export type BuildItemsOptions = {
   preferInferredNutrition?: boolean;
   skipCommercialNutritionSearch?: boolean;
+  /** Identidade persistida usada apenas para resolver uma foto posterior de rótulo. */
+  nutritionLabelIdentityHint?: string | null;
   /** Consulta a fonte nutricional externa também para alimentos sem marca. */
   searchGenericNutrition?: boolean;
   /**

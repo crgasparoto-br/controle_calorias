@@ -64,6 +64,7 @@ import type {
   MealItemResolutionMetadata,
   MealProcessingInput,
   MealProcessingResult,
+  NutritionLabelIdentityContext,
   MealSemanticAlternative,
   MealSemanticClarificationCode,
   MealSemanticContract,
@@ -80,6 +81,7 @@ export type {
   MealDraftItem,
   MealProcessingInput,
   MealProcessingResult,
+  NutritionLabelIdentityContext,
   MealSemanticAlternative,
   MealSemanticContract,
   ParsedFoodText,
@@ -993,25 +995,52 @@ function verifyNutritionLabelEvidence(
   return evidence;
 }
 
+function buildNutritionLabelIdentityHint(
+  context: NutritionLabelIdentityContext | null | undefined
+) {
+  if (!context) return null;
+  const identity = [
+    context.originalFoodName,
+    context.originalCanonicalName,
+    context.originalBrand,
+    context.originalProductVariant,
+  ]
+    .map(value => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(" ");
+  return identity || null;
+}
+
 async function buildItemsFromInference(
   items: LlmItem[],
   options: BuildItemsOptions = {},
   observeFallback?: NutritionFallbackObserver
 ): Promise<MealDraftItem[]> {
   const results: MealDraftItem[] = [];
+  const resolutionSourceText = [
+    options.sourceText,
+    options.nutritionLabelIdentityHint,
+  ]
+    .map(value => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join("\n") || undefined;
+  const resolutionOptions = options.nutritionLabelIdentityHint
+    ? { ...options, sourceText: resolutionSourceText }
+    : options;
   for (const item of items) {
     const normalizedItem = normalizeLlmItem(item);
     const sourceFoodName = findSourceFoodSegmentForInferenceItem(
       normalizedItem,
-      options.sourceText
+      resolutionSourceText
     );
     const resolvedItem = recoverExplicitBrandFromSource(
       normalizedItem,
-      options.sourceText
+      resolutionSourceText
     );
     const semanticSource = resolveSemanticSourceForInferenceItem(
       resolvedItem,
-      options.sourceText
+      resolutionSourceText
     );
     const verifiedNutritionLabelEvidence = options.preferInferredNutrition
       ? verifyNutritionLabelEvidence(
@@ -1049,7 +1078,10 @@ async function buildItemsFromInference(
     }
 
     const { catalog, isExactMatch, alternatives } =
-      await findMostSpecificCatalogForInferenceItem(resolvedItem, options);
+      await findMostSpecificCatalogForInferenceItem(
+        resolvedItem,
+        resolutionOptions
+      );
     const usableCatalog = catalog && isAllowedUnbrandedCatalogReference(
       resolvedItem,
       catalog,
@@ -1531,6 +1563,9 @@ export async function processMealInput(
             nutritionLabelEvidenceText: input.imageUrl
               ? confirmedExtraction.reasoning
               : null,
+            nutritionLabelIdentityHint: buildNutritionLabelIdentityHint(
+              input.nutritionLabelIdentityContext
+            ),
             sourceText,
           },
           reason => fallbackReasons.observe(reason)
