@@ -294,13 +294,37 @@ function isNaturalProduceVariant(item: LlmItem, sourceFoodName: string | null) {
   );
 }
 
+function isExplicitNaturalProduceCultivarBrand(
+  item: LlmItem,
+  sourceFoodName: string,
+) {
+  const brand = item.brand?.trim();
+  if (!brand) return false;
+
+  const commercialHint = inferUnresolvedCommercialIdentityHint(sourceFoodName);
+  return Boolean(
+    commercialHint?.brand &&
+      normalizeForMatching(commercialHint.brand).trim() ===
+        normalizeForMatching(brand).trim() &&
+      isNaturalProduceVariant(item, sourceFoodName),
+  );
+}
+
 export function recoverExplicitBrandFromSource(
   item: LlmItem,
   sourceText?: string
 ): LlmItem {
-  if (item.brand) return item;
   const sourceFoodName =
     findSourceFoodSegmentForInferenceItem(item, sourceText) ?? item.foodName;
+  if (item.brand) {
+    // The extractor may materialize a cultivar as `brand` even though the
+    // source-derived identity guard already recognizes it as a natural
+    // produce qualifier (e.g. "melão dino"). Remove only that exact residual
+    // hint; real commercial brands remain authoritative and fail-closed.
+    return isExplicitNaturalProduceCultivarBrand(item, sourceFoodName)
+      ? { ...item, brand: null }
+      : item;
+  }
   const sourceBrand = detectKnownBrand(sourceFoodName);
   if (sourceBrand) return { ...item, brand: sourceBrand };
 
@@ -308,8 +332,7 @@ export function recoverExplicitBrandFromSource(
   if (commercialHint?.brand && isNaturalProduceVariant(item, sourceFoodName)) {
     // A residual token in a naturally classified fruit/vegetable is more likely
     // to be a cultivar or variety (e.g. "laranja pêra") than a commercial
-    // brand. Structured brands remain authoritative because this guard only
-    // applies when the extractor omitted the brand.
+    // brand.
     return item;
   }
   return commercialHint?.brand
