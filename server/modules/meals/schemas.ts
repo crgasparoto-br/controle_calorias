@@ -124,6 +124,13 @@ export const updateMealSchema = manualMealSchema.extend({
   mealId: z.number().int().positive(),
 });
 
+export const updateMealItemSchema = z.object({
+  mealId: z.number().int().positive(),
+  itemIndex: z.number().int().nonnegative(),
+  mealLabel: mealLabelSchema,
+  item: mealItemSchema,
+});
+
 export const updateMealGroupSchema = z.object({
   mealLabel: mealLabelSchema,
   meals: z.array(z.object({
@@ -178,6 +185,7 @@ export type ManualMealInput = z.infer<typeof manualMealSchema>;
 export type ProcessMealDraftInput = z.infer<typeof processMealDraftSchema>;
 export type ConfirmMealInput = z.infer<typeof confirmMealSchema>;
 export type UpdateMealInput = z.infer<typeof updateMealSchema>;
+export type UpdateMealItemInput = z.infer<typeof updateMealItemSchema>;
 export type UpdateMealGroupInput = z.infer<typeof updateMealGroupSchema>;
 export type CopyMealInput = z.infer<typeof copyMealSchema>;
 export type CopyMealGroupInput = z.infer<typeof copyMealGroupSchema>;
