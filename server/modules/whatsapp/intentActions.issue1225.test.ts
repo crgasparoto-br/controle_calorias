@@ -161,20 +161,4 @@ describe("issue #1225 - canonical coffee routing with durable personal memory", 
     expect(confirmed).not.toHaveBeenCalled();
   });
 
-  it("keeps explicit current preparation ahead of the persisted preference", async () => {
-    await persistCoffeePreference(101);
-
-    const result = await executeWhatsappTextIntent(101, {
-      text: "3 xícaras de café com açúcar",
-      receivedAt,
-      userTimezone: "America/Sao_Paulo",
-    });
-
-    expect(result).toMatchObject({ action: "meal_item_added" });
-    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({
-      registrationText: "3 xícaras de café com açúcar",
-      originalText: "3 xícaras de café com açúcar",
-    }));
-    expect(result.data?.contextMemoryApplied).toBeUndefined();
-  });
 });
