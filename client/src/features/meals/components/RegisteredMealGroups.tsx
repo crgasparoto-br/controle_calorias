@@ -491,8 +491,6 @@ export function RegisteredMealGroups({
   };
 
   const handleDeleteMealItemFromRow = (meal: StoredMeal, itemIndex: number) => {
-    itemMutationActionRef.current = "delete";
-
     if (meal.items.length <= 1) {
       removeMealFromItemDialog.mutate({ mealId: meal.id });
       return;
