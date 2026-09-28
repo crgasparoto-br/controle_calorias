@@ -48,6 +48,23 @@ export type NutritionLabelCandidateStatus =
   | "rejected"
   | "rolled_back";
 
+export type NutritionLabelEvidenceReferenceStatus =
+  | "photo_received"
+  | "processing"
+  | "pending_review"
+  | "error_retryable"
+  | "evidence_unreadable"
+  | "identity_conflict";
+
+export type NutritionLabelEvidenceReference = {
+  evidenceHash: string;
+  storageKey: string;
+  storageUrl?: string | null;
+  mimeType: string;
+  receivedAt: string;
+  status: NutritionLabelEvidenceReferenceStatus;
+};
+
 export type NutritionLabelCandidate = {
   identityKey: string;
   userId: number;
@@ -91,20 +108,7 @@ export type NutritionLabelCandidate = {
     fiber: number | null;
   } | null;
   fieldConfidence: Record<string, number | null>;
-  evidenceReference?: {
-    evidenceHash: string;
-    storageKey: string;
-    storageUrl?: string | null;
-    mimeType: string;
-    receivedAt: string;
-    status:
-      | "photo_received"
-      | "processing"
-      | "pending_review"
-      | "error_retryable"
-      | "evidence_unreadable"
-      | "identity_conflict";
-  } | null;
+  evidenceReference?: NutritionLabelEvidenceReference | null;
   status: NutritionLabelCandidateStatus;
   publishedCatalogId?: number | null;
   photoRequestedAt?: string | null;
@@ -118,6 +122,7 @@ export type NutritionLabelCandidateAudit = {
   identityKey: string;
   action:
     | "created"
+    | "edited"
     | "photo_requested"
     | "photo_received"
     | "processing"
@@ -248,13 +253,7 @@ export type NutritionLabelEvidenceInput = {
 
 export async function persistNutritionLabelEvidenceReference(
   input: NutritionLabelEvidenceInput,
-  status:
-    | "photo_received"
-    | "processing"
-    | "pending_review"
-    | "error_retryable"
-    | "evidence_unreadable"
-    | "identity_conflict" = "photo_received"
+  status: NutritionLabelEvidenceReferenceStatus = "photo_received"
 ) {
   const evidenceHash = createHash("sha256")
     .update(
@@ -268,14 +267,18 @@ export async function persistNutritionLabelEvidenceReference(
       userId: number;
       sourceMessageId: string;
       evidenceHash: string;
+      storageKey: string;
+      storageUrl?: string | null;
+      mimeType: string;
       status: string;
-      receivedAt?: string;
+      receivedAt: string;
     }>({
       scope: "global",
       kind: NUTRITION_LABEL_EVIDENCE_KIND,
     })) ?? []
   ).find(artifact => artifact.value.evidenceHash === evidenceHash);
-  if (existing?.value.status === "pending_review") return existing.value;
+  if (existing?.value.status === "pending_review")
+    return existing.value as NutritionLabelEvidenceReference;
   const persisted = await persistWhatsappLearningArtifact({
     scope: "global",
     kind: NUTRITION_LABEL_EVIDENCE_KIND,
@@ -292,7 +295,32 @@ export async function persistNutritionLabelEvidenceReference(
       status,
     },
   });
-  return persisted?.value ?? null;
+  return (persisted?.value as NutritionLabelEvidenceReference | undefined) ?? null;
+}
+
+export async function findNutritionLabelEvidenceReference(input: {
+  userId: number;
+  sourceMessageId: string;
+}) {
+  const artifacts = await listPersistedWhatsappLearningArtifacts<{
+    userId: number;
+    sourceMessageId: string;
+    evidenceHash: string;
+    storageKey: string;
+    storageUrl?: string | null;
+    mimeType: string;
+    receivedAt: string;
+    status: NutritionLabelEvidenceReferenceStatus;
+  }>({
+    scope: "global",
+    kind: NUTRITION_LABEL_EVIDENCE_KIND,
+  });
+  const evidence = (artifacts ?? []).find(
+    artifact =>
+      artifact.value.userId === input.userId &&
+      artifact.value.sourceMessageId === input.sourceMessageId
+  );
+  return evidence?.value ?? null;
 }
 
 function toArtifact(candidate: CandidateArtifact | null) {
@@ -458,12 +486,16 @@ export async function recordNutritionLabelCandidates(input: {
   sourceText?: string | null;
   items: MealDraftItem[];
   itemIndexes?: number[];
+  evidenceReference?: NutritionLabelEvidenceReference | null;
 }) {
   const created: NutritionLabelCandidate[] = [];
   for (const [arrayIndex, item] of input.items.entries()) {
     const itemIndex = input.itemIndexes?.[arrayIndex] ?? arrayIndex;
-    const candidate = toCandidate({ ...input, item, itemIndex });
-    if (!candidate) continue;
+    const candidateFromItem = toCandidate({ ...input, item, itemIndex });
+    if (!candidateFromItem) continue;
+    const candidate = input.evidenceReference
+      ? { ...candidateFromItem, evidenceReference: input.evidenceReference }
+      : candidateFromItem;
     const existing = (await listCandidateArtifacts()).find(
       artifact => artifact.value.identityKey === candidate.identityKey
     );
@@ -574,6 +606,106 @@ export async function updateCandidate(
   };
   await persistCandidate(next, new Date(artifact.value.createdAt));
   return { id: artifact.id, ...next };
+}
+
+export type NutritionLabelCandidateEditInput = {
+  candidateId: number;
+  adminUserId: number;
+  foodName: string;
+  canonicalName: string;
+  brand: string | null;
+  productVariant: string | null;
+  barcode: string | null;
+  servingLabel: string;
+  servingUnit: string;
+  gramsPerServing: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+};
+
+export async function updateNutritionLabelCandidate(
+  input: NutritionLabelCandidateEditInput
+) {
+  const artifact = await findCandidateArtifact(input.candidateId);
+  if (!artifact) throw new Error("Candidato nutricional não encontrado.");
+  const editableStatuses: NutritionLabelCandidateStatus[] = [
+    "pending_review",
+    "photo_requested",
+    "photo_received",
+    "error_retryable",
+    "evidence_unreadable",
+    "identity_conflict",
+  ];
+  if (!editableStatuses.includes(artifact.value.status)) {
+    throw new Error(
+      "Este candidato não pode ser editado no estado atual; revise a evidência ou faça rollback antes de continuar."
+    );
+  }
+
+  const nextValues = {
+    foodName: input.foodName.trim(),
+    canonicalName: input.canonicalName.trim(),
+    brand: input.brand?.trim() || null,
+    productVariant: input.productVariant?.trim() || null,
+    barcode: input.barcode?.trim() || null,
+    servingLabel: input.servingLabel.trim(),
+    servingUnit: input.servingUnit.trim(),
+    gramsPerServing: input.gramsPerServing,
+    calories: input.calories,
+    protein: input.protein,
+    carbs: input.carbs,
+    fat: input.fat,
+    fiber: input.fiber,
+  } satisfies Pick<
+    NutritionLabelCandidate,
+    | "foodName"
+    | "canonicalName"
+    | "brand"
+    | "productVariant"
+    | "barcode"
+    | "servingLabel"
+    | "servingUnit"
+    | "gramsPerServing"
+    | "calories"
+    | "protein"
+    | "carbs"
+    | "fat"
+    | "fiber"
+  >;
+  const changedFields = Object.entries(nextValues)
+    .filter(
+      ([field, value]) =>
+        artifact.value[field as keyof typeof nextValues] !== value
+    )
+    .map(([field]) => field);
+  const updated = await updateCandidate(artifact, {
+    ...nextValues,
+    nutritionPer100g: {
+      calories: (input.calories * 100) / input.gramsPerServing,
+      protein: (input.protein * 100) / input.gramsPerServing,
+      carbs: (input.carbs * 100) / input.gramsPerServing,
+      fat: (input.fat * 100) / input.gramsPerServing,
+      fiber:
+        input.fiber == null
+          ? null
+          : (input.fiber * 100) / input.gramsPerServing,
+    },
+    extractionMethod: "manual",
+    status: "pending_review",
+  });
+  await recordCandidateAudit({
+    candidateId: artifact.id,
+    identityKey: artifact.value.identityKey,
+    action: "edited",
+    actorUserId: input.adminUserId,
+    detail: `Candidato editado pelo administrador; campos alterados: ${
+      changedFields.length ? changedFields.join(", ") : "nenhum"
+    }. Evidência original preservada e publicação continua exigindo aprovação.`,
+  });
+  return updated;
 }
 
 function createCatalogInput(

@@ -11,6 +11,7 @@ import {
   updateCandidate,
   type NutritionLabelCandidate,
   type NutritionLabelCandidateAudit,
+  type NutritionLabelEvidenceReference,
 } from "./nutritionLabelCandidateService";
 
 export async function markNutritionLabelPhotoReceived(input: {
@@ -88,6 +89,7 @@ export async function applyNutritionLabelPhotoToCandidate(input: {
   userId: number;
   sourceText?: string | null;
   item: MealDraftItem;
+  evidenceReference?: NutritionLabelEvidenceReference | null;
 }) {
   const artifact = await findCandidateArtifact(input.candidateId);
   if (!artifact || artifact.value.userId !== input.userId) return null;
@@ -134,6 +136,8 @@ export async function applyNutritionLabelPhotoToCandidate(input: {
     barcode: artifact.value.barcode ?? null,
     status: "pending_review",
     publishedCatalogId: artifact.value.publishedCatalogId ?? null,
+    evidenceReference:
+      input.evidenceReference ?? artifact.value.evidenceReference ?? null,
     photoReceivedAt: nowIso(),
     createdAt: artifact.value.createdAt,
   });

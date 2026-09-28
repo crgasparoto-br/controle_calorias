@@ -13,6 +13,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  NutritionLabelCandidateEditForm,
+  type NutritionLabelEditPayload,
+} from "@/components/admin/NutritionLabelCandidateEditForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -32,6 +43,7 @@ import {
   ChevronRight,
   Database,
   Filter,
+  Image as ImageIcon,
   KeyRound,
   ListFilter,
   PlayCircle,
@@ -130,6 +142,13 @@ type FoodImportPreview = {
   sourceConflict: boolean;
   canPublish: boolean;
 };
+function isEvidenceImageUrl(candidate: any) {
+  return Boolean(
+    candidate?.evidenceReference?.storageUrl &&
+      /^https?:\/\//i.test(candidate.evidenceReference.storageUrl) &&
+      /^image\//i.test(candidate.evidenceReference.mimeType ?? "")
+  );
+}
 
 const AREA_LABELS: Record<AdminArea, string> = {
   overview: "Visão geral",
@@ -1704,6 +1723,8 @@ function NutritionLabelReviewQueue() {
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(1);
   const [detailsId, setDetailsId] = useState<number | null>(null);
+  const [imageCandidate, setImageCandidate] = useState<any | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -1767,7 +1788,21 @@ function NutritionLabelReviewQueue() {
     },
     onError: () => toast.error("Não foi possível executar o rollback agora."),
   });
-  const busy = publish.isPending || reject.isPending || requestPhoto.isPending || rollback.isPending;
+  const updateCandidate =
+    trpc.nutrition.admin.updateNutritionLabelCandidate.useMutation({
+      onSuccess: async () => {
+        setEditId(null);
+        toast.success("Informações do candidato atualizadas para nova revisão.");
+        await refresh();
+      },
+      onError: () => toast.error("Não foi possível atualizar o candidato agora."),
+    });
+  const busy =
+    publish.isPending ||
+    reject.isPending ||
+    requestPhoto.isPending ||
+    rollback.isPending ||
+    updateCandidate.isPending;
   const data = queue.data;
   return (
     <Card className="border-primary/20 shadow-sm">
@@ -1827,6 +1862,28 @@ function NutritionLabelReviewQueue() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       Origem: {candidate.evidenceKind ?? "rótulo"} · método: {candidate.extractionMethod ?? "não informado"} · confiança: {Math.round((candidate.sourceConfidence ?? 0) * 100)}%
                     </p>
+                    {isEvidenceImageUrl(candidate) ? (
+                      <button
+                        type="button"
+                        className="mt-3 flex items-center gap-3 rounded-xl border bg-muted/20 p-2 text-left transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Ampliar imagem do rótulo de ${candidate.foodName}`}
+                        onClick={() => setImageCandidate(candidate)}
+                      >
+                        <img
+                          src={candidate.evidenceReference.storageUrl}
+                          alt={`Prévia do rótulo de ${candidate.foodName}`}
+                          className="h-20 w-28 rounded-lg object-cover"
+                        />
+                        <span className="flex items-center gap-1 text-xs font-medium">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Clique para ampliar
+                        </span>
+                      </button>
+                    ) : candidate.evidenceKind === "label_photo" ? (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        A referência visual desta foto não está disponível para exibição.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {candidate.status !== "published" && candidate.status !== "rejected" && candidate.status !== "rolled_back" ? (
@@ -1854,15 +1911,48 @@ function NutritionLabelReviewQueue() {
                       </>
                     ) : null}
                     {candidate.status === "published" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => rollback.mutate({ candidateId: candidate.id })}><RotateCcw className="mr-1 h-3 w-3" /> Rollback</Button> : null}
+                    {["pending_review", "photo_requested", "photo_received", "error_retryable", "evidence_unreadable", "identity_conflict"].includes(candidate.status) ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditId(editId === candidate.id ? null : candidate.id);
+                          setDetailsId(candidate.id);
+                        }}
+                      >
+                        <Save className="mr-1 h-3 w-3" />
+                        {editId === candidate.id ? "Fechar edição" : "Editar informações"}
+                      </Button>
+                    ) : null}
                     <Button size="sm" variant="ghost" onClick={() => setDetailsId(detailsId === candidate.id ? null : candidate.id)}>Ver detalhes</Button>
                   </div>
                 </div>
                 {detailsId === candidate.id ? (
                   <div className="mt-4 space-y-2 rounded-xl bg-muted/30 p-3 text-sm">
                     <p><strong>Evidência:</strong> {candidate.sourceEvidence || "indisponível"}</p>
+                    {isEvidenceImageUrl(candidate) ? (
+                      <p>
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => setImageCandidate(candidate)}
+                        >
+                          Abrir imagem da evidência
+                        </button>
+                      </p>
+                    ) : null}
                     <p><strong>Valor vigente:</strong> {candidate.publishedCatalogId ? `catálogo #${candidate.publishedCatalogId}; comparação detalhada disponível no histórico` : "não há publicação vigente"}</p>
                     <p><strong>Original:</strong> {candidate.nutritionOriginal?.servingLabel ?? candidate.servingLabel}; normalizado por 100 g: {candidate.nutritionPer100g ? `${formatNutritionValue(candidate.nutritionPer100g.calories)} kcal` : "indisponível"}.</p>
                     {audits.data?.length ? <ul className="list-disc pl-5">{audits.data.map((audit: any) => <li key={audit.id}>{audit.action} · {new Date(audit.createdAt).toLocaleString("pt-BR")} · {audit.detail}</li>)}</ul> : <p className="text-muted-foreground">Histórico de auditoria indisponível para este candidato.</p>}
+                    {editId === candidate.id ? (
+                      <NutritionLabelCandidateEditForm
+                        candidate={candidate}
+                        isSaving={updateCandidate.isPending}
+                        onCancel={() => setEditId(null)}
+                        onSave={payload => updateCandidate.mutate(payload)}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1875,6 +1965,34 @@ function NutritionLabelReviewQueue() {
         ) : (
           <FilteredEmptyState text={status === "all" ? "Não há candidatos aguardando decisão." : "Nenhum candidato corresponde ao estado selecionado."} onClear={status === "all" ? undefined : () => setStatus("all")} />
         )}
+        <Dialog
+          open={Boolean(imageCandidate)}
+          onOpenChange={open => !open && setImageCandidate(null)}
+        >
+          <DialogContent className="max-h-[95vh] max-w-5xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Imagem da evidência</DialogTitle>
+              <DialogDescription>
+                {imageCandidate?.foodName
+                  ? `Rótulo enviado para ${imageCandidate.foodName}.`
+                  : "Prévia da imagem recebida."}
+              </DialogDescription>
+            </DialogHeader>
+            {isEvidenceImageUrl(imageCandidate) ? (
+              <div className="flex max-h-[72vh] justify-center overflow-auto rounded-xl bg-muted/30 p-3">
+                <img
+                  src={imageCandidate.evidenceReference.storageUrl}
+                  alt={`Imagem ampliada do rótulo de ${imageCandidate.foodName}`}
+                  className="max-h-[68vh] w-auto max-w-full object-contain"
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                A imagem não está disponível para exibição.
+              </p>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
