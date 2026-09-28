@@ -5,7 +5,7 @@ import { getCatalogCache } from "../../../catalogRuntime";
 import { FOOD_CATALOG_REFERENCE } from "../../../foodCatalogReference";
 import type { MealItemInput } from "../../meals/schemas";
 import type { MealDraftItem } from "../../../nutritionEngine";
-import { findCatalogFood } from "./catalogLookup";
+import { findLocalNutritionReference } from "../../../catalogMatching";
 import { endOfZonedDay, startOfZonedDay } from "./dateTime";
 import { formatNumber, normalizeIntentText } from "./textUtils";
 import type { NutritionTotals, QuantityCorrectionIntent } from "./types";
@@ -153,7 +153,7 @@ function buildHeuristicReplacementItem(item: MealItemInput, nextFoodName: string
 
 export function replaceMealItemFood(item: MealItemInput, nextFoodName: string): MealItemInput {
   const nextGrams = Math.max(Number(item.estimatedGrams || 0), MIN_FOOD_GRAMS);
-  const catalogFood = findCatalogFood(nextFoodName);
+  const catalogFood = findLocalNutritionReference(nextFoodName);
   if (catalogFood) return buildCatalogMealItem(item, nextFoodName, nextGrams, catalogFood);
   return buildHeuristicReplacementItem(item, nextFoodName, nextGrams);
 }
@@ -162,7 +162,7 @@ export function replaceMealItemFood(item: MealItemInput, nextFoodName: string): 
 export function buildFoodAdditionItem(foodName: string, quantity: number, unit = "g"): MealItemInput {
   const normalizedUnit = normalizeAdditionUnit(unit);
   const estimatedGrams = quantityToEstimatedGrams(quantity, normalizedUnit);
-  const catalogFood = findCatalogFood(foodName);
+  const catalogFood = findLocalNutritionReference(foodName);
   const item = catalogFood
     ? buildCatalogMealItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams, catalogFood)
     : buildHeuristicReplacementItem({ quantity, unit: normalizedUnit } as MealItemInput, foodName, estimatedGrams);

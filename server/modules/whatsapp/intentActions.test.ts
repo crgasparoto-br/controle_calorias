@@ -31,6 +31,7 @@ vi.mock("../onboarding/profileRead", () => ({
 }));
 
 const { executeWhatsappTextIntent } = await import("./intentActions");
+const { findTacoFood } = await import("../../tacoLookup");
 
 const riceItem = {
   foodName: "Arroz branco",
@@ -318,6 +319,7 @@ describe("executeWhatsappTextIntent", () => {
       ...input,
     }));
 
+    const requeijaoReference = findTacoFood("requeijão")!;
     const result = await executeWhatsappTextIntent(42, {
       text: "não é maionese é requeijão",
       receivedAt: new Date("2026-06-03T18:10:00.000Z"),
@@ -327,16 +329,18 @@ describe("executeWhatsappTextIntent", () => {
       mealId: 14,
       mealLabel: "Lanche",
       items: [
+        // #1194: a substituição reutiliza a referência TACO do requeijão em
+        // vez do placeholder 150/6/15/5 (que daria 45 kcal em 30 g).
         expect.objectContaining({
           foodName: "requeijão",
-          canonicalName: "requeijão",
+          canonicalName: requeijaoReference.name,
           estimatedGrams: 30,
           portionText: "30 g",
-          calories: 45,
-          protein: 1.8,
-          carbs: 4.5,
-          fat: 1.5,
-          source: "heuristic",
+          calories: 77.1,
+          protein: 2.9,
+          carbs: 0.7,
+          fat: 7,
+          source: "catalog",
         }),
         riceItem,
       ],
@@ -347,7 +351,7 @@ describe("executeWhatsappTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_replaced",
       reply: expect.stringContaining("recalculei os macros"),
     }));
-    expect(result?.reply).toContain("45 kcal");
+    expect(result?.reply).toContain("77,1 kcal");
   });
 
   it("interpreta correção do último alimento como substituição contextual", async () => {
