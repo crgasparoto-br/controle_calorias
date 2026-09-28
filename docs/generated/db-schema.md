@@ -12,7 +12,8 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `userProfiles` | `userProfiles` | 18 | Requer atenção |
 | `nutritionGoals` | `nutritionGoals` | 14 | Requer atenção |
 | `foodBrands` | `foodBrands` | 7 | Baixa |
-| `foodSources` | `food_sources` | 9 | Baixa |
+| `foodSources` | `food_sources` | 11 | Baixa |
+| `foodSourceImports` | `food_source_imports` | 18 | Baixa |
 | `foods` | `foods` | 21 | Baixa |
 | `foodAliases` | `food_aliases` | 6 | Baixa |
 | `foodPortions` | `food_portions` | 12 | Baixa |
@@ -176,6 +177,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `userProfiles` | `displayName`, `ageYears`, `birthDate`, `heightCm`, `currentWeightKg`, `nutritionObjective`, `activityLevel`, `eatingRoutine`, `mainDifficulty`, `timezone` |
 | `foodBrands` | `name`, `normalizedName` |
 | `food_sources` | `name`, `source_url`, `notes` |
+| `food_source_imports` | `result_json` |
 | `foods` | `name`, `normalized_name`, `brand_name`, `nutrients_json` |
 | `food_portions` | `label`, `normalized_label` |
 | `foodCatalog` | `name`, `brandName`, `servingLabel`, `sourceUrls` |
