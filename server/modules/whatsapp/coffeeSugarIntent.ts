@@ -45,6 +45,7 @@ function isGenericCoffeePreparationRegistrationText(text: string) {
 
 function looksLikeAmbiguousMealIntentDecision(normalized: string) {
   if (/\b(?:almocei|jantei|comi|lanchei|ceei|tomei|bebi|registrei|registrar|registre)\b/.test(normalized)) return false;
+  if (/\b\d+(?:[.,]\d+)?\s*(?:xicara|xicaras|copo|copos|ml|g|grama|gramas|porcao|porcoes)\b/.test(normalized)) return false;
   return /\b(?:cafe da manha|cafe|almoco|jantar|lanche|ceia)\b(?:\s+[a-z0-9]+){0,3}\s+com\s+\S+/.test(normalized);
 }
 
