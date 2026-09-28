@@ -3,44 +3,24 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "candidate_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
   "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:pr1210-ts-compile-001",
-    "audited_head_sha": "eac10829b6c638b62e6a058880d2af11249a4575",
-    "audit_report_sha256": "2fd13c513e7b22aadb7940612475665973614a0115fd1d70f64b9e59e794c7ab"
+    "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
+    "audited_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+    "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-1210-BUILD-001",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": [
-        "server/nutritionEngine.ts",
-        "server/modules/meals/schemas.ts",
-        "pnpm-check-701f8f92.txt"
-      ],
+      "evidence": "A fresh current-target certificate is generated for PR 1233 and published as a result-only child of the material head.",
       "validations": [
-        "The exact failed gate command pnpm check was replayed at the new material head and exited 0.",
-        "The visual identity error literal is now present in the canonical type and schema consumed by both WhatsApp entrypoints."
-      ],
-      "closure_kind": "deterministic-gate-replay",
-      "original_failed_gate": {
-        "name": "pnpm check",
-        "command": "pnpm check",
-        "deterministic": true,
-        "subject_sha": "eac10829b6c638b62e6a058880d2af11249a4575",
-        "exit_code": 2,
-        "evidence_sha256": "5bfcaa317083efa3c8f55ae267a5a5c3e7fa604c37d9e2ca6701198f71c792e8"
-      },
-      "revalidation": {
-        "command": "pnpm check",
-        "equivalence": "exact-command-replay",
-        "subject_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
-        "exit_code": 0,
-        "evidence_sha256": "990b14741541f4e65226ad84a273d4530d6ef0aafdaa3ab2197852d6d1b2febb"
-      }
+        "delivery_target_binding classified the inherited base artifact as non-reusable",
+        "prepublication and terminal handoff validators pass on the exact target"
+      ]
     }
   ]
 }

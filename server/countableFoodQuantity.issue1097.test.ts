@@ -33,6 +33,19 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
     );
   });
 
+  it.each([
+    ["ovo", 1, 50],
+    ["ovo frito", 1, 50],
+    ["ovos fritos", 2, 100],
+  ])("resolve %s pela referência unitária do ovo", (foodName, count, grams) => {
+    expect(resolveSafeCountableCatalogGrams(foodName, count, "un", true)).toEqual(
+      expect.objectContaining({
+        grams,
+        food: expect.objectContaining({ name: "Ovo de galinha", gramsPerServing: 50 }),
+      }),
+    );
+  });
+
   it("resolve o Panco Premium pela porção curada de 2 fatias = 50 g", async () => {
     const prepared = await prepareCountableFoodRegistrationResolved(
       42,

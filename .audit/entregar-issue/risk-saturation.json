@@ -1,190 +1,88 @@
 {
   "schema_version": 1,
-  "head_sha": "872873d8b2cf85579aceab0c52d0b15d73374b19",
+  "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
   "families": [
     {
       "family": "authorization",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "reason": "All surfaces derived for this family have passed adversarial and regression controls on the material head.",
       "control_ids": [
-        "NEG-OBL-063-01",
-        "NEG-OBL-137-01"
+        "NEG-R-EGG-TACO-1",
+        "NEG-R-EGG-TACO-2"
       ],
       "dimensions": [
         {
-          "surface": "session-target-binding",
-          "reason": "Authentication/session scope must not be replaced by request-selected target.",
+          "surface": "nutrition-reference-selection",
+          "status": "passed",
+          "reason": "Adversarial controls cover the nutrition-reference-selection boundary on the candidate head.",
           "control_ids": [
-            "NEG-OBL-063-01",
-            "NEG-OBL-137-01"
-          ],
-          "status": "passed"
+            "NEG-R-EGG-TACO-1",
+            "NEG-R-EGG-TACO-2"
+          ]
         }
       ],
       "status": "passed"
     },
     {
       "family": "tenant-isolation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-031-01",
-        "NEG-OBL-124-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "tenant-scope-isolation",
-          "reason": "A second user or profile must not consume the first user's pending meal state.",
-          "control_ids": [
-            "NEG-OBL-031-01",
-            "NEG-OBL-124-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current requirement or attack control requires this canonical risk family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "reference-liveness",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-010-01",
-        "NEG-OBL-083-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "reference-validity",
-          "reason": "A persisted reference must remain valid and eligible when continuation consumes it.",
-          "control_ids": [
-            "NEG-OBL-010-01",
-            "NEG-OBL-083-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "temporal-consistency",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-INHERITED-TEMPORAL-CONSISTENCY-PENDING-LIFECYCLE-WINDOW",
-        "NEG-OBL-005-01",
-        "NEG-OBL-013-01",
-        "NEG-OBL-040-01",
-        "NEG-OBL-049-01",
-        "NEG-OBL-060-01",
-        "NEG-OBL-062-02",
-        "NEG-OBL-064-01",
-        "NEG-OBL-075-01",
-        "NEG-OBL-076-02",
-        "NEG-OBL-109-02",
-        "NEG-OBL-117-01",
-        "NEG-OBL-120-01",
-        "NEG-OBL-136-01",
-        "NEG-OBL-138-02"
-      ],
-      "dimensions": [
-        {
-          "surface": "pending-lifecycle-window",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-TEMPORAL-CONSISTENCY-PENDING-LIFECYCLE-WINDOW"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "state-reuse-window",
-          "reason": "Continuation must use the current pending state without stale or future state substitution.",
-          "control_ids": [
-            "NEG-OBL-005-01",
-            "NEG-OBL-013-01",
-            "NEG-OBL-040-01",
-            "NEG-OBL-049-01",
-            "NEG-OBL-060-01",
-            "NEG-OBL-062-02",
-            "NEG-OBL-064-01",
-            "NEG-OBL-075-01",
-            "NEG-OBL-076-02",
-            "NEG-OBL-109-02",
-            "NEG-OBL-117-01",
-            "NEG-OBL-120-01",
-            "NEG-OBL-136-01",
-            "NEG-OBL-138-02"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current requirement or attack control requires this canonical risk family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-INHERITED-CONCURRENCY-ATOMICITY-CONCURRENT-RESOLUTION"
-      ],
-      "dimensions": [
-        {
-          "surface": "concurrent-resolution",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-CONCURRENCY-ATOMICITY-CONCURRENT-RESOLUTION"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "idempotency",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-076-01",
-        "NEG-OBL-097-01",
-        "NEG-OBL-109-01",
-        "NEG-OBL-123-01",
-        "NEG-OBL-128-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "duplicate-processing",
-          "reason": "Retry, callback duplication, replay or reprocessing can execute the same logical operation more than once.",
-          "control_ids": [
-            "NEG-OBL-076-01",
-            "NEG-OBL-097-01",
-            "NEG-OBL-109-01",
-            "NEG-OBL-123-01",
-            "NEG-OBL-128-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current requirement or attack control requires this canonical risk family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -192,7 +90,7 @@
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current requirement or attack control requires this canonical risk family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -200,329 +98,30 @@
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
+      "reason": "All surfaces derived for this family have passed adversarial and regression controls on the material head.",
       "control_ids": [
-        "NEG-INHERITED-STRUCTURAL-CONTRACT-CANONICAL-CONTINUATION-PATH",
-        "NEG-INHERITED-STRUCTURAL-CONTRACT-CLARIFICATION-RESOLUTION",
-        "NEG-INHERITED-STRUCTURAL-CONTRACT-COMMERCIAL-IDENTITY-VALIDATION",
-        "NEG-INHERITED-STRUCTURAL-CONTRACT-RISK-CLASSIFICATION",
-        "NEG-OBL-001-01",
-        "NEG-OBL-002-01",
-        "NEG-OBL-003-01",
-        "NEG-OBL-004-01",
-        "NEG-OBL-006-01",
-        "NEG-OBL-007-01",
-        "NEG-OBL-008-01",
-        "NEG-OBL-009-01",
-        "NEG-OBL-011-01",
-        "NEG-OBL-012-01",
-        "NEG-OBL-014-01",
-        "NEG-OBL-015-01",
-        "NEG-OBL-016-01",
-        "NEG-OBL-017-01",
-        "NEG-OBL-018-01",
-        "NEG-OBL-019-01",
-        "NEG-OBL-020-01",
-        "NEG-OBL-021-01",
-        "NEG-OBL-022-01",
-        "NEG-OBL-023-01",
-        "NEG-OBL-024-01",
-        "NEG-OBL-025-01",
-        "NEG-OBL-026-01",
-        "NEG-OBL-027-01",
-        "NEG-OBL-028-01",
-        "NEG-OBL-029-01",
-        "NEG-OBL-030-01",
-        "NEG-OBL-032-01",
-        "NEG-OBL-033-01",
-        "NEG-OBL-034-01",
-        "NEG-OBL-035-01",
-        "NEG-OBL-036-01",
-        "NEG-OBL-037-01",
-        "NEG-OBL-038-01",
-        "NEG-OBL-039-01",
-        "NEG-OBL-041-01",
-        "NEG-OBL-042-01",
-        "NEG-OBL-043-01",
-        "NEG-OBL-044-01",
-        "NEG-OBL-045-01",
-        "NEG-OBL-046-01",
-        "NEG-OBL-047-01",
-        "NEG-OBL-048-01",
-        "NEG-OBL-050-01",
-        "NEG-OBL-051-01",
-        "NEG-OBL-052-01",
-        "NEG-OBL-053-01",
-        "NEG-OBL-054-01",
-        "NEG-OBL-055-01",
-        "NEG-OBL-056-01",
-        "NEG-OBL-057-01",
-        "NEG-OBL-058-01",
-        "NEG-OBL-059-01",
-        "NEG-OBL-061-01",
-        "NEG-OBL-062-01",
-        "NEG-OBL-065-01",
-        "NEG-OBL-066-01",
-        "NEG-OBL-067-01",
-        "NEG-OBL-068-01",
-        "NEG-OBL-069-01",
-        "NEG-OBL-070-01",
-        "NEG-OBL-071-01",
-        "NEG-OBL-072-01",
-        "NEG-OBL-073-01",
-        "NEG-OBL-074-01",
-        "NEG-OBL-077-01",
-        "NEG-OBL-078-01",
-        "NEG-OBL-079-01",
-        "NEG-OBL-080-01",
-        "NEG-OBL-081-01",
-        "NEG-OBL-082-01",
-        "NEG-OBL-084-01",
-        "NEG-OBL-085-01",
-        "NEG-OBL-086-01",
-        "NEG-OBL-087-01",
-        "NEG-OBL-088-01",
-        "NEG-OBL-089-01",
-        "NEG-OBL-090-01",
-        "NEG-OBL-091-01",
-        "NEG-OBL-092-01",
-        "NEG-OBL-093-01",
-        "NEG-OBL-094-01",
-        "NEG-OBL-095-01",
-        "NEG-OBL-096-01",
-        "NEG-OBL-098-01",
-        "NEG-OBL-099-01",
-        "NEG-OBL-100-01",
-        "NEG-OBL-101-01",
-        "NEG-OBL-102-01",
-        "NEG-OBL-103-01",
-        "NEG-OBL-104-01",
-        "NEG-OBL-105-01",
-        "NEG-OBL-106-01",
-        "NEG-OBL-107-01",
-        "NEG-OBL-108-01",
-        "NEG-OBL-110-01",
-        "NEG-OBL-111-01",
-        "NEG-OBL-112-01",
-        "NEG-OBL-113-01",
-        "NEG-OBL-114-01",
-        "NEG-OBL-115-01",
-        "NEG-OBL-116-01",
-        "NEG-OBL-118-01",
-        "NEG-OBL-119-01",
-        "NEG-OBL-121-01",
-        "NEG-OBL-122-01",
-        "NEG-OBL-125-01",
-        "NEG-OBL-126-01",
-        "NEG-OBL-127-01",
-        "NEG-OBL-129-01",
-        "NEG-OBL-130-01",
-        "NEG-OBL-131-01",
-        "NEG-OBL-132-01",
-        "NEG-OBL-133-01",
-        "NEG-OBL-134-01",
-        "NEG-OBL-135-01",
-        "NEG-OBL-139-02",
-        "NEG-OBL-140-01"
+        "NEG-R-CANONICAL-OWNER-1"
       ],
       "dimensions": [
         {
-          "surface": "benchmark-path-fidelity",
-          "reason": "A benchmark can improve while bypassing productive wrappers or operations that still execute in the real application path.",
-          "control_ids": [
-            "NEG-OBL-045-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "canonical-continuation-path",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-STRUCTURAL-CONTRACT-CANONICAL-CONTINUATION-PATH"
-          ],
-          "status": "passed"
-        },
-        {
           "surface": "canonical-source-consistency",
-          "reason": "The canonical semantic contract must remain the single source of truth.",
+          "status": "passed",
+          "reason": "Adversarial controls cover the canonical-source-consistency boundary on the candidate head.",
           "control_ids": [
-            "NEG-OBL-001-01",
-            "NEG-OBL-002-01",
-            "NEG-OBL-003-01",
-            "NEG-OBL-004-01",
-            "NEG-OBL-006-01",
-            "NEG-OBL-007-01",
-            "NEG-OBL-008-01",
-            "NEG-OBL-009-01",
-            "NEG-OBL-011-01",
-            "NEG-OBL-012-01",
-            "NEG-OBL-014-01",
-            "NEG-OBL-015-01",
-            "NEG-OBL-016-01",
-            "NEG-OBL-017-01",
-            "NEG-OBL-018-01",
-            "NEG-OBL-019-01",
-            "NEG-OBL-020-01",
-            "NEG-OBL-021-01",
-            "NEG-OBL-022-01",
-            "NEG-OBL-023-01",
-            "NEG-OBL-024-01",
-            "NEG-OBL-025-01",
-            "NEG-OBL-026-01",
-            "NEG-OBL-027-01",
-            "NEG-OBL-028-01",
-            "NEG-OBL-029-01",
-            "NEG-OBL-030-01",
-            "NEG-OBL-032-01",
-            "NEG-OBL-033-01",
-            "NEG-OBL-035-01",
-            "NEG-OBL-036-01",
-            "NEG-OBL-037-01",
-            "NEG-OBL-038-01",
-            "NEG-OBL-039-01",
-            "NEG-OBL-041-01",
-            "NEG-OBL-042-01",
-            "NEG-OBL-043-01",
-            "NEG-OBL-044-01",
-            "NEG-OBL-046-01",
-            "NEG-OBL-047-01",
-            "NEG-OBL-048-01",
-            "NEG-OBL-050-01",
-            "NEG-OBL-051-01",
-            "NEG-OBL-052-01",
-            "NEG-OBL-053-01",
-            "NEG-OBL-054-01",
-            "NEG-OBL-055-01",
-            "NEG-OBL-056-01",
-            "NEG-OBL-057-01",
-            "NEG-OBL-058-01",
-            "NEG-OBL-059-01",
-            "NEG-OBL-061-01",
-            "NEG-OBL-065-01",
-            "NEG-OBL-066-01",
-            "NEG-OBL-067-01",
-            "NEG-OBL-068-01",
-            "NEG-OBL-069-01",
-            "NEG-OBL-070-01",
-            "NEG-OBL-071-01",
-            "NEG-OBL-072-01",
-            "NEG-OBL-073-01",
-            "NEG-OBL-074-01",
-            "NEG-OBL-077-01",
-            "NEG-OBL-078-01",
-            "NEG-OBL-079-01",
-            "NEG-OBL-080-01",
-            "NEG-OBL-081-01",
-            "NEG-OBL-082-01",
-            "NEG-OBL-084-01",
-            "NEG-OBL-085-01",
-            "NEG-OBL-086-01",
-            "NEG-OBL-087-01",
-            "NEG-OBL-088-01",
-            "NEG-OBL-089-01",
-            "NEG-OBL-090-01",
-            "NEG-OBL-091-01",
-            "NEG-OBL-092-01",
-            "NEG-OBL-093-01",
-            "NEG-OBL-094-01",
-            "NEG-OBL-095-01",
-            "NEG-OBL-096-01",
-            "NEG-OBL-098-01",
-            "NEG-OBL-099-01",
-            "NEG-OBL-100-01",
-            "NEG-OBL-101-01",
-            "NEG-OBL-102-01",
-            "NEG-OBL-103-01",
-            "NEG-OBL-104-01",
-            "NEG-OBL-105-01",
-            "NEG-OBL-106-01",
-            "NEG-OBL-107-01",
-            "NEG-OBL-108-01",
-            "NEG-OBL-110-01",
-            "NEG-OBL-111-01",
-            "NEG-OBL-112-01",
-            "NEG-OBL-113-01",
-            "NEG-OBL-114-01",
-            "NEG-OBL-115-01",
-            "NEG-OBL-116-01",
-            "NEG-OBL-118-01",
-            "NEG-OBL-119-01",
-            "NEG-OBL-121-01",
-            "NEG-OBL-122-01",
-            "NEG-OBL-125-01",
-            "NEG-OBL-126-01",
-            "NEG-OBL-127-01",
-            "NEG-OBL-129-01",
-            "NEG-OBL-130-01",
-            "NEG-OBL-131-01",
-            "NEG-OBL-132-01",
-            "NEG-OBL-133-01",
-            "NEG-OBL-134-01",
-            "NEG-OBL-135-01",
-            "NEG-OBL-139-02",
-            "NEG-OBL-140-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "clarification-resolution",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-STRUCTURAL-CONTRACT-CLARIFICATION-RESOLUTION"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "commercial-identity-validation",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-STRUCTURAL-CONTRACT-COMMERCIAL-IDENTITY-VALIDATION"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "reason": "A calculation can look correctly partitioned while linked records carry incompatible semantic dimensions because the canonical write path never enforces their relation.",
-          "control_ids": [
-            "NEG-OBL-034-01",
-            "NEG-OBL-062-01"
-          ],
-          "status": "passed"
-        },
-        {
-          "surface": "risk-classification",
-          "reason": "Cumulative inherited audit-escape surface remains executable on the current exact head.",
-          "control_ids": [
-            "NEG-INHERITED-STRUCTURAL-CONTRACT-RISK-CLASSIFICATION"
-          ],
-          "status": "passed"
+            "NEG-R-CANONICAL-OWNER-1"
+          ]
         }
       ],
       "status": "passed"
     },
     {
       "family": "documentation",
-      "applicable": true,
-      "reason": "Derived from requirement attack matrix.",
-      "control_ids": [
-        "NEG-OBL-137-02",
-        "NEG-OBL-138-01",
-        "NEG-OBL-139-01"
-      ],
-      "dimensions": [
-        {
-          "surface": "contract-claim-consistency",
-          "reason": "Documentation must match the implemented multi-item contract.",
-          "control_ids": [
-            "NEG-OBL-137-02",
-            "NEG-OBL-138-01",
-            "NEG-OBL-139-01"
-          ],
-          "status": "passed"
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     }
   ],
-  "material_families_missing_controls": []
+  "material_families_missing_controls": 0
 }

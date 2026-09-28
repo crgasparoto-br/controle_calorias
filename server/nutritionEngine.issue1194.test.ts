@@ -202,6 +202,13 @@ function naturalFruitItem(foodName: string, grams: number): TestItem {
   };
 }
 
+function naturalFruitItemWithBrand(foodName: string, grams: number, brand: string): TestItem {
+  return {
+    ...naturalFruitItem(foodName, grams),
+    brand,
+  };
+}
+
 function expectScaledNaturalReference(
   item: Awaited<ReturnType<typeof processMealInput>>["items"][number] | undefined,
   baseName: string,
@@ -252,6 +259,16 @@ describe("issue #1194 — cultivar de alimento natural não cai no placeholder",
     expectScaledNaturalReference(result.items[0], "melão", 185);
   });
 
+  it("remove Dino quando a IA o preenche como marca residual da fruta natural", async () => {
+    installInference([naturalFruitItemWithBrand("Melão Dino", 185, "Dino")]);
+
+    const result = await processMealInput({ text: "185g melão dino" });
+
+    expect(result.items[0].brand ?? null).toBeNull();
+    expectScaledNaturalReference(result.items[0], "melão", 185);
+    expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith("generic_nutrition_fallback", expect.anything());
+  });
+
   it("resolve o melão pelo fallback textual quando a IA está indisponível", async () => {
     createTextResponseMock.mockRejectedValue(new Error("provider unavailable"));
 
@@ -290,5 +307,14 @@ describe("issue #1194 — cultivar de alimento natural não cai no placeholder",
       code: "food_identity_clarification_required",
     });
     expect(logMealInferenceFallbackMock).not.toHaveBeenCalledWith("generic_nutrition_fallback", expect.anything());
+  });
+
+  it("preserva Dino como marca quando a classificação impede a política de fruta natural", async () => {
+    installInference([genericItem("Melão Dino", 185, "Dino")]);
+
+    await expect(processMealInput({ text: "185g melão dino" })).rejects.toMatchObject({
+      code: "food_identity_clarification_required",
+      context: expect.objectContaining({ brand: "Dino" }),
+    });
   });
 });

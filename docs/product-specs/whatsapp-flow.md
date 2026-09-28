@@ -43,6 +43,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O fuso horário do perfil deve ser usado como referência para interpretar datas e horários do usuário; quando ausente, o padrão é `America/Sao_Paulo` (UTC-03:00 - Brasília/São Paulo).
 - Respostas devem listar alimentos, porções, macros, calorias e horário em formato legível.
 - Mensagens de texto devem corrigir unidades prováveis quando houver quantidade numérica e contexto seguro, por exemplo `300mo água` como `300 ml de água`.
+- Alimentos contáveis com referência canônica de unidade devem aceitar a quantidade implícita sem exigir que o usuário informe peso; `1 ovo` e `1 ovo frito` são convertidos para `50 g`, preservando o preparo no texto reescrito para a resolução nutricional posterior.
 - Conversões entre massa e volume só devem acontecer quando houver densidade confiável para o alimento ou bebida; alimentos sólidos sem densidade não devem ser convertidos automaticamente para volume.
 - Quando uma medida for convertida, a resposta ao usuário deve deixar clara a medida interpretada, por exemplo usando a porção convertida na confirmação.
 - Após registrar uma refeição pelo WhatsApp, a resposta pode incluir um link temporário de edição rápida para corrigir alimentos, quantidades ou unidades da refeição recém-criada.

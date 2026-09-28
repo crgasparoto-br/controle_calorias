@@ -75,6 +75,22 @@ function findCuratedCommonPortion(foodName: string) {
   )?.food;
 }
 
+function findCountableCatalogReference(foodName: string) {
+  const direct = findCatalogFood(foodName);
+  if (direct) return direct;
+
+  // O catálogo de nutrição mantém o preparo frito no TACO, mas a porção de
+  // unidade pertence à referência genérica de ovo. O gate usa essa referência
+  // somente para converter a unidade em gramas; o texto reescrito preserva o
+  // preparo para que o motor nutricional selecione a composição correta depois.
+  const normalized = normalizeCuratedFoodName(foodName);
+  if (!/^ovos?(?: (?:frit[oa]s?|cozid[oa]s?|mexid[oa]s?))?$/u.test(normalized)) {
+    return undefined;
+  }
+
+  return findCatalogFood("ovo");
+}
+
 export type CountableFoodQuantityRequest = {
   segment: string;
   foodName: string;
@@ -143,7 +159,7 @@ export function parseCountableFoodQuantitySegment(
 
   const bare = parseBareCount(segment);
   if (!bare) return null;
-  const local = findCatalogFood(bare.foodName);
+  const local = findCountableCatalogReference(bare.foodName);
   if (bare.count === 1 && getSafeCatalogCountableGrams(local, bare)) return null;
   return bare;
 }
@@ -174,7 +190,7 @@ export function findUnsafeCountableFoodQuantity(
   for (const segment of splitCountableFoodTextSegments(text)) {
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
-    const local = findCatalogFood(request.foodName);
+    const local = findCountableCatalogReference(request.foodName);
     if (getSafeCatalogCountableGrams(local, request, false)) continue;
     return request;
   }
@@ -188,7 +204,7 @@ export function hasUnsafeKnownCountableFoodQuantity(
   for (const segment of splitCountableFoodTextSegments(text)) {
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
-    const local = findCatalogFood(request.foodName) ?? findTacoFood(request.foodName);
+    const local = findCountableCatalogReference(request.foodName) ?? findTacoFood(request.foodName);
     if (!local) continue;
     if (!getSafeCatalogCountableGrams(local, request, false)) return true;
   }
@@ -208,7 +224,7 @@ export function resolveSafeCountableCatalogGrams(
     count,
     requestedUnit,
   };
-  const food = findCatalogFood(foodName) ?? (
+  const food = findCountableCatalogReference(foodName) ?? (
     includeCuratedCommonPortion ? findCuratedCommonPortion(foodName) : undefined
   );
   const grams = getSafeCatalogCountableGrams(

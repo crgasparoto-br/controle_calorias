@@ -1,1 +1,322 @@
-{"schema_version":2,"artifact_format":"base64-shards-v1","artifact_kind":"requirement-closure","compression":"gzip","encoded_size":10440,"encoded_sha256":"ba96e189c3da5ffe31ebc9e0dc29dd6979da0b49f1ae7b371003d9479a34d6ca","decoded_size":39972,"decoded_sha256":"1fede5bb2e86f8f69d859d5e64fd4c6962ccfe4aca2088d0436dcd0fba7d226e","parts":[{"path":"requirement-closure.parts/part-000.b64","size":10000,"sha256":"f40d009263d1ba8fd621afb3934fdbc00b0a2e645c997dfe07b07fd588288b8a"},{"path":"requirement-closure.parts/part-001.b64","size":440,"sha256":"d762f7a8a1c0ed43e57968dfc2b206a042d1ec973c92073a7476c7b4bb5848fd"}]}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "/tmp/controle-calorias-handoff-1233/specification-snapshot.json",
+    "sha256": "67dd13777f9d3731002103304b2f296b6acbe289be5936b3541cae64e3393104"
+  },
+  "primary_issue_source_id": "SRC-ISSUE",
+  "obligations": [
+    {
+      "id": "OBL-001",
+      "candidate_key": "bff80ecb7f7f370b2e120f740e77349c8e0737cf6ebea57832648fc45c1550d5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 4,
+      "source_text": "A implementação deve partir da branch develop e a PR deve permanecer baseada em develop.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-BASE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "A branch e a PR foram criadas sobre develop, conforme a identidade do candidato."
+    },
+    {
+      "id": "OBL-002",
+      "candidate_key": "6e411ba965063ea0db736cc632355f9eb175bb49a8b029f80daaccf115d5eae2",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 5,
+      "source_text": "A correção cobre o gate contável do WhatsApp e o motor nutricional usado pelo registro.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-SCOPE"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O escopo está limitado ao gate contável e ao motor nutricional do registro."
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "f609a549828cd6d0a88caf70a0b51ff04a669cfa39c05dd4587a4077f5d8ef3f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 8,
+      "source_text": "O sistema deve interpretar `1 ovo` como uma unidade canônica de 50 g sem solicitar peso ao usuário.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-EGG-UNIT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O caso é coberto pelo resolvedor de unidade do ovo e pelo teste de paridade real."
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "35efb2096b74c513264d8ff423187ce2af4f86a13c3fc7675a337012311f358e",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 9,
+      "source_text": "O sistema deve interpretar `1 ovo frito` como uma unidade canônica de 50 g sem solicitar peso ao usuário, preservando o preparo no texto encaminhado ao motor nutricional.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-EGG-FRIED-UNIT"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O preparo frito usa a mesma gramatura de unidade e mantém o descritor no texto."
+    },
+    {
+      "id": "OBL-005",
+      "candidate_key": "68959b4a9f97f50982ae04777fb4194898ab1a68f1c93c7f9defcf21c2481cc4",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 10,
+      "source_text": "O sistema deve resolver `50 g de ovo frito` pela referência nutricional TACO de ovo frito, e não pelo perfil genérico de unidade nem pelo placeholder de inferência.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-EGG-TACO"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O motor consulta a referência TACO específica de ovo frito depois do rewrite."
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "7d90fe0e1d8f9fb605a6ac5b94d3a338c2eb6adf33af2bc84b638bf1b40b7e0d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 11,
+      "source_text": "O sistema deve resolver `185 g de melão dino` pela referência canônica de melão, sem usar o placeholder genérico, inclusive quando o extrator retornar `brand: Dino` para uma fruta classificada como natural.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-MELON-NATURAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "O cultivar natural é reduzido à referência base de melão antes do placeholder."
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "ddf2f86ad2b8726b3e096372951e77d58c12671be51a447091817997ec41c2f0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 12,
+      "source_text": "O sistema não pode remover uma marca comercial real nem aceitar silenciosamente `Dino` quando o alimento estiver explicitamente classificado como processado; esse caso deve permanecer fail-closed com clarificação de identidade.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-FAIL-CLOSED"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "A marca comercial/processamento explícito permanece fail-closed e exige clarificação."
+    },
+    {
+      "id": "OBL-008",
+      "candidate_key": "83da858871b4590d902c6646b36bf50fb8fb41b15575d98964b58793fea7e1f6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 15,
+      "source_text": "Os testes devem executar o gate real e comprovar `50 g de ovo` e `50 g de ovo frito` sem chamada de clarificação.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-GATE-REAL"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "A integração do gate real e os fixtures de paridade demonstram as duas saídas."
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "1d40678544c8cc3898b0ef3cee0eed948034823174ec8ef649420ad41778d77d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 16,
+      "source_text": "Os testes devem comprovar a composição frita e devem manter controles negativos para alimentos contáveis inseguros e para melão classificado como processado.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-NEGATIVE-CONTROLS"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Testes negativos mantêm alimentos inseguros pendentes e produto processado bloqueado."
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "66bd8d73e14666b02b17c13ccb73d688392eb4d3085c8933655c5b33d8dc724e",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_line": 17,
+      "source_text": "A implementação deve preservar o texto do preparo e reutilizar o catálogo e os contratos nutricionais existentes, sem criar um segundo resolvedor paralelo.",
+      "flags": [
+        "negative",
+        "source-catalog",
+        "structural"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-CANONICAL-OWNER"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "A implementação reutiliza o catálogo e os contratos existentes, sem resolver paralelo."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "candidate_count": 10,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "OBL-010 exige reutilizar o owner canônico e proíbe um resolvedor paralelo.",
+    "entries": [
+      {
+        "id": "STR-CANONICAL-OWNER",
+        "obligation_ids": [
+          "OBL-010"
+        ],
+        "negative_control_evidence": "O teste de paridade e a inspeção do diff mostram que findCountableCatalogReference apenas delega ao catálogo existente; alimentos fora do padrão não entram no fallback de ovo.",
+        "plausible_wrong_implementation": "Criar uma tabela paralela de porções para ovo frito e encaminhar o preparo ao perfil genérico, divergindo do catálogo e do motor TACO."
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "A mudança não altera histórico, timeline, versionamento, paginação ou autoria de registros.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "O caso usa o catálogo nutricional e a referência TACO como fontes canônicas únicas para gramatura e composição.",
+    "entries": [
+      {
+        "id": "CAN-TACO-001",
+        "obligation_ids": [
+          "OBL-003",
+          "OBL-004",
+          "OBL-005",
+          "OBL-006",
+          "OBL-010"
+        ],
+        "source": "server/catalogMatching.ts, server/tacoLookup.ts e nutritionEngine.ts",
+        "evidence": "Testes focados confirmam a gramatura do ovo e os valores do TACO frito/melão."
+      }
+    ],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "not-applicable",
+    "applicability_reason": "A fonte canônica desta entrega não define migração de rotas, autorização, legado, flags ou transição operacional; os documentos apenas registram o contrato corrigido.",
+    "old_contract_terms": [],
+    "new_contract_terms": [],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "pnpm docs:check passou no candidato."
+    ]
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": [],
+    "reason": "Todos os dez candidatos normativos da fonte foram mantidos no escopo e vinculados a um requisito; nenhum trecho foi descartado como não aplicável."
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "R-BASE",
+      "R-CANONICAL-OWNER",
+      "R-EGG-FRIED-UNIT",
+      "R-EGG-TACO",
+      "R-EGG-UNIT",
+      "R-FAIL-CLOSED",
+      "R-GATE-REAL",
+      "R-MELON-NATURAL",
+      "R-NEGATIVE-CONTROLS",
+      "R-SCOPE"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010"
+    ],
+    "evidence": [
+      "Leitura da fonte e revisão do diff contra develop.",
+      "Testes de gate, TACO, melão e controles negativos.",
+      "Typecheck, arquitetura e documentação aprovados."
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}
