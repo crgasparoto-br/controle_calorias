@@ -125,6 +125,10 @@ const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "fatiado",
   "fresca",
   "fresco",
+  "frita",
+  "fritas",
+  "frito",
+  "fritos",
   "grelhada",
   "grelhado",
   "picada",
@@ -231,6 +235,37 @@ export function findNaturalProduceCatalogFood(foodName: string) {
   }
 
   return null;
+}
+
+/**
+ * Canonical synchronous local reference (catalog, TACO, then natural-produce
+ * base for cultivar qualifiers such as "melão dino"). Consumers that cannot
+ * run the async pipeline reuse it instead of jumping to the generic
+ * 150/6/15/5 placeholder. A known brand never falls back to the produce base.
+ */
+export function findLocalNutritionReference(foodName: string) {
+  const direct = findCatalogFood(foodName) ?? findTacoFood(foodName);
+  if (direct) return direct;
+  if (detectKnownBrand(foodName)) return null;
+  return findNaturalProduceNutritionReference(foodName);
+}
+
+/**
+ * Nutrition-grade variant of `findNaturalProduceCatalogFood`: the produce base
+ * must be the leading identity of the request ("melão dino" -> "Melão, cru").
+ * A loose TACO hit on a trailing token ("manteiga de alho" -> "Couve,
+ * manteiga, crua") is enough to deny brand evidence, but never nutrition.
+ */
+export function findNaturalProduceNutritionReference(foodName: string) {
+  const produce = findNaturalProduceCatalogFood(foodName);
+  if (!produce) return null;
+  const [requestHead] = normalizedWords(foodName);
+  const [referenceHead] = normalizedWords(produce.name);
+  if (!requestHead || !referenceHead) return null;
+  return singularNaturalProduceToken(requestHead) ===
+    singularNaturalProduceToken(referenceHead)
+    ? produce
+    : null;
 }
 
 function singularNaturalProduceToken(token: string) {

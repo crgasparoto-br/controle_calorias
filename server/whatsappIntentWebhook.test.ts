@@ -740,14 +740,15 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       mealId: 14,
       mealLabel: "Lanche",
       items: [
-        expect.objectContaining({ foodName: "requeijão", canonicalName: "requeijão", estimatedGrams: 30, calories: 45, source: "heuristic" }),
+        // #1194: requeijão usa a referência TACO, não o placeholder 150/6/15/5 (45 kcal em 30 g).
+        expect.objectContaining({ foodName: "requeijão", canonicalName: "Queijo, requeijão, cremoso", estimatedGrams: 30, calories: 77.1, protein: 2.9, carbs: 0.7, fat: 7, source: "catalog" }),
         expect.objectContaining(riceItem),
       ],
     }));
     expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
     expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({ origin: "whatsapp", status: "success", eventType: "whatsapp.intent.meal_item_replaced" }));
     expect(sentMessages.at(-1)).toContain("Maionese → requeijão");
-    expect(sentMessages.at(-1)).toContain("45 kcal");
+    expect(sentMessages.at(-1)).toContain("77,1 kcal");
   });
 
   it("adiciona café sem açúcar à refeição existente e não delega para inferência nutricional", async () => {

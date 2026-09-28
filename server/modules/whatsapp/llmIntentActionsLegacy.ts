@@ -29,6 +29,7 @@ import type { WhatsAppLogicalReply } from "./replyContract";
 import { getWhatsAppUserTimeZone } from "./userMeasurementReplyContext";
 import { addDaysToZonedDate, getZonedParts, makeDateInTimeZone } from "./intent/dateTime";
 import { buildWhatsappExplicitMealTargetMissingClarification } from "./intent/explicitMealTargetGuard";
+import { replaceMealItemFood as replaceMealItemFoodWithLocalReference } from "./intent/mealItemHelpers";
 
 const HEURISTIC_NUTRITION_PER_100G = {
   calories: 150,
@@ -261,19 +262,9 @@ function findReplacementTarget(items: MealItemInput[], sourceFood: string) {
 }
 
 function replaceMealItemFood(item: MealItemInput, targetFood: string): MealItemInput {
-  const estimatedGrams = Math.max(Number(item.estimatedGrams || 0), 1);
-  const factor = estimatedGrams / 100;
-  return {
-    ...item,
-    foodName: targetFood,
-    canonicalName: targetFood,
-    calories: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.calories * factor),
-    protein: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.protein * factor),
-    carbs: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.carbs * factor),
-    fat: roundNutritionValue(HEURISTIC_NUTRITION_PER_100G.fat * factor),
-    confidence: Math.min(Number(item.confidence || 0.7), 0.7),
-    source: "heuristic",
-  };
+  // Reutiliza a referência local canônica; o placeholder 150/6/15/5 só vale
+  // quando nenhuma referência catálogo/TACO/produto natural existir.
+  return replaceMealItemFoodWithLocalReference(item, targetFood);
 }
 
 function hasLikelyMealRegistrationSignal(text: string) {
