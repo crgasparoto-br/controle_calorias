@@ -12,10 +12,12 @@ import {
   listUserMeals,
   logInferenceEvent,
   logPersistenceWarning,
+  moveUserMealItem,
   rebuildUserMealHabits,
   removeUserMeal,
   reuseFavoriteMeal,
   saveFavoriteMeal,
+  updateUserMealItem,
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
@@ -342,6 +344,57 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
   }
 
   return meal;
+}
+
+export async function updateMealItem(userId: number, input: {
+  sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
+  itemIndex: number;
+  targetMealLabel: string;
+  occurredAt: string;
+  item: MealDraftItem;
+}) {
+  await ensureCurrentIrreversibleEffectAllowed();
+  const [preparedItem] = await prepareMealItemsForSave(userId, [input.item], { recordUsage: true });
+  await ensureCurrentIrreversibleEffectAllowed();
+  const meal = await updateUserMealItem({
+    userId,
+    sourceMeal: input.sourceMeal,
+    itemIndex: input.itemIndex,
+    updatedItem: preparedItem,
+    mealLabel: input.targetMealLabel,
+    occurredAt: input.occurredAt,
+  });
+  return decorateMealWithImageUrl(meal);
+}
+
+export async function moveMealItem(userId: number, input: {
+  sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
+  itemIndex: number;
+  targetMealLabel: string;
+  occurredAt: string;
+  item: MealDraftItem;
+}) {
+  await ensureCurrentIrreversibleEffectAllowed();
+  const [preparedItem] = await prepareMealItemsForSave(userId, [input.item], { recordUsage: true });
+  await ensureCurrentIrreversibleEffectAllowed();
+
+  const persisted = await moveUserMealItem({
+    userId,
+    sourceMeal: input.sourceMeal,
+    itemIndex: input.itemIndex,
+    updatedItem: preparedItem,
+    targetMealLabel: input.targetMealLabel,
+    occurredAt: input.occurredAt,
+  });
+  if (!persisted) {
+    throw new Error("Não foi possível confirmar a movimentação da refeição.");
+  }
+
+  return {
+    moved: true,
+    meal: decorateMealWithImageUrl(persisted.meal),
+    sourceMeal: decorateMealWithImageUrl(persisted.sourceMeal),
+  };
 }
 
 export async function updateMealWithHouseholdMeasureLearning(

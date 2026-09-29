@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { mealFavorites, mealInferences, mealItems, mealMedia, meals } from "../../drizzle/schema";
 import { foodCatalogDirectKey } from "../foodCatalogKeys";
 import type { MealDraftItem } from "../nutritionEngine";
@@ -60,6 +60,23 @@ export type MealsRepository = {
     items: MealDraftItem[];
     resolvedCatalogIds: Map<string, number>;
   }): Promise<void>;
+  updateMealItem(input: {
+    userId: number;
+    meal: SavedMealRecord;
+    itemIndex: number;
+    updatedItem: MealDraftItem;
+    mealLabel: string;
+    occurredAt: number;
+    resolvedCatalogIds: Map<string, number>;
+  }): Promise<void>;
+  moveMealItem(input: {
+    userId: number;
+    sourceMeal: SavedMealRecord;
+    itemIndex: number;
+    updatedItem: MealDraftItem;
+    targetMeal: { mealLabel: string; occurredAt: number };
+    resolvedCatalogIds: Map<string, number>;
+  }): Promise<{ targetMealId: number } | null>;
   persistMealUpdateWithHouseholdMeasureLearning(input: {
     meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
     items: MealDraftItem[];
@@ -109,6 +126,32 @@ function readMealItemResolution(value: string | null | undefined) {
 
 function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCatalogIds: Map<string, number>) {
   return items.map(item => ({
+    ...(() => {
+      const enriched = item as MealDraftItem & {
+        foodId?: number;
+        grams?: number;
+        caloriesKcal?: number;
+        proteinG?: number;
+        carbG?: number;
+        fatG?: number;
+        fiberG?: number | null;
+        sodiumMg?: number | null;
+        foodSnapshotJson?: string;
+      };
+      return {
+        foodId: enriched.foodId ?? null,
+        grams: enriched.grams ?? item.estimatedGrams,
+        caloriesKcal: enriched.caloriesKcal ?? item.calories,
+        proteinG: enriched.proteinG ?? item.protein,
+        carbG: enriched.carbG ?? item.carbs,
+        fatG: enriched.fatG ?? item.fat,
+        fiberG: enriched.fiberG ?? null,
+        sodiumMg: enriched.sodiumMg ?? null,
+        foodSnapshotJson: enriched.foodSnapshotJson ?? (item.resolution
+          ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
+          : null),
+      };
+    })(),
     mealId,
     foodCatalogId: resolveMealItemFoodCatalogId(item, resolvedCatalogIds),
     foodName: item.foodName,
@@ -122,9 +165,6 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
     protein: item.protein,
     carbs: item.carbs,
     fat: item.fat,
-    foodSnapshotJson: item.resolution
-      ? JSON.stringify({ kind: "meal_item_resolution", resolution: item.resolution })
-      : null,
     source: item.source,
   }));
 }
@@ -148,6 +188,107 @@ async function assertMealBelongsToUser(tx: any, userId: number, mealId: number) 
   return rows.length > 0;
 }
 
+async function lockMealAndItems(tx: any, userId: number, mealId: number) {
+  const lockedMeals = await tx
+    .select()
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.id, mealId)))
+    .for("update")
+    .limit(1);
+  if (!lockedMeals.length) return null;
+
+  const lockedItems = await tx
+    .select()
+    .from(mealItems)
+    .where(eq(mealItems.mealId, mealId))
+    .orderBy(asc(mealItems.id))
+    .for("update")
+    .limit(1000);
+  return { meal: lockedMeals[0], items: lockedItems };
+}
+
+function assertMealItemSnapshot(currentItems: any[], expectedItems: MealDraftItem[]) {
+  if (currentItems.length !== expectedItems.length) {
+    throw new Error("A refeição foi alterada antes do salvamento. Recarregue os dados e tente novamente.");
+  }
+  currentItems.forEach((row, index) => {
+    if (!samePersistedMealItem(row, expectedItems[index])) {
+      throw new Error("A refeição foi alterada antes do salvamento. Recarregue os dados e tente novamente.");
+    }
+  });
+}
+
+function samePersistedMealMetadata(row: any, expected: SavedMealRecord) {
+  const occurredAt = new Date(row.occurredAt).getTime();
+  return Number(row.id) === expected.id
+    && Number(row.userId) === expected.userId
+    && String(row.source ?? "") === expected.source
+    && String(row.status ?? "") === expected.status
+    && String(row.mealLabel ?? "") === expected.mealLabel
+    && String(row.notes ?? "") === String(expected.notes ?? "")
+    && Number.isFinite(occurredAt)
+    && occurredAt === expected.occurredAt
+    && Math.abs(Number(row.confidence) - expected.confidence) < 1e-9;
+}
+
+function assertMealMetadataSnapshot(currentMeal: any, expectedMeal: SavedMealRecord) {
+  if (!samePersistedMealMetadata(currentMeal, expectedMeal)) {
+    throw new Error("A refeição foi alterada antes do salvamento. Recarregue os dados e tente novamente.");
+  }
+}
+
+function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
+  const values = { ...buildMealItemValues(0, [item], resolvedCatalogIds)[0] } as Record<string, unknown>;
+  const enriched = item as MealDraftItem & {
+    foodId?: number;
+    grams?: number;
+    caloriesKcal?: number;
+    proteinG?: number;
+    carbG?: number;
+    fatG?: number;
+    fiberG?: number | null;
+    sodiumMg?: number | null;
+    foodSnapshotJson?: string;
+  };
+  delete values.mealId;
+  for (const field of ["foodId", "grams", "caloriesKcal", "proteinG", "carbG", "fatG", "fiberG", "sodiumMg", "foodSnapshotJson"]) {
+    delete values[field];
+  }
+  return {
+    ...values,
+    ...(enriched.foodId !== undefined ? { foodId: enriched.foodId } : {}),
+    ...(enriched.grams !== undefined ? { grams: enriched.grams } : {}),
+    ...(enriched.caloriesKcal !== undefined ? { caloriesKcal: enriched.caloriesKcal } : {}),
+    ...(enriched.proteinG !== undefined ? { proteinG: enriched.proteinG } : {}),
+    ...(enriched.carbG !== undefined ? { carbG: enriched.carbG } : {}),
+    ...(enriched.fatG !== undefined ? { fatG: enriched.fatG } : {}),
+    ...(enriched.fiberG !== undefined ? { fiberG: enriched.fiberG } : {}),
+    ...(enriched.sodiumMg !== undefined ? { sodiumMg: enriched.sodiumMg } : {}),
+    ...(enriched.foodSnapshotJson !== undefined ? { foodSnapshotJson: enriched.foodSnapshotJson } : {}),
+  };
+}
+
+async function updateMealMetadataInTransaction(tx: any, input: {
+  userId: number;
+  mealId: number;
+  mealLabel: string;
+  occurredAt: number;
+}) {
+  await tx
+    .update(meals)
+    .set({ status: "draft" })
+    .where(and(eq(meals.userId, input.userId), eq(meals.id, input.mealId)));
+  await tx
+    .update(meals)
+    .set({
+      mealLabel: input.mealLabel,
+      occurredAt: new Date(input.occurredAt),
+      updatedAt: new Date(),
+      status: "confirmed",
+    })
+    .where(and(eq(meals.userId, input.userId), eq(meals.id, input.mealId)));
+}
+
 function samePersistedMealItem(row: any, expected: MealDraftItem) {
   const numericEqual = (actual: unknown, wanted: unknown) => {
     const a = Number(actual);
@@ -156,14 +297,17 @@ function samePersistedMealItem(row: any, expected: MealDraftItem) {
   };
   return String(row.foodName ?? "") === String(expected.foodName ?? "")
     && String(row.canonicalName ?? "") === String(expected.canonicalName ?? "")
+    && String(row.foodCatalogId ?? "") === String(expected.foodCatalogId ?? "")
     && String(row.portionText ?? "") === String(expected.portionText ?? "")
     && String(row.unit ?? "") === String(expected.unit ?? "")
     && numericEqual(row.quantity, expected.quantity)
+    && numericEqual(row.servings, expected.servings)
     && numericEqual(row.estimatedGrams, expected.estimatedGrams)
     && numericEqual(row.calories, expected.calories)
     && numericEqual(row.protein, expected.protein)
     && numericEqual(row.carbs, expected.carbs)
-    && numericEqual(row.fat, expected.fat);
+    && numericEqual(row.fat, expected.fat)
+    && String(row.source ?? "") === String(expected.source ?? "");
 }
 
 async function replaceMealItemsInTransaction(
@@ -197,6 +341,56 @@ async function replaceMealItemsInTransaction(
     .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
 }
 
+async function insertConfirmedMealInTransaction(tx: any, input: {
+  meal: {
+    userId: number;
+    source: "web" | "whatsapp";
+    mealLabel: string;
+    notes?: string;
+    sourceText: string;
+    transcript?: string;
+    confidence: number;
+    occurredAt: number;
+  };
+  items: MealDraftItem[];
+  media: SavedMediaRecord[];
+  resolvedCatalogIds: Map<string, number>;
+}) {
+  const mealInsert = await tx.insert(meals).values({
+    userId: input.meal.userId,
+    source: input.meal.source,
+    status: "draft",
+    mealLabel: input.meal.mealLabel,
+    notes: input.meal.notes ?? null,
+    sourceText: input.meal.sourceText || null,
+    transcript: input.meal.transcript ?? null,
+    confidence: input.meal.confidence,
+    occurredAt: new Date(input.meal.occurredAt),
+  });
+  const mealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
+  if (!mealId) {
+    throw new Error("Não foi possível obter o id da refeição criada.");
+  }
+
+  if (input.items.length) {
+    await tx.insert(mealItems).values(buildMealItemValues(mealId, input.items, input.resolvedCatalogIds));
+  }
+
+  if (input.media.length) {
+    await tx.insert(mealMedia).values(input.media.map(item => ({
+      mealId,
+      mediaType: item.mediaType,
+      storageKey: item.storageKey,
+      storageUrl: item.storageUrl,
+      mimeType: item.mimeType,
+      originalFileName: item.originalFileName ?? null,
+    })));
+  }
+
+  await tx.update(meals).set({ status: "confirmed" }).where(eq(meals.id, mealId));
+  return mealId;
+}
+
 export function createDrizzleMealsRepository(deps: {
   getDb: DbProvider;
   onWarning: PersistenceWarningHandler;
@@ -219,7 +413,7 @@ export function createDrizzleMealsRepository(deps: {
         const mealIds = mealRows.map((row: { id: number }) => row.id);
         const includeMedia = options.includeMedia ?? true;
         const [itemRows, mediaRows] = await Promise.all([
-          db.select().from(mealItems).where(inArray(mealItems.mealId, mealIds)),
+          db.select().from(mealItems).where(inArray(mealItems.mealId, mealIds)).orderBy(asc(mealItems.id)),
           includeMedia ? db.select().from(mealMedia).where(inArray(mealMedia.mealId, mealIds)) : Promise.resolve([]),
         ]);
 
@@ -334,6 +528,79 @@ export function createDrizzleMealsRepository(deps: {
         if (!ownsMeal) return;
         await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
       });
+    },
+
+    async updateMealItem({ userId, meal, itemIndex, updatedItem, mealLabel, occurredAt, resolvedCatalogIds }) {
+      const db = await deps.getDb();
+      if (!db) return;
+      if (typeof db.transaction !== "function") {
+        throw new Error("A edição de item exige suporte transacional no banco.");
+      }
+
+      await db.transaction(async (tx: any) => {
+        const locked = await lockMealAndItems(tx, userId, meal.id);
+        if (!locked) throw new Error("Refeição não encontrada.");
+        assertMealMetadataSnapshot(locked.meal, meal);
+        assertMealItemSnapshot(locked.items, meal.items);
+        if (itemIndex < 0 || itemIndex >= locked.items.length) {
+          throw new Error("Alimento não encontrado na refeição.");
+        }
+
+        await updateMealMetadataInTransaction(tx, {
+          userId,
+          mealId: meal.id,
+          mealLabel,
+          occurredAt,
+        });
+        await tx
+          .update(mealItems)
+          .set(buildMealItemUpdate(updatedItem, resolvedCatalogIds))
+          .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, meal.id)));
+      });
+    },
+
+    async moveMealItem({ userId, sourceMeal, itemIndex, updatedItem, targetMeal, resolvedCatalogIds }) {
+      const db = await deps.getDb();
+      if (!db) return null;
+      if (typeof db.transaction !== "function") {
+        throw new Error("A movimentação de item exige suporte transacional no banco.");
+      }
+
+      const targetMealId = await db.transaction(async (tx: any) => {
+        const locked = await lockMealAndItems(tx, userId, sourceMeal.id);
+        if (!locked) throw new Error("Refeição não encontrada.");
+        assertMealMetadataSnapshot(locked.meal, sourceMeal);
+        assertMealItemSnapshot(locked.items, sourceMeal.items);
+        if (itemIndex < 0 || itemIndex >= locked.items.length) {
+          throw new Error("Alimento não encontrado na refeição.");
+        }
+
+        const createdMealId = await insertConfirmedMealInTransaction(tx, {
+          meal: {
+            userId,
+            source: "web",
+            mealLabel: targetMeal.mealLabel,
+            sourceText: "Registro manual",
+            confidence: 1,
+            occurredAt: targetMeal.occurredAt,
+          },
+          items: [],
+          media: [],
+          resolvedCatalogIds,
+        });
+
+        await tx
+          .update(mealItems)
+          .set({
+            mealId: createdMealId,
+            ...buildMealItemUpdate(updatedItem, resolvedCatalogIds),
+          })
+          .where(and(eq(mealItems.id, locked.items[itemIndex].id), eq(mealItems.mealId, sourceMeal.id)));
+
+        return createdMealId;
+      });
+
+      return { targetMealId };
     },
 
     async persistMealUpdateWithHouseholdMeasureLearning({ meal, items, expectedOriginalItem, resolvedCatalogIds, learning }) {

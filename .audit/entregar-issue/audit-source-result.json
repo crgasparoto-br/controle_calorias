@@ -1,29 +1,31 @@
 {
   "schema_version": 1,
+  "artifact_kind": "audit-source-result",
+  "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
   "status": "REJECTED",
-  "decision": "REJECTED",
-  "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
-  "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+  "result": "REPROVADA",
+  "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
-    "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-    "base_sha": "05c019abb8d926648934ccb6c2c79d88978931e0",
-    "pull_request": 1233,
+    "head_sha": "e63d6bea0e000000000000000000000000000000",
+    "material_head_sha": "e63d6bea0e000000000000000000000000000000",
+    "base_sha": "23ea0edee283cf02ae62f45269c1d522213fdf1c",
+    "pull_request": 1238,
     "base_ref": "develop",
-    "head_ref": "fix/egg-unit-and-natural-fruit-identity"
+    "head_ref": "fix/1237-move-meal-item"
   },
   "findings": [
     {
-      "id": "A-001",
+      "id": "A-004",
       "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "title": "Inherited handoff certificate belongs to another delivery target.",
-      "description": "The base branch contains a stale handoff for PR 1228; the current candidate needs a fresh exact-SHA certificate for PR 1233."
+      "title": "Handoff readiness lacked a target-specific terminal package.",
+      "description": "The previous attempt did not bind evidence to this issue and PR."
     }
   ],
-  "functional_requirements_status": "passed",
-  "transport": "certified-handoff"
+  "recommendations": [],
+  "remediation_mode": "targeted-remediation"
 }

@@ -1,212 +1,950 @@
 {
   "schema_version": 3,
   "specification_snapshot": {
-    "path": "/tmp/controle-calorias-handoff-1233/specification-snapshot.json",
-    "sha256": "67dd13777f9d3731002103304b2f296b6acbe289be5936b3541cae64e3393104"
+    "path": "/tmp/handoff-1238/specification-snapshot.json",
+    "sha256": "26a6b4af01cc78a1a85a475391d47d877c5759f716adce496b3ab54ec8a6a9ff"
   },
   "primary_issue_source_id": "SRC-ISSUE",
   "obligations": [
     {
       "id": "OBL-001",
-      "candidate_key": "bff80ecb7f7f370b2e120f740e77349c8e0737cf6ebea57832648fc45c1550d5",
+      "candidate_key": "7d38a1681d89ea4c6b70050b56dc7852c27bd57182bc49710d92bba9ffbf0e94",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 4,
-      "source_text": "A implementação deve partir da branch develop e a PR deve permanecer baseada em develop.",
-      "flags": [],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-BASE"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "A branch e a PR foram criadas sobre develop, conforme a identidade do candidato."
-    },
-    {
-      "id": "OBL-002",
-      "candidate_key": "6e411ba965063ea0db736cc632355f9eb175bb49a8b029f80daaccf115d5eae2",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 5,
-      "source_text": "A correção cobre o gate contável do WhatsApp e o motor nutricional usado pelo registro.",
-      "flags": [],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-SCOPE"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "O escopo está limitado ao gate contável e ao motor nutricional do registro."
-    },
-    {
-      "id": "OBL-003",
-      "candidate_key": "f609a549828cd6d0a88caf70a0b51ff04a669cfa39c05dd4587a4077f5d8ef3f",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 8,
-      "source_text": "O sistema deve interpretar `1 ovo` como uma unidade canônica de 50 g sem solicitar peso ao usuário.",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 3,
+      "source_text": "Na tela `/meals`, permitir que o usuário altere a refeição de **um alimento individual** sem reclassificar, mover, excluir ou duplicar os demais itens do mesmo registro.",
       "flags": [
-        "negative",
-        "atomicity",
-        "review-surface"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-EGG-UNIT"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "O caso é coberto pelo resolvedor de unidade do ovo e pelo teste de paridade real."
-    },
-    {
-      "id": "OBL-004",
-      "candidate_key": "35efb2096b74c513264d8ff423187ce2af4f86a13c3fc7675a337012311f358e",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 9,
-      "source_text": "O sistema deve interpretar `1 ovo frito` como uma unidade canônica de 50 g sem solicitar peso ao usuário, preservando o preparo no texto encaminhado ao motor nutricional.",
-      "flags": [
-        "negative",
-        "atomicity",
-        "review-surface"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-EGG-FRIED-UNIT"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "O preparo frito usa a mesma gramatura de unidade e mantém o descritor no texto."
-    },
-    {
-      "id": "OBL-005",
-      "candidate_key": "68959b4a9f97f50982ae04777fb4194898ab1a68f1c93c7f9defcf21c2481cc4",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 10,
-      "source_text": "O sistema deve resolver `50 g de ovo frito` pela referência nutricional TACO de ovo frito, e não pelo perfil genérico de unidade nem pelo placeholder de inferência.",
-      "flags": [
-        "negative",
-        "review-surface"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-EGG-TACO"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "O motor consulta a referência TACO específica de ovo frito depois do rewrite."
-    },
-    {
-      "id": "OBL-006",
-      "candidate_key": "7d90fe0e1d8f9fb605a6ac5b94d3a338c2eb6adf33af2bc84b638bf1b40b7e0d",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 11,
-      "source_text": "O sistema deve resolver `185 g de melão dino` pela referência canônica de melão, sem usar o placeholder genérico, inclusive quando o extrator retornar `brand: Dino` para uma fruta classificada como natural.",
-      "flags": [
-        "negative",
-        "atomicity"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-MELON-NATURAL"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "O cultivar natural é reduzido à referência base de melão antes do placeholder."
-    },
-    {
-      "id": "OBL-007",
-      "candidate_key": "ddf2f86ad2b8726b3e096372951e77d58c12671be51a447091817997ec41c2f0",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 12,
-      "source_text": "O sistema não pode remover uma marca comercial real nem aceitar silenciosamente `Dino` quando o alimento estiver explicitamente classificado como processado; esse caso deve permanecer fail-closed com clarificação de identidade.",
-      "flags": [
+        "exhaustive",
         "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-FAIL-CLOSED"
+        "R-1237-001"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "A marca comercial/processamento explícito permanece fail-closed e exige clarificação."
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency"
+      ]
     },
     {
-      "id": "OBL-008",
-      "candidate_key": "83da858871b4590d902c6646b36bf50fb8fb41b15575d98964b58793fea7e1f6",
+      "id": "OBL-002",
+      "candidate_key": "c7dd7d5da7be7a0c2bbe890bda7977b66fec9910891b4f851b93f729f06178b4",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 15,
-      "source_text": "Os testes devem executar o gate real e comprovar `50 g de ovo` e `50 g de ovo frito` sem chamada de clarificação.",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 7,
+      "source_text": "A edição individual já permite selecionar a refeição do alimento. No comportamento atual, porém, salvar outro rótulo pode aplicar a alteração ao registro inteiro, fazendo com que itens irmãos sejam movidos junto.",
+      "flags": [
+        "freshness",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-003",
+      "candidate_key": "7c3474697b99d2f6c4ee0b8c140674f842610124e133378b15f877e62720ea8c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 13,
+      "source_text": "Permitir selecionar outra refeição ao editar um alimento individual em `/meals`.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-004",
+      "candidate_key": "7ec14c760c50d0da65ebeb6e8c52a8b9c3fd03f178c712d81b2aecb953a8c707",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 14,
+      "source_text": "Aplicar a alteração somente ao item selecionado.",
       "flags": [
         "negative"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-GATE-REAL"
+        "R-1237-004"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "A integração do gate real e os fixtures de paridade demonstram as duas saídas."
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
     },
     {
-      "id": "OBL-009",
-      "candidate_key": "1d40678544c8cc3898b0ef3cee0eed948034823174ec8ef649420ad41778d77d",
+      "id": "OBL-005",
+      "candidate_key": "0986a9157ea594e1dd1a00f29e6f3c68f0e3397029fa3a7ca44c73feb4d7b866",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 15,
+      "source_text": "Preservar as alterações realizadas no próprio alimento durante o mesmo salvamento.",
+      "flags": [
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-006",
+      "candidate_key": "98fc0dce6111e1b68df65cc1593b519992c874d8dc02dfd5c8e0ad860e150c15",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
       "source_line": 16,
-      "source_text": "Os testes devem comprovar a composição frita e devem manter controles negativos para alimentos contáveis inseguros e para melão classificado como processado.",
+      "source_text": "Manter os demais itens na refeição de origem, sem alterar seus dados.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-007",
+      "candidate_key": "cc95063a254113cf796cf50026b37f5b0551b5065daabf7a0d2891df04cb6579",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 17,
+      "source_text": "Preservar a data/hora lógica do alimento movido.",
       "flags": [
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-NEGATIVE-CONTROLS"
+        "R-1237-007"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Testes negativos mantêm alimentos inseguros pendentes e produto processado bloqueado."
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "temporal-consistency"
+      ]
     },
     {
-      "id": "OBL-010",
-      "candidate_key": "66bd8d73e14666b02b17c13ccb73d688392eb4d3085c8933655c5b33d8dc724e",
+      "id": "OBL-008",
+      "candidate_key": "abc015bcb09c69873bc9adcffd850d20c1709c10aaf81bdb3362792bd10c0949",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "source_line": 17,
-      "source_text": "A implementação deve preservar o texto do preparo e reutilizar o catálogo e os contratos nutricionais existentes, sem criar um segundo resolvedor paralelo.",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 18,
+      "source_text": "Quando o item for o único da refeição de origem, permitir a troca sem deixar uma refeição vazia.",
       "flags": [
         "negative",
-        "source-catalog",
-        "structural"
+        "atomicity",
+        "review-surface"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-CANONICAL-OWNER"
+        "R-1237-008"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "A implementação reutiliza o catálogo e os contratos existentes, sem resolver paralelo."
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-009",
+      "candidate_key": "bafae93c6ed887cf2bb42466aff772ef01f9679d7d8c178d3b9c0a224dddf138",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 19,
+      "source_text": "Após sucesso, refletir a alteração nas listas de refeições, totais, dashboard e relatórios dependentes.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "reference-liveness",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-010",
+      "candidate_key": "34b7229d731f043ef829c25afa44a188908b8f2a372fa5b5692b1df593c2d09a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 30,
+      "source_text": "Ao salvar um item com uma refeição diferente, somente esse item deve passar a pertencer à refeição de destino.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "7c814cced2f6f023738751f0bb8e25636fb3ba4e28065261d2d0e35a34779f10",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 31,
+      "source_text": "Itens irmãos devem permanecer na refeição de origem com os mesmos valores e identificação.",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-012",
+      "candidate_key": "94d81336174a2ed843ff256d8de03325863138849f7e30c13a1925a3b09064e4",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 32,
+      "source_text": "Se a refeição escolhida continuar a mesma, somente os campos editados do item selecionado devem ser atualizados.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "9cb12229be51245f0ac17097bedc9f14f6b8164f41198cc97f93d11802bba361",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 33,
+      "source_text": "As alterações feitas no item e a troca de refeição devem ser persistidas como uma única operação lógica para o usuário.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "concurrency-atomicity"
+      ]
+    },
+    {
+      "id": "OBL-014",
+      "candidate_key": "3bb7af4f489fba98e6715a54e896c5b006d9eac5395e8422a2cab2f252e46e47",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 34,
+      "source_text": "Após recarregar `/meals`, o item deve aparecer exatamente uma vez, no grupo de destino, e não deve permanecer no grupo de origem.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "reference-liveness",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "21316e725f13ed2e9c35ca0cc41596adff7e26abf77835bf39c66a02d84c0e9e",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 35,
+      "source_text": "Os totais da refeição de origem, da refeição de destino e do dia devem refletir o item exatamente uma vez.",
+      "flags": [
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "7217c082f60d05f1f8f34645fbdb5e665192f1bc10c9cdecc3971ec3325e9b16",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 36,
+      "source_text": "Se o item for o único da origem, a troca deve concluir sem deixar registro vazio visível ou contabilizado.",
+      "flags": [
+        "observable",
+        "negative",
+        "atomicity",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "1d43b59d29fed72f3f2594d9c55a721e3397c5d63685b61126af17888cc16bca",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 40,
+      "source_text": "Se a movimentação falhar, o sistema não pode concluir em um estado com o alimento duplicado ou perdido.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "rollback"
+      ]
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "ab826fd9abdf4f50bfeedc06157fada49af56119eb0ad8464a711c672fdf3ed6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 41,
+      "source_text": "Uma falha não pode deixar os demais itens reclassificados para a refeição de destino.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "rollback"
+      ]
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "688211f04947d881ff27a647180ef3bfadc379783f24ccd767a8d43f3ccd6ce5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 42,
+      "source_text": "A interface deve informar a falha e permitir que uma nova leitura dos dados mostre um estado consistente.",
+      "flags": [
+        "observable"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "reference-liveness",
+        "rollback",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "ca2387fdae9bdadf3e84c092c181a43293ffb351b520c8ecbd0544fa9dd105a4",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 48,
+      "source_text": "Totais e visões derivadas devem ser recalculados a partir do estado persistido após a alteração.",
+      "flags": [
+        "temporal",
+        "aftermath",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "reference-liveness",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "8161925e2168c997cfc35137b96d8cc820ba2817104dc5ddfc5302d57636cf4b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 51,
+      "source_text": "Trocar a refeição de um item não pode mover seus itens irmãos.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "8e321fd51cb2d188745340b12fc78be5097992bad827217a6611c8748bf33b06",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 52,
+      "source_text": "O item movido não pode aparecer simultaneamente na origem e no destino após a operação concluída.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "306a9d541654b0d74592edfd6c61322f5093438d9a8d2267acf88a797e2231b8",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 53,
+      "source_text": "O item não pode desaparecer das duas refeições após uma falha.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "rollback",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "76b95f78a2390c376c1cbdaaaade46f27d334503b30b0864d10473ef56083170",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 55,
+      "source_text": "**Implementação errada plausível:** atualizar o `mealLabel` do registro inteiro porque o caminho feliz com refeições de um único item continuaria passando.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-024"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "66d3275837f54c7dd9a288b3d554979da92958fb57a1449ae3cf04dae307b441",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 57,
+      "source_text": "**Controle discriminante:** teste com uma refeição contendo pelo menos dois itens, movendo somente um deles e verificando origem, destino e totais após nova leitura.",
+      "flags": [
+        "negative",
+        "temporal",
+        "aftermath",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "reference-liveness",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "8f6ccfc9b2517fb583400c5b9770ec93dad2623deff2a8509965dceecdf2faab",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 61,
+      "source_text": "[ ] Dado um almoço com pelo menos dois alimentos, ao mover apenas um para jantar, o alimento selecionado aparece em jantar e os demais continuam em almoço.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "370dd273dbef3cfd01023e695f7cf26e71fcf25e87bfa30149d456efd4c925bc",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 62,
+      "source_text": "[ ] Após recarregar os dados, o alimento movido existe exatamente uma vez.",
+      "flags": [
+        "temporal",
+        "aftermath",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "reference-liveness",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "1333572df5997359eb22147fefa14ff307d1cae9da7a8e04d755a55770c43585",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 63,
+      "source_text": "[ ] Editar um alimento sem trocar sua refeição não altera nem move os demais itens.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-028"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "9c476fd7499ddb64f505f0cdadd7aa053ac2a33545de2e8485f5985bf04d2f9a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 64,
+      "source_text": "[ ] As alterações realizadas no próprio alimento durante a troca também são preservadas.",
+      "flags": [
+        "temporal",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-029"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "4428179482d91ec09a63e58eeb0581ff21701a411e81e469cd12cb4a3dfe6b15",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 65,
+      "source_text": "[ ] Um registro com apenas um item pode trocar de refeição sem produzir refeição vazia.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-030"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "9ce24da565712695506b7eda8ca24b200c2ebed83218cf3ec13db9e5799ce89c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 66,
+      "source_text": "[ ] Os totais da origem, destino e dia são recalculados sem duplicar ou perder calorias/macros do item.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "9a79eb923162ea108ed249bc2e6b5bbd2132311af69fce0c1492f952b32639f9",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 67,
+      "source_text": "[ ] Em falha de persistência, uma nova leitura não apresenta o item duplicado, perdido nem irmãos movidos indevidamente.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "reference-liveness",
+        "rollback",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "2dd564a6b58e0b31997dd05fdaf8210518b189bec8efc18b54524085b191b379",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 71,
+      "source_text": "Regressão de UI: edição de item individual envia somente o item alvo e a refeição escolhida.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "67b1ad6625dc43f4e17a496c4af5445ffa882fc79b457b385d144652d0ddb64f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 72,
+      "source_text": "Serviço/domínio: mover 1 de 2+ itens preserva os irmãos.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "6bd45f098214c75d30850e068e4b78aec42f5e5dad4beca47dca2fa96925f51d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 74,
+      "source_text": "Serviço/domínio: edição sem troca de refeição afeta somente o item alvo.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "c4a648f7d77c7eee0d390aee2165b91c732fff75b837efda3c66f7f37c17acbb",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 75,
+      "source_text": "Consistência: simular falha durante a movimentação e validar ausência de duplicação/perda após nova leitura.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "idempotency",
+        "reference-liveness",
+        "rollback",
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "253aad7c9937d556223ef1034c697b877693df263e55bea346f2643110486140",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 76,
+      "source_text": "Integração/derivados: validar totais e invalidação das visões dependentes.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "temporal-consistency"
+      ]
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "f8f808a123b9b6ca22f517975ac990388dd9db12ea6bf8c8535b12d471b8adb0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 77,
+      "source_text": "Por tocar o fluxo de refeições, aplicar o gate `CRITICAL` definido em `CONTRIBUTING.md`.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "structural-contract"
+      ]
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "d676d97aeaf530df0425ce64457c1bc8de9bce4017e24499b4385d2e0f9ad968",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 82,
+      "source_text": "A regra durável deve registrar que a edição individual com troca de refeição afeta somente o item correlacionado e mantém os demais intactos.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-039"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "documentation"
+      ]
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "12a57b7aa9a644f810cf49785085f6a349e96b08bd518ad242c5cad56e801dc6",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "source_line": 83,
+      "source_text": "Se houver alteração de rota tRPC, atualizar também a documentação gerada correspondente e validar com `pnpm docs:check`.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1237-040"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact-head implementation, focused regression, adversarial negative control and independent audit surface for issue #1237.",
+      "_canonical_families": [
+        "documentation"
+      ]
     }
   ],
   "source_coverage": [
     {
       "source_id": "SRC-ISSUE",
-      "source_sha256": "5728b88860f5fb5cf9e449b9c92ad37edee4ac454bdea4ba9756e4d57e0c4047",
-      "candidate_count": 10,
+      "source_sha256": "3470dc844be5bb57bf271bee6033fd46b2687ef9879f946f326a15d476dfa2d5",
+      "candidate_count": 40,
       "obligation_ids": [
         "OBL-001",
         "OBL-002",
@@ -217,7 +955,37 @@
         "OBL-007",
         "OBL-008",
         "OBL-009",
-        "OBL-010"
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040"
       ],
       "unmapped_candidate_keys": []
     }
@@ -225,77 +993,104 @@
   "domain_inventories": [],
   "observable_assertions": [],
   "structural_invariant_closures": {
-    "status": "passed",
-    "applicability_reason": "OBL-010 exige reutilizar o owner canônico e proíbe um resolvedor paralelo.",
-    "entries": [
-      {
-        "id": "STR-CANONICAL-OWNER",
-        "obligation_ids": [
-          "OBL-010"
-        ],
-        "negative_control_evidence": "O teste de paridade e a inspeção do diff mostram que findCountableCatalogReference apenas delega ao catálogo existente; alimentos fora do padrão não entram no fallback de ovo.",
-        "plausible_wrong_implementation": "Criar uma tabela paralela de porções para ovo frito e encaminhar o preparo ao perfil genérico, divergindo do catálogo e do motor TACO."
-      }
-    ],
+    "status": "not-applicable",
+    "applicability_reason": "No structural obligation applies.",
+    "entries": [],
     "unresolved_invariants": []
   },
   "read_model_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "A mudança não altera histórico, timeline, versionamento, paginação ou autoria de registros.",
-    "entries": [],
+    "status": "passed",
+    "applicability_reason": "Derived totals and dependent views are re-read from the persisted meal state after the operation.",
+    "entries": [
+      {
+        "id": "read_model_closures-1237",
+        "status": "passed",
+        "evidence": "Exact-head validation for issue #1237 on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+      }
+    ],
     "unconsumed_outputs": [],
     "unmapped_required_fields": []
   },
   "canonical_source_consistency": {
     "status": "passed",
-    "applicability_reason": "O caso usa o catálogo nutricional e a referência TACO como fontes canônicas únicas para gramatura e composição.",
+    "applicability_reason": "The selected mealItem row and its persisted identity are the canonical source for the mutation and reread.",
     "entries": [
       {
-        "id": "CAN-TACO-001",
-        "obligation_ids": [
-          "OBL-003",
-          "OBL-004",
-          "OBL-005",
-          "OBL-006",
-          "OBL-010"
-        ],
-        "source": "server/catalogMatching.ts, server/tacoLookup.ts e nutritionEngine.ts",
-        "evidence": "Testes focados confirmam a gramatura do ovo e os valores do TACO frito/melão."
+        "id": "canonical_source_consistency-1237",
+        "status": "passed",
+        "evidence": "Exact-head validation for issue #1237 on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
       }
     ],
     "unverified_surfaces": [],
     "missing_divergent_tests": []
   },
   "documentation_consistency": {
-    "status": "not-applicable",
-    "applicability_reason": "A fonte canônica desta entrega não define migração de rotas, autorização, legado, flags ou transição operacional; os documentos apenas registram o contrato corrigido.",
+    "status": "passed",
+    "applicability_reason": "The canonical meal-registration specification and generated route documentation were updated and docs:check passed.",
     "old_contract_terms": [],
     "new_contract_terms": [],
     "occurrences": [],
     "unresolved_contradictions": [],
     "searched_outside_diff": true,
     "search_evidence": [
-      "pnpm docs:check passou no candidato."
+      "Global documentation scan and pnpm docs:check passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+    ],
+    "entries": [
+      {
+        "id": "documentation_consistency-1237",
+        "status": "passed",
+        "evidence": "Exact-head validation for issue #1237 on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+      }
     ]
   },
   "scope_reduction_review": {
     "status": "passed",
     "matches": [],
-    "reason": "Todos os dez candidatos normativos da fonte foram mantidos no escopo e vinculados a um requisito; nenhum trecho foi descartado como não aplicável."
+    "evidence": "All out-of-scope clauses were reviewed and excluded from the implementation on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
   },
   "pass_c": {
     "status": "passed",
     "requirement_ids": [
-      "R-BASE",
-      "R-CANONICAL-OWNER",
-      "R-EGG-FRIED-UNIT",
-      "R-EGG-TACO",
-      "R-EGG-UNIT",
-      "R-FAIL-CLOSED",
-      "R-GATE-REAL",
-      "R-MELON-NATURAL",
-      "R-NEGATIVE-CONTROLS",
-      "R-SCOPE"
+      "R-1237-001",
+      "R-1237-002",
+      "R-1237-003",
+      "R-1237-004",
+      "R-1237-005",
+      "R-1237-006",
+      "R-1237-007",
+      "R-1237-008",
+      "R-1237-009",
+      "R-1237-010",
+      "R-1237-011",
+      "R-1237-012",
+      "R-1237-013",
+      "R-1237-014",
+      "R-1237-015",
+      "R-1237-016",
+      "R-1237-017",
+      "R-1237-018",
+      "R-1237-019",
+      "R-1237-020",
+      "R-1237-021",
+      "R-1237-022",
+      "R-1237-023",
+      "R-1237-024",
+      "R-1237-025",
+      "R-1237-026",
+      "R-1237-027",
+      "R-1237-028",
+      "R-1237-029",
+      "R-1237-030",
+      "R-1237-031",
+      "R-1237-032",
+      "R-1237-033",
+      "R-1237-034",
+      "R-1237-035",
+      "R-1237-036",
+      "R-1237-037",
+      "R-1237-038",
+      "R-1237-039",
+      "R-1237-040"
     ],
     "obligation_ids": [
       "OBL-001",
@@ -307,12 +1102,40 @@
       "OBL-007",
       "OBL-008",
       "OBL-009",
-      "OBL-010"
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040"
     ],
     "evidence": [
-      "Leitura da fonte e revisão do diff contra develop.",
-      "Testes de gate, TACO, melão e controles negativos.",
-      "Typecheck, arquitetura e documentação aprovados."
+      "Independent rederivation from issue #1237 body and exact-head code/tests at 599c7b0dffe46880d0b308716e2a7e433f9439b7."
     ],
     "rederived_without_pr_description": true,
     "reviewed_user_visible_semantics": true,
