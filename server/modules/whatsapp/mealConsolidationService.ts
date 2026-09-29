@@ -25,7 +25,12 @@ export type WhatsAppMealConsolidationServiceDeps = {
 
 export type WhatsAppMealConsolidationServiceResult =
   | { action: "created"; meal: WhatsAppConsolidationSavedMeal }
-  | { action: "updated"; meal: WhatsAppConsolidationSavedMeal; appendedMealId: number }
+  | {
+      action: "updated";
+      meal: WhatsAppConsolidationSavedMeal;
+      appendedMealId: number;
+      previousMeal: WhatsAppConsolidationSavedMeal;
+    }
   | { action: "ambiguous"; meal: WhatsAppConsolidationSavedMeal; candidates: WhatsAppConsolidationSavedMeal[] };
 
 function toOccurredAtIso(value: number | string | Date) {
@@ -71,5 +76,6 @@ export async function consolidateWhatsAppMealAfterSave(
     action: "updated",
     meal: updatedMeal,
     appendedMealId: savedMeal.id,
+    previousMeal: existingMeal,
   };
 }

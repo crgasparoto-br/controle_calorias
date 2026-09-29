@@ -72,6 +72,7 @@ export type WhatsAppConversationRepository = {
   findByIdempotencyKey(idempotencyKey: string): Promise<WhatsAppConversationMessageRecord | null>;
   linkResponse(inboundMessageId: number, outboundMessageId: number): Promise<void>;
   linkDomainRecord(messageId: number, link: DomainLinkInput): Promise<void>;
+  removeDomainLinksForMessage?(messageId: number): Promise<void>;
   findRecentMessages(conversationId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
   findRecentMessagesByUser(userId: number, limit?: number): Promise<WhatsAppConversationMessageRecord[]>;
   /** Paginação por cursor para histórico volumoso (issue #767) — ordem cronológica decrescente. */
@@ -334,6 +335,19 @@ export function createDrizzleWhatsAppConversationRepository(deps: {
         });
       } catch (error) {
         deps.onWarning("WhatsApp conversation domain link skipped", error);
+      }
+    },
+
+    async removeDomainLinksForMessage(messageId) {
+      const db = await deps.getDb();
+      if (!db) return;
+
+      try {
+        await db
+          .delete(whatsappMessageDomainLinks)
+          .where(eq(whatsappMessageDomainLinks.messageId, messageId));
+      } catch (error) {
+        deps.onWarning("WhatsApp conversation domain link cleanup skipped", error);
       }
     },
 
