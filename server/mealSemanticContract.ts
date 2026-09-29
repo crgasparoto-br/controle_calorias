@@ -157,6 +157,9 @@ function clarificationMessage(
     }
     return `Não consegui determinar a variante exata de ${identity}. Informe a variante/linha/sabor ou envie uma foto legível do rótulo antes de registrar os nutrientes.`;
   }
+  if (code === "commercial_nutrition_unverified") {
+    return `Identifiquei ${identity}, mas não encontrei uma composição nutricional verificada para esse produto. Envie uma foto legível da tabela nutricional ou informe calorias e macros da porção antes de registrar os nutrientes.`;
+  }
   return `Não consegui comprovar a identidade comercial exata de ${identity}. Confirme a variante ou envie um rótulo legível antes de registrar os nutrientes.`;
 }
 

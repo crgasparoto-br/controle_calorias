@@ -44,10 +44,13 @@ function runtime(kind: "contextual_estimate" | "user_learned") {
 }
 
 const date = new Date("2026-09-03T11:00:00.000Z");
+// Desde a #1244 a adição aplica a mesma precedência do registro: presunto
+// possui porção canônica local e não chegaria à medida aproximada. A fixture
+// usa um alimento sem porção canônica local para exercitar a aproximação.
 const addition = {
   mealLabel: "Café da manhã",
   date,
-  items: [{ foodName: "Presunto cozido", brand: null, quantity: 3, unit: "fatias" }],
+  items: [{ foodName: "Blanquet de peru", brand: null, quantity: 3, unit: "fatias" }],
 };
 
 describe("resolveCanonicalFoodAdditionItems (#1043)", () => {
@@ -63,11 +66,11 @@ describe("resolveCanonicalFoodAdditionItems (#1043)", () => {
         timeZone: "America/Sao_Paulo",
       }, deps as any);
 
-      expect(deps.processMealInput).toHaveBeenCalledWith(expect.objectContaining({ text: "54 g de Presunto cozido" }));
+      expect(deps.processMealInput).toHaveBeenCalledWith(expect.objectContaining({ text: "54 g de Blanquet de peru" }));
       expect(result).toEqual({
         kind: "items",
         items: [expect.objectContaining({
-          foodName: "Presunto cozido",
+          foodName: "Blanquet de peru",
           quantity: 3,
           unit: "fatia",
           portionText: "3 fatia (aprox. 54 g)",
