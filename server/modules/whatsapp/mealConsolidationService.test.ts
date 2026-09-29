@@ -45,6 +45,7 @@ describe("consolidateWhatsAppMealAfterSave", () => {
 
     expect(result.action).toBe("updated");
     expect(result.action === "updated" ? result.meal.items.map(item => item.foodName) : []).toEqual(["Pêra", "Banana"]);
+    expect(result.action === "updated" ? result.previousMeal : undefined).toEqual(existingMeal);
     expect(updateUserMeal).toHaveBeenCalledWith(expect.objectContaining({ mealId: 9, items: expect.arrayContaining(savedMeal.items) }));
     expect(removeUserMeal).toHaveBeenCalledWith(123, 10);
   });

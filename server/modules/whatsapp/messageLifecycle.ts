@@ -271,6 +271,11 @@ export function createMessageLifecycleService(input: {
       await input.conversationRepository.linkDomainRecord(handle.messageId, link);
     },
 
+    async removeDomainLinksForMessage(handle: MessageLifecycleHandle): Promise<void> {
+      if (!handle || !input.conversationRepository.removeDomainLinksForMessage) return;
+      await input.conversationRepository.removeDomainLinksForMessage(handle.messageId);
+    },
+
     async markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
       if (!handle) return;
       const persistenceStartedAt = getCurrentQuestionLatencyTrace() ? performance.now() : null;
@@ -528,6 +533,10 @@ export async function recordOutboundReply(
 
 export async function recordDomainLink(handle: MessageLifecycleHandle, link: DomainLinkInput): Promise<void> {
   await getActiveService().recordDomainLink(handle, link);
+}
+
+export async function removeDomainLinksForMessage(handle: MessageLifecycleHandle): Promise<void> {
+  await getActiveService().removeDomainLinksForMessage(handle);
 }
 
 export async function markMessageProcessed(handle: MessageLifecycleHandle, processedAt = new Date()): Promise<void> {
