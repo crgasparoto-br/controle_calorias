@@ -185,7 +185,7 @@ function averageValue(total: number, count: number) {
   return total / count;
 }
 
-const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 8;
+const FOOD_QUALITY_LOOKUP_QUERY_LIMIT = 24;
 const FOOD_QUALITY_LOOKUP_CONCURRENCY = 6;
 const REFERENCE_FOOD_LOOKUP = createFoodLookup([]);
 

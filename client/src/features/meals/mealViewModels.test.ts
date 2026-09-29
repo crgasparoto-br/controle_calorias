@@ -123,16 +123,61 @@ describe("meal view models", () => {
     expect(groups[0].records[1].items).toHaveLength(1);
   });
 
-  it("uses meal image on grouped records and items", () => {
+  it("keeps meal-level image but only shows item media with explicit provenance in a mixed meal", () => {
     const groups = buildRegisteredMealGroups([
       buildMeal({
         id: 4,
         mealLabel: "lanche da tarde",
-        imageUrl: "meal-image.jpg",
+        imageUrl: "meal-level-image.jpg",
+        media: [{ mediaType: "image", storageKey: "42/meal-images/original.jpg", storageUrl: "https://cdn.example/original.jpg" }],
+        items: [
+          {
+            foodName: "Arroz", canonicalName: "Arroz", portionText: "100 g", servings: 1, estimatedGrams: 100,
+            calories: 130, protein: 2.5, carbs: 28, fat: 0.3, confidence: 1, source: "catalog",
+            sourceMediaStorageKey: "42/meal-images/original.jpg",
+          },
+          {
+            foodName: "Iogurte adicionado manualmente", canonicalName: "Iogurte", portionText: "1 pote", servings: 1,
+            estimatedGrams: 170, calories: 110, protein: 6, carbs: 12, fat: 3, confidence: 1, source: "catalog",
+          },
+        ],
       }),
     ]);
 
-    expect(groups[0].records[0].imageUrl).toBe("meal-image.jpg");
-    expect(groups[0].items[0].imageUrl).toBe("meal-image.jpg");
+    expect(groups[0].records[0].imageUrl).toBe("meal-level-image.jpg");
+    expect(groups[0].items[0].imageUrl).toBe("https://cdn.example/original.jpg");
+    expect(groups[0].items[1].imageUrl).toBeUndefined();
+  });
+
+  it("does not invent item provenance for historical meals that only have meal media", () => {
+    const groups = buildRegisteredMealGroups([
+      buildMeal({
+        id: 5,
+        media: [{ mediaType: "image", storageKey: "historic.jpg", storageUrl: "https://cdn.example/historic.jpg" }],
+      }),
+    ]);
+
+    expect(groups[0].records[0].imageUrl).toBe("https://cdn.example/historic.jpg");
+    expect(groups[0].items[0].imageUrl).toBeUndefined();
+  });
+
+  it("allows multiple photo-derived items to share the same explicit media", () => {
+    const sourceMediaStorageKey = "shared.jpg";
+    const baseItem = buildMeal({}).items[0];
+    const groups = buildRegisteredMealGroups([
+      buildMeal({
+        id: 6,
+        media: [{ mediaType: "image", storageKey: sourceMediaStorageKey, storageUrl: "https://cdn.example/shared.jpg" }],
+        items: [
+          { ...baseItem, foodName: "Arroz", canonicalName: "Arroz", sourceMediaStorageKey },
+          { ...baseItem, foodName: "Feijão", canonicalName: "Feijão", sourceMediaStorageKey },
+        ],
+      }),
+    ]);
+
+    expect(groups[0].items.map(item => item.imageUrl)).toEqual([
+      "https://cdn.example/shared.jpg",
+      "https://cdn.example/shared.jpg",
+    ]);
   });
 });

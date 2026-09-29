@@ -59,6 +59,7 @@ const mealItemResolutionSchema = z.object({
     reason: z.enum([
       "brand_variant_unresolved",
       "commercial_identity_unverified",
+      "commercial_nutrition_unverified",
       "image_identity_unresolved",
     ]),
     alternatives: z.array(z.object({
@@ -88,6 +89,7 @@ const mealItemBaseSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+  sourceMediaStorageKey: z.string().trim().min(1).max(255).optional(),
   resolution: mealItemResolutionSchema.optional(),
   nutritionSource: nutritionSourceSchema.optional(),
 });

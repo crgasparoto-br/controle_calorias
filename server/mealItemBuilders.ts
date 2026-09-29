@@ -21,7 +21,13 @@ import {
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import { parseCountableFoodQuantitySegment, resolveSafeCountableCatalogGrams } from "./countableFoodQuantity";
-import type { CatalogFood, ExplicitQuantity, LlmItem, MealDraftItem } from "./nutritionEngineTypes";
+import type {
+  CatalogFood,
+  ExplicitQuantity,
+  FoodClassificationEstimate,
+  LlmItem,
+  MealDraftItem,
+} from "./nutritionEngineTypes";
 
 const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   slug: "generic-food-estimate",
@@ -89,6 +95,16 @@ function formatRecognizedProductIdentity(foodName: string, brand: string | null)
   return `${formattedFoodName} ${brand}`;
 }
 
+function catalogFoodClassification(food: CatalogFood): FoodClassificationEstimate | null {
+  if (!food.processingLevel) return null;
+  return {
+    processingLevel: food.processingLevel,
+    isFruit: Boolean(food.isFruit),
+    isVegetable: Boolean(food.isVegetable),
+    fiberGrams: food.fiber ?? 0,
+  };
+}
+
 export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
@@ -128,7 +144,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     fat: roundNutritionValue(food.fat * factor),
     confidence: usedGenericForMentionedBrand ? Math.min(clampConfidence(llmItem.confidence), 0.62) : clampConfidence(llmItem.confidence),
     source: usedGenericForMentionedBrand ? "heuristic" : "catalog",
-    classification: llmItem.foodClassification ?? null,
+    classification: llmItem.foodClassification ?? catalogFoodClassification(food),
   };
 }
 
@@ -286,6 +302,34 @@ export function buildProvisionalBrandedNutritionFallbackItem(
     productVariant: productVariant.trim() || null,
     source: "hybrid",
     confidence: Math.min(estimated.confidence, 0.55),
+  };
+}
+
+/**
+ * Produto comercial com identidade suficiente (categoria + marca + variante
+ * relevante) sem fonte comercial verificada: a composição usa a referência
+ * genérica compatível escolhida por `decideCommercialNutritionPolicy`, mas o
+ * item preserva nome, marca e variante lidos e nunca é tratado como catálogo
+ * oficial da marca.
+ */
+export function buildProvisionalBrandedGenericReferenceItem(
+  llmItem: LlmItem,
+  reference: CatalogFood,
+  productVariant: string | null,
+  identitySource = llmItem.foodName,
+): MealDraftItem {
+  const item = buildItemFromCatalog(reference, {
+    ...llmItem,
+    foodName: identitySource,
+  });
+  return {
+    ...item,
+    foodName: formatRecognizedProductIdentity(identitySource, llmItem.brand ?? null),
+    canonicalName: formatFoodNameTitleCase(identitySource),
+    brand: llmItem.brand ?? item.brand ?? null,
+    productVariant: productVariant?.trim() || null,
+    source: "hybrid",
+    confidence: Math.min(item.confidence, 0.6),
   };
 }
 

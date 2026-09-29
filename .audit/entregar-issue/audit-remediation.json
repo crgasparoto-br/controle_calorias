@@ -3,27 +3,27 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:1246-handoff-not-produced",
-    "audit_report_sha256": "cc08774f219369210bfe1689358597201daf1e1266b1800ddd449b1390fb366e",
-    "audited_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356"
+    "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
+    "audit_report_sha256": "3922de2834be5833549aaac15c293a71588f0240549c12591d7fa77e9b6240bb",
+    "audited_head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78"
   },
-  "candidate_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "candidate_head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1246-001",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "delivery-evidence-recertification",
       "changed_files": [],
       "evidence": [
-        "A fresh current-target certified handoff is generated from issue #1246 and the exact material head; the inherited #1237/#1238 package is not reused."
+        "A fresh current-target handoff is built for issue 1245 / PR 1252 without changing the material candidate."
       ],
       "validations": [
-        "Target binding is rederived against repository, issue #1246, PR #1247, develop base and feat/1246-meal-row-images before publication.",
-        "Material CI is already terminal green on the exact SHA in GitHub Actions run 36555718822."
+        "Material CI is terminal green on GitHub Actions run 36588016763.",
+        "The previous handoff is treated as inherited-base-artifact and is replaced by a current-target result-only package."
       ]
     }
   ]

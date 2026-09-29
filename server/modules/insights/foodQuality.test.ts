@@ -10,6 +10,7 @@ const { calculateQualityIndicators: calculateQuality, createFoodLookup: createLo
 type FoodFixture = {
   id: number;
   name: string;
+  aliases?: string[];
   brandName: string | null;
   servingSize: number;
   servingUnit: string;
@@ -34,6 +35,7 @@ function food(overrides: Partial<FoodFixture> = {}): FoodFixture {
   return {
     id: 1,
     name: "Banana",
+    aliases: [],
     brandName: null,
     servingSize: 100,
     servingUnit: "g",
@@ -93,6 +95,102 @@ function meal(items: unknown[]) {
 }
 
 describe("food quality report lookup", () => {
+  it.each([
+    ["Melão Dino", "Melão", "natural_or_minimally_processed" as const, true, false],
+    ["Pêra Williams", "Pêra", "natural_or_minimally_processed" as const, true, false],
+    ["Tapioca da Terrinha", "Tapioca", "processed" as const, false, false],
+  ])("classifica o alias %s pela linha canônica %s", (alias, name, processingLevel, isFruit, isVegetable) => {
+    const lookup = createLookup([food({
+      id: alias === "Melão Dino" ? 101 : alias === "Pêra Williams" ? 102 : 103,
+      name,
+      aliases: [alias],
+      processingLevel,
+      isFruit,
+      isVegetable,
+    })]);
+    const quality = calculateQuality(
+      meal([mealItem({ foodName: alias, canonicalName: alias, calories: 100 })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel,
+      isFruit,
+      isVegetable,
+    });
+  });
+
+  it.each([
+    ["classificado primeiro", false],
+    ["classificado por último", true],
+  ])("não deixa alias sem classificação degradar evidência NOVA (%s)", (_label, reverseOrder) => {
+    const classified = food({
+      id: 201,
+      name: "Produto classificado",
+      aliases: ["alias concorrente"],
+      processingLevel: "processed",
+    });
+    const unclassified = food({
+      id: 202,
+      name: "Produto pendente",
+      aliases: ["alias concorrente"],
+      processingLevel: "unknown",
+      fiber: null,
+    });
+    const foods = reverseOrder
+      ? [unclassified, classified]
+      : [classified, unclassified];
+
+    const lookup = createLookup(foods);
+    const quality = calculateQuality(
+      meal([mealItem({
+        foodName: "alias concorrente",
+        canonicalName: "alias concorrente",
+        calories: 100,
+      })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel: "processed",
+    });
+  });
+
+  it("não deixa alias sem classificação degradar um nome canônico classificado", () => {
+    const lookup = createLookup([
+      food({
+        id: 203,
+        name: "Identidade forte",
+        processingLevel: "processed",
+      }),
+      food({
+        id: 204,
+        name: "Identidade pendente",
+        aliases: ["Identidade forte"],
+        processingLevel: "unknown",
+        fiber: null,
+      }),
+    ]);
+    const quality = calculateQuality(
+      meal([mealItem({
+        foodName: "Identidade forte",
+        canonicalName: "Identidade forte",
+        calories: 100,
+      })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel: "processed",
+    });
+  });
+
   it("classifica por foodCatalogId antes do texto", () => {
     const lookup = createLookup([
       food({ id: 10, name: "Banana", isFruit: true }),
@@ -211,7 +309,7 @@ describe("food quality report lookup", () => {
 
   it("marca alimento conhecido sem nível detalhado como unknown", () => {
     const lookup = createLookup([
-      food({ id: 70, name: "Produto conhecido manual", fiber: null }),
+      food({ id: 70, name: "Produto conhecido manual", fiber: null, processingLevel: "unknown" }),
     ]);
     const quality = calculateQuality(
       meal([
@@ -226,9 +324,9 @@ describe("food quality report lookup", () => {
     );
 
     expect(quality.foodQualityItems[0]).toMatchObject({
-      isClassified: true,
+      isClassified: false,
       processingLevel: "unknown",
-      isUltraProcessed: false,
+      unclassifiedReason: "unknown",
     });
   });
 

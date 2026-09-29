@@ -217,6 +217,38 @@ describe("insights food quality report integration", () => {
     ]);
   });
 
+  it("mantém a classificação por ID mesmo quando o lookup nominal não encontra o alimento", async () => {
+    const precedingItems = Array.from({ length: 30 }, (_, index) => mealItem({
+      foodName: `Alimento nominal ${index}`,
+      canonicalName: `Alimento nominal ${index}`,
+      calories: 0,
+    }));
+    dbMocks.listUserMeals.mockResolvedValue([
+      meal([...precedingItems, mealItem({
+        foodCatalogId: 901,
+        foodName: "Alimento fora do lookup nominal",
+        canonicalName: "Alimento fora do lookup nominal",
+        calories: 140,
+      })]),
+    ]);
+    dbMocks.searchFoods.mockResolvedValue([]);
+    dbMocks.getFoodsByIds.mockResolvedValue([
+      foodSearchItem({ id: 901, name: "Alimento fora do lookup nominal", processingLevel: "processed" }),
+    ]);
+
+    const report = await getPeriodReportBundle(77, {
+      startDate: "2026-06-01",
+      endDate: "2026-06-01",
+    });
+
+    expect(dbMocks.getFoodsByIds).toHaveBeenCalledWith(77, [901]);
+    expect(report.quality.foodQuality).toMatchObject({
+      classifiedCalories: 140,
+      unclassifiedCalories: 0,
+      processedCalories: 140,
+    });
+  });
+
   it("não executa busca de alimentos quando o período não possui refeições", async () => {
     dbMocks.listUserMeals.mockResolvedValue([]);
     dbMocks.searchFoods.mockResolvedValue([]);

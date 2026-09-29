@@ -33,11 +33,13 @@ import {
   buildHybridItem,
   buildProvisionalBrandedNutritionItem,
   buildProvisionalBrandedNutritionFallbackItem,
+  buildProvisionalBrandedGenericReferenceItem,
   buildUnresolvedBrandedNutritionItem,
   buildItemFromCatalog,
   hasUsableNutrition,
   isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
+import { decideCommercialNutritionPolicy } from "./foodItemResolution";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
 import {
   isGenericNutritionFallbackItem,
@@ -716,6 +718,7 @@ function catalogResolution(food: CatalogFood): MealItemResolutionMetadata {
 function unresolvedBrandedResolution(input: {
   semanticSource: string;
   alternatives: MealSemanticAlternative[];
+  reason?: MealSemanticClarificationCode;
 }): MealItemResolutionMetadata {
   const requestedVariant = extractCommercialVariant(input.semanticSource);
   return {
@@ -727,9 +730,9 @@ function unresolvedBrandedResolution(input: {
     sourceVerifiedAt: null,
     sourceConfidence: 0,
     ambiguity: {
-      reason: requestedVariant
+      reason: input.reason ?? (requestedVariant
         ? "commercial_identity_unverified"
-        : "brand_variant_unresolved",
+        : "brand_variant_unresolved"),
       alternatives: [...input.alternatives],
     },
   };
@@ -738,85 +741,20 @@ function unresolvedBrandedResolution(input: {
 function provisionalBrandedResolution(input: {
   semanticSource: string;
   confidence: number;
+  genericReference?: CatalogFood;
 }): MealItemResolutionMetadata {
   return {
     productVariant: extractCommercialVariant(input.semanticSource),
     nutritionOrigin: "provisional_estimate",
     nutritionVerified: false,
     sourceUrls: [],
-    sourceEvidence:
-      "Estimativa nutricional provisória baseada na identidade comercial informada; fonte exata ainda não comprovada.",
+    sourceEvidence: input.genericReference
+      ? `Estimativa nutricional provisória baseada na referência genérica compatível "${input.genericReference.name}"; não é a composição oficial da marca.`
+      : "Estimativa nutricional provisória baseada na identidade comercial informada; fonte exata ainda não comprovada.",
     sourceVerifiedAt: null,
     sourceConfidence: Math.min(input.confidence, 0.7),
     ambiguity: null,
   };
-}
-
-function hasSpecificCommercialProductName(
-  identitySource: string,
-  brand: string,
-  variant: string | null,
-  foodClassification: LlmItem["foodClassification"],
-  requireExplicitCategory = false,
-) {
-  const genericProductWords = new Set(["alimento", "amendoim", "barra", "bebida", "biscoito", "bombom", "cerveja", "chocolate", "cookie", "refrigerante", "salgadinho", "wafer", "queijo", "requeijao", "iogurte", "leite"]);
-  const commercialMeasureTokens = new Set([
-    "g", "gr", "grama", "gramas", "kg", "quilo", "quilos", "mg", "ml",
-    "mililitro", "mililitros", "l", "litro", "litros",
-  ]);
-  const sourceTokens = normalizeForMatching(identitySource)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter(token =>
-      !commercialMeasureTokens.has(token)
-      && !/^\d+(?:[.,]\d+)?(?:g|gr|gramas?|kg|quilos?|mg|ml|mililitros?|l|litros?)?$/u.test(token)
-    );
-  const brandTokens = normalizeForMatching(brand).split(/\s+/).filter(Boolean);
-  const variantTokens = normalizeForMatching(variant ?? "").split(/\s+/).filter(Boolean);
-  const includesAll = (tokens: string[]) =>
-    tokens.length > 0 && tokens.every(token => sourceTokens.includes(token));
-
-  // A generic category becomes specific when the original text also contains
-  // the explicit brand and variant required by issue #1158.
-  const hasExplicitCategory = sourceTokens.some(
-    token => genericProductWords.has(token) && !variantTokens.includes(token),
-  );
-  if (requireExplicitCategory && !hasExplicitCategory) return false;
-
-  if (
-    variant
-    && hasExplicitCategory
-    && includesAll(brandTokens)
-    && includesAll(variantTokens)
-  ) {
-    return true;
-  }
-
-  // A single distinctive product token can be enough when the visual extractor
-  // identified an ultra-processed packaged product (for example a line name
-  // after a generic category). Culinary ingredients still require the stricter
-  // evidence path and must not become provisional branded products silently.
-  if (
-    !variant
-    && foodClassification?.processingLevel === "ultra_processed"
-    && includesAll(brandTokens)
-  ) {
-    const genericTokens = new Set([
-      ...genericProductWords,
-      ...commercialMeasureTokens,
-      ...brandTokens,
-    ]);
-    const distinctiveTokens = sourceTokens.filter(
-      token => !genericTokens.has(token) && !variantTokens.includes(token),
-    );
-    if (distinctiveTokens.length === 1) return true;
-  }
-
-  const excluded = new Set([...brandTokens, ...variantTokens]);
-  const remaining = sourceTokens
-    .filter(token => !excluded.has(token) && !genericProductWords.has(token));
-  return remaining.length >= 2;
 }
 
 /** The countable preflight uses the same identity, evidence and ambiguity policy as nutrition. */
@@ -843,6 +781,11 @@ export async function resolveCommercialFoodIdentity(
   const found = await findMostSpecificCatalogForInferenceItem(item, options);
   if (found.catalog && isVerifiedBrandedCatalogFood(found.catalog))
     return found.catalog;
+  // Este caminho atende medidas contáveis de produto com marca: a gramatura da
+  // unidade depende da porção do produto exato, portanto a dimensão pendente é
+  // identidade/variante (não apenas nutrição) e o motivo histórico é mantido.
+  // `commercial_nutrition_unverified` só se aplica quando a quantidade já está
+  // resolvida por massa/volume ou porção canônica (#1244).
   const unresolved = {
     ...buildUnresolvedBrandedNutritionItem(item),
     resolution: unresolvedBrandedResolution(found),
@@ -1110,36 +1053,23 @@ async function buildItemsFromInference(
       continue;
     }
 
-    if (
-      resolvedItem.brand
-      && alternatives.length === 0
-      && !canUseVerifiedNutritionLabel
-    ) {
+    if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
       const hasNutrition = hasUsableNutrition(resolvedItem)
         && !isGenericNutritionPlaceholder(resolvedItem);
-      const identitySource = [semanticSource, resolvedItem.brand]
-        .filter(Boolean)
-        .join(" ");
-      const specificIdentity = hasSpecificCommercialProductName(
-        identitySource,
-        resolvedItem.brand,
+      const decision = decideCommercialNutritionPolicy({
+        identitySource: [semanticSource, resolvedItem.brand]
+          .filter(Boolean)
+          .join(" "),
+        brand: resolvedItem.brand,
         requestedVariant,
-        resolvedItem.foodClassification,
-        !hasNutrition,
-      );
-      const canUseSpecificImageIdentity = Boolean(
-        options.preferInferredNutrition
-        && resolvedItem.confidence >= 0.5
-      );
-      const canUseSpecificIdentity = options.preferInferredNutrition
-        ? canUseSpecificImageIdentity
-        : Boolean(requestedVariant);
-      if (
-        specificIdentity
-        && canUseSpecificIdentity
-        && (hasNutrition || !options.preferInferredNutrition)
-        && !hasNutritionLabelEvidenceClaim
-      ) {
+        alternatives,
+        hasInferredNutrition: hasNutrition,
+        confidence: resolvedItem.confidence,
+        visualEvidence: Boolean(options.preferInferredNutrition),
+        hasUnverifiedNutritionLabelClaim: hasNutritionLabelEvidenceClaim,
+        foodClassification: resolvedItem.foodClassification,
+      });
+      if (decision.kind === "provisional_inferred") {
         const provisionalItem = hasNutrition
           ? buildProvisionalBrandedNutritionItem(
               resolvedItem,
@@ -1160,14 +1090,28 @@ async function buildItemsFromInference(
         });
         continue;
       }
-    }
-
-    if (resolvedItem.brand && !canUseVerifiedNutritionLabel) {
+      if (decision.kind === "provisional_generic_reference") {
+        results.push({
+          ...buildProvisionalBrandedGenericReferenceItem(
+            resolvedItem,
+            decision.reference,
+            requestedVariant,
+            semanticSource,
+          ),
+          resolution: provisionalBrandedResolution({
+            semanticSource,
+            confidence: resolvedItem.confidence,
+            genericReference: decision.reference,
+          }),
+        });
+        continue;
+      }
       results.push({
         ...buildUnresolvedBrandedNutritionItem(resolvedItem),
         resolution: unresolvedBrandedResolution({
           semanticSource,
           alternatives,
+          reason: decision.reason,
         }),
       });
       continue;

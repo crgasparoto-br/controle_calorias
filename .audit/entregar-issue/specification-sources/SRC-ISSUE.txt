@@ -1,23 +1,38 @@
 ## Objetivo
-Na tela `/meals`, exibir cada alimento em uma única linha visual contendo sua imagem associada e todas as informações nutricionais já disponíveis para o item.
-
-## Contexto
-Atualmente as imagens da refeição são exibidas separadamente acima das linhas dos alimentos. O comportamento desejado é aproximar a evidência visual do alimento ao qual ela se refere.
+A classificação NOVA válida deve sobreviver ao registro, catálogo e relatório, evitando que alimentos classificáveis sejam contabilizados como Não classificados.
 
 ## Requisitos funcionais
-- Quando a refeição possuir imagem, exibir a imagem na mesma linha do alimento correspondente.
-- A linha deve continuar exibindo horário, porção, nome do alimento, calorias, proteínas, carboidratos, gorduras e quantidade.
-- Quando uma única imagem representar vários alimentos da mesma refeição, repetir a mesma imagem em cada linha desses alimentos.
-- Refeições sem imagem devem continuar sendo exibidas normalmente, sem espaço visual reservado vazio para imagem.
-- Preservar a edição individual do alimento ao clicar na linha e a ação de exclusão existente.
+- Se um item confirmado possui foodClassification.processingLevel válido, essa informação não pode ser descartada na resolução nutricional, criação do catálogo ou confirmação.
+- Quando o fluxo cria uma entrada no foodCatalog, a classificação disponível deve ser persistida e o item confirmado deve receber o foodCatalogId correspondente.
+- Para item com foodCatalogId, uma entrada existente com processingLevel válido deve ser usada mesmo quando o alimento não aparece no conjunto nominal limitado.
+- Nome ou alias pode recuperar classificação quando não houver vínculo por ID, mas não pode substituir uma classificação válida por unknown ou por correspondência menos específica.
+- Itens históricos sem foodCatalogId podem ser vinculados pelo backfill somente quando nome ou alias produzir correspondência determinística existente; sem correspondência segura, devem permanecer pendentes.
+- Um foodCatalogId existente com processingLevel ausente ou unknown não deve ser tratado como classificado apenas por existir o vínculo; sem evidência persistida segura, deve permanecer pendente.
+- Melão Dino e Pêra Packans, quando resolvidos pelas regras existentes como frutas naturais, devem chegar ao relatório como natural_or_minimally_processed, sem transformar qualificador natural em marca.
+- Tapioca da Terrinha deve usar a classificação da identidade catalogada ou resolvida correspondente, sem categoria NOVA definida pelo nome.
+- A reconciliação histórica determinística não deve exigir nova chamada de IA e deve ser segura para reexecução.
+- A correção deve reutilizar foodCatalog, foodCatalogId, aliases, resolveFoodCatalogIds, buildFoodLookupForMeals e o backfill existente, sem criar um segundo registro de classificação para relatórios.
+- Uma evidência de classificação mais fraca nunca pode degradar uma classificação mais forte já conhecida.
+- O relatório deve recalcular distribuição por processamento e unclassifiedCaloriesPercent usando as mesmas calorias do período, sem dupla contagem.
+- A correção não deve alterar macros ou calorias como efeito colateral.
 
 ## Critérios de aceite
-- [ ] Um alimento com imagem apresenta imagem + horário + porção + nome + calorias + proteínas + carboidratos + gorduras + quantidade na mesma linha visual.
-- [ ] Dois ou mais alimentos pertencentes à mesma refeição com uma única imagem exibem a mesma imagem em cada linha.
-- [ ] Alimentos sem imagem continuam legíveis e alinhados.
-- [ ] O layout continua utilizável em viewport estreito sem esconder informações nutricionais; rolagem horizontal da faixa de dados é aceitável.
-- [ ] A imagem deixa de ser exibida em um bloco separado acima da lista de alimentos.
-- [ ] Testes de componente cobrem repetição da imagem por alimento e ausência de imagem quando não há mídia.
+- Existe teste que prova preservação de foodClassification.processingLevel até foodCatalog.
+- Novo item auto-catalogado recebe foodCatalogId e classificação correspondente.
+- Item com foodCatalogId válido e processingLevel válido é classificado por ID no relatório mesmo fora do conjunto nominal limitado.
+- Item sem ID mas com nome ou alias determinístico pode ser vinculado pelo backfill existente.
+- Backfill histórico continua sem chamada externa de IA e é seguro para reexecução.
+- Catálogo existente com processingLevel ausente ou unknown continua pendente quando não houver evidência segura.
+- foodCatalogId órfão não é tratado como classificação válida.
+- Melão Dino e Pêra Packans classificados como frutas naturais deixam de contribuir para unclassifiedCalories.
+- Tapioca da Terrinha deixa de contribuir para unclassifiedCalories quando seu catálogo possuir classificação válida.
+- Existe controle com um quarto alimento não citado na issue provando ausência de hardcode.
+- A distribuição por processamento e unclassifiedCaloriesPercent são recalculadas a partir das mesmas calorias do período, sem dupla contagem.
+- A correção não altera macros ou calorias como efeito colateral.
+- Testes existentes de classificação por ID, histórico depreciado e processing level continuam verdes.
 
-## Escopo
-Alteração de apresentação na experiência de Registros/Refeições; sem mudança de persistência, API ou associação de mídia.
+## Fora de escopo
+- Não alterar a taxonomia NOVA.
+- Não corrigir calorias ou macros do caso nutricional relacionado.
+- Não criar classificação hardcoded para os nomes observados.
+- Não executar inferência livre por IA sobre todo o histórico.

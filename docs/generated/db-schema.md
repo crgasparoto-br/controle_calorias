@@ -25,7 +25,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `recipes` | `recipes` | 13 | Requer atenção |
 | `recipeItems` | `recipeItems` | 13 | Requer atenção |
 | `meals` | `meals` | 12 | Requer atenção |
-| `mealItems` | `mealItems` | 28 | Requer atenção |
+| `mealItems` | `mealItems` | 29 | Requer atenção |
 | `mealMedia` | `mealMedia` | 8 | Requer atenção |
 | `mealFavorites` | `mealFavorites` | 7 | Requer atenção |
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
@@ -186,7 +186,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `recipes` | `name` |
 | `recipeItems` | `notes` |
 | `meals` | `mealLabel`, `notes`, `sourceText`, `transcript`, `occurredAt` |
-| `mealItems` | `foodName`, `canonicalName`, `portionText`, `foodSnapshotJson` |
+| `mealItems` | `foodName`, `canonicalName`, `portionText`, `foodSnapshotJson`, `sourceMediaStorageKey` |
 | `mealMedia` | `mediaType`, `storageKey`, `storageUrl`, `originalFileName` |
 | `mealFavorites` | `name`, `mealLabel`, `notes`, `itemsJson` |
 | `mealInferences` | `sourceText`, `transcript`, `mediaJson`, `reasoning`, `itemsJson`, `totalsJson` |

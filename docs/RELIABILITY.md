@@ -222,6 +222,10 @@ Testes de regressão devem provar que a operação recebe provider/modelo corret
 
 A identidade comercial é resolvida antes de pedir gramatura. A ausência de pesquisa ou evidência específica preserva a pendência canônica de identidade; não libera macros genéricos. A continuação textual preserva os resultados dos itens já resolvidos e a data/timezone originais. A resposta só reivindica a pendência exata esperada, evitando que replay de uma pergunta antiga consuma outra operação. Falha ao criar a pendência bloqueia o registro sem persistência parcial. Ver contrato e regressões em [medidas contáveis no WhatsApp](design-docs/whatsapp-countable-measure-passthrough.md).
 
+## Resolução canônica de item alimentar (#1244)
+
+Registro, adição, imagem, áudio transcrito e simulador compartilham `server/foodItemResolution.ts` para quantidade e especificidade comercial. Riscos controlados: (1) a porção canônica local agora precede medidas pessoais/estimadas também na adição, então `user_learned`/`usual_average` só atuam quando não há porção canônica, como no registro; (2) a referência genérica provisória para produto de marca exige confiança ≥ `0.5`, ausência de alternativas e de alegação de rótulo não verificada, e cobertura de **todos** os tokens da identidade sem marca — qualquer token não explicado mantém o fail-closed; (3) `commercial_nutrition_unverified` continua bloqueando a mutação e segue a mesma continuação de identidade/rótulo no WhatsApp. Medidas contáveis de produto com marca mantêm o motivo de identidade/variante, porque a gramatura da unidade depende do produto exato. Regressões em `server/foodItemResolution.issue1244.test.ts`.
+
 ## Guardrails de billing
 
 - `BILLING_ACCESS_MODE` permanece `open_access` até aprovação explícita da migração comercial; em `enforced`, indisponibilidade da fonte falha fechada.
