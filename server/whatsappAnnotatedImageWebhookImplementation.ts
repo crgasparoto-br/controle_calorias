@@ -10,6 +10,7 @@ import {
   listUserMeals,
   logInferenceEvent,
   removeUserMeal,
+  removeUserWaterLog,
   updateUserMeal,
 } from "./db";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
@@ -85,6 +86,7 @@ import {
   claimMessageForProcessingState,
   markMessageProcessed,
   recordDomainLink,
+  removeDomainLinksForMessage,
   releaseMessageForRetry,
   wasMessageAlreadyProcessed,
   type MessageLifecycleHandle,
@@ -173,6 +175,7 @@ async function persistImageWaterLog(input: {
     eventType: "whatsapp.water_logged",
     detail: "Consumo de água identificado em imagem e registrado pelo WhatsApp.",
   });
+  return createdWaterLog.id;
 }
 
 function getTextBody(message: WhatsAppWebhookMessage) {
@@ -189,6 +192,10 @@ function wasAnnotatedImageMessageAlreadyHandled(messageId?: string) {
 
 function markAnnotatedImageMessageHandled(messageId?: string) {
   annotatedImageMessageDeduplicationCache.markHandled(messageId);
+}
+
+function forgetAnnotatedImageMessageHandled(messageId?: string) {
+  annotatedImageMessageDeduplicationCache.forget(messageId);
 }
 
 export function __resetWhatsAppAnnotatedImageDeduplicationForTests() {
@@ -478,7 +485,9 @@ async function sendAnnotatedImageFallbackText(input: {
   lifecycleHandle?: MessageLifecycleHandle;
   response?: Response;
   acknowledgement?: ProcessingAcknowledgementCoordinator | null;
-}) {
+  rollback?: () => Promise<void>;
+  onPrimaryDelivered?: () => void;
+}): Promise<boolean> {
   await input.acknowledgement?.beforeFinalReply();
   const delivery = await sendWhatsAppLogicalDomainReply({
     to: input.sourcePhone,
@@ -498,15 +507,31 @@ async function sendAnnotatedImageFallbackText(input: {
     });
   }
   if (!delivery.result.primaryOk) {
+    try {
+      await input.rollback?.();
+    } catch (error) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "error",
+        eventType: "whatsapp.domain_effect_rollback_failed",
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Falha ao compensar efeitos de domínio.",
+      });
+    }
     await releaseMessageForRetry(input.lifecycleHandle ?? null);
     input.response?.status(503).json({
       ok: false,
       retryable: true,
       reason: "whatsapp_reply_delivery_failed",
     });
-    return;
+    return false;
   }
+  input.onPrimaryDelivered?.();
   await markMessageProcessed(input.lifecycleHandle ?? null);
+  return true;
 }
 
 async function tryHandleAnnotatedImageMessage(
@@ -528,6 +553,63 @@ async function tryHandleAnnotatedImageMessage(
   let userId: number | null = null;
   let lifecycleHandle: MessageLifecycleHandle = null;
   let acknowledgement: ProcessingAcknowledgementCoordinator | null = null;
+  let createdWaterLogId: number | undefined;
+  let savedMealId: number | undefined;
+  let consolidationResult:
+    | Awaited<ReturnType<typeof consolidateWhatsAppMealAfterSave>>
+    | undefined;
+  let domainEffectsCommitted = false;
+  const rollbackImageDomainEffects = async () => {
+    if (domainEffectsCommitted || (!createdWaterLogId && !savedMealId)) {
+      return;
+    }
+
+    let rollbackFailed = false;
+    const compensate = async (detail: string, action: () => Promise<unknown>) => {
+      try {
+        await action();
+      } catch {
+        rollbackFailed = true;
+        logInferenceEvent({
+          userId: userId ?? 0,
+          origin: "whatsapp",
+          status: "error",
+          eventType: "whatsapp.domain_effect_rollback_failed",
+          detail,
+        });
+      }
+    };
+
+    if (consolidationResult?.action === "updated") {
+      const previousMeal = consolidationResult.previousMeal;
+      await compensate("Falha ao restaurar a refeição anterior após erro de imagem.", () =>
+        updateUserMeal({
+          userId: previousMeal.userId,
+          mealId: previousMeal.id,
+          mealLabel: previousMeal.mealLabel,
+          occurredAt: new Date(previousMeal.occurredAt).toISOString(),
+          notes: previousMeal.notes,
+          items: previousMeal.items,
+        })
+      );
+    }
+    if (savedMealId !== undefined && consolidationResult?.action !== "updated") {
+      await compensate("Falha ao remover a refeição transitória após erro de imagem.", () =>
+        removeUserMeal(userId!, savedMealId!)
+      );
+    }
+    if (createdWaterLogId !== undefined) {
+      await compensate("Falha ao remover a hidratação parcial após erro de imagem.", () =>
+        removeUserWaterLog(userId!, createdWaterLogId!)
+      );
+    }
+    await compensate("Falha ao limpar vínculos parciais do lifecycle da imagem.", () =>
+      removeDomainLinksForMessage(lifecycleHandle)
+    );
+    if (!rollbackFailed) {
+      domainEffectsCommitted = true;
+    }
+  };
 
   try {
     userId = await getUserIdByWhatsappPhone(sourcePhone);
@@ -736,7 +818,7 @@ async function tryHandleAnnotatedImageMessage(
       );
       if (errorWaterSplit.remainingItems.length === 0) {
         if (errorWaterSplit.waterVolumeMl > 0) {
-          await persistImageWaterLog({
+          createdWaterLogId = await persistImageWaterLog({
             userId,
             amountMl: errorWaterSplit.waterVolumeMl,
             occurredAt,
@@ -754,6 +836,10 @@ async function tryHandleAnnotatedImageMessage(
             lifecycleHandle,
             response: res,
             acknowledgement,
+            rollback: rollbackImageDomainEffects,
+            onPrimaryDelivered: () => {
+              domainEffectsCommitted = true;
+            },
           });
           markAnnotatedImageMessageHandled(message.id);
           return true;
@@ -818,6 +904,10 @@ async function tryHandleAnnotatedImageMessage(
           lifecycleHandle,
           response: res,
           acknowledgement,
+          rollback: rollbackImageDomainEffects,
+          onPrimaryDelivered: () => {
+            domainEffectsCommitted = true;
+          },
         });
         markAnnotatedImageMessageHandled(message.id);
         return true;
@@ -877,7 +967,7 @@ async function tryHandleAnnotatedImageMessage(
       waterSplit.waterVolumeMl > 0 || waterSplit.hasWaterWithoutVolume;
     if (detectedWater) {
       if (waterSplit.waterVolumeMl > 0) {
-        await persistImageWaterLog({
+        createdWaterLogId = await persistImageWaterLog({
           userId,
           amountMl: waterSplit.waterVolumeMl,
           occurredAt,
@@ -920,6 +1010,10 @@ async function tryHandleAnnotatedImageMessage(
             lifecycleHandle,
             response: res,
             acknowledgement,
+            rollback: rollbackImageDomainEffects,
+            onPrimaryDelivered: () => {
+              domainEffectsCommitted = true;
+            },
           });
         } else {
           await sendAnnotatedImageFallbackText({
@@ -1000,6 +1094,10 @@ async function tryHandleAnnotatedImageMessage(
         lifecycleHandle,
         response: res,
         acknowledgement,
+        rollback: rollbackImageDomainEffects,
+        onPrimaryDelivered: () => {
+          domainEffectsCommitted = true;
+        },
       });
       markAnnotatedImageMessageHandled(message.id);
       return true;
@@ -1046,8 +1144,9 @@ async function tryHandleAnnotatedImageMessage(
       notes: getTextBody(message) || undefined,
       items: processedForPersistence.items,
     });
+    savedMealId = savedMeal.id;
 
-    const consolidationResult = await consolidateWhatsAppMealAfterSave(
+    consolidationResult = await consolidateWhatsAppMealAfterSave(
       {
         listUserMeals,
         updateUserMeal,
@@ -1124,6 +1223,7 @@ async function tryHandleAnnotatedImageMessage(
         eventType: "whatsapp.reply_failed",
         detail: "Falha ao enviar resposta funcional de refeição pelo WhatsApp.",
       });
+      await rollbackImageDomainEffects();
       await releaseMessageForRetry(lifecycleHandle);
       res?.status(503).json({
         ok: false,
@@ -1161,6 +1261,7 @@ async function tryHandleAnnotatedImageMessage(
       });
     }
 
+    domainEffectsCommitted = true;
     await markMessageProcessed(lifecycleHandle);
     return true;
   } catch (error) {
@@ -1179,6 +1280,7 @@ async function tryHandleAnnotatedImageMessage(
           : "Falha desconhecida ao processar imagem do WhatsApp.",
     });
 
+    await rollbackImageDomainEffects();
     if (userId) {
       await sendAnnotatedImageFallbackText({
         userId,
@@ -1187,6 +1289,10 @@ async function tryHandleAnnotatedImageMessage(
         lifecycleHandle,
         response: res,
         acknowledgement,
+        rollback: rollbackImageDomainEffects,
+        onPrimaryDelivered: () => {
+          domainEffectsCommitted = true;
+        },
       });
     }
 
@@ -1216,7 +1322,9 @@ export async function handleWhatsAppWebhookWithAnnotatedImages(
   const handledMessageKeys = new Set<string>();
   for (const message of messages) {
     const handled = await tryHandleAnnotatedImageMessage(message, intentHints, res);
-    if (handled) {
+    if ((res as Response & { statusCode?: number }).statusCode === 503) {
+      forgetAnnotatedImageMessageHandled(message.id);
+    } else if (handled) {
       handledMessageKeys.add(getExtractedWhatsAppMessageKey(message));
     }
   }

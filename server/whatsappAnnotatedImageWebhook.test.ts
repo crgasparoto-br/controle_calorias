@@ -14,6 +14,7 @@ const getUserWaterGoalMock = vi.fn();
 const listUserWaterLogsMock = vi.fn();
 const listUserMealsMock = vi.fn();
 const removeUserMealMock = vi.fn();
+const removeUserWaterLogMock = vi.fn();
 const updateUserMealMock = vi.fn();
 const processMealInputMock = vi.fn();
 const generateImageMock = vi.fn();
@@ -30,6 +31,7 @@ const {
   wasMessageAlreadyProcessedMock,
   recordOutboundReplyMock,
   recordDomainLinkMock,
+  removeDomainLinksForMessageMock,
   markMessageProcessedMock,
 } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
@@ -37,6 +39,7 @@ const {
   wasMessageAlreadyProcessedMock: vi.fn(async () => false),
   recordOutboundReplyMock: vi.fn(async () => undefined),
   recordDomainLinkMock: vi.fn(async () => undefined),
+  removeDomainLinksForMessageMock: vi.fn(async () => undefined),
   markMessageProcessedMock: vi.fn(async () => undefined),
 }));
 
@@ -46,6 +49,7 @@ vi.mock("./modules/whatsapp/messageLifecycle", () => ({
   wasMessageAlreadyProcessed: wasMessageAlreadyProcessedMock,
   recordOutboundReply: recordOutboundReplyMock,
   recordDomainLink: recordDomainLinkMock,
+  removeDomainLinksForMessage: removeDomainLinksForMessageMock,
   markMessageProcessed: markMessageProcessedMock,
   releaseMessageForRetry: vi.fn(async () => true),
   isExternalMessageClaimedInCurrentScope: vi.fn(() => false),
@@ -71,6 +75,7 @@ vi.mock("./db", () => ({
   listUserMeals: listUserMealsMock,
   logInferenceEvent: logInferenceEventMock,
   removeUserMeal: removeUserMealMock,
+  removeUserWaterLog: removeUserWaterLogMock,
   createUserWaterLog: createUserWaterLogMock,
   updateUserMeal: updateUserMealMock,
 }));
@@ -134,6 +139,7 @@ vi.mock("./whatsappWebhook", () => ({
 }));
 
 const { handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
+const { handleWhatsAppWebhookWithAnnotatedImages } = await import("./whatsappAnnotatedImageWebhook");
 const { __resetWhatsAppAnnotatedImageDeduplicationForTests } = await import("./whatsappAnnotatedImageWebhook");
 const { MealInferenceError } = await import("./nutritionEngine");
 
@@ -268,6 +274,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     listUserWaterLogsMock.mockReset();
     listUserMealsMock.mockReset();
     removeUserMealMock.mockReset();
+    removeUserWaterLogMock.mockReset();
     updateUserMealMock.mockReset();
     processMealInputMock.mockReset();
     generateImageMock.mockReset();
@@ -283,6 +290,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     wasMessageAlreadyProcessedMock.mockReset();
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
+    removeDomainLinksForMessageMock.mockReset();
     markMessageProcessedMock.mockReset();
     let nextLifecycleMessageId = 1;
     beginInboundMessageMock.mockImplementation(async () => ({
@@ -1281,5 +1289,84 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
     expect(confirmPendingMealMock).not.toHaveBeenCalled();
     expect(sentTextMessages.at(-1)).toContain("Água registrada");
+  });
+
+  it("desfaz a água parcial quando a persistência da refeição mista falha", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Almoço",
+      sourceText: "água e arroz",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Imagem mista simulada.",
+      items: [waterImageItem(), savedImageMeal.items[0]],
+      totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
+    });
+    confirmPendingMealMock.mockRejectedValueOnce(new Error("falha ao persistir refeição"));
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-partial-meal-failure") as never,
+      res as never,
+    );
+
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ amountMl: 500 }),
+    );
+    expect(removeUserWaterLogMock).toHaveBeenCalledWith(42, 55);
+    expect(removeDomainLinksForMessageMock).toHaveBeenCalledWith({
+      conversationId: 1,
+      messageId: 1,
+    });
+    expect(sentTextMessages.at(-1)).toContain("Não foi possível processar a imagem");
+  });
+
+  it("compensa refeição e água antes do retry quando a resposta principal falha", async () => {
+    processMealInputMock.mockImplementation(async () => ({
+      detectedMealLabel: "Almoço",
+      sourceText: "água e arroz",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Imagem mista simulada.",
+      items: [waterImageItem(), savedImageMeal.items[0]],
+      totals: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3 },
+    }));
+    const successfulFetch = global.fetch;
+    global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/messages")) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ error: { message: "provider indisponível" } }),
+          text: async () => "provider indisponível",
+        } as Response;
+      }
+      return successfulFetch(input, init);
+    }) as typeof fetch;
+
+    const failedResponse = createResponse();
+    await handleWhatsAppWebhookWithAnnotatedImages(
+      createImageWebhookRequest("image-delivery-failure") as never,
+      failedResponse as never,
+    );
+
+    expect(failedResponse.statusCode).toBe(503);
+    expect(removeUserMealMock).toHaveBeenCalledWith(42, 10);
+    expect(removeUserWaterLogMock).toHaveBeenCalledWith(42, 55);
+    expect(removeDomainLinksForMessageMock).toHaveBeenCalledWith({
+      conversationId: 1,
+      messageId: 1,
+    });
+
+    global.fetch = successfulFetch;
+    const retriedResponse = createResponse();
+    await handleWhatsAppWebhookWithAnnotatedImages(
+      createImageWebhookRequest("image-delivery-failure") as never,
+      retriedResponse as never,
+    );
+
+    expect(retriedResponse.statusCode).toBe(200);
+    expect(createUserWaterLogMock).toHaveBeenCalledTimes(2);
+    expect(confirmPendingMealMock).toHaveBeenCalledTimes(2);
   });
 });
