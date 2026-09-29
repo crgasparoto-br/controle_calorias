@@ -60,6 +60,13 @@ export type MealsRepository = {
     items: MealDraftItem[];
     resolvedCatalogIds: Map<string, number>;
   }): Promise<void>;
+  moveMealItem(input: {
+    userId: number;
+    sourceMeal: SavedMealRecord;
+    remainingItems: MealDraftItem[];
+    targetMeal: { mealLabel: string; occurredAt: number; items: MealDraftItem[] };
+    resolvedCatalogIds: Map<string, number>;
+  }): Promise<{ targetMealId: number } | null>;
   persistMealUpdateWithHouseholdMeasureLearning(input: {
     meal: { id: number; userId: number; mealLabel: string; notes?: string; confidence: number; occurredAt: number };
     items: MealDraftItem[];
@@ -195,6 +202,56 @@ async function replaceMealItemsInTransaction(
       status: "confirmed",
     })
     .where(and(eq(meals.userId, input.meal.userId), eq(meals.id, input.meal.id)));
+}
+
+async function insertConfirmedMealInTransaction(tx: any, input: {
+  meal: {
+    userId: number;
+    source: "web" | "whatsapp";
+    mealLabel: string;
+    notes?: string;
+    sourceText: string;
+    transcript?: string;
+    confidence: number;
+    occurredAt: number;
+  };
+  items: MealDraftItem[];
+  media: SavedMediaRecord[];
+  resolvedCatalogIds: Map<string, number>;
+}) {
+  const mealInsert = await tx.insert(meals).values({
+    userId: input.meal.userId,
+    source: input.meal.source,
+    status: "draft",
+    mealLabel: input.meal.mealLabel,
+    notes: input.meal.notes ?? null,
+    sourceText: input.meal.sourceText || null,
+    transcript: input.meal.transcript ?? null,
+    confidence: input.meal.confidence,
+    occurredAt: new Date(input.meal.occurredAt),
+  });
+  const mealId = Number((mealInsert as any)?.[0]?.insertId ?? (mealInsert as any)?.insertId ?? 0);
+  if (!mealId) {
+    throw new Error("Não foi possível obter o id da refeição criada.");
+  }
+
+  if (input.items.length) {
+    await tx.insert(mealItems).values(buildMealItemValues(mealId, input.items, input.resolvedCatalogIds));
+  }
+
+  if (input.media.length) {
+    await tx.insert(mealMedia).values(input.media.map(item => ({
+      mealId,
+      mediaType: item.mediaType,
+      storageKey: item.storageKey,
+      storageUrl: item.storageUrl,
+      mimeType: item.mimeType,
+      originalFileName: item.originalFileName ?? null,
+    })));
+  }
+
+  await tx.update(meals).set({ status: "confirmed" }).where(eq(meals.id, mealId));
+  return mealId;
 }
 
 export function createDrizzleMealsRepository(deps: {
@@ -334,6 +391,52 @@ export function createDrizzleMealsRepository(deps: {
         if (!ownsMeal) return;
         await replaceMealItemsInTransaction(tx, { meal, items, resolvedCatalogIds });
       });
+    },
+
+    async moveMealItem({ userId, sourceMeal, remainingItems, targetMeal, resolvedCatalogIds }) {
+      const db = await deps.getDb();
+      if (!db) return null;
+      if (typeof db.transaction !== "function") {
+        throw new Error("A movimentação de item exige suporte transacional no banco.");
+      }
+
+      const targetMealId = await db.transaction(async (tx: any) => {
+        const ownsMeal = await assertMealBelongsToUser(tx, userId, sourceMeal.id);
+        if (!ownsMeal) {
+          throw new Error("Refeição não encontrada.");
+        }
+
+        const createdMealId = await insertConfirmedMealInTransaction(tx, {
+          meal: {
+            userId,
+            source: "web",
+            mealLabel: targetMeal.mealLabel,
+            sourceText: "Registro manual",
+            confidence: 1,
+            occurredAt: targetMeal.occurredAt,
+          },
+          items: targetMeal.items,
+          media: [],
+          resolvedCatalogIds,
+        });
+
+        await replaceMealItemsInTransaction(tx, {
+          meal: {
+            id: sourceMeal.id,
+            userId,
+            mealLabel: sourceMeal.mealLabel,
+            notes: sourceMeal.notes,
+            confidence: sourceMeal.confidence,
+            occurredAt: sourceMeal.occurredAt,
+          },
+          items: remainingItems,
+          resolvedCatalogIds,
+        });
+
+        return createdMealId;
+      });
+
+      return { targetMealId };
     },
 
     async persistMealUpdateWithHouseholdMeasureLearning({ meal, items, expectedOriginalItem, resolvedCatalogIds, learning }) {

@@ -54,7 +54,16 @@ function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supp
         return chain;
       }),
       update: vi.fn((table: unknown) => createMutationChain("update", table, operations, undefined)),
-      delete: vi.fn((table: unknown) => createMutationChain("delete", table, operations)),
+      delete: vi.fn((table: unknown) => {
+        const chain = createMutationChain("delete", table, operations);
+        if (options.failOn === "delete" && table === mealItems) {
+          chain.where = vi.fn(() => {
+            operations.push({ op: "delete.where", table });
+            throw new Error("delete failed");
+          });
+        }
+        return chain;
+      }),
     };
   }
 
@@ -272,6 +281,64 @@ describe("createDrizzleMealsRepository persistMealUpdate", () => {
         resolvedCatalogIds: new Map(),
       }),
     ).rejects.toThrow("insert failed");
+
+    expect(db.committedOperations).toEqual([]);
+  });
+});
+
+describe("createDrizzleMealsRepository moveMealItem", () => {
+  const sourceMeal = {
+    id: 7,
+    userId: 1,
+    source: "web" as const,
+    mealLabel: "Almoço",
+    status: "confirmed" as const,
+    occurredAt: Date.parse("2026-05-21T12:00:00.000Z"),
+    sourceText: "arroz e frango",
+    confidence: 1,
+    items: [chickenItem],
+    media: [],
+    createdAt: Date.parse("2026-05-21T11:00:00.000Z"),
+  };
+
+  it("confirma destino e origem na mesma transação", async () => {
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, supportsTransaction: true });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    const result = await repository.moveMealItem({
+      userId: 1,
+      sourceMeal,
+      remainingItems: [],
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt, items: [chickenItem] },
+      resolvedCatalogIds: new Map(),
+    });
+
+    expect(result).toEqual({ targetMealId: 42 });
+    expect(db.committedOperations.map((operation: DbOperation) => operation.op)).toEqual([
+      "select.limit",
+      "insert.values",
+      "insert.values",
+      "update.set",
+      "update.where",
+      "update.set",
+      "update.where",
+      "delete.where",
+      "update.set",
+      "update.where",
+    ]);
+  });
+
+  it("descarta destino quando a atualização da origem falha", async () => {
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, failOn: "delete", supportsTransaction: true });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await expect(repository.moveMealItem({
+      userId: 1,
+      sourceMeal,
+      remainingItems: [],
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt, items: [chickenItem] },
+      resolvedCatalogIds: new Map(),
+    })).rejects.toThrow("delete failed");
 
     expect(db.committedOperations).toEqual([]);
   });

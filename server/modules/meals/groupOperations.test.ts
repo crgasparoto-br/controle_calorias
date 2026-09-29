@@ -33,6 +33,7 @@ const createManualMealMock = vi.fn();
 const getDbMock = vi.fn();
 const listMealsMock = vi.fn();
 const logInferenceEventMock = vi.fn();
+const moveMealItemMock = vi.fn();
 const removeMealMock = vi.fn();
 const updateMealMock = vi.fn();
 
@@ -56,6 +57,7 @@ vi.mock("../../db", () => ({
 vi.mock("./service", () => ({
   createManualMeal: createManualMealMock,
   listMeals: listMealsMock,
+  moveMealItem: moveMealItemMock,
   removeMeal: removeMealMock,
   updateMeal: updateMealMock,
 }));
@@ -94,6 +96,7 @@ describe("meal group operations", () => {
     getDbMock.mockReset();
     listMealsMock.mockReset();
     logInferenceEventMock.mockReset();
+    moveMealItemMock.mockReset();
     removeMealMock.mockReset();
     updateMealMock.mockReset();
   });
@@ -128,32 +131,51 @@ describe("meal group operations", () => {
     const beans = { ...rice, foodName: "Feijão", canonicalName: "Feijão" };
     const meal = buildMeal({ id: 10, mealLabel: "almoço", items: [rice, beans], notes: "observação do almoço" });
     listMealsMock.mockResolvedValue([meal]);
-    createManualMealMock.mockResolvedValue(buildMeal({
-      id: 99,
-      mealLabel: "jantar",
-      items: [{ ...rice, portionText: "120 g", estimatedGrams: 120 }],
-    }));
-    updateMealMock.mockResolvedValue(buildMeal({ id: 10, mealLabel: "almoço", items: [beans] }));
+    moveMealItemMock.mockResolvedValue({
+      moved: true,
+      meal: buildMeal({
+        id: 99,
+        mealLabel: "jantar",
+        items: [{ ...rice, portionText: "120 g", estimatedGrams: 120 }],
+      }),
+      sourceMeal: buildMeal({ id: 10, mealLabel: "almoço", items: [beans] }),
+    });
 
-    await updateMealItem(42, {
+    const result = await updateMealItem(42, {
       mealId: 10,
       itemIndex: 0,
       mealLabel: "jantar",
       item: { ...rice, portionText: "120 g", estimatedGrams: 120 },
     });
 
-    expect(createManualMealMock).toHaveBeenCalledWith(42, {
-      mealLabel: "jantar",
+    expect(moveMealItemMock).toHaveBeenCalledWith(42, {
+      sourceMeal: meal,
+      targetMealLabel: "jantar",
       occurredAt: "2026-05-21T12:00:00.000Z",
-      items: [expect.objectContaining({ foodName: "Arroz", portionText: "120 g" })],
+      remainingItems: [beans],
+      item: expect.objectContaining({ foodName: "Arroz", portionText: "120 g" }),
     });
-    expect(updateMealMock).toHaveBeenCalledWith(42, {
+    expect(result).toEqual(expect.objectContaining({ moved: true }));
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
+  it.each([-1, 2, 99])("rejeita itemIndex inválido (%s) antes de qualquer mutação", async itemIndex => {
+    const rice = buildMeal({}).items[0];
+    const beans = { ...rice, foodName: "Feijão", canonicalName: "Feijão" };
+    const meal = buildMeal({ id: 10, items: [rice, beans] });
+    listMealsMock.mockResolvedValue([meal]);
+
+    await expect(updateMealItem(42, {
       mealId: 10,
-      mealLabel: "almoço",
-      occurredAt: "2026-05-21T12:00:00.000Z",
-      notes: "observação do almoço",
-      items: [expect.objectContaining({ foodName: "Feijão" })],
-    });
+      itemIndex,
+      mealLabel: "jantar",
+      item: rice,
+    })).rejects.toThrow("Alimento não encontrado na refeição.");
+
+    expect(moveMealItemMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 
   it("reclassifica o mesmo registro quando o item é o único da refeição", async () => {
@@ -176,14 +198,12 @@ describe("meal group operations", () => {
     }));
   });
 
-  it("remove a cópia criada quando a atualização da origem falha", async () => {
+  it("propaga falha da movimentação atômica sem iniciar mutações paralelas", async () => {
     const rice = buildMeal({}).items[0];
     const beans = { ...rice, foodName: "Feijão", canonicalName: "Feijão" };
     const meal = buildMeal({ id: 10, mealLabel: "almoço", items: [rice, beans] });
     listMealsMock.mockResolvedValue([meal]);
-    createManualMealMock.mockResolvedValue(buildMeal({ id: 99, mealLabel: "jantar", items: [rice] }));
-    updateMealMock.mockRejectedValue(new Error("falha ao atualizar origem"));
-    removeMealMock.mockResolvedValue({ success: true });
+    moveMealItemMock.mockRejectedValue(new Error("falha ao atualizar origem"));
 
     await expect(updateMealItem(42, {
       mealId: 10,
@@ -192,7 +212,10 @@ describe("meal group operations", () => {
       item: rice,
     })).rejects.toThrow("falha ao atualizar origem");
 
-    expect(removeMealMock).toHaveBeenCalledWith(42, 99);
+    expect(moveMealItemMock).toHaveBeenCalledOnce();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(removeMealMock).not.toHaveBeenCalled();
   });
 
   it("copia todos os itens do grupo em uma nova refeição", async () => {

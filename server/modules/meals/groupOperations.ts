@@ -9,7 +9,7 @@ import type {
   UpdateMealGroupInput,
   UpdateMealItemInput,
 } from "./schemas";
-import { createManualMeal, listMeals, removeMeal, updateMeal } from "./service";
+import { createManualMeal, listMeals, moveMealItem, removeMeal, updateMeal } from "./service";
 
 type MealForGroupOperation = Awaited<ReturnType<typeof listMeals>>[number];
 
@@ -76,42 +76,23 @@ export async function updateMealItem(userId: number, input: UpdateMealItemInput)
   }
 
   const remainingItems = sourceMeal.items.filter((_, index) => index !== input.itemIndex);
-  const movedMeal = await createManualMeal(userId, {
-    mealLabel: targetMealLabel,
+  const result = await moveMealItem(userId, {
+    sourceMeal,
+    targetMealLabel,
     occurredAt,
-    items: [updatedItem],
+    remainingItems,
+    item: updatedItem,
   });
 
-  try {
-    const updatedSourceMeal = await updateMeal(userId, {
-      mealId: sourceMeal.id,
-      mealLabel: sourceMeal.mealLabel,
-      occurredAt,
-      notes: sourceMeal.notes,
-      items: remainingItems,
-    });
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.item_moved",
+    detail: `Um alimento foi movido de ${sourceMeal.mealLabel} para ${targetMealLabel}.`,
+  });
 
-    logInferenceEvent({
-      userId,
-      origin: "web",
-      status: "success",
-      eventType: "meal.item_moved",
-      detail: `Um alimento foi movido de ${sourceMeal.mealLabel} para ${targetMealLabel}.`,
-    });
-
-    return {
-      moved: true,
-      meal: movedMeal,
-      sourceMeal: updatedSourceMeal,
-    };
-  } catch (error) {
-    try {
-      await removeMeal(userId, movedMeal.id);
-    } catch {
-      // Best-effort compensation: preserve the original error for the caller.
-    }
-    throw error;
-  }
+  return result;
 }
 
 export async function updateMealGroup(userId: number, input: UpdateMealGroupInput) {

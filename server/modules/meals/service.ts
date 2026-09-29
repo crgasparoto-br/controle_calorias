@@ -12,6 +12,7 @@ import {
   listUserMeals,
   logInferenceEvent,
   logPersistenceWarning,
+  moveUserMealItem,
   rebuildUserMealHabits,
   removeUserMeal,
   reuseFavoriteMeal,
@@ -342,6 +343,69 @@ export async function updateMeal(userId: number, input: UpdateMealInput) {
   }
 
   return meal;
+}
+
+export async function moveMealItem(userId: number, input: {
+  sourceMeal: Awaited<ReturnType<typeof listMeals>>[number];
+  targetMealLabel: string;
+  occurredAt: string;
+  remainingItems: MealDraftItem[];
+  item: MealDraftItem;
+}) {
+  await ensureCurrentIrreversibleEffectAllowed();
+  const preparedItems = await prepareMealItemsForSave(userId, [...input.remainingItems, input.item], { recordUsage: true });
+  const preparedRemainingItems = preparedItems.slice(0, input.remainingItems.length);
+  const preparedTargetItems = preparedItems.slice(input.remainingItems.length);
+  await ensureCurrentIrreversibleEffectAllowed();
+
+  const persisted = await moveUserMealItem({
+    userId,
+    sourceMeal: input.sourceMeal,
+    targetMealLabel: input.targetMealLabel,
+    occurredAt: input.occurredAt,
+    remainingItems: preparedRemainingItems,
+    targetItems: preparedTargetItems,
+  });
+
+  if (persisted) {
+    await persistMealItemNutritionSnapshots(persisted.meal.id, preparedTargetItems);
+    await persistMealItemNutritionSnapshots(persisted.sourceMeal.id, preparedRemainingItems);
+    return {
+      moved: true,
+      meal: decorateMealWithImageUrl(persisted.meal),
+      sourceMeal: decorateMealWithImageUrl(persisted.sourceMeal),
+    };
+  }
+
+  const movedMeal = await createUserManualMeal({
+    userId,
+    mealLabel: input.targetMealLabel,
+    occurredAt: input.occurredAt,
+    items: preparedTargetItems,
+  });
+
+  try {
+    const updatedSourceMeal = await updateUserMeal({
+      userId,
+      mealId: input.sourceMeal.id,
+      mealLabel: input.sourceMeal.mealLabel,
+      occurredAt: input.occurredAt,
+      notes: input.sourceMeal.notes,
+      items: preparedRemainingItems,
+    });
+    return {
+      moved: true,
+      meal: decorateMealWithImageUrl(movedMeal),
+      sourceMeal: decorateMealWithImageUrl(updatedSourceMeal),
+    };
+  } catch (error) {
+    try {
+      await removeUserMeal(userId, movedMeal.id);
+    } catch {
+      // Preserve the original error; the in-memory fallback has no transaction.
+    }
+    throw error;
+  }
 }
 
 export async function updateMealWithHouseholdMeasureLearning(

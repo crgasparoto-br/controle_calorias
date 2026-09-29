@@ -1394,6 +1394,69 @@ export async function updateUserMeal(input: {
   return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
 }
 
+export async function moveUserMealItem(input: {
+  userId: number;
+  sourceMeal: SavedMeal;
+  targetMealLabel: string;
+  occurredAt: string;
+  remainingItems: MealDraftItem[];
+  targetItems: MealDraftItem[];
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const allItems = [...input.remainingItems, ...input.targetItems];
+  const resolvedCatalogIds = allItems.length
+    ? await resolveFoodCatalogIds(allItems, input.userId)
+    : new Map<string, number>();
+  const targetOccurredAt = new Date(input.occurredAt).getTime();
+  const result = await mealsRepository.moveMealItem({
+    userId: input.userId,
+    sourceMeal: input.sourceMeal,
+    remainingItems: input.remainingItems,
+    targetMeal: {
+      mealLabel: input.targetMealLabel,
+      occurredAt: targetOccurredAt,
+      items: input.targetItems,
+    },
+    resolvedCatalogIds,
+  });
+
+  if (!result) return null;
+
+  const currentMeals = await listUserMeals(input.userId);
+  const updatedSourceMeal: SavedMeal = {
+    ...input.sourceMeal,
+    items: input.remainingItems,
+  };
+  const movedMeal: SavedMeal = {
+    id: result.targetMealId,
+    userId: input.userId,
+    source: "web",
+    mealLabel: input.targetMealLabel,
+    status: "confirmed",
+    occurredAt: targetOccurredAt,
+    sourceText: "Registro manual",
+    confidence: 1,
+    items: input.targetItems,
+    media: [],
+    createdAt: Date.now(),
+  };
+
+  mealStore.set(
+    input.userId,
+    [movedMeal, ...currentMeals.filter(meal => meal.id !== input.sourceMeal.id && meal.id !== movedMeal.id), updatedSourceMeal]
+      .sort((a, b) => b.occurredAt - a.occurredAt),
+  );
+  await updateHabitsFromMeal(movedMeal);
+  await updateHabitsFromMeal(updatedSourceMeal);
+
+  return {
+    meal: { ...movedMeal, totals: sumMealItems(movedMeal.items) },
+    sourceMeal: { ...updatedSourceMeal, totals: sumMealItems(updatedSourceMeal.items) },
+  };
+}
+
 export async function relabelUserMeals(input: {
   userId: number;
   mealIds: number[];
