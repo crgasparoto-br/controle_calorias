@@ -81,6 +81,8 @@ export type MealSemanticInputEvidenceOrigin = Extract<
 export type MealSemanticClarificationCode =
   | "brand_variant_unresolved"
   | "commercial_identity_unverified"
+  /** Identidade comercial comprovada; falta somente a composição nutricional verificável. */
+  | "commercial_nutrition_unverified"
   | "image_identity_unresolved";
 
 export type MealSemanticAlternative = {

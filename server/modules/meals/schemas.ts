@@ -59,6 +59,7 @@ const mealItemResolutionSchema = z.object({
     reason: z.enum([
       "brand_variant_unresolved",
       "commercial_identity_unverified",
+      "commercial_nutrition_unverified",
       "image_identity_unresolved",
     ]),
     alternatives: z.array(z.object({

@@ -50,6 +50,10 @@ vi.mock("./mealActionReplyComposer", () => ({
 }));
 
 const { executeWhatsappTextIntent } = await import("./intentActions");
+const { resolveSafeCountableCatalogGrams } = await import("../../foodItemResolution");
+// #1244: a adição usa a mesma porção canônica local do registro normal antes
+// de qualquer medida caseira; a gramatura esperada vem dessa fonte única.
+const CANONICAL_BANANA_GRAMS = resolveSafeCountableCatalogGrams("banana", 1, "un", true)?.grams;
 
 const receivedAt = new Date("2026-08-12T12:00:00.000Z");
 const breakfast = {
@@ -205,7 +209,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
           foodName: "banana",
           quantity: 1,
           unit: "un",
-          estimatedGrams: 86,
+          estimatedGrams: CANONICAL_BANANA_GRAMS,
         }),
       ],
     }));
@@ -233,7 +237,7 @@ describe("issue #970 - cadeia real do interpretador de texto", () => {
     expect(updateMealMock).toHaveBeenCalledOnce();
     expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       items: [
-        expect.objectContaining({ foodName: "banana", quantity: 1, unit: "un", estimatedGrams: 86 }),
+        expect.objectContaining({ foodName: "banana", quantity: 1, unit: "un", estimatedGrams: CANONICAL_BANANA_GRAMS }),
         expect.objectContaining({ foodName: "Café sem açúcar", quantity: 3, unit: "xícara", estimatedGrams: 600 }),
       ],
     }));
