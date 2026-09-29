@@ -181,6 +181,85 @@ describe("RegisteredMealGroups", () => {
   });
 
 
+  it("repete a imagem da refeição na linha de cada alimento e mantém os nutrientes visíveis", () => {
+    const rice = buildItem("Arroz");
+    const beans = { ...buildItem("Feijão"), calories: 95, protein: 6, carbs: 14, fat: 1 };
+    const meal: StoredMeal = {
+      id: 20,
+      mealLabel: "almoço",
+      occurredAt: new Date("2026-05-21T12:00:00.000Z").getTime(),
+      source: "web",
+      imageUrl: "https://example.com/prato.jpg",
+      items: [rice, beans],
+      totals: {
+        calories: rice.calories + beans.calories,
+        protein: rice.protein + beans.protein,
+        carbs: rice.carbs + beans.carbs,
+        fat: rice.fat + beans.fat,
+      },
+    };
+    const group: RegisteredMealGroupViewModel = {
+      mealLabel: "almoço",
+      meals: [meal],
+      records: [{
+        meal,
+        items: meal.items.map((item, itemIndex) => ({
+          meal,
+          item,
+          itemIndex,
+          registeredAt: meal.occurredAt,
+          mealLabel: "almoço",
+          imageUrl: meal.imageUrl,
+        })),
+        registeredAt: meal.occurredAt,
+        mealLabel: "almoço",
+        imageUrl: meal.imageUrl,
+        totals: meal.totals,
+      }],
+      items: meal.items.map((item, itemIndex) => ({
+        meal,
+        item,
+        itemIndex,
+        registeredAt: meal.occurredAt,
+        mealLabel: "almoço",
+        imageUrl: meal.imageUrl,
+      })),
+      totals: meal.totals,
+    };
+
+    render(
+      <RegisteredMealGroups
+        groups={[group]}
+        userTimeZone="America/Sao_Paulo"
+        emptyMessage="Sem registros"
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "Foto do alimento Arroz" })).toHaveAttribute("src", meal.imageUrl);
+    expect(screen.getByRole("img", { name: "Foto do alimento Feijão" })).toHaveAttribute("src", meal.imageUrl);
+    expect(screen.getByText("120 kcal")).toBeInTheDocument();
+    expect(screen.getByText("95 kcal")).toBeInTheDocument();
+    expect(screen.getAllByText(/Proteínas:/i)).toHaveLength(2);
+    expect(screen.getAllByText(/Carboidratos:/i)).toHaveLength(2);
+    expect(screen.getAllByText(/Gorduras:/i)).toHaveLength(2);
+    expect(screen.getAllByText(/Qtd\./i)).toHaveLength(2);
+  });
+
+  it("não reserva imagem na linha quando o alimento não possui mídia", () => {
+    render(
+      <RegisteredMealGroups
+        groups={[buildGroup()]}
+        userTimeZone="America/Sao_Paulo"
+        emptyMessage="Sem registros"
+      />,
+    );
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByText("Arroz")).toBeInTheDocument();
+    expect(screen.getByText("Iogurte")).toBeInTheDocument();
+  });
+
+
   it("envia a troca de refeição como mutação do item individual", async () => {
     const user = userEvent.setup();
     const group = buildGroup();

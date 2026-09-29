@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { toDateTimeLocalValue } from "@/lib/dateTime";
 import { formatCalories, formatGrams } from "@/lib/numberFormat";
 import { trpc } from "@/lib/trpc";
-import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel, RegisteredMealRecordViewModel } from "../mealViewModels";
+import type { RegisteredMealGroupViewModel, RegisteredMealItemViewModel } from "../mealViewModels";
 import { normalizeMealType } from "../mealViewModels";
 import type { MealItemState, MealType, StoredMeal } from "../types";
 import { ChevronDown, Copy, PencilLine, Star, Trash2 } from "lucide-react";
@@ -42,16 +42,16 @@ function describeFoodCount(count: number) {
   return `${count} alimento${count === 1 ? "" : "s"}`;
 }
 
-function FoodImage({ record }: { record: RegisteredMealRecordViewModel }) {
-  if (!record.imageUrl) {
+function FoodImage({ item }: { item: RegisteredMealItemViewModel }) {
+  if (!item.imageUrl) {
     return null;
   }
 
   return (
     <img
-      src={record.imageUrl}
-      alt={`Foto da refeição ${record.mealLabel}`}
-      className="h-20 w-20 rounded-2xl border object-cover"
+      src={item.imageUrl}
+      alt={`Foto do alimento ${item.item.foodName}`}
+      className="h-16 w-16 shrink-0 rounded-xl border object-cover"
       loading="lazy"
     />
   );
@@ -109,6 +109,7 @@ function MealFoodRow({
   const contentClassName = "min-w-0 flex-1 rounded-xl px-1 py-1 text-left transition hover:bg-muted/40";
   const content = (
     <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap text-sm">
+      <FoodImage item={item} />
       <span className="shrink-0 font-medium text-foreground">{formatTimeLabel(item.registeredAt, userTimeZone)}</span>
       <span className="shrink-0 text-muted-foreground">{portionLabel}</span>
       <span className="min-w-fit font-medium tracking-tight text-foreground">{item.item.foodName}</span>
@@ -279,7 +280,6 @@ function RegisteredMealGroupSection({
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const hasActions = Boolean(onEditMeal || onEditMealGroup || onCopyMeal || onCopyMealGroup || onFavoriteMeal || onFavoriteMealGroup || onRemoveMeal || onRemoveMealGroup);
-  const imageRecords = group.records.filter(record => record.imageUrl);
   const activeMeal = group.records.find(record => record.meal.id === selectedMealId)?.meal ?? null;
   const notes = group.records
     .filter(record => record.mealNotes)
@@ -334,14 +334,6 @@ function RegisteredMealGroupSection({
 
       {!isCollapsed ? (
         <>
-          {imageRecords.length ? (
-            <div className="flex flex-wrap gap-3">
-              {imageRecords.map(record => (
-                <FoodImage key={record.meal.id} record={record} />
-              ))}
-            </div>
-          ) : null}
-
           <div className="space-y-2">
             {group.items.map(item => (
               <MealFoodRow
