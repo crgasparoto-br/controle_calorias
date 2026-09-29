@@ -1,6 +1,31 @@
 {
   "schema_version": 1,
-  "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+  "head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "controls": [],
+  "retired_controls": [
+    {
+      "id": "INH-DELIVERY-TARGET-001",
+      "disposition": "not-applicable",
+      "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
+      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
+      "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
+      "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
+      "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
+      "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."
+    },
+    {
+      "id": "IC-1237-ATOMIC-MOVE",
+      "disposition": "not-applicable",
+      "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
+      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
+      "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
+      "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
+      "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
+      "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."
+    }
+  ],
   "source_audits": [
     {
       "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
@@ -15,38 +40,14 @@
       "finding_ids": [
         "A-004"
       ]
-    }
-  ],
-  "controls": [
-    {
-      "id": "INH-DELIVERY-TARGET-001",
-      "status": "passed",
-      "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
-      "subject_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
-      "control_type": "gate",
-      "evidence": "Inherited target-binding control was revalidated on exact material head 599c7b0dffe46880d0b308716e2a7e433f9439b7; foreign base artifacts are rejected before current-target handoff.",
-      "evidence_sha256": "8ec44f096dd18df56f6969d58bbe85f1a2bf9bd77906baca3e7309bfccc35b7b",
-      "procedure": "Run delivery target binding and terminal handoff validation against the current issue, PR, base and material head.",
-      "expected": "Foreign inherited artifacts are rejected and current-target artifacts are accepted.",
-      "observed": "Exact-head revalidation passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; the current package is issue #1237 / PR #1238 and no foreign artifact is reused."
     },
     {
-      "id": "IC-1237-ATOMIC-MOVE",
-      "status": "passed",
-      "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
-      "subject_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
-      "control_type": "test",
-      "evidence": "Exact two-item move, rollback and reread passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; no sibling moved and no duplicate or lost row remained.",
-      "evidence_sha256": "473849c3924180cd462939dff7b37bae1e42d5526866e60139087c3c90fbaf40",
-      "procedure": "Run the focused control with two mealItems, move one, inject persistence failure, then reread source and destination rows.",
-      "expected": "The selected row changes once, siblings retain IDs and values, and failure leaves no duplicate or lost row.",
-      "observed": "Exact-head control passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; the linked item remained exactly once and sibling identity was preserved.",
-      "risk_family": "idempotency",
-      "surface": "duplicate-processing",
-      "dimension": "issue-1237-1",
-      "attack_control_id": "NEG-R-1237-001-1"
+      "rejection_id": "audit-rejection:1246-handoff-not-produced",
+      "audit_report_sha256": "cc08774f219369210bfe1689358597201daf1e1266b1800ddd449b1390fb366e",
+      "finding_ids": [
+        "A-1246-001"
+      ]
     }
   ],
-  "retired_controls": [],
   "unresolved_controls": []
 }
