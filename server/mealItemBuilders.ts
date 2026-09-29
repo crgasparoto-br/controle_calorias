@@ -21,7 +21,13 @@ import {
 } from "./mealTextParsing";
 import { findTacoFood } from "./tacoLookup";
 import { parseCountableFoodQuantitySegment, resolveSafeCountableCatalogGrams } from "./countableFoodQuantity";
-import type { CatalogFood, ExplicitQuantity, LlmItem, MealDraftItem } from "./nutritionEngineTypes";
+import type {
+  CatalogFood,
+  ExplicitQuantity,
+  FoodClassificationEstimate,
+  LlmItem,
+  MealDraftItem,
+} from "./nutritionEngineTypes";
 
 const GENERIC_ESTIMATED_FOOD_REFERENCE: CatalogFood = {
   slug: "generic-food-estimate",
@@ -89,6 +95,16 @@ function formatRecognizedProductIdentity(foodName: string, brand: string | null)
   return `${formattedFoodName} ${brand}`;
 }
 
+function catalogFoodClassification(food: CatalogFood): FoodClassificationEstimate | null {
+  if (!food.processingLevel) return null;
+  return {
+    processingLevel: food.processingLevel,
+    isFruit: Boolean(food.isFruit),
+    isVegetable: Boolean(food.isVegetable),
+    fiberGrams: food.fiber ?? 0,
+  };
+}
+
 export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealDraftItem {
   const servings = Math.max(llmItem.servings || 1, 0.25);
   const estimatedGrams = llmItem.estimatedGrams > 0
@@ -128,7 +144,7 @@ export function buildItemFromCatalog(food: CatalogFood, llmItem: LlmItem): MealD
     fat: roundNutritionValue(food.fat * factor),
     confidence: usedGenericForMentionedBrand ? Math.min(clampConfidence(llmItem.confidence), 0.62) : clampConfidence(llmItem.confidence),
     source: usedGenericForMentionedBrand ? "heuristic" : "catalog",
-    classification: llmItem.foodClassification ?? null,
+    classification: llmItem.foodClassification ?? catalogFoodClassification(food),
   };
 }
 

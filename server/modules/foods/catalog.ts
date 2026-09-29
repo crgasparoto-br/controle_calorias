@@ -14,6 +14,7 @@ import {
 export type FoodSearchItem = {
   id: number;
   name: string;
+  aliases?: string[];
   brandName?: string | null;
   servingSize: number;
   servingUnit: string;
@@ -57,6 +58,7 @@ const referenceFoods: FoodSearchItem[] = FOOD_CATALOG_REFERENCE.map(
   (food, index) => ({
     id: index + 1,
     name: food.name,
+    aliases: food.aliases,
     brandName: null,
     servingSize: food.gramsPerServing,
     servingUnit:
@@ -271,6 +273,7 @@ export function createFoodsService(deps: {
     return {
       id: row.id,
       name: row.name,
+      aliases: parseJsonArray<string>(row.aliases, []),
       brandName: row.brandName,
       servingSize: row.gramsPerServing,
       servingUnit: row.servingUnit,
@@ -441,6 +444,7 @@ export function createFoodsService(deps: {
     const food: FoodSearchItem = {
       id: foodIdSequence++,
       name: input.name,
+      aliases: [],
       brandName: input.brandName ?? null,
       servingSize: input.servingSize,
       servingUnit: input.servingUnit,
@@ -612,7 +616,8 @@ export function createFoodsService(deps: {
         name: item.canonicalName || item.foodName,
         aliases: JSON.stringify([item.foodName].filter(Boolean)),
         brandName: item.brand ?? null,
-        foodType: "generic",
+        productVariant: item.productVariant ?? null,
+        foodType: item.brand ? "branded" : "generic",
         dataSource: "ai_estimated",
         servingLabel: item.portionText || `${item.estimatedGrams} g`,
         servingUnit: item.unit || "g",
@@ -645,6 +650,22 @@ export function createFoodsService(deps: {
     return [row.name, ...parseJsonArray<string>(row.aliases, [])]
       .map(normalizeCatalogText)
       .filter(Boolean);
+  }
+
+  function rowHasReusableClassification(
+    row: Awaited<ReturnType<FoodCatalogRepository["findAll"]>>[number]
+  ) {
+    const processingLevel = String(row.processingLevel ?? "");
+    return Boolean(
+      (processingLevel && processingLevel !== "unknown")
+      || row.isFruit
+      || row.isVegetable
+      || row.isUltraProcessed
+    );
+  }
+
+  function itemHasClassification(item: MealDraftItem) {
+    return Boolean(item.classification?.processingLevel);
   }
 
   async function resolveFoodCatalogIds(items: MealDraftItem[], userId: number) {
@@ -685,24 +706,36 @@ export function createFoodsService(deps: {
 
       const validCatalogIds = new Set(activeRows.map(row => row.id));
       const catalogIndex = new Map<string, number>();
+      const classifiedCatalogIndex = new Map<string, number>();
       for (const row of activeRows.filter(row => !row.createdByUserId)) {
         for (const key of rowIdentityKeys(row)) {
-          if (!blockedKeys.has(key)) catalogIndex.set(key, row.id);
+          if (blockedKeys.has(key)) continue;
+          catalogIndex.set(key, row.id);
+          if (rowHasReusableClassification(row)) {
+            classifiedCatalogIndex.set(key, row.id);
+          }
         }
       }
       for (const row of activeRows.filter(
         row => row.createdByUserId === userId
       )) {
-        for (const key of rowIdentityKeys(row)) catalogIndex.set(key, row.id);
+        for (const key of rowIdentityKeys(row)) {
+          catalogIndex.set(key, row.id);
+          if (rowHasReusableClassification(row)) {
+            classifiedCatalogIndex.set(key, row.id);
+          }
+        }
       }
 
       const resolved = new Map<string, number>();
       for (const item of items) {
         const directId = Number(item.foodCatalogId);
+        const directRow = activeRows.find(row => row.id === directId);
         if (
           Number.isFinite(directId) &&
           directId > 0 &&
-          validCatalogIds.has(directId)
+          validCatalogIds.has(directId) &&
+          (!itemHasClassification(item) || (directRow && rowHasReusableClassification(directRow)))
         ) {
           resolved.set(foodCatalogDirectKey(directId), directId);
           setResolvedCatalogId(resolved, item.canonicalName, directId);
@@ -714,9 +747,12 @@ export function createFoodsService(deps: {
         const fallbackKey = normalizeCatalogText(item.foodName);
         const nominalMatchBlocked =
           blockedKeys.has(directKey) || blockedKeys.has(fallbackKey);
+        const index = itemHasClassification(item)
+          ? classifiedCatalogIndex
+          : catalogIndex;
         const resolvedId = nominalMatchBlocked
           ? undefined
-          : (catalogIndex.get(directKey) ?? catalogIndex.get(fallbackKey));
+          : (index.get(directKey) ?? index.get(fallbackKey));
         if (resolvedId) {
           setResolvedCatalogId(resolved, item.canonicalName, resolvedId);
           setResolvedCatalogId(resolved, item.foodName, resolvedId);
@@ -731,6 +767,8 @@ export function createFoodsService(deps: {
           if (createdId) {
             if (directKey) catalogIndex.set(directKey, createdId);
             if (fallbackKey) catalogIndex.set(fallbackKey, createdId);
+            if (directKey) classifiedCatalogIndex.set(directKey, createdId);
+            if (fallbackKey) classifiedCatalogIndex.set(fallbackKey, createdId);
             blockedKeys.delete(directKey);
             blockedKeys.delete(fallbackKey);
             setResolvedCatalogId(resolved, item.canonicalName, createdId);

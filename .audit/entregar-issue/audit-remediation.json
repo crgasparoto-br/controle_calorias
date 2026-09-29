@@ -3,27 +3,27 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:1253-handoff-not-produced",
-    "audit_report_sha256": "10375f487a5d185e283d892465687d6dd0c97da4561536214214957207226c60",
-    "audited_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56"
+    "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
+    "audit_report_sha256": "3922de2834be5833549aaac15c293a71588f0240549c12591d7fa77e9b6240bb",
+    "audited_head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78"
   },
-  "candidate_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+  "candidate_head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "AUD-1253-001",
+      "source_id": "A-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "delivery-evidence-recertification",
       "changed_files": [],
       "evidence": [
-        "A fresh current-target certified handoff is generated for issue #1251 / PR #1253 without changing product code."
+        "A fresh current-target handoff is built for issue 1245 / PR 1252 without changing the material candidate."
       ],
       "validations": [
-        "Target binding rejects the inherited #1246/#1247 package.",
-        "Material CI is terminal green on the exact SHA."
+        "Material CI is terminal green on GitHub Actions run 36588016763.",
+        "The previous handoff is treated as inherited-base-artifact and is replaced by a current-target result-only package."
       ]
     }
   ]

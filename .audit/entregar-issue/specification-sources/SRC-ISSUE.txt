@@ -1,174 +1,38 @@
 ## Objetivo
+A classificação NOVA válida deve sobreviver ao registro, catálogo e relatório, evitando que alimentos classificáveis sejam contabilizados como Não classificados.
 
-Corrigir a associação e a exibição de fotos nos alimentos de uma refeição para que **cada item exiba imagem somente quando houver proveniência explícita ligando aquele alimento àquela foto**.
-
-A existência de uma foto na refeição, por si só, **não autoriza** a interface a exibir essa foto em todos os itens.
-
-## Contexto e causa confirmada no repositório
-
-O comportamento observado é reproduzível pela arquitetura atual:
-
-- `mealItems` e `mealMedia` pertencem à refeição, mas atualmente não existe associação persistida entre um item específico e uma mídia específica.
-- `server/modules/meals/mealImageAssociations.ts` resolve uma única imagem no nível da refeição.
-- `client/src/features/meals/mealViewModels.ts` chama `getMealImageUrl(meal)` e atribui o mesmo `imageUrl` a **cada item** durante `buildRegisteredMealGroups`.
-
-Por isso, uma refeição com uma foto e itens adicionados por texto/manual/cópia pode apresentar a mesma miniatura em todos os alimentos, mesmo quando esses itens não foram derivados da imagem.
-
-Exemplo observado:
-- Macarrão Penne à Bolonhesa
-- Requeijão Catupiry Light
-- Melão Dino
-- Biscoito Choco Biscuit ao Leite Bauducco
-
-A mesma foto do prato foi exibida nos quatro itens, embora nem todos tenham origem fotográfica.
-
-## Regra de produto
-
-A miniatura exibida no nível do alimento deve representar **a origem daquele alimento**, e não uma imagem genérica da refeição.
-
-### Deve acontecer
-
-1. Um item derivado de análise de foto deve poder referenciar a foto que o originou.
-2. Vários itens derivados da mesma foto podem compartilhar a mesma referência de mídia.
-3. Um item criado por texto, cadastro manual, cópia, favorito ou outro fluxo sem origem fotográfica deve ser exibido sem miniatura.
-4. A ausência de uma associação item ↔ imagem deve resultar em **nenhuma imagem no item**.
-5. A foto pode continuar existindo no nível da refeição para fluxos ou superfícies que representam a refeição como um todo; isso não cria associação implícita com seus itens.
-
-### Não deve acontecer
-
-1. Não usar `meal.imageUrl`, `meal.supportingImageUrl`, `meal.photoUrl` ou a primeira entrada de `meal.media` como fallback visual de um item sem associação própria.
-2. Não inferir a proveniência de um item apenas porque a refeição contém uma imagem.
-3. Não duplicar a mesma URL da refeição em todos os itens no view model.
-4. Não criar uma segunda fonte concorrente de verdade para a proveniência da imagem.
-
-## Escopo
-
-- Persistir ou transportar uma associação explícita entre item da refeição e a mídia que o originou.
-- Expor essa associação no contrato consumido pela interface.
-- Renderizar a miniatura por item com base nessa associação.
-- Preservar o comportamento de imagem no nível da refeição quando ele for usado por outras funcionalidades.
-- Cobrir persistência em banco e os fallbacks suportados pelo projeto, quando aplicável.
-- Adicionar testes de regressão no backend/contrato e no view model/interface.
-
-## Restrição de implementação
-
-A solução deve ter **uma única fonte de verdade persistente/queryable para a associação item ↔ mídia**.
-
-A forma concreta pode seguir a arquitetura do repositório — por exemplo, referência no item, tabela de associação ou metadado estruturado já pertencente ao domínio — desde que:
-
-- suporte vários itens associados à mesma imagem;
-- não dependa da posição do item no array;
-- não dependa do nome do alimento;
-- sobreviva a reload/reconsulta;
-- seja retornada pelo backend de forma explícita;
-- não exija heurística no frontend.
-
-### Invariantes estruturais
-
-- **must_behave:** item com associação explícita a uma imagem exibe essa imagem.
-- **must_not_behave:** item sem associação explícita não exibe imagem da refeição como fallback.
-- **must_be_single_source:** a associação item ↔ mídia deve ter uma única fonte canônica.
-- **must_not_depend_on:** a correção não pode depender de ordem dos itens, igualdade de nomes ou existência de uma única imagem na refeição.
-- **forbidden_implementation:** calcular `imageUrl` uma vez por refeição e copiá-lo para todos os itens.
-
-Uma implementação incorreta poderia continuar funcionando em refeições compostas integralmente por uma única foto, mas falharia em refeições mistas. Os testes devem obrigatoriamente usar uma refeição mista para distinguir esses casos.
-
-## Compatibilidade com dados existentes
-
-Registros históricos que possuem imagem no nível da refeição, mas **não possuem evidência persistida suficiente para determinar quais itens vieram da foto**, não devem receber associação inventada.
-
-Para esses registros:
-- manter a mídia da refeição intacta;
-- não adivinhar associação por posição, nome ou presença da imagem;
-- no nível do item, exibir miniatura somente quando a associação puder ser determinada de forma confiável pelo dado persistido.
-
-Não é requisito desta issue reconstruir proveniência histórica que nunca foi armazenada.
-
-## Cenários obrigatórios
-
-### 1. Refeição criada integralmente por foto
-Dada uma foto que origina três alimentos,
-quando a refeição é confirmada, persistida e recarregada,
-então os três itens devem manter referência àquela foto e podem exibir a mesma miniatura.
-
-### 2. Refeição mista: foto + texto/manual
-Dada uma refeição que contém itens derivados de uma foto,
-quando outro alimento é adicionado por texto ou manualmente,
-então somente os itens derivados da foto exibem miniatura.
-
-### 3. Alimento adicionado depois
-Dada uma refeição já existente com mídia,
-quando um novo item sem origem fotográfica é acrescentado,
-então ele não herda a foto existente.
-
-### 4. Cópia ou favorito
-Dado um item/refeição copiado ou restaurado de favorito,
-quando o novo registro não foi criado a partir da foto original,
-então ele não deve herdar automaticamente a associação histórica de imagem.
-
-### 5. Vários itens, mesma foto
-Dada uma imagem que originou vários itens,
-então todos podem referenciar a mesma mídia sem duplicar o arquivo.
-
-### 6. Mais de uma imagem
-Se um fluxo suportar múltiplas imagens na mesma refeição,
-cada item deve exibir somente a imagem explicitamente associada à sua origem.
-
-### 7. Registro histórico sem proveniência
-Dada uma refeição antiga com `mealMedia` de imagem mas sem associação item ↔ mídia confiável,
-então a imagem pode continuar disponível no nível da refeição,
-mas não deve ser aplicada automaticamente a cada item.
-
-### 8. Reload
-Dada uma refeição salva com associação item ↔ mídia,
-quando os dados são recarregados do backend,
-então a associação e a miniatura correta devem permanecer.
+## Requisitos funcionais
+- Se um item confirmado possui foodClassification.processingLevel válido, essa informação não pode ser descartada na resolução nutricional, criação do catálogo ou confirmação.
+- Quando o fluxo cria uma entrada no foodCatalog, a classificação disponível deve ser persistida e o item confirmado deve receber o foodCatalogId correspondente.
+- Para item com foodCatalogId, uma entrada existente com processingLevel válido deve ser usada mesmo quando o alimento não aparece no conjunto nominal limitado.
+- Nome ou alias pode recuperar classificação quando não houver vínculo por ID, mas não pode substituir uma classificação válida por unknown ou por correspondência menos específica.
+- Itens históricos sem foodCatalogId podem ser vinculados pelo backfill somente quando nome ou alias produzir correspondência determinística existente; sem correspondência segura, devem permanecer pendentes.
+- Um foodCatalogId existente com processingLevel ausente ou unknown não deve ser tratado como classificado apenas por existir o vínculo; sem evidência persistida segura, deve permanecer pendente.
+- Melão Dino e Pêra Packans, quando resolvidos pelas regras existentes como frutas naturais, devem chegar ao relatório como natural_or_minimally_processed, sem transformar qualificador natural em marca.
+- Tapioca da Terrinha deve usar a classificação da identidade catalogada ou resolvida correspondente, sem categoria NOVA definida pelo nome.
+- A reconciliação histórica determinística não deve exigir nova chamada de IA e deve ser segura para reexecução.
+- A correção deve reutilizar foodCatalog, foodCatalogId, aliases, resolveFoodCatalogIds, buildFoodLookupForMeals e o backfill existente, sem criar um segundo registro de classificação para relatórios.
+- Uma evidência de classificação mais fraca nunca pode degradar uma classificação mais forte já conhecida.
+- O relatório deve recalcular distribuição por processamento e unclassifiedCaloriesPercent usando as mesmas calorias do período, sem dupla contagem.
+- A correção não deve alterar macros ou calorias como efeito colateral.
 
 ## Critérios de aceite
-
-- [ ] `buildRegisteredMealGroups` ou o fluxo equivalente deixa de atribuir uma imagem da refeição indistintamente a todos os itens.
-- [ ] O contrato de dados permite distinguir item com origem fotográfica de item sem origem fotográfica sem heurística no cliente.
-- [ ] Item associado a uma imagem exibe a miniatura correta após persistência e reload.
-- [ ] Item sem associação explícita é exibido sem miniatura, mesmo quando a refeição possui `mealMedia` de imagem.
-- [ ] Vários itens podem compartilhar a mesma mídia quando todos foram derivados dela.
-- [ ] Um item adicionado por texto/manual a uma refeição com foto não recebe essa imagem.
-- [ ] Copiar/favoritar não transfere automaticamente proveniência fotográfica para o novo registro.
-- [ ] Registros históricos sem proveniência determinística não recebem associação inventada.
-- [ ] O comportamento de imagem da refeição como um todo permanece disponível para consumidores que realmente operam no nível da refeição.
-- [ ] A correção funciona tanto na persistência em banco quanto nos caminhos de fallback suportados pelo projeto.
-- [ ] Há teste automatizado de regressão usando uma refeição mista.
-
-## Considerações de testes
-
-Cobrir, no mínimo:
-
-### Backend/persistência
-- criação de refeição por foto com múltiplos itens;
-- persistência e reload da associação item ↔ mídia;
-- inclusão posterior de item sem imagem;
-- leitura de registro histórico sem associação;
-- compartilhamento de uma mídia por vários itens.
-
-### Contrato/API
-- resposta diferencia explicitamente item com imagem associada e item sem imagem;
-- ausência da associação não é convertida em fallback da imagem da refeição.
-
-### Frontend/view model
-- refeição mista: item A com foto, item B sem foto;
-- item B continua sem `imageUrl` mesmo se `meal.media` contiver imagem;
-- múltiplos itens com a mesma referência válida exibem a mesma miniatura;
-- regressão específica do comportamento atual de copiar o `imageUrl` da refeição para todos os itens.
+- Existe teste que prova preservação de foodClassification.processingLevel até foodCatalog.
+- Novo item auto-catalogado recebe foodCatalogId e classificação correspondente.
+- Item com foodCatalogId válido e processingLevel válido é classificado por ID no relatório mesmo fora do conjunto nominal limitado.
+- Item sem ID mas com nome ou alias determinístico pode ser vinculado pelo backfill existente.
+- Backfill histórico continua sem chamada externa de IA e é seguro para reexecução.
+- Catálogo existente com processingLevel ausente ou unknown continua pendente quando não houver evidência segura.
+- foodCatalogId órfão não é tratado como classificação válida.
+- Melão Dino e Pêra Packans classificados como frutas naturais deixam de contribuir para unclassifiedCalories.
+- Tapioca da Terrinha deixa de contribuir para unclassifiedCalories quando seu catálogo possuir classificação válida.
+- Existe controle com um quarto alimento não citado na issue provando ausência de hardcode.
+- A distribuição por processamento e unclassifiedCaloriesPercent são recalculadas a partir das mesmas calorias do período, sem dupla contagem.
+- A correção não altera macros ou calorias como efeito colateral.
+- Testes existentes de classificação por ID, histórico depreciado e processing level continuam verdes.
 
 ## Fora de escopo
-
-- Alterar reconhecimento nutricional ou identificação dos alimentos pela IA.
-- Alterar calorias, macros ou cálculo de porções.
-- Reprocessar fotos antigas para tentar reconstruir proveniência.
-- Redesenhar o card além do necessário para suportar corretamente presença/ausência da miniatura.
-- Remover a noção de imagem no nível da refeição para usos legítimos fora da linha de item.
-
-## Impacto na documentação
-
-A implementação deve verificar e, se necessário, atualizar a documentação canônica de persistência/refeição, especialmente `docs/design-docs/nutrition-engine.md`, para registrar que mídia de refeição e proveniência de mídia por item são conceitos distintos.
-
-A documentação não deve afirmar que a mera presença de `mealMedia` implica origem fotográfica para todos os `mealItems`.
+- Não alterar a taxonomia NOVA.
+- Não corrigir calorias ou macros do caso nutricional relacionado.
+- Não criar classificação hardcoded para os nomes observados.
+- Não executar inferência livre por IA sobre todo o histórico.
