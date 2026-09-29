@@ -1,32 +1,19 @@
 {
   "schema_version": 1,
-  "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+  "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "All surfaces derived for this family have passed adversarial and regression controls on the material head.",
-      "control_ids": [
-        "NEG-R-EGG-TACO-1",
-        "NEG-R-EGG-TACO-2"
-      ],
-      "dimensions": [
-        {
-          "surface": "nutrition-reference-selection",
-          "status": "passed",
-          "reason": "Adversarial controls cover the nutrition-reference-selection boundary on the candidate head.",
-          "control_ids": [
-            "NEG-R-EGG-TACO-1",
-            "NEG-R-EGG-TACO-2"
-          ]
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "No current issue #1237 obligation requires authorization.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "reason": "No current issue #1237 obligation requires tenant-isolation.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -34,63 +21,184 @@
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "reason": "No current issue #1237 obligation requires public-boundary.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "reference-liveness",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for reference-liveness passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-009-1",
+        "NEG-R-1237-014-2",
+        "NEG-R-1237-019-1",
+        "NEG-R-1237-020-1",
+        "NEG-R-1237-025-1",
+        "NEG-R-1237-027-2",
+        "NEG-R-1237-032-2",
+        "NEG-R-1237-036-2"
+      ],
+      "dimensions": [
+        {
+          "surface": "preserved-state-liveness",
+          "status": "passed",
+          "reason": "Exact-head controls passed for reference-liveness:preserved-state-liveness.",
+          "control_ids": [
+            "NEG-R-1237-009-1",
+            "NEG-R-1237-014-2",
+            "NEG-R-1237-019-1",
+            "NEG-R-1237-020-1",
+            "NEG-R-1237-025-1",
+            "NEG-R-1237-027-2",
+            "NEG-R-1237-032-2",
+            "NEG-R-1237-036-2"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-consistency",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for temporal-consistency passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-007-1",
+        "NEG-R-1237-009-2",
+        "NEG-R-1237-014-3",
+        "NEG-R-1237-015-2",
+        "NEG-R-1237-019-3",
+        "NEG-R-1237-020-2",
+        "NEG-R-1237-022-2",
+        "NEG-R-1237-023-2",
+        "NEG-R-1237-025-2",
+        "NEG-R-1237-027-3",
+        "NEG-R-1237-031-2",
+        "NEG-R-1237-032-4",
+        "NEG-R-1237-036-4",
+        "NEG-R-1237-037-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "persisted-state-consistency",
+          "status": "passed",
+          "reason": "Exact-head controls passed for temporal-consistency:persisted-state-consistency.",
+          "control_ids": [
+            "NEG-R-1237-007-1",
+            "NEG-R-1237-009-2",
+            "NEG-R-1237-014-3",
+            "NEG-R-1237-015-2",
+            "NEG-R-1237-019-3",
+            "NEG-R-1237-020-2",
+            "NEG-R-1237-022-2",
+            "NEG-R-1237-023-2",
+            "NEG-R-1237-025-2",
+            "NEG-R-1237-027-3",
+            "NEG-R-1237-031-2",
+            "NEG-R-1237-032-4",
+            "NEG-R-1237-036-4",
+            "NEG-R-1237-037-1"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "reason": "No current issue #1237 obligation requires temporal-destination.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "concurrency-atomicity",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for concurrency-atomicity passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-013-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-atomicity",
+          "status": "passed",
+          "reason": "Exact-head controls passed for concurrency-atomicity:transaction-atomicity.",
+          "control_ids": [
+            "NEG-R-1237-013-1"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "idempotency",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for idempotency passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-001-1",
+        "NEG-R-1237-014-1",
+        "NEG-R-1237-015-1",
+        "NEG-R-1237-017-1",
+        "NEG-R-1237-022-1",
+        "NEG-R-1237-027-1",
+        "NEG-R-1237-031-1",
+        "NEG-R-1237-032-1",
+        "NEG-R-1237-036-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "status": "passed",
+          "reason": "Exact-head controls passed for idempotency:duplicate-processing.",
+          "control_ids": [
+            "NEG-R-1237-001-1",
+            "NEG-R-1237-014-1",
+            "NEG-R-1237-015-1",
+            "NEG-R-1237-017-1",
+            "NEG-R-1237-022-1",
+            "NEG-R-1237-027-1",
+            "NEG-R-1237-031-1",
+            "NEG-R-1237-032-1",
+            "NEG-R-1237-036-1"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "rollback",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for rollback passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-017-2",
+        "NEG-R-1237-018-1",
+        "NEG-R-1237-019-2",
+        "NEG-R-1237-023-1",
+        "NEG-R-1237-032-3",
+        "NEG-R-1237-036-3"
+      ],
+      "dimensions": [
+        {
+          "surface": "transaction-rollback",
+          "status": "passed",
+          "reason": "Exact-head controls passed for rollback:transaction-rollback.",
+          "control_ids": [
+            "NEG-R-1237-017-2",
+            "NEG-R-1237-018-1",
+            "NEG-R-1237-019-2",
+            "NEG-R-1237-023-1",
+            "NEG-R-1237-032-3",
+            "NEG-R-1237-036-3"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
+      "reason": "No current issue #1237 obligation requires historical-immutability.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -98,17 +206,55 @@
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "All surfaces derived for this family have passed adversarial and regression controls on the material head.",
+      "reason": "All exact-head adversarial surfaces for structural-contract passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
       "control_ids": [
-        "NEG-R-CANONICAL-OWNER-1"
+        "NEG-R-1237-002-1",
+        "NEG-R-1237-003-1",
+        "NEG-R-1237-004-1",
+        "NEG-R-1237-005-1",
+        "NEG-R-1237-006-1",
+        "NEG-R-1237-008-1",
+        "NEG-R-1237-010-1",
+        "NEG-R-1237-011-1",
+        "NEG-R-1237-012-1",
+        "NEG-R-1237-016-1",
+        "NEG-R-1237-021-1",
+        "NEG-R-1237-024-1",
+        "NEG-R-1237-026-1",
+        "NEG-R-1237-028-1",
+        "NEG-R-1237-029-1",
+        "NEG-R-1237-030-1",
+        "NEG-R-1237-033-1",
+        "NEG-R-1237-034-1",
+        "NEG-R-1237-035-1",
+        "NEG-R-1237-038-1"
       ],
       "dimensions": [
         {
-          "surface": "canonical-source-consistency",
+          "surface": "structural-item-integrity",
           "status": "passed",
-          "reason": "Adversarial controls cover the canonical-source-consistency boundary on the candidate head.",
+          "reason": "Exact-head controls passed for structural-contract:structural-item-integrity.",
           "control_ids": [
-            "NEG-R-CANONICAL-OWNER-1"
+            "NEG-R-1237-002-1",
+            "NEG-R-1237-003-1",
+            "NEG-R-1237-004-1",
+            "NEG-R-1237-005-1",
+            "NEG-R-1237-006-1",
+            "NEG-R-1237-008-1",
+            "NEG-R-1237-010-1",
+            "NEG-R-1237-011-1",
+            "NEG-R-1237-012-1",
+            "NEG-R-1237-016-1",
+            "NEG-R-1237-021-1",
+            "NEG-R-1237-024-1",
+            "NEG-R-1237-026-1",
+            "NEG-R-1237-028-1",
+            "NEG-R-1237-029-1",
+            "NEG-R-1237-030-1",
+            "NEG-R-1237-033-1",
+            "NEG-R-1237-034-1",
+            "NEG-R-1237-035-1",
+            "NEG-R-1237-038-1"
           ]
         }
       ],
@@ -116,12 +262,25 @@
     },
     {
       "family": "documentation",
-      "applicable": false,
-      "reason": "No current requirement or attack control requires this canonical risk family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "All exact-head adversarial surfaces for documentation passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7.",
+      "control_ids": [
+        "NEG-R-1237-039-1",
+        "NEG-R-1237-040-1"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "status": "passed",
+          "reason": "Exact-head controls passed for documentation:canonical-claims.",
+          "control_ids": [
+            "NEG-R-1237-039-1",
+            "NEG-R-1237-040-1"
+          ]
+        }
+      ],
+      "status": "passed"
     }
   ],
-  "material_families_missing_controls": 0
+  "material_families_missing_controls": []
 }

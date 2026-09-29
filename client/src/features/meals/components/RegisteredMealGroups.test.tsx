@@ -7,9 +7,10 @@ import type { RegisteredMealGroupViewModel } from "../mealViewModels";
 import type { MealItemState, StoredMeal } from "../types";
 import { RegisteredMealGroups } from "./RegisteredMealGroups";
 
-const { invalidateMock, mutateMock } = vi.hoisted(() => ({
+const { invalidateMock, mutateMock, updateItemMutateMock } = vi.hoisted(() => ({
   invalidateMock: vi.fn(),
   mutateMock: vi.fn(),
+  updateItemMutateMock: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -34,6 +35,7 @@ vi.mock("@/lib/trpc", () => ({
     nutrition: {
       meals: {
         update: { useMutation: () => ({ mutate: mutateMock, isPending: false }) },
+        updateItem: { useMutation: () => ({ mutate: updateItemMutateMock, isPending: false }) },
         remove: { useMutation: () => ({ mutate: mutateMock, isPending: false }) },
       },
     },
@@ -48,11 +50,20 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("./RegisteredMealItemEditDialog", () => ({
-  RegisteredMealItemEditDialog: () => null,
+  RegisteredMealItemEditDialog: ({ target, onSave }: any) => target ? (
+    <button
+      type="button"
+      onClick={() => onSave({ ...target.meal.items[target.itemIndex], portionText: "120 g", estimatedGrams: 120 }, "jantar")}
+    >
+      Confirmar edição individual
+    </button>
+  ) : null,
 }));
 
 afterEach(() => {
   cleanup();
+  mutateMock.mockReset();
+  updateItemMutateMock.mockReset();
 });
 
 function buildItem(foodName: string): MealItemState {
@@ -167,6 +178,35 @@ describe("RegisteredMealGroups", () => {
     expect(onCopyMealGroup).toHaveBeenCalledWith(group);
     expect(onFavoriteMealGroup).toHaveBeenCalledWith(group);
     expect(onRemoveMealGroup).toHaveBeenCalledWith(group);
+  });
+
+
+  it("envia a troca de refeição como mutação do item individual", async () => {
+    const user = userEvent.setup();
+    const group = buildGroup();
+
+    render(
+      <RegisteredMealGroups
+        groups={[group]}
+        userTimeZone="America/Sao_Paulo"
+        emptyMessage="Sem registros"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /editar alimento arroz/i }));
+    await user.click(screen.getByRole("button", { name: /confirmar edição individual/i }));
+
+    expect(updateItemMutateMock).toHaveBeenCalledWith({
+      mealId: group.meals[0].id,
+      itemIndex: 0,
+      mealLabel: "jantar",
+      item: expect.objectContaining({
+        foodName: "Arroz",
+        portionText: "120 g",
+        estimatedGrams: 120,
+      }),
+    });
+    expect(mutateMock).not.toHaveBeenCalled();
   });
 
   it("mantem clique em alimento como edição individual do item correto", async () => {

@@ -2,24 +2,27 @@
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
-  "status": "closed",
-  "candidate_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-  "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
-    "audited_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-    "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42"
+    "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
+    "audit_report_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
+    "audited_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7"
   },
+  "candidate_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+  "remediation_mode": "targeted-remediation",
+  "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "A-004",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": "A fresh current-target certificate is generated for PR 1233 and published as a result-only child of the material head.",
+      "closure_kind": "behavioral-fix",
+      "changed_files": [],
+      "evidence": [
+        "Fresh current-target package at material head 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+      ],
       "validations": [
-        "delivery_target_binding classified the inherited base artifact as non-reusable",
-        "prepublication and terminal handoff validators pass on the exact target"
+        "Exact product gates and remote CI passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
       ]
     }
   ]

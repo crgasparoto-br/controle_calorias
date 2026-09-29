@@ -1,37 +1,6 @@
 {
   "schema_version": 1,
-  "material_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-  "base_sha": "05c019abb8d926648934ccb6c2c79d88978931e0",
-  "evidence": [
-    {
-      "evidence_id": "EV-1233-CODE",
-      "kind": "behavioral",
-      "status": "passed",
-      "path": "server/nutritionEngine.ts",
-      "sha256": "da59a4a24a9f8b97e1aed7aeae1f2ec143669ea593c69e0ee6a2d283ff4f293e",
-      "subject_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-      "freshness_policy": "exact-material-head",
-      "producer": "exact-head validation on PR 1233 material candidate"
-    },
-    {
-      "evidence_id": "EV-1233-CHECK",
-      "kind": "structural",
-      "status": "passed",
-      "path": "server/countableFoodQuantity.ts",
-      "sha256": "7aa6a33fa1aae3bd82822eb90ee394857d447dc89860573a1641d9a841ad5457",
-      "subject_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-      "freshness_policy": "exact-material-head",
-      "producer": "exact-head validation on PR 1233 material candidate"
-    },
-    {
-      "evidence_id": "EV-1233-DOCS",
-      "kind": "documentation",
-      "status": "passed",
-      "path": "docs/product-specs/whatsapp-flow.md",
-      "sha256": "ad32f35d1e268591f656cf8e760a38bda0ad189f9f76cfccb6510caf7e2d51ad",
-      "subject_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-      "freshness_policy": "exact-material-head",
-      "producer": "exact-head validation on PR 1233 material candidate"
-    }
-  ]
+  "material_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+  "base_sha": "23ea0edee283cf02ae62f45269c1d522213fdf1c",
+  "evidence": []
 }

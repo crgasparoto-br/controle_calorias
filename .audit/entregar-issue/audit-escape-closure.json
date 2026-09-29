@@ -7,19 +7,19 @@
       "escape_class": "delivery-readiness/inherited-base-artifact",
       "plausible_wrong_implementation": "Treat a byte-identical certificate from the develop base as current evidence for a different pull request and skip target binding.",
       "required_risk_families": [
-        "semantic-effect",
-        "structural-contract"
+        "structural-contract",
+        "rollback"
       ],
       "required_attack_dimensions": [
         {
-          "risk_family": "semantic-effect",
-          "surface": "countable-unit-resolution",
-          "dimension": "escape-1"
+          "risk_family": "structural-contract",
+          "surface": "structural-item-integrity",
+          "dimension": "issue-1237-1"
         },
         {
-          "risk_family": "structural-contract",
-          "surface": "canonical-source-consistency",
-          "dimension": "escape-1"
+          "risk_family": "rollback",
+          "surface": "transaction-rollback",
+          "dimension": "issue-1237-2"
         }
       ],
       "sibling_cases": [
@@ -39,12 +39,12 @@
         }
       ],
       "prevention_change": {
-        "evidence": "The current package is rebuilt from a fresh target snapshot and the builder is bound to PR 1233, base develop, and material head bfe1ccff."
+        "evidence": "Cumulative current-target package retains the inherited escape while binding new evidence to issue #1237 at 599c7b0dffe46880d0b308716e2a7e433f9439b7."
       },
       "detection_change": {
-        "evidence": "The delivery target binding and terminal handoff validators are run against the exact base/head and reject inherited or foreign identity artifacts."
+        "evidence": "Terminal lineage validation checks inherited and current escape IDs on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
       },
-      "revalidated_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+      "revalidated_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
       "source_audit": {
         "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
         "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
@@ -53,8 +53,63 @@
         ]
       },
       "literal_case": {
-        "observed": "Current candidate material head is bfe1ccffa43712d3816141cbe6a4e4369e31c2a3; the stale base certificate is historical and is not included as current evidence."
+        "observed": "Historical escape A-001 is retained and revalidated as lineage on material head 599c7b0dffe46880d0b308716e2a7e433f9439b7; no foreign product evidence is promoted."
       }
+    },
+    {
+      "escape_id": "ESC-1237-A004",
+      "status": "passed",
+      "escape_class": "target-specific-handoff-readiness",
+      "plausible_wrong_implementation": "A delivery can reuse a base certificate from another issue and appear ready without binding evidence to the current issue and PR.",
+      "revalidated_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+      "source_audit": {
+        "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
+        "audit_report_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
+        "finding_ids": [
+          "A-004"
+        ]
+      },
+      "literal_case": {
+        "observed": "Current-target package is bound to material head 599c7b0dffe46880d0b308716e2a7e433f9439b7; the previous foreign package is historical and not reused."
+      },
+      "sibling_cases": [
+        {
+          "id": "ESC-1237-A004-S1",
+          "status": "passed",
+          "surface": "handoff-target-binding",
+          "dimension": "foreign-base-artifact",
+          "evidence": "Foreign-base artifact is rejected on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+        },
+        {
+          "id": "ESC-1237-A004-S2",
+          "status": "passed",
+          "surface": "handoff-target-binding",
+          "dimension": "missing-terminal-child",
+          "evidence": "Missing result-only child is rejected on 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Certificate declares issue #1237 and PR #1238 at 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+      },
+      "detection_change": {
+        "evidence": "Terminal validation checks parent, allowlist and fresh head at 599c7b0dffe46880d0b308716e2a7e433f9439b7."
+      },
+      "required_risk_families": [
+        "structural-contract",
+        "rollback"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "structural-item-integrity",
+          "dimension": "issue-1237-1"
+        },
+        {
+          "risk_family": "rollback",
+          "surface": "transaction-rollback",
+          "dimension": "issue-1237-2"
+        }
+      ]
     }
   ]
 }

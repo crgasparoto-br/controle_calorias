@@ -272,6 +272,9 @@ vi.mock("@/lib/trpc", () => ({
         update: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },
+        updateItem: {
+          useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        },
         updateGroup: {
           useMutation: () => ({ isPending: false, mutate: vi.fn() }),
         },

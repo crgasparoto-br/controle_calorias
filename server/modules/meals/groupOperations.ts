@@ -7,8 +7,9 @@ import type {
   RemoveMealGroupInput,
   SaveFavoriteMealGroupInput,
   UpdateMealGroupInput,
+  UpdateMealItemInput,
 } from "./schemas";
-import { createManualMeal, listMeals, removeMeal, updateMeal } from "./service";
+import { createManualMeal, listMeals, moveMealItem, removeMeal, updateMeal, updateMealItem as updateMealItemService } from "./service";
 
 type MealForGroupOperation = Awaited<ReturnType<typeof listMeals>>[number];
 
@@ -40,6 +41,57 @@ function buildGroupNotes(meals: MealForGroupOperation[]) {
 
 function buildGroupItems(meals: MealForGroupOperation[]) {
   return meals.flatMap(meal => meal.items.map(item => ({ ...item })));
+}
+
+export async function updateMealItem(userId: number, input: UpdateMealItemInput) {
+  const meals = await listMeals(userId);
+  const sourceMeal = meals.find(meal => meal.id === input.mealId);
+  if (!sourceMeal) {
+    throw new Error("Refeição não encontrada.");
+  }
+
+  if (input.itemIndex < 0 || input.itemIndex >= sourceMeal.items.length) {
+    throw new Error("Alimento não encontrado na refeição.");
+  }
+
+  const targetMealLabel = input.mealLabel.trim();
+  const sourceMealLabel = sourceMeal.mealLabel.trim();
+  const updatedItem = { ...input.item };
+  const occurredAt = new Date(sourceMeal.occurredAt).toISOString();
+
+  if (sourceMeal.items.length === 1 || sourceMealLabel === targetMealLabel) {
+    const meal = await updateMealItemService(userId, {
+      sourceMeal,
+      itemIndex: input.itemIndex,
+      targetMealLabel,
+      occurredAt,
+      item: updatedItem,
+    });
+
+    return {
+      moved: sourceMealLabel !== targetMealLabel,
+      meal,
+      sourceMeal: meal,
+    };
+  }
+
+  const result = await moveMealItem(userId, {
+    sourceMeal,
+    itemIndex: input.itemIndex,
+    targetMealLabel,
+    occurredAt,
+    item: updatedItem,
+  });
+
+  logInferenceEvent({
+    userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.item_moved",
+    detail: `Um alimento foi movido de ${sourceMeal.mealLabel} para ${targetMealLabel}.`,
+  });
+
+  return result;
 }
 
 export async function updateMealGroup(userId: number, input: UpdateMealGroupInput) {

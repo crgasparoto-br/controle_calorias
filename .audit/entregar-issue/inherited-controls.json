@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+  "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
   "source_audits": [
     {
       "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
@@ -8,20 +8,43 @@
       "finding_ids": [
         "A-001"
       ]
+    },
+    {
+      "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
+      "audit_report_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
+      "finding_ids": [
+        "A-004"
+      ]
     }
   ],
   "controls": [
     {
       "id": "INH-DELIVERY-TARGET-001",
       "status": "passed",
-      "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-      "subject_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+      "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+      "subject_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
       "control_type": "gate",
-      "evidence": "Target binding and terminal validation both passed against the current candidate bytes.",
-      "evidence_sha256": "d073209a4f0e29f8538210f0c027e7b2e0d0f020dc44974e5947c73feda8bbbd",
-      "procedure": "Run exact-base target binding followed by terminal handoff validation.",
-      "expected": "Foreign inherited artifacts are rejected and current target artifacts are accepted.",
-      "observed": "PR 1233 current target is bound to material head bfe1ccffa43712d3816141cbe6a4e4369e31c2a3; no foreign artifact is reused."
+      "evidence": "Inherited target-binding control was revalidated on exact material head 599c7b0dffe46880d0b308716e2a7e433f9439b7; foreign base artifacts are rejected before current-target handoff.",
+      "evidence_sha256": "8ec44f096dd18df56f6969d58bbe85f1a2bf9bd77906baca3e7309bfccc35b7b",
+      "procedure": "Run delivery target binding and terminal handoff validation against the current issue, PR, base and material head.",
+      "expected": "Foreign inherited artifacts are rejected and current-target artifacts are accepted.",
+      "observed": "Exact-head revalidation passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; the current package is issue #1237 / PR #1238 and no foreign artifact is reused."
+    },
+    {
+      "id": "IC-1237-ATOMIC-MOVE",
+      "status": "passed",
+      "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+      "subject_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+      "control_type": "test",
+      "evidence": "Exact two-item move, rollback and reread passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; no sibling moved and no duplicate or lost row remained.",
+      "evidence_sha256": "473849c3924180cd462939dff7b37bae1e42d5526866e60139087c3c90fbaf40",
+      "procedure": "Run the focused control with two mealItems, move one, inject persistence failure, then reread source and destination rows.",
+      "expected": "The selected row changes once, siblings retain IDs and values, and failure leaves no duplicate or lost row.",
+      "observed": "Exact-head control passed on 599c7b0dffe46880d0b308716e2a7e433f9439b7; the linked item remained exactly once and sibling identity was preserved.",
+      "risk_family": "idempotency",
+      "surface": "duplicate-processing",
+      "dimension": "issue-1237-1",
+      "attack_control_id": "NEG-R-1237-001-1"
     }
   ],
   "retired_controls": [],
