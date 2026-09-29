@@ -1,6 +1,17 @@
 {
   "schema_version": 1,
-  "material_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
-  "base_sha": "23ea0edee283cf02ae62f45269c1d522213fdf1c",
-  "evidence": []
+  "material_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "base_sha": "379ba427952c04fb9be2f39870937e0c1c0c8f6b",
+  "evidence": [
+    {
+      "evidence_id": "EV-1246-UI-NUTRITION",
+      "kind": "quantitative",
+      "path": ".audit/entregar-issue/evidence/ui-component-observation.txt",
+      "sha256": "4076a51431bf723b8389beaee2cc56b09f1511373e886d1c2e739844841de3c8",
+      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "freshness_policy": "exact-material-head",
+      "producer": "GitHub Actions exact-head test evidence plus source assertions",
+      "status": "passed"
+    }
+  ]
 }

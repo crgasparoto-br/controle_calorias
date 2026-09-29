@@ -75,6 +75,7 @@ Alimentos criados pelo próprio usuário no catálogo legado podem ser removidos
 - Produto com marca/variante sem evidência específica não recebe macros genéricos ou estimativa da IA como composição exata.
 - Marca sem variante com múltiplas opções plausíveis gera clarificação antes de qualquer mutação.
 - Confirmação persiste refeição e itens com macros por item.
+- Na tela de registros, cada alimento exibe na mesma linha sua imagem associada, quando houver, junto de horário, porção, nome, calorias, proteínas, carboidratos, gorduras e quantidade. Quando uma única imagem representa vários alimentos da mesma refeição, a mesma imagem é repetida em cada linha correspondente.
 - Na tela de registros, editar um alimento individual e trocar sua refeição move somente a linha do item selecionado em uma transação; os demais itens do registro original mantêm seus valores, identificadores e links.
 - A edição unitária revalida o snapshot da refeição sob lock antes da escrita; se outra sessão alterar qualquer item, a operação falha sem criar destino, duplicar alimento ou atualizar irmãos.
 - Quando o alimento movido for o único item do registro, o próprio registro é reclassificado, sem criar refeição vazia.

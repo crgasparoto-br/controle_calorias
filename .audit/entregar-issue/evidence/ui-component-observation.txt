@@ -1,0 +1,4 @@
+Exact material head: 17e66e2baa91d1b682487f337a2b106d2f2b0356
+GitHub Actions run 36555718822 completed Full tests successfully.
+RegisteredMealGroups component regression asserts two foods share one image URL while retaining distinct calorie values (120 kcal and 95 kcal), all macro labels and quantity labels.
+A second regression asserts meals without media render no img role while food names remain visible.
