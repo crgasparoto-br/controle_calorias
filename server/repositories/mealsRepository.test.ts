@@ -189,7 +189,7 @@ describe("createDrizzleMealsRepository persistMeal", () => {
         },
       ],
       media: [],
-      resolvedCatalogIds: new Map(),
+      resolvedCatalogIds: new Map([["arroz", 501]]),
     });
 
     expect(mealId).toBe(42);
@@ -197,6 +197,9 @@ describe("createDrizzleMealsRepository persistMeal", () => {
 
     const mealInsert = db.committedOperations.find((o: DbOperation) => o.op === "insert.values" && o.table === meals);
     expect(mealInsert?.payload).toMatchObject({ status: "draft" });
+
+    const itemInsert = db.committedOperations.find((o: DbOperation) => o.op === "insert.values" && o.table === mealItems);
+    expect(itemInsert?.payload?.[0]).toMatchObject({ foodCatalogId: 501, canonicalName: "arroz" });
 
     const confirm = db.committedOperations.find((o: DbOperation) => o.op === "update.set");
     expect(confirm?.payload).toEqual({ status: "confirmed" });

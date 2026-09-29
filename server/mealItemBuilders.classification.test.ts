@@ -50,6 +50,22 @@ describe("meal item NOVA classification propagation", () => {
     expect(item.classification).toEqual(novaClassification);
   });
 
+  it("inherits the catalog classification when the extractor omitted it", () => {
+    const item = buildItemFromCatalog({
+      ...catalogFood,
+      processingLevel: "natural_or_minimally_processed",
+      isFruit: true,
+      fiber: 2.4,
+    }, buildLlmItem({ foodClassification: null }));
+
+    expect(item.classification).toEqual({
+      processingLevel: "natural_or_minimally_processed",
+      isFruit: true,
+      isVegetable: false,
+      fiberGrams: 2.4,
+    });
+  });
+
   it("preserves the embedded classification when nutrition falls back to a heuristic reference", () => {
     const item = buildEstimatedNutritionFallbackItem(buildLlmItem({
       foodName: "preparação exclusiva de teste",

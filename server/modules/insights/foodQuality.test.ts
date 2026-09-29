@@ -10,6 +10,7 @@ const { calculateQualityIndicators: calculateQuality, createFoodLookup: createLo
 type FoodFixture = {
   id: number;
   name: string;
+  aliases?: string[];
   brandName: string | null;
   servingSize: number;
   servingUnit: string;
@@ -34,6 +35,7 @@ function food(overrides: Partial<FoodFixture> = {}): FoodFixture {
   return {
     id: 1,
     name: "Banana",
+    aliases: [],
     brandName: null,
     servingSize: 100,
     servingUnit: "g",
@@ -93,6 +95,33 @@ function meal(items: unknown[]) {
 }
 
 describe("food quality report lookup", () => {
+  it.each([
+    ["Melão Dino", "Melão", "natural_or_minimally_processed" as const, true, false],
+    ["Pêra Williams", "Pêra", "natural_or_minimally_processed" as const, true, false],
+    ["Tapioca da Terrinha", "Tapioca", "processed" as const, false, false],
+  ])("classifica o alias %s pela linha canônica %s", (alias, name, processingLevel, isFruit, isVegetable) => {
+    const lookup = createLookup([food({
+      id: alias === "Melão Dino" ? 101 : alias === "Pêra Williams" ? 102 : 103,
+      name,
+      aliases: [alias],
+      processingLevel,
+      isFruit,
+      isVegetable,
+    })]);
+    const quality = calculateQuality(
+      meal([mealItem({ foodName: alias, canonicalName: alias, calories: 100 })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel,
+      isFruit,
+      isVegetable,
+    });
+  });
+
   it("classifica por foodCatalogId antes do texto", () => {
     const lookup = createLookup([
       food({ id: 10, name: "Banana", isFruit: true }),
@@ -211,7 +240,7 @@ describe("food quality report lookup", () => {
 
   it("marca alimento conhecido sem nível detalhado como unknown", () => {
     const lookup = createLookup([
-      food({ id: 70, name: "Produto conhecido manual", fiber: null }),
+      food({ id: 70, name: "Produto conhecido manual", fiber: null, processingLevel: "unknown" }),
     ]);
     const quality = calculateQuality(
       meal([
@@ -226,9 +255,9 @@ describe("food quality report lookup", () => {
     );
 
     expect(quality.foodQualityItems[0]).toMatchObject({
-      isClassified: true,
+      isClassified: false,
       processingLevel: "unknown",
-      isUltraProcessed: false,
+      unclassifiedReason: "unknown",
     });
   });
 

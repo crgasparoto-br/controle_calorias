@@ -7,6 +7,7 @@ export type FoodLookupEntry = {
   id?: number;
   fiber?: number | null;
   processingLevel: FoodProcessingLevel;
+  isClassified: boolean;
   isFruit: boolean;
   isVegetable: boolean;
   isUltraProcessed: boolean;
@@ -46,7 +47,10 @@ function referenceProcessingLevel(food: { processingLevel?: FoodProcessingLevel;
 }
 
 function searchItemProcessingLevel(food: FoodSearchItem, existing?: FoodLookupEntry) {
-  return food.processingLevel ?? legacyProcessingLevel(food) ?? existing?.processingLevel ?? "unknown";
+  const explicitLevel = food.processingLevel && food.processingLevel !== "unknown"
+    ? food.processingLevel
+    : undefined;
+  return explicitLevel ?? legacyProcessingLevel(food) ?? existing?.processingLevel ?? "unknown";
 }
 
 export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
@@ -58,6 +62,7 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
     const entry: FoodLookupEntry = {
       fiber: food.fiber ?? null,
       processingLevel,
+      isClassified: true,
       isFruit: Boolean(food.isFruit),
       isVegetable: Boolean(food.isVegetable),
       isUltraProcessed: processingLevel === "ultra_processed" || Boolean(food.isUltraProcessed),
@@ -73,17 +78,26 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
   for (const food of foods) {
     const existing = foodsByName.get(normalizeCatalogText(food.name));
     const processingLevel = searchItemProcessingLevel(food, existing);
+    const isClassified = Boolean(
+      (food.processingLevel && food.processingLevel !== "unknown")
+      || legacyProcessingLevel(food)
+      || existing?.isClassified
+    );
     const isUltraProcessed = processingLevel === "ultra_processed" || food.isUltraProcessed || existing?.isUltraProcessed || false;
     const entry: FoodLookupEntry = {
       id: food.id,
       fiber: food.fiber ?? existing?.fiber ?? null,
       processingLevel,
+      isClassified,
       isFruit: food.isFruit || existing?.isFruit || false,
       isVegetable: food.isVegetable || existing?.isVegetable || false,
       isUltraProcessed,
       servingSize: food.servingSize || existing?.servingSize || 0,
     };
     foodsByName.set(normalizeCatalogText(food.name), entry);
+    for (const alias of food.aliases ?? []) {
+      foodsByName.set(normalizeCatalogText(alias), entry);
+    }
     if (Number.isFinite(food.id) && food.id > 0) {
       foodsById.set(food.id, entry);
     }
@@ -141,6 +155,7 @@ function buildUnclassifiedFoodQualityItem(
     foodName: item.foodName,
     canonicalName: item.canonicalName,
     portionText: item.portionText,
+    processingLevel: "unknown",
     isClassified: false,
     unclassifiedReason: reason,
   };
@@ -186,6 +201,11 @@ export function calculateQualityIndicators(
         const food = resolveFoodLookupEntry(foodLookup, item);
         if (!food) {
           acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, getUnclassifiedReason(item, true)));
+          continue;
+        }
+
+        if (!food.isClassified) {
+          acc.foodQualityItems.push(buildUnclassifiedFoodQualityItem(item, itemCalories, "unknown"));
           continue;
         }
 
