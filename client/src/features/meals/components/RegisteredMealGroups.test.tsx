@@ -235,10 +235,10 @@ describe("RegisteredMealGroups", () => {
       />,
     );
 
-    expect(screen.getByRole("img", { name: "Foto do alimento Arroz" })).toHaveAttribute("src", meal.imageUrl);
-    expect(screen.getByRole("img", { name: "Foto do alimento Feijão" })).toHaveAttribute("src", meal.imageUrl);
-    expect(screen.getByText("120 kcal")).toBeInTheDocument();
-    expect(screen.getByText("95 kcal")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Foto do alimento Arroz" }).getAttribute("src")).toBe(meal.imageUrl);
+    expect(screen.getByRole("img", { name: "Foto do alimento Feijão" }).getAttribute("src")).toBe(meal.imageUrl);
+    expect(screen.getByText("120 kcal")).toBeTruthy();
+    expect(screen.getByText("95 kcal")).toBeTruthy();
     expect(screen.getAllByText(/Proteínas:/i)).toHaveLength(2);
     expect(screen.getAllByText(/Carboidratos:/i)).toHaveLength(2);
     expect(screen.getAllByText(/Gorduras:/i)).toHaveLength(2);
@@ -254,9 +254,9 @@ describe("RegisteredMealGroups", () => {
       />,
     );
 
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.getByText("Arroz")).toBeInTheDocument();
-    expect(screen.getByText("Iogurte")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("Arroz")).toBeTruthy();
+    expect(screen.getByText("Iogurte")).toBeTruthy();
   });
 
 
