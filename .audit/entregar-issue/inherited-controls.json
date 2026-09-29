@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
   "controls": [],
   "retired_controls": [
     {
       "id": "INH-DELIVERY-TARGET-001",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "subject_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
       "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
       "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
@@ -18,7 +18,7 @@
       "id": "IC-1237-ATOMIC-MOVE",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "subject_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
       "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
       "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
@@ -46,6 +46,13 @@
       "audit_report_sha256": "cc08774f219369210bfe1689358597201daf1e1266b1800ddd449b1390fb366e",
       "finding_ids": [
         "A-1246-001"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:1253-handoff-not-produced",
+      "audit_report_sha256": "10375f487a5d185e283d892465687d6dd0c97da4561536214214957207226c60",
+      "finding_ids": [
+        "AUD-1253-001"
       ]
     }
   ],

@@ -5,6 +5,9 @@ const processMealInputMock = vi.fn();
 const getHabitSnapshotsMock = vi.fn();
 const logInferenceEventMock = vi.fn();
 const generateImageMock = vi.fn();
+const createPendingMealInferenceMock = vi.fn();
+const confirmMealMock = vi.fn();
+const registerMealImageUrlMock = vi.fn();
 
 vi.mock("../../storage", () => ({
   storagePut: storagePutMock,
@@ -13,7 +16,7 @@ vi.mock("../../storage", () => ({
 vi.mock("../../db", () => ({
   buildSavedMedia: vi.fn(input => input),
   confirmPendingMeal: vi.fn(),
-  createPendingMealInference: vi.fn(),
+  createPendingMealInference: createPendingMealInferenceMock,
   createUserManualMeal: vi.fn(),
   getDb: vi.fn(),
   getHabitSnapshots: getHabitSnapshotsMock,
@@ -22,6 +25,15 @@ vi.mock("../../db", () => ({
 
 vi.mock("../../_core/imageGeneration", () => ({
   generateImage: generateImageMock,
+}));
+
+vi.mock("../meals/service", () => ({
+  confirmMeal: confirmMealMock,
+}));
+
+vi.mock("../meals/mealImageAssociations", () => ({
+  decorateMealWithImageUrl: (meal: unknown) => meal,
+  registerMealImageUrl: registerMealImageUrlMock,
 }));
 
 vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
@@ -86,6 +98,17 @@ describe("photoAnalysis service", () => {
     ]);
 
     logInferenceEventMock.mockReset();
+
+    createPendingMealInferenceMock.mockReset();
+    createPendingMealInferenceMock.mockImplementation((_userId, _source, _processed, media) => ({
+      draftId: "photo-draft",
+      media,
+    }));
+
+    confirmMealMock.mockReset();
+    confirmMealMock.mockResolvedValue({ id: 99, media: [] });
+
+    registerMealImageUrlMock.mockReset();
   });
 
   it("usa mídia inline na inferência e mantém a URL persistida quando o upload funciona", async () => {
@@ -197,6 +220,63 @@ describe("photoAnalysis service", () => {
         eventType: "food_photo.analyzed",
       }),
     );
+  });
+
+  it("associa itens confirmados à foto original persistida, sem usar a imagem de apoio como proveniência", async () => {
+    const { analyzeFoodPhoto, confirmFoodPhotoAnalysis } = await import("./service");
+    const analysis = await analyzeFoodPhoto(42, {
+      image: {
+        base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "foto.jpg",
+      },
+    });
+
+    const confirmedItem = {
+      foodName: "Arroz branco cozido",
+      canonicalName: "Arroz branco cozido",
+      quantity: 100,
+      unit: "g",
+      portionText: "100 g",
+      servings: 1,
+      estimatedGrams: 100,
+      calories: 128,
+      protein: 2.5,
+      carbs: 28,
+      fat: 0.2,
+      confidence: 0.91,
+      source: "catalog" as const,
+    };
+
+    await confirmFoodPhotoAnalysis(42, {
+      analysisId: analysis.id,
+      mealLabel: "Almoço",
+      occurredAt: "2026-09-29T12:00:00.000Z",
+      items: [confirmedItem],
+    });
+
+    const pendingCall = createPendingMealInferenceMock.mock.calls.at(-1);
+    expect(pendingCall?.[2].items[0].sourceMediaStorageKey).toBe("42/meal-images/foto.jpg");
+    expect(pendingCall?.[3]).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        mediaType: "image",
+        storageKey: "42/meal-images/foto.jpg",
+        storageUrl: "https://storage.test/42/meal-images/foto.jpg",
+        originalFileName: "food-photo-original",
+      }),
+      expect.objectContaining({
+        mediaType: "image",
+        storageUrl: "https://storage.test/generated/meal-support/foto.png",
+        originalFileName: "food-photo-supporting",
+      }),
+    ]));
+    expect(confirmMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      items: [
+        expect.objectContaining({
+          sourceMediaStorageKey: "42/meal-images/foto.jpg",
+        }),
+      ],
+    }));
   });
 
   it("usa a imagem inline quando o upload falha e segue com a análise", async () => {

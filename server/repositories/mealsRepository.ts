@@ -165,6 +165,7 @@ function buildMealItemValues(mealId: number, items: MealDraftItem[], resolvedCat
     protein: item.protein,
     carbs: item.carbs,
     fat: item.fat,
+    sourceMediaStorageKey: item.sourceMediaStorageKey ?? null,
     source: item.source,
   }));
 }
@@ -307,6 +308,7 @@ function samePersistedMealItem(row: any, expected: MealDraftItem) {
     && numericEqual(row.protein, expected.protein)
     && numericEqual(row.carbs, expected.carbs)
     && numericEqual(row.fat, expected.fat)
+    && String(row.sourceMediaStorageKey ?? "") === String(expected.sourceMediaStorageKey ?? "")
     && String(row.source ?? "") === String(expected.source ?? "");
 }
 
@@ -434,6 +436,7 @@ export function createDrizzleMealsRepository(deps: {
             carbs: item.carbs,
             fat: item.fat,
             confidence: 0.9,
+            sourceMediaStorageKey: item.sourceMediaStorageKey ?? undefined,
             source: item.source,
             resolution: readMealItemResolution(item.foodSnapshotJson),
           });

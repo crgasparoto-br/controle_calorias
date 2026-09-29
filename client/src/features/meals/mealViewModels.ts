@@ -99,6 +99,17 @@ export function getMealImageUrl(meal: StoredMeal): string | undefined {
   return meal.supportingImageUrl ?? meal.imageUrl ?? meal.photoUrl ?? mediaImageUrl;
 }
 
+export function getMealItemImageUrl(meal: StoredMeal, item: MealItemState): string | undefined {
+  const sourceMediaStorageKey = item.sourceMediaStorageKey?.trim();
+  if (!sourceMediaStorageKey) return undefined;
+
+  return meal.media?.find(media =>
+    media.mediaType === "image"
+    && media.storageKey === sourceMediaStorageKey
+    && Boolean(media.storageUrl)
+  )?.storageUrl;
+}
+
 export function sumStoredMealTotals(meals: Array<Pick<StoredMeal, "totals">>) {
   return meals.reduce(
     (totals, meal) => ({
@@ -164,7 +175,7 @@ export function buildRegisteredMealGroups(
       registeredAt: meal.occurredAt,
       mealLabel,
       mealNotes: meal.notes,
-      imageUrl,
+      imageUrl: getMealItemImageUrl(meal, item),
     }));
 
     group.meals.push(meal);

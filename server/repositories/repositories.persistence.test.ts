@@ -158,6 +158,7 @@ describe("extracted repositories persistence contracts", () => {
         protein: 2.5,
         carbs: 28,
         fat: 0.3,
+        sourceMediaStorageKey: "meals/11.jpg",
         source: "catalog",
       },
       {
@@ -204,7 +205,7 @@ describe("extracted repositories persistence contracts", () => {
       confidence: 0.93,
     });
     expect(result?.[0].items).toEqual([
-      expect.objectContaining({ foodName: "Arroz", canonicalName: "arroz", confidence: 0.9 }),
+      expect.objectContaining({ foodName: "Arroz", canonicalName: "arroz", confidence: 0.9, sourceMediaStorageKey: "meals/11.jpg" }),
     ]);
     expect(result?.[0].media).toEqual([
       {

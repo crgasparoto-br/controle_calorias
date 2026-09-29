@@ -43,7 +43,7 @@
       "detection_change": {
         "evidence": "Terminal validation checks semantic target binding and direct result-only parent for the current issue and pull request."
       },
-      "revalidated_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "revalidated_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
       "source_audit": {
         "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
         "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
@@ -52,7 +52,7 @@
         ]
       },
       "literal_case": {
-        "observed": "Historical escape A-001 is retained as lineage; current evidence is revalidated on material head 17e66e2baa91d1b682487f337a2b106d2f2b0356 without promoting the prior issue package."
+        "observed": "Historical escape A-001 is retained as lineage while the current #1251/#1253 package is rebuilt on material head cfc1ad0e1bcb330ed51a6d6115831f8363787f56."
       }
     },
     {
@@ -60,7 +60,7 @@
       "status": "passed",
       "escape_class": "target-specific-handoff-readiness",
       "plausible_wrong_implementation": "A delivery can reuse a base certificate from another issue and appear ready without binding evidence to the current issue and PR.",
-      "revalidated_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "revalidated_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
       "source_audit": {
         "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
         "audit_report_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
@@ -69,7 +69,7 @@
         ]
       },
       "literal_case": {
-        "observed": "Historical escape ESC-1237-A004 is retained as lineage; current evidence is revalidated on material head 17e66e2baa91d1b682487f337a2b106d2f2b0356 without promoting the prior issue package."
+        "observed": "Historical escape ESC-1237-A004 is retained as lineage while the current #1251/#1253 package is rebuilt on material head cfc1ad0e1bcb330ed51a6d6115831f8363787f56."
       },
       "sibling_cases": [
         {
@@ -136,7 +136,7 @@
       "detection_change": {
         "evidence": "Producer terminal validation checks semantic subject binding, direct material parent, result-only allowlist and fresh remote head equality before audit handoff."
       },
-      "revalidated_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "revalidated_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
       "source_audit": {
         "rejection_id": "audit-rejection:1246-handoff-not-produced",
         "audit_report_sha256": "cc08774f219369210bfe1689358597201daf1e1266b1800ddd449b1390fb366e",
@@ -145,7 +145,7 @@
         ]
       },
       "literal_case": {
-        "observed": "At the current material head 17e66e2baa91d1b682487f337a2b106d2f2b0356, the foreign base certificate is classified as non-reusable and a fresh #1246/#1247 package is prepared for terminal validation."
+        "observed": "Historical escape ESC-1246-HANDOFF is retained as lineage while the current #1251/#1253 package is rebuilt on material head cfc1ad0e1bcb330ed51a6d6115831f8363787f56."
       },
       "required_risk_families": [
         "semantic-effect"
@@ -160,6 +160,60 @@
           "risk_family": "semantic-effect",
           "surface": "no-media-layout",
           "dimension": "no-placeholder"
+        }
+      ]
+    },
+    {
+      "escape_id": "ESC-1251-HANDOFF",
+      "status": "passed",
+      "escape_class": "delivery-readiness/inherited-base-artifact",
+      "plausible_wrong_implementation": "Treat a byte-identical certificate inherited from the develop base as current evidence for issue #1251 / PR #1253.",
+      "sibling_cases": [
+        {
+          "id": "ESC-1251-HANDOFF-S1",
+          "status": "passed",
+          "surface": "target-binding",
+          "dimension": "foreign-base-subject",
+          "evidence": "The inherited certificate identifies issue #1246 / PR #1247, so it is rejected for reuse."
+        },
+        {
+          "id": "ESC-1251-HANDOFF-S2",
+          "status": "passed",
+          "surface": "result-only-publication",
+          "dimension": "current-target-subject",
+          "evidence": "The replacement certificate is bound to issue #1251, PR #1253, the current branch and exact material SHA."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "The package is rebuilt from the current issue source and exact-head evidence instead of copying the inherited package."
+      },
+      "detection_change": {
+        "evidence": "Terminal checks validate semantic target binding, direct material parent and result-only paths."
+      },
+      "revalidated_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+      "source_audit": {
+        "rejection_id": "audit-rejection:1253-handoff-not-produced",
+        "audit_report_sha256": "10375f487a5d185e283d892465687d6dd0c97da4561536214214957207226c60",
+        "finding_ids": [
+          "AUD-1253-001"
+        ]
+      },
+      "literal_case": {
+        "observed": "At material head cfc1ad0e1bcb330ed51a6d6115831f8363787f56, the inherited certificate is non-reusable and a fresh #1251/#1253 package is produced."
+      },
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "current-target-handoff"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-source-consistency",
+          "dimension": "direct-result-only-parent"
         }
       ]
     }

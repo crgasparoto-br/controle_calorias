@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, NutritionGoal, User, WeightEntry } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { addMealTotals, calculateDayTotals, calculateMealTotals, roundNutritionValue } from "../shared/mealTotals";
+import { clearMealItemsSourceMedia } from "./mealItemImageProvenance";
 import { buildWeeklyNutritionStatus } from "../shared/safeMessages";
 import { calculateAdjustedGoalCalories } from "../shared/reportsGoalAnalytics";
 import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, getUtcRangeForInclusiveLocalDateRange, getUtcRangeForLocalDate, getWeekDateKeys } from "../shared/timeZone";
@@ -1226,7 +1227,7 @@ export async function copyUserMeal(input: {
     mealLabel: input.mealLabel?.trim() || sourceMeal.mealLabel,
     occurredAt: input.occurredAt,
     notes: sourceMeal.notes,
-    items: sourceMeal.items.map(item => ({ ...item })),
+    items: clearMealItemsSourceMedia(sourceMeal.items),
   });
 }
 
@@ -1282,7 +1283,7 @@ export async function saveFavoriteMeal(input: {
     name: input.name?.trim() || meal.mealLabel,
     mealLabel: meal.mealLabel,
     notes: meal.notes,
-    items: meal.items.map(item => ({ ...item })),
+    items: clearMealItemsSourceMedia(meal.items),
     createdAt: Date.now(),
   };
 
@@ -1330,7 +1331,7 @@ export async function reuseFavoriteMeal(input: {
     mealLabel: favorite.mealLabel,
     occurredAt: input.occurredAt,
     notes: favorite.notes,
-    items: favorite.items.map(item => ({ ...item })),
+    items: clearMealItemsSourceMedia(favorite.items),
   });
 }
 
