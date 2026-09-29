@@ -84,8 +84,10 @@ describe("issue #1215 — identidade comercial visual atravessa o pipeline real"
             resolution: expect.objectContaining({
               productVariant: "munich",
               nutritionVerified: false,
+              // #1244: categoria, marca e variante foram lidas na imagem; a
+              // pendência é nutricional, sem negar a identidade comercial.
               ambiguity: expect.objectContaining({
-                reason: "commercial_identity_unverified",
+                reason: "commercial_nutrition_unverified",
               }),
             }),
           }),

@@ -328,15 +328,6 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
       portionText: "50 ml",
       estimatedGrams: 50,
     }) as any;
-    deps.resolveHouseholdMeasure.mockResolvedValueOnce({
-      kind: "canonical_portion",
-      grams: 20,
-      requestedQuantity: 1,
-      requestedUnit: "fatia",
-      evidence: "1 fatia = 20 g",
-      sourceUrls: [],
-      referenceCount: 1,
-    });
     deps.processMealInput.mockResolvedValueOnce({
       detectedMealLabel: "Café da manhã",
       sourceText: "",
@@ -369,10 +360,16 @@ describe("resolveCanonicalFoodAdditionItems (#1016)", () => {
 
     expect(result).toMatchObject({
       kind: "items",
-      items: [preserved, expect.objectContaining({ foodName: "Queijo mussarela" })],
+      items: [preserved, expect.objectContaining({
+        foodName: "Queijo mussarela",
+        estimatedGrams: 20,
+        quantityResolution: expect.objectContaining({ kind: "canonical_portion", grams: 20 }),
+      })],
     });
     expect(deps.processMealInput).toHaveBeenCalledOnce();
-    expect(deps.resolveHouseholdMeasure).toHaveBeenCalledOnce();
+    // #1244: a mussarela é resolvida pela porção canônica local compartilhada
+    // com o registro, antes de qualquer medida caseira.
+    expect(deps.resolveHouseholdMeasure).not.toHaveBeenCalled();
     expect(deps.processMealInput).not.toHaveBeenCalledWith(expect.objectContaining({
       text: expect.stringMatching(/Leite integral/i),
     }));

@@ -21,6 +21,7 @@ import {
   updateUserMeal,
 } from "../../db";
 import { MealDraftItem, processMealInput } from "../../nutritionEngine";
+import { associateMealItemsWithSourceMedia, clearMealItemSourceMedia } from "../../mealItemImageProvenance";
 import { buildUserLearnedHouseholdMeasurePreference, type UserLearnedHouseholdMeasureInput } from "../../householdMeasureResolutionPersistence";
 import { updateMealAndHouseholdMeasureLearning } from "../../householdMeasureMealUpdate";
 import { DEFAULT_APP_TIME_ZONE, addCalendarDays, getDateKeyInTimeZone, getDateTimePartsInTimeZone, zonedDateTimeLocalToIso } from "../../../shared/timeZone";
@@ -375,7 +376,11 @@ export async function moveMealItem(userId: number, input: {
   item: MealDraftItem;
 }) {
   await ensureCurrentIrreversibleEffectAllowed();
-  const [preparedItem] = await prepareMealItemsForSave(userId, [input.item], { recordUsage: true });
+  const [preparedItem] = await prepareMealItemsForSave(
+    userId,
+    [clearMealItemSourceMedia(input.item)],
+    { recordUsage: true },
+  );
   await ensureCurrentIrreversibleEffectAllowed();
 
   const persisted = await moveUserMealItem({
@@ -488,7 +493,7 @@ async function processMealDraftAttributed(
     }
   }
 
-  const processed = ensureProcessedMealItems(await processMealInput({
+  const processedBase = ensureProcessedMealItems(await processMealInput({
     text: input.text,
     transcript,
     imageUrl: resolvedImage.imageUrl,
@@ -497,6 +502,18 @@ async function processMealDraftAttributed(
     occurredAt: new Date(),
     timeZone,
   }));
+  const canAttributeAllItemsToImage = Boolean(
+    resolvedImage.media
+    && input.image
+    && !input.text?.trim()
+    && !input.audio,
+  );
+  const processed = canAttributeAllItemsToImage
+    ? {
+        ...processedBase,
+        items: associateMealItemsWithSourceMedia(processedBase.items, resolvedImage.media?.storageKey),
+      }
+    : processedBase;
 
   const draft = createPendingMealInference(
     userId,

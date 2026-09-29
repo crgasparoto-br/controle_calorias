@@ -52,7 +52,9 @@ describe("issue #1088 — identidade comercial com IA não vazia", () => {
         foodName: "Manteiga Batavo Extra com Sal",
         brand: "Batavo",
         usedSourceTextFallback: false,
-        clarificationReason: "brand_variant_unresolved",
+        // #1244: produto, marca e linha estão explícitos; o que falta é a
+        // composição verificada, não a variante. Continua fail-closed.
+        clarificationReason: "commercial_nutrition_unverified",
       }),
     });
   });

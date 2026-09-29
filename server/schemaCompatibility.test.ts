@@ -103,6 +103,16 @@ describe("ensureRuntimeSchemaCompatibility", () => {
     expect(mysqlMock.getConnection().statements.join("\n")).not.toMatch(/ALTER TABLE|CREATE TABLE|UPDATE `/);
   });
 
+  it("fails production when meal item media provenance migration is pending", async () => {
+    process.env.NODE_ENV = "production";
+    mysqlMock.createConnectionMock({ missingColumns: ["mealItems.sourceMediaStorageKey"] });
+    const { RuntimeSchemaCompatibilityError, ensureRuntimeSchemaCompatibility } = await loadSchemaCompatibility();
+
+    await expect(ensureRuntimeSchemaCompatibility()).rejects.toBeInstanceOf(RuntimeSchemaCompatibilityError);
+    await expect(ensureRuntimeSchemaCompatibility()).rejects.toThrow("mealItems.sourceMediaStorageKey");
+    expect(mysqlMock.getConnection().statements.join("\n")).not.toMatch(/ALTER TABLE|CREATE TABLE|UPDATE `/);
+  });
+
   it("repairs known local schema gaps outside production", async () => {
     process.env.NODE_ENV = "development";
     mysqlMock.createConnectionMock({

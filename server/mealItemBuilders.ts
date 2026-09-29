@@ -305,6 +305,34 @@ export function buildProvisionalBrandedNutritionFallbackItem(
   };
 }
 
+/**
+ * Produto comercial com identidade suficiente (categoria + marca + variante
+ * relevante) sem fonte comercial verificada: a composição usa a referência
+ * genérica compatível escolhida por `decideCommercialNutritionPolicy`, mas o
+ * item preserva nome, marca e variante lidos e nunca é tratado como catálogo
+ * oficial da marca.
+ */
+export function buildProvisionalBrandedGenericReferenceItem(
+  llmItem: LlmItem,
+  reference: CatalogFood,
+  productVariant: string | null,
+  identitySource = llmItem.foodName,
+): MealDraftItem {
+  const item = buildItemFromCatalog(reference, {
+    ...llmItem,
+    foodName: identitySource,
+  });
+  return {
+    ...item,
+    foodName: formatRecognizedProductIdentity(identitySource, llmItem.brand ?? null),
+    canonicalName: formatFoodNameTitleCase(identitySource),
+    brand: llmItem.brand ?? item.brand ?? null,
+    productVariant: productVariant?.trim() || null,
+    source: "hybrid",
+    confidence: Math.min(item.confidence, 0.6),
+  };
+}
+
 export function hasUsableNutrition(item: LlmItem) {
   return item.estimatedCalories > 0
     || item.estimatedMacros.protein > 0

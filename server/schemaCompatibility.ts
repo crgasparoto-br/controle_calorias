@@ -99,6 +99,7 @@ const MEAL_ITEM_COLUMNS: ColumnCompatibility[] = [
   },
   { name: "quantity", sql: "`quantity` double DEFAULT 1 NOT NULL" },
   { name: "unit", sql: "`unit` varchar(40) DEFAULT 'serving' NOT NULL" },
+  { name: "sourceMediaStorageKey", sql: "`sourceMediaStorageKey` varchar(255) NULL" },
 ];
 
 const USER_PROFILE_COLUMNS: ColumnCompatibility[] = [
