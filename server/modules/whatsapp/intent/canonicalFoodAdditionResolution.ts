@@ -1,6 +1,11 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import { inferUnresolvedCommercialIdentityHint } from "../../../catalogMatching";
 import { resolveStructuredCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
+import {
+  isMassOrVolumeUnit,
+  resolveCanonicalFoodQuantity,
+  type FoodQuantityResolution,
+} from "../../../foodItemResolution";
 import { isCoffeeOrTeaBeverage } from "../../../foodSemanticCompatibility";
 import {
   isApproximateHouseholdMeasureResolutionKind,
@@ -21,10 +26,8 @@ import {
   toMealItemInputs,
 } from "./mealItemHelpers";
 
-const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
-
 export type FoodAdditionQuantityResolution = {
-  kind: "explicit_mass_or_volume" | HouseholdMeasureResolution["kind"];
+  kind: FoodQuantityResolution["kind"];
   grams: number;
   evidence: string | null;
   sourceUrls: string[];
@@ -100,19 +103,6 @@ function buildOriginalFoodText(item: FoodAdditionIntent["items"][number], normal
   return `${item.quantity} ${normalizedUnit} de ${buildFoodIdentity(item)}`;
 }
 
-function isMassOrVolume(unit: string) {
-  return MASS_VOLUME_UNITS.has(unit);
-}
-
-function explicitEstimatedGrams(quantity: number, unit: string) {
-  switch (unit) {
-    case "kg": return quantity * 1000;
-    case "mg": return quantity / 1000;
-    case "l": return quantity * 1000;
-    default: return quantity;
-  }
-}
-
 function buildPortionText(
   item: FoodAdditionIntent["items"][number],
   normalizedUnit: string,
@@ -120,6 +110,18 @@ function buildPortionText(
 ) {
   const approx = isApproximateHouseholdMeasureResolutionKind(measure.kind) ? "aprox. " : "";
   return `${formatNumber(item.quantity)} ${normalizedUnit} (${approx}${formatNumber(measure.grams)} g)`;
+}
+
+function toAdditionQuantityResolution(
+  quantity: FoodQuantityResolution,
+): FoodAdditionQuantityResolution {
+  return {
+    kind: quantity.kind,
+    grams: quantity.grams,
+    evidence: quantity.evidence,
+    sourceUrls: [...quantity.sourceUrls],
+    referenceCount: quantity.referenceCount,
+  };
 }
 
 function findSingleResolvedItem(items: MealItemInput[]) {
@@ -145,7 +147,7 @@ export async function resolveCanonicalFoodAdditionItems(
     const beverage = isCoffeeOrTeaBeverage(item.foodName);
 
     if (
-      !isMassOrVolume(normalizedUnit)
+      !isMassOrVolumeUnit(normalizedUnit)
       && isExplicitlyUnsweetenedCoffee(item.foodName)
     ) {
       resolvedItems.push({
@@ -161,14 +163,16 @@ export async function resolveCanonicalFoodAdditionItems(
     let commercialFood: Awaited<ReturnType<typeof resolveCommercialFoodIdentity>> | undefined;
     let resolvedBrand = item.brand?.trim() || null;
 
-    if (isMassOrVolume(normalizedUnit)) {
-      quantityResolution = {
-        kind: "explicit_mass_or_volume",
-        grams: explicitEstimatedGrams(item.quantity, normalizedUnit),
-        evidence: null,
-        sourceUrls: [],
-        referenceCount: 0,
-      };
+    if (isMassOrVolumeUnit(normalizedUnit)) {
+      // Massa/volume explícitos resolvem a quantidade na fronteira canônica e
+      // nunca são reabertos por medida caseira.
+      const explicit = await resolveCanonicalFoodQuantity({
+        userId: input.userId,
+        foodName: item.foodName,
+        quantity: item.quantity,
+        unit: normalizedUnit,
+      }, runtime);
+      if (explicit) quantityResolution = toAdditionQuantityResolution(explicit);
     } else if (!beverage) {
       const commercialHint = inferUnresolvedCommercialIdentityHint(item.foodName);
       if (resolvedBrand || commercialHint) {
@@ -214,7 +218,9 @@ export async function resolveCanonicalFoodAdditionItems(
           throw error;
         }
       }
-      householdMeasure = await runtime.resolveHouseholdMeasure({
+      // Mesma precedência do registro normal: porção canônica local (por
+      // exemplo `1 ovo frito` -> 50 g) antes de medida caseira/pesquisa.
+      const quantity = await resolveCanonicalFoodQuantity({
         userId: input.userId,
         foodName: item.foodName,
         brand: resolvedBrand,
@@ -223,18 +229,13 @@ export async function resolveCanonicalFoodAdditionItems(
         quantity: item.quantity,
         unit: normalizedUnit,
         ...(commercialFood ? { commercialFood } : {}),
-      });
-      if (!householdMeasure) {
+      }, runtime);
+      householdMeasure = quantity?.householdMeasure ?? null;
+      if (!quantity || !householdMeasure) {
         return { kind: "quantity_clarification", itemIndex, item, resolvedItems };
       }
       processingText = `${householdMeasure.grams} g de ${buildFoodIdentity(item, resolvedBrand)}`;
-      quantityResolution = {
-        kind: householdMeasure.kind,
-        grams: householdMeasure.grams,
-        evidence: householdMeasure.evidence,
-        sourceUrls: [...householdMeasure.sourceUrls],
-        referenceCount: householdMeasure.referenceCount,
-      };
+      quantityResolution = toAdditionQuantityResolution(quantity);
     }
 
     let resolved: MealItemInput | null = null;

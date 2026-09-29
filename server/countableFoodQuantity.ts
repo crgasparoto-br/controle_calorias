@@ -1,14 +1,17 @@
-import {
-  findCatalogFood,
-  findNaturalProduceQuantityReferenceName,
-} from "./catalogMatching";
+import { findNaturalProduceQuantityReferenceName } from "./catalogMatching";
 import { detectKnownBrand } from "./foodBrandDetection";
+import {
+  findCountableCatalogReference,
+  getSafeCatalogCountableGrams,
+  resolveCanonicalFoodQuantity,
+  resolveSafeCountableCatalogGrams,
+  type CountableFoodQuantityRequest,
+} from "./foodItemResolution";
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
-import { resolveHouseholdMeasure, type HouseholdMeasureResolution } from "./householdMeasureResolution";
+import type { HouseholdMeasureResolution } from "./householdMeasureResolution";
 import {
   normalizeUnit,
   parseFoodText,
-  parseQuantityUnitFromPortionText,
   splitFoodTextSegments,
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -25,78 +28,12 @@ import {
 } from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
-const CURATED_COMMON_COUNTABLE_PORTIONS: Array<{
-  aliases: string[];
-  food: CatalogFood;
-}> = [
-  {
-    aliases: ["mussarela", "muçarela", "mozarela", "queijo mussarela", "queijo muçarela", "queijo mozarela"],
-    food: {
-      slug: "curated-queijo-mussarela-fatia",
-      name: "Queijo mussarela",
-      aliases: ["mussarela", "muçarela", "mozarela"],
-      servingLabel: "1 fatia",
-      gramsPerServing: 20,
-      calories: 65.97,
-      protein: 4.53,
-      carbs: 0.61,
-      fat: 5.04,
-    },
-  },
-  {
-    aliases: ["presunto", "presunto cozido", "fatia de presunto"],
-    food: {
-      slug: "curated-presunto-fatia",
-      name: "Presunto cozido",
-      aliases: ["presunto", "presunto cozido"],
-      servingLabel: "1 fatia",
-      gramsPerServing: 18,
-      calories: 23.01,
-      protein: 2.59,
-      carbs: 0.25,
-      fat: 1.22,
-    },
-  },
-];
-
-function normalizeCuratedFoodName(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function findCuratedCommonPortion(foodName: string) {
-  const normalized = normalizeCuratedFoodName(foodName);
-  return CURATED_COMMON_COUNTABLE_PORTIONS.find(item =>
-    item.aliases.some(alias => normalizeCuratedFoodName(alias) === normalized),
-  )?.food;
-}
-
-function findCountableCatalogReference(foodName: string) {
-  const direct = findCatalogFood(foodName);
-  if (direct) return direct;
-
-  // O catálogo de nutrição mantém o preparo frito no TACO, mas a porção de
-  // unidade pertence à referência genérica de ovo. O gate usa essa referência
-  // somente para converter a unidade em gramas; o texto reescrito preserva o
-  // preparo para que o motor nutricional selecione a composição correta depois.
-  const normalized = normalizeCuratedFoodName(foodName);
-  if (!/^ovos?(?: (?:frit[oa]s?|cozid[oa]s?|mexid[oa]s?))?$/u.test(normalized)) {
-    return undefined;
-  }
-
-  return findCatalogFood("ovo");
-}
-
-export type CountableFoodQuantityRequest = {
-  segment: string;
-  foodName: string;
-  brand: string | null;
-  count: number;
-  requestedUnit: string;
+// A porção canônica local pertence à fronteira `foodItemResolution`; estes
+// re-exports preservam a API histórica dos consumidores existentes.
+export {
+  getSafeCatalogCountableGrams,
+  resolveSafeCountableCatalogGrams,
+  type CountableFoodQuantityRequest,
 };
 
 export type CountableFoodResolvedMeasure = {
@@ -164,25 +101,6 @@ export function parseCountableFoodQuantitySegment(
   return bare;
 }
 
-export function getSafeCatalogCountableGrams(
-  food: CatalogFood | null | undefined,
-  request: CountableFoodQuantityRequest,
-  includeCuratedCommonPortion = false,
-) {
-  if (request.brand) return null;
-  const effectiveFood = food ?? (
-    includeCuratedCommonPortion ? findCuratedCommonPortion(request.foodName) : undefined
-  );
-  if (!effectiveFood || !effectiveFood.servingLabel || !effectiveFood.gramsPerServing) return null;
-  const serving = parseQuantityUnitFromPortionText(effectiveFood.servingLabel);
-  if (!serving || !serving.quantity || !serving.unit) return null;
-  const servingUnit = normalizeUnit(serving.unit);
-  const requestedUnit = normalizeUnit(request.requestedUnit);
-  if (MASS_VOLUME_UNITS.has(servingUnit) || servingUnit !== requestedUnit) return null;
-  const grams = (effectiveFood.gramsPerServing * request.count) / serving.quantity;
-  return Number.isFinite(grams) && grams > 0 ? grams : null;
-}
-
 export function findUnsafeCountableFoodQuantity(
   text?: string | null,
 ): CountableFoodQuantityRequest | null {
@@ -209,30 +127,6 @@ export function hasUnsafeKnownCountableFoodQuantity(
     if (!getSafeCatalogCountableGrams(local, request, false)) return true;
   }
   return false;
-}
-
-export function resolveSafeCountableCatalogGrams(
-  foodName: string,
-  count: number,
-  requestedUnit = "un",
-  includeCuratedCommonPortion = false,
-) {
-  const request: CountableFoodQuantityRequest = {
-    segment: foodName,
-    foodName,
-    brand: detectKnownBrand(foodName),
-    count,
-    requestedUnit,
-  };
-  const food = findCountableCatalogReference(foodName) ?? (
-    includeCuratedCommonPortion ? findCuratedCommonPortion(foodName) : undefined
-  );
-  const grams = getSafeCatalogCountableGrams(
-    food,
-    request,
-    includeCuratedCommonPortion,
-  );
-  return grams && food ? { food, grams } : null;
 }
 
 /**
@@ -388,7 +282,7 @@ export async function prepareCountableFoodRegistrationResolved(
     const quantityReferenceFoodName = resolvedRequest.brand
       ? null
       : findNaturalProduceQuantityReferenceName(resolvedRequest.foodName);
-    const resolved = await resolveHouseholdMeasure({
+    const quantity = await resolveCanonicalFoodQuantity({
       userId,
       foodName: resolvedRequest.foodName,
       brand: resolvedRequest.brand,
@@ -398,6 +292,7 @@ export async function prepareCountableFoodRegistrationResolved(
       ...(commercialFood ? { commercialFood } : {}),
       ...(nutritionSearchTelemetry ? { nutritionSearchTelemetry } : {}),
     });
+    const resolved = quantity?.householdMeasure ?? null;
     if (resolved) {
       prepared.registrationSegments[pending.segmentIndex] = `${resolved.grams} g de ${resolvedRequest.foodName}`;
       prepared.resolutions.push({

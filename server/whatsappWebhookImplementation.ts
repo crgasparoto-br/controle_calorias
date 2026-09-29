@@ -1344,6 +1344,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const identityIndexes = identityContext?.semanticContract?.clarifications
         .filter(clarification =>
           clarification.code === "commercial_identity_unverified" ||
+          clarification.code === "commercial_nutrition_unverified" ||
           clarification.code === "brand_variant_unresolved" ||
           clarification.code === "image_identity_unresolved"
         )

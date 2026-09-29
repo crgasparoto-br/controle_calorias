@@ -865,6 +865,7 @@ async function tryHandleAnnotatedImageMessage(
       const identityIndexes = identityContext?.semanticContract?.clarifications
         .filter(clarification =>
           clarification.code === "commercial_identity_unverified" ||
+          clarification.code === "commercial_nutrition_unverified" ||
           clarification.code === "brand_variant_unresolved"
         )
         .map(clarification => clarification.itemIndex)

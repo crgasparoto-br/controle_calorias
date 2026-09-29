@@ -131,11 +131,16 @@ const NON_BRAND_PRODUCT_DESCRIPTORS = new Set([
   "fritos",
   "grelhada",
   "grelhado",
+  "pasteurizada",
+  "pasteurizado",
   "picada",
   "picado",
   "rodelas",
   "torrada",
   "torrado",
+  // Processamento/embalagem de laticínios (#1244): descrevem o processo, não
+  // a marca, em nomes visuais como "Leite UHT Integral <Marca>".
+  "uht",
 ]);
 
 /** Tokens that complete generic food descriptions but are not brand evidence. */
