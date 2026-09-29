@@ -1,29 +1,29 @@
 {
   "schema_version": 1,
   "artifact_kind": "audit-source-result",
-  "head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
   "status": "REJECTED",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:1246-handoff-not-produced",
+  "rejection_id": "audit-rejection:1253-handoff-not-produced",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
-    "head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
-    "material_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
-    "base_sha": "379ba427952c04fb9be2f39870937e0c1c0c8f6b",
-    "pull_request": 1247,
+    "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+    "material_head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+    "base_sha": "f87e5977acaf487733ef62a51ef2c162b460e1c5",
+    "pull_request": 1253,
     "base_ref": "develop",
-    "head_ref": "feat/1246-meal-row-images"
+    "head_ref": "fix/1251-meal-item-photo-association"
   },
   "findings": [
     {
-      "id": "A-1246-001",
+      "id": "AUD-1253-001",
       "severity": "blocker",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "title": "Current-target handoff was not produced.",
-      "description": "The handoff-ready.json visible at the candidate head was byte-identical to the develop base and belonged to issue #1237 / PR #1238, so it was an inherited-base-artifact rather than evidence for issue #1246 / PR #1247."
+      "description": "The handoff at the candidate was inherited from the base and belonged to issue #1246 / PR #1247."
     }
   ],
   "recommendations": [],

@@ -1,276 +1,1067 @@
 {
   "schema_version": 3,
   "specification_snapshot": {
-    "path": "/tmp/cc1246/handoff/specification-snapshot.json",
-    "sha256": "c8b89d9b6aec9f7fbf85570b806be1e931f192a41db2b6f0dc9f6ec5a918d442"
+    "path": "specification-snapshot.json",
+    "sha256": "fedef1c7cf102f5cbb6bc41a1959e0f0fbde68422ce9b11530435a4182b343a7"
   },
   "primary_issue_source_id": "SRC-ISSUE",
   "obligations": [
     {
       "id": "OBL-001",
-      "candidate_key": "b163a22f56b39791d1d8472ddb88a30e963b77a0dbfc8a0656a2dbdd68aaf526",
+      "candidate_key": "ebcdea6b741ad8c5958db858cd9dfbb1ddc3fe97c53037b1a0f5100247063799",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 2,
-      "source_text": "Na tela `/meals`, exibir cada alimento em uma única linha visual contendo sua imagem associada e todas as informações nutricionais já disponíveis para o item.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 3,
+      "source_text": "Corrigir a associação e a exibição de fotos nos alimentos de uma refeição para que **cada item exiba imagem somente quando houver proveniência explícita ligando aquele alimento àquela foto**.",
       "flags": [
         "exhaustive",
-        "atomicity",
+        "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-001"
+        "R-1251-001"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-002",
-      "candidate_key": "776bde96f4bdd5cf47c79aafaf7795d7e10d4e3ebb687afa03b84a9ec1f809d2",
+      "candidate_key": "0f59b98423ef63b48bf6b644ec3513c4f873ae6ded3cead639add311a071280d",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
       "source_line": 5,
-      "source_text": "Atualmente as imagens da refeição são exibidas separadamente acima das linhas dos alimentos. O comportamento desejado é aproximar a evidência visual do alimento ao qual ela se refere.",
+      "source_text": "A existência de uma foto na refeição, por si só, **não autoriza** a interface a exibir essa foto em todos os itens.",
       "flags": [
-        "semantic-effect"
+        "exhaustive",
+        "negative"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-007"
+        "R-1251-002"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-003",
-      "candidate_key": "83f5451897baa501cc8a37ecf62967276329fb1ee497ab99ca48ba05d4df1174",
+      "candidate_key": "1f20072c448a3452665a4dd8646035b3d74ed1f2a32022964244b47f79a1a4aa",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 8,
-      "source_text": "Quando a refeição possuir imagem, exibir a imagem na mesma linha do alimento correspondente.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 15,
+      "source_text": "Por isso, uma refeição com uma foto e itens adicionados por texto/manual/cópia pode apresentar a mesma miniatura em todos os alimentos, mesmo quando esses itens não foram derivados da imagem.",
       "flags": [
+        "exhaustive",
+        "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-001"
+        "R-1251-003"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-004",
-      "candidate_key": "7a708852baeb046b152d8cb77a91c36545185a2707d41bcb3eb2d77373879187",
+      "candidate_key": "6105c8460afb7812e044087cffbeb566ea1034cdb0a8d064ffb96820da6b24d8",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 9,
-      "source_text": "A linha deve continuar exibindo horário, porção, nome do alimento, calorias, proteínas, carboidratos, gorduras e quantidade.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 23,
+      "source_text": "A mesma foto do prato foi exibida nos quatro itens, embora nem todos tenham origem fotográfica.",
       "flags": [
-        "semantic-effect"
+        "exhaustive",
+        "review-surface"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-002"
+        "R-1251-004"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-005",
-      "candidate_key": "0518d97bcf322aad2bdc2d6bc11fb84016324b69851713f826310084e39818c0",
+      "candidate_key": "6da35d2a1d16e906e8c94a58fb63a61361d0da456530ca96e08a76ac78b57d0f",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 10,
-      "source_text": "Quando uma única imagem representar vários alimentos da mesma refeição, repetir a mesma imagem em cada linha desses alimentos.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 27,
+      "source_text": "A miniatura exibida no nível do alimento deve representar **a origem daquele alimento**, e não uma imagem genérica da refeição.",
       "flags": [
-        "exhaustive",
-        "atomicity",
+        "negative",
+        "review-surface",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-003"
+        "R-1251-005"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-006",
-      "candidate_key": "ce629eaf3a51ed11e1a452a704e4e76a7cc7ab585caca69c7cf03e2518b461ef",
+      "candidate_key": "aedda554a06df5786e371ee0b0eb5c838f925ba46edf59289af6db8a5a5e850a",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 11,
-      "source_text": "Refeições sem imagem devem continuar sendo exibidas normalmente, sem espaço visual reservado vazio para imagem.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 31,
+      "source_text": "Um item derivado de análise de foto deve poder referenciar a foto que o originou.",
       "flags": [
-        "negative"
+        "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-004"
+        "R-1251-006"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-007",
-      "candidate_key": "d7006ca1d7241fac0740d6b537d28da8c9071021d66eba1865d545c4065de02f",
+      "candidate_key": "555d59567dfdeb743c82239f29aa314fb90f986b0bd9b80717c70e0947cd9504",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 12,
-      "source_text": "Preservar a edição individual do alimento ao clicar na linha e a ação de exclusão existente.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 32,
+      "source_text": "Vários itens derivados da mesma foto podem compartilhar a mesma referência de mídia.",
       "flags": [
+        "structural",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-005"
+        "R-1251-007"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-008",
-      "candidate_key": "7921587d59c01a5b319026363791ba1fdaa08547e7d338f0bfa2eeffd83424f1",
+      "candidate_key": "eddc4e22883e17a5c01c49fd230fdafcd3479f3aae1adc57332229e1c2611b36",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 15,
-      "source_text": "[ ] Um alimento com imagem apresenta imagem + horário + porção + nome + calorias + proteínas + carboidratos + gorduras + quantidade na mesma linha visual.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 33,
+      "source_text": "Um item criado por texto, cadastro manual, cópia, favorito ou outro fluxo sem origem fotográfica deve ser exibido sem miniatura.",
       "flags": [
-        "semantic-effect"
+        "negative",
+        "review-surface"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-001",
-        "R-1246-002"
+        "R-1251-008"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-009",
-      "candidate_key": "ca3becc13c8e8c2c329d72e05693bfc3c6173d8b2663dfbbebac3bd750f37f0d",
+      "candidate_key": "bd03059428e3fb191aea2886d3337ce771574e1ee31a4c9be0f96e74484a0a50",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 16,
-      "source_text": "[ ] Dois ou mais alimentos pertencentes à mesma refeição com uma única imagem exibem a mesma imagem em cada linha.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 34,
+      "source_text": "A ausência de uma associação item ↔ imagem deve resultar em **nenhuma imagem no item**.",
       "flags": [
         "exhaustive",
-        "atomicity",
-        "semantic-effect"
+        "negative"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-003"
+        "R-1251-009"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-010",
-      "candidate_key": "9eb058afe14e371cdef2ac7b00ded9172ba5052b5ceec9677be9038f8bdd3632",
+      "candidate_key": "95792b1835e96b86e66a48c5ca781496307e4c3271faea709d5e1b5127641a9e",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 17,
-      "source_text": "[ ] Alimentos sem imagem continuam legíveis e alinhados.",
-      "flags": [
-        "negative",
-        "semantic-effect"
-      ],
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1246-004"
-      ],
-      "inventory_ids": [],
-      "assertion_ids": [],
-      "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
-    },
-    {
-      "id": "OBL-011",
-      "candidate_key": "833e086cc460860425ca6d9bbdf7c7f05678d830a549871cfadd7a325d3a971e",
-      "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 18,
-      "source_text": "[ ] O layout continua utilizável em viewport estreito sem esconder informações nutricionais; rolagem horizontal da faixa de dados é aceitável.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 39,
+      "source_text": "Não usar `meal.imageUrl`, `meal.supportingImageUrl`, `meal.photoUrl` ou a primeira entrada de `meal.media` como fallback visual de um item sem associação própria.",
       "flags": [
         "negative"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-006"
+        "R-1251-010"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-011",
+      "candidate_key": "e4f5412604aa07e27197191c30eadc847f32e123649a310c32bae3da0aaeb712",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 40,
+      "source_text": "Não inferir a proveniência de um item apenas porque a refeição contém uma imagem.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
       "id": "OBL-012",
-      "candidate_key": "f0d79b6f4752ea7a46e0300399f0864deecd07a66e08b22a85f71a0d20257b27",
+      "candidate_key": "4f55f6962d1763eeb5dfcb5fb54af2077a9b7ac89a62fa2cd5cb726352240efa",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 19,
-      "source_text": "[ ] A imagem deixa de ser exibida em um bloco separado acima da lista de alimentos.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 46,
+      "source_text": "Persistir ou transportar uma associação explícita entre item da refeição e a mídia que o originou.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-013",
+      "candidate_key": "78a4fab591c2133395f3c4d92d638dddcb9de08fd1099a1b189bb1f6069663f4",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 47,
+      "source_text": "Expor essa associação no contrato consumido pela interface.",
       "flags": [
-        "exhaustive",
-        "observable",
-        "source-catalog",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-007"
+        "R-1251-013"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     },
     {
-      "id": "OBL-013",
-      "candidate_key": "392d5c9cf3279ad531579ea0c990a8065333de77e8cce73f2e50f745b74559f2",
+      "id": "OBL-014",
+      "candidate_key": "c5fa0c1331af563099f90469798c0dcddfdcd774599ff98952c987921b317d62",
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "source_line": 20,
-      "source_text": "[ ] Testes de componente cobrem repetição da imagem por alimento e ausência de imagem quando não há mídia.",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 48,
+      "source_text": "Renderizar a miniatura por item com base nessa associação.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-015",
+      "candidate_key": "945d463259dff303fff4572e05c3b00588866db33e1d5b241e7e853b39239abd",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 49,
+      "source_text": "Preservar o comportamento de imagem no nível da refeição quando ele for usado por outras funcionalidades.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-016",
+      "candidate_key": "32b9e8f8e96678e73e53b990baf9acc010d1e24d8f6c0239a91fb3c008a8d0f0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 50,
+      "source_text": "Cobrir persistência em banco e os fallbacks suportados pelo projeto, quando aplicável.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-017",
+      "candidate_key": "529087cffe36f9376b1ab9d1dfb0743c457d8cf8ab761eccefe6e6417eea11a3",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 51,
+      "source_text": "Adicionar testes de regressão no backend/contrato e no view model/interface.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-018",
+      "candidate_key": "c47428dafe5df43faa76e3cf4eefef6b5201a301967b5dabe6f1570269402191",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 55,
+      "source_text": "A solução deve ter **uma única fonte de verdade persistente/queryable para a associação item ↔ mídia**.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-019",
+      "candidate_key": "4319a94f87a7e2c432dab3bee338c9f03c1ff97952426a9f1ba1a320c581f452",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 61,
+      "source_text": "não dependa do nome do alimento;",
       "flags": [
         "negative",
         "semantic-effect"
       ],
       "disposition": "covered",
       "requirement_ids": [
-        "R-1246-008"
+        "R-1251-019"
       ],
       "inventory_ids": [],
       "assertion_ids": [],
       "scope_decision": null,
-      "rationale": "Closed by exact-head UI implementation and tests."
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-020",
+      "candidate_key": "84082129be804a430bc5839e2e4f4a605c1f1ca8ba1ca1c6d4d4f551a8d341e7",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 68,
+      "source_text": "**must_behave:** item com associação explícita a uma imagem exibe essa imagem.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-020"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-021",
+      "candidate_key": "951037382d75afd39027b3c76798538a023c8b10b6e28b5f673edb99a8338133",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 69,
+      "source_text": "**must_not_behave:** item sem associação explícita não exibe imagem da refeição como fallback.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-021"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-022",
+      "candidate_key": "ed5a0c58b4afc00272f3300782684c3e0c75bae557bf67a1a76c131c2f4604c9",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 70,
+      "source_text": "**must_be_single_source:** a associação item ↔ mídia deve ter uma única fonte canônica.",
+      "flags": [
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-022"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-023",
+      "candidate_key": "5ad8d76ba598fbe7dff065a7bc521e76ea7662d30d635d9ba943cc8f27a87e39",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 71,
+      "source_text": "**must_not_depend_on:** a correção não pode depender de ordem dos itens, igualdade de nomes ou existência de uma única imagem na refeição.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-023"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-024",
+      "candidate_key": "2d3f8d345c0c0a9341dffb1fad3d4f3b2493a4d6c2268d2c658c3d5cb7448e87",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 72,
+      "source_text": "**forbidden_implementation:** calcular `imageUrl` uma vez por refeição e copiá-lo para todos os itens.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-024"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-025",
+      "candidate_key": "b1087da9c28dc0d366f8210e1bf471227c054488be1d0ac0a3a5b6ee1e90d0cf",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 74,
+      "source_text": "Uma implementação incorreta poderia continuar funcionando em refeições compostas integralmente por uma única foto, mas falharia em refeições mistas. Os testes devem obrigatoriamente usar uma refeição mista para distinguir esses casos.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-025"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-026",
+      "candidate_key": "c06ea9213d7c3047576181c275d94508bd9499e8815fbca102db2fb1b7e6bd04",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 78,
+      "source_text": "Registros históricos que possuem imagem no nível da refeição, mas **não possuem evidência persistida suficiente para determinar quais itens vieram da foto**, não devem receber associação inventada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-026"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-027",
+      "candidate_key": "932de579b8f89ae13a5032f6edb9c69a46b4ddfdc0d389467424bc69a9f493b5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 81,
+      "source_text": "manter a mídia da refeição intacta;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-027"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-028",
+      "candidate_key": "f763147e2d172a6e8272b1f8e82af0f1c1b157988646013a34844c04d6af2bbf",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 83,
+      "source_text": "no nível do item, exibir miniatura somente quando a associação puder ser determinada de forma confiável pelo dado persistido.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-028"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-029",
+      "candidate_key": "55a41a7b3955f1262c25d9ec6f6539ac0b37ef92e0610a132846611b99e20a0c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 85,
+      "source_text": "Não é requisito desta issue reconstruir proveniência histórica que nunca foi armazenada.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-029"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-030",
+      "candidate_key": "f193b604004ae3eff8945db4d98162a130b58ff6e5007768827d2c2f8139b68b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 90,
+      "source_text": "Dada uma foto que origina três alimentos,",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-030"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-031",
+      "candidate_key": "94986a3d047070143aee769f6dbd04643ea5aa7093703103c51ffb9bfa8b2a83",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 92,
+      "source_text": "então os três itens devem manter referência àquela foto e podem exibir a mesma miniatura.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-031"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-032",
+      "candidate_key": "f88ef8a6c17ef10634884488082edbef0037beabe571ef927113857465ae7e01",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 95,
+      "source_text": "Dada uma refeição que contém itens derivados de uma foto,",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-032"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-033",
+      "candidate_key": "39411fcd8eeb15aa20d600f51f758e1a91e372f37a79535ba85958ae523cb16f",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 96,
+      "source_text": "quando outro alimento é adicionado por texto ou manualmente,",
+      "flags": [
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-033"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-034",
+      "candidate_key": "96e13b75d9e61a8d127811857722534ff71014334e5b8651ad6be538cd09dd9e",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 97,
+      "source_text": "então somente os itens derivados da foto exibem miniatura.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-034"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-035",
+      "candidate_key": "b692a85db6ca24614b330a41597ef7269c68f246418fc9dfe7e745073401560b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 105,
+      "source_text": "Dado um item/refeição copiado ou restaurado de favorito,",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-035"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-036",
+      "candidate_key": "17d3f05f1cb29d02f2fb9d7bbf63d1a8cc66c41bf931e6ed39d1533141764dc7",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 107,
+      "source_text": "então ele não deve herdar automaticamente a associação histórica de imagem.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-036"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-037",
+      "candidate_key": "ec403563192ec1f3a03253ccf27529b4ffb2cb08e5d4f47b3e5c69ddb1b8bfb3",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 111,
+      "source_text": "então todos podem referenciar a mesma mídia sem duplicar o arquivo.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-037"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-038",
+      "candidate_key": "fe9c6b9d1cb1dcb9374a415314260548fd20acd14de14deed40993f3760a958d",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 115,
+      "source_text": "cada item deve exibir somente a imagem explicitamente associada à sua origem.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-038"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-039",
+      "candidate_key": "1d5243834bb6d853f58d029bcc36399eef02c7bbd109828be919558749272f4b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 120,
+      "source_text": "mas não deve ser aplicada automaticamente a cada item.",
+      "flags": [
+        "exhaustive",
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-039"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-040",
+      "candidate_key": "c7a856361639ee28e3bcc2423577fc094037fdbd9287e61385bc4237992ef0cc",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 125,
+      "source_text": "então a associação e a miniatura correta devem permanecer.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-040"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-041",
+      "candidate_key": "0219412d410a55d5dbc45ae9b6ea4f8d29d9449acff34fde3b4e64e5f7403f43",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 129,
+      "source_text": "[ ] `buildRegisteredMealGroups` ou o fluxo equivalente deixa de atribuir uma imagem da refeição indistintamente a todos os itens.",
+      "flags": [
+        "exhaustive",
+        "source-catalog"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-041"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-042",
+      "candidate_key": "c6609e574d4787f9b248e8511f2eda30d7cb6f3eedf73935832dfbb6299c49c7",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 130,
+      "source_text": "[ ] O contrato de dados permite distinguir item com origem fotográfica de item sem origem fotográfica sem heurística no cliente.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-042"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-043",
+      "candidate_key": "e37a614f99c1d89a436083f9cd8eed61991c42f3dbdc22652779bef7eb2bd438",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 131,
+      "source_text": "[ ] Item associado a uma imagem exibe a miniatura correta após persistência e reload.",
+      "flags": [
+        "temporal",
+        "aftermath"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-043"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-044",
+      "candidate_key": "ef513073a413ddc22752e7e89c58f9b7abe8fde9671b753be286a5571d2b11e5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 132,
+      "source_text": "[ ] Item sem associação explícita é exibido sem miniatura, mesmo quando a refeição possui `mealMedia` de imagem.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-044"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-045",
+      "candidate_key": "2714b743165814addcbf77141618181249e47444474ac7a468a261596e57c67a",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 133,
+      "source_text": "[ ] Vários itens podem compartilhar a mesma mídia quando todos foram derivados dela.",
+      "flags": [
+        "exhaustive",
+        "structural",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-045"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-046",
+      "candidate_key": "fb0d12ccfc2dedf3e8963e2c3dd3df07817d4d95bb38e2bed42a0e61dee8c0ff",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 134,
+      "source_text": "[ ] Um item adicionado por texto/manual a uma refeição com foto não recebe essa imagem.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-046"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-047",
+      "candidate_key": "2884c22013875aa5fca6542224742f3dd84e5ee9aa18711c2f2b41a6da332322",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 135,
+      "source_text": "[ ] Copiar/favoritar não transfere automaticamente proveniência fotográfica para o novo registro.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-047"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-048",
+      "candidate_key": "8eea518fa6c1130361ded7d8642c6fd117007267334bd51e9b2e239f6a25de81",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 136,
+      "source_text": "[ ] Registros históricos sem proveniência determinística não recebem associação inventada.",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-048"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-049",
+      "candidate_key": "15807e04105e39e256e7d590692d81b9e94d4b2a860d7d77ebdb09cb3868cf4c",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 137,
+      "source_text": "[ ] O comportamento de imagem da refeição como um todo permanece disponível para consumidores que realmente operam no nível da refeição.",
+      "flags": [
+        "exhaustive",
+        "semantic-effect"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-049"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-050",
+      "candidate_key": "8782ca790e3bd394b1592cf9e688de5d221cbf264d2a33bd76676afa23581f38",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 138,
+      "source_text": "[ ] A correção funciona tanto na persistência em banco quanto nos caminhos de fallback suportados pelo projeto.",
+      "flags": [
+        "exhaustive"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-050"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-051",
+      "candidate_key": "e489ee913c5820d05c99aa87112a47efc20f270f1a59839d519326c93f3035a5",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 139,
+      "source_text": "[ ] Há teste automatizado de regressão usando uma refeição mista.",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-051"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-052",
+      "candidate_key": "589edbff99794a7ef60b9feb608701b98d3532a1a4f4aace2b10466e1d2241e0",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 153,
+      "source_text": "resposta diferencia explicitamente item com imagem associada e item sem imagem;",
+      "flags": [
+        "negative"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-052"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-053",
+      "candidate_key": "7ed2a9d75a9a3451e125237bfc4c6d0060ce012d3899b977439546b62463b2cc",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 159,
+      "source_text": "múltiplos itens com a mesma referência válida exibem a mesma miniatura;",
+      "flags": [],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-053"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-054",
+      "candidate_key": "f3aa3137ab6278acf32bcb63d3cedf25b8fb9cd7812ce7dafb2c7c8df578614b",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 172,
+      "source_text": "A implementação deve verificar e, se necessário, atualizar a documentação canônica de persistência/refeição, especialmente `docs/design-docs/nutrition-engine.md`, para registrar que mídia de refeição e proveniência de mídia por item são conceitos distintos.",
+      "flags": [
+        "exhaustive",
+        "observable",
+        "atomicity"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-054"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
+    },
+    {
+      "id": "OBL-055",
+      "candidate_key": "6ad070a75c887d59158bd13fe3e92bf4ffe2215ec0d417b58b7ffc506fb5dff3",
+      "source_id": "SRC-ISSUE",
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "source_line": 174,
+      "source_text": "A documentação não deve afirmar que a mera presença de `mealMedia` implica origem fotográfica para todos os `mealItems`.",
+      "flags": [
+        "exhaustive",
+        "negative",
+        "review-surface"
+      ],
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1251-055"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Covered by the exact material-head implementation, focused regressions, persistence/schema changes, and terminal-green CI."
     }
   ],
   "source_coverage": [
     {
       "source_id": "SRC-ISSUE",
-      "source_sha256": "db87eb97e513852e33354d7e3669098490c93de7b623cbdf07db9616fc2decf9",
-      "candidate_count": 13,
+      "source_sha256": "d77cc9aa2b587e35f25337da9bf7732b94a1b91fdf3585b0ed745a4313a0747f",
+      "candidate_count": 55,
       "obligation_ids": [
         "OBL-001",
         "OBL-002",
@@ -284,7 +1075,49 @@
         "OBL-010",
         "OBL-011",
         "OBL-012",
-        "OBL-013"
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035",
+        "OBL-036",
+        "OBL-037",
+        "OBL-038",
+        "OBL-039",
+        "OBL-040",
+        "OBL-041",
+        "OBL-042",
+        "OBL-043",
+        "OBL-044",
+        "OBL-045",
+        "OBL-046",
+        "OBL-047",
+        "OBL-048",
+        "OBL-049",
+        "OBL-050",
+        "OBL-051",
+        "OBL-052",
+        "OBL-053",
+        "OBL-054",
+        "OBL-055"
       ],
       "unmapped_candidate_keys": []
     }
@@ -292,34 +1125,58 @@
   "domain_inventories": [],
   "observable_assertions": [],
   "structural_invariant_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "Presentation-only change; no canonical-path, dependency, precedence, or forbidden implementation contract.",
-    "entries": [],
+    "status": "passed",
+    "applicability_reason": "Issue #1251 establishes one canonical persisted item-to-media provenance and forbids implicit meal-image fallback.",
+    "entries": [
+      {
+        "id": "STRUCT-1251-001",
+        "obligation_ids": [
+          "OBL-007",
+          "OBL-045"
+        ],
+        "plausible_wrong_implementation": "Keep meal-level image as an implicit fallback or introduce a second competing provenance source instead of the canonical persisted item media key.",
+        "negative_control_evidence": [
+          "client/src/features/meals/mealViewModels.test.ts",
+          "server/mealItemImageProvenance.test.ts",
+          "server/repositories/repositories.persistence.test.ts"
+        ]
+      }
+    ],
     "unresolved_invariants": []
   },
   "read_model_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "No historical, paginated, versioned, authorship, or read-model behavior is introduced.",
+    "status": "passed",
+    "applicability_reason": "Reload behavior is required and persistence readback exposes sourceMediaStorageKey.",
     "entries": [],
     "unconsumed_outputs": [],
     "unmapped_required_fields": []
   },
   "canonical_source_consistency": {
-    "status": "not-applicable",
-    "applicability_reason": "No competing canonical source or source-of-truth rule is introduced.",
+    "status": "passed",
+    "applicability_reason": "sourceMediaStorageKey is the single persisted item-media association and the client resolves it only against media from the same meal.",
     "entries": [],
     "unverified_surfaces": [],
     "missing_divergent_tests": []
   },
   "documentation_consistency": {
-    "status": "not-applicable",
-    "applicability_reason": "No route, permission, default, deprecation, rename, or policy transition is introduced.",
-    "old_contract_terms": [],
-    "new_contract_terms": [],
-    "occurrences": [],
+    "status": "passed",
+    "old_contract_terms": [
+      "implicit meal image fallback per item"
+    ],
+    "new_contract_terms": [
+      "explicit sourceMediaStorageKey item provenance"
+    ],
+    "occurrences": [
+      {
+        "path": "docs/design-docs/nutrition-engine.md",
+        "status": "updated"
+      }
+    ],
     "unresolved_contradictions": [],
-    "searched_outside_diff": false,
-    "search_evidence": []
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "The canonical nutrition-engine design documentation is changed in PR #1253 to separate meal media from item provenance."
+    ]
   },
   "scope_reduction_review": {
     "status": "passed",
@@ -328,14 +1185,61 @@
   "pass_c": {
     "status": "passed",
     "requirement_ids": [
-      "R-1246-001",
-      "R-1246-002",
-      "R-1246-003",
-      "R-1246-004",
-      "R-1246-005",
-      "R-1246-006",
-      "R-1246-007",
-      "R-1246-008"
+      "R-1251-001",
+      "R-1251-002",
+      "R-1251-003",
+      "R-1251-004",
+      "R-1251-005",
+      "R-1251-006",
+      "R-1251-007",
+      "R-1251-008",
+      "R-1251-009",
+      "R-1251-010",
+      "R-1251-011",
+      "R-1251-012",
+      "R-1251-013",
+      "R-1251-014",
+      "R-1251-015",
+      "R-1251-016",
+      "R-1251-017",
+      "R-1251-018",
+      "R-1251-019",
+      "R-1251-020",
+      "R-1251-021",
+      "R-1251-022",
+      "R-1251-023",
+      "R-1251-024",
+      "R-1251-025",
+      "R-1251-026",
+      "R-1251-027",
+      "R-1251-028",
+      "R-1251-029",
+      "R-1251-030",
+      "R-1251-031",
+      "R-1251-032",
+      "R-1251-033",
+      "R-1251-034",
+      "R-1251-035",
+      "R-1251-036",
+      "R-1251-037",
+      "R-1251-038",
+      "R-1251-039",
+      "R-1251-040",
+      "R-1251-041",
+      "R-1251-042",
+      "R-1251-043",
+      "R-1251-044",
+      "R-1251-045",
+      "R-1251-046",
+      "R-1251-047",
+      "R-1251-048",
+      "R-1251-049",
+      "R-1251-050",
+      "R-1251-051",
+      "R-1251-052",
+      "R-1251-053",
+      "R-1251-054",
+      "R-1251-055"
     ],
     "obligation_ids": [
       "OBL-001",
@@ -350,10 +1254,52 @@
       "OBL-010",
       "OBL-011",
       "OBL-012",
-      "OBL-013"
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019",
+      "OBL-020",
+      "OBL-021",
+      "OBL-022",
+      "OBL-023",
+      "OBL-024",
+      "OBL-025",
+      "OBL-026",
+      "OBL-027",
+      "OBL-028",
+      "OBL-029",
+      "OBL-030",
+      "OBL-031",
+      "OBL-032",
+      "OBL-033",
+      "OBL-034",
+      "OBL-035",
+      "OBL-036",
+      "OBL-037",
+      "OBL-038",
+      "OBL-039",
+      "OBL-040",
+      "OBL-041",
+      "OBL-042",
+      "OBL-043",
+      "OBL-044",
+      "OBL-045",
+      "OBL-046",
+      "OBL-047",
+      "OBL-048",
+      "OBL-049",
+      "OBL-050",
+      "OBL-051",
+      "OBL-052",
+      "OBL-053",
+      "OBL-054",
+      "OBL-055"
     ],
     "evidence": [
-      "Issue body rederived without PR narrative and mapped to exact-head diff."
+      "Issue #1251 rederived from the GitHub issue body and mapped to the exact material-head implementation and green CI."
     ],
     "rederived_without_pr_description": true,
     "reviewed_user_visible_semantics": true,

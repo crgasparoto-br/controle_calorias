@@ -1,19 +1,30 @@
 {
   "schema_version": 1,
-  "head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+  "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
   "families": [
     {
       "family": "authorization",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "control_ids": [
+        "NC-R-1251-002-AUTH"
+      ],
+      "dimensions": [
+        {
+          "surface": "item-image-authorization",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-R-1251-002-AUTH"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -21,7 +32,7 @@
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -29,23 +40,34 @@
     {
       "family": "reference-liveness",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "temporal-consistency",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "control_ids": [
+        "NC-R-1251-043-TEMPORAL-CONSISTENCY"
+      ],
+      "dimensions": [
+        {
+          "surface": "meal-item-image-behavior",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-R-1251-043-TEMPORAL-CONSISTENCY"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -53,23 +75,34 @@
     {
       "family": "concurrency-atomicity",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "idempotency",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "control_ids": [
+        "NC-R-1251-037-IDEMP"
+      ],
+      "dimensions": [
+        {
+          "surface": "duplicate-processing",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-R-1251-037-IDEMP"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -77,26 +110,67 @@
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
+      "reason": "No current source-derived or inherited risk surface requires this family.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "structural-contract",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "control_ids": [
+        "NC-ESC-CURRENT-TARGET",
+        "NC-ESC-DIRECT-PARENT",
+        "NC-R-1251-007-STRUCTURAL-CONTRACT",
+        "NC-R-1251-022-STRUCTURAL-CONTRACT",
+        "NC-R-1251-022-CANONICAL",
+        "NC-R-1251-045-STRUCTURAL-CONTRACT"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-source-consistency",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-ESC-CURRENT-TARGET",
+            "NC-ESC-DIRECT-PARENT",
+            "NC-R-1251-022-CANONICAL"
+          ]
+        },
+        {
+          "surface": "item-media-provenance",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-R-1251-007-STRUCTURAL-CONTRACT",
+            "NC-R-1251-022-STRUCTURAL-CONTRACT",
+            "NC-R-1251-045-STRUCTURAL-CONTRACT"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "documentation",
-      "applicable": false,
-      "reason": "No current contract or diff signal requires this family.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "control_ids": [
+        "NC-R-1251-054-DOCUMENTATION",
+        "NC-R-1251-055-DOCUMENTATION"
+      ],
+      "dimensions": [
+        {
+          "surface": "canonical-claims",
+          "status": "passed",
+          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "control_ids": [
+            "NC-R-1251-054-DOCUMENTATION",
+            "NC-R-1251-055-DOCUMENTATION"
+          ]
+        }
+      ],
+      "status": "passed"
     }
   ],
   "material_families_missing_controls": []
