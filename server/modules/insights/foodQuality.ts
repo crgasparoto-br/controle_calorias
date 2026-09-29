@@ -53,6 +53,19 @@ function searchItemProcessingLevel(food: FoodSearchItem, existing?: FoodLookupEn
   return explicitLevel ?? legacyProcessingLevel(food) ?? existing?.processingLevel ?? "unknown";
 }
 
+function setStrongestFoodLookupEntry(
+  foodsByName: Map<string, FoodLookupEntry>,
+  name: string,
+  entry: FoodLookupEntry,
+) {
+  const key = normalizeCatalogText(name);
+  if (!key) return;
+
+  const existing = foodsByName.get(key);
+  if (existing?.isClassified && !entry.isClassified) return;
+  foodsByName.set(key, entry);
+}
+
 export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
   const foodsById = new Map<number, FoodLookupEntry>();
   const foodsByName = new Map<string, FoodLookupEntry>();
@@ -69,9 +82,9 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
       servingSize: food.gramsPerServing,
     };
 
-    foodsByName.set(normalizeCatalogText(food.name), entry);
+    setStrongestFoodLookupEntry(foodsByName, food.name, entry);
     for (const alias of food.aliases) {
-      foodsByName.set(normalizeCatalogText(alias), entry);
+      setStrongestFoodLookupEntry(foodsByName, alias, entry);
     }
   }
 
@@ -94,9 +107,9 @@ export function createFoodLookup(foods: FoodSearchItem[]): FoodLookup {
       isUltraProcessed,
       servingSize: food.servingSize || existing?.servingSize || 0,
     };
-    foodsByName.set(normalizeCatalogText(food.name), entry);
+    setStrongestFoodLookupEntry(foodsByName, food.name, entry);
     for (const alias of food.aliases ?? []) {
-      foodsByName.set(normalizeCatalogText(alias), entry);
+      setStrongestFoodLookupEntry(foodsByName, alias, entry);
     }
     if (Number.isFinite(food.id) && food.id > 0) {
       foodsById.set(food.id, entry);

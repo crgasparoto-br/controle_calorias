@@ -122,6 +122,44 @@ describe("food quality report lookup", () => {
     });
   });
 
+  it.each([
+    ["classificado primeiro", false],
+    ["classificado por último", true],
+  ])("não deixa alias sem classificação degradar evidência NOVA (%s)", (_label, reverseOrder) => {
+    const classified = food({
+      id: 201,
+      name: "Produto classificado",
+      aliases: ["alias concorrente"],
+      processingLevel: "processed",
+    });
+    const unclassified = food({
+      id: 202,
+      name: "Produto pendente",
+      aliases: ["alias concorrente"],
+      processingLevel: "unknown",
+      fiber: null,
+    });
+    const foods = reverseOrder
+      ? [unclassified, classified]
+      : [classified, unclassified];
+
+    const lookup = createLookup(foods);
+    const quality = calculateQuality(
+      meal([mealItem({
+        foodName: "alias concorrente",
+        canonicalName: "alias concorrente",
+        calories: 100,
+      })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel: "processed",
+    });
+  });
+
   it("classifica por foodCatalogId antes do texto", () => {
     const lookup = createLookup([
       food({ id: 10, name: "Banana", isFruit: true }),
