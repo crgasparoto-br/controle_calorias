@@ -1,87 +1,23 @@
 ## Objetivo
-
-Na tela `/meals`, permitir que o usuário altere a refeição de **um alimento individual** sem reclassificar, mover, excluir ou duplicar os demais itens do mesmo registro.
+Na tela `/meals`, exibir cada alimento em uma única linha visual contendo sua imagem associada e todas as informações nutricionais já disponíveis para o item.
 
 ## Contexto
-
-A edição individual já permite selecionar a refeição do alimento. No comportamento atual, porém, salvar outro rótulo pode aplicar a alteração ao registro inteiro, fazendo com que itens irmãos sejam movidos junto.
-
-A regra durável deste domínio pertence a `docs/product-specs/meal-registration.md`. Esta issue descreve o delta de entrega e seus critérios verificáveis.
-
-## Escopo
-
-- Permitir selecionar outra refeição ao editar um alimento individual em `/meals`.
-- Aplicar a alteração somente ao item selecionado.
-- Preservar as alterações realizadas no próprio alimento durante o mesmo salvamento.
-- Manter os demais itens na refeição de origem, sem alterar seus dados.
-- Preservar a data/hora lógica do alimento movido.
-- Quando o item for o único da refeição de origem, permitir a troca sem deixar uma refeição vazia.
-- Após sucesso, refletir a alteração nas listas de refeições, totais, dashboard e relatórios dependentes.
-
-## Fora de escopo
-
-- Alterar regras de classificação automática de refeição.
-- Alterar o fluxo do WhatsApp.
-- Alterar a forma de agrupamento visual das refeições.
-- Definir nesta issue se a persistência deve reutilizar um registro de destino existente ou criar outro registro interno; o resultado observável deve ser o mesmo.
+Atualmente as imagens da refeição são exibidas separadamente acima das linhas dos alimentos. O comportamento desejado é aproximar a evidência visual do alimento ao qual ela se refere.
 
 ## Requisitos funcionais
-
-1. Ao salvar um item com uma refeição diferente, somente esse item deve passar a pertencer à refeição de destino.
-2. Itens irmãos devem permanecer na refeição de origem com os mesmos valores e identificação.
-3. Se a refeição escolhida continuar a mesma, somente os campos editados do item selecionado devem ser atualizados.
-4. As alterações feitas no item e a troca de refeição devem ser persistidas como uma única operação lógica para o usuário.
-5. Após recarregar `/meals`, o item deve aparecer exatamente uma vez, no grupo de destino, e não deve permanecer no grupo de origem.
-6. Os totais da refeição de origem, da refeição de destino e do dia devem refletir o item exatamente uma vez.
-7. Se o item for o único da origem, a troca deve concluir sem deixar registro vazio visível ou contabilizado.
-
-## Tratamento de erros e consistência
-
-- Se a movimentação falhar, o sistema não pode concluir em um estado com o alimento duplicado ou perdido.
-- Uma falha não pode deixar os demais itens reclassificados para a refeição de destino.
-- A interface deve informar a falha e permitir que uma nova leitura dos dados mostre um estado consistente.
-
-## Invariantes estruturais
-
-### `must_behave`
-- A unidade de edição/movimentação é o **item selecionado**, não o registro completo.
-- Totais e visões derivadas devem ser recalculados a partir do estado persistido após a alteração.
-
-### `must_not_behave`
-- Trocar a refeição de um item não pode mover seus itens irmãos.
-- O item movido não pode aparecer simultaneamente na origem e no destino após a operação concluída.
-- O item não pode desaparecer das duas refeições após uma falha.
-
-**Implementação errada plausível:** atualizar o `mealLabel` do registro inteiro porque o caminho feliz com refeições de um único item continuaria passando.
-
-**Controle discriminante:** teste com uma refeição contendo pelo menos dois itens, movendo somente um deles e verificando origem, destino e totais após nova leitura.
+- Quando a refeição possuir imagem, exibir a imagem na mesma linha do alimento correspondente.
+- A linha deve continuar exibindo horário, porção, nome do alimento, calorias, proteínas, carboidratos, gorduras e quantidade.
+- Quando uma única imagem representar vários alimentos da mesma refeição, repetir a mesma imagem em cada linha desses alimentos.
+- Refeições sem imagem devem continuar sendo exibidas normalmente, sem espaço visual reservado vazio para imagem.
+- Preservar a edição individual do alimento ao clicar na linha e a ação de exclusão existente.
 
 ## Critérios de aceite
+- [ ] Um alimento com imagem apresenta imagem + horário + porção + nome + calorias + proteínas + carboidratos + gorduras + quantidade na mesma linha visual.
+- [ ] Dois ou mais alimentos pertencentes à mesma refeição com uma única imagem exibem a mesma imagem em cada linha.
+- [ ] Alimentos sem imagem continuam legíveis e alinhados.
+- [ ] O layout continua utilizável em viewport estreito sem esconder informações nutricionais; rolagem horizontal da faixa de dados é aceitável.
+- [ ] A imagem deixa de ser exibida em um bloco separado acima da lista de alimentos.
+- [ ] Testes de componente cobrem repetição da imagem por alimento e ausência de imagem quando não há mídia.
 
-- [ ] Dado um almoço com pelo menos dois alimentos, ao mover apenas um para jantar, o alimento selecionado aparece em jantar e os demais continuam em almoço.
-- [ ] Após recarregar os dados, o alimento movido existe exatamente uma vez.
-- [ ] Editar um alimento sem trocar sua refeição não altera nem move os demais itens.
-- [ ] As alterações realizadas no próprio alimento durante a troca também são preservadas.
-- [ ] Um registro com apenas um item pode trocar de refeição sem produzir refeição vazia.
-- [ ] Os totais da origem, destino e dia são recalculados sem duplicar ou perder calorias/macros do item.
-- [ ] Em falha de persistência, uma nova leitura não apresenta o item duplicado, perdido nem irmãos movidos indevidamente.
-
-## Considerações de testes
-
-- Regressão de UI: edição de item individual envia somente o item alvo e a refeição escolhida.
-- Serviço/domínio: mover 1 de 2+ itens preserva os irmãos.
-- Serviço/domínio: item único troca de refeição sem registro vazio.
-- Serviço/domínio: edição sem troca de refeição afeta somente o item alvo.
-- Consistência: simular falha durante a movimentação e validar ausência de duplicação/perda após nova leitura.
-- Integração/derivados: validar totais e invalidação das visões dependentes.
-- Por tocar o fluxo de refeições, aplicar o gate `CRITICAL` definido em `CONTRIBUTING.md`.
-
-## Impacto na documentação
-
-- Fonte canônica: `docs/product-specs/meal-registration.md`.
-- A regra durável deve registrar que a edição individual com troca de refeição afeta somente o item correlacionado e mantém os demais intactos.
-- Se houver alteração de rota tRPC, atualizar também a documentação gerada correspondente e validar com `pnpm docs:check`.
-
-## Referência de implementação
-
-- PR em andamento: #1238.
+## Escopo
+Alteração de apresentação na experiência de Registros/Refeições; sem mudança de persistência, API ou associação de mídia.
