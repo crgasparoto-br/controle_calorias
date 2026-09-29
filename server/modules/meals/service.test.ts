@@ -241,6 +241,46 @@ describe("meals service characterization", () => {
         originalFileName: "refeicao.ogg",
       }),
     ]);
+    expect(result.processed.items.every(item => item.sourceMediaStorageKey === undefined)).toBe(true);
+  });
+
+  it("associa a midia persistida quando a imagem e a unica fonte alimentar do rascunho", async () => {
+    const result = await processMealDraft(42, {
+      source: "web",
+      image: {
+        base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "prato.jpeg",
+      },
+    });
+
+    const imageMedia = result.media.find(media => media.mediaType === "image");
+    expect(imageMedia?.storageKey).toContain("42/meal-images/");
+    expect(result.processed.items).toEqual([
+      expect.objectContaining({
+        sourceMediaStorageKey: imageMedia?.storageKey,
+      }),
+    ]);
+  });
+
+  it("nao inventa proveniencia fotografica quando texto e imagem participam da mesma inferencia", async () => {
+    const result = await processMealDraft(42, {
+      source: "web",
+      text: "adicione também um iogurte",
+      image: {
+        base64: "data:image/jpeg;base64,aW1hZ2UtZGUtdGVzdGU=",
+        mimeType: "image/jpeg",
+        fileName: "prato.jpeg",
+      },
+    });
+
+    expect(result.media).toEqual([
+      expect.objectContaining({
+        mediaType: "image",
+        storageKey: expect.stringContaining("42/meal-images/"),
+      }),
+    ]);
+    expect(result.processed.items.every(item => item.sourceMediaStorageKey === undefined)).toBe(true);
   });
 
   it("mantem erro controlado quando a transcricao falha e segue com o rascunho sem transcript", async () => {

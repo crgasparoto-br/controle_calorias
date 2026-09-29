@@ -502,10 +502,16 @@ async function processMealDraftAttributed(
     occurredAt: new Date(),
     timeZone,
   }));
-  const processed = resolvedImage.media
+  const canAttributeAllItemsToImage = Boolean(
+    resolvedImage.media
+    && input.image
+    && !input.text?.trim()
+    && !input.audio,
+  );
+  const processed = canAttributeAllItemsToImage
     ? {
         ...processedBase,
-        items: associateMealItemsWithSourceMedia(processedBase.items, resolvedImage.media.storageKey),
+        items: associateMealItemsWithSourceMedia(processedBase.items, resolvedImage.media?.storageKey),
       }
     : processedBase;
 
