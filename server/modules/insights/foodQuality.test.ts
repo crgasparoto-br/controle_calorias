@@ -160,6 +160,37 @@ describe("food quality report lookup", () => {
     });
   });
 
+  it("não deixa alias sem classificação degradar um nome canônico classificado", () => {
+    const lookup = createLookup([
+      food({
+        id: 203,
+        name: "Identidade forte",
+        processingLevel: "processed",
+      }),
+      food({
+        id: 204,
+        name: "Identidade pendente",
+        aliases: ["Identidade forte"],
+        processingLevel: "unknown",
+        fiber: null,
+      }),
+    ]);
+    const quality = calculateQuality(
+      meal([mealItem({
+        foodName: "Identidade forte",
+        canonicalName: "Identidade forte",
+        calories: 100,
+      })]),
+      0,
+      lookup,
+    );
+
+    expect(quality.foodQualityItems[0]).toMatchObject({
+      isClassified: true,
+      processingLevel: "processed",
+    });
+  });
+
   it("classifica por foodCatalogId antes do texto", () => {
     const lookup = createLookup([
       food({ id: 10, name: "Banana", isFruit: true }),
