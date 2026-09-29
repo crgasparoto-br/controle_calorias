@@ -135,6 +135,8 @@ A epic #779 estende o contrato central para perguntas interativas com botões e 
 
 O inbound só é concluído depois que uma resposta funcional primária é entregue e persistida. Se a mutação de domínio terminou mas o envio falhou, os vínculos `mealId`, `waterLogId` e `weightEntryId` permitem reconstruir a resposta a partir do estado persistido, sem repetir a mutação. A chave de idempotência da resposta outbound é derivada do inbound, garantindo no máximo uma resposta funcional armazenada por mensagem.
 
+No fluxo de imagem com água e alimentos, a sequência é compensável: o wrapper guarda os IDs criados, desfaz a hidratação e a refeição transitória (restaurando o snapshot anterior quando a consolidação já atualizou uma refeição existente) e remove os vínculos parciais antes de liberar o retry. A falha de entrega também libera o cache local da imagem; assim, a mesma `message.id` pode reexecutar a operação sem duplicar água, refeição ou itens. O efeito só é considerado concluído após a resposta primária ser entregue.
+
 - **Despacho por domínio**: `server/modules/whatsapp/messageRouter.ts` reivindica o callback uma única vez e despacha pelo `type` persistido em `whatsappPendingOperations` para o resolvedor do domínio (exclusão, confirmação genérica de reclassificação, autorização profissional e clarificação alimentar), que revalida o recurso atual no banco antes de mutar e nunca consome a pendência de novo. Um recurso que não corresponde mais ao estado esperado recebe a mensagem central `⚠️ Registro não encontrado`.
 - **Fluxos obrigatórios**: exclusão exibe `Confirmar`/`Cancelar` e nunca executa antes da confirmação; uma seleção ambígua com mais de uma opção usa lista interativa; autorização profissional exibe `Autorizar`/`Recusar`; clarificação alimentar fechada expõe ações canônicas e a aberta preserva a mesma instrução textual para resposta de quantidade.
 - **Transporte**: `server/modules/whatsapp/webhookUtils.ts` fornece botões/listas; o envio efetivo passa por `replyTransport.sendWhatsAppLogicalReply`, que grava a resposta funcional no lifecycle exatamente uma vez por resposta lógica.
@@ -196,9 +198,11 @@ A extensão normativa [whatsapp-ingestion-ai-capabilities.md](./whatsapp-ingesti
 - Testar que texto como `adicionar água ontem` pede a quantidade antes de executar qualquer ação.
 - Testar que imagem com apenas água e volume válido registra hidratação e não cria refeição.
 - Testar que imagem com água e alimentos registra hidratação separadamente e recalcula os totais.
+- Testar falha após persistir água, falha de consolidação/refeição e falha de entrega primária: os efeitos parciais devem ser compensados, os vínculos removidos e o replay do mesmo `message.id` deve executar uma única nova tentativa sem duplicação.
 - Testar que imagem com água sem volume válido pede o volume.
 - Testar que múltiplos recipientes de água somam os volumes em um único registro.
 - Testar que `água de coco`, `água tônica` e `água saborizada` permanecem como alimento.
+- Testar que uma foto posterior de rótulo nutricional correlaciona uma única pendência, atualiza apenas o item correlacionado e não cria refeição duplicada, inclusive quando a visão falha antes do resolvedor.
 - Testar conversão massa-volume somente com densidade confiável.
 - Testar redução, incremento e correção curta de quantidade sem criar refeição nova.
 - Testar adição de alimento/café a refeição existente cobrindo matriz de verbos, preposições, ordens, aliases e clarificação apenas do dado ausente; quando a refeição não existir, não deve haver mutação.
@@ -330,7 +334,7 @@ A tabela abaixo é o nível mínimo de rastreabilidade para iniciar a Fase 1. �
 | `resolveCommercialFoodIdentity`/`findCatalogFoodSemantic` | candidato comercial | Catálogo/cache/pesquisa específica com grounding, identidade e medida compatíveis | `nutritionEngine::resolveCommercialFoodIdentity` é owner; `catalogSemanticSearch` é boundary auxiliar | `keep` até #1095 |
 | `resolveHouseholdMeasure` | alimento + count/unit | Decide gramas e `measureResolution` com origem, evidência e verificação | `householdMeasureResolution::resolveHouseholdMeasure` é owner | `keep` |
 | `materializeResolvedCommercialMeal` | `CountableFoodResolvedMeasure` | Adapta `CatalogFood` já validado a `MealProcessingResult`/`semanticContract`, sem chamar `processMealInput`; não decide identidade, medida ou origem | `resolvedCommercialMealMaterialization` é owner de domínio; `countableFoodRegistrationGate` apenas transporta a decisão estruturada | `keep` |
-| `handleWhatsAppWebhookWithAnnotatedImages` | imagem/caption | Faz download, mídia inline, análise visual, imagem anotada opcional e delega o restante | Wrapper de mídia + `annotatedImage` | `keep`; convergência `defer` |
+| `handleWhatsAppWebhookWithAnnotatedImages` | imagem/caption | Faz download, mídia inline, análise visual, resolve continuação de rótulo e hidratação, compensa efeitos parciais em falha e gera imagem anotada opcional | Wrapper de mídia + `nutritionLabelCandidateService` + `waterItemClassification` + lifecycle | `keep`; convergência `defer` |
 | `whatsappWebhookImplementation::processMealInput` | texto/transcrição/URL inline | Resolve identidade/nutrição multimodal; cria o contrato semântico final | `nutritionEngine` | `keep` |
 | `createPendingMealInference` | `MealProcessingResult` | Cria rascunho/inferência pendente e mídia vinculada | `db`/meal persistence | `keep` |
 | `confirmPendingMeal` | draft + itens | Confirma/persiste refeição e itens; deve ocorrer somente após todas as clarificações | `db`/meal persistence | `keep` |

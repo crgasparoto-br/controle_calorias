@@ -8,6 +8,7 @@ const repositoryMock = vi.hoisted(() => ({
   findByIdempotencyKey: vi.fn(),
   linkResponse: vi.fn(),
   linkDomainRecord: vi.fn(),
+  removeDomainLinksForMessage: vi.fn(),
   findRecentMessages: vi.fn(),
   findRecentMessagesByUser: vi.fn(),
   findDomainLinksForMessage: vi.fn(),
@@ -24,7 +25,14 @@ vi.mock("../../db", () => ({
   logInferenceEvent: logInferenceEventMock,
 }));
 
-import { beginInboundMessage, markMessageProcessed, recordDomainLink, recordOutboundReply, wasMessageAlreadyProcessed } from "./messageLifecycle";
+import {
+  beginInboundMessage,
+  markMessageProcessed,
+  recordDomainLink,
+  recordOutboundReply,
+  removeDomainLinksForMessage,
+  wasMessageAlreadyProcessed,
+} from "./messageLifecycle";
 import {
   recordCurrentQuestionAiStage,
   recordCurrentQuestionDeliveryOutcome,
@@ -164,6 +172,12 @@ describe("whatsapp messageLifecycle", () => {
     await recordDomainLink({ conversationId: 10, messageId: 100, wasNewInsert: true }, {});
 
     expect(repositoryMock.linkDomainRecord).not.toHaveBeenCalled();
+  });
+
+  it("remove todos os vínculos de domínio durante uma compensação", async () => {
+    await removeDomainLinksForMessage({ conversationId: 10, messageId: 100, wasNewInsert: true });
+
+    expect(repositoryMock.removeDomainLinksForMessage).toHaveBeenCalledWith(100);
   });
 
   it("marca a mensagem como processada", async () => {
