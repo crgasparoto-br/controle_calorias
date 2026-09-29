@@ -8,7 +8,10 @@ const getHabitSnapshotsMock = vi.fn();
 const getUserDayMealTotalsMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 const createPendingMealInferenceMock = vi.fn();
+const createUserWaterLogMock = vi.fn();
 const confirmPendingMealMock = vi.fn();
+const getUserWaterGoalMock = vi.fn();
+const listUserWaterLogsMock = vi.fn();
 const listUserMealsMock = vi.fn();
 const removeUserMealMock = vi.fn();
 const updateUserMealMock = vi.fn();
@@ -19,6 +22,8 @@ const storagePutMock = vi.fn();
 const fallbackWebhookMock = vi.fn();
 const getAnnotatedImagePreferenceMock = vi.fn();
 const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
+const listActiveNutritionLabelPhotoRequestsMock = vi.fn();
+const resolveNutritionLabelPhotoEvidenceMock = vi.fn();
 const {
   beginInboundMessageMock,
   claimMessageForProcessingStateMock,
@@ -61,9 +66,12 @@ vi.mock("./db", () => ({
   getUserDayMealTotals: getUserDayMealTotalsMock,
   getUserIdByWhatsappPhone: getUserIdByWhatsappPhoneMock,
   getUserNutritionGoal: getUserNutritionGoalMock,
+  getUserWaterGoal: getUserWaterGoalMock,
+  listUserWaterLogs: listUserWaterLogsMock,
   listUserMeals: listUserMealsMock,
   logInferenceEvent: logInferenceEventMock,
   removeUserMeal: removeUserMealMock,
+  createUserWaterLog: createUserWaterLogMock,
   updateUserMeal: updateUserMealMock,
 }));
 
@@ -71,6 +79,22 @@ vi.mock("./modules/whatsapp/foodQuantityClarification", () => ({
   requestWhatsappImageMealIdentityClarification:
     requestWhatsappImageMealIdentityClarificationMock,
 }));
+
+vi.mock("./nutritionLabelCandidateService", async importOriginal => {
+  const actual = await importOriginal<typeof import("./nutritionLabelCandidateService")>();
+  return {
+    ...actual,
+    isNutritionLabelPhotoRequestTarget: (target: unknown) =>
+      Boolean(
+        target &&
+          typeof target === "object" &&
+          (target as { kind?: string }).kind === "nutrition_label_photo_request"
+      ),
+    listActiveNutritionLabelPhotoRequests:
+      listActiveNutritionLabelPhotoRequestsMock,
+    resolveNutritionLabelPhotoEvidence: resolveNutritionLabelPhotoEvidenceMock,
+  };
+});
 
 vi.mock("./whatsappConfig", () => ({
   getWhatsAppChannelConfig: () => ({ phoneNumberId: "phone-number-test" }),
@@ -197,6 +221,33 @@ const savedImageMeal = {
   ],
 };
 
+function waterImageItem(overrides: Record<string, unknown> = {}) {
+  return {
+    foodName: "Água Mineral com Gás Crystal 500 ml",
+    canonicalName: "Água Mineral com Gás Crystal",
+    brand: "Crystal",
+    portionText: "500 ml",
+    quantity: 500,
+    unit: "ml",
+    servings: 1,
+    estimatedGrams: 500,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    confidence: 0.9,
+    source: "catalog" as const,
+    classification: {
+      processingLevel: "natural_or_minimally_processed" as const,
+      isFruit: false,
+      isVegetable: false,
+      fiberGrams: 0,
+      isPlainWater: true,
+    },
+    ...overrides,
+  };
+}
+
 describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -211,7 +262,10 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     getUserDayMealTotalsMock.mockReset();
     getUserNutritionGoalMock.mockReset();
     createPendingMealInferenceMock.mockReset();
+    createUserWaterLogMock.mockReset();
     confirmPendingMealMock.mockReset();
+    getUserWaterGoalMock.mockReset();
+    listUserWaterLogsMock.mockReset();
     listUserMealsMock.mockReset();
     removeUserMealMock.mockReset();
     updateUserMealMock.mockReset();
@@ -222,6 +276,8 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     fallbackWebhookMock.mockReset();
     getAnnotatedImagePreferenceMock.mockReset();
     requestWhatsappImageMealIdentityClarificationMock.mockReset();
+    listActiveNutritionLabelPhotoRequestsMock.mockReset();
+    resolveNutritionLabelPhotoEvidenceMock.mockReset();
     beginInboundMessageMock.mockReset();
     claimMessageForProcessingStateMock.mockReset();
     wasMessageAlreadyProcessedMock.mockReset();
@@ -237,6 +293,11 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     wasMessageAlreadyProcessedMock.mockResolvedValue(false);
 
     getUserIdByWhatsappPhoneMock.mockResolvedValue(42);
+    createUserWaterLogMock.mockResolvedValue({ id: 55, userId: 42, amountMl: 500 });
+    getUserWaterGoalMock.mockResolvedValue({ dailyTargetMl: 2000 });
+    listUserWaterLogsMock.mockResolvedValue([]);
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValue([]);
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValue({ handled: false });
     getAnnotatedImagePreferenceMock.mockResolvedValue({ enabled: true, readFailed: false });
     getHabitSnapshotsMock.mockResolvedValue([]);
     getUserDayMealTotalsMock.mockResolvedValue({
@@ -1067,5 +1128,158 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     expect(sentTextMessages[0]).toContain("Arroz persistido da imagem — 120g");
     expect(sentTextMessages[0]).toContain("156 kcal | P 3,2 g | C 33,6 g | G 0,4 g");
     expect(sentTextMessages[0]).not.toContain("• 🍚 arroz — 100g");
+  });
+
+  it("prioriza a continuação de rótulo e não cria refeição duplicada no wrapper efetivo", async () => {
+    listActiveNutritionLabelPhotoRequestsMock.mockResolvedValueOnce([
+      {
+        target: {
+          kind: "nutrition_label_photo_request",
+          mealId: 10,
+          itemIndex: 0,
+          identityKey: "danone-natural-integral",
+          originalFoodName: "Iogurte Natural Integral Danone",
+          originalCanonicalName: "Iogurte Natural Integral Danone",
+          originalBrand: "Danone",
+          originalProductVariant: "Natural Integral",
+        },
+      },
+    ]);
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+      handled: true,
+      action: "nutrition_label_photo_applied",
+      reply: "Atualizei os nutrientes do iogurte sem criar nova refeição.",
+      eventType: "whatsapp.nutrition_label_photo.applied",
+      detail: "Rótulo correlacionado ao item pendente.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-label-continuation") as never,
+      res as never,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, processed: 1 });
+    expect(processMealInputMock).toHaveBeenCalledWith(expect.objectContaining({
+      nutritionLabelIdentityContext: expect.objectContaining({
+        originalFoodName: "Iogurte Natural Integral Danone",
+        originalBrand: "Danone",
+      }),
+    }));
+    expect(resolveNutritionLabelPhotoEvidenceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 42,
+        sourceMessageId: "image-label-continuation",
+        item: expect.objectContaining({ foodName: "arroz" }),
+      }),
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toEqual([
+      "Atualizei os nutrientes do iogurte sem criar nova refeição.",
+    ]);
+  });
+
+  it("preserva a pendência de rótulo quando a inferência visual falha antes do resolvedor", async () => {
+    const provisionalLabelItem = waterImageItem({
+      foodName: "Iogurte Natural Integral Danone",
+      canonicalName: "Iogurte Natural Integral Danone",
+      brand: "Danone",
+      classification: {
+        processingLevel: "processed" as const,
+        isFruit: false,
+        isVegetable: false,
+        fiberGrams: 0,
+        isPlainWater: false,
+      },
+    });
+    processMealInputMock.mockRejectedValueOnce(
+      new MealInferenceError(
+        "Não consegui determinar a variante exata de Iogurte Natural Integral Danone.",
+        {
+          code: "food_identity_clarification_required",
+          context: {
+            originalText: "meu almoço",
+            items: [provisionalLabelItem],
+          },
+        },
+      ),
+    );
+    resolveNutritionLabelPhotoEvidenceMock.mockResolvedValueOnce({
+      handled: true,
+      action: "nutrition_label_photo_unreadable",
+      reply: "A solicitação de rótulo continua aberta.",
+      eventType: "whatsapp.nutrition_label_photo.unreadable",
+      detail: "A foto não pôde ser validada.",
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-label-vision-failure") as never,
+      res as never,
+    );
+
+    expect(requestWhatsappImageMealIdentityClarificationMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages).toEqual(["A solicitação de rótulo continua aberta."]);
+  });
+
+  it("registra água no wrapper efetivo e não cria refeição", async () => {
+    processMealInputMock.mockResolvedValueOnce({
+      detectedMealLabel: "Almoço",
+      sourceText: "",
+      confidence: 0.9,
+      needsConfirmation: true,
+      reasoning: "Garrafa de água mineral identificada.",
+      items: [waterImageItem()],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    });
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-water-success") as never,
+      res as never,
+    );
+
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ amountMl: 500 }),
+    );
+    expect(recordDomainLinkMock).toHaveBeenCalledWith(
+      { conversationId: 1, messageId: 1 },
+      { waterLogId: 55 },
+    );
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages.at(-1)).toContain("Água registrada");
+  });
+
+  it("registra água mesmo quando a visão lança clarificação de identidade comercial", async () => {
+    processMealInputMock.mockRejectedValueOnce(
+      new MealInferenceError(
+        "Não consegui determinar a variante exata de Água Mineral com Gás Crystal.",
+        {
+          code: "food_identity_clarification_required",
+          context: { items: [waterImageItem()] },
+        },
+      ),
+    );
+
+    const res = createResponse();
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest("image-water-identity-failure") as never,
+      res as never,
+    );
+
+    expect(createUserWaterLogMock).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ amountMl: 500 }),
+    );
+    expect(requestWhatsappImageMealIdentityClarificationMock).not.toHaveBeenCalled();
+    expect(createPendingMealInferenceMock).not.toHaveBeenCalled();
+    expect(confirmPendingMealMock).not.toHaveBeenCalled();
+    expect(sentTextMessages.at(-1)).toContain("Água registrada");
   });
 });

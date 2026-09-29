@@ -4,6 +4,7 @@ import {
   buildSavedMedia,
   confirmPendingMeal,
   createPendingMealInference,
+  createUserWaterLog,
   getHabitSnapshots,
   getUserIdByWhatsappPhone,
   listUserMeals,
@@ -35,7 +36,10 @@ import {
   buildWhatsAppConsolidatedMealReplyMessage,
   buildWhatsAppMealReplyMessage,
   buildWhatsAppRecoverableErrorReplyMessage,
+  buildWhatsAppWaterVolumeNeededReplyMessage,
 } from "./modules/whatsapp/replyMessages";
+import { buildWhatsAppCanonicalWaterReply as formatCanonicalWaterReply } from "./modules/whatsapp/domainReplyFormatters";
+import { getWhatsAppWaterProgress } from "./modules/whatsapp/userMeasurementReplyContext";
 import {
   buildWhatsAppImageNotRecognizedReplyMessage,
   buildWhatsAppImageProcessingFailureReplyMessage,
@@ -70,6 +74,12 @@ import {
 import { calculateMealTotals } from "../shared/mealTotals";
 import { storagePut } from "./storage";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
+import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
+import {
+  isNutritionLabelPhotoRequestTarget,
+  listActiveNutritionLabelPhotoRequests,
+  resolveNutritionLabelPhotoEvidence,
+} from "./nutritionLabelCandidateService";
 import {
   beginInboundMessage,
   claimMessageForProcessingState,
@@ -111,6 +121,59 @@ const ANNOTATED_IMAGE_UNAVAILABLE_REPLY =
   "A refeição foi registrada, mas não consegui gerar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
 const ANNOTATED_IMAGE_SEND_FAILED_REPLY =
   "A refeição foi registrada, mas não consegui enviar a imagem anotada agora. Você já pode acompanhar o resumo nutricional acima.";
+
+function formatWhatsAppOccurredAt(occurredAt: Date, timeZone: string) {
+  return occurredAt.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  });
+}
+
+async function buildCanonicalWaterReply(
+  userId: number,
+  amountMl: number,
+  occurredAt: Date,
+  timeZone: string
+) {
+  const progress = await getWhatsAppWaterProgress(userId, occurredAt, timeZone);
+  return formatCanonicalWaterReply({
+    amountMl,
+    totalMl: progress.totalMl,
+    goalMl: progress.goalMl,
+    occurredAtLabel: formatWhatsAppOccurredAt(occurredAt, progress.timeZone),
+    totalLabel:
+      progress.dateKey ===
+      new Date().toLocaleDateString("en-CA", { timeZone: progress.timeZone })
+        ? "Total de hoje"
+        : `Total de ${progress.dateKey.split("-").reverse().join("/")}`,
+  });
+}
+
+async function persistImageWaterLog(input: {
+  userId: number;
+  amountMl: number;
+  occurredAt: Date;
+  lifecycleHandle: MessageLifecycleHandle;
+}) {
+  const createdWaterLog = await createUserWaterLog(input.userId, {
+    amountMl: input.amountMl,
+    occurredAt: input.occurredAt.toISOString(),
+  });
+  await recordDomainLink(input.lifecycleHandle, {
+    waterLogId: createdWaterLog.id,
+  });
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "whatsapp",
+    status: "success",
+    eventType: "whatsapp.water_logged",
+    detail: "Consumo de água identificado em imagem e registrado pelo WhatsApp.",
+  });
+}
 
 function getTextBody(message: WhatsAppWebhookMessage) {
   return message.text?.body?.trim() || message.image?.caption?.trim() || "";
@@ -235,6 +298,9 @@ async function processImageMealInputWithFallback(input: {
   intentHint?:
     | import("./modules/whatsapp/llmIntentActions").WhatsappLlmNutritionFallback["intentHint"]
     | null;
+  nutritionLabelIdentityContext?:
+    | import("./nutritionEngineTypes").NutritionLabelIdentityContext
+    | null;
   userTimezone: string;
 }): Promise<ImageMealProcessingOutcome> {
   try {
@@ -247,6 +313,7 @@ async function processImageMealInputWithFallback(input: {
           occurredAt: input.occurredAt,
           timeZone: input.userTimezone,
           intentHint: input.intentHint ?? undefined,
+          nutritionLabelIdentityContext: input.nutritionLabelIdentityContext,
         })
       ),
     };
@@ -606,16 +673,105 @@ async function tryHandleAnnotatedImageMessage(
     const occurredAt = resolveWhatsAppMessageOccurredAt(message);
     const messageKey = getExtractedWhatsAppMessageKey(message);
     const intentHint = intentHints?.get(messageKey) ?? null;
+    const activeNutritionLabelRequests = message.image?.id
+      ? await listActiveNutritionLabelPhotoRequests(userId)
+      : [];
+    const nutritionLabelIdentityContext =
+      activeNutritionLabelRequests.length === 1 &&
+      isNutritionLabelPhotoRequestTarget(
+        activeNutritionLabelRequests[0]?.target
+      )
+        ? activeNutritionLabelRequests[0].target
+        : null;
     const processingOutcome = await processImageMealInputWithFallback({
       userId,
       prepared,
       occurredAt,
       intentHint,
+      nutritionLabelIdentityContext,
       userTimezone,
     });
 
     if ("error" in processingOutcome) {
       const identityError = processingOutcome.error;
+      const inferenceContext = identityError.context;
+      const nutritionLabelResult = await resolveNutritionLabelPhotoEvidence({
+        userId,
+        item:
+          inferenceContext?.items?.find(
+            item => item.resolution?.nutritionOrigin === "nutrition_label"
+          ) ??
+          inferenceContext?.items?.[0] ??
+          null,
+        sourceText: inferenceContext?.originalText ?? prepared.text ?? null,
+        captionText: message.image?.caption ?? null,
+        sourceMessageId: message.id,
+        evidence:
+          prepared.media.find(media => media.mediaType === "image") ?? null,
+      });
+      if (nutritionLabelResult.handled) {
+        logInferenceEvent({
+          userId,
+          origin: "whatsapp",
+          status: nutritionLabelResult.action.includes("failed")
+            ? "warning"
+            : "success",
+          eventType: nutritionLabelResult.eventType,
+          detail: nutritionLabelResult.detail,
+        });
+        await sendAnnotatedImageFallbackText({
+          userId,
+          sourcePhone,
+          reply: nutritionLabelResult.reply,
+          lifecycleHandle,
+          response: res,
+          acknowledgement,
+        });
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
+
+      const errorWaterSplit = splitMealItemsForWaterHydration(
+        inferenceContext?.items ?? []
+      );
+      if (errorWaterSplit.remainingItems.length === 0) {
+        if (errorWaterSplit.waterVolumeMl > 0) {
+          await persistImageWaterLog({
+            userId,
+            amountMl: errorWaterSplit.waterVolumeMl,
+            occurredAt,
+            lifecycleHandle,
+          });
+          await sendAnnotatedImageFallbackText({
+            userId,
+            sourcePhone,
+            reply: await buildCanonicalWaterReply(
+              userId,
+              errorWaterSplit.waterVolumeMl,
+              occurredAt,
+              userTimezone
+            ),
+            lifecycleHandle,
+            response: res,
+            acknowledgement,
+          });
+          markAnnotatedImageMessageHandled(message.id);
+          return true;
+        }
+        if (errorWaterSplit.hasWaterWithoutVolume) {
+          await sendAnnotatedImageFallbackText({
+            userId,
+            sourcePhone,
+            reply: buildWhatsAppWaterVolumeNeededReplyMessage(),
+            lifecycleHandle,
+            response: res,
+            acknowledgement,
+          });
+          markAnnotatedImageMessageHandled(message.id);
+          return true;
+        }
+      }
+
       const identityContext =
         identityError.code === "food_identity_clarification_required"
           ? identityError.context
@@ -679,6 +835,107 @@ async function tryHandleAnnotatedImageMessage(
     }
 
     const processed = processingOutcome.meal;
+    const nutritionLabelResult = await resolveNutritionLabelPhotoEvidence({
+      userId,
+      item:
+        processed.items.find(
+          item => item.resolution?.nutritionOrigin === "nutrition_label"
+        ) ??
+        processed.items[0] ??
+        null,
+      sourceText: processed.sourceText ?? prepared.text ?? null,
+      captionText: message.image?.caption ?? null,
+      sourceMessageId: message.id,
+      evidence:
+        prepared.media.find(media => media.mediaType === "image") ?? null,
+    });
+    if (nutritionLabelResult.handled) {
+      logInferenceEvent({
+        userId,
+        origin: "whatsapp",
+        status: nutritionLabelResult.action.includes("failed")
+          ? "warning"
+          : "success",
+        eventType: nutritionLabelResult.eventType,
+        detail: nutritionLabelResult.detail,
+      });
+      await sendAnnotatedImageFallbackText({
+        userId,
+        sourcePhone,
+        reply: nutritionLabelResult.reply,
+        lifecycleHandle,
+        response: res,
+        acknowledgement,
+      });
+      markAnnotatedImageMessageHandled(message.id);
+      return true;
+    }
+
+    const waterSplit = splitMealItemsForWaterHydration(processed.items);
+    let waterReplyPrefix = "";
+    const detectedWater =
+      waterSplit.waterVolumeMl > 0 || waterSplit.hasWaterWithoutVolume;
+    if (detectedWater) {
+      if (waterSplit.waterVolumeMl > 0) {
+        await persistImageWaterLog({
+          userId,
+          amountMl: waterSplit.waterVolumeMl,
+          occurredAt,
+          lifecycleHandle,
+        });
+        if (waterSplit.remainingItems.length > 0) {
+          waterReplyPrefix = `${await buildCanonicalWaterReply(
+            userId,
+            waterSplit.waterVolumeMl,
+            occurredAt,
+            userTimezone
+          )}\n\n`;
+        }
+      }
+      processed.items = normalizeWhatsappImageMealItemsForPersistence(
+        waterSplit.remainingItems
+      );
+      processed.totals = calculateMealTotals(processed.items);
+      processed.semanticContract = buildMealSemanticContract({
+        processingInput: {
+          text: processed.sourceText,
+          imageUrl: processed.imageUrl,
+          occurredAt,
+          timeZone: userTimezone,
+        },
+        sourceText: processed.sourceText,
+        items: processed.items,
+      });
+      if (!waterSplit.remainingItems.length) {
+        if (waterSplit.waterVolumeMl > 0) {
+          await sendAnnotatedImageFallbackText({
+            userId,
+            sourcePhone,
+            reply: await buildCanonicalWaterReply(
+              userId,
+              waterSplit.waterVolumeMl,
+              occurredAt,
+              userTimezone
+            ),
+            lifecycleHandle,
+            response: res,
+            acknowledgement,
+          });
+        } else {
+          await sendAnnotatedImageFallbackText({
+            userId,
+            sourcePhone,
+            reply: buildWhatsAppWaterVolumeNeededReplyMessage(),
+            lifecycleHandle,
+            response: res,
+            acknowledgement,
+          });
+        }
+        markAnnotatedImageMessageHandled(message.id);
+        return true;
+      }
+    }
+
     processed.items = normalizeWhatsappImageMealItemsForPersistence(processed.items);
     const imagePersistence = inspectWhatsappImageMealItemsPersistence(processed.items);
     if (imagePersistence.status === "missing_identity") {
@@ -822,7 +1079,7 @@ async function tryHandleAnnotatedImageMessage(
       occurredAt,
       userTimezone
     );
-    const mealReplyText =
+    const mealReplyBody =
       consolidationResult.action === "updated"
         ? buildWhatsAppConsolidatedMealReplyMessage(replyMeal, {
             registeredAt: occurredAt,
@@ -834,6 +1091,7 @@ async function tryHandleAnnotatedImageMessage(
             goalProgress,
             timeZone: userTimezone,
           });
+    const mealReplyText = `${waterReplyPrefix}${mealReplyBody}`;
     const auxiliaryImage: WhatsAppAuxiliaryImage | null = annotatedImage.url
       ? {
           url: annotatedImage.url,
