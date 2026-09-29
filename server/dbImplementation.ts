@@ -719,66 +719,54 @@ async function persistMealToDb(meal: SavedMeal) {
   const db = await getDb();
   if (!db) return;
 
-  try {
-    const resolvedCatalogIds = meal.items.length
-      ? await resolveFoodCatalogIds(meal.items, meal.userId)
-      : new Map<string, number>();
+  const resolvedCatalogIds = meal.items.length
+    ? await resolveFoodCatalogIds(meal.items, meal.userId)
+    : new Map<string, number>();
 
-    const insertedMealId = await mealsRepository.persistMeal({
-      meal: {
-        userId: meal.userId,
-        source: meal.source,
-        mealLabel: meal.mealLabel,
-        notes: meal.notes,
-        sourceText: meal.sourceText,
-        transcript: meal.transcript,
-        confidence: meal.confidence,
-        occurredAt: meal.occurredAt,
-      },
-      items: meal.items,
-      media: meal.media,
-      resolvedCatalogIds,
-    });
+  const insertedMealId = await mealsRepository.persistMeal({
+    meal: {
+      userId: meal.userId,
+      source: meal.source,
+      mealLabel: meal.mealLabel,
+      notes: meal.notes,
+      sourceText: meal.sourceText,
+      transcript: meal.transcript,
+      confidence: meal.confidence,
+      occurredAt: meal.occurredAt,
+    },
+    items: meal.items,
+    media: meal.media,
+    resolvedCatalogIds,
+  });
 
-    meal.id = insertedMealId || meal.id;
-  } catch (error) {
-    logPersistenceWarning("Meal persistence skipped", error);
-  }
+  meal.id = insertedMealId || meal.id;
 }
 
 async function updateMealInDb(meal: SavedMeal) {
   const db = await getDb();
   if (!db) return;
 
-  try {
-    const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items, meal.userId) : new Map<string, number>();
+  const resolvedCatalogIds = meal.items.length ? await resolveFoodCatalogIds(meal.items, meal.userId) : new Map<string, number>();
 
-    await mealsRepository.persistMealUpdate({
-      meal: {
-        id: meal.id,
-        userId: meal.userId,
-        mealLabel: meal.mealLabel,
-        notes: meal.notes,
-        confidence: meal.confidence,
-        occurredAt: meal.occurredAt,
-      },
-      items: meal.items,
-      resolvedCatalogIds,
-    });
-  } catch (error) {
-    logPersistenceWarning("Meal update skipped", error);
-  }
+  await mealsRepository.persistMealUpdate({
+    meal: {
+      id: meal.id,
+      userId: meal.userId,
+      mealLabel: meal.mealLabel,
+      notes: meal.notes,
+      confidence: meal.confidence,
+      occurredAt: meal.occurredAt,
+    },
+    items: meal.items,
+    resolvedCatalogIds,
+  });
 }
 
 async function deleteMealFromDb(userId: number, mealId: number) {
   const db = await getDb();
   if (!db) return;
 
-  try {
-    await mealsRepository.deleteMeal(userId, mealId);
-  } catch (error) {
-    logPersistenceWarning("Meal deletion skipped", error);
-  }
+  await mealsRepository.deleteMeal(userId, mealId);
 }
 
 async function persistHabitsToDb(userId: number, habits: HabitMemoryState[]) {
@@ -1072,9 +1060,9 @@ export async function confirmPendingMeal(input: {
   };
 
   const mealsForUser = (await loadMealsFromDb(input.userId)) ?? mealStore.get(input.userId) ?? [];
+  await persistMealToDb(savedMeal);
   mealStore.set(input.userId, [savedMeal, ...mealsForUser.filter(meal => meal.id !== savedMeal.id)]);
   inferenceStore.delete(input.draftId);
-  await persistMealToDb(savedMeal);
   await updateHabitsFromMeal(savedMeal);
 
   try {
@@ -1208,8 +1196,8 @@ export async function createUserManualMeal(input: {
   };
 
   const current = await listUserMeals(input.userId);
-  mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
   await persistMealToDb(savedMeal);
+  mealStore.set(input.userId, [savedMeal, ...current.filter(meal => meal.id !== savedMeal.id)]);
   await updateHabitsFromMeal(savedMeal);
   logInferenceEvent({
     userId: input.userId,
@@ -1374,11 +1362,11 @@ export async function updateUserMeal(input: {
     items: input.items,
   };
 
+  await updateMealInDb(updatedMeal);
   mealStore.set(
     input.userId,
     current.map(meal => (meal.id === input.mealId ? updatedMeal : meal)).sort((a, b) => b.occurredAt - a.occurredAt),
   );
-  await updateMealInDb(updatedMeal);
   if (options.updateHabits !== false) {
     await updateHabitsFromMeal(updatedMeal);
   }
@@ -1394,30 +1382,102 @@ export async function updateUserMeal(input: {
   return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
 }
 
+export async function updateUserMealItem(input: {
+  userId: number;
+  sourceMeal: SavedMeal;
+  itemIndex: number;
+  updatedItem: MealDraftItem;
+  mealLabel: string;
+  occurredAt: string;
+}) {
+  const db = await getDb();
+  if (!db) {
+    return updateUserMeal({
+      userId: input.userId,
+      mealId: input.sourceMeal.id,
+      mealLabel: input.mealLabel,
+      occurredAt: input.occurredAt,
+      notes: input.sourceMeal.notes,
+      items: input.sourceMeal.items.map((item, index) => index === input.itemIndex ? input.updatedItem : item),
+    });
+  }
+
+  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId);
+  await mealsRepository.updateMealItem({
+    userId: input.userId,
+    meal: input.sourceMeal,
+    itemIndex: input.itemIndex,
+    updatedItem: input.updatedItem,
+    mealLabel: input.mealLabel,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    resolvedCatalogIds,
+  });
+
+  const updatedMeal: SavedMeal = {
+    ...input.sourceMeal,
+    mealLabel: input.mealLabel,
+    occurredAt: new Date(input.occurredAt).getTime(),
+    items: input.sourceMeal.items.map((item, index) => index === input.itemIndex ? input.updatedItem : item),
+  };
+  const current = await listUserMeals(input.userId);
+  mealStore.set(
+    input.userId,
+    current.map(meal => meal.id === updatedMeal.id ? updatedMeal : meal).sort((a, b) => b.occurredAt - a.occurredAt),
+  );
+  await rebuildUserMealHabits(input.userId);
+  logInferenceEvent({
+    userId: input.userId,
+    origin: "web",
+    status: "success",
+    eventType: "meal.manual_updated",
+    detail: `Item da refeição ${updatedMeal.mealLabel} atualizado manualmente pelo usuário.`,
+  });
+  return { ...updatedMeal, totals: sumMealItems(updatedMeal.items) };
+}
+
 export async function moveUserMealItem(input: {
   userId: number;
   sourceMeal: SavedMeal;
+  itemIndex: number;
+  updatedItem: MealDraftItem;
   targetMealLabel: string;
   occurredAt: string;
-  remainingItems: MealDraftItem[];
-  targetItems: MealDraftItem[];
 }) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const remainingItems = input.sourceMeal.items.filter((_, index) => index !== input.itemIndex);
+    const movedMeal = await createUserManualMeal({
+      userId: input.userId,
+      mealLabel: input.targetMealLabel,
+      occurredAt: input.occurredAt,
+      items: [input.updatedItem],
+    });
+    try {
+      const updatedSourceMeal = await updateUserMeal({
+        userId: input.userId,
+        mealId: input.sourceMeal.id,
+        mealLabel: input.sourceMeal.mealLabel,
+        occurredAt: new Date(input.sourceMeal.occurredAt).toISOString(),
+        notes: input.sourceMeal.notes,
+        items: remainingItems,
+      });
+      return { meal: movedMeal, sourceMeal: updatedSourceMeal };
+    } catch (error) {
+      await removeUserMeal(input.userId, movedMeal.id).catch(() => undefined);
+      throw error;
+    }
+  }
 
-  const allItems = [...input.remainingItems, ...input.targetItems];
-  const resolvedCatalogIds = allItems.length
-    ? await resolveFoodCatalogIds(allItems, input.userId)
-    : new Map<string, number>();
+  const resolvedCatalogIds = await resolveFoodCatalogIds([input.updatedItem], input.userId);
   const targetOccurredAt = new Date(input.occurredAt).getTime();
   const result = await mealsRepository.moveMealItem({
     userId: input.userId,
     sourceMeal: input.sourceMeal,
-    remainingItems: input.remainingItems,
+    itemIndex: input.itemIndex,
+    updatedItem: input.updatedItem,
     targetMeal: {
       mealLabel: input.targetMealLabel,
       occurredAt: targetOccurredAt,
-      items: input.targetItems,
     },
     resolvedCatalogIds,
   });
@@ -1425,31 +1485,26 @@ export async function moveUserMealItem(input: {
   if (!result) return null;
 
   const currentMeals = await listUserMeals(input.userId);
-  const updatedSourceMeal: SavedMeal = {
-    ...input.sourceMeal,
-    items: input.remainingItems,
-  };
-  const movedMeal: SavedMeal = {
+  const movedMeal = currentMeals.find(meal => meal.id === result.targetMealId) ?? {
     id: result.targetMealId,
     userId: input.userId,
-    source: "web",
+    source: "web" as const,
     mealLabel: input.targetMealLabel,
-    status: "confirmed",
+    status: "confirmed" as const,
     occurredAt: targetOccurredAt,
     sourceText: "Registro manual",
     confidence: 1,
-    items: input.targetItems,
+    items: [input.updatedItem],
     media: [],
     createdAt: Date.now(),
   };
+  const updatedSourceMeal = currentMeals.find(meal => meal.id === input.sourceMeal.id) ?? {
+    ...input.sourceMeal,
+    items: input.sourceMeal.items.filter((_, index) => index !== input.itemIndex),
+  };
 
-  mealStore.set(
-    input.userId,
-    [movedMeal, ...currentMeals.filter(meal => meal.id !== input.sourceMeal.id && meal.id !== movedMeal.id), updatedSourceMeal]
-      .sort((a, b) => b.occurredAt - a.occurredAt),
-  );
-  await updateHabitsFromMeal(movedMeal);
-  await updateHabitsFromMeal(updatedSourceMeal);
+  mealStore.set(input.userId, currentMeals);
+  await rebuildUserMealHabits(input.userId);
 
   return {
     meal: { ...movedMeal, totals: sumMealItems(movedMeal.items) },
@@ -1510,8 +1565,8 @@ export async function removeUserMeal(userId: number, mealId: number) {
     throw new Error("Refeição não encontrada.");
   }
 
-  mealStore.set(userId, current.filter(meal => meal.id !== mealId));
   await deleteMealFromDb(userId, mealId);
+  mealStore.set(userId, current.filter(meal => meal.id !== mealId));
   logInferenceEvent({
     userId,
     origin: "web",

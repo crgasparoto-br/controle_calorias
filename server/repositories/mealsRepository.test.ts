@@ -34,14 +34,25 @@ function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supp
   function buildClient(operations: DbOperation[]) {
     return {
       select: vi.fn(() => ({
-        from: vi.fn((table: unknown) => ({
-          where: vi.fn(() => ({
+        from: vi.fn((table: unknown) => {
+          const chain: any = {
+            where: vi.fn(() => chain),
+            orderBy: vi.fn(() => chain),
+            for: vi.fn(() => chain),
             limit: vi.fn(async () => {
-              operations.push({ op: "select.limit", table });
-              return ownsMeal ? [{ id: 7 }] : [];
+              operations.push({ op: table === mealItems ? "select.items" : "select.limit", table });
+              if (!ownsMeal) return [];
+              if (table === mealItems) {
+                return [
+                  { id: 21, mealId: 7, ...chickenItem },
+                  { id: 22, mealId: 7, ...siblingItem },
+                ];
+              }
+              return [{ id: 7, userId: 1 }];
             }),
-          })),
-        })),
+          };
+          return chain;
+        }),
       })),
       insert: vi.fn((table: unknown) => {
         const chain = createMutationChain("insert", table, operations, options.insertResponse);
@@ -53,7 +64,16 @@ function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supp
         }
         return chain;
       }),
-      update: vi.fn((table: unknown) => createMutationChain("update", table, operations, undefined)),
+      update: vi.fn((table: unknown) => {
+        const chain = createMutationChain("update", table, operations, undefined);
+        if (options.failOn === "update-item" && table === mealItems) {
+          chain.where = vi.fn(() => {
+            operations.push({ op: "update.where", table });
+            throw new Error("item update failed");
+          });
+        }
+        return chain;
+      }),
       delete: vi.fn((table: unknown) => {
         const chain = createMutationChain("delete", table, operations);
         if (options.failOn === "delete" && table === mealItems) {
@@ -106,6 +126,18 @@ const chickenItem = {
   fat: 10,
   confidence: 0.9,
   source: "text" as const,
+};
+const siblingItem = {
+  ...chickenItem,
+  foodName: "Arroz",
+  canonicalName: "arroz",
+  portionText: "1 prato",
+  unit: "prato",
+  estimatedGrams: 150,
+  calories: 200,
+  protein: 4,
+  carbs: 44,
+  fat: 0.4,
 };
 
 describe("createDrizzleMealsRepository persistMeal", () => {
@@ -296,10 +328,61 @@ describe("createDrizzleMealsRepository moveMealItem", () => {
     occurredAt: Date.parse("2026-05-21T12:00:00.000Z"),
     sourceText: "arroz e frango",
     confidence: 1,
-    items: [chickenItem],
+    items: [chickenItem, siblingItem],
     media: [],
     createdAt: Date.parse("2026-05-21T11:00:00.000Z"),
   };
+
+  it("edita somente a linha selecionada e preserva irmãos sem delete/reinsert", async () => {
+    const db = createFakeDb({ supportsTransaction: true });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await repository.updateMealItem({
+      userId: 1,
+      meal: sourceMeal,
+      itemIndex: 0,
+      updatedItem: { ...chickenItem, portionText: "2 filés" },
+      mealLabel: "Almoço",
+      occurredAt: sourceMeal.occurredAt,
+      resolvedCatalogIds: new Map(),
+    });
+
+    expect(db.committedOperations.some((operation: DbOperation) => operation.op === "delete.where")).toBe(false);
+    expect(db.committedOperations.filter((operation: DbOperation) => operation.op === "update.set" && operation.table === mealItems)).toHaveLength(1);
+  });
+
+  it("rejeita snapshot stale antes de criar destino ou alterar qualquer linha", async () => {
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, supportsTransaction: true });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await expect(repository.moveMealItem({
+      userId: 1,
+      sourceMeal: { ...sourceMeal, items: [chickenItem, { ...siblingItem, portionText: "alterado em outra sessão" }] },
+      itemIndex: 0,
+      updatedItem: chickenItem,
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt },
+      resolvedCatalogIds: new Map(),
+    })).rejects.toThrow("A refeição foi alterada antes do salvamento");
+
+    expect(db.committedOperations).toEqual([]);
+  });
+
+  it("descarta metadata e destino quando a atualização da linha selecionada falha", async () => {
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, failOn: "update-item", supportsTransaction: true });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await expect(repository.updateMealItem({
+      userId: 1,
+      meal: sourceMeal,
+      itemIndex: 0,
+      updatedItem: chickenItem,
+      mealLabel: "Almoço",
+      occurredAt: sourceMeal.occurredAt,
+      resolvedCatalogIds: new Map(),
+    })).rejects.toThrow("item update failed");
+
+    expect(db.committedOperations).toEqual([]);
+  });
 
   it("confirma destino e origem na mesma transação", async () => {
     const db = createFakeDb({ insertResponse: { insertId: 42 }, supportsTransaction: true });
@@ -308,37 +391,32 @@ describe("createDrizzleMealsRepository moveMealItem", () => {
     const result = await repository.moveMealItem({
       userId: 1,
       sourceMeal,
-      remainingItems: [],
-      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt, items: [chickenItem] },
+      itemIndex: 0,
+      updatedItem: { ...chickenItem, portionText: "2 filés" },
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt },
       resolvedCatalogIds: new Map(),
     });
 
     expect(result).toEqual({ targetMealId: 42 });
-    expect(db.committedOperations.map((operation: DbOperation) => operation.op)).toEqual([
-      "select.limit",
-      "insert.values",
-      "insert.values",
-      "update.set",
-      "update.where",
-      "update.set",
-      "update.where",
-      "delete.where",
-      "update.set",
-      "update.where",
-    ]);
+    expect(db.committedOperations.some((operation: DbOperation) => operation.op === "delete.where" && operation.table === mealItems)).toBe(false);
+    const itemUpdates = db.committedOperations.filter((operation: DbOperation) => operation.op === "update.set" && operation.table === mealItems);
+    expect(itemUpdates).toHaveLength(1);
+    expect(itemUpdates[0]?.payload).toMatchObject({ mealId: 42, portionText: "2 filés" });
+    expect(db.committedOperations.some((operation: DbOperation) => operation.payload && JSON.stringify(operation.payload).includes("Arroz"))).toBe(false);
   });
 
   it("descarta destino quando a atualização da origem falha", async () => {
-    const db = createFakeDb({ insertResponse: { insertId: 42 }, failOn: "delete", supportsTransaction: true });
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, failOn: "update-item", supportsTransaction: true });
     const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
 
     await expect(repository.moveMealItem({
       userId: 1,
       sourceMeal,
-      remainingItems: [],
-      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt, items: [chickenItem] },
+      itemIndex: 0,
+      updatedItem: chickenItem,
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt },
       resolvedCatalogIds: new Map(),
-    })).rejects.toThrow("delete failed");
+    })).rejects.toThrow("item update failed");
 
     expect(db.committedOperations).toEqual([]);
   });

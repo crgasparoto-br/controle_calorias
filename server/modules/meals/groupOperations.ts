@@ -9,7 +9,7 @@ import type {
   UpdateMealGroupInput,
   UpdateMealItemInput,
 } from "./schemas";
-import { createManualMeal, listMeals, moveMealItem, removeMeal, updateMeal } from "./service";
+import { createManualMeal, listMeals, moveMealItem, removeMeal, updateMeal, updateMealItem as updateMealItemService } from "./service";
 
 type MealForGroupOperation = Awaited<ReturnType<typeof listMeals>>[number];
 
@@ -60,12 +60,12 @@ export async function updateMealItem(userId: number, input: UpdateMealItemInput)
   const occurredAt = new Date(sourceMeal.occurredAt).toISOString();
 
   if (sourceMeal.items.length === 1 || sourceMealLabel === targetMealLabel) {
-    const meal = await updateMeal(userId, {
-      mealId: sourceMeal.id,
-      mealLabel: targetMealLabel,
+    const meal = await updateMealItemService(userId, {
+      sourceMeal,
+      itemIndex: input.itemIndex,
+      targetMealLabel,
       occurredAt,
-      notes: sourceMeal.notes,
-      items: sourceMeal.items.map((item, index) => index === input.itemIndex ? updatedItem : item),
+      item: updatedItem,
     });
 
     return {
@@ -75,12 +75,11 @@ export async function updateMealItem(userId: number, input: UpdateMealItemInput)
     };
   }
 
-  const remainingItems = sourceMeal.items.filter((_, index) => index !== input.itemIndex);
   const result = await moveMealItem(userId, {
     sourceMeal,
+    itemIndex: input.itemIndex,
     targetMealLabel,
     occurredAt,
-    remainingItems,
     item: updatedItem,
   });
 
