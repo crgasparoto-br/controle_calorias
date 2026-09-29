@@ -218,6 +218,25 @@ function assertMealItemSnapshot(currentItems: any[], expectedItems: MealDraftIte
   });
 }
 
+function samePersistedMealMetadata(row: any, expected: SavedMealRecord) {
+  const occurredAt = new Date(row.occurredAt).getTime();
+  return Number(row.id) === expected.id
+    && Number(row.userId) === expected.userId
+    && String(row.source ?? "") === expected.source
+    && String(row.status ?? "") === expected.status
+    && String(row.mealLabel ?? "") === expected.mealLabel
+    && String(row.notes ?? "") === String(expected.notes ?? "")
+    && Number.isFinite(occurredAt)
+    && occurredAt === expected.occurredAt
+    && Math.abs(Number(row.confidence) - expected.confidence) < 1e-9;
+}
+
+function assertMealMetadataSnapshot(currentMeal: any, expectedMeal: SavedMealRecord) {
+  if (!samePersistedMealMetadata(currentMeal, expectedMeal)) {
+    throw new Error("A refeição foi alterada antes do salvamento. Recarregue os dados e tente novamente.");
+  }
+}
+
 function buildMealItemUpdate(item: MealDraftItem, resolvedCatalogIds: Map<string, number>) {
   const values = { ...buildMealItemValues(0, [item], resolvedCatalogIds)[0] } as Record<string, unknown>;
   const enriched = item as MealDraftItem & {
@@ -521,6 +540,7 @@ export function createDrizzleMealsRepository(deps: {
       await db.transaction(async (tx: any) => {
         const locked = await lockMealAndItems(tx, userId, meal.id);
         if (!locked) throw new Error("Refeição não encontrada.");
+        assertMealMetadataSnapshot(locked.meal, meal);
         assertMealItemSnapshot(locked.items, meal.items);
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");
@@ -549,6 +569,7 @@ export function createDrizzleMealsRepository(deps: {
       const targetMealId = await db.transaction(async (tx: any) => {
         const locked = await lockMealAndItems(tx, userId, sourceMeal.id);
         if (!locked) throw new Error("Refeição não encontrada.");
+        assertMealMetadataSnapshot(locked.meal, sourceMeal);
         assertMealItemSnapshot(locked.items, sourceMeal.items);
         if (itemIndex < 0 || itemIndex >= locked.items.length) {
           throw new Error("Alimento não encontrado na refeição.");

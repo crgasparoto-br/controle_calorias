@@ -27,7 +27,13 @@ function createMutationChain(op: string, table: unknown, operations: DbOperation
   return chain;
 }
 
-function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supportsTransaction?: boolean; ownsMeal?: boolean } = {}) {
+function createFakeDb(options: {
+  insertResponse?: unknown;
+  failOn?: string;
+  supportsTransaction?: boolean;
+  ownsMeal?: boolean;
+  mealMetadata?: Record<string, unknown>;
+} = {}) {
   const committedOperations: DbOperation[] = [];
   const ownsMeal = options.ownsMeal ?? true;
 
@@ -48,7 +54,17 @@ function createFakeDb(options: { insertResponse?: unknown; failOn?: string; supp
                   { id: 22, mealId: 7, ...siblingItem },
                 ];
               }
-              return [{ id: 7, userId: 1 }];
+              return [{
+                id: 7,
+                userId: 1,
+                source: "web",
+                status: "confirmed",
+                mealLabel: "Almoço",
+                notes: null,
+                confidence: 1,
+                occurredAt: Date.parse("2026-05-21T12:00:00.000Z"),
+                ...options.mealMetadata,
+              }];
             }),
           };
           return chain;
@@ -358,6 +374,25 @@ describe("createDrizzleMealsRepository moveMealItem", () => {
     await expect(repository.moveMealItem({
       userId: 1,
       sourceMeal: { ...sourceMeal, items: [chickenItem, { ...siblingItem, portionText: "alterado em outra sessão" }] },
+      itemIndex: 0,
+      updatedItem: chickenItem,
+      targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt },
+      resolvedCatalogIds: new Map(),
+    })).rejects.toThrow("A refeição foi alterada antes do salvamento");
+
+    expect(db.committedOperations).toEqual([]);
+  });
+
+  it.each([
+    ["rótulo", { mealLabel: "Jantar" }],
+    ["data", { occurredAt: Date.parse("2026-05-21T13:00:00.000Z") }],
+  ])("rejeita alteração concorrente de metadata (%s) antes de criar destino", async (_dimension, mealMetadata) => {
+    const db = createFakeDb({ insertResponse: { insertId: 42 }, supportsTransaction: true, mealMetadata });
+    const repository = createDrizzleMealsRepository({ getDb: async () => db, onWarning: warning });
+
+    await expect(repository.moveMealItem({
+      userId: 1,
+      sourceMeal,
       itemIndex: 0,
       updatedItem: chickenItem,
       targetMeal: { mealLabel: "Jantar", occurredAt: sourceMeal.occurredAt },
