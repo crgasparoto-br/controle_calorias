@@ -2,16 +2,16 @@
   "schema_version": 1,
   "classification": "implementation-only",
   "source_event": {
-    "kind": "independent-audit-rejection",
-    "rejection_id": "audit-rejection:pr-1233-bfe1ccffa437-handoff-not-produced",
-    "audit_report_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:pr-1238-a004-stale-handoff",
+    "audit_report_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
     "finding_ids": [
-      "A-001"
+      "A-004"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection exposed a delivery-specific inherited artifact; the current cycle closes it by rebuilding the target-bound certificate and does not change a product-wide rule."
+    "reason": "The finding concerned delivery evidence packaging, not product behavior."
   },
   "skill_changes": []
 }

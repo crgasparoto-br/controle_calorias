@@ -1,39 +1,44 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-28T17:56:56.341757+00:00",
+  "created_at": "2026-09-29T05:41:30.145106+00:00",
   "identity": {
-    "head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-    "material_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
-    "base_sha": "05c019abb8d926648934ccb6c2c79d88978931e0",
-    "merge_preview_sha": "96659493ae7952995ed42dbc0c9e309534398c36",
-    "material_merge_preview_sha": "96659493ae7952995ed42dbc0c9e309534398c36"
+    "head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+    "material_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
+    "base_sha": "23ea0edee283cf02ae62f45269c1d522213fdf1c",
+    "merge_preview_sha": null,
+    "material_merge_preview_sha": null
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
-    "issue_number": 1047,
-    "pull_request_number": 1233,
+    "issue_number": 1237,
+    "pull_request_number": 1238,
     "work_item_kind": "pr",
-    "work_item_number": 1233,
-    "pull_request": 1233,
+    "work_item_number": 1238,
+    "pull_request": 1238,
     "base_ref": "develop",
-    "head_ref": "fix/egg-unit-and-natural-fruit-identity"
+    "head_ref": "fix/1237-move-meal-item"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "05c019abb8d926648934ccb6c2c79d88978931e0",
-    "material_head_sha": "bfe1ccffa43712d3816141cbe6a4e4369e31c2a3",
+    "work_item_start_sha": "23ea0edee283cf02ae62f45269c1d522213fdf1c",
+    "material_head_sha": "599c7b0dffe46880d0b308716e2a7e433f9439b7",
     "issue_changed_paths": [
-      "docs/design-docs/nutrition-engine.md",
-      "docs/product-specs/whatsapp-flow.md",
-      "server/countableFoodQuantity.issue1097.test.ts",
-      "server/countableFoodQuantity.issue997.test.ts",
-      "server/countableFoodQuantity.ts",
-      "server/modules/whatsapp/testFixtures/countableFoodRegistrationParityCases.ts",
-      "server/nutritionEngine.issue1194.test.ts",
-      "server/nutritionEngine.ts"
+      "client/src/features/meals/components/RegisteredMealGroups.test.tsx",
+      "client/src/features/meals/components/RegisteredMealGroups.tsx",
+      "client/src/pages/nutritionPages.test.tsx",
+      "docs/generated/trpc-routes.md",
+      "docs/product-specs/meal-registration.md",
+      "server/dbImplementation.ts",
+      "server/modules/meals/groupOperations.test.ts",
+      "server/modules/meals/groupOperations.ts",
+      "server/modules/meals/schemas.ts",
+      "server/modules/meals/service.ts",
+      "server/nutritionRouter.ts",
+      "server/repositories/mealsRepository.test.ts",
+      "server/repositories/mealsRepository.ts"
     ],
-    "issue_delta_sha256": "d9b6ac3379acfc7df0bfec60c9026d7bab7e2c5136c8065aa34df866f7d9b57e"
+    "issue_delta_sha256": "672576b9a7d040a1c86270ffaa1d95f152f7a36c5e34be5fd5cd727f45d55812"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -81,9 +86,9 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "67dd13777f9d3731002103304b2f296b6acbe289be5936b3541cae64e3393104",
-      "logical_sha256": "67dd13777f9d3731002103304b2f296b6acbe289be5936b3541cae64e3393104",
-      "logical_size": 578,
+      "sha256": "26a6b4af01cc78a1a85a475391d47d877c5759f716adce496b3ab54ec8a6a9ff",
+      "logical_sha256": "26a6b4af01cc78a1a85a475391d47d877c5759f716adce496b3ab54ec8a6a9ff",
+      "logical_size": 555,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -91,9 +96,9 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "1c95dbb9ebe5b75319023736decb871c4fd1d01ebe5e1e40a13a0ef266777d5a",
-      "logical_sha256": "1c95dbb9ebe5b75319023736decb871c4fd1d01ebe5e1e40a13a0ef266777d5a",
-      "logical_size": 12052,
+      "sha256": "7ddc10e20e63e46871805103a791269b09700e28a54cf6642248dea90d62454b",
+      "logical_sha256": "7ddc10e20e63e46871805103a791269b09700e28a54cf6642248dea90d62454b",
+      "logical_size": 40796,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -101,9 +106,9 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "83fdbd347aa724c17c0db28d0f57fe71202d9522722e4c1df4ccb21d887cf95a",
-      "logical_sha256": "83fdbd347aa724c17c0db28d0f57fe71202d9522722e4c1df4ccb21d887cf95a",
-      "logical_size": 32652,
+      "sha256": "481d50d2c75c5e78e746f91f6d340d16f802090bf84470ec81798985087aba16",
+      "logical_sha256": "481d50d2c75c5e78e746f91f6d340d16f802090bf84470ec81798985087aba16",
+      "logical_size": 208239,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -111,9 +116,9 @@
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "162bfd291c5d50f9344c8e3e7c529531819b7d2c21710dafcdedcb0f7d790d4b",
-      "logical_sha256": "162bfd291c5d50f9344c8e3e7c529531819b7d2c21710dafcdedcb0f7d790d4b",
-      "logical_size": 3986,
+      "sha256": "bc3f6e47044cf66a6900a6c3f00358215bfc803d9275396db3d34fc418294704",
+      "logical_sha256": "bc3f6e47044cf66a6900a6c3f00358215bfc803d9275396db3d34fc418294704",
+      "logical_size": 8584,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -121,9 +126,9 @@
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "0b5591e525a15bd81ec0781049c840fa98a53c61a70889f2a78112472fcd4c6e",
-      "logical_sha256": "0b5591e525a15bd81ec0781049c840fa98a53c61a70889f2a78112472fcd4c6e",
-      "logical_size": 1201,
+      "sha256": "4c8040601bcf6f3c23eb931cbe2cacaee322e9fbb99d372a6274e57df1c789cd",
+      "logical_sha256": "4c8040601bcf6f3c23eb931cbe2cacaee322e9fbb99d372a6274e57df1c789cd",
+      "logical_size": 2690,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -131,9 +136,9 @@
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "22c5a06d29bd071979d20143c56fd832251eba9f1eac77e97d757749e1ffbe47",
-      "logical_sha256": "22c5a06d29bd071979d20143c56fd832251eba9f1eac77e97d757749e1ffbe47",
-      "logical_size": 1442,
+      "sha256": "b66d0bd639fcafae0bedf8e77ea08c437836687c1d1a16f5344ad4dbd95de390",
+      "logical_sha256": "b66d0bd639fcafae0bedf8e77ea08c437836687c1d1a16f5344ad4dbd95de390",
+      "logical_size": 169,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -141,9 +146,9 @@
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "61f4d2462881626ca2c31558dbd03824a431e875e3e3ec1d08dfb36a2805b71a",
-      "logical_sha256": "61f4d2462881626ca2c31558dbd03824a431e875e3e3ec1d08dfb36a2805b71a",
-      "logical_size": 2364,
+      "sha256": "7583f6aa05f85de8067c7bf294d3c170097a7f5cb91b99e34b4e38ae7e589896",
+      "logical_sha256": "7583f6aa05f85de8067c7bf294d3c170097a7f5cb91b99e34b4e38ae7e589896",
+      "logical_size": 4530,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -151,9 +156,9 @@
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "397fad36a370891e33a64e1f3546567b078fb2a8d2e5a9b79785c33cca1ceb8c",
-      "logical_sha256": "397fad36a370891e33a64e1f3546567b078fb2a8d2e5a9b79785c33cca1ceb8c",
-      "logical_size": 640,
+      "sha256": "6b47e400e02afc3f13b7ea261910cb2ba632afd7cdcc33c2c9bbc5958146f1f6",
+      "logical_sha256": "6b47e400e02afc3f13b7ea261910cb2ba632afd7cdcc33c2c9bbc5958146f1f6",
+      "logical_size": 518,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -161,9 +166,9 @@
     },
     "audit_remediation": {
       "name": "audit-remediation.json",
-      "sha256": "4aee41f92731abbf19bc2d0b4d80f30abe955dd4471e70d57c641d028c75b712",
-      "logical_sha256": "4aee41f92731abbf19bc2d0b4d80f30abe955dd4471e70d57c641d028c75b712",
-      "logical_size": 1017,
+      "sha256": "eead6d5d32478b05034cadd87e651681d4627564d48b22c27842fb0de3296b2d",
+      "logical_sha256": "eead6d5d32478b05034cadd87e651681d4627564d48b22c27842fb0de3296b2d",
+      "logical_size": 980,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -171,9 +176,9 @@
     },
     "audit_source_result": {
       "name": "audit-source-result.json",
-      "sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
-      "logical_sha256": "06ef8b0c5d0be66b11e1f80af2d31e9fa05e493c4fe0dbbd1c66a3d4c7980a42",
-      "logical_size": 1049,
+      "sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
+      "logical_sha256": "a0cc0a111cff3fc565bebf355901a23571bbc0f93b59fc579ccb1f47189a343f",
+      "logical_size": 1052,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
