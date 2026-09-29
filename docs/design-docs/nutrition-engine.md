@@ -248,3 +248,12 @@ Histórico de mensagens, feedback, review queue, candidatos e relatórios de mé
 Candidatos globais continuam com `directGlobalPromotionAllowed: false`. Quando o sinal é marcado para promoção governada, o candidato registra contagem de usuários distintos, conflito material, replay/reprocessing, cobertura positiva/negativa e casos aplicáveis, além dos resultados recebidos dos quality gates e da promoção gradual canônicos. Sem esses resultados, ou com qualquer bloqueio, o candidato permanece em revisão. Repetições do mesmo usuário aumentam frequência, mas nunca substituem evidência de dois usuários distintos.
 
 A tabela é criada pela migração `0051_whatsapp_learning_artifacts`. O fallback em memória só é permitido em teste/desenvolvimento; em produção, indisponibilidade de persistência não é reportada como aprendizado bem-sucedido. A escrita de memória é auxiliar à refeição: uma falha de aprendizado não desfaz uma refeição já registrada, mas gera o estado de falha operacional para impedir uma falsa confirmação.
+
+
+## Proveniência de mídia por item de refeição (#1251)
+
+`mealMedia` continua representando mídias pertencentes à refeição como um todo. A presença de uma imagem nessa coleção, isoladamente, não significa que todos os `mealItems` tenham sido originados por ela.
+
+A associação canônica de origem fotográfica é o campo opcional `mealItems.sourceMediaStorageKey`. Para novas inclusões derivadas de foto, o produtor do fluxo grava explicitamente a chave da mídia original no item. Vários itens podem compartilhar a mesma chave. O frontend resolve a miniatura somente quando essa chave encontra uma mídia de imagem da própria refeição; na ausência da associação, o item não recebe fallback de `meal.imageUrl`, `supportingImageUrl`, `photoUrl` ou da primeira entrada de `mealMedia`.
+
+Registros históricos sem `sourceMediaStorageKey` permanecem sem miniatura no nível do item, ainda que mantenham mídia no nível da refeição. Cópia, favorito/reuso e movimentação para outra refeição removem a proveniência fotográfica para não transportar implicitamente uma associação que pertence ao registro original.

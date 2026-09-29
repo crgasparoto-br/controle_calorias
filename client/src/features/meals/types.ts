@@ -15,6 +15,7 @@ export type MealItemState = {
   fat: number;
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
+  sourceMediaStorageKey?: string;
 };
 
 export type DraftState = {

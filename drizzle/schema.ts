@@ -360,6 +360,7 @@ export const mealItems = mysqlTable("mealItems", {
   fiberG: double("fiberG"),
   sodiumMg: double("sodiumMg"),
   foodSnapshotJson: text("foodSnapshotJson"),
+  sourceMediaStorageKey: varchar("sourceMediaStorageKey", { length: 255 }),
   source: mysqlEnum("source", ["catalog", "hybrid", "heuristic"]).default("catalog").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({
@@ -368,6 +369,7 @@ export const mealItems = mysqlTable("mealItems", {
   foodCatalogIdIdx: index("mealItems_foodCatalogId_idx").on(table.foodCatalogId),
   recipeIdIdx: index("mealItems_recipeId_idx").on(table.recipeId),
   portionIdIdx: index("mealItems_portionId_idx").on(table.portionId),
+  sourceMediaStorageKeyIdx: index("mealItems_sourceMediaStorageKey_idx").on(table.sourceMediaStorageKey),
 }));
 
 export const mealMedia = mysqlTable("mealMedia", {

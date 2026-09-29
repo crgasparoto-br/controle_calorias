@@ -88,6 +88,7 @@ const mealItemBaseSchema = z.object({
   fat: z.number().min(0).max(1000),
   confidence: z.number().min(0).max(1),
   source: z.enum(["catalog", "hybrid", "heuristic"]),
+  sourceMediaStorageKey: z.string().trim().min(1).max(255).optional(),
   resolution: mealItemResolutionSchema.optional(),
   nutritionSource: nutritionSourceSchema.optional(),
 });

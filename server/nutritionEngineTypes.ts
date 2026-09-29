@@ -141,6 +141,8 @@ export type MealDraftItem = {
   fat: number;
   confidence: number;
   source: "catalog" | "hybrid" | "heuristic";
+  /** Chave da mídia persistida que originou este item. Ausente significa sem proveniência fotográfica explícita. */
+  sourceMediaStorageKey?: string;
   classification?: FoodClassificationEstimate | null;
   /**
    * Metadados do resolvedor canônico. O campo é opcional para manter leitura de

@@ -13,6 +13,7 @@ import {
 } from "../../nutritionEngine";
 import { storagePut } from "../../storage";
 import { calculateMealTotals } from "../../../shared/mealTotals";
+import { associateMealItemsWithSourceMedia } from "../../mealItemImageProvenance";
 import { normalizeMeasurementUnit } from "../../../shared/measurementUnits";
 import { decorateMealWithImageUrl, registerMealImageUrl } from "../meals/mealImageAssociations";
 import { confirmMeal } from "../meals/service";
@@ -32,6 +33,7 @@ export type FoodPhotoAnalysis = {
   suggestedItems: FoodPhotoSuggestedItem[];
   supportingImageUrl?: string;
   originalImageUrl?: string;
+  originalImageStorageKey?: string;
   originalImageMimeType?: string;
   createdAt: number;
   updatedAt: number;
@@ -194,12 +196,14 @@ async function resolveAnalysisImageSources(
     return {
       analysisImageUrl,
       persistedImageUrl: upload.url,
+      persistedImageStorageKey: upload.key,
       usedInlineFallback: false,
     };
   } catch {
     return {
       analysisImageUrl,
       persistedImageUrl: analysisImageUrl,
+      persistedImageStorageKey: undefined,
       usedInlineFallback: true,
     };
   }
@@ -224,18 +228,29 @@ function buildSupportingImagePrompt(items: FoodPhotoSuggestedItem[]) {
 }
 
 function createPhotoAnalysisMedia(analysis: FoodPhotoAnalysis) {
-  const imageUrl = analysis.supportingImageUrl ?? analysis.originalImageUrl;
-  if (!imageUrl) return [];
+  const media = [];
 
-  return [
-    buildSavedMedia({
+  if (analysis.supportingImageUrl) {
+    media.push(buildSavedMedia({
       mediaType: "image",
-      storageKey: imageUrl,
-      storageUrl: imageUrl,
-      mimeType: analysis.originalImageMimeType ?? "image/png",
-      originalFileName: "food-photo-analysis",
-    }),
-  ];
+      storageKey: analysis.supportingImageUrl,
+      storageUrl: analysis.supportingImageUrl,
+      mimeType: "image/png",
+      originalFileName: "food-photo-supporting",
+    }));
+  }
+
+  if (analysis.originalImageUrl && analysis.originalImageStorageKey) {
+    media.push(buildSavedMedia({
+      mediaType: "image",
+      storageKey: analysis.originalImageStorageKey,
+      storageUrl: analysis.originalImageUrl,
+      mimeType: analysis.originalImageMimeType ?? "image/jpeg",
+      originalFileName: "food-photo-original",
+    }));
+  }
+
+  return media;
 }
 
 export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoInput) {
@@ -257,6 +272,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
   const {
     analysisImageUrl,
     persistedImageUrl,
+    persistedImageStorageKey,
     usedInlineFallback,
   } = await resolveAnalysisImageSources(
     userId,
@@ -322,6 +338,7 @@ export async function analyzeFoodPhoto(userId: number, input: AnalyzeFoodPhotoIn
     suggestedItems,
     supportingImageUrl: supportingImage.url,
     originalImageUrl: persistedImageUrl,
+    originalImageStorageKey: persistedImageStorageKey,
     originalImageMimeType: input.image.mimeType,
     updatedAt: Date.now(),
   };
@@ -371,7 +388,11 @@ export async function confirmFoodPhotoAnalysis(
     throw new Error("A análise precisa estar pronta antes de confirmar a refeição.");
   }
 
-  const processedItems = input.items;
+  const media = createPhotoAnalysisMedia(analysis);
+  const processedItems = associateMealItemsWithSourceMedia(
+    input.items,
+    analysis.originalImageStorageKey,
+  );
   const draft = createPendingMealInference(
     userId,
     "web",
@@ -386,7 +407,7 @@ export async function confirmFoodPhotoAnalysis(
       items: processedItems,
       totals: calculateMealTotals(processedItems),
     },
-    createPhotoAnalysisMedia(analysis),
+    media,
   );
 
   const meal = await confirmMeal(userId, {
