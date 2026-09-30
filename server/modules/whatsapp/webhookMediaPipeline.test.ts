@@ -125,6 +125,24 @@ describe("prepareMessageInput conversation enrichment", () => {
     );
   });
 
+  it("mantém uma correlação única entre download, storage, normalização e base64", async () => {
+    const prepared = await prepareMessageInput({
+      id: "wamid.correlation-context",
+      from: "5511999999999",
+      type: "image",
+      image: {
+        id: "image-correlation-media-id",
+        mime_type: "image/jpeg",
+      },
+    } as never, "5511999999999");
+
+    const correlationValues = mocks.logRuntimeMemoryOperation.mock.calls
+      .map(([event]) => event.correlationValue)
+      .filter(Boolean);
+    expect(prepared.memoryCorrelationValue).toBe("wamid.correlation-context");
+    expect(new Set(correlationValues)).toEqual(new Set(["wamid.correlation-context"]));
+  });
+
   it("preserva a transcrição no contexto mesmo quando o storage da mídia falha", async () => {
     mocks.storagePut.mockRejectedValueOnce(new Error("storage unavailable"));
 
@@ -169,14 +187,14 @@ describe("prepareMessageInput conversation enrichment", () => {
       expect.objectContaining({
         operation: "whatsapp.media",
         stage: "download:start",
-        correlationValue: "image-download-failure",
+        correlationValue: "wamid.download-failure",
       }),
     );
     expect(mocks.logRuntimeMemoryOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: "whatsapp.media",
         stage: "download:end",
-        correlationValue: "image-download-failure",
+        correlationValue: "wamid.download-failure",
         metrics: { downloadOk: false },
       }),
     );
@@ -203,7 +221,7 @@ describe("prepareMessageInput conversation enrichment", () => {
       expect.objectContaining({
         operation: "whatsapp.media",
         stage: "download:end",
-        correlationValue: "image-preflight-failure",
+        correlationValue: "wamid.preflight-failure",
         metrics: expect.objectContaining({
           downloadOk: true,
           preflightOk: false,
@@ -231,7 +249,7 @@ describe("prepareMessageInput conversation enrichment", () => {
       expect.objectContaining({
         operation: "whatsapp.media",
         stage: "normalize:end",
-        correlationValue: "image-normalize-failure",
+        correlationValue: "wamid.normalize-failure",
         metrics: expect.objectContaining({
           normalizeOk: false,
         }),

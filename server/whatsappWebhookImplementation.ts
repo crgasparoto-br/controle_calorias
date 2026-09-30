@@ -873,11 +873,12 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const resolvedSegments = deferredReply?.resolvedSegments ?? [];
       const habits = await getHabitSnapshots(userId);
       const containsMedia = Boolean(message.image?.id || message.audio?.id);
+      const memoryCorrelationValue = prepared.memoryCorrelationValue;
       if (containsMedia) {
         logRuntimeMemoryOperation({
           operation: "whatsapp.meal_inference",
           stage: "inference:start",
-          correlationValue: message.id,
+          correlationValue: memoryCorrelationValue,
           metrics: {
             hasImage: Boolean(message.image?.id),
             hasAudio: Boolean(message.audio?.id),
@@ -915,7 +916,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           logRuntimeMemoryOperation({
             operation: "whatsapp.meal_inference",
             stage: "inference:end",
-            correlationValue: message.id,
+            correlationValue: memoryCorrelationValue,
             metrics: { inferenceOk: true },
             always: true,
           });
@@ -925,7 +926,7 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
           logRuntimeMemoryOperation({
             operation: "whatsapp.meal_inference",
             stage: "inference:end",
-            correlationValue: message.id,
+            correlationValue: memoryCorrelationValue,
             metrics: { inferenceOk: false },
             always: true,
           });

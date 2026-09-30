@@ -53,6 +53,7 @@ export type PreparedMessageInput = {
   audioTranscriptionFailure?: AudioTranscriptionFailure;
   media: ReturnType<typeof buildSavedMedia>[];
   summary: string;
+  memoryCorrelationValue: string;
 };
 
 type PersistedIncomingMedia = {
@@ -67,11 +68,17 @@ function buildOpaqueIncomingMediaFileName(mediaType: "image" | "audio", extensio
   return `${mediaType}-${randomUUID()}.${extension}`;
 }
 
-async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
+async function persistIncomingMedia(
+  sourcePhone: string,
+  mediaType: "image" | "audio",
+  mediaId: string,
+  fallbackMimeType: string | undefined,
+  operationCorrelationValue: string,
+): Promise<PersistedIncomingMedia> {
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "download:start",
-    correlationValue: mediaId,
+    correlationValue: operationCorrelationValue,
     metrics: { isImage: mediaType === "image", isAudio: mediaType === "audio" },
     always: true,
   });
@@ -82,7 +89,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "download:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: { downloadOk: false },
       always: true,
     });
@@ -100,7 +107,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
       logRuntimeMemoryOperation({
         operation: "whatsapp.media",
         stage: "download:end",
-        correlationValue: mediaId,
+        correlationValue: operationCorrelationValue,
         metrics: {
           byteLength: originalByteLength,
           downloadOk: true,
@@ -114,7 +121,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "download:end",
-    correlationValue: mediaId,
+    correlationValue: operationCorrelationValue,
     metrics: {
       byteLength: originalByteLength,
       downloadOk: true,
@@ -147,7 +154,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "storage:start",
-    correlationValue: mediaId,
+    correlationValue: operationCorrelationValue,
     metrics: { byteLength: originalByteLength },
     always: true,
   });
@@ -165,7 +172,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "storage:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: { byteLength: originalByteLength, storageOk: true },
       always: true,
     });
@@ -174,7 +181,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "storage:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: { byteLength: originalByteLength, storageOk: false },
       always: true,
     });
@@ -183,7 +190,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "normalize:start",
-    correlationValue: mediaId,
+    correlationValue: operationCorrelationValue,
     metrics: { byteLength: originalByteLength, isImage: mediaType === "image" },
     always: true,
   });
@@ -195,7 +202,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "normalize:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: {
         inputBytes: originalByteLength,
         analysisBytes: analysisImage.buffer.byteLength,
@@ -208,7 +215,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "normalize:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: {
         inputBytes: originalByteLength,
         normalizeOk: false,
@@ -221,7 +228,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "base64:start",
-    correlationValue: mediaId,
+    correlationValue: operationCorrelationValue,
     metrics: { analysisBytes: analysisImage.buffer.byteLength },
     always: true,
   });
@@ -231,7 +238,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "base64:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: {
         analysisBytes: analysisImage.buffer.byteLength,
         dataUrlChars: analysisDataUrl.length,
@@ -243,7 +250,7 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     logRuntimeMemoryOperation({
       operation: "whatsapp.media",
       stage: "base64:end",
-      correlationValue: mediaId,
+      correlationValue: operationCorrelationValue,
       metrics: {
         analysisBytes: analysisImage.buffer.byteLength,
         base64Ok: false,
@@ -328,14 +335,22 @@ async function enrichPersistedConversationMessage(message: WhatsAppWebhookMessag
 
 export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedMessageInput> {
   const text = getWhatsAppMessageTextBody(message) || undefined;
+  const memoryCorrelationValue = message.id ?? randomUUID();
   const prepared: PreparedMessageInput = {
     text,
     media: [],
     summary: "texto",
+    memoryCorrelationValue,
   };
 
   if (message.image?.id) {
-    const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
+    const storedImage = await persistIncomingMedia(
+      sourcePhone,
+      "image",
+      message.image.id,
+      message.image.mime_type,
+      memoryCorrelationValue,
+    );
     if (storedImage.savedMedia) {
       prepared.media.push(storedImage.savedMedia);
       prepared.imageUrl = storedImage.savedMedia.storageUrl;
@@ -347,7 +362,13 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
 
   if (message.audio?.id) {
     const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
-    const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
+    const storedAudio = await persistIncomingMedia(
+      sourcePhone,
+      "audio",
+      message.audio.id,
+      message.audio.mime_type,
+      memoryCorrelationValue,
+    );
     if (storedAudio.savedMedia) {
       prepared.media.push(storedAudio.savedMedia);
       prepared.audioUrl = storedAudio.savedMedia.storageUrl;
