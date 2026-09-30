@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
-    "audit_report_sha256": "3922de2834be5833549aaac15c293a71588f0240549c12591d7fa77e9b6240bb",
+    "rejection_id": "audit-rejection:1257-41a369f0-handoff-not-produced",
+    "audit_report_sha256": "e668ca44481468e197eaaa49104b7ee23e26566670f769de1ef7c9e70271b56b",
     "finding_ids": [
       "A-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The rejection concerns missing delivery packaging for the current target, not a new product implementation defect or reusable product rule."
+    "reason": "The rejection concerns missing current-target delivery packaging inherited from the base, not a reusable product implementation defect."
   },
   "skill_changes": []
 }

@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "artifact_kind": "audit-source-result",
-  "head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78",
+  "head_sha": "41a369f089a820b2a3a0fbdb05a013f161b298ca",
   "status": "REJECTED",
   "result": "REPROVADA",
-  "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
+  "rejection_id": "audit-rejection:1257-41a369f0-handoff-not-produced",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
-    "head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78",
-    "material_head_sha": "09d4de8debabeca30b4b4e06c8f1581593927f78",
-    "base_sha": "f87e5977acaf487733ef62a51ef2c162b460e1c5",
-    "pull_request": 1252,
+    "head_sha": "41a369f089a820b2a3a0fbdb05a013f161b298ca",
+    "material_head_sha": "41a369f089a820b2a3a0fbdb05a013f161b298ca",
+    "base_sha": "d38312b31b80987cbae9268f803823f39245f1ed",
+    "pull_request": 1258,
     "base_ref": "develop",
-    "head_ref": "feat/issue-1245-food-classification"
+    "head_ref": "feat/1257-memory-observability"
   },
   "findings": [
     {
@@ -23,7 +23,7 @@
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "title": "Current-target handoff was not produced.",
-      "description": "The handoff-ready.json visible at the candidate head was byte-identical to the develop base and belonged to issue 1246 / PR 1247."
+      "description": "The handoff-ready.json visible at the candidate head was byte-identical to the develop base and belonged to issue 1245 / PR 1252."
     }
   ],
   "recommendations": [],
