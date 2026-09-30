@@ -46,10 +46,14 @@ try {
   await click("Acessos");
   const accessState = await waitFor(state => state.access && (state.queries["billing.adminSearchUsers"] ?? 0) > 0, "access tab");
   if (accessState.overview) throw new Error("Visão geral remained mounted after activating Acessos");
+  const accessIdentity = await evaluate(`(() => { const text=document.body?.innerText ?? ""; return { text, hasNamedUserId: text.includes("ID: 44"), hasUnnamedUserFallback: text.includes("Usuário sem nome") && text.includes("ID: 45") }; })()`);
+  if (!accessIdentity.hasNamedUserId || !accessIdentity.hasUnnamedUserFallback) throw new Error(`Acessos did not expose named/unnamed user identity: ${JSON.stringify(accessIdentity)}`);
 
   await click("Comercial");
   const commercialState = await waitFor(state => state.catalog && state.campaigns && (state.queries["billing.adminCatalogVersions"] ?? 0) > 0 && (state.queries["billing.adminNotifications"] ?? 0) > 0, "commercial tab");
   if (commercialState.access) throw new Error("Acessos remained mounted after activating Comercial");
+  const commercialIdentity = await evaluate(`(() => { const text=document.body?.innerText ?? ""; return { hasPayerNameAndId: text.includes("Cliente Visual (ID 44)"), hasPayerFallbackAndId: text.includes("Usuário sem nome (ID 45)"), hasResponsibleNameAndId: text.includes("Admin Visual (ID 9)"), hasResponsibleFallbackAndId: text.includes("responsável sem nome (ID 10)") }; })()`);
+  if (!commercialIdentity.hasPayerNameAndId || !commercialIdentity.hasPayerFallbackAndId || !commercialIdentity.hasResponsibleNameAndId || !commercialIdentity.hasResponsibleFallbackAndId) throw new Error(`Comercial did not expose names/fallbacks with IDs: ${JSON.stringify(commercialIdentity)}`);
 
   await setValue("catalog-action-reason", "publicação validada pela operação");
   const publishBefore = commercialState.mutations["billing.adminPublishCatalogVersion"] ?? 0;
@@ -112,7 +116,7 @@ try {
   const zoomResult = await evaluate(`(() => ({ zoom:getComputedStyle(document.body).zoom||document.body.style.zoom, overflow:document.documentElement.scrollWidth>innerWidth||(document.body?.scrollWidth??0)>innerWidth, scrollWidth:document.documentElement.scrollWidth, innerWidth }))()`);
   if (zoomResult.overflow) throw new Error(`200% zoom caused root horizontal overflow: ${JSON.stringify(zoomResult)}`);
 
-  const evidence = { schemaVersion: 3, route: "/admin/billing", viewports: viewportEvidence, lazyMount: { initialForbiddenQueryPaths: inactiveQueryPaths, accessQueries: accessState.queries, commercialQueries: commercialState.queries, governanceQueries: governanceState.queries, rolloutQueries: rolloutState.queries }, keyboardTabs: { accessSelected: accessByKeyboard.tabs.find(tab => tab.text === "Acessos")?.selected === "true" }, sensitiveConfirmation: { dialog: confirmDialog, cancelMutationCount: afterCancel.mutations["billing.adminPublishCatalogVersion"] ?? 0, confirmMutationCount: afterConfirm.mutations["billing.adminPublishCatalogVersion"] ?? 0 }, creationDialog, formErrorPersistence: preservedForm, focusAfterDialogClose: closeFocus, retryIdentity, keyboard: { sequence: keyboardSequence, uniqueFocusCount: uniqueFocus.size, visitedTab, visitedAdminAction }, accessibility: { roleCounts: Object.fromEntries(roles), pageHeadingObserved: true }, zoom200: zoomResult };
+  const evidence = { schemaVersion: 3, route: "/admin/billing", identityDisplay: { access: accessIdentity, commercial: commercialIdentity }, viewports: viewportEvidence, lazyMount: { initialForbiddenQueryPaths: inactiveQueryPaths, accessQueries: accessState.queries, commercialQueries: commercialState.queries, governanceQueries: governanceState.queries, rolloutQueries: rolloutState.queries }, keyboardTabs: { accessSelected: accessByKeyboard.tabs.find(tab => tab.text === "Acessos")?.selected === "true" }, sensitiveConfirmation: { dialog: confirmDialog, cancelMutationCount: afterCancel.mutations["billing.adminPublishCatalogVersion"] ?? 0, confirmMutationCount: afterConfirm.mutations["billing.adminPublishCatalogVersion"] ?? 0 }, creationDialog, formErrorPersistence: preservedForm, focusAfterDialogClose: closeFocus, retryIdentity, keyboard: { sequence: keyboardSequence, uniqueFocusCount: uniqueFocus.size, visitedTab, visitedAdminAction }, accessibility: { roleCounts: Object.fromEntries(roles), pageHeadingObserved: true }, zoom200: zoomResult };
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`);
   console.log(JSON.stringify(evidence));

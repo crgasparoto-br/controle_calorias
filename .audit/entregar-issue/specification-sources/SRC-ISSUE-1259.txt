@@ -1,0 +1,19 @@
+## Objetivo
+Melhorar a identificação de usuários na tela `/admin/billing`.
+
+## Escopo
+- Na aba **Acessos**, exibir o ID de cada usuário junto aos dados já apresentados.
+- Na aba **Comercial**, sempre que um ID de usuário for exibido na interface operacional, apresentar também o nome correspondente quando disponível.
+- Preservar o ID como referência técnica; o nome é informação complementar.
+- Quando o nome não estiver disponível, manter fallback explícito sem ocultar o ID.
+
+## Critérios de aceite
+- A lista de usuários em Acessos mostra `ID` mesmo quando nome/e-mail estão presentes.
+- Itens de campanhas/comunicações em Comercial mostram nome + ID para o usuário pagador.
+- Responsáveis administrativos exibidos por ID mostram também o nome quando resolvido.
+- A tela continua funcionando para usuários sem nome cadastrado.
+- Não introduzir consultas N+1 no frontend.
+
+## Testes
+- Cobrir a apresentação de usuário com nome e sem nome.
+- Cobrir responsável administrativo com nome resolvido e fallback por ID.
