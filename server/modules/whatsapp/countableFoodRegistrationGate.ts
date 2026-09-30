@@ -127,6 +127,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       }
     }
   }
+  resolvedSegments.sort((left, right) => left.segmentIndex - right.segmentIndex);
   const pendingIndexes = new Set(
     prepared.pendingItems.map(item => item.segmentIndex),
   );
