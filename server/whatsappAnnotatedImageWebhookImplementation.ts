@@ -45,7 +45,10 @@ import {
   buildWhatsAppImageNotRecognizedReplyMessage,
   buildWhatsAppImageProcessingFailureReplyMessage,
 } from "./modules/whatsapp/mediaReplyMessages";
-import { normalizeImageForAnalysis } from "./modules/whatsapp/imageAnalysisNormalization";
+import {
+  assertImageWithinAnalysisBudget,
+  normalizeImageForAnalysis,
+} from "./modules/whatsapp/imageAnalysisNormalization";
 import {
   sendWhatsAppLogicalDomainReply,
   type WhatsAppAuxiliaryImage,
@@ -223,6 +226,10 @@ async function prepareImageMessage(
     message.image?.mime_type
   );
   const originalByteLength = downloaded.buffer.byteLength;
+  await assertImageWithinAnalysisBudget(
+    downloaded.buffer,
+    downloaded.mimeType,
+  );
   logRuntimeMemoryOperation({
     operation: "whatsapp.annotated_image",
     stage: "download:end",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import {
+  assertImageWithinAnalysisBudget,
   normalizeImageForAnalysis,
   resolveSharpRuntimeBudget,
 } from "./imageAnalysisNormalization";
@@ -57,6 +58,20 @@ describe("normalizeImageForAnalysis", () => {
       mimeType: "audio/ogg",
       normalized: false,
     });
+  });
+
+  it("rejeita imagem acima do orçamento no preflight antes da transformação", async () => {
+    const source = await sharp({
+      create: {
+        width: 4_100,
+        height: 4_100,
+        channels: 3,
+        background: { r: 1, g: 2, b: 3 },
+      },
+    }).jpeg({ quality: 70 }).toBuffer();
+
+    await expect(assertImageWithinAnalysisBudget(source, "image/jpeg"))
+      .rejects.toThrow("image_too_many_pixels");
   });
 
   it("falha de forma controlada quando a imagem excede o orçamento de pixels", async () => {

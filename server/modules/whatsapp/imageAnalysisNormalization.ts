@@ -44,6 +44,25 @@ function normalizeMimeType(mimeType: string) {
   );
 }
 
+export async function assertImageWithinAnalysisBudget(
+  buffer: Buffer,
+  mimeType: string
+): Promise<void> {
+  const normalizedMimeType = normalizeMimeType(mimeType);
+  if (!NORMALIZABLE_MIME_TYPES.has(normalizedMimeType)) return;
+
+  try {
+    await sharp(buffer, {
+      failOn: "error",
+      limitInputPixels: MAX_INPUT_PIXELS,
+    }).metadata();
+  } catch (error) {
+    if (error instanceof Error && /pixel limit/i.test(error.message)) {
+      throw new Error("image_too_many_pixels");
+    }
+  }
+}
+
 /**
  * Re-encodes only the analysis copy so EXIF orientation is applied before the
  * vision provider receives the image. The original bytes remain untouched for

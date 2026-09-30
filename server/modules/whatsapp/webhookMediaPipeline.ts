@@ -12,7 +12,10 @@ import {
   buildWhatsAppAudioNotUnderstoodReplyMessage,
   buildWhatsAppAudioProcessingFailureReplyMessage,
 } from "./mediaReplyMessages";
-import { normalizeImageForAnalysis } from "./imageAnalysisNormalization";
+import {
+  assertImageWithinAnalysisBudget,
+  normalizeImageForAnalysis,
+} from "./imageAnalysisNormalization";
 import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
@@ -74,6 +77,12 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
   });
   const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
   const originalByteLength = downloaded.buffer.byteLength;
+  if (mediaType === "image") {
+    await assertImageWithinAnalysisBudget(
+      downloaded.buffer,
+      downloaded.mimeType,
+    );
+  }
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "download:end",
