@@ -75,19 +75,51 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     metrics: { isImage: mediaType === "image", isAudio: mediaType === "audio" },
     always: true,
   });
-  const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  let downloaded: Awaited<ReturnType<typeof downloadWhatsAppMedia>>;
+  try {
+    downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "download:end",
+      correlationValue: mediaId,
+      metrics: { downloadOk: false },
+      always: true,
+    });
+    throw error;
+  }
+
   const originalByteLength = downloaded.buffer.byteLength;
   if (mediaType === "image") {
-    await assertImageWithinAnalysisBudget(
-      downloaded.buffer,
-      downloaded.mimeType,
-    );
+    try {
+      await assertImageWithinAnalysisBudget(
+        downloaded.buffer,
+        downloaded.mimeType,
+      );
+    } catch (error) {
+      logRuntimeMemoryOperation({
+        operation: "whatsapp.media",
+        stage: "download:end",
+        correlationValue: mediaId,
+        metrics: {
+          byteLength: originalByteLength,
+          downloadOk: true,
+          preflightOk: false,
+        },
+        always: true,
+      });
+      throw error;
+    }
   }
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
     stage: "download:end",
     correlationValue: mediaId,
-    metrics: { byteLength: originalByteLength },
+    metrics: {
+      byteLength: originalByteLength,
+      downloadOk: true,
+      ...(mediaType === "image" ? { preflightOk: true } : {}),
+    },
     always: true,
   });
 
@@ -155,20 +187,36 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     metrics: { byteLength: originalByteLength, isImage: mediaType === "image" },
     always: true,
   });
-  const analysisImage = mediaType === "image"
-    ? await normalizeImageForAnalysis(downloaded.buffer, downloaded.mimeType)
-    : { buffer: downloaded.buffer, mimeType: downloaded.mimeType, normalized: false };
-  logRuntimeMemoryOperation({
-    operation: "whatsapp.media",
-    stage: "normalize:end",
-    correlationValue: mediaId,
-    metrics: {
-      inputBytes: originalByteLength,
-      analysisBytes: analysisImage.buffer.byteLength,
-      normalized: analysisImage.normalized,
-    },
-    always: true,
-  });
+  let analysisImage: Awaited<ReturnType<typeof normalizeImageForAnalysis>>;
+  try {
+    analysisImage = mediaType === "image"
+      ? await normalizeImageForAnalysis(downloaded.buffer, downloaded.mimeType)
+      : { buffer: downloaded.buffer, mimeType: downloaded.mimeType, normalized: false };
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "normalize:end",
+      correlationValue: mediaId,
+      metrics: {
+        inputBytes: originalByteLength,
+        analysisBytes: analysisImage.buffer.byteLength,
+        normalized: analysisImage.normalized,
+        normalizeOk: true,
+      },
+      always: true,
+    });
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "normalize:end",
+      correlationValue: mediaId,
+      metrics: {
+        inputBytes: originalByteLength,
+        normalizeOk: false,
+      },
+      always: true,
+    });
+    throw error;
+  }
 
   logRuntimeMemoryOperation({
     operation: "whatsapp.media",
@@ -177,17 +225,33 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
     metrics: { analysisBytes: analysisImage.buffer.byteLength },
     always: true,
   });
-  const analysisDataUrl = buildMediaDataUrl(analysisImage.buffer, analysisImage.mimeType);
-  logRuntimeMemoryOperation({
-    operation: "whatsapp.media",
-    stage: "base64:end",
-    correlationValue: mediaId,
-    metrics: {
-      analysisBytes: analysisImage.buffer.byteLength,
-      dataUrlChars: analysisDataUrl.length,
-    },
-    always: true,
-  });
+  let analysisDataUrl: string;
+  try {
+    analysisDataUrl = buildMediaDataUrl(analysisImage.buffer, analysisImage.mimeType);
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "base64:end",
+      correlationValue: mediaId,
+      metrics: {
+        analysisBytes: analysisImage.buffer.byteLength,
+        dataUrlChars: analysisDataUrl.length,
+        base64Ok: true,
+      },
+      always: true,
+    });
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "base64:end",
+      correlationValue: mediaId,
+      metrics: {
+        analysisBytes: analysisImage.buffer.byteLength,
+        base64Ok: false,
+      },
+      always: true,
+    });
+    throw error;
+  }
 
   return {
     ...(savedMedia ? { savedMedia } : {}),
