@@ -165,13 +165,23 @@ export type ResolvedCommercialMealItemInput = {
   };
 };
 
+export type ResolvedCatalogMealItemInput = {
+  food: CatalogFood;
+  foodName: string;
+  brand?: string | null;
+  quantity: number;
+  unit: string;
+  grams: number;
+  measureResolution: ResolvedCommercialMealItemInput["measureResolution"];
+};
+
 /**
- * Canonical domain builder for an already accepted commercial identity.
+ * Canonical domain builder for an already accepted catalog identity.
  * Quantity changes the serving factor only; it cannot replace the CatalogFood
  * identity or its nutrition/source provenance with a rewritten text segment.
  */
-export function buildItemFromResolvedCommercialFood(
-  input: ResolvedCommercialMealItemInput,
+export function buildItemFromResolvedCatalogFood(
+  input: ResolvedCatalogMealItemInput,
 ): MealDraftItem {
   const researched = isResearchVerifiedCatalogFood(input.food);
   const confidence = clampConfidence(input.food.sourceConfidence ?? 0.95);
@@ -212,6 +222,12 @@ export function buildItemFromResolvedCommercialFood(
       },
     },
   };
+}
+
+export function buildItemFromResolvedCommercialFood(
+  input: ResolvedCommercialMealItemInput,
+): MealDraftItem {
+  return buildItemFromResolvedCatalogFood(input);
 }
 
 export function buildHybridItem(llmItem: LlmItem): MealDraftItem {
