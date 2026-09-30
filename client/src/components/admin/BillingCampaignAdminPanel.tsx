@@ -149,7 +149,9 @@ export default function BillingCampaignAdminPanel() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{item.campaign}</p><Badge variant="outline">{item.campaignVersion}</Badge><Badge variant="secondary">{CATEGORY_LABELS[item.category] ?? item.category}</Badge><Badge variant="outline">{AUDIENCE_LABELS[item.audience] ?? item.audience}</Badge>{item.paused ? <Badge variant="destructive">Pausada</Badge> : null}{item.obsolete ? <Badge variant="destructive">Obsoleta</Badge> : null}</div>
                     <p className="mt-1 text-sm">{item.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Usuário {item.payerUserId} · evento {item.trigger}{item.milestone ? ` · etapa ${item.milestone}` : ""} · {formatDate(item.effectiveAt)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Usuário {item.payerUserName || "sem nome"} (ID {item.payerUserId}) · evento {item.trigger}{item.milestone ? ` · etapa ${item.milestone}` : ""} · {formatDate(item.effectiveAt)}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">Referência {item.correlationId} · chave de repetição segura {item.idempotencyKey} · versão do registro {item.audit.sourceFactVersion} · cancelamento de envio promocional {item.optOutApplicable ? "aplicável" : "não aplicável"}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Base e classificação: {item.legalBasisClassification}</p>
                   </div>
@@ -158,7 +160,7 @@ export default function BillingCampaignAdminPanel() {
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
                   {item.channels.map(delivery => {
                     const sender = item.senders[delivery.channel];
-                    return <div key={delivery.channel} className="rounded-lg bg-muted/30 p-3 text-xs"><div className="flex items-center justify-between"><span className="font-medium">{CHANNEL_LABELS[delivery.channel] ?? delivery.channel}</span><Badge variant="outline">{DELIVERY_STATE_LABELS[delivery.state] ?? delivery.state}</Badge></div><p className="mt-2 text-muted-foreground">Emissor: {sender.label} · {sender.configured ? "configurado" : "não configurado"}</p><p className="mt-1 text-muted-foreground">Tentativas: {delivery.attempts}{delivery.responsibleUserId ? ` · responsável ${delivery.responsibleUserId}` : ""}</p><p className="mt-1 text-muted-foreground">Próxima tentativa: {formatDate(delivery.nextAttemptAt)} · atualização {formatDate(delivery.updatedAt)}</p></div>;
+                    return <div key={delivery.channel} className="rounded-lg bg-muted/30 p-3 text-xs"><div className="flex items-center justify-between"><span className="font-medium">{CHANNEL_LABELS[delivery.channel] ?? delivery.channel}</span><Badge variant="outline">{DELIVERY_STATE_LABELS[delivery.state] ?? delivery.state}</Badge></div><p className="mt-2 text-muted-foreground">Emissor: {sender.label} · {sender.configured ? "configurado" : "não configurado"}</p><p className="mt-1 text-muted-foreground">Tentativas: {delivery.attempts}{delivery.responsibleUserId ? ` · responsável ${delivery.responsibleUserName || "sem nome"} (ID ${delivery.responsibleUserId})` : ""}</p><p className="mt-1 text-muted-foreground">Próxima tentativa: {formatDate(delivery.nextAttemptAt)} · atualização {formatDate(delivery.updatedAt)}</p></div>;
                   })}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
