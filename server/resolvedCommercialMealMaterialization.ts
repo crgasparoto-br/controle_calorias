@@ -1,46 +1,46 @@
 import { calculateMealTotals } from "../shared/mealTotals";
 import { resolveMealLabel } from "./mealLabelResolver";
 import {
-  buildItemFromResolvedCommercialFood,
+  buildItemFromResolvedCatalogFood,
   clampConfidence,
 } from "./mealItemBuilders";
 import { buildMealSemanticContract } from "./mealSemanticContract";
 import type {
+  CatalogFood,
   MealProcessingInput,
   MealProcessingResult,
 } from "./nutritionEngineTypes";
 import type { CountableFoodResolvedMeasure } from "./countableFoodQuantity";
 
 /**
- * Domain boundary for a countable commercial segment already resolved by the
- * nutrition engine. The channel only supplies the structured decision; it does
- * not re-infer identity, portion or nutrition from registrationText.
+ * Domain boundary for a countable segment already resolved by the nutrition
+ * engine. The channel only supplies the structured decision; it does not
+ * re-infer identity, portion or nutrition from registrationText.
  */
-export function materializeResolvedCommercialMeal(input: {
+export function materializeResolvedCountableMeal(input: {
   resolved: CountableFoodResolvedMeasure;
+  food: CatalogFood;
   occurredAt?: Date;
   userTimezone: string;
 }): MealProcessingResult {
-  const food = input.resolved.commercialFood;
+  const food = input.food;
   const request = input.resolved.request;
   const measure = input.resolved.resolution;
   const grams = measure.grams;
 
   if (
-    !food
-    || !request.brand
-    || !Number.isFinite(grams)
+    !Number.isFinite(grams)
     || grams <= 0
     || !Number.isFinite(food.gramsPerServing)
     || food.gramsPerServing <= 0
   ) {
-    throw new Error("Resolved commercial countable measure is incomplete.");
+    throw new Error("Resolved countable measure is incomplete.");
   }
 
-  const item = buildItemFromResolvedCommercialFood({
+  const item = buildItemFromResolvedCatalogFood({
     food,
     foodName: request.foodName,
-    brand: request.brand,
+    brand: request.brand ?? food.brandName ?? null,
     quantity: request.count,
     unit: request.requestedUnit,
     grams,
@@ -80,4 +80,17 @@ export function materializeResolvedCommercialMeal(input: {
     totals: calculateMealTotals([item]),
     semanticContract,
   };
+}
+
+export function materializeResolvedCommercialMeal(input: {
+  resolved: CountableFoodResolvedMeasure;
+  occurredAt?: Date;
+  userTimezone: string;
+}): MealProcessingResult {
+  const food = input.resolved.commercialFood;
+  if (!food || !input.resolved.request.brand) {
+    throw new Error("Resolved commercial countable measure is incomplete.");
+  }
+
+  return materializeResolvedCountableMeal({ ...input, food });
 }

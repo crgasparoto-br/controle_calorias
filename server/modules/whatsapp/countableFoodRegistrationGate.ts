@@ -4,6 +4,7 @@ import {
   type CountableFoodResolvedMeasure,
   type CountableFoodPendingItem,
 } from "../../countableFoodQuantity";
+import { findCountableNutritionReference } from "../../foodItemResolution";
 import { requestWhatsappConfirmedTextMealQuantityClarification } from "./foodQuantityClarification";
 import type { WhatsappIntentResult } from "./intent/types";
 import {
@@ -13,7 +14,7 @@ import {
 } from "../../nutritionEngine";
 import { createWhatsappMealIntentRegistrationDetailsInteraction } from "./mealIntentRegistrationDetailsInteraction";
 import { parseFoodText } from "../../mealTextParsing";
-import { materializeResolvedCommercialMeal } from "../../resolvedCommercialMealMaterialization";
+import { materializeResolvedCountableMeal } from "../../resolvedCommercialMealMaterialization";
 
 export type ResolvedRegistrationSegment = {
   segmentIndex: number;
@@ -56,21 +57,24 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
   );
   const resolvedSegments = [...(input.resolvedSegments ?? [])];
 
-  // Uma medida contável comercial já comprovada é uma decisão monotônica:
-  // materialize o item a partir do próprio CatalogFood validado e não o envie
-  // novamente ao processMealInput como se fosse uma nova alegação do usuário.
+  // Uma medida contável já comprovada é uma decisão monotônica: materialize o
+  // item a partir da referência nutricional canônica e não o envie novamente
+  // ao processMealInput como se fosse uma nova alegação do usuário. Para marcas
+  // só aceitamos a referência comercial validada; nunca substituímos um produto
+  // não resolvido por um alimento genérico.
   for (const resolved of prepared.resolutions) {
-    if (
-      !resolved.commercialFood ||
-      !resolved.request.brand ||
-      resolvedSegments.some(item => item.segmentIndex === resolved.segmentIndex)
-    )
-      continue;
+    if (resolvedSegments.some(item => item.segmentIndex === resolved.segmentIndex)) continue;
+
+    const food = resolved.request.brand
+      ? resolved.commercialFood
+      : resolved.commercialFood ?? findCountableNutritionReference(resolved.request.foodName);
+    if (!food) continue;
 
     resolvedSegments.push({
       segmentIndex: resolved.segmentIndex,
-      processed: materializeResolvedCommercialMeal({
+      processed: materializeResolvedCountableMeal({
         resolved,
+        food,
         occurredAt: input.receivedAt,
         userTimezone,
       }),
@@ -123,6 +127,7 @@ export async function prepareWhatsappCountableFoodRegistration(input: {
       }
     }
   }
+  resolvedSegments.sort((left, right) => left.segmentIndex - right.segmentIndex);
   const pendingIndexes = new Set(
     prepared.pendingItems.map(item => item.segmentIndex),
   );
