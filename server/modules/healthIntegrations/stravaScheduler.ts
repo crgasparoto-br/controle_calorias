@@ -1,3 +1,4 @@
+import { logRuntimeMemoryOperation } from "../../_core/runtimeMemoryOperationTelemetry";
 import { healthIntegrationService } from "./stravaDetailSafeService";
 
 const DEFAULT_STRAVA_AUTO_SYNC_INTERVAL_MINUTES = 120;
@@ -42,6 +43,7 @@ export function startStravaAutoSyncScheduler() {
   const run = async () => {
     if (running) return;
     running = true;
+    logRuntimeMemoryOperation({ operation: "scheduler.strava_sync", stage: "start", always: true });
     try {
       const summary = await healthIntegrationService.syncConnectedStravaUsers();
       if (summary.attempted > 0) {
@@ -50,6 +52,7 @@ export function startStravaAutoSyncScheduler() {
     } catch (error) {
       console.warn("[HealthIntegrations] Automatic Strava sync skipped:", error instanceof Error ? error.message : error);
     } finally {
+      logRuntimeMemoryOperation({ operation: "scheduler.strava_sync", stage: "end", always: true });
       running = false;
     }
   };

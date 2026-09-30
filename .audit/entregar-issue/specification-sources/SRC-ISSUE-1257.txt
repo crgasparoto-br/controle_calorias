@@ -1,0 +1,25 @@
+## Contexto
+
+O serviço `controle-calorias-api` no Render (512 MiB) apresenta picos abruptos de memória, reinícios e 502s. Diversos eventos foram correlacionados com webhooks de WhatsApp e processamento de mídia; houve também pelo menos um pico sem webhook imediatamente anterior.
+
+## Evidências observadas
+
+- Saltos típicos de ~230-330 MiB para 450-512 MiB em poucos segundos.
+- Em vários eventos o heap JS permanece ~80-90 MiB enquanto RSS/container sobem para >90%, indicando pressão majoritariamente fora do heap V8.
+- A mesma mensagem pode ser reentregue após restart e reproduzir o pico.
+- `WhatsAppQuestionRecovery` roda a cada 15 s, mas em eventos analisados retornou `candidates: 0`, portanto não explica sozinho os picos.
+- Há outros schedulers (Asaas, Strava, retention, usage governance), mas faltam checkpoints por operação para atribuir causalidade nos casos sem webhook.
+
+## Objetivo
+
+Instrumentar os caminhos de maior risco de memória e aplicar contenções seguras no pipeline de mídia/WhatsApp para tornar os próximos picos atribuíveis e reduzir a chance de restart.
+
+## Critérios de aceite
+
+- Registrar checkpoints estruturados antes/depois de download de mídia, normalização Sharp/libvips, construção de data URL/base64, persistência em storage e inferência.
+- Os checkpoints devem incluir identificador correlacionável da mensagem/operação e memória do processo/container sem registrar conteúdo sensível.
+- Instrumentar início/fim dos schedulers de manutenção relevantes para correlação temporal.
+- Limitar comportamento do Sharp/libvips para ambiente com orçamento de memória pequeno, sem alterar o contrato funcional.
+- Adicionar testes focados para os novos controles/telemetria e preservar idempotência do fluxo WhatsApp.
+- Não registrar payload bruto, imagem, telefone ou texto da mensagem.
+- Documentar como interpretar os novos logs em incidente de memória.

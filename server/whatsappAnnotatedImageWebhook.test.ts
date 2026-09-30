@@ -4,6 +4,7 @@ import { resolveStructuredCommercialIdentity } from "./commercialFoodIdentityPre
 
 const getUserIdByWhatsappPhoneMock = vi.fn();
 const logInferenceEventMock = vi.fn();
+const logRuntimeMemoryOperationMock = vi.hoisted(() => vi.fn());
 const getHabitSnapshotsMock = vi.fn();
 const getUserDayMealTotalsMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
@@ -112,6 +113,10 @@ vi.mock("./whatsappConfig", () => ({
 
 vi.mock("./storage", () => ({
   storagePut: storagePutMock,
+}));
+
+vi.mock("./_core/runtimeMemoryOperationTelemetry", () => ({
+  logRuntimeMemoryOperation: logRuntimeMemoryOperationMock,
 }));
 
 vi.mock("./nutritionEngine", async () => {
@@ -264,6 +269,7 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
     downloadedImagePayload = null;
     getUserIdByWhatsappPhoneMock.mockReset();
     logInferenceEventMock.mockReset();
+    logRuntimeMemoryOperationMock.mockReset();
     getHabitSnapshotsMock.mockReset();
     getUserDayMealTotalsMock.mockReset();
     getUserNutritionGoalMock.mockReset();
@@ -493,6 +499,22 @@ describe("handleWhatsAppWebhookWithTextIntent annotated image flow", () => {
       expect.objectContaining({ userId: 42, text: expect.stringContaining("Almoço Registrado") }),
     );
     expect(markMessageProcessedMock).toHaveBeenCalledWith({ conversationId: 1, messageId: 1 });
+  });
+
+  it("mantém a correlação da mensagem entre mídia e inferência anotada", async () => {
+    const messageId = "image-memory-correlation";
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(
+      createImageWebhookRequest(messageId) as never,
+      res as never,
+    );
+
+    const relevantEvents = logRuntimeMemoryOperationMock.mock.calls
+      .map(([event]) => event)
+      .filter(event => event.operation === "whatsapp.annotated_image");
+    expect(relevantEvents.length).toBeGreaterThan(4);
+    expect(new Set(relevantEvents.map(event => event.correlationValue))).toEqual(new Set([messageId]));
   });
 
   it("mantém a foto original e a resposta textual sem gerar ou persistir imagem anotada quando desabilitada", async () => {

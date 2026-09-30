@@ -6,6 +6,10 @@ const exerciseMocks = vi.hoisted(() => ({
   updateExercise: vi.fn(),
 }));
 
+const runtimeMemoryTelemetryMock = vi.hoisted(() => ({
+  logRuntimeMemoryOperation: vi.fn(),
+}));
+
 const dbMocks = vi.hoisted(() => {
   const appSecretRows: Array<{
     id: number;
@@ -80,6 +84,8 @@ vi.mock("../../db", () => ({
 vi.mock("../../_core/env", () => ({
   ENV: { cookieSecret: "test-cookie-secret" },
 }));
+
+vi.mock("../../_core/runtimeMemoryOperationTelemetry", () => runtimeMemoryTelemetryMock);
 
 vi.mock("../exercises/service", () => ({
   createExercise: exerciseMocks.createExercise,
@@ -255,6 +261,61 @@ describe("healthIntegrationService Strava", () => {
       dataType: "energy_burned",
       value: 321,
       unit: "kcal",
+    });
+  });
+
+  it("instrumenta o scheduler Strava efetivamente exportado em sucesso", async () => {
+    vi.useFakeTimers();
+    const { healthIntegrationService, startStravaAutoSyncScheduler } = await import("./service");
+    vi.spyOn(healthIntegrationService, "syncConnectedStravaUsers").mockResolvedValue({
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      importedExercises: {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        notificationsSent: 0,
+        notificationsSkipped: 0,
+      },
+    });
+
+    const scheduler = startStravaAutoSyncScheduler();
+    await vi.advanceTimersByTimeAsync(5_000);
+    scheduler.stop();
+
+    expect(runtimeMemoryTelemetryMock.logRuntimeMemoryOperation).toHaveBeenNthCalledWith(1, {
+      operation: "scheduler.strava_sync",
+      stage: "start",
+      always: true,
+    });
+    expect(runtimeMemoryTelemetryMock.logRuntimeMemoryOperation).toHaveBeenNthCalledWith(2, {
+      operation: "scheduler.strava_sync",
+      stage: "end",
+      always: true,
+    });
+  });
+
+  it("fecha o checkpoint do scheduler Strava efetivo quando a sincronização falha", async () => {
+    vi.useFakeTimers();
+    const { healthIntegrationService, startStravaAutoSyncScheduler } = await import("./service");
+    vi.spyOn(healthIntegrationService, "syncConnectedStravaUsers").mockRejectedValue(
+      new Error("transient Strava failure"),
+    );
+
+    const scheduler = startStravaAutoSyncScheduler();
+    await vi.advanceTimersByTimeAsync(5_000);
+    scheduler.stop();
+
+    expect(runtimeMemoryTelemetryMock.logRuntimeMemoryOperation).toHaveBeenNthCalledWith(1, {
+      operation: "scheduler.strava_sync",
+      stage: "start",
+      always: true,
+    });
+    expect(runtimeMemoryTelemetryMock.logRuntimeMemoryOperation).toHaveBeenNthCalledWith(2, {
+      operation: "scheduler.strava_sync",
+      stage: "end",
+      always: true,
     });
   });
 });

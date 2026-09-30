@@ -1,4 +1,5 @@
 import { safeLogDetail } from "../../privacy";
+import { logRuntimeMemoryOperation } from "../../_core/runtimeMemoryOperationTelemetry";
 import { getDb, logInferenceEvent, logPersistenceWarning } from "../../db";
 import {
   createDrizzleWhatsAppQuestionRecoveryRepository,
@@ -278,6 +279,11 @@ export function startWhatsappQuestionRecoveryScheduler(input: {
   const runCycle = async () => {
     if (running || stopped) return;
     running = true;
+    logRuntimeMemoryOperation({
+      operation: "scheduler.whatsapp_question_recovery",
+      stage: "start",
+      always: true,
+    });
     try {
       const result = await runWhatsappQuestionRecoveryCycle({
         repository: input.repository,
@@ -293,6 +299,11 @@ export function startWhatsappQuestionRecoveryScheduler(input: {
     } catch (error) {
       console.error("[WhatsAppQuestionRecovery] cycle_failed", safeLogDetail(error));
     } finally {
+      logRuntimeMemoryOperation({
+        operation: "scheduler.whatsapp_question_recovery",
+        stage: "end",
+        always: true,
+      });
       running = false;
     }
   };

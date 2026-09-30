@@ -1,4 +1,5 @@
 import { setAiUsageGate } from "../../_core/ai/usageGate";
+import { logRuntimeMemoryOperation } from "../../_core/runtimeMemoryOperationTelemetry";
 import { enforceUsageAllowance, refreshEconomicAggregates, runUsageRetention } from "./service";
 
 const GOVERNANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -11,6 +12,7 @@ export function configureUsageGovernanceRuntime() {
 export function startUsageGovernanceRetentionScheduler() {
   if (retentionTimer) return retentionTimer;
   const run = async () => {
+    logRuntimeMemoryOperation({ operation: "scheduler.usage_governance", stage: "start", always: true });
     try {
       await refreshEconomicAggregates();
       await runUsageRetention();
@@ -18,6 +20,8 @@ export function startUsageGovernanceRetentionScheduler() {
       console.warn("[Usage governance] Aggregation/retention cycle skipped", {
         errorType: error instanceof Error ? error.name : "unknown",
       });
+    } finally {
+      logRuntimeMemoryOperation({ operation: "scheduler.usage_governance", stage: "end", always: true });
     }
   };
   void run();
