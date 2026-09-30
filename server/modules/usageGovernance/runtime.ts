@@ -21,7 +21,7 @@ export function startUsageGovernanceRetentionScheduler() {
         errorType: error instanceof Error ? error.name : "unknown",
       });
     } finally {
-      logRuntimeMemoryOperation({ operation: "scheduler.usage_governance", stage: "end" });
+      logRuntimeMemoryOperation({ operation: "scheduler.usage_governance", stage: "end", always: true });
     }
   };
   void run();

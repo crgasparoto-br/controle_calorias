@@ -407,7 +407,7 @@ export function startAsaasPixAuthorizationRecoveryScheduler() {
         error: error instanceof Error ? error.name : "unknown",
       });
     }).finally(() => {
-      logRuntimeMemoryOperation({ operation: "scheduler.asaas_pix_recovery", stage: "end" });
+      logRuntimeMemoryOperation({ operation: "scheduler.asaas_pix_recovery", stage: "end", always: true });
     });
   };
   run();

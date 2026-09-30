@@ -26,7 +26,7 @@ export function startConversationRetentionScheduler(intervalMs: number = DEFAULT
     } catch (error) {
       console.warn("[WhatsAppRetention] Retention sweep skipped:", error instanceof Error ? error.message : error);
     } finally {
-      logRuntimeMemoryOperation({ operation: "scheduler.whatsapp_retention", stage: "end" });
+      logRuntimeMemoryOperation({ operation: "scheduler.whatsapp_retention", stage: "end", always: true });
       running = false;
     }
   };

@@ -52,7 +52,7 @@ export function startStravaAutoSyncScheduler() {
     } catch (error) {
       console.warn("[HealthIntegrations] Automatic Strava sync skipped:", error instanceof Error ? error.message : error);
     } finally {
-      logRuntimeMemoryOperation({ operation: "scheduler.strava_sync", stage: "end" });
+      logRuntimeMemoryOperation({ operation: "scheduler.strava_sync", stage: "end", always: true });
       running = false;
     }
   };

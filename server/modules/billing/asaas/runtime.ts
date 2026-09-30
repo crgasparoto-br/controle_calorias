@@ -630,7 +630,7 @@ export function startAsaasBillingReconciliationScheduler() {
         error: error instanceof Error ? error.name : "unknown",
       });
     }).finally(() => {
-      logRuntimeMemoryOperation({ operation: "scheduler.asaas_reconciliation", stage: "end" });
+      logRuntimeMemoryOperation({ operation: "scheduler.asaas_reconciliation", stage: "end", always: true });
     });
   };
   run();
