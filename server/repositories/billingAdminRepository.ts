@@ -188,6 +188,7 @@ export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
   async function searchUsers(query: string, limit: number, offset = 0) {
     const db = await requireDb(deps.getDb);
     const normalized = query.trim();
+    const exactUserId = /^\d+$/.test(normalized) ? Number(normalized) : null;
     const pattern = `%${normalized}%`;
     const rows = resultRows<Record<string, unknown>>(
       await db.execute(sql`
@@ -195,6 +196,7 @@ export function createBillingAdminRepository(deps: BillingRepositoryDeps) {
         FROM users u
         LEFT JOIN whatsappConnections w ON w.userId = u.id
         WHERE ${normalized === ""}
+          OR (${exactUserId !== null} AND u.id = ${exactUserId ?? 0})
           OR u.name LIKE ${pattern}
           OR u.email LIKE ${pattern}
           OR w.phoneNumber LIKE ${pattern}

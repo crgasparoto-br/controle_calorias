@@ -196,7 +196,10 @@ export default function BillingAdminPanel() {
                           {user.name || "Usuário sem nome"}
                         </p>
                         <p className="truncate text-sm text-muted-foreground">
-                          {user.email || user.phoneNumber || `Usuário #${user.id}`}
+                          {user.email || user.phoneNumber || "Contato não informado"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          ID: {user.id}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -237,7 +240,10 @@ export default function BillingAdminPanel() {
                     {selectedUser.name || "Usuário sem nome"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {selectedUser.email || selectedUser.phoneNumber}
+                    {selectedUser.email || selectedUser.phoneNumber || "Contato não informado"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    ID: {selectedUser.id}
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     Situação atual: {ACCESS_REASON_LABELS[selectedUser.access.reason]}

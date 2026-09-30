@@ -54,6 +54,8 @@ export default function BillingCampaignAdminPanel() {
   const [overrideReason, setOverrideReason] = useState("");
   const [responsibleUserId, setResponsibleUserId] = useState("");
   const retryRequestIds = useRef(new Map<string, string>());
+  const responsibleId = Number(responsibleUserId.trim());
+  const validResponsibleId = Number.isInteger(responsibleId) && responsibleId > 0;
 
   const queryInput = useMemo(() => ({
     limit: 100,
@@ -68,6 +70,14 @@ export default function BillingCampaignAdminPanel() {
     ...(state ? { state } : {}),
   }), [audience, campaign, campaignVersion, category, channel, deliveryState, milestone, state, trigger]);
   const notifications = trpc.billing.adminNotifications.useQuery(queryInput, { retry: false });
+  const responsibleUsers = trpc.billing.adminSearchUsers.useQuery(
+    { query: responsibleUserId.trim(), limit: 5 },
+    { enabled: validResponsibleId, retry: false }
+  );
+  const responsibleUser = useMemo(
+    () => responsibleUsers.data?.find(user => user.id === responsibleId) ?? null,
+    [responsibleId, responsibleUsers.data]
+  );
 
   const refresh = async () => {
     await utils.billing.adminNotifications.invalidate();
@@ -136,7 +146,19 @@ export default function BillingCampaignAdminPanel() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="campaign-reason">Motivo da operação</Label><Textarea id="campaign-reason" value={reason} onChange={event => setReason(event.target.value)} placeholder="Obrigatório para pausar, reprocessar ou atribuir uma falha" /></div>
-            <div className="space-y-2"><Label htmlFor="campaign-owner">Responsável (ID do administrador)</Label><Input id="campaign-owner" value={responsibleUserId} onChange={event => setResponsibleUserId(event.target.value)} placeholder="Ex.: 12" /></div>
+            <div className="space-y-2">
+              <Label htmlFor="campaign-owner">Responsável (ID do administrador)</Label>
+              <Input id="campaign-owner" value={responsibleUserId} onChange={event => setResponsibleUserId(event.target.value)} placeholder="Ex.: 12" />
+              {validResponsibleId ? (
+                <p className="text-xs text-muted-foreground">
+                  {responsibleUsers.isLoading
+                    ? "Consultando nome..."
+                    : responsibleUser
+                      ? `Nome: ${responsibleUser.name || "Usuário sem nome"} (ID ${responsibleUser.id})`
+                      : `Nenhum usuário encontrado para o ID ${responsibleId}.`}
+                </p>
+              ) : null}
+            </div>
           </div>
           <div className="space-y-2"><Label htmlFor="campaign-override">Justificativa excepcional</Label><Input id="campaign-override" value={overrideReason} onChange={event => setOverrideReason(event.target.value)} placeholder="Use apenas para comunicação concluída, obsoleta ou pausada" /></div>
 
@@ -149,7 +171,9 @@ export default function BillingCampaignAdminPanel() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{item.campaign}</p><Badge variant="outline">{item.campaignVersion}</Badge><Badge variant="secondary">{CATEGORY_LABELS[item.category] ?? item.category}</Badge><Badge variant="outline">{AUDIENCE_LABELS[item.audience] ?? item.audience}</Badge>{item.paused ? <Badge variant="destructive">Pausada</Badge> : null}{item.obsolete ? <Badge variant="destructive">Obsoleta</Badge> : null}</div>
                     <p className="mt-1 text-sm">{item.title}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Usuário {item.payerUserId} · evento {item.trigger}{item.milestone ? ` · etapa ${item.milestone}` : ""} · {formatDate(item.effectiveAt)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Usuário {item.payerUserName || "sem nome"} (ID {item.payerUserId}) · evento {item.trigger}{item.milestone ? ` · etapa ${item.milestone}` : ""} · {formatDate(item.effectiveAt)}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">Referência {item.correlationId} · chave de repetição segura {item.idempotencyKey} · versão do registro {item.audit.sourceFactVersion} · cancelamento de envio promocional {item.optOutApplicable ? "aplicável" : "não aplicável"}</p>
                     <p className="mt-1 text-xs text-muted-foreground">Base e classificação: {item.legalBasisClassification}</p>
                   </div>
@@ -158,7 +182,7 @@ export default function BillingCampaignAdminPanel() {
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
                   {item.channels.map(delivery => {
                     const sender = item.senders[delivery.channel];
-                    return <div key={delivery.channel} className="rounded-lg bg-muted/30 p-3 text-xs"><div className="flex items-center justify-between"><span className="font-medium">{CHANNEL_LABELS[delivery.channel] ?? delivery.channel}</span><Badge variant="outline">{DELIVERY_STATE_LABELS[delivery.state] ?? delivery.state}</Badge></div><p className="mt-2 text-muted-foreground">Emissor: {sender.label} · {sender.configured ? "configurado" : "não configurado"}</p><p className="mt-1 text-muted-foreground">Tentativas: {delivery.attempts}{delivery.responsibleUserId ? ` · responsável ${delivery.responsibleUserId}` : ""}</p><p className="mt-1 text-muted-foreground">Próxima tentativa: {formatDate(delivery.nextAttemptAt)} · atualização {formatDate(delivery.updatedAt)}</p></div>;
+                    return <div key={delivery.channel} className="rounded-lg bg-muted/30 p-3 text-xs"><div className="flex items-center justify-between"><span className="font-medium">{CHANNEL_LABELS[delivery.channel] ?? delivery.channel}</span><Badge variant="outline">{DELIVERY_STATE_LABELS[delivery.state] ?? delivery.state}</Badge></div><p className="mt-2 text-muted-foreground">Emissor: {sender.label} · {sender.configured ? "configurado" : "não configurado"}</p><p className="mt-1 text-muted-foreground">Tentativas: {delivery.attempts}{delivery.responsibleUserId ? ` · responsável ${delivery.responsibleUserName || "sem nome"} (ID ${delivery.responsibleUserId})` : ""}</p><p className="mt-1 text-muted-foreground">Próxima tentativa: {formatDate(delivery.nextAttemptAt)} · atualização {formatDate(delivery.updatedAt)}</p></div>;
                   })}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

@@ -1,17 +1,1 @@
-{
-  "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
-    "audit_report_sha256": "3922de2834be5833549aaac15c293a71588f0240549c12591d7fa77e9b6240bb",
-    "finding_ids": [
-      "A-001"
-    ]
-  },
-  "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The rejection concerns missing delivery packaging for the current target, not a new product implementation defect or reusable product rule."
-  },
-  "skill_changes": []
-}
+{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:1259-1260-fallback-coverage-25c98c0","audit_report_sha256":"f09b98778924e106224d32f5b104327f6b6c0c74ef7864fe636e0f27ae6740b1","finding_ids":["AUD-1259-002"]},"generalized_learning":{"promotion_status":"not-required","reason":"A especificação já enumerava os cenários com e sem nome; a falha era local de cobertura do harness. A remediação adiciona os controles discriminantes exigidos sem necessidade de nova regra global da Skill."}}

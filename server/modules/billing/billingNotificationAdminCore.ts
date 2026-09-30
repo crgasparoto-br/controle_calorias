@@ -65,11 +65,18 @@ function eventPayload(row: Row) {
 async function loadControlEvents(limit = 1500) {
   const db = await requireDb(getDb);
   return resultRows<Row>(await db.execute(sql`
-    SELECT providerEventId, eventType, status, payloadJson, occurredAt, processedAt, createdAt
-    FROM billingProviderEvents
-    WHERE provider='billing-admin'
-      AND eventType IN ('notification_manual_retry','notification_failure_ack','campaign_control')
-    ORDER BY createdAt DESC
+    SELECT events.providerEventId, events.eventType, events.status, events.payloadJson,
+      events.occurredAt, events.processedAt, events.createdAt,
+      assignedUser.name AS assignedToUserName,
+      actorUser.name AS actorUserName
+    FROM billingProviderEvents events
+    LEFT JOIN users assignedUser
+      ON assignedUser.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(events.payloadJson, '$.assignedToUserId')) AS UNSIGNED)
+    LEFT JOIN users actorUser
+      ON actorUser.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(events.payloadJson, '$.actorUserId')) AS UNSIGNED)
+    WHERE events.provider='billing-admin'
+      AND events.eventType IN ('notification_manual_retry','notification_failure_ack','campaign_control')
+    ORDER BY events.createdAt DESC
     LIMIT ${limit}
   `));
 }
@@ -191,6 +198,7 @@ function channelSnapshot(input: {
     definitiveFailure: state === "failed",
     acknowledged: Boolean(ack),
     responsibleUserId: ackPayload?.assignedToUserId == null ? null : Number(ackPayload.assignedToUserId),
+    responsibleUserName: ack?.assignedToUserName == null ? null : String(ack.assignedToUserName),
     nextAttemptAt: null as Date | null,
     updatedAt: latestRetry?.resultAt ? new Date(String(latestRetry.resultAt)) : input.notification.deliveryUpdatedAt,
   };
@@ -215,7 +223,8 @@ export async function listBillingAdminNotifications(input: {
     filter: input,
     pageSize: 500,
     loadPage: async ({ offset, limit }) => resultRows<Row>(await db.execute(sql`
-      SELECT f.id, f.subscriptionId, f.payerUserId, f.factType, f.factVersion, f.payloadJson,
+      SELECT f.id, f.subscriptionId, f.payerUserId, payer.name AS payerUserName,
+        f.factType, f.factVersion, f.payloadJson,
         f.effectiveAt, f.invalidatedAt, f.createdAt, l.state AS lifecycleState, l.trialEndsAt,
         l.reconciliationRequired, s.cancelAtPeriodEnd,
         JSON_UNQUOTE(JSON_EXTRACT(receipt.payloadJson, '$.readAt')) AS readAt,
@@ -237,6 +246,7 @@ export async function listBillingAdminNotifications(input: {
         ) AS individualRenewalResolved
       FROM billingSubscriptionFacts f
       INNER JOIN billingSubscriptions s ON s.id=f.subscriptionId
+      LEFT JOIN users payer ON payer.id=f.payerUserId
       LEFT JOIN billingSubscriptionLifecycle l ON l.subscriptionId=f.subscriptionId
       LEFT JOIN billingProviderEvents receipt
         ON receipt.provider='billing-web'
@@ -261,6 +271,7 @@ export async function listBillingAdminNotifications(input: {
       return {
         ...notification,
         payerUserId,
+        payerUserName: row.payerUserName == null ? null : String(row.payerUserName),
         factType,
         category,
         audience,
@@ -278,7 +289,7 @@ export async function listBillingAdminNotifications(input: {
           whatsapp: { configured: whatsappConfigured, label: "WhatsApp oficial" },
         },
         channels: [
-          { channel: "internal" as const, state: "available" as const, attempts: 1, definitiveFailure: false, acknowledged: true, responsibleUserId: null, nextAttemptAt: null, updatedAt: notification.effectiveAt },
+          { channel: "internal" as const, state: "available" as const, attempts: 1, definitiveFailure: false, acknowledged: true, responsibleUserId: null, responsibleUserName: null, nextAttemptAt: null, updatedAt: notification.effectiveAt },
           email,
           whatsapp,
         ],
@@ -287,6 +298,7 @@ export async function listBillingAdminNotifications(input: {
           sourceEffectiveAt: dateOrNull(row.effectiveAt),
           latestCampaignControlAt: campaignControl ? dateOrNull(campaignControl.createdAt) : null,
           latestCampaignControlActorUserId: campaignPayload?.actorUserId == null ? null : Number(campaignPayload.actorUserId),
+          latestCampaignControlActorUserName: campaignControl?.actorUserName == null ? null : String(campaignControl.actorUserName),
         },
       };
     },
