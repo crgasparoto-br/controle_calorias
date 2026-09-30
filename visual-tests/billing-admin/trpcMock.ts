@@ -157,6 +157,12 @@ const notifications = {
     senders: { internal: { configured: true, label: "Central interna" }, email: { configured: false, label: "E-mail" }, whatsapp: { configured: true, label: "WhatsApp oficial" } },
     channels: [{ channel: "internal", state: "available", attempts: 1, definitiveFailure: false, acknowledged: true, responsibleUserId: null, nextAttemptAt: null, updatedAt: new Date("2026-08-27T10:00:00Z") }, { channel: "email", state: "not_attempted", attempts: 0, definitiveFailure: false, acknowledged: false, responsibleUserId: null, nextAttemptAt: null, updatedAt: null }, { channel: "whatsapp", state: "failed", attempts: 1, definitiveFailure: true, acknowledged: false, responsibleUserId: 9, responsibleUserName: "Admin Visual", nextAttemptAt: null, updatedAt: new Date("2026-08-27T10:05:00Z") }],
     audit: { sourceFactVersion: 3, sourceEffectiveAt: new Date("2026-08-27T10:00:00Z"), latestCampaignControlAt: null, latestCampaignControlActorUserId: null },
+  }, {
+    notificationId: "fact-visual-2", campaign: "Cobrança", campaignVersion: "v3", title: "Usuário sem nome", whatOccurred: "Pagamento não confirmado", effectiveAt: new Date("2026-08-28T10:00:00Z"), expectedAction: "regularizar", consequence: "acompanhar", support: "suporte", actionHref: "/billing",
+    payerUserId: 45, payerUserName: null, factType: "past_due_reminder", category: "financial", audience: "individual", trigger: "past_due_reminder", milestone: null, correlationId: "corr-visual-789", idempotencyKey: "idem-visual-456", obsolete: false, paused: false, pauseReason: null, optOutApplicable: false, legalBasisClassification: "operacional", completionState: "open", readState: "unread", readAt: null, deliveryState: "failed", deliveryChannel: "whatsapp", deliveryUpdatedAt: new Date("2026-08-28T10:05:00Z"), situation: "Ação pendente",
+    senders: { internal: { configured: true, label: "Central interna" }, email: { configured: false, label: "E-mail" }, whatsapp: { configured: true, label: "WhatsApp oficial" } },
+    channels: [{ channel: "internal", state: "available", attempts: 1, definitiveFailure: false, acknowledged: true, responsibleUserId: null, nextAttemptAt: null, updatedAt: new Date("2026-08-28T10:00:00Z") }, { channel: "email", state: "not_attempted", attempts: 0, definitiveFailure: false, acknowledged: false, responsibleUserId: null, nextAttemptAt: null, updatedAt: null }, { channel: "whatsapp", state: "failed", attempts: 1, definitiveFailure: true, acknowledged: false, responsibleUserId: 10, responsibleUserName: null, nextAttemptAt: null, updatedAt: new Date("2026-08-28T10:05:00Z") }],
+    audit: { sourceFactVersion: 3, sourceEffectiveAt: new Date("2026-08-28T10:00:00Z"), latestCampaignControlAt: null, latestCampaignControlActorUserId: null },
   }],
   analytics: [
     {
@@ -186,6 +192,13 @@ const dataByPath: Record<string, unknown> = {
       id: 44,
       name: "Cliente Visual",
       email: "cliente.visual@example.com",
+      phoneNumber: null,
+      access: { allowed: true, reason: "active_subscription" },
+    },
+    {
+      id: 45,
+      name: null,
+      email: "sem.nome@example.com",
       phoneNumber: null,
       access: { allowed: true, reason: "active_subscription" },
     },

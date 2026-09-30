@@ -46,14 +46,14 @@ try {
   await click("Acessos");
   const accessState = await waitFor(state => state.access && (state.queries["billing.adminSearchUsers"] ?? 0) > 0, "access tab");
   if (accessState.overview) throw new Error("Visão geral remained mounted after activating Acessos");
-  const accessIdentity = await evaluate(`(() => ({ text: document.body?.innerText ?? "", hasUserId: (document.body?.innerText ?? "").includes("ID: 44") }))()`);
-  if (!accessIdentity.hasUserId) throw new Error(`Acessos did not expose the user ID: ${JSON.stringify(accessIdentity)}`);
+  const accessIdentity = await evaluate(`(() => { const text=document.body?.innerText ?? ""; return { text, hasNamedUserId: text.includes("ID: 44"), hasUnnamedUserFallback: text.includes("Usuário sem nome") && text.includes("ID: 45") }; })()`);
+  if (!accessIdentity.hasNamedUserId || !accessIdentity.hasUnnamedUserFallback) throw new Error(`Acessos did not expose named/unnamed user identity: ${JSON.stringify(accessIdentity)}`);
 
   await click("Comercial");
   const commercialState = await waitFor(state => state.catalog && state.campaigns && (state.queries["billing.adminCatalogVersions"] ?? 0) > 0 && (state.queries["billing.adminNotifications"] ?? 0) > 0, "commercial tab");
   if (commercialState.access) throw new Error("Acessos remained mounted after activating Comercial");
-  const commercialIdentity = await evaluate(`(() => { const text=document.body?.innerText ?? ""; return { hasPayerNameAndId: text.includes("Cliente Visual (ID 44)"), hasResponsibleNameAndId: text.includes("Admin Visual (ID 9)") }; })()`);
-  if (!commercialIdentity.hasPayerNameAndId || !commercialIdentity.hasResponsibleNameAndId) throw new Error(`Comercial did not expose names with IDs: ${JSON.stringify(commercialIdentity)}`);
+  const commercialIdentity = await evaluate(`(() => { const text=document.body?.innerText ?? ""; return { hasPayerNameAndId: text.includes("Cliente Visual (ID 44)"), hasPayerFallbackAndId: text.includes("Usuário sem nome (ID 45)"), hasResponsibleNameAndId: text.includes("Admin Visual (ID 9)"), hasResponsibleFallbackAndId: text.includes("responsável sem nome (ID 10)") }; })()`);
+  if (!commercialIdentity.hasPayerNameAndId || !commercialIdentity.hasPayerFallbackAndId || !commercialIdentity.hasResponsibleNameAndId || !commercialIdentity.hasResponsibleFallbackAndId) throw new Error(`Comercial did not expose names/fallbacks with IDs: ${JSON.stringify(commercialIdentity)}`);
 
   await setValue("catalog-action-reason", "publicação validada pela operação");
   const publishBefore = commercialState.mutations["billing.adminPublishCatalogVersion"] ?? 0;
