@@ -13,6 +13,7 @@ const generateImageMock = vi.fn();
 const createLocalMealPhotoOverlayMock = vi.fn();
 const requestWhatsappImageMealIdentityClarificationMock = vi.fn();
 const requestWhatsappImageMealQuantityClarificationMock = vi.fn();
+const logRuntimeMemoryOperationMock = vi.hoisted(() => vi.fn());
 const beginInboundMessageMock = vi.fn(async () => null);
 const claimMessageForProcessingStateMock = vi.fn(async () => "claimed" as const);
 const wasMessageAlreadyProcessedMock = vi.fn(async () => false);
@@ -58,6 +59,10 @@ vi.mock("./storage", () => ({
 
 vi.mock("./_core/imageGeneration", () => ({
   generateImage: generateImageMock,
+}));
+
+vi.mock("./_core/runtimeMemoryOperationTelemetry", () => ({
+  logRuntimeMemoryOperation: logRuntimeMemoryOperationMock,
 }));
 
 vi.mock("./modules/whatsapp/localMealPhotoOverlay", () => ({
@@ -200,6 +205,7 @@ describe("whatsappWebhook image inbound", () => {
     confirmPendingMealMock.mockReset();
     requestWhatsappImageMealIdentityClarificationMock.mockReset();
     requestWhatsappImageMealQuantityClarificationMock.mockReset();
+    logRuntimeMemoryOperationMock.mockReset();
     beginInboundMessageMock.mockReset();
     beginInboundMessageMock.mockResolvedValue(null);
     claimMessageForProcessingStateMock.mockReset();
@@ -318,6 +324,22 @@ describe("whatsappWebhook image inbound", () => {
       userId: 123,
       mealLabel: "Almoço",
     }));
+  });
+
+  it("mantém a correlação da mensagem entre mídia e inferência", async () => {
+    const messageId = "wamid.image-memory-correlation";
+    const res = createResponse();
+
+    await handleWhatsAppWebhook(
+      { body: createMetaImagePayload(messageId) } as never,
+      res as never,
+    );
+
+    const relevantEvents = logRuntimeMemoryOperationMock.mock.calls
+      .map(([event]) => event)
+      .filter(event => event.operation === "whatsapp.media" || event.operation === "whatsapp.meal_inference");
+    expect(relevantEvents.length).toBeGreaterThan(2);
+    expect(new Set(relevantEvents.map(event => event.correlationValue))).toEqual(new Set([messageId]));
   });
 
   it("usa legenda da imagem como texto para preservar quantidade exata enviada", async () => {

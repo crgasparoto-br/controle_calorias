@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { logRuntimeMemoryOperation } from "../../_core/runtimeMemoryOperationTelemetry";
 import { transcribeAudio, type TranscriptionError } from "../../_core/voiceTranscription";
 import {
   buildSavedMedia,
@@ -11,7 +12,10 @@ import {
   buildWhatsAppAudioNotUnderstoodReplyMessage,
   buildWhatsAppAudioProcessingFailureReplyMessage,
 } from "./mediaReplyMessages";
-import { normalizeImageForAnalysis } from "./imageAnalysisNormalization";
+import {
+  assertImageWithinAnalysisBudget,
+  normalizeImageForAnalysis,
+} from "./imageAnalysisNormalization";
 import * as messageLifecycle from "./messageLifecycle";
 import {
   buildMediaDataUrl,
@@ -49,6 +53,7 @@ export type PreparedMessageInput = {
   audioTranscriptionFailure?: AudioTranscriptionFailure;
   media: ReturnType<typeof buildSavedMedia>[];
   summary: string;
+  memoryCorrelationValue: string;
 };
 
 type PersistedIncomingMedia = {
@@ -63,8 +68,68 @@ function buildOpaqueIncomingMediaFileName(mediaType: "image" | "audio", extensio
   return `${mediaType}-${randomUUID()}.${extension}`;
 }
 
-async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "audio", mediaId: string, fallbackMimeType?: string): Promise<PersistedIncomingMedia> {
-  const downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+async function persistIncomingMedia(
+  sourcePhone: string,
+  mediaType: "image" | "audio",
+  mediaId: string,
+  fallbackMimeType: string | undefined,
+  operationCorrelationValue: string,
+): Promise<PersistedIncomingMedia> {
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.media",
+    stage: "download:start",
+    correlationValue: operationCorrelationValue,
+    metrics: { isImage: mediaType === "image", isAudio: mediaType === "audio" },
+    always: true,
+  });
+  let downloaded: Awaited<ReturnType<typeof downloadWhatsAppMedia>>;
+  try {
+    downloaded = await downloadWhatsAppMedia(mediaId, fallbackMimeType);
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "download:end",
+      correlationValue: operationCorrelationValue,
+      metrics: { downloadOk: false },
+      always: true,
+    });
+    throw error;
+  }
+
+  const originalByteLength = downloaded.buffer.byteLength;
+  if (mediaType === "image") {
+    try {
+      await assertImageWithinAnalysisBudget(
+        downloaded.buffer,
+        downloaded.mimeType,
+      );
+    } catch (error) {
+      logRuntimeMemoryOperation({
+        operation: "whatsapp.media",
+        stage: "download:end",
+        correlationValue: operationCorrelationValue,
+        metrics: {
+          byteLength: originalByteLength,
+          downloadOk: true,
+          preflightOk: false,
+        },
+        always: true,
+      });
+      throw error;
+    }
+  }
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.media",
+    stage: "download:end",
+    correlationValue: operationCorrelationValue,
+    metrics: {
+      byteLength: originalByteLength,
+      downloadOk: true,
+      ...(mediaType === "image" ? { preflightOk: true } : {}),
+    },
+    always: true,
+  });
+
   const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
   const opaqueMediaId = createHash("sha256").update(mediaId).digest("hex").slice(0, 40);
   if (usageUserId) {
@@ -75,42 +140,133 @@ async function persistIncomingMedia(sourcePhone: string, mediaType: "image" | "a
       operation: "traffic_download",
       channel: "whatsapp",
       unitType: "bytes",
-      unitCount: downloaded.buffer.byteLength,
+      unitCount: originalByteLength,
       correlationId: `traffic:whatsapp:${opaqueMediaId}`,
       metadata: { provider: "meta", mediaType },
     });
   }
-  const analysisImage = mediaType === "image"
-    ? await normalizeImageForAnalysis(downloaded.buffer, downloaded.mimeType)
-    : { buffer: downloaded.buffer, mimeType: downloaded.mimeType };
-  const analysisDataUrl = buildMediaDataUrl(analysisImage.buffer, analysisImage.mimeType);
+
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = buildOpaqueIncomingMediaFileName(mediaType, extension);
+  let savedMedia: ReturnType<typeof buildSavedMedia> | undefined;
+  let storageWarning: string | undefined;
 
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.media",
+    stage: "storage:start",
+    correlationValue: operationCorrelationValue,
+    metrics: { byteLength: originalByteLength },
+    always: true,
+  });
   try {
     const stored = await storagePut(`whatsapp/${mediaType}/${fileName}`, downloaded.buffer, downloaded.mimeType, {
       ...(usageUserId ? { usage: { userId: usageUserId, correlationId: `traffic:whatsapp:${opaqueMediaId}` } } : {}),
     });
-    return {
-      savedMedia: buildSavedMedia({
-        mediaType,
-        storageKey: stored.key,
-        storageUrl: stored.url,
-        mimeType: downloaded.mimeType,
-        originalFileName: fileName,
-      }),
-      analysisDataUrl,
+    savedMedia = buildSavedMedia({
+      mediaType,
+      storageKey: stored.key,
+      storageUrl: stored.url,
       mimeType: downloaded.mimeType,
-      byteLength: downloaded.buffer.length,
-    };
+      originalFileName: fileName,
+    });
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "storage:end",
+      correlationValue: operationCorrelationValue,
+      metrics: { byteLength: originalByteLength, storageOk: true },
+      always: true,
+    });
   } catch {
-    return {
-      analysisDataUrl,
-      mimeType: downloaded.mimeType,
-      byteLength: downloaded.buffer.length,
-      storageWarning: MEDIA_STORAGE_WARNING,
-    };
+    storageWarning = MEDIA_STORAGE_WARNING;
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "storage:end",
+      correlationValue: operationCorrelationValue,
+      metrics: { byteLength: originalByteLength, storageOk: false },
+      always: true,
+    });
   }
+
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.media",
+    stage: "normalize:start",
+    correlationValue: operationCorrelationValue,
+    metrics: { byteLength: originalByteLength, isImage: mediaType === "image" },
+    always: true,
+  });
+  let analysisImage: Awaited<ReturnType<typeof normalizeImageForAnalysis>>;
+  try {
+    analysisImage = mediaType === "image"
+      ? await normalizeImageForAnalysis(downloaded.buffer, downloaded.mimeType)
+      : { buffer: downloaded.buffer, mimeType: downloaded.mimeType, normalized: false };
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "normalize:end",
+      correlationValue: operationCorrelationValue,
+      metrics: {
+        inputBytes: originalByteLength,
+        analysisBytes: analysisImage.buffer.byteLength,
+        normalized: analysisImage.normalized,
+        normalizeOk: true,
+      },
+      always: true,
+    });
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "normalize:end",
+      correlationValue: operationCorrelationValue,
+      metrics: {
+        inputBytes: originalByteLength,
+        normalizeOk: false,
+      },
+      always: true,
+    });
+    throw error;
+  }
+
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.media",
+    stage: "base64:start",
+    correlationValue: operationCorrelationValue,
+    metrics: { analysisBytes: analysisImage.buffer.byteLength },
+    always: true,
+  });
+  let analysisDataUrl: string;
+  try {
+    analysisDataUrl = buildMediaDataUrl(analysisImage.buffer, analysisImage.mimeType);
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "base64:end",
+      correlationValue: operationCorrelationValue,
+      metrics: {
+        analysisBytes: analysisImage.buffer.byteLength,
+        dataUrlChars: analysisDataUrl.length,
+        base64Ok: true,
+      },
+      always: true,
+    });
+  } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.media",
+      stage: "base64:end",
+      correlationValue: operationCorrelationValue,
+      metrics: {
+        analysisBytes: analysisImage.buffer.byteLength,
+        base64Ok: false,
+      },
+      always: true,
+    });
+    throw error;
+  }
+
+  return {
+    ...(savedMedia ? { savedMedia } : {}),
+    analysisDataUrl,
+    mimeType: downloaded.mimeType,
+    byteLength: originalByteLength,
+    ...(storageWarning ? { storageWarning } : {}),
+  };
 }
 
 async function logMediaStorageWarning(sourcePhone: string, warning?: string) {
@@ -179,14 +335,22 @@ async function enrichPersistedConversationMessage(message: WhatsAppWebhookMessag
 
 export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourcePhone: string): Promise<PreparedMessageInput> {
   const text = getWhatsAppMessageTextBody(message) || undefined;
+  const memoryCorrelationValue = message.id ?? randomUUID();
   const prepared: PreparedMessageInput = {
     text,
     media: [],
     summary: "texto",
+    memoryCorrelationValue,
   };
 
   if (message.image?.id) {
-    const storedImage = await persistIncomingMedia(sourcePhone, "image", message.image.id, message.image.mime_type);
+    const storedImage = await persistIncomingMedia(
+      sourcePhone,
+      "image",
+      message.image.id,
+      message.image.mime_type,
+      memoryCorrelationValue,
+    );
     if (storedImage.savedMedia) {
       prepared.media.push(storedImage.savedMedia);
       prepared.imageUrl = storedImage.savedMedia.storageUrl;
@@ -198,7 +362,13 @@ export async function prepareMessageInput(message: WhatsAppWebhookMessage, sourc
 
   if (message.audio?.id) {
     const usageUserId = await getUserIdByWhatsappPhone(sourcePhone);
-    const storedAudio = await persistIncomingMedia(sourcePhone, "audio", message.audio.id, message.audio.mime_type);
+    const storedAudio = await persistIncomingMedia(
+      sourcePhone,
+      "audio",
+      message.audio.id,
+      message.audio.mime_type,
+      memoryCorrelationValue,
+    );
     if (storedAudio.savedMedia) {
       prepared.media.push(storedAudio.savedMedia);
       prepared.audioUrl = storedAudio.savedMedia.storageUrl;

@@ -1,17 +1,1 @@
-{
-  "schema_version": 1,
-  "classification": "implementation-only",
-  "source_event": {
-    "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:pr1252-handoff-not-produced-09d4de8d",
-    "audit_report_sha256": "3922de2834be5833549aaac15c293a71588f0240549c12591d7fa77e9b6240bb",
-    "finding_ids": [
-      "A-001"
-    ]
-  },
-  "generalized_learning": {
-    "promotion_status": "not-required",
-    "reason": "The rejection concerns missing delivery packaging for the current target, not a new product implementation defect or reusable product rule."
-  },
-  "skill_changes": []
-}
+{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff","audit_report_sha256":"de22c9b8b15234673a7f067f27e4c5d7e4f97d5c5afb52ec9361a718b5b4b082","finding_ids":["A-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The rejection is target-specific handoff readiness after develop overwrote the prior result package; no new product defect or global skill rule is required."}}

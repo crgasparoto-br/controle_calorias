@@ -41,6 +41,7 @@ import type {
   MealSemanticClarificationCode,
   MealSemanticEvidenceOrigin,
 } from "./nutritionEngineTypes";
+import { findTacoFood } from "./tacoLookup";
 
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
@@ -112,6 +113,16 @@ export function findCountableCatalogReference(foodName: string) {
   }
 
   return findCatalogFood("ovo");
+}
+
+/**
+ * Resolve a nutrition reference for a countable item after its quantity has
+ * already been accepted. This is deliberately owned by the canonical food
+ * resolution boundary so adapters can materialize the decision without
+ * rediscovering nutrition from rewritten registration text.
+ */
+export function findCountableNutritionReference(foodName: string): CatalogFood | undefined {
+  return findCatalogFood(foodName) ?? findTacoFood(foodName) ?? undefined;
 }
 
 export type CountableFoodQuantityRequest = {

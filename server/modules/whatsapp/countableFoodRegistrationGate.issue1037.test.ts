@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prepareResolved: vi.fn(),
+  findCountableNutritionReference: vi.fn(() => undefined),
   requestClarification: vi.fn(),
 }));
 
 vi.mock("../../countableFoodQuantity", () => ({
   prepareCountableFoodRegistrationResolved: mocks.prepareResolved,
+}));
+vi.mock("../../foodItemResolution", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../foodItemResolution")>()),
+  findCountableNutritionReference: mocks.findCountableNutritionReference,
 }));
 vi.mock("./foodQuantityClarification", () => ({
   requestWhatsappConfirmedTextMealQuantityClarification: mocks.requestClarification,

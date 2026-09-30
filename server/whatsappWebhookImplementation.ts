@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { runWithAiUsageScope } from "./_core/ai/usageContext";
+import { logRuntimeMemoryOperation } from "./_core/runtimeMemoryOperationTelemetry";
 import type { ImageAnnotationResponse } from "./_core/imageAnnotation";
 import {
   buildSavedMedia,
@@ -871,27 +872,67 @@ export async function handleWhatsAppWebhook(req: Request, res: Response) {
       const occurredAt = resolveWhatsAppMessageOccurredAt(message);
       const resolvedSegments = deferredReply?.resolvedSegments ?? [];
       const habits = await getHabitSnapshots(userId);
-      const partialProcessing = await runWithAiUsageScope(
-        { userId, conversationId: message.id },
-        () =>
-          processMealInputWithPartialFailures(
-            {
-              text: prepared.text,
-              transcript: prepared.transcript,
-              imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
-              audioUrl: prepared.audioUrl,
-              nutritionLabelIdentityContext: nutritionLabelProcessingContext,
-              habits,
-              occurredAt,
-              timeZone: userTimezone,
-            },
-            resolvedSegments,
-            {
-              containsMedia: Boolean(message.image?.id || message.audio?.id),
-              hasTranscriptionFailure: Boolean(prepared.audioTranscriptionFailure),
-            }
-          )
-      );
+      const containsMedia = Boolean(message.image?.id || message.audio?.id);
+      const memoryCorrelationValue = prepared.memoryCorrelationValue;
+      if (containsMedia) {
+        logRuntimeMemoryOperation({
+          operation: "whatsapp.meal_inference",
+          stage: "inference:start",
+          correlationValue: memoryCorrelationValue,
+          metrics: {
+            hasImage: Boolean(message.image?.id),
+            hasAudio: Boolean(message.audio?.id),
+          },
+          always: true,
+        });
+      }
+
+      let partialProcessing: Awaited<
+        ReturnType<typeof processMealInputWithPartialFailures>
+      >;
+      try {
+        partialProcessing = await runWithAiUsageScope(
+          { userId, conversationId: message.id },
+          () =>
+            processMealInputWithPartialFailures(
+              {
+                text: prepared.text,
+                transcript: prepared.transcript,
+                imageUrl: prepared.imageAnalysisUrl || prepared.imageUrl,
+                audioUrl: prepared.audioUrl,
+                nutritionLabelIdentityContext: nutritionLabelProcessingContext,
+                habits,
+                occurredAt,
+                timeZone: userTimezone,
+              },
+              resolvedSegments,
+              {
+                containsMedia,
+                hasTranscriptionFailure: Boolean(prepared.audioTranscriptionFailure),
+              }
+            )
+        );
+        if (containsMedia) {
+          logRuntimeMemoryOperation({
+            operation: "whatsapp.meal_inference",
+            stage: "inference:end",
+            correlationValue: memoryCorrelationValue,
+            metrics: { inferenceOk: true },
+            always: true,
+          });
+        }
+      } catch (error) {
+        if (containsMedia) {
+          logRuntimeMemoryOperation({
+            operation: "whatsapp.meal_inference",
+            stage: "inference:end",
+            correlationValue: memoryCorrelationValue,
+            metrics: { inferenceOk: false },
+            always: true,
+          });
+        }
+        throw error;
+      }
       let processed: MealProcessingResult = partialProcessing.processed;
       if (partialProcessing.skippedSegments.length > 0) {
         responsePrefixBlocks.push(
