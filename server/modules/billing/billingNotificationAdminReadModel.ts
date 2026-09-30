@@ -23,6 +23,7 @@ export type BillingAdminDeliverySnapshot = {
   definitiveFailure: boolean;
   acknowledged: boolean;
   responsibleUserId: number | null;
+  responsibleUserName: string | null;
   nextAttemptAt: Date | null;
   updatedAt: Date | null;
 };
@@ -39,6 +40,7 @@ export type BillingAdminNotificationReadItem = {
   support: string;
   actionHref: "/billing" | null;
   payerUserId: number;
+  payerUserName: string | null;
   factType: string;
   category: BillingAdminNotificationCategory;
   audience: BillingAdminNotificationAudience;
@@ -65,6 +67,7 @@ export type BillingAdminNotificationReadItem = {
     sourceEffectiveAt: Date | null;
     latestCampaignControlAt: Date | null;
     latestCampaignControlActorUserId: number | null;
+    latestCampaignControlActorUserName: string | null;
   };
 };
 
