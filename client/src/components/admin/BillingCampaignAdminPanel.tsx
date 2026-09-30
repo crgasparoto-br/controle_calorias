@@ -54,6 +54,8 @@ export default function BillingCampaignAdminPanel() {
   const [overrideReason, setOverrideReason] = useState("");
   const [responsibleUserId, setResponsibleUserId] = useState("");
   const retryRequestIds = useRef(new Map<string, string>());
+  const responsibleId = Number(responsibleUserId.trim());
+  const validResponsibleId = Number.isInteger(responsibleId) && responsibleId > 0;
 
   const queryInput = useMemo(() => ({
     limit: 100,
@@ -68,6 +70,14 @@ export default function BillingCampaignAdminPanel() {
     ...(state ? { state } : {}),
   }), [audience, campaign, campaignVersion, category, channel, deliveryState, milestone, state, trigger]);
   const notifications = trpc.billing.adminNotifications.useQuery(queryInput, { retry: false });
+  const responsibleUsers = trpc.billing.adminSearchUsers.useQuery(
+    { query: responsibleUserId.trim(), limit: 5 },
+    { enabled: validResponsibleId, retry: false }
+  );
+  const responsibleUser = useMemo(
+    () => responsibleUsers.data?.find(user => user.id === responsibleId) ?? null,
+    [responsibleId, responsibleUsers.data]
+  );
 
   const refresh = async () => {
     await utils.billing.adminNotifications.invalidate();
@@ -136,7 +146,19 @@ export default function BillingCampaignAdminPanel() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2 md:col-span-2"><Label htmlFor="campaign-reason">Motivo da operação</Label><Textarea id="campaign-reason" value={reason} onChange={event => setReason(event.target.value)} placeholder="Obrigatório para pausar, reprocessar ou atribuir uma falha" /></div>
-            <div className="space-y-2"><Label htmlFor="campaign-owner">Responsável (ID do administrador)</Label><Input id="campaign-owner" value={responsibleUserId} onChange={event => setResponsibleUserId(event.target.value)} placeholder="Ex.: 12" /></div>
+            <div className="space-y-2">
+              <Label htmlFor="campaign-owner">Responsável (ID do administrador)</Label>
+              <Input id="campaign-owner" value={responsibleUserId} onChange={event => setResponsibleUserId(event.target.value)} placeholder="Ex.: 12" />
+              {validResponsibleId ? (
+                <p className="text-xs text-muted-foreground">
+                  {responsibleUsers.isLoading
+                    ? "Consultando nome..."
+                    : responsibleUser
+                      ? `Nome: ${responsibleUser.name || "Usuário sem nome"} (ID ${responsibleUser.id})`
+                      : `Nenhum usuário encontrado para o ID ${responsibleId}.`}
+                </p>
+              ) : null}
+            </div>
           </div>
           <div className="space-y-2"><Label htmlFor="campaign-override">Justificativa excepcional</Label><Input id="campaign-override" value={overrideReason} onChange={event => setOverrideReason(event.target.value)} placeholder="Use apenas para comunicação concluída, obsoleta ou pausada" /></div>
 
