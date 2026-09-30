@@ -74,6 +74,7 @@ import {
 } from "./nutritionEngine";
 import { calculateMealTotals } from "../shared/mealTotals";
 import { storagePut } from "./storage";
+import { logRuntimeMemoryOperation } from "./_core/runtimeMemoryOperationTelemetry";
 import { handleWhatsAppWebhook } from "./whatsappWebhook";
 import { splitMealItemsForWaterHydration } from "./modules/whatsapp/waterItemClassification";
 import {
@@ -211,26 +212,40 @@ async function prepareImageMessage(
     throw new Error("Mensagem sem imagem para processamento anotado.");
   }
 
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "download:start",
+    correlationValue: imageId,
+    always: true,
+  });
   const downloaded = await downloadWhatsAppMedia(
     imageId,
     message.image?.mime_type
   );
-  const analysisImage = await normalizeImageForAnalysis(
-    downloaded.buffer,
-    downloaded.mimeType,
-  );
-  const imageAnalysisUrl = buildMediaDataUrl(
-    analysisImage.buffer,
-    analysisImage.mimeType,
-  );
+  const originalByteLength = downloaded.buffer.byteLength;
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "download:end",
+    correlationValue: imageId,
+    metrics: { byteLength: originalByteLength },
+    always: true,
+  });
+
   const extension = extensionFromMimeType(downloaded.mimeType);
   const fileName = `${sourcePhone}-${imageId}.${extension}`;
   const prepared: PreparedImageMessage = {
     text: getTextBody(message) || undefined,
-    imageAnalysisUrl,
+    imageAnalysisUrl: "",
     media: [],
   };
 
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "storage:start",
+    correlationValue: imageId,
+    metrics: { byteLength: originalByteLength },
+    always: true,
+  });
   try {
     const stored = await storagePut(
       `whatsapp/image/${fileName}`,
@@ -246,13 +261,71 @@ async function prepareImageMessage(
     });
     prepared.media.push(savedMedia);
     prepared.imageUrl = savedMedia.storageUrl;
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.annotated_image",
+      stage: "storage:end",
+      correlationValue: imageId,
+      metrics: { byteLength: originalByteLength, storageOk: true },
+      always: true,
+    });
   } catch (error) {
     console.warn(
       "[WhatsAppAnnotatedImage] Received media storage failed; continuing with inline image analysis.",
       error instanceof Error ? error.message : error
     );
     prepared.storageWarning = MEDIA_STORAGE_WARNING;
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.annotated_image",
+      stage: "storage:end",
+      correlationValue: imageId,
+      metrics: { byteLength: originalByteLength, storageOk: false },
+      always: true,
+    });
   }
+
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "normalize:start",
+    correlationValue: imageId,
+    metrics: { byteLength: originalByteLength },
+    always: true,
+  });
+  const analysisImage = await normalizeImageForAnalysis(
+    downloaded.buffer,
+    downloaded.mimeType,
+  );
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "normalize:end",
+    correlationValue: imageId,
+    metrics: {
+      inputBytes: originalByteLength,
+      analysisBytes: analysisImage.buffer.byteLength,
+      normalized: analysisImage.normalized,
+    },
+    always: true,
+  });
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "base64:start",
+    correlationValue: imageId,
+    metrics: { analysisBytes: analysisImage.buffer.byteLength },
+    always: true,
+  });
+  prepared.imageAnalysisUrl = buildMediaDataUrl(
+    analysisImage.buffer,
+    analysisImage.mimeType,
+  );
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "base64:end",
+    correlationValue: imageId,
+    metrics: {
+      analysisBytes: analysisImage.buffer.byteLength,
+      dataUrlChars: prepared.imageAnalysisUrl.length,
+    },
+    always: true,
+  });
 
   return prepared;
 }
@@ -310,10 +383,18 @@ async function processImageMealInputWithFallback(input: {
     | null;
   userTimezone: string;
 }): Promise<ImageMealProcessingOutcome> {
+  const correlationValue =
+    input.prepared.media[0]?.storageKey ?? input.prepared.imageUrl ?? "inline-image";
+  logRuntimeMemoryOperation({
+    operation: "whatsapp.annotated_image",
+    stage: "inference:start",
+    correlationValue,
+    metrics: { hasImage: Boolean(input.prepared.imageAnalysisUrl || input.prepared.imageUrl) },
+    always: true,
+  });
   try {
-    return {
-      meal: await runWithAiUsageScope({ userId: input.userId }, async () =>
-        processMealInput({
+    const meal = await runWithAiUsageScope({ userId: input.userId }, async () =>
+      processMealInput({
           text: input.prepared.text,
           imageUrl: input.prepared.imageAnalysisUrl || input.prepared.imageUrl,
           habits: await getHabitSnapshots(input.userId),
@@ -322,9 +403,23 @@ async function processImageMealInputWithFallback(input: {
           intentHint: input.intentHint ?? undefined,
           nutritionLabelIdentityContext: input.nutritionLabelIdentityContext,
         })
-      ),
-    };
+      );
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.annotated_image",
+      stage: "inference:end",
+      correlationValue,
+      metrics: { inferenceOk: true },
+      always: true,
+    });
+    return { meal };
   } catch (error) {
+    logRuntimeMemoryOperation({
+      operation: "whatsapp.annotated_image",
+      stage: "inference:end",
+      correlationValue,
+      metrics: { inferenceOk: false },
+      always: true,
+    });
     if (!(error instanceof MealInferenceError)) {
       throw error;
     }

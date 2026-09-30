@@ -3,6 +3,7 @@
  * Mesmo padrão setInterval+.unref() de stravaScheduler.ts — sem introduzir um
  * framework de agendamento genérico novo.
  */
+import { logRuntimeMemoryOperation } from "../../_core/runtimeMemoryOperationTelemetry";
 import { runConversationRetentionSweep } from "./conversationRetentionService";
 
 const DEFAULT_RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -19,11 +20,13 @@ export function startConversationRetentionScheduler(intervalMs: number = DEFAULT
   const run = async () => {
     if (running) return;
     running = true;
+    logRuntimeMemoryOperation({ operation: "scheduler.whatsapp_retention", stage: "start", always: true });
     try {
       await runConversationRetentionSweep("scheduled");
     } catch (error) {
       console.warn("[WhatsAppRetention] Retention sweep skipped:", error instanceof Error ? error.message : error);
     } finally {
+      logRuntimeMemoryOperation({ operation: "scheduler.whatsapp_retention", stage: "end" });
       running = false;
     }
   };

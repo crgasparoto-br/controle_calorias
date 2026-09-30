@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { normalizeImageForAnalysis } from "./imageAnalysisNormalization";
+import {
+  normalizeImageForAnalysis,
+  resolveSharpRuntimeBudget,
+} from "./imageAnalysisNormalization";
 
 describe("normalizeImageForAnalysis", () => {
+  it("limita cache e concorrência do Sharp apenas em runtime com pouca memória", () => {
+    expect(resolveSharpRuntimeBudget(512 * 1024 * 1024)).toEqual({
+      cacheMemoryMb: 8,
+      cacheFiles: 0,
+      cacheItems: 16,
+      concurrency: 1,
+    });
+    expect(resolveSharpRuntimeBudget(1024 * 1024 * 1024)).toBeNull();
+    expect(resolveSharpRuntimeBudget(null)).toBeNull();
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });

@@ -238,3 +238,12 @@ Registro, adição, imagem, áudio transcrito e simulador compartilham `server/f
 - Reserva de cupom bloqueia o usuário e a revisão ativa dentro da transação, conta `reserved` + `confirmed` em todas as revisões do mesmo código e usa `contractKey` único; concorrência pelo último uso produz um vencedor, e retry recupera a reserva histórica original mesmo depois de revisão ou desativação do cupom.
 - Mutações administrativas do catálogo revalidam `users.role = admin` com `FOR UPDATE` dentro da transação. Perda de autorização antes do lock impede qualquer mutação/auditoria; depois do lock, mudança concorrente de papel aguarda o commit.
 - O workflow `Billing persistence TiDB gate` valida migration, drift Drizzle, concorrência, idempotência, sanitização e integridade antes do merge.
+
+
+## Diagnóstico de pressão de memória no runtime (#1257)
+
+O backend registra checkpoints estruturados `[Runtime] memory_operation` nos trechos de maior risco de memória do WhatsApp: download de mídia, persistência do original, normalização Sharp/libvips, criação de data URL/base64 e inferência visual. A correlação usa somente hash opaco do identificador técnico; telefone, texto, imagem, base64, URL assinada e payload bruto não podem ser registrados.
+
+Para incidentes no Render, correlacione `operation`, `stage`, `correlationId`, `containerMiB`, `memoryLimitMiB`, `rssMiB`, `heapUsedMiB` e `pressureBand`. Um salto grande em `containerMiB`/RSS com heap estável indica pressão nativa/buffers. Os schedulers de Strava, retenção, usage governance e reconciliação Asaas também registram início e fim; o recovery de perguntas do WhatsApp já registra cada lookup e sua cardinalidade.
+
+Em runtimes com limite de cgroup de até 768 MiB, o Sharp reduz cache interno e concorrência (`memory=8 MiB`, `files=0`, `items=16`, `concurrency=1`) sem reduzir o limite funcional de pixels aceitos. O pipeline persiste o original antes de criar a cópia normalizada/base64 para evitar sobrepor o pico de upload com a alocação nativa de transformação.

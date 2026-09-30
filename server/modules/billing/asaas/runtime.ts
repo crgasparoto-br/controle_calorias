@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { logRuntimeMemoryOperation } from "../../../_core/runtimeMemoryOperationTelemetry";
 import { sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import {
@@ -623,10 +624,13 @@ export function startAsaasBillingReconciliationScheduler() {
     Number(process.env.ASAAS_RECONCILIATION_INTERVAL_MS ?? 300_000) || 300_000
   );
   const run = () => {
+    logRuntimeMemoryOperation({ operation: "scheduler.asaas_reconciliation", stage: "start", always: true });
     void reconcileAsaasBilling().catch(error => {
       console.warn("[Billing/Asaas] reconciliation cycle failed", {
         error: error instanceof Error ? error.name : "unknown",
       });
+    }).finally(() => {
+      logRuntimeMemoryOperation({ operation: "scheduler.asaas_reconciliation", stage: "end" });
     });
   };
   run();
