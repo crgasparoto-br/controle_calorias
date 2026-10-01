@@ -1,1 +1,17 @@
-{"schema_version":1,"classification":"implementation-only","source_event":{"kind":"independent-rejection","rejection_id":"audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff","audit_report_sha256":"de22c9b8b15234673a7f067f27e4c5d7e4f97d5c5afb52ec9361a718b5b4b082","finding_ids":["A-001"]},"generalized_learning":{"promotion_status":"not-required","reason":"The rejection is target-specific handoff readiness after develop overwrote the prior result package; no new product defect or global skill rule is required."}}
+{
+  "schema_version": 1,
+  "classification": "implementation-only",
+  "source_event": {
+    "kind": "independent-rejection",
+    "rejection_id": "audit-rejection:1276-handoff-readiness-001",
+    "audit_report_sha256": "69e2519b739d9a7191ce227102ea83c7a9819894970a2b2549a703f8529aac49",
+    "finding_ids": [
+      "A-1276-001"
+    ]
+  },
+  "generalized_learning": {
+    "promotion_status": "not-required",
+    "reason": "A remediação é targeted para reconstrução do pacote current-target; não altera uma regra global da Skill."
+  },
+  "skill_changes": []
+}

@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+  "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
   "controls": [],
   "retired_controls": [
     {
       "id": "INH-DELIVERY-TARGET-001",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
-      "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
-      "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
+      "subject_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
+      "evidence_sha256": "6b1b987cc02c4555c592ee41bfab21410d2c928c533c4e449661a47d726b2bd6",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."
@@ -18,9 +18,9 @@
       "id": "IC-1237-ATOMIC-MOVE",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
-      "evidence": "Current target binding classifies the base package as foreign to issue 1246 / PR 1247 and rebuilds a fresh handoff; product controls from issue 1237 are not required by the current canonical specification.",
-      "evidence_sha256": "5b31bc158cc247796227f38588fe3d7e9de26200b041543c750a5a094b377d13",
+      "subject_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
+      "evidence_sha256": "671049b360265615704662c1a46f56dcee105569437180096237eb7ed33987fa",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."
@@ -53,6 +53,13 @@
       "audit_report_sha256": "10375f487a5d185e283d892465687d6dd0c97da4561536214214957207226c60",
       "finding_ids": [
         "AUD-1253-001"
+      ]
+    },
+    {
+      "rejection_id": "audit-rejection:1276-handoff-readiness-001",
+      "audit_report_sha256": "69e2519b739d9a7191ce227102ea83c7a9819894970a2b2549a703f8529aac49",
+      "finding_ids": [
+        "A-1276-001"
       ]
     }
   ],

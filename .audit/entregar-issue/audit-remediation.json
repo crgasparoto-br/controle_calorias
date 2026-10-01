@@ -1,1 +1,26 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","status":"closed","candidate_head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","remediation_mode":"targeted-remediation","source":{"rejection_id":"audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff","audited_head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","audit_report_sha256":"de22c9b8b15234673a7f067f27e4c5d7e4f97d5c5afb52ec9361a718b5b4b082"},"items":[{"source_kind":"finding","source_id":"A-001","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"handoff-rebuild","evidence":["Fresh current-target package rebuilt for issue 1257 / PR 1258; inherited issue 1259 / PR 1260 certificate is not reused."],"validations":["Agent-first gate run 36735032697 completed success on exact material SHA af9c6be23aac4035584cbe7bf178da90e3eefbcb; Full tests, TypeScript, architecture, documentation, build and agent checks passed.","WhatsApp context TiDB gate 36735032825 completed success on the same material SHA."]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:1276-handoff-readiness-001",
+    "audited_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+    "audit_report_sha256": "69e2519b739d9a7191ce227102ea83c7a9819894970a2b2549a703f8529aac49"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1276-001",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": "Novo handoff current-target foi reconstruído com subject da PR 1276, material head 21c9fd6e e artefatos críticos exact-SHA.",
+      "validations": [
+        "check_delivery_preflight.py validou o pacote corrente contra a base imutável.",
+        "validate_terminal_handoff.py validou parent direto e allowlist do filho result-only."
+      ]
+    }
+  ]
+}

@@ -1,1 +1,25 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","mode":"independent","status":"rejected","rejection_id":"audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff","head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","identity":{"repository":"crgasparoto-br/controle_calorias","issue_number":1257,"pull_request_number":1258,"head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb"},"findings":[{"id":"A-001","severity":"blocking","disposition":"blocking","status":"open","actionable":true,"remediation_mode":"targeted-remediation","reason":"handoff-not-produced"}],"recommendations":[]}
+{
+  "schema_version": 1,
+  "status": "rejected",
+  "rejection_id": "audit-rejection:1276-handoff-readiness-001",
+  "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "identity": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "pull_request": 1276,
+    "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
+    "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510"
+  },
+  "findings": [
+    {
+      "id": "A-1276-001",
+      "severity": "blocking",
+      "disposition": "blocking",
+      "status": "open",
+      "remediation_mode": "targeted-remediation",
+      "class": "delivery-not-ready",
+      "title": "Handoff herdado da base pertence a outra entrega",
+      "evidence": "O handoff da base certificava issue 1257/PR 1258; a PR 1276 precisava de certificado current-target."
+    }
+  ],
+  "recommendations": []
+}
