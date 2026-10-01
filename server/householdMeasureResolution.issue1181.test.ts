@@ -108,6 +108,23 @@ describe("resolveHouseholdMeasure (#1181)", () => {
       grams: 207,
       sourceUrls: ["https://example.test/pera-packans-unidade"],
     }));
+
+    const runtimeWithUnd = baseRuntime();
+    runtimeWithUnd.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([reference({
+      matchedFoodName: "Pêra Packans",
+      measureUnit: "und",
+      grams: 207,
+      describesTypicalMeasure: true,
+      sourceUrl: "https://example.test/pera-packans-und",
+      evidence: "Pêra Packans: 1 und / aprox. 0,207 kg.",
+    })]));
+
+    await expect(resolveHouseholdMeasure(input, runtimeWithUnd as any)).resolves.toEqual(expect.objectContaining({
+      kind: "usual_average",
+      grams: 207,
+      requestedUnit: "unidade",
+      sourceUrls: ["https://example.test/pera-packans-und"],
+    }));
   });
 
   it("prefere a referência específica verificável da variedade à média genérica", async () => {
