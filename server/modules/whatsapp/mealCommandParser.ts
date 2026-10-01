@@ -55,13 +55,16 @@ export function isExplicitFoodAdditionCommand(input?: string | null): boolean {
   if (!raw || !EXPLICIT_FOOD_ADDITION_COMMAND.test(raw)) return false;
 
   const parsed = parseMealCommandFromWhatsApp(raw);
-  const completeItems = parsed.items.some(item => (
+  const isCompleteItem = (item: ParsedMealCommandItem) => (
     Boolean(item.foodName?.trim())
     && item.quantity !== null
     && item.quantity !== undefined
     && Number.isFinite(item.quantity)
     && Boolean(item.unit?.trim())
-  ));
+  );
+  const firstCompleteItemIndex = parsed.items.findIndex(isCompleteItem);
+  const completeItems = firstCompleteItemIndex >= 0
+    && parsed.items.slice(firstCompleteItemIndex).every(isCompleteItem);
 
   return parsed.intent === "add_items_to_meal"
     && completeItems
