@@ -113,6 +113,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Uma mensagem com duas ou mais substituições completas separadas por `LF`, `CRLF` ou linhas em branco aplica todas as correções no mesmo lote, preserva cada par origem → destino e envia uma única resposta funcional com o estado recalculado.
 - Uma linha incompleta em um lote impede qualquer mutação, produz esclarecimento e bloqueia o fallback nutricional tanto no webhook quanto no simulador.
 - Texto comum de refeição continua disponível para inferência nutricional e registro conversacional.
+- Quantidade escrita com vírgula decimal (`22,5 g`, `1,5 fatias`) é lida como uma única quantidade, e alimento presente no catálogo nunca é descartado como ruído não alimentar.
 - Refeições registradas pelo WhatsApp podem retornar link de edição rápida associado somente à refeição criada.
 - Alimento identificado por imagem sem quantidade permanece pendente e não é persistido até uma resposta explícita de peso, volume ou porção.
 - Alimento identificado por imagem com identidade comercial pendente permanece em `food_clarification.identity` até uma resposta textual válida; resposta inválida reapresenta a pergunta e não cai no fallback nutricional.
