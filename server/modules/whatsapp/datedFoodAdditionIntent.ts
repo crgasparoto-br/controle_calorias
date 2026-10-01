@@ -69,8 +69,20 @@ export async function executeWhatsappDatedFoodAdditionIntent(
     timeZone,
     mealLabels: configuredSchedules.map(schedule => schedule.mealLabel),
   });
-  if (parsed.intent !== "add_items_to_meal" || !parsed.mealType || !parsed.items.length) {
+  if (parsed.intent !== "add_items_to_meal" || !parsed.items.length) {
     return null;
+  }
+  if (!parsed.mealType) {
+    return {
+      handled: true,
+      action: "clarification_needed",
+      ...buildWhatsappExplicitMealTargetMissingClarification({
+        mealLabel: "informada",
+        targetDate: dateSelection.date,
+        timeZone,
+        detail: "Adição com data explícita bloqueada porque o rótulo não corresponde a uma refeição configurada pelo usuário.",
+      }),
+    };
   }
 
   const foodText = formatItemsForProcessing(parsed.items);

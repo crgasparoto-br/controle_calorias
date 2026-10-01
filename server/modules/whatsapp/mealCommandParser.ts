@@ -201,6 +201,19 @@ function hasConfiguredMealDestination(input: string, mealLabel: string) {
   ).test(input);
 }
 
+function configuredMealLabelCandidates(context: MealCommandContext) {
+  return (context.mealLabels ?? [])
+    .flatMap(mealLabel => [mealLabel.trim(), normalizeText(mealLabel).trim()])
+    .filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index)
+    .sort((left, right) => right.length - left.length);
+}
+
+function configuredMealDestinationPattern(context: MealCommandContext) {
+  const labels = configuredMealLabelCandidates(context);
+  if (!labels.length) return null;
+  return `(?:${labels.map(label => label.split(/\s+/).map(escapeRegExp).join("\\s+")).join("|")})`;
+}
+
 function stripConfiguredMealDestination(value: string, context: MealCommandContext) {
   return (context.mealLabels ?? []).reduce((current, mealLabel) => {
     const labelCandidates = [mealLabel.trim(), normalizeText(mealLabel).trim()]
@@ -236,6 +249,10 @@ function hasShortCoffeeMealDestination(normalizedInput: string) {
 
 function findMealType(input: string, context: MealCommandContext) {
   const normalized = normalizeText(input);
+  const configuredMeal = configuredMealLabelCandidates(context)
+    .find(label => hasConfiguredMealDestination(normalized, label));
+  if (configuredMeal) return configuredMeal.trim();
+
   const mealType = MEAL_TYPES.find(candidate => normalized.includes(normalizeText(candidate)));
   if (mealType) {
     return normalizeMealType(mealType);
@@ -243,12 +260,6 @@ function findMealType(input: string, context: MealCommandContext) {
   if (hasShortCoffeeMealDestination(normalized)) {
     return "café da manhã";
   }
-
-  const configuredMeal = (context.mealLabels ?? [])
-    .filter(label => label.trim())
-    .sort((left, right) => normalizeText(right).length - normalizeText(left).length)
-    .find(label => hasConfiguredMealDestination(normalized, label));
-  if (configuredMeal) return configuredMeal.trim();
 
   return context.recentMealType ?? null;
 }
@@ -428,7 +439,11 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const date = resolveCommandDate(input, context);
   const afterAction = input.slice((actionMatch.index ?? 0) + actionMatch[0].length);
   const datePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?";
-  const mealPrefixPattern = `${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}${datePattern}`;
+  const configuredDestinationPattern = configuredMealDestinationPattern(context);
+  const mealDestinationPattern = configuredDestinationPattern
+    ? `(?:${configuredDestinationPattern}|${MEAL_DESTINATION_PATTERN_SOURCE})`
+    : MEAL_DESTINATION_PATTERN_SOURCE;
+  const mealPrefixPattern = `${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${mealDestinationPattern}${datePattern}`;
   const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)(?:\\s*[,;-]\\s*|\\s+)${mealPrefixPattern}\\s*$`, "i"));
   const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:-]\\s*|\\s+)(.+)$`, "i"))
     ?? afterAction.match(new RegExp(`^\\s*${MEAL_PATTERN_SOURCE}${datePattern}\\s*[:;,]\\s*(.+)$`, "i"))

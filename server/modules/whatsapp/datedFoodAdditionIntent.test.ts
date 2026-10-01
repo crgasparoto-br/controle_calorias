@@ -120,6 +120,33 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(result?.reply).toContain("Pão sovado");
   });
 
+  it("mantém registros existentes editáveis quando a agenda habitual foi desativada", async () => {
+    listMealSchedulesMock.mockResolvedValue([{
+      mealLabel: "jantar",
+      startTime: "18:30",
+      endTime: "22:59",
+      enabled: false,
+    }]);
+    listMealsMock.mockResolvedValue([{
+      id: 10,
+      mealLabel: "Jantar",
+      occurredAt: "2026-06-29T22:00:00.000Z",
+      notes: "já existia",
+      items: [buildItem("Arroz")],
+    }]);
+    processMealInputMock.mockResolvedValue({ items: [buildItem("Pão sovado")] });
+
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar ao jantar de ontem, 1 fatia de pão sovado",
+      receivedAt: new Date("2026-06-30T14:00:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({ mealId: 10 }));
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(result?.action).toBe("meal_item_added");
+  });
+
   it("cria a refeição configurada quando o dia ainda não tem um registro", async () => {
     const configuredSchedule = {
       mealLabel: "lanche da tarde",
@@ -173,7 +200,7 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
 
   it("reconhece uma refeição habitual com nome livre configurada pelo usuário", async () => {
     const configuredSchedule = {
-      mealLabel: "Colação",
+      mealLabel: "Jantar especial",
       startTime: "09:00",
       endTime: "09:59",
       enabled: true,
@@ -181,19 +208,37 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     listMealSchedulesMock.mockResolvedValue([configuredSchedule]);
 
     const result = await executeWhatsappDatedFoodAdditionIntent(42, {
-      text: "adicionar à colação de ontem, 1 banana nanica",
+      text: "adicionar ao jantar especial de ontem, 1 banana nanica",
       receivedAt: new Date("2026-10-01T09:20:00.000Z"),
       userTimezone: "America/Sao_Paulo",
     });
 
     expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
-      mealLabel: "Colação",
+      mealLabel: "Jantar especial",
       occurredAt: "2026-09-30T12:00:00.000Z",
     }));
     expect(result).toEqual(expect.objectContaining({
       action: "meal_item_added",
-      data: expect.objectContaining({ mealLabel: "Colação", createdFromConfiguredSchedule: true }),
+      data: expect.objectContaining({ mealLabel: "Jantar especial", createdFromConfiguredSchedule: true }),
     }));
+  });
+
+  it("bloqueia rótulo livre que não está configurado sem acionar o motor nutricional", async () => {
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar à colação de ontem, 1 banana nanica",
+      receivedAt: new Date("2026-10-01T09:20:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      data: expect.objectContaining({ explicitDate: true, mutationBlocked: true }),
+    }));
+    expect(result?.reply).toContain("Nada foi alterado");
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
   });
 
   it("não intercepta comando sem data explícita, preservando o fluxo contextual", async () => {

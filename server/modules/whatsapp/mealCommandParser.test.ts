@@ -173,6 +173,18 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("prioriza o nome configurado completo quando ele começa com um alias canônico", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar especial de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Jantar especial"] },
+    );
+
+    expect(result.mealType).toBe("Jantar especial");
+    expect(result.items).toEqual([
+      expect.objectContaining({ foodName: "banana nanica", quantity: 1, unit: "unidade" }),
+    ]);
+  });
+
   it("interpreta adicao multipla com refeicao antes dos itens", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",
