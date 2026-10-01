@@ -7,6 +7,7 @@ import {
   requestWhatsappFoodAdditionQuantityClarification,
 } from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
+import { buildWhatsAppRecoverableErrorReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
 import { createManualMeal, listMeals, updateMeal } from "../../meals/service";
 import { findConfiguredMealSchedule, listMealSchedules } from "../../mealSchedules/service";
@@ -79,6 +80,28 @@ function formatQuantityResolutionNote(item: CanonicalFoodAdditionItem) {
   return null;
 }
 
+/**
+ * Falha do motor nutricional é anterior a qualquer mutação. O usuário precisa
+ * receber uma resposta controlada — sem prometer registro — em vez de ficar
+ * sem retorno nenhum.
+ */
+function buildNutritionFailureResult(
+  item: FoodAdditionIntent["items"][number],
+): WhatsappIntentResult {
+  const quantityLabel = item.quantity
+    ? `${item.quantity} ${item.unit} de ${item.foodName}`
+    : item.foodName;
+  return {
+    handled: true,
+    action: "clarification_needed",
+    reply: buildWhatsAppRecoverableErrorReplyMessage(
+      `Não consegui calcular os nutrientes de ${item.foodName} agora, então nada foi adicionado à refeição. Envie novamente o comando para eu tentar de novo.`,
+    ),
+    eventType: "whatsapp.food_addition.nutrition_failure",
+    detail: `Motor nutricional não materializou ${quantityLabel}; nenhuma mutação foi executada.`,
+  };
+}
+
 async function resolveAdditionItems(input: {
   userId: number;
   addition: FoodAdditionIntent;
@@ -101,6 +124,13 @@ async function resolveAdditionItems(input: {
       resolvedItems: input.context?.resolvedItems,
     });
     if (resolution.kind === "items") return resolution;
+
+    if (resolution.kind === "nutrition_failure") {
+      return {
+        kind: "clarification",
+        result: buildNutritionFailureResult(resolution.item),
+      };
+    }
 
     if (resolution.kind === "identity_clarification") {
       const result = await createWhatsappMealIntentRegistrationDetailsInteraction({
@@ -224,6 +254,11 @@ async function createConfiguredDatedMealAddition(input: {
     timeZone: input.timeZone,
     resolvedItems: input.context?.resolvedItems,
   });
+  // Falha do motor precisa chegar ao usuário como resposta controlada; sem isso
+  // o pedido cairia na clarificação genérica de refeição inexistente.
+  if (resolution.kind === "nutrition_failure") {
+    return buildNutritionFailureResult(resolution.item);
+  }
   if (resolution.kind !== "items") return null;
 
   let occurredAt: string;
