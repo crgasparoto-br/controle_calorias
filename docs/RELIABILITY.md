@@ -78,7 +78,7 @@ pnpm db:check-integrity
 - A aplicação do rótulo reivindica a pending operation exata com versionamento antes da mutação e revalida o item persistido. Retry, reentrega, concorrência, usuário diferente, fonte expirada ou estado já atualizado devem resultar em no máximo uma mutação.
 - Se a mutação falhar depois do claim, a recuperação deve preservar a evidência em nova continuação segura ou responder sem afirmar sucesso; não é permitido criar nova refeição, repetir automaticamente o efeito ou promover candidato global.
 - Falha de inferência em adição canônica é sempre anterior à mutação: o usuário recebe erro recuperável que não afirma registro, e nenhuma exceção crua pode escapar para o webhook.
-- Falha inesperada no fluxo textual entrega resposta controlada antes de marcar a mensagem como processada; quando a resposta controlada também não é entregue, o erro original continua propagando.
+- Falha de inferência (`MealInferenceError`) no fluxo textual entrega clarificação controlada antes de marcar a mensagem como processada; erro que não é de domínio continua propagando para preservar o contrato de posse e reinício. Quando a resposta controlada também não é entregue, o erro original continua propagando.
 
 ## Incidentes comuns a prevenir
 

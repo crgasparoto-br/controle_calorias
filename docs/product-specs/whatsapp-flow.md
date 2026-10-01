@@ -121,7 +121,7 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - Café com açúcar nunca usa slug, nome canônico ou composição de `cafe-sem-acucar`.
 - Quantidade explícita de açúcar participa dos totais uma única vez; sem quantidade e sem estimativa utilizável, nenhuma refeição ou item é alterado antes da clarificação persistente.
 - Registro, adição e substituição preservam o contexto da operação, retomam somente a pendência ativa e respondem com macros do estado recarregado.
-- Falha do motor nutricional durante adição canônica responde com erro recuperável controlado, sem alterar a refeição, e nenhuma mensagem textual é encerrada sem resposta ao usuário depois de falha inesperada.
+- Falha do motor nutricional durante adição canônica responde com erro recuperável controlado, sem alterar a refeição, e falha de inferência no fluxo textual entrega clarificação controlada em vez de encerrar a mensagem em silêncio; erro que não é de domínio continua repropagando.
 - Resposta inválida mantém a pendência; pendência expirada, consumida ou reentregue não pode produzir nova mutação silenciosa.
 - Edição rápida bem-sucedida envia uma nova confirmação ao WhatsApp sem expor falhas de SQL quando a notificação não puder ser entregue.
 - Token inválido ou expirado deve exibir mensagem amigável na tela web de edição rápida.

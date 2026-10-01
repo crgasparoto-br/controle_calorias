@@ -562,20 +562,21 @@ const UNEXPECTED_TEXT_FAILURE_REPLY =
   "Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes.";
 
 /**
- * `MealInferenceError` carrega clarificação escrita para o usuário (mesma
- * política do pipeline de registro). O motor é importado sob demanda: ele não
+ * `MealInferenceError` carrega clarificação escrita para o usuário e é a
+ * fronteira de falha que o pipeline de registro já responde
+ * (`buildProcessingFailureReply`). O motor é importado sob demanda: ele não
  * entra no grafo estático deste webhook só para ler a mensagem de um erro.
+ * Qualquer outro erro não é falha de domínio e mantém a repropagação.
  */
-async function resolveUnexpectedFailureMessage(error: unknown) {
+async function resolveDomainInferenceFailureMessage(error: unknown) {
   try {
     const { MealInferenceError } = await import("./nutritionEngine");
-    if (error instanceof MealInferenceError && error.message.trim()) {
-      return error.message.trim();
-    }
+    if (!(error instanceof MealInferenceError)) return null;
+    return error.message.trim() || UNEXPECTED_TEXT_FAILURE_REPLY;
   } catch {
-    // Importação do motor indisponível: mantém o texto genérico sanitizado.
+    // Importação do motor indisponível: mantém a repropagação do erro original.
+    return null;
   }
-  return UNEXPECTED_TEXT_FAILURE_REPLY;
 }
 
 async function sendTextFailureReply(input: {
@@ -587,10 +588,8 @@ async function sendTextFailureReply(input: {
   occurredAtMs: number;
   lifecycleHandle: MessageLifecycleHandle;
 }) {
-  // `MealInferenceError` carrega clarificação escrita para o usuário (mesma
-  // política do pipeline de registro); qualquer outro erro usa texto genérico
-  // para não vazar detalhe interno.
-  const failureMessage = await resolveUnexpectedFailureMessage(input.error);
+  const failureMessage = await resolveDomainInferenceFailureMessage(input.error);
+  if (!failureMessage) return false;
   const reply = buildWhatsAppRecoverableErrorReplyMessage(failureMessage);
   try {
     const delivery = await sendWhatsAppLogicalDomainReply({
@@ -711,10 +710,12 @@ async function tryHandleTextIntent(
   try {
     return await handleTextIntentAfterLifecycleBegin(userId);
   } catch (error) {
-    // Falha inesperada não pode encerrar a mensagem em silêncio: o claim fica
-    // `processed`, o retry do provedor é deduplicado como reentrega e o usuário
-    // nunca recebe resposta. A resposta controlada é entregue antes do
-    // fechamento; se ela também falhar, o erro original continua propagando.
+    // Falha de inferência não pode encerrar a mensagem em silêncio: o claim
+    // fica `processed`, o retry do provedor é deduplicado como reentrega e o
+    // usuário nunca recebe resposta. A clarificação de domínio é entregue antes
+    // do fechamento; se ela também falhar, o erro original continua
+    // propagando. Erros que não são de domínio preservam a repropagação, que é
+    // o contrato de posse/reinício do processamento.
     const replied = await sendTextFailureReply({
       response: res,
       userId,

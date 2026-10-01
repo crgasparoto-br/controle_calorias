@@ -168,7 +168,7 @@ async function send(text: string, index: number) {
 
 const PRODUCTION_MESSAGE = "Adicionar ao café da manhã 1,5 fatias de mortadela";
 
-describe("issue #1282 — falha inesperada no fluxo textual não deixa a mensagem sem resposta", () => {
+describe("issue #1282 — falha de inferência não deixa a mensagem sem resposta", () => {
   beforeEach(() => {
     __resetWhatsAppTextIntentContextForTests();
     vi.clearAllMocks();
@@ -204,55 +204,61 @@ describe("issue #1282 — falha inesperada no fluxo textual não deixa a mensage
     }) as typeof fetch;
   });
 
-  it("entrega resposta controlada quando o pipeline textual lança erro inesperado", async () => {
-    executeWhatsappTextIntentMock.mockRejectedValue(
-      new Error("falha inesperada de infraestrutura interna"),
-    );
-
-    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 1);
-    expect(thrown).toBeNull();
-    expect(reply).toContain("Não consegui concluir agora");
-    expect(reply).toContain("Tente novamente em alguns instantes");
-    // Detalhe interno nunca chega ao usuário.
-    expect(reply).not.toContain("infraestrutura interna");
-    // A mensagem é fechada depois da resposta controlada (sem reentrega silenciosa).
-    expect(markMessageProcessedMock).toHaveBeenCalled();
-  });
-
-  it("preserva a clarificação de domínio quando o erro é de inferência", async () => {
+  it("entrega a clarificação de domínio quando o fluxo textual lança erro de inferência", async () => {
     executeWhatsappTextIntentMock.mockRejectedValue(
       new MealInferenceError("Não consegui confirmar a variante do produto.", {
         code: "food_identity_clarification_required",
       }),
     );
 
-    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 2);
+    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 1);
 
     expect(thrown).toBeNull();
+    expect(reply).toContain("Não consegui concluir agora");
     expect(reply).toContain("Não consegui confirmar a variante do produto.");
     expect(markMessageProcessedMock).toHaveBeenCalled();
-  });
-
-  it("mantém o erro repropagado quando nem a resposta controlada é entregue", async () => {
-    providerAcceptingSends = false;
-    executeWhatsappTextIntentMock.mockRejectedValue(new Error("falha inesperada"));
-
-    const { thrown, reply } = await send(PRODUCTION_MESSAGE, 3);
-
-    expect(reply).toBe("");
-    expect(thrown).toBeInstanceOf(Error);
-  });
-
-  it("registra a falha inesperada no log de inferência", async () => {
-    executeWhatsappTextIntentMock.mockRejectedValue(new Error("falha inesperada"));
-
-    await send(PRODUCTION_MESSAGE, 4);
-
     expect(logInferenceEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "whatsapp.intent.unexpected_failure",
         status: "warning",
       }),
+    );
+  });
+
+  it("usa texto sanitizado quando o erro de inferência não traz mensagem", async () => {
+    executeWhatsappTextIntentMock.mockRejectedValue(new MealInferenceError("", {}));
+
+    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 2);
+
+    expect(thrown).toBeNull();
+    expect(reply).toContain("Tente novamente em alguns instantes");
+  });
+
+  it("preserva a repropagação de erro que não é falha de domínio", async () => {
+    executeWhatsappTextIntentMock.mockRejectedValue(
+      new Error("simulated abrupt runtime termination after ACK delivery"),
+    );
+
+    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 3);
+
+    // Contrato de posse/reinício: erro de infraestrutura continua propagando
+    // para que o provedor reentregue e a recuperação assuma o owner órfão.
+    expect(reply).toBe("");
+    expect(thrown).toBeInstanceOf(Error);
+  });
+
+  it("mantém a repropagação quando a resposta controlada não é entregue", async () => {
+    providerAcceptingSends = false;
+    executeWhatsappTextIntentMock.mockRejectedValue(
+      new MealInferenceError("Não consegui confirmar a variante do produto."),
+    );
+
+    const { reply, thrown } = await send(PRODUCTION_MESSAGE, 4);
+
+    expect(reply).toBe("");
+    expect(thrown).toBeInstanceOf(MealInferenceError);
+    expect(logInferenceEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "whatsapp.reply_failed" }),
     );
   });
 });
