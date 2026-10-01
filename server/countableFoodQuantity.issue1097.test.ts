@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  findUnsafeCountableFoodQuantity,
   getSafeCatalogCountableGrams,
+  hasUnsafeKnownCountableFoodQuantity,
   parseCountableFoodQuantitySegment,
   prepareCountableFoodRegistrationResolved,
   resolveSafeCountableCatalogGrams,
@@ -11,6 +13,7 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
     ["1 fatia de mussarela", "mussarela", 20, 1],
     ["1 fatia de presunto", "presunto", 18, 1],
     ["1,5 fatias de mortadela", "mortadela", 22.5, 1.5],
+    ["1.5 fatias de mortadela", "mortadela", 22.5, 1.5],
   ])("resolve %s por catálogo local em %s g", (text, foodName, grams, count) => {
     const request = parseCountableFoodQuantitySegment(text);
 
@@ -91,25 +94,42 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
       "25 g de pão de forma panco Premium"
     );
   });
-  it("registra 1,5 fatias de mortadela pela porção canônica de 15 g", async () => {
-    const prepared = await prepareCountableFoodRegistrationResolved(
-      42,
-      "1,5 fatias de mortadela",
-    );
+  it.each(["1,5 fatias de mortadela", "1.5 fatias de mortadela"])(
+    "registra %s pela porção canônica de 15 g",
+    async input => {
+      const prepared = await prepareCountableFoodRegistrationResolved(
+        42,
+        input,
+      );
 
-    expect(prepared.pendingItems).toEqual([]);
-    expect(prepared.registrationText).toBe("22.5 g de mortadela");
-    expect(prepared.resolutions[0]).toEqual(expect.objectContaining({
-      request: expect.objectContaining({
-        foodName: "mortadela",
-        count: 1.5,
-        requestedUnit: "fatia",
-      }),
-      resolution: expect.objectContaining({
-        kind: "canonical_portion",
-        grams: 22.5,
-      }),
-    }));
+      expect(prepared.pendingItems).toEqual([]);
+      expect(prepared.registrationText).toBe("22.5 g de mortadela");
+      expect(prepared.resolutions[0]).toEqual(expect.objectContaining({
+        request: expect.objectContaining({
+          foodName: "mortadela",
+          count: 1.5,
+          requestedUnit: "fatia",
+        }),
+        resolution: expect.objectContaining({
+          kind: "canonical_portion",
+          grams: 22.5,
+        }),
+      }));
+    },
+  );
+  it.each(["1,5 kg de arroz", "1.5 ml de leite"])(
+    "não reclassifica massa/volume decimal como unidade para %s",
+    input => {
+      expect(parseCountableFoodQuantitySegment(input)).toBeNull();
+    },
+  );
+  it("não reabre massa canônica comercial no gate de contagem", () => {
+    const input = "41,5 g de Kit Kat ao leite Nestlé";
+
+    expect(findUnsafeCountableFoodQuantity(input)).toBeNull();
+    expect(hasUnsafeKnownCountableFoodQuantity(input)).toBe(false);
+    expect(hasUnsafeKnownCountableFoodQuantity("1 unidade de Kit Kat ao leite Nestlé")).toBe(true);
+    expect(hasUnsafeKnownCountableFoodQuantity("100 g de arroz")).toBe(false);
   });
   it("preserva 1,5 fatias de mortadela dentro de uma mensagem multi-item", async () => {
     const prepared = await prepareCountableFoodRegistrationResolved(

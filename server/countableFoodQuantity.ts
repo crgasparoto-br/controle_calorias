@@ -10,8 +10,10 @@ import {
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import type { HouseholdMeasureResolution } from "./householdMeasureResolution";
 import {
+  cleanFoodName,
   normalizeUnit,
   parseFoodText,
+  QUANTITY_UNIT_PATTERN,
   splitFoodTextSegments,
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -27,6 +29,27 @@ import {
   parseCountableQuantity,
 } from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
+
+function isCanonicalCommercialMassRequest(
+  food: CatalogFood | null | undefined,
+  request: CountableFoodQuantityRequest,
+) {
+  if (
+    !food?.isBrandedProduct
+    || !request.brand
+    || request.count !== 1
+    || normalizeUnit(request.requestedUnit) !== "un"
+  ) return false;
+
+  const parsed = parseFoodText(request.segment);
+  const unit = parsed.unit ? normalizeUnit(parsed.unit) : null;
+  return Boolean(
+    unit
+    && MASS_VOLUME_UNITS.has(unit)
+    && parsed.estimatedGrams !== undefined
+    && Math.abs(parsed.estimatedGrams - food.gramsPerServing) < 0.01,
+  );
+}
 
 // A porção canônica local pertence à fronteira `foodItemResolution`; estes
 // re-exports preservam a API histórica dos consumidores existentes.
@@ -83,7 +106,25 @@ export function parseCountableFoodQuantitySegment(
   const parsed = parseFoodText(segment);
   if (parsed.quantity && parsed.unit) {
     const unit = normalizeUnit(parsed.unit);
-    if (parsed.estimatedGrams !== undefined || MASS_VOLUME_UNITS.has(unit)) return null;
+    if (MASS_VOLUME_UNITS.has(unit)) {
+      const catalog = parsed.foodName
+        ? findCountableCatalogReference(parsed.foodName)
+        : null;
+      const isCanonicalBrandedMass = Boolean(
+        catalog?.isBrandedProduct
+          && parsed.estimatedGrams !== undefined
+          && Math.abs(parsed.estimatedGrams - catalog.gramsPerServing) < 0.01,
+      );
+      if (!isCanonicalBrandedMass) return null;
+      return {
+        segment: segment.trim(),
+        foodName: parsed.foodName,
+        brand: detectKnownBrand(parsed.foodName) ?? catalog?.brandName ?? null,
+        count: 1,
+        requestedUnit: "un",
+      };
+    }
+    if (parsed.estimatedGrams !== undefined) return null;
     if (isCoffeeOrTeaBeverage(parsed.foodName)) return null;
     return {
       segment: segment.trim(),
@@ -92,6 +133,31 @@ export function parseCountableFoodQuantitySegment(
       count: parsed.quantity,
       requestedUnit: unit,
     };
+  }
+
+  // `cleanFoodName` intentionally treats punctuation as a separator for the
+  // shared text parser. Countable quantities need one narrow exception so a
+  // decimal comma/dot before a household unit is not mistaken for a bare
+  // count whose food name starts with "fatias de".
+  const countableMatch = segment.trim().match(
+    new RegExp(
+      `^(${COUNTABLE_QUANTITY_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\s+(?:de\\s+)?(.+)$`,
+      "iu",
+    ),
+  );
+  if (countableMatch) {
+    const count = parseCountableQuantity(countableMatch[1]);
+    const unit = normalizeUnit(countableMatch[2]);
+    const foodName = cleanFoodName(countableMatch[3]);
+    if (count && !MASS_VOLUME_UNITS.has(unit) && !isCoffeeOrTeaBeverage(foodName)) {
+      return {
+        segment: segment.trim(),
+        foodName,
+        brand: detectKnownBrand(foodName),
+        count,
+        requestedUnit: unit,
+      };
+    }
   }
 
   const bare = parseBareCount(segment);
@@ -109,6 +175,7 @@ export function findUnsafeCountableFoodQuantity(
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
     const local = findCountableCatalogReference(request.foodName);
+    if (isCanonicalCommercialMassRequest(local, request)) continue;
     if (getSafeCatalogCountableGrams(local, request, false)) continue;
     return request;
   }
@@ -124,6 +191,7 @@ export function hasUnsafeKnownCountableFoodQuantity(
     if (!request) continue;
     const local = findCountableCatalogReference(request.foodName) ?? findTacoFood(request.foodName);
     if (!local) continue;
+    if (isCanonicalCommercialMassRequest(local, request)) continue;
     if (!getSafeCatalogCountableGrams(local, request, false)) return true;
   }
   return false;
