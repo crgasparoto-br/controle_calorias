@@ -1926,6 +1926,23 @@ async function finishScenario(
     assertPendingWasPersistedBeforeReply();
   }
   assertSanitizedEvidence(activeLifecycle);
+  if (scenarioId === "03-commercial-non-bread") {
+    const contractItems = state.contracts.flatMap(contract => contract.items);
+    expect(contractItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          foodName: expect.stringMatching(/kit kat/i),
+          estimatedGrams: 41.5,
+          quantity: 1,
+        }),
+      ]),
+    );
+    expect(
+      contractItems
+        .filter(item => /kit kat/i.test(item.foodName))
+        .every(item => item.estimatedGrams <= 41.5 && item.quantity <= 1),
+    ).toBe(true);
+  }
   evidenceRows.push({ scenarioId, result, metrics: { ...state.metrics } });
   if (activeServer) await close(activeServer);
   activeServer = null;
