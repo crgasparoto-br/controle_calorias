@@ -14,6 +14,10 @@ const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
 const createManualMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
+/** Cenário mutável da pesquisa de medida caseira (#1278). */
+const householdMeasureScenario = vi.hoisted(() => ({
+  peraEvidenceUnusable: false,
+}));
 const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock, releaseMessageForRetryMock } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
   recordOutboundReplyMock: vi.fn(async () => undefined),
@@ -164,6 +168,34 @@ vi.mock("./_core/ai/domainTextResponse", async importOriginal => {
       };
 
       if (/p[eê]ra packans/i.test(prompt)) {
+        if (householdMeasureScenario.peraEvidenceUnusable) {
+          const url = "https://example.test/pera-packhams";
+          const evidence = "Pêra é uma fruta rica em fibras e água.";
+          return {
+            id: "measure-pera-unverifiable",
+            outputText: JSON.stringify({
+              found: true,
+              references: [{
+                matchedFoodName: "Pêra Packhams",
+                foodTypeName: "pêra packhams",
+                brandName: "",
+                measureUnit: "unidade",
+                measureQuantity: 1,
+                grams: 150,
+                referenceKind: "same_food_type",
+                describesTypicalMeasure: false,
+                sourceUrl: url,
+                evidence,
+              }],
+            }),
+            webSearch: {
+              executed: true,
+              searchCount: 1,
+              sources: [{ url, title: "Pêra", supportingText: [evidence] }],
+            },
+            raw: {},
+          };
+        }
         if (!/refer[eê]ncia can[oô]nica.*pera/i.test(prompt)) {
           return {
             id: "measure-pera-without-reference",
@@ -335,6 +367,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     updateMealMock.mockReset();
     createManualMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
+    householdMeasureScenario.peraEvidenceUnusable = false;
     beginInboundMessageMock.mockReset();
     recordOutboundReplyMock.mockReset();
     recordDomainLinkMock.mockReset();
@@ -842,6 +875,30 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     expect(sentMessages.at(-1)).toContain("pêra packans");
     expect(sentMessages.at(-1)).toContain("banana nanica");
     expect(sentMessages.at(-1)).toContain("Refeição registrada:");
+  });
+
+  it("usa a média usual curada do alimento-base quando a pesquisa não sustenta a medida (#1278)", async () => {
+    householdMeasureScenario.peraEvidenceUnusable = true;
+    listMealsMock.mockResolvedValue([]);
+    const req = createTextWebhookRequest(
+      "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
+      { id: "issue-1278-pear-base-average", timestamp: "1790855700" },
+    );
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealLabel: "lanche da tarde",
+      occurredAt: "2026-09-30T18:00:00.000Z",
+      items: [
+        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 178 }),
+        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
+      ],
+    }));
+    expect(sentMessages.at(-1)).not.toMatch(/Informe somente o peso|Não encontrei a refeição/i);
+    expect(sentMessages.at(-1)).toContain("pêra packans");
   });
 
   it("não cria refeição duplicada quando a data explícita já tem o registro do rótulo (#1271)", async () => {
