@@ -78,6 +78,8 @@ pnpm db:check-integrity
 - A aplicação do rótulo reivindica a pending operation exata com versionamento antes da mutação e revalida o item persistido. Retry, reentrega, concorrência, usuário diferente, fonte expirada ou estado já atualizado devem resultar em no máximo uma mutação.
 - Se a mutação falhar depois do claim, a recuperação deve preservar a evidência em nova continuação segura ou responder sem afirmar sucesso; não é permitido criar nova refeição, repetir automaticamente o efeito ou promover candidato global.
 - Falha de inferência em adição canônica é sempre anterior à mutação: o usuário recebe erro recuperável que não afirma registro, e nenhuma exceção crua pode escapar para o webhook.
+- Um termo de catálogo inteiro nunca é ruído: nenhuma evidência heurística pode anulá-lo. Frases que apenas contêm um alimento seguem dependendo da evidência negativa.
+- A vírgula entre dígitos é separador decimal em toda segmentação de texto de refeição.
 - Falha de inferência (`MealInferenceError`) no fluxo textual entrega clarificação controlada antes de marcar a mensagem como processada; erro que não é de domínio continua propagando para preservar o contrato de posse e reinício. Quando a resposta controlada também não é entregue, o erro original continua propagando.
 
 ## Incidentes comuns a prevenir
@@ -88,6 +90,8 @@ pnpm db:check-integrity
 - Falha silenciosa no envio WhatsApp.
 - Mensagem textual encerrada sem nenhuma resposta ao usuário depois de falha inesperada do pipeline (claim fechado como processado e retry do provedor deduplicado como reentrega).
 - Falha do motor nutricional na adição canônica virando exceção crua em vez de resposta controlada.
+- Alimento real do catálogo descartado como ruído não alimentar por evidência heurística (modelo lexical de n-gramas ou stem de material com match por prefixo), zerando a refeição.
+- Quantidade com vírgula decimal segmentada como dois itens, registrando o próprio número como alimento.
 - Pergunta de clarificação enviada sem estado durável recuperável após reinício ou em outra instância.
 - Relatório semanal divergente do dashboard.
 - Meta profissional divergente entre Hoje, Metas, Relatórios, WhatsApp e prontuário.

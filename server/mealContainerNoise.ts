@@ -255,19 +255,62 @@ function shouldNonFoodEvidenceOverrideFoodSignal(contentTokens: string[]) {
       || hasAmbiguousHeadWithNonFoodContext(contentTokens));
 }
 
+/**
+ * A frase inteira é composta por um termo de catálogo, na mesma ordem
+ * (`mortadela`, `miolo alcatra grelhado`). Frases que apenas *contêm* um
+ * alimento (`papel aluminio com mortadela`) não passam: todo token da frase
+ * precisa pertencer ao nome/alias do candidato. Esse é o sinal positivo de maior
+ * margem disponível para o classificador lexical.
+ */
+function matchesCatalogFoodPhrase(value: string) {
+  const normalized = normalizeForMatching(value).trim().replace(/\s+/g, " ");
+  if (!normalized) return false;
+
+  const candidate = findTacoFood(value);
+  if (!candidate) return false;
+
+  const phraseTokens = normalized.split(/\s+/).filter(token => token.length >= 3);
+  if (!phraseTokens.length) return false;
+
+  return [candidate.name, ...candidate.aliases].some(term => {
+    const termTokens = normalizeForMatching(term)
+      .trim()
+      .replace(/\s+/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+    let matched = 0;
+    for (const termToken of termTokens) {
+      if (termToken !== phraseTokens[matched]) continue;
+      matched += 1;
+      if (matched === phraseTokens.length) return true;
+    }
+    return false;
+  });
+}
+
 function hasAffirmativeNonFoodPhraseEvidence(tokens: string[]) {
   const semanticTokens = tokens.filter(token => !NON_FOOD_CONNECTORS.has(token));
   if (!semanticTokens.length) return false;
 
   const phrase = semanticTokens.join(" ");
-  const knownFood = hasKnownFoodSignal(phrase);
-  const strongNonFood = hasStrongNonFoodEvidence(semanticTokens)
-    || hasExplicitStrongNonFoodContextModifier(semanticTokens)
-    || hasHighConfidenceNonFoodLexicalEvidence(phrase);
+  const explicitNonFood = hasStrongNonFoodEvidence(semanticTokens)
+    || hasExplicitStrongNonFoodContextModifier(semanticTokens);
+
+  // Um termo de catálogo inteiro nunca é ruído: é o sinal positivo de maior
+  // margem disponível e nenhuma evidência heurística pode anulá-lo. Os stems de
+  // material casam por prefixo (`alcatra` ~ alça, `cabotian` ~ cabo) e o modelo
+  // lexical de n-gramas erra em palavras isoladas (`mortadela` = 0,069). Sem
+  // essa precedência esses alimentos zeravam a refeição e o usuário recebia
+  // apenas o erro genérico de inferência (#1282). Frases que só *contêm* um
+  // alimento continuam dependendo da evidência negativa
+  // (`papel aluminio com mortadela`).
+  if (matchesCatalogFoodPhrase(phrase)) return false;
 
   // Uma classe aberta nao pode depender de o primeiro substantivo estar numa
   // lista de recipientes/objetos. Fora da lista, so descartamos com evidencia
   // negativa afirmativa; ausencia de match alimentar continua sendo abstencao.
+  const knownFood = hasKnownFoodSignal(phrase);
+  const strongNonFood = explicitNonFood || hasHighConfidenceNonFoodLexicalEvidence(phrase);
   if (knownFood && !strongNonFood) return false;
   return strongNonFood;
 }

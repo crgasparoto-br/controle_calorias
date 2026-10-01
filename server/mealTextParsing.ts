@@ -151,7 +151,12 @@ function splitFoodConjunctions(value: string) {
 
 export function splitFoodTextSegments(sourceText: string) {
   return sourceText
-    .split(/,|;|\+(?!\s*\d)|\n/gi)
+    // A vírgula entre dígitos é separador decimal (`22,5 g de mortadela`), não
+    // separador de itens. Sem essa guarda o texto virava dois alimentos e o
+    // primeiro era registrado a partir do próprio número (`22` → arroz). A
+    // guarda é a mesma de `cleanFoodName`: a vírgula só permanece quando está
+    // entre dois dígitos, então `alimento 1, alimento 2` continua separando.
+    .split(/(?<!\d),|,(?!\d)|;|\+(?!\s*\d)|\n/gi)
     .flatMap(splitFoodConjunctions)
     .map(value => value.trim())
     .filter(Boolean);
