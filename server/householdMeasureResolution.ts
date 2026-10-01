@@ -268,14 +268,19 @@ function explicitBrandMatches(input: HouseholdMeasureResolutionInput, candidate:
 }
 
 /**
- * Motivos de pesquisa em que *nenhuma* referência utilizável foi produzida.
- * Referências rejeitadas por conflito de grounding ou por porção incompatível
- * continuam exigindo clarificação e não entram neste fallback.
+ * Motivos de pesquisa que impedem o fallback curado do alimento-base.
+ *
+ * `accepted` já produziu resolução verificada, e `grounding_conflict` prova que
+ * referências verificadas da mesma fruta divergem materialmente (#1181): nesse
+ * caso a clarificação continua sendo a resposta correta. Qualquer outro motivo
+ * significa que a pesquisa não produziu referência utilizável — capacidade
+ * indisponível, falha de execução, `found_false`, fontes sem sustentação de
+ * identidade ou porção incompatível —, então a porção curada do alimento-base
+ * sustenta a média usual estimada.
  */
-const CURATED_PRODUCE_FALLBACK_SEARCH_REASONS = new Set([
-  "capability_unavailable",
-  "execution_failed",
-  "found_false",
+const CURATED_PRODUCE_FALLBACK_BLOCKED_SEARCH_REASONS = new Set([
+  "accepted",
+  "grounding_conflict",
 ]);
 
 /**
@@ -294,7 +299,7 @@ function resolveCuratedProduceBaseMeasure(
   searchReason: string,
 ): HouseholdMeasureResolution | null {
   if (input.brand || input.commercialFood) return null;
-  if (!CURATED_PRODUCE_FALLBACK_SEARCH_REASONS.has(searchReason)) return null;
+  if (CURATED_PRODUCE_FALLBACK_BLOCKED_SEARCH_REASONS.has(searchReason)) return null;
   const baseName = findNaturalProduceQuantityReferenceName(input.foodName);
   if (!baseName) return null;
   const food = findCatalogFood(baseName, input.userId);

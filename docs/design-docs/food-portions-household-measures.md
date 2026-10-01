@@ -33,10 +33,11 @@ A entrada cobre a identidade-base (`pêra`, `pêra williams`). Qualificadores de
 cultivar não comprovados (`pêra packans`) **não** são aliases de propósito: eles
 permanecem como identidade informada e continuam sujeitos à precedência da medida
 pesquisada da variedade. Somente quando a pesquisa não produz nenhuma referência
-utilizável (capacidade indisponível, falha de execução ou `found_false`) a porção
-curada do alimento-base sustenta uma **média usual estimada** para a medida
-contável, apresentada ao usuário como aproximação. Referências rejeitadas por
-conflito de grounding ou porção incompatível continuam exigindo clarificação, e
+utilizável (capacidade indisponível, falha de execução, `found_false` ou fontes
+que não sustentam identidade/porção) a porção curada do alimento-base sustenta
+uma **média usual estimada** para a medida contável, apresentada ao usuário como
+aproximação. A exceção é o conflito material entre referências verificadas da
+mesma fruta (`grounding_conflict`, #1181), que continua exigindo clarificação, e
 identidade comercial comprovada nunca entra nesse fallback.
 
 ## Fluxo no registro de refeicao
