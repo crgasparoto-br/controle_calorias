@@ -83,25 +83,27 @@ export function parseCountableFoodQuantitySegment(
   segment: string,
 ): CountableFoodQuantityRequest | null {
   const parsed = parseFoodText(segment);
-  const parsedUnit = parsed.unit ? normalizeUnit(parsed.unit) : null;
-  const parsedCatalog = parsed.foodName
-    ? findCountableCatalogReference(parsed.foodName)
-    : null;
-  const hasDecimalQuantity = /^\s*\d+[.,]\d+/u.test(segment);
-  // A resolved branded food can re-enter this gate as its canonical mass
-  // (for example, 41.5 g of Kit Kat). Keep that legacy reprocessing path while
-  // allowing direct generic mass/volume input to fail closed below.
-  const preserveLegacyBrandedMassReprocessing = Boolean(
-    parsed.quantity
-      && parsedUnit
-      && MASS_VOLUME_UNITS.has(parsedUnit)
-      && hasDecimalQuantity
-      && parsedCatalog?.isBrandedProduct
-      && parsed.estimatedGrams === parsedCatalog.gramsPerServing,
-  );
-  if (parsed.quantity && parsed.unit && !preserveLegacyBrandedMassReprocessing) {
+  if (parsed.quantity && parsed.unit) {
     const unit = normalizeUnit(parsed.unit);
-    if (parsed.estimatedGrams !== undefined || MASS_VOLUME_UNITS.has(unit)) return null;
+    if (MASS_VOLUME_UNITS.has(unit)) {
+      const catalog = parsed.foodName
+        ? findCountableCatalogReference(parsed.foodName)
+        : null;
+      const isCanonicalBrandedMass = Boolean(
+        catalog?.isBrandedProduct
+          && parsed.estimatedGrams !== undefined
+          && Math.abs(parsed.estimatedGrams - catalog.gramsPerServing) < 0.01,
+      );
+      if (!isCanonicalBrandedMass) return null;
+      return {
+        segment: segment.trim(),
+        foodName: parsed.foodName,
+        brand: detectKnownBrand(parsed.foodName) ?? catalog?.brandName ?? null,
+        count: 1,
+        requestedUnit: "un",
+      };
+    }
+    if (parsed.estimatedGrams !== undefined) return null;
     if (isCoffeeOrTeaBeverage(parsed.foodName)) return null;
     return {
       segment: segment.trim(),
