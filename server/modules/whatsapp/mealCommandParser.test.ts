@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
+import { isExplicitFoodAdditionCommand, parseMealCommandFromWhatsApp } from "./mealCommandParser";
 
 const referenceDate = new Date("2026-06-04T15:00:00.000Z");
 
@@ -397,5 +397,29 @@ describe("parseMealCommandFromWhatsApp", () => {
       items: [],
       missingFields: ["intent"],
     }));
+  });
+});
+
+describe("isExplicitFoodAdditionCommand", () => {
+  it("reconhece uma adição completa", () => {
+    expect(isExplicitFoodAdditionCommand(
+      "Adicionar ao jantar de ontem, 1 banana nanica",
+    )).toBe(true);
+  });
+
+  it("não reconhece uma lista que começa com item sem quantidade", () => {
+    expect(isExplicitFoodAdditionCommand(
+      "Adicionar ao café da manhã pão e 1 banana",
+    )).toBe(false);
+  });
+
+  it("não reconhece uma lista que termina com item sem quantidade", () => {
+    expect(isExplicitFoodAdditionCommand(
+      "Adicionar ao café da manhã 1,5 fatias de mortadela e 1",
+    )).toBe(false);
+  });
+
+  it("não reconhece água sem quantidade como adição alimentar completa", () => {
+    expect(isExplicitFoodAdditionCommand("Adicionar água ontem")).toBe(false);
   });
 });

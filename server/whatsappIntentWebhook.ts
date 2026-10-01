@@ -7,6 +7,7 @@ import {
 import { executeWhatsAppFoodAssistantIntent } from "./modules/whatsapp/foodAssistant";
 import { executeWhatsappTextIntent } from "./modules/whatsapp/intentActions";
 import { executeWhatsappContextualFoodReplacementIntent } from "./modules/whatsapp/contextualFoodReplacementIntent";
+import { executeWhatsappDatedFoodAdditionIntent } from "./modules/whatsapp/datedFoodAdditionIntent";
 import { executeWhatsappDeleteIntent } from "./modules/whatsapp/deleteIntent";
 import { executeWhatsappGramsAdjustmentIntent } from "./modules/whatsapp/gramsAdjustmentIntent";
 import { executeWhatsappGramsIncrementIntent } from "./modules/whatsapp/gramsIncrementIntent";
@@ -952,6 +953,34 @@ async function tryHandleTextIntent(
         : isBareDailySummaryRequest(text)
           ? "Resumo hoje"
           : text;
+
+    const datedFoodAddition = await executeWhatsappDatedFoodAdditionIntent(
+      userId,
+      {
+        text: textForIntent,
+        receivedAt: occurredAt,
+        userTimezone,
+      },
+    );
+    if (datedFoodAddition) {
+      markTextIntentMessageHandled(message.id);
+      await clearPendingTextIntentContext(userId);
+      await sendAndLogTextReply({
+        response: res,
+        userId,
+        sourcePhone,
+        userMessage: text,
+        reply: datedFoodAddition.reply,
+        eventType: datedFoodAddition.eventType,
+        detail: datedFoodAddition.detail,
+        status: datedFoodAddition.action === "clarification_needed" ? "warning" : "success",
+        mealId: extractMealId(datedFoodAddition.data),
+        occurredAtMs,
+        lifecycleHandle,
+        messageId: message.id,
+      });
+      return true;
+    }
 
     const mealItemSelectionResult = await resolveTextMealItemSelection(
       userId,

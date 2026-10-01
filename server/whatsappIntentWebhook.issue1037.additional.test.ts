@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   countableGate: vi.fn(),
+  datedFoodAddition: vi.fn(),
   executeTextIntent: vi.fn(),
   executeLlmIntent: vi.fn(),
   handleBaseWebhook: vi.fn(),
@@ -13,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./catalogRuntime", () => ({ getCatalogCache: () => [] }));
 vi.mock("./modules/whatsapp/foodAssistant", () => ({ executeWhatsAppFoodAssistantIntent: () => null }));
 vi.mock("./modules/whatsapp/intentActions", () => ({ executeWhatsappTextIntent: mocks.executeTextIntent }));
+vi.mock("./modules/whatsapp/datedFoodAdditionIntent", () => ({
+  executeWhatsappDatedFoodAdditionIntent: mocks.datedFoodAddition,
+}));
 vi.mock("./modules/whatsapp/contextualFoodReplacementIntent", () => ({ executeWhatsappContextualFoodReplacementIntent: vi.fn(async () => null) }));
 vi.mock("./modules/whatsapp/deleteIntent", () => ({ executeWhatsappDeleteIntent: vi.fn(async () => null) }));
 vi.mock("./modules/whatsapp/gramsAdjustmentIntent", () => ({ executeWhatsappGramsAdjustmentIntent: vi.fn(async () => null) }));
@@ -99,6 +103,7 @@ const mussarela = {
 describe("issue #1037 — controles adicionais do passthrough", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.datedFoodAddition.mockResolvedValue(null);
     mocks.executeLlmIntent.mockResolvedValue(null);
     mocks.splitWaterFood.mockReturnValue(null);
     mocks.parseMealCommand.mockReturnValue({ intent: "unknown", mealType: null, items: [] });
@@ -178,5 +183,38 @@ describe("issue #1037 — controles adicionais do passthrough", () => {
     expect(mocks.countableGate).not.toHaveBeenCalled();
     expect(mocks.executeTextIntent).toHaveBeenCalledWith(42, expect.objectContaining({ text }));
     expect(mocks.handleBaseWebhook).not.toHaveBeenCalled();
+  });
+
+  it("encaminha adição datada ao resolver de refeições configuradas antes do handler genérico", async () => {
+    const text = "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica";
+    mocks.datedFoodAddition.mockResolvedValue({
+      handled: true,
+      action: "meal_item_added",
+      reply: "Criei a refeição configurada lanche da tarde de 30/09/2026.",
+      eventType: "whatsapp.intent.meal_item_added",
+      detail: "Adição datada resolvida pela configuração habitual.",
+      data: {
+        mealId: 77,
+        mealLabel: "lanche da tarde",
+        explicitDate: true,
+        createdFromConfiguredSchedule: true,
+      },
+    });
+
+    const result = response();
+    await handleWhatsAppWebhookWithTextIntent(request(text, "wamid-1037-configured-date") as never, result as never);
+
+    expect(mocks.datedFoodAddition).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        text,
+        userTimezone: "America/Sao_Paulo",
+        receivedAt: expect.any(Date),
+      }),
+    );
+    expect(mocks.executeTextIntent).not.toHaveBeenCalled();
+    expect(mocks.countableGate).not.toHaveBeenCalled();
+    expect(mocks.handleBaseWebhook).not.toHaveBeenCalled();
+    expect(result.statusCode).toBe(200);
   });
 });

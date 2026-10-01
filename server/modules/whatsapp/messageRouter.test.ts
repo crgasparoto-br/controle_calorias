@@ -291,4 +291,88 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     expect(executeWhatsappDeleteIntentMock).toHaveBeenCalled();
     expect(handlePendingWhatsAppConfirmationMock).not.toHaveBeenCalled();
   });
+
+  it("substitui pendência alimentar ao receber nova adição explícita", async () => {
+    const userId = 6;
+    await repository.createPendingOperation({
+      userId,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "identity", originalCandidate: "Queijo Muçarela" },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar ao café da manhã 1,5 fatias de mortadela",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("superseded");
+  });
+
+  it("substitui pendência de identidade da imagem ao receber adição datada", async () => {
+    const userId = 7;
+    await repository.createPendingOperation({
+      userId,
+      type: "meal_intent_registration_details",
+      origin: "mealIntentRegistrationDetailsInteraction",
+      target: { resolutionContext: { mode: "complete_image_meal_identity" } },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("superseded");
+  });
+
+  it("não substitui pendência alimentar para água sem quantidade", async () => {
+    const userId = 8;
+    await repository.createPendingOperation({
+      userId,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "identity", originalCandidate: "Queijo Muçarela" },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar água ontem",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).not.toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+  });
+
+  it("não substitui pendência alimentar para item sem quantidade", async () => {
+    const userId = 9;
+    await repository.createPendingOperation({
+      userId,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "identity", originalCandidate: "Queijo Muçarela" },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar ao jantar, banana",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).not.toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+  });
 });

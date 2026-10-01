@@ -7,6 +7,7 @@ import {
   prepareCountableFoodRegistrationResolved,
   resolveSafeCountableCatalogGrams,
 } from "./countableFoodQuantity";
+import { findCountableNutritionReference } from "./foodItemResolution";
 
 describe("issue #1097 — porções comuns e Panco Premium", () => {
   it.each([
@@ -46,6 +47,62 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
       expect.objectContaining({
         grams,
         food: expect.objectContaining({ name: "Ovo de galinha", gramsPerServing: 50 }),
+      }),
+    );
+  });
+
+  it.each([
+    ["1 linguiça de frango assado", "linguiça de frango assado", 1, 100],
+    ["2 linguiças de frango assadas", "linguiças de frango assadas", 2, 200],
+  ])("resolve %s pela porção unitária canônica", (text, foodName, count, grams) => {
+    const request = parseCountableFoodQuantitySegment(text);
+
+    if (count === 1) {
+      expect(request).toBeNull();
+    } else {
+      expect(request).toEqual(expect.objectContaining({
+        foodName,
+        count,
+        requestedUnit: "un",
+      }));
+    }
+    expect(resolveSafeCountableCatalogGrams(foodName, count, "un", true)).toEqual(
+      expect.objectContaining({
+        grams,
+        food: expect.objectContaining({ name: expect.stringMatching(/ling.*frango/i) }),
+      }),
+    );
+  });
+
+  it("não mantém linguiça de frango assada pendente no registro resolvido", async () => {
+    const prepared = await prepareCountableFoodRegistrationResolved(
+      42,
+      "1 linguiça de frango assado",
+    );
+
+    expect(prepared.pendingItems).toEqual([]);
+    expect(prepared.registrationText).toBe("100 g de linguiça de frango assado");
+    expect(prepared.resolutions[0]).toEqual(expect.objectContaining({
+      request: expect.objectContaining({
+        foodName: "linguiça de frango assado",
+        count: 1,
+        requestedUnit: "un",
+      }),
+      resolution: expect.objectContaining({
+        kind: "canonical_portion",
+        grams: 100,
+      }),
+    }));
+  });
+
+  it("usa a referência nutricional curada da linguiça assada, sem placeholder", () => {
+    expect(findCountableNutritionReference("linguiça de frango assado")).toEqual(
+      expect.objectContaining({
+        name: expect.stringMatching(/ling.*frango/i),
+        calories: 243.66,
+        protein: 18.19,
+        carbs: 0,
+        fat: 18.4,
       }),
     );
   });
