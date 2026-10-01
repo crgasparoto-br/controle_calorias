@@ -333,4 +333,25 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     expect(decision).toEqual({ step: "continue_pipeline" });
     expect((await repository.getLatestPendingOperation(userId))?.state).toBe("superseded");
   });
+
+  it("não substitui pendência alimentar para água sem quantidade", async () => {
+    const userId = 8;
+    await repository.createPendingOperation({
+      userId,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "identity", originalCandidate: "Queijo Muçarela" },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar água ontem",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).not.toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+  });
 });
