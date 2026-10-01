@@ -196,7 +196,14 @@ function hasConfiguredMealDestination(input: string, mealLabel: string) {
 
   const labelPattern = normalizedLabel.split(/\s+/).map(escapeRegExp).join("\\s+");
   return new RegExp(
-    `\\b(?:a|ao|no|na|para\\s+(?:o|a)|refeicao)\\s+${labelPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?(?:\\b|$)`,
+    `(?:^|\\s)${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${labelPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?\\s*(?:[,;:!?-]|(?=\\s+(?:${QUANTITY_VALUE_PATTERN})\\b)|$)`,
+    "i",
+  ).test(input);
+}
+
+function hasMealDestinationMarker(input: string) {
+  return new RegExp(
+    `(?:^|\\s)${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${MEAL_DESTINATION_PATTERN_SOURCE}`,
     "i",
   ).test(input);
 }
@@ -249,9 +256,16 @@ function hasShortCoffeeMealDestination(normalizedInput: string) {
 
 function findMealType(input: string, context: MealCommandContext) {
   const normalized = normalizeText(input);
-  const configuredMeal = configuredMealLabelCandidates(context)
+  const configuredLabels = configuredMealLabelCandidates(context);
+  const configuredMeal = configuredLabels
     .find(label => hasConfiguredMealDestination(normalized, label));
   if (configuredMeal) return configuredMeal.trim();
+
+  if (configuredLabels.length && hasMealDestinationMarker(normalized)) {
+    const canonicalDestination = MEAL_TYPES.some(candidate => hasConfiguredMealDestination(normalized, candidate))
+      || hasConfiguredMealDestination(normalized, "cafe");
+    if (!canonicalDestination) return null;
+  }
 
   const mealType = MEAL_TYPES.find(candidate => normalized.includes(normalizeText(candidate)));
   if (mealType) {

@@ -241,6 +241,30 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(updateMealMock).not.toHaveBeenCalled();
   });
 
+  it("não reduz rótulo composto desconhecido a um schedule canônico parcial", async () => {
+    listMealSchedulesMock.mockResolvedValue([{
+      mealLabel: "Jantar parcial",
+      startTime: "18:30",
+      endTime: "22:59",
+      enabled: true,
+    }]);
+
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar ao jantar especial de ontem, 1 banana nanica",
+      receivedAt: new Date("2026-10-01T09:20:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "clarification_needed",
+      data: expect.objectContaining({ explicitDate: true, mutationBlocked: true }),
+    }));
+    expect(processMealInputMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
+
   it("não intercepta comando sem data explícita, preservando o fluxo contextual", async () => {
     const result = await executeWhatsappDatedFoodAdditionIntent(42, {
       text: "adicionar ao jantar, 1 porção de canelone",

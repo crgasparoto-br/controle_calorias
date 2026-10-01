@@ -185,6 +185,15 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("não reduz rótulo composto desconhecido ao alias canônico quando há configuração", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar especial de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Jantar parcial"] },
+    );
+
+    expect(result.mealType).toBeNull();
+  });
+
   it("interpreta adicao multipla com refeicao antes dos itens", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",
