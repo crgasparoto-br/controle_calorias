@@ -63,7 +63,12 @@ export async function executeWhatsappDatedFoodAdditionIntent(
   });
   if (!dateSelection.explicit) return null;
 
-  const parsed = parseMealCommandFromWhatsApp(text, { referenceDate, timeZone });
+  const configuredSchedules = await listMealSchedules(userId);
+  const parsed = parseMealCommandFromWhatsApp(text, {
+    referenceDate,
+    timeZone,
+    mealLabels: configuredSchedules.map(schedule => schedule.mealLabel),
+  });
   if (parsed.intent !== "add_items_to_meal" || !parsed.mealType || !parsed.items.length) {
     return null;
   }
@@ -82,7 +87,7 @@ export async function executeWhatsappDatedFoodAdditionIntent(
 
   if (!targetMeal) {
     const configuredSchedule = findConfiguredMealSchedule(
-      await listMealSchedules(userId),
+      configuredSchedules,
       parsed.mealType,
     );
 

@@ -160,6 +160,19 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("reconhece nome livre de refeição quando ele vem da configuração do usuário", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar à colação de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Colação"] },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("Colação");
+    expect(result.items).toEqual([
+      expect.objectContaining({ foodName: "banana nanica", quantity: 1, unit: "unidade" }),
+    ]);
+  });
+
   it("interpreta adicao multipla com refeicao antes dos itens", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",

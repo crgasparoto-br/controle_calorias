@@ -48,6 +48,7 @@ export type MealCommandContext = {
   recentMealType?: string | null;
   recentDate?: Date | null;
   timeZone?: string;
+  mealLabels?: string[];
 };
 const QUANTITY_UNIT_PATTERN = joinUnitWords([
   "gramas",
@@ -185,6 +186,35 @@ function normalizeMealType(value: string) {
   return normalized;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasConfiguredMealDestination(input: string, mealLabel: string) {
+  const normalizedLabel = normalizeText(mealLabel).trim();
+  if (!normalizedLabel) return false;
+
+  const labelPattern = normalizedLabel.split(/\s+/).map(escapeRegExp).join("\\s+");
+  return new RegExp(
+    `\\b(?:a|ao|no|na|para\\s+(?:o|a)|refeicao)\\s+${labelPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?(?:\\b|$)`,
+    "i",
+  ).test(input);
+}
+
+function stripConfiguredMealDestination(value: string, context: MealCommandContext) {
+  return (context.mealLabels ?? []).reduce((current, mealLabel) => {
+    const labelCandidates = [mealLabel.trim(), normalizeText(mealLabel).trim()]
+      .filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index);
+    return labelCandidates.reduce((stripped, candidate) => {
+      const labelPattern = candidate.split(/\s+/).map(escapeRegExp).join("\\s+");
+      const destinationPattern = `(?:${MEAL_PREPOSITION_PATTERN_SOURCE})\\s+(?:refei[cç][aã]o\\s+)?${labelPattern}(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanh[aã]))?`;
+      return stripped
+        .replace(new RegExp(`^\\s*${destinationPattern}\\s*[,;:-]?\\s*`, "i"), "")
+        .replace(new RegExp(`\\s+${destinationPattern}\\s*[,;:-]?\\s*$`, "i"), "");
+    }, current);
+  }, value);
+}
+
 function hasShortCoffeeMealDestination(normalizedInput: string) {
   const relativeDatePattern = "(?:\\s+(?:de\\s+)?(?:hoje|ontem|anteontem|amanha))?";
   const destinationAtEnd = new RegExp(
@@ -213,6 +243,13 @@ function findMealType(input: string, context: MealCommandContext) {
   if (hasShortCoffeeMealDestination(normalized)) {
     return "café da manhã";
   }
+
+  const configuredMeal = (context.mealLabels ?? [])
+    .filter(label => label.trim())
+    .sort((left, right) => normalizeText(right).length - normalizeText(left).length)
+    .find(label => hasConfiguredMealDestination(normalized, label));
+  if (configuredMeal) return configuredMeal.trim();
+
   return context.recentMealType ?? null;
 }
 
@@ -396,7 +433,10 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
   const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:-]\\s*|\\s+)(.+)$`, "i"))
     ?? afterAction.match(new RegExp(`^\\s*${MEAL_PATTERN_SOURCE}${datePattern}\\s*[:;,]\\s*(.+)$`, "i"))
     ?? afterAction.match(/^\s*caf[eé]\s*[:;,]\s*(.+)$/i);
-  const itemsText = beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction;
+  const itemsText = stripConfiguredMealDestination(
+    beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction,
+    context,
+  );
   const items = splitItemParts(itemsText).map(buildItemFromPart);
   const missingFields = [
     ...(mealType ? [] : ["mealType"]),

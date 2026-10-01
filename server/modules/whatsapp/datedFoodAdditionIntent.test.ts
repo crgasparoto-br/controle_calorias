@@ -5,7 +5,6 @@ const listMealsMock = vi.fn();
 const processMealInputMock = vi.fn();
 const updateMealMock = vi.fn();
 const listMealSchedulesMock = vi.fn();
-const findConfiguredMealScheduleMock = vi.fn();
 
 vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
@@ -17,8 +16,8 @@ vi.mock("../meals/service", () => ({
   updateMeal: updateMealMock,
 }));
 
-vi.mock("../mealSchedules/service", () => ({
-  findConfiguredMealSchedule: findConfiguredMealScheduleMock,
+vi.mock("../mealSchedules/service", async () => ({
+  ...(await vi.importActual<typeof import("../mealSchedules/service")>("../mealSchedules/service")),
   listMealSchedules: listMealSchedulesMock,
 }));
 
@@ -49,10 +48,8 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     processMealInputMock.mockReset();
     updateMealMock.mockReset();
     listMealSchedulesMock.mockReset();
-    findConfiguredMealScheduleMock.mockReset();
     listMealsMock.mockResolvedValue([]);
     listMealSchedulesMock.mockResolvedValue([]);
-    findConfiguredMealScheduleMock.mockReturnValue(null);
     processMealInputMock.mockResolvedValue({ items: [buildItem()] });
     createManualMealMock.mockImplementation(async (_userId, input) => ({ id: 99, ...input }));
     updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
@@ -131,7 +128,6 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
       enabled: true,
     };
     listMealSchedulesMock.mockResolvedValue([configuredSchedule]);
-    findConfiguredMealScheduleMock.mockReturnValue(configuredSchedule);
     processMealInputMock.mockResolvedValue({ items: [buildItem("Pêra Packans"), buildItem("Banana nanica")] });
     createManualMealMock.mockResolvedValue({
       id: 77,
@@ -146,6 +142,13 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
       userTimezone: "America/Sao_Paulo",
     });
 
+    const processInput = processMealInputMock.mock.calls[0]?.[0];
+    expect(processInput).toEqual(expect.objectContaining({
+      occurredAt: new Date("2026-09-30T18:00:00.000Z"),
+      timeZone: "America/Sao_Paulo",
+    }));
+    expect(processInput.text).toContain("pêra packans");
+    expect(processInput.text).toContain("banana nanica");
     expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
       mealLabel: "lanche da tarde",
       occurredAt: "2026-09-30T18:00:00.000Z",
@@ -166,6 +169,31 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
       }),
     }));
     expect(result?.reply).toContain("Criei a refeição configurada");
+  });
+
+  it("reconhece uma refeição habitual com nome livre configurada pelo usuário", async () => {
+    const configuredSchedule = {
+      mealLabel: "Colação",
+      startTime: "09:00",
+      endTime: "09:59",
+      enabled: true,
+    };
+    listMealSchedulesMock.mockResolvedValue([configuredSchedule]);
+
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar à colação de ontem, 1 banana nanica",
+      receivedAt: new Date("2026-10-01T09:20:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealLabel: "Colação",
+      occurredAt: "2026-09-30T12:00:00.000Z",
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      action: "meal_item_added",
+      data: expect.objectContaining({ mealLabel: "Colação", createdFromConfiguredSchedule: true }),
+    }));
   });
 
   it("não intercepta comando sem data explícita, preservando o fluxo contextual", async () => {
