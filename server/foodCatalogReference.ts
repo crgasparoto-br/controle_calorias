@@ -596,6 +596,40 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     isUltraProcessed: true,
   },
   {
+    // Fruta natural contável: a identidade `pera packans`/`pera williams` continua
+    // sendo a informada pelo usuário; esta entrada fornece apenas a porção
+    // unitária canônica usada para converter `1 unidade` em gramas.
+    // Medida caseira "médio" = 178,00 g (UNIFESP/EPM, Tabela de Composição
+    // Química dos Alimentos, `Pera, cru`: pequeno 148,00 g, médio 178,00 g,
+    // grande 230,00 g, porção 166,00 g). Composição da mesma referência para
+    // 178,00 g: 101 kcal, 0,64 g de proteína, 27,11 g de carboidratos,
+    // 0,25 g de gordura e 5,5 g de fibra.
+    slug: "pera",
+    name: "Pêra",
+    aliases: [
+      "pera",
+      "pêra",
+      "pera williams",
+      "pêra williams",
+      "pera crua",
+      "pêra crua",
+    ],
+    servingLabel: "1 unidade",
+    gramsPerServing: 178,
+    calories: 101,
+    protein: 0.64,
+    carbs: 27.11,
+    fat: 0.25,
+    fiber: 5.5,
+    processingLevel: "natural_or_minimally_processed",
+    isFruit: true,
+    sourceUrls: ["https://tabnut.dis.epm.br/alimento/09252/pera-cru"],
+    sourceEvidence:
+      "Medida caseira média de Pêra, cru: 178,00 g (pequeno 148,00 g; grande 230,00 g; porção 166,00 g). Para 178,00 g: 101 kcal, 0,64 g de proteína, 27,11 g de carboidratos, 0,25 g de gordura e 5,5 g de fibra.",
+    sourceVerifiedAt: "2026-10-01T00:00:00.000Z",
+    sourceConfidence: 0.85,
+  },
+  {
     slug: "leite-integral",
     name: "Leite integral",
     aliases: ["leite", "leite integral", "leite de vaca", "leite de vaca integral", "copo de leite"],
