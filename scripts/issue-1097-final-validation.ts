@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 
 const root = process.cwd();
-const BASELINE_SHA = "521b645182f3811bf904cb28aafb152b990ed184";
+const BASELINE_SHA = "1db5d6b0d0ac64c171511b2e49bca4d4ea6f2367";
 const HISTORICAL_BASELINE_SHA = "4d86cb814ff57164ff16cd7626ea21be46719fce";
 const PHASE_COMMITS = {
   issue1094: "8b2540f3",
@@ -14,7 +14,9 @@ const baselineTotals = {
   processMealInput: 7,
   nutritionSearchAttempts: 12,
   nutritionSearchOutbound: 9,
-  roundTrips: 29,
+  // 28 desde o merge da #1269 (1db5d6b0): o cenário 03-commercial-non-bread
+  // passou de 3 para 2 round-trips sem alterar o resultado (registered).
+  roundTrips: 28,
   persistedMeals: 12,
   persistedItems: 16,
   pendingClaimed: 0,
