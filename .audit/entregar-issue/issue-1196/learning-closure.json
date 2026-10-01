@@ -3,14 +3,14 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
-    "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
+    "rejection_id": "audit-rejection:pr1263-f001-handoff-not-produced",
+    "audit_report_sha256": "d7d4ce5cf0e56697e7c47ca74edf97545483bbfca6566b072a4982fd964ee1d1",
     "finding_ids": [
-      "A-001"
+      "F-001"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "The finding was a stale delivery artifact identity mismatch confined to this candidate handoff; no new product or reusable systemic control family was introduced."
+    "reason": "The finding was confined to this delivery package identity and did not introduce a new product or systemic control family."
   }
 }

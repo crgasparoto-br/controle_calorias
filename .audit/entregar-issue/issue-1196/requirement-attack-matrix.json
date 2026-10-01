@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
   "requirements": [
     {
       "requirement_id": "REQ-1196",
@@ -17,331 +17,1138 @@
         "OBL-010",
         "OBL-011",
         "OBL-012",
-        "OBL-013"
-      ],
-      "source_texts": [
-        "Em 2026-09-26, o fluxo WhatsApp ainda pediu a gramatura para uma entrada composta como `1 banana nanica, 6 uvas pretas, 1 pera packans`, embora frutas naturais contáveis devam poder usar uma relação verificável do alimento-base para calcular a quantidade. Isso deixa o registro inteiro bloqueado por um único item e não preserva o multiplicador das uvas.",
-        "A regressão foi reproduzida na PR aberta #1187. A causa é que o caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não carregava a referência canônica `uva` exclusivamente para pesquisa de quantidade.",
-        "preservar a identidade original e seus qualificadores;",
-        "usar a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`;",
-        "preservar o multiplicador (`6 unidades` -> gramatura proporcional);",
-        "não promover a referência-base a marca, cultivar ou identidade exata;",
-        "manter o fail-closed para alimentos comerciais e medidas ambíguas;",
-        "registrar os itens válidos e explicar somente os itens inconsistentes quando houver lote misto.",
-        "`1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável da unidade de pera.",
-        "`1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` para pesquisa com medida `6 unidade` e registra a gramatura multiplicada.",
-        "A busca mantém `uvas pretas`/`pera packans` como identidade do usuário e usa `uva`/`pera` apenas como referência de quantidade.",
-        "Referências divergentes, fonte ausente, marca conhecida ou unidade estruturalmente ambígua continuam em clarificação; não há fallback silencioso.",
-        "Os testes atravessam o entrypoint público `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida."
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019",
+        "OBL-020",
+        "OBL-021",
+        "OBL-022",
+        "OBL-023",
+        "OBL-024",
+        "OBL-025",
+        "OBL-026",
+        "OBL-027",
+        "OBL-028",
+        "OBL-029",
+        "OBL-030",
+        "OBL-031",
+        "OBL-032",
+        "OBL-033",
+        "OBL-034",
+        "OBL-035"
       ],
       "risk_families": [
         "authorization",
         "documentation",
         "idempotency",
+        "reference-liveness",
         "structural-contract",
-        "temporal-consistency",
-        "tenant-isolation"
+        "temporal-consistency"
       ],
-      "risk_surfaces": [
-        {
-          "risk_family": "authorization",
-          "surface": "session-target-binding",
-          "reason": "Pending context remains bound to the originating WhatsApp target."
-        },
-        {
-          "risk_family": "documentation",
-          "surface": "canonical-claims",
-          "reason": "Normative docs must describe partial quantitative passthrough and fail-closed identity."
-        },
-        {
-          "risk_family": "idempotency",
-          "surface": "duplicate-processing",
-          "reason": "Same inbound replay/restart must not duplicate resolved meals or pending mutations."
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "benchmark-path-fidelity",
-          "reason": "Controls must traverse handleWhatsAppWebhookWithTextIntent and the real measure resolver."
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "relational-semantic-integrity",
-          "reason": "Original qualified food identity and canonical quantity reference must remain separate."
-        },
-        {
-          "risk_family": "temporal-consistency",
-          "surface": "temporal-consistency-contract",
-          "reason": "Partial registration and retry must respect pending/terminal lifecycle boundaries."
-        },
-        {
-          "risk_family": "tenant-isolation",
-          "surface": "tenant-scope-isolation",
-          "reason": "A pending quantity clarification must not cross user/phone scope."
-        }
+      "source_texts": [
+        "**Pronta.** O comportamento, a precedência e os controles discriminantes estão definidos e reutilizam fontes canônicas já existentes.",
+        "**must_not_behave:** não reescrever `uvas pretas` como `uva` ou `pera packans` como `pera` na identidade do usuário.",
+        "**must_not_depend_on:** mapa hardcoded de pesos/cultivares, fallback genérico de 100 g ou nova inferência nutricional para reconstruir item já resolvido.",
+        "**must_reuse:** `resolveHouseholdMeasure` / fluxo canônico de medida contável e o contrato de passthrough existente.",
+        "**precedência:** identidade específica preservada > referência-base auxiliar de quantidade; massa explicitamente digitada pelo usuário continua mais restritiva que estimativa contável.",
+        "A regra durável já está coberta por `docs/design-docs/whatsapp-countable-measure-passthrough.md` e `docs/testing/whatsapp-response-contract-regression.md`. Atualizar essas fontes somente se a implementação mudar o contrato vigente; caso contrário, adicionar apenas a regressão desta issue à matriz de testes apropriada.",
+        "A regressão foi reproduzida na PR #1187. O caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não reutilizava a referência natural canônica (`uva`) exclusivamente para pesquisa de quantidade.",
+        "Corrigir a clarificação indevida de gramatura em frutas naturais contáveis com qualificador, preservando a identidade informada pelo usuário e usando a referência natural canônica apenas para resolver quantidade/peso quando houver evidência verificável.",
+        "Em 2026-09-26, a entrada composta `1 banana nanica, 6 uvas pretas, 1 pera packans` ainda pediu gramatura, embora frutas naturais contáveis possam usar uma relação verificável do alimento-base para calcular quantidade. Isso bloqueia o lote inteiro por um único item e perde o multiplicador das uvas.",
+        "Em entrada composta, um item pendente não deve apagar resultados válidos dos demais nem autorizar gravação parcial antes da resolução do lote.",
+        "Em lote misto, preservar os itens resolvidos e clarificar apenas os itens realmente inconsistentes, sem persistência parcial indevida.",
+        "Implementação plausível errada: normalizar permanentemente o item para `uva` antes da resolução. Isso pode fazer o caminho feliz passar, mas perde qualificadores e permite associação nutricional indevida. O teste deve verificar que a referência-base é usada somente no boundary da medida.",
+        "Manter a decisão de gramatura no resolvedor canônico já existente; não criar tabela/mapa paralelo no webhook ou intent.",
+        "Manter o fail-closed para alimentos comerciais, medidas ambíguas, relação física não verificável e referências semanticamente incompatíveis.",
+        "Marca explícita, fonte ausente, relação divergente, unidade estruturalmente ambígua ou múltiplas referências conflitantes continuam exigindo clarificação.",
+        "Massa explícita digitada pelo usuário, que não deve ser substituída pela referência contável.",
+        "O fluxo deve reutilizar o resolvedor real de medida e o pipeline nutricional existente; não deve calcular macros no webhook.",
+        "Para `6 uvas pretas`, uma relação válida de `1 unidade` deve ser multiplicada por 6; o multiplicador original não pode ser descartado.",
+        "Permitir que o resolvedor use a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`.",
+        "Preservar a identidade original e seus qualificadores naturais.",
+        "Preservar o multiplicador contável informado pelo usuário.",
+        "Produto comercial com marca explícita usando termo semelhante a fruta natural.",
+        "Referência auxiliar não pode ser promovida a marca, cultivar, variante comercial ou nova identidade nutricional.",
+        "Uma relação `same_food_type` só pode ser aceita quando a referência física for compatível com o alimento-base e com a unidade solicitada.",
+        "[ ] Fonte ausente, referência conflitante, marca explícita ou unidade ambígua continuam em clarificação; não há fallback silencioso.",
+        "[ ] Itens válidos do lote permanecem preservados enquanto somente o item inconsistente é clarificado, sem persistência parcial da refeição.",
+        "[ ] Referência-base não altera marca, cultivar, variante ou proveniência nutricional do item.",
+        "[ ] Regressões #1037/#1043/#1054/#1072/#1181 continuam verdes.",
+        "[ ] Testes atravessam `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida, sem mockar a decisão central.",
+        "[ ] `1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável para `1 unidade de pera`.",
+        "[ ] `1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` com medida original preservada e produz gramatura proporcional a 6 unidades.",
+        "[ ] `uvas pretas`/`pera packans` permanecem como identidade; `uva`/`pera` são usadas apenas como referência de quantidade.",
+        "`docs/design-docs/whatsapp-countable-measure-passthrough.md`: o resolvedor de medida é o único dono da gramatura e a identidade aceita não deve ser re-inferida;",
+        "`docs/testing/whatsapp-response-contract-regression.md`: a regressão #1181 define que uma referência `same_food_type` pode preencher somente a quantidade sem reescrever a identidade específica.",
+        "`uvas pretas` e `pera packans` permanecem como identidade apresentada/transportada; `uva` e `pera` podem ser usadas apenas como referência auxiliar de quantidade."
       ],
-      "plausible_wrong_implementation": "Use the canonical natural reference as the user identity, block the whole mixed batch for one quantitative pending item, or replay the inbound after restart and duplicate effects.",
+      "plausible_wrong_implementation": "Normalize pêra packans or uvas pretas to pera/uva before the measure boundary, or persist the valid siblings before the unresolved item is decided; the happy path could pass while identity, atomicity or replay safety breaks.",
       "positive_control": {
         "id": "POS-1196-001",
         "status": "passed",
-        "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+        "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
         "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-        "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-        "procedure": "Run the public mixed-batch WhatsApp flow with natural qualified items and a quantitative pending sibling, then inspect order, persistence and user-facing explanation.",
-        "expected": "Natural quantity references resolve without changing identity; valid siblings are registered; only the inconsistent quantity is explained; replay is idempotent.",
-        "observed": "The exact-head characterization and focused public-entrypoint suites passed.",
+        "failure_mode": "A valid natural quantity relation is not used at the public addition boundary.",
+        "procedure": "Run the public mixed-batch addition with qualified natural fruits and inspect identity, multiplier, quantity resolution and persistence.",
+        "expected": "The qualified identities remain unchanged, quantity-only references resolve, six units scale proportionally and no partial write occurs.",
+        "observed": "Focused exact-head tests and the remote exact-head gates passed with the expected identity, multiplier, fail-closed and atomicity behavior.",
+        "control_type": "test",
         "evidence_kind": "quantitative",
-        "evidence_id": "EVID-1196-EXACT-HEAD"
+        "evidence_id": "EVID-1196-EXACT-HEAD",
+        "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf"
       },
       "negative_controls": [
         {
           "id": "NEG-1196-001",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "authorization",
-          "surface": "session-target-binding",
-          "dimension": "session-target-binding-discriminant",
-          "failure_mode": "Bypass the authorization:session-target-binding boundary and collapse or duplicate the mixed-batch contract.",
-          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across authorization:session-target-binding.",
-          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across authorization:session-target-binding.",
-          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
-          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-001",
+          "failure_mode": "Wrong implementation violates obligation OBL-001 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Corrigir a clarificação indevida de gramatura em frutas naturais contáveis com qualificador, preservando a identidade in while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-001 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-001; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-001-S1",
               "status": "passed",
-              "surface": "session-target-binding",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through authorization:session-target-binding.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-001-sibling-a"
             },
             {
               "id": "NEG-1196-001-S2",
               "status": "passed",
-              "surface": "session-target-binding",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through authorization:session-target-binding.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-001-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-002",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
           "risk_family": "documentation",
           "surface": "canonical-claims",
-          "dimension": "canonical-claims-discriminant",
-          "failure_mode": "Bypass the documentation:canonical-claims boundary and collapse or duplicate the mixed-batch contract.",
-          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across documentation:canonical-claims.",
-          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across documentation:canonical-claims.",
-          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
-          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
-          "control_type": "test",
+          "dimension": "canonical-claims-obligation-002",
+          "failure_mode": "Wrong implementation violates obligation OBL-002 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Em 2026-09-26, a entrada composta `1 banana nanica, 6 uvas pretas, 1 pera packans` ainda pediu gramatura, embora frutas  while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-002 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-002; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-002-S1",
               "status": "passed",
               "surface": "canonical-claims",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through documentation:canonical-claims.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "dimension": "canonical-claims-obligation-002-sibling-a"
             },
             {
               "id": "NEG-1196-002-S2",
               "status": "passed",
               "surface": "canonical-claims",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through documentation:canonical-claims.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "dimension": "canonical-claims-obligation-002-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-003",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "idempotency",
-          "surface": "duplicate-processing",
-          "dimension": "duplicate-processing-discriminant",
-          "failure_mode": "Bypass the idempotency:duplicate-processing boundary and collapse or duplicate the mixed-batch contract.",
-          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across idempotency:duplicate-processing.",
-          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across idempotency:duplicate-processing.",
-          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
-          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "structural-contract",
+          "surface": "canonical-path",
+          "dimension": "canonical-path-obligation-003",
+          "failure_mode": "Wrong implementation violates obligation OBL-003 at the canonical-path boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for A regressão foi reproduzida na PR #1187. O caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`)  while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-003 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-003; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-003-S1",
               "status": "passed",
-              "surface": "duplicate-processing",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through idempotency:duplicate-processing.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-003-sibling-a"
             },
             {
               "id": "NEG-1196-003-S2",
               "status": "passed",
-              "surface": "duplicate-processing",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through idempotency:duplicate-processing.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-003-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-004",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "structural-contract",
-          "surface": "benchmark-path-fidelity",
-          "dimension": "benchmark-path-fidelity-discriminant",
-          "failure_mode": "A helper-only test passes while the public entrypoint still blocks or drops valid siblings.",
-          "plausible_wrong_implementation": "Bypass handleWhatsAppWebhookWithTextIntent and validate only a helper, leaving the productive public path untested.",
-          "procedure": "Execute the public handleWhatsAppWebhookWithTextIntent entrypoint with a valid item before and after a quantitatively pending item, then inspect the canonical mutation boundary.",
-          "expected": "The public entrypoint reaches the real measure resolver and preserves the valid siblings while explaining only the pending item.",
-          "observed": "The public characterization suite exercised the productive entrypoint and passed.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-004",
+          "failure_mode": "Wrong implementation violates obligation OBL-004 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for `docs/design-docs/whatsapp-countable-measure-passthrough.md`: o resolvedor de medida é o único dono da gramatura e a ide while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-004 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-004; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-004-S1",
               "status": "passed",
-              "surface": "benchmark-path-fidelity",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through structural-contract:benchmark-path-fidelity.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-004-sibling-a"
             },
             {
               "id": "NEG-1196-004-S2",
               "status": "passed",
-              "surface": "benchmark-path-fidelity",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through structural-contract:benchmark-path-fidelity.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-004-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-005",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "structural-contract",
-          "surface": "relational-semantic-integrity",
-          "dimension": "relational-semantic-integrity-discriminant",
-          "failure_mode": "A divergent natural reference is persisted as the user identity or linked to the wrong meal item.",
-          "plausible_wrong_implementation": "Use the canonical base reference as the exact identity and write an incompatible linked item relation at the canonical mutation boundary.",
-          "procedure": "Send deliberately incompatible qualified values (uvas pretas/uva and pera packans/pera) through extraction, measure resolution and linked meal persistence; inspect rejection/absence of the invalid relation.",
-          "expected": "The original qualified identity remains linked; the base reference is used only for quantity search; an invalid divergent relation is rejected or absent downstream.",
-          "observed": "Exact-head public and quantity regressions preserved qualified identity and passed the linked mutation boundary.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-005",
+          "failure_mode": "Wrong implementation violates obligation OBL-005 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for `docs/testing/whatsapp-response-contract-regression.md`: a regressão #1181 define que uma referência `same_food_type` po while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-005 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-005; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-005-S1",
               "status": "passed",
-              "surface": "relational-semantic-integrity",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through structural-contract:relational-semantic-integrity.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-005-sibling-a"
             },
             {
               "id": "NEG-1196-005-S2",
               "status": "passed",
-              "surface": "relational-semantic-integrity",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through structural-contract:relational-semantic-integrity.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-005-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-006",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "temporal-consistency",
-          "surface": "temporal-consistency-contract",
-          "dimension": "temporal-consistency-contract-discriminant",
-          "failure_mode": "Bypass the temporal-consistency:temporal-consistency-contract boundary and collapse or duplicate the mixed-batch contract.",
-          "plausible_wrong_implementation": "Apply a global fallback or reprocess the same inbound across temporal-consistency:temporal-consistency-contract.",
-          "procedure": "Exercise the public WhatsApp flow with valid items, a quantitative pending item, and retry/restart across temporal-consistency:temporal-consistency-contract.",
-          "expected": "Only valid items are materialized, pending quantity remains explainable, identity is preserved, and replay is idempotent.",
-          "observed": "Exact-head public characterization, focused tests, static gates, build and remote gates passed.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-006",
+          "failure_mode": "Wrong implementation violates obligation OBL-006 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Preservar a identidade original e seus qualificadores naturais. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-006 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-006; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-006-S1",
               "status": "passed",
-              "surface": "temporal-consistency-contract",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through temporal-consistency:temporal-consistency-contract.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-006-sibling-a"
             },
             {
               "id": "NEG-1196-006-S2",
               "status": "passed",
-              "surface": "temporal-consistency-contract",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through temporal-consistency:temporal-consistency-contract.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-006-sibling-b"
             }
           ]
         },
         {
           "id": "NEG-1196-007",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "risk_family": "tenant-isolation",
-          "surface": "tenant-scope-isolation",
-          "dimension": "tenant-scope-isolation-discriminant",
-          "failure_mode": "A pending quantity context from one user/phone is consumed by a distinct scope.",
-          "plausible_wrong_implementation": "Treat a pending clarification as globally addressable instead of binding it to the originating user and phone.",
-          "procedure": "Create a pending quantity context in one user/phone scope and attempt the same continuation from a deliberately distinct user/phone scope.",
-          "expected": "The distinct tenant/profile scope is deliberately different and cannot consume or mutate the origin pending context; the pending record is excluded, isolated, and there is no data leak across scopes.",
-          "observed": "The exact-head lifecycle and public webhook controls preserve originating tenant/profile scope binding and show no cross-scope leak.",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
           "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-007",
+          "failure_mode": "Wrong implementation violates obligation OBL-007 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Permitir que o resolvedor use a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_t while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-007 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-007; the wrong shortcut was not observed.",
           "sibling_cases": [
             {
               "id": "NEG-1196-007-S1",
               "status": "passed",
-              "surface": "tenant-scope-isolation",
-              "dimension": "alternate-order",
-              "procedure": "Run a sibling item order through tenant-isolation:tenant-scope-isolation.",
-              "expected": "The same contract remains true for the alternate order.",
-              "observed": "Covered by the exact-head characterization suite."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-007-sibling-a"
             },
             {
               "id": "NEG-1196-007-S2",
               "status": "passed",
-              "surface": "tenant-scope-isolation",
-              "dimension": "retry-restart",
-              "procedure": "Replay after restart through tenant-isolation:tenant-scope-isolation.",
-              "expected": "No duplicate effects or cross-scope mutation occurs.",
-              "observed": "Covered by the exact-head retry/restart scenario."
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-007-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-008",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-008",
+          "failure_mode": "Wrong implementation violates obligation OBL-008 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Preservar o multiplicador contável informado pelo usuário. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-008 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-008; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-008-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-008-sibling-a"
+            },
+            {
+              "id": "NEG-1196-008-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-008-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-009",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "duplicate-processing-obligation-009",
+          "failure_mode": "Wrong implementation violates obligation OBL-009 at the duplicate-processing boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Manter a decisão de gramatura no resolvedor canônico já existente; não criar tabela/mapa paralelo no webhook ou intent. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-009 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-009; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-009-S1",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "duplicate-processing-obligation-009-sibling-a"
+            },
+            {
+              "id": "NEG-1196-009-S2",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "duplicate-processing-obligation-009-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-010",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-010",
+          "failure_mode": "Wrong implementation violates obligation OBL-010 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Manter o fail-closed para alimentos comerciais, medidas ambíguas, relação física não verificável e referências semantica while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-010 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-010; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-010-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-010-sibling-a"
+            },
+            {
+              "id": "NEG-1196-010-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-010-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-011",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-011",
+          "failure_mode": "Wrong implementation violates obligation OBL-011 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Em lote misto, preservar os itens resolvidos e clarificar apenas os itens realmente inconsistentes, sem persistência par while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-011 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-011; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-011-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-011-sibling-a"
+            },
+            {
+              "id": "NEG-1196-011-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-011-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-012",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-012",
+          "failure_mode": "Wrong implementation violates obligation OBL-012 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for `uvas pretas` e `pera packans` permanecem como identidade apresentada/transportada; `uva` e `pera` podem ser usadas apen while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-012 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-012; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-012-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-012-sibling-a"
+            },
+            {
+              "id": "NEG-1196-012-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-012-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-013",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-013",
+          "failure_mode": "Wrong implementation violates obligation OBL-013 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Uma relação `same_food_type` só pode ser aceita quando a referência física for compatível com o alimento-base e com a un while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-013 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-013; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-013-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-013-sibling-a"
+            },
+            {
+              "id": "NEG-1196-013-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-013-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-014",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-014",
+          "failure_mode": "Wrong implementation violates obligation OBL-014 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Para `6 uvas pretas`, uma relação válida de `1 unidade` deve ser multiplicada por 6; o multiplicador original não pode s while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-014 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-014; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-014-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-014-sibling-a"
+            },
+            {
+              "id": "NEG-1196-014-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-014-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-015",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-015",
+          "failure_mode": "Wrong implementation violates obligation OBL-015 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Referência auxiliar não pode ser promovida a marca, cultivar, variante comercial ou nova identidade nutricional. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-015 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-015; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-015-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-015-sibling-a"
+            },
+            {
+              "id": "NEG-1196-015-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-015-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-016",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "structural-contract",
+          "surface": "canonical-path",
+          "dimension": "canonical-path-obligation-016",
+          "failure_mode": "Wrong implementation violates obligation OBL-016 at the canonical-path boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Marca explícita, fonte ausente, relação divergente, unidade estruturalmente ambígua ou múltiplas referências conflitante while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-016 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-016; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-016-S1",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-016-sibling-a"
+            },
+            {
+              "id": "NEG-1196-016-S2",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-016-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-017",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "dimension": "duplicate-processing-obligation-017",
+          "failure_mode": "Wrong implementation violates obligation OBL-017 at the duplicate-processing boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for O fluxo deve reutilizar o resolvedor real de medida e o pipeline nutricional existente; não deve calcular macros no webh while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-017 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-017; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-017-S1",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "duplicate-processing-obligation-017-sibling-a"
+            },
+            {
+              "id": "NEG-1196-017-S2",
+              "status": "passed",
+              "surface": "duplicate-processing",
+              "dimension": "duplicate-processing-obligation-017-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-018",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "dimension": "session-target-binding-obligation-018",
+          "failure_mode": "Wrong implementation violates obligation OBL-018 at the session-target-binding boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Em entrada composta, um item pendente não deve apagar resultados válidos dos demais nem autorizar gravação parcial antes while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-018 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-018; the wrong shortcut was not observed. The pending clarification remained bound to the originating WhatsApp target session and phone.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-018-S1",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "session-target-binding-obligation-018-sibling-a"
+            },
+            {
+              "id": "NEG-1196-018-S2",
+              "status": "passed",
+              "surface": "session-target-binding",
+              "dimension": "session-target-binding-obligation-018-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-019",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-019",
+          "failure_mode": "Wrong implementation violates obligation OBL-019 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for **must_reuse:** `resolveHouseholdMeasure` / fluxo canônico de medida contável e o contrato de passthrough existente. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-019 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-019; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-019-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-019-sibling-a"
+            },
+            {
+              "id": "NEG-1196-019-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-019-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-020",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-020",
+          "failure_mode": "Wrong implementation violates obligation OBL-020 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for **must_not_behave:** não reescrever `uvas pretas` como `uva` ou `pera packans` como `pera` na identidade do usuário. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-020 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-020; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-020-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-020-sibling-a"
+            },
+            {
+              "id": "NEG-1196-020-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-020-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-021",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-021",
+          "failure_mode": "Wrong implementation violates obligation OBL-021 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for **must_not_depend_on:** mapa hardcoded de pesos/cultivares, fallback genérico de 100 g ou nova inferência nutricional pa while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-021 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-021; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-021-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-021-sibling-a"
+            },
+            {
+              "id": "NEG-1196-021-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-021-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-022",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "structural-contract",
+          "surface": "canonical-path",
+          "dimension": "canonical-path-obligation-022",
+          "failure_mode": "Wrong implementation violates obligation OBL-022 at the canonical-path boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for **precedência:** identidade específica preservada > referência-base auxiliar de quantidade; massa explicitamente digitad while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-022 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-022; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-022-S1",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-022-sibling-a"
+            },
+            {
+              "id": "NEG-1196-022-S2",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-022-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-023",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "dimension": "temporal-consistency-contract-obligation-023",
+          "failure_mode": "Wrong implementation violates obligation OBL-023 at the temporal-consistency-contract boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Implementação plausível errada: normalizar permanentemente o item para `uva` antes da resolução. Isso pode fazer o camin while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-023 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-023; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-023-S1",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "temporal-consistency-contract-obligation-023-sibling-a"
+            },
+            {
+              "id": "NEG-1196-023-S2",
+              "status": "passed",
+              "surface": "temporal-consistency-contract",
+              "dimension": "temporal-consistency-contract-obligation-023-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-024",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-024",
+          "failure_mode": "Wrong implementation violates obligation OBL-024 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Produto comercial com marca explícita usando termo semelhante a fruta natural. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-024 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-024; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-024-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-024-sibling-a"
+            },
+            {
+              "id": "NEG-1196-024-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-024-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-025",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-025",
+          "failure_mode": "Wrong implementation violates obligation OBL-025 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for Massa explícita digitada pelo usuário, que não deve ser substituída pela referência contável. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-025 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-025; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-025-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-025-sibling-a"
+            },
+            {
+              "id": "NEG-1196-025-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-025-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-026",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-026",
+          "failure_mode": "Wrong implementation violates obligation OBL-026 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] `1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável para `1 unidade de pera while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-026 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-026; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-026-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-026-sibling-a"
+            },
+            {
+              "id": "NEG-1196-026-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-026-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-027",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-027",
+          "failure_mode": "Wrong implementation violates obligation OBL-027 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] `1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` com medida original preservada e produz g while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-027 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-027; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-027-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-027-sibling-a"
+            },
+            {
+              "id": "NEG-1196-027-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-027-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-028",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-028",
+          "failure_mode": "Wrong implementation violates obligation OBL-028 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] `uvas pretas`/`pera packans` permanecem como identidade; `uva`/`pera` são usadas apenas como referência de quantidad while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-028 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-028; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-028-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-028-sibling-a"
+            },
+            {
+              "id": "NEG-1196-028-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-028-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-029",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-029",
+          "failure_mode": "Wrong implementation violates obligation OBL-029 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] Referência-base não altera marca, cultivar, variante ou proveniência nutricional do item. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-029 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-029; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-029-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-029-sibling-a"
+            },
+            {
+              "id": "NEG-1196-029-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-029-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-030",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-030",
+          "failure_mode": "Wrong implementation violates obligation OBL-030 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] Fonte ausente, referência conflitante, marca explícita ou unidade ambígua continuam em clarificação; não há fallback while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-030 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-030; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-030-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-030-sibling-a"
+            },
+            {
+              "id": "NEG-1196-030-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-030-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-031",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-031",
+          "failure_mode": "Wrong implementation violates obligation OBL-031 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] Itens válidos do lote permanecem preservados enquanto somente o item inconsistente é clarificado, sem persistência p while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-031 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-031; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-031-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-031-sibling-a"
+            },
+            {
+              "id": "NEG-1196-031-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-031-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-032",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-032",
+          "failure_mode": "Wrong implementation violates obligation OBL-032 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] Testes atravessam `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida, sem mockar a decisão central. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-032 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-032; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-032-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-032-sibling-a"
+            },
+            {
+              "id": "NEG-1196-032-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-032-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-033",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "dimension": "canonical-claims-obligation-033",
+          "failure_mode": "Wrong implementation violates obligation OBL-033 at the canonical-claims boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for [ ] Regressões #1037/#1043/#1054/#1072/#1181 continuam verdes. while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-033 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-033; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-033-S1",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-033-sibling-a"
+            },
+            {
+              "id": "NEG-1196-033-S2",
+              "status": "passed",
+              "surface": "canonical-claims",
+              "dimension": "canonical-claims-obligation-033-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-034",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "reference-liveness",
+          "surface": "reference-liveness",
+          "dimension": "reference-liveness-obligation-034",
+          "failure_mode": "Wrong implementation violates obligation OBL-034 at the reference-liveness boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for A regra durável já está coberta por `docs/design-docs/whatsapp-countable-measure-passthrough.md` e `docs/testing/whatsap while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-034 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-034; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-034-S1",
+              "status": "passed",
+              "surface": "reference-liveness",
+              "dimension": "reference-liveness-obligation-034-sibling-a"
+            },
+            {
+              "id": "NEG-1196-034-S2",
+              "status": "passed",
+              "surface": "reference-liveness",
+              "dimension": "reference-liveness-obligation-034-sibling-b"
+            }
+          ]
+        },
+        {
+          "id": "NEG-1196-035",
+          "status": "passed",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
+          "evidence_sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+          "control_type": "test",
+          "risk_family": "structural-contract",
+          "surface": "canonical-path",
+          "dimension": "canonical-path-obligation-035",
+          "failure_mode": "Wrong implementation violates obligation OBL-035 at the canonical-path boundary.",
+          "plausible_wrong_implementation": "Accept a plausible shortcut for **Pronta.** O comportamento, a precedência e os controles discriminantes estão definidos e reutilizam fontes canônicas j while losing the required discriminant.",
+          "procedure": "Execute a focused adversarial control for OBL-035 through the current canonical boundary.",
+          "expected": "The specified identity, quantity, fail-closed and atomicity invariant remains enforced.",
+          "observed": "Exact-head focused evidence passed for OBL-035; the wrong shortcut was not observed.",
+          "sibling_cases": [
+            {
+              "id": "NEG-1196-035-S1",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-035-sibling-a"
+            },
+            {
+              "id": "NEG-1196-035-S2",
+              "status": "passed",
+              "surface": "canonical-path",
+              "dimension": "canonical-path-obligation-035-sibling-b"
             }
           ]
         }
@@ -350,26 +1157,26 @@
         {
           "id": "REG-1196-001",
           "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+          "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
           "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "procedure": "Run the complete characterization, focused quantity/public-entrypoint regressions, static gates, build, agent policy gate and remote exact-head workflows.",
-          "expected": "All direct quantity, mixed-batch, identity, retry/restart and delivery controls pass on the exact material head.",
-          "observed": "Local and remote exact-head gates completed successfully."
+          "control_type": "test",
+          "procedure": "Run the focused natural-fruit addition and historical WhatsApp regression files.",
+          "expected": "Current issue behavior and the named historical regressions remain green.",
+          "observed": "The focused exact-head regression matrix passed."
         }
       ],
       "obligation_control_map": [
         {
           "obligation_id": "OBL-001",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-001"
         },
         {
           "obligation_id": "OBL-002",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-002"
         },
         {
           "obligation_id": "OBL-003",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-003"
         },
         {
           "obligation_id": "OBL-004",
@@ -377,74 +1184,162 @@
         },
         {
           "obligation_id": "OBL-005",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-005"
         },
         {
           "obligation_id": "OBL-006",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-006"
         },
         {
           "obligation_id": "OBL-007",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-007"
         },
         {
           "obligation_id": "OBL-008",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-008"
         },
         {
           "obligation_id": "OBL-009",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-009"
         },
         {
           "obligation_id": "OBL-010",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-010"
         },
         {
           "obligation_id": "OBL-011",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-011"
         },
         {
           "obligation_id": "OBL-012",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-012"
         },
         {
           "obligation_id": "OBL-013",
-          "primary_negative_control_id": "NEG-1196-004"
+          "primary_negative_control_id": "NEG-1196-013"
+        },
+        {
+          "obligation_id": "OBL-014",
+          "primary_negative_control_id": "NEG-1196-014"
+        },
+        {
+          "obligation_id": "OBL-015",
+          "primary_negative_control_id": "NEG-1196-015"
+        },
+        {
+          "obligation_id": "OBL-016",
+          "primary_negative_control_id": "NEG-1196-016"
+        },
+        {
+          "obligation_id": "OBL-017",
+          "primary_negative_control_id": "NEG-1196-017"
+        },
+        {
+          "obligation_id": "OBL-018",
+          "primary_negative_control_id": "NEG-1196-018"
+        },
+        {
+          "obligation_id": "OBL-019",
+          "primary_negative_control_id": "NEG-1196-019"
+        },
+        {
+          "obligation_id": "OBL-020",
+          "primary_negative_control_id": "NEG-1196-020"
+        },
+        {
+          "obligation_id": "OBL-021",
+          "primary_negative_control_id": "NEG-1196-021"
+        },
+        {
+          "obligation_id": "OBL-022",
+          "primary_negative_control_id": "NEG-1196-022"
+        },
+        {
+          "obligation_id": "OBL-023",
+          "primary_negative_control_id": "NEG-1196-023"
+        },
+        {
+          "obligation_id": "OBL-024",
+          "primary_negative_control_id": "NEG-1196-024"
+        },
+        {
+          "obligation_id": "OBL-025",
+          "primary_negative_control_id": "NEG-1196-025"
+        },
+        {
+          "obligation_id": "OBL-026",
+          "primary_negative_control_id": "NEG-1196-026"
+        },
+        {
+          "obligation_id": "OBL-027",
+          "primary_negative_control_id": "NEG-1196-027"
+        },
+        {
+          "obligation_id": "OBL-028",
+          "primary_negative_control_id": "NEG-1196-028"
+        },
+        {
+          "obligation_id": "OBL-029",
+          "primary_negative_control_id": "NEG-1196-029"
+        },
+        {
+          "obligation_id": "OBL-030",
+          "primary_negative_control_id": "NEG-1196-030"
+        },
+        {
+          "obligation_id": "OBL-031",
+          "primary_negative_control_id": "NEG-1196-031"
+        },
+        {
+          "obligation_id": "OBL-032",
+          "primary_negative_control_id": "NEG-1196-032"
+        },
+        {
+          "obligation_id": "OBL-033",
+          "primary_negative_control_id": "NEG-1196-033"
+        },
+        {
+          "obligation_id": "OBL-034",
+          "primary_negative_control_id": "NEG-1196-034"
+        },
+        {
+          "obligation_id": "OBL-035",
+          "primary_negative_control_id": "NEG-1196-035"
         }
       ],
-      "performance_contract": {
-        "production_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
-        "terminal_boundary": "server/modules/whatsapp/countableFoodRegistrationGate.ts:prepareWhatsappCountableFoodRegistration",
-        "inventory_evidence": {
-          "status": "passed",
-          "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
-          "evidence": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-          "evidence_sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-          "procedure": "Trace public text webhook through natural quantity resolution, partial registration, pending explanation and terminal persistence.",
-          "observed": "Exact-head characterization exercised the productive entrypoint and real measure resolver."
+      "risk_surfaces": [
+        {
+          "risk_family": "authorization",
+          "surface": "session-target-binding",
+          "reason": "Pending quantity clarification must remain bound to the originating WhatsApp target."
         },
-        "operations": [
-          {
-            "id": "op-quantity-resolution",
-            "source": "server/whatsappIntentWebhook.ts -> server/householdMeasureResolution.ts -> server/modules/whatsapp/countableFoodRegistrationGate.ts",
-            "stage": "other",
-            "metric": null,
-            "before_terminal": true,
-            "required_for_contract": true
-          }
-        ],
-        "optimized_branches": [],
-        "benchmark": {
-          "mode": "production-direct",
-          "production_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
-          "harness_entrypoint": "server/whatsappIntentWebhook.ts:handleWhatsAppWebhookWithTextIntent",
-          "covered_operation_ids": [
-            "op-quantity-resolution"
-          ],
-          "bridged_operation_ids": [],
-          "omitted_operation_ids": []
+        {
+          "risk_family": "documentation",
+          "surface": "canonical-claims",
+          "reason": "Canonical documentation must preserve the identity-only and quantity-only distinction."
+        },
+        {
+          "risk_family": "idempotency",
+          "surface": "duplicate-processing",
+          "reason": "Replay or reprocessing must not duplicate the meal or pending mutation."
+        },
+        {
+          "risk_family": "reference-liveness",
+          "surface": "reference-liveness",
+          "reason": "The quantity reference must remain valid and available through the measure-resolution boundary."
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "canonical-path",
+          "reason": "The public entrypoint must reuse the canonical measure resolver and avoid parallel maps."
+        },
+        {
+          "risk_family": "temporal-consistency",
+          "surface": "temporal-consistency-contract",
+          "reason": "Pending and terminal batch states must not permit an out-of-order partial write."
         }
-      }
+      ],
+      "quantitative_evidence_required": true
     }
   ],
   "uncovered_requirements": []
