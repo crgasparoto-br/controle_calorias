@@ -3,54 +3,57 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
-    "audit_report_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
-    "audited_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9"
+    "rejection_id": "audit-rejection:pr1263-f001-handoff-not-produced",
+    "audit_report_sha256": "5fb871735f92a2c3f72bd90266999e0c826e3ce3416501490f8af835313c321a",
+    "audited_head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98"
   },
-  "candidate_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "candidate_head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
   "remediation_mode": "targeted-remediation",
   "status": "closed",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "F-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
+      "closure_kind": "delivery-handoff-rebuilt",
       "changed_files": [
-        ".audit/entregar-issue/issue-1196/handoff-ready.json",
+        ".audit/entregar-issue/issue-1196/specification-snapshot.json",
+        ".audit/entregar-issue/issue-1196/specification-sources/SRC-ISSUE-1196.txt",
         ".audit/entregar-issue/issue-1196/requirement-closure.json",
         ".audit/entregar-issue/issue-1196/requirement-attack-matrix.json",
         ".audit/entregar-issue/issue-1196/risk-saturation.json",
         ".audit/entregar-issue/issue-1196/inherited-controls.json",
         ".audit/entregar-issue/issue-1196/evidence-provenance.json",
+        ".audit/entregar-issue/issue-1196/audit-escape-closure.json",
+        ".audit/entregar-issue/issue-1196/learning-closure.json",
+        ".audit/entregar-issue/issue-1196/audit-remediation.json",
         ".audit/entregar-issue/issue-1196/audit-source-result.json",
-        ".audit/entregar-issue/issue-1196/audit-remediation.json"
+        ".audit/entregar-issue/issue-1196/handoff-ready.json"
       ],
       "evidence": [
         ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-        "Fresh current-target certificate binds issue #1196, PR #1197, base, head, parent and changed paths."
+        "Fresh certificate subject binds issue #1196, PR #1263, base, material head and result-only policy."
       ],
       "validations": [
-        "Official handoff readiness validators pass on the current target.",
-        "Terminal handoff validation proves the result-only child is a direct child of the material head and contains only allowlisted result paths."
+        "Official coverage, attack-matrix, risk-saturation, inherited-controls and handoff-readiness validators pass on the current material head.",
+        "Terminal handoff validation proves the published child is a direct result-only child with only allowlisted audit paths."
       ]
     },
     {
       "source_kind": "recommendation",
-      "source_id": "R-002",
+      "source_id": "REC-001",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
       "closure_kind": "not-applicable",
       "changed_files": [
-        ".audit/entregar-issue/issue-1196/evidence-provenance.json",
-        ".audit/entregar-issue/issue-1196/audit-remediation.json"
+        ".audit/entregar-issue/issue-1196/handoff-ready.json"
       ],
       "evidence": [
-        "Remote Agent-first gate run 36243022121 completed successfully on exact head d08698af."
+        "All four required exact-SHA remote checks are terminal SUCCESS."
       ],
       "validations": [
-        "gh pr checks 1197 reports 4 successful and 0 pending checks."
+        "gh pr checks 1263 reports 4 successful and 0 pending checks."
       ]
     }
   ]

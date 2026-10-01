@@ -127,6 +127,67 @@ vi.mock("./whatsappConfig", () => ({
   }),
 }));
 
+vi.mock("./_core/ai/domainTextResponse", async importOriginal => {
+  const actual = await importOriginal<typeof import("./_core/ai/domainTextResponse")>();
+  return {
+    ...actual,
+    createDomainTextResponse: vi.fn(async (_provider: unknown, request: any) => {
+      const prompt = request.input?.[0]?.content?.[0]?.text ?? "";
+      const measureResponse = (foodName: string, foodTypeName: string, grams: number) => {
+        const url = `https://example.test/${foodTypeName}-unidade`;
+        const evidence = `1 unidade de ${foodTypeName} pesa ${grams} g.`;
+        return {
+          id: `measure-${foodTypeName}`,
+          outputText: JSON.stringify({
+            found: true,
+            references: [{
+              matchedFoodName: foodName,
+              foodTypeName,
+              brandName: "",
+              measureUnit: "unidade",
+              measureQuantity: 1,
+              grams,
+              referenceKind: "same_food_type",
+              describesTypicalMeasure: false,
+              sourceUrl: url,
+              evidence,
+            }],
+          }),
+          webSearch: {
+            executed: true,
+            searchCount: 1,
+            sources: [{ url, title: `${foodName} natural`, supportingText: [evidence] }],
+          },
+          raw: {},
+        };
+      };
+
+      if (/p[eê]ra packans/i.test(prompt)) {
+        if (!/refer[eê]ncia can[oô]nica.*pera/i.test(prompt)) {
+          return {
+            id: "measure-pera-without-reference",
+            outputText: JSON.stringify({ found: false, references: [] }),
+            webSearch: { executed: true, searchCount: 1, sources: [] },
+            raw: {},
+          };
+        }
+        return measureResponse("Pêra", "pêra", 150);
+      }
+      if (/banana nanica/i.test(prompt)) return measureResponse("Banana", "banana", 80);
+      return actual.createDomainTextResponse(_provider as never, request);
+    }),
+  };
+});
+
+vi.mock("./householdMeasureResolutionStore", async importOriginal => {
+  const actual = await importOriginal<typeof import("./householdMeasureResolutionStore")>();
+  return {
+    ...actual,
+    loadPersistedHouseholdMeasureResolution: vi.fn(async () => null),
+    persistHouseholdMeasureResolution: vi.fn(async () => true),
+  };
+});
+
 vi.mock("./whatsappWebhook", () => ({
   handleWhatsAppWebhook: handleWhatsAppWebhookMock,
 }));
@@ -710,6 +771,37 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       items: [riceItem, expect.objectContaining({ estimatedGrams: 100 })],
     }));
   });
+
+  it("reutiliza a referência natural no fluxo público de adição de fruta qualificada", async () => {
+    listMealsMock.mockResolvedValue([
+      { id: 1196, userId: 42, mealLabel: "Lanche da tarde", occurredAt: new Date("2026-06-03T15:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [riceItem] },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 1196, ...input }));
+    const req = createTextWebhookRequest(
+      "Adicionar ao lanche da tarde 1 pêra packans e 1 banana nanica",
+      { id: "issue-1196-public-addition" },
+    );
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 1196,
+      items: [
+        riceItem,
+        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
+        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
+      ],
+    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_added",
+    }));
+    expect(sentMessages.at(-1)).toContain("pêra packans");
+  });
+
   it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
     listMealsMock.mockResolvedValue([{ id: 13, userId: 42, mealLabel: "Lanche", occurredAt: new Date("2026-06-03T18:00:00.000Z").getTime(), notes: "Registro pelo WhatsApp", items: [bananaItem, riceItem] }]);
     updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({ id: 13, ...input }));

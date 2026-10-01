@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "material_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "material_head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+  "base_sha": "67470706fddfdb6bd730001b99b53761a4b13ef3",
   "evidence": [
     {
       "evidence_id": "EVID-1196-EXACT-HEAD",
       "kind": "quantitative",
       "status": "passed",
-      "producer": "Exact-head repository regression and gate runner",
-      "subject_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+      "producer": "Focused exact-material-head regression and remote gate collection",
+      "subject_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
       "freshness_policy": "exact-material-head",
       "path": ".audit/entregar-issue/issue-1196/evidence/issue1196-exact-head-controls.txt",
-      "sha256": "8c3f42d91bbc889624e6ce3b7cc0c4898feb32ec0a64044ea486ba801a73d807",
-      "observed": "Public characterization, focused quantity regressions, local gates and remote exact-head checks passed."
+      "sha256": "7af6815b503effc47f613ef8cd2d4660fe2147338c08f821389d687d6222adaf",
+      "observed": "Public flow, quantity multiplier, identity separation, fail-closed controls, atomicity and remote exact-head checks passed."
     }
   ]
 }
