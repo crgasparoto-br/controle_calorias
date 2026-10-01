@@ -56,6 +56,12 @@ export type CanonicalFoodAdditionResolution =
       itemIndex: number;
       item: FoodAdditionIntent["items"][number];
       resolvedItems: CanonicalFoodAdditionItem[];
+    }
+  | {
+      kind: "nutrition_failure";
+      itemIndex: number;
+      item: FoodAdditionIntent["items"][number];
+      resolvedItems: CanonicalFoodAdditionItem[];
     };
 
 type ResolverRuntime = {
@@ -129,6 +135,25 @@ function toAdditionQuantityResolution(
 
 function findSingleResolvedItem(items: MealItemInput[]) {
   return items.length === 1 ? items[0] : null;
+}
+
+/**
+ * O motor nutricional é uma fronteira externa. Indisponibilidade, timeout ou
+ * resposta parcial não podem lançar erro para o webhook: sem tratamento
+ * controlado a mensagem era fechada como processada e o usuário ficava sem
+ * nenhuma resposta. Erros de domínio (`MealInferenceError`) continuam
+ * propagando porque carregam clarificação escrita para o usuário.
+ */
+async function resolveAdditionInference(
+  runtime: ResolverRuntime,
+  input: { text: string; occurredAt: Date; timeZone: string },
+) {
+  try {
+    return await runtime.processMealInput(input);
+  } catch (error) {
+    if (error instanceof MealInferenceError) throw error;
+    return null;
+  }
 }
 
 export async function resolveCanonicalFoodAdditionItems(
@@ -266,15 +291,24 @@ export async function resolveCanonicalFoodAdditionItems(
         },
       }));
     } else {
-      const processed = await runtime.processMealInput({
+      const processed = await resolveAdditionInference(runtime, {
         text: processingText,
         occurredAt: input.occurredAt,
         timeZone: input.timeZone,
       });
-      resolved = findSingleResolvedItem(toMealItemInputs(processed.items));
+      resolved = findSingleResolvedItem(
+        toMealItemInputs(processed?.items ?? []),
+      );
     }
     if (!resolved) {
-      throw new Error(`A resolução canônica não produziu um único alimento para: ${originalFoodText}`);
+      // Falha anterior a qualquer mutação: devolve um resultado controlado com
+      // o texto original preservado para o chamador responder ao usuário.
+      return {
+        kind: "nutrition_failure",
+        itemIndex,
+        item,
+        resolvedItems,
+      };
     }
 
     const finalItem: CanonicalFoodAdditionItem = householdMeasure

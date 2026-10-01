@@ -71,3 +71,8 @@ No registro textual normal, `handleWhatsAppWebhookWithTextIntent` preserva os ha
 - `user_learned` só nasce de correção explícita com contexto original preservado e mutação concluída; parse, cancelamento, ambiguidade e falha não ensinam.
 - O formatter não apresenta `contextual_estimate`, `usual_average` ou `user_learned` como medida exata.
 - As validações finais da entrega executam a suíte completa para detectar regressão dos fluxos de presunto/mussarela e dos gates anteriores.
+### Falha controlada na adição canônica (#1282)
+| Cenário | Entrada | Fronteira | Contrato | Cobertura |
+|---|---|---|---|---|
+| Motor nutricional indisponível | `Adicionar ao café da manhã 1,5 fatias de mortadela` com `processMealInput` devolvendo `null`, lista vazia ou lote com mais de um item | `resolveCanonicalFoodAdditionItems` → `handleFoodAdditionIntent` | resposta controlada de erro recuperável, nenhuma mutação e nenhuma exceção crua | `foodAddition.nutritionFailure.issue1282.test.ts` |
+| Falha de inferência no fluxo textual | `MealInferenceError` lançado por qualquer etapa de `tryHandleTextIntent` | `server/whatsappIntentWebhook.ts` | clarificação de domínio entregue antes de fechar a mensagem; erro que não é de domínio continua repropagando (contrato de posse/reinício); falha de entrega mantém a repropagação | `whatsappIntentWebhook.unexpectedFailure.issue1282.test.ts`, `whatsappPersistentContextWebhook.restartOwnership.tidb.test.ts` |
