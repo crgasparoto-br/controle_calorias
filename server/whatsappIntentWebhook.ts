@@ -63,6 +63,7 @@ import { getWhatsAppWeightVariation } from "./modules/whatsapp/userMeasurementRe
 import { resolveWhatsAppOperationTimeZone } from "./modules/whatsapp/timeZoneContext";
 import { handleWhatsAppWebhookWithAnnotatedImages } from "./whatsappAnnotatedImageWebhook";
 import { createMessageDeduplicationCache } from "./modules/whatsapp/messageDeduplicationCache";
+import { buildWhatsAppRecoverableErrorReplyMessage } from "./modules/whatsapp/replyMessages";
 import {
   recordConversationTurn,
   __resetConversationHistoryForTests,
@@ -552,6 +553,82 @@ function extractMealId(data: Record<string, unknown> | undefined) {
   return typeof data?.mealId === "number" ? data.mealId : null;
 }
 
+/**
+ * Resposta controlada para falha inesperada no fluxo textual. Nunca propaga
+ * erro: quando a entrega falha, o chamador mantém o comportamento anterior
+ * (erro repropagado para reentrega do provedor).
+ */
+const UNEXPECTED_TEXT_FAILURE_REPLY =
+  "Não foi possível concluir sua solicitação agora. Tente novamente em alguns instantes.";
+
+/**
+ * `MealInferenceError` carrega clarificação escrita para o usuário e é a
+ * fronteira de falha que o pipeline de registro já responde
+ * (`buildProcessingFailureReply`). O motor é importado sob demanda: ele não
+ * entra no grafo estático deste webhook só para ler a mensagem de um erro.
+ * Qualquer outro erro não é falha de domínio e mantém a repropagação.
+ */
+async function resolveDomainInferenceFailureMessage(error: unknown) {
+  try {
+    const { MealInferenceError } = await import("./nutritionEngine");
+    if (!(error instanceof MealInferenceError)) return null;
+    return error.message.trim() || UNEXPECTED_TEXT_FAILURE_REPLY;
+  } catch {
+    // Importação do motor indisponível: mantém a repropagação do erro original.
+    return null;
+  }
+}
+
+async function sendTextFailureReply(input: {
+  response: Response;
+  userId: number;
+  sourcePhone: string;
+  userMessage: string;
+  error: unknown;
+  occurredAtMs: number;
+  lifecycleHandle: MessageLifecycleHandle;
+}) {
+  const failureMessage = await resolveDomainInferenceFailureMessage(input.error);
+  if (!failureMessage) return false;
+  const reply = buildWhatsAppRecoverableErrorReplyMessage(failureMessage);
+  try {
+    const delivery = await sendWhatsAppLogicalDomainReply({
+      to: input.sourcePhone,
+      userId: input.userId,
+      replyText: reply,
+      lifecycleHandle: input.lifecycleHandle,
+    });
+    logInferenceEvent({
+      userId: input.userId,
+      origin: "whatsapp",
+      status: "warning",
+      eventType: "whatsapp.intent.unexpected_failure",
+      detail:
+        "Falha inesperada no processamento textual; resposta controlada enviada antes de fechar a mensagem.",
+    });
+    if (!delivery.result.ok) {
+      logInferenceEvent({
+        userId: input.userId,
+        origin: "whatsapp",
+        status: "error",
+        eventType: "whatsapp.reply_failed",
+        detail:
+          "Falha ao enviar a resposta controlada de erro para o contato WhatsApp.",
+      });
+    }
+    recordConversationTurn(
+      input.userId,
+      input.userMessage,
+      delivery.result.ok ? reply : null,
+      input.occurredAtMs,
+    );
+    if (delivery.result.ok) setWhatsAppWebhookOutcome(input.response, "handled_without_meal");
+    return delivery.result.ok;
+  } catch {
+    return false;
+  }
+}
+
 function resolveTextReplyOutcome(input: {
   eventType: string;
   detail: string;
@@ -633,7 +710,23 @@ async function tryHandleTextIntent(
   try {
     return await handleTextIntentAfterLifecycleBegin(userId);
   } catch (error) {
+    // Falha de inferência não pode encerrar a mensagem em silêncio: o claim
+    // fica `processed`, o retry do provedor é deduplicado como reentrega e o
+    // usuário nunca recebe resposta. A clarificação de domínio é entregue antes
+    // do fechamento; se ela também falhar, o erro original continua
+    // propagando. Erros que não são de domínio preservam a repropagação, que é
+    // o contrato de posse/reinício do processamento.
+    const replied = await sendTextFailureReply({
+      response: res,
+      userId,
+      sourcePhone,
+      userMessage: text,
+      error,
+      occurredAtMs,
+      lifecycleHandle,
+    });
     await markMessageProcessed(lifecycleHandle);
+    if (replied) return true;
     throw error;
   }
 

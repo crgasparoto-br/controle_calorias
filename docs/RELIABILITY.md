@@ -77,6 +77,8 @@ pnpm db:check-integrity
 - Fotos de rótulo que complementam item nutricional provisório devem persistir correlação e, quando necessário, a própria evidência analisada antes de perguntar novamente. Sem essa persistência o outbound não pode convidar o usuário a enviar rótulo. O item original permanece a fonte de verdade para identidade comercial; visão divergente não pode trocar produto, marca ou variante sem confirmação da dimensão realmente conflitante, e marca coincidente isoladamente não valida outro produto da mesma marca.
 - A aplicação do rótulo reivindica a pending operation exata com versionamento antes da mutação e revalida o item persistido. Retry, reentrega, concorrência, usuário diferente, fonte expirada ou estado já atualizado devem resultar em no máximo uma mutação.
 - Se a mutação falhar depois do claim, a recuperação deve preservar a evidência em nova continuação segura ou responder sem afirmar sucesso; não é permitido criar nova refeição, repetir automaticamente o efeito ou promover candidato global.
+- Falha de inferência em adição canônica é sempre anterior à mutação: o usuário recebe erro recuperável que não afirma registro, e nenhuma exceção crua pode escapar para o webhook.
+- Falha de inferência (`MealInferenceError`) no fluxo textual entrega clarificação controlada antes de marcar a mensagem como processada; erro que não é de domínio continua propagando para preservar o contrato de posse e reinício. Quando a resposta controlada também não é entregue, o erro original continua propagando.
 
 ## Incidentes comuns a prevenir
 
@@ -84,6 +86,8 @@ pnpm db:check-integrity
 - Divergência entre rascunho e confirmação.
 - Log de dados sensíveis.
 - Falha silenciosa no envio WhatsApp.
+- Mensagem textual encerrada sem nenhuma resposta ao usuário depois de falha inesperada do pipeline (claim fechado como processado e retry do provedor deduplicado como reentrega).
+- Falha do motor nutricional na adição canônica virando exceção crua em vez de resposta controlada.
 - Pergunta de clarificação enviada sem estado durável recuperável após reinício ou em outra instância.
 - Relatório semanal divergente do dashboard.
 - Meta profissional divergente entre Hoje, Metas, Relatórios, WhatsApp e prontuário.
