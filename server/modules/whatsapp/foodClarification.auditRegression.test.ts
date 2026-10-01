@@ -330,6 +330,13 @@ describe("food clarification regressions found by audit", () => {
     ).toBeNull();
   });
 
+  it.each([
+    "adicionar água ontem",
+    "adicionar ao jantar, banana",
+  ])("não classifica adição sem quantidade/unidade como comando completo: %s", text => {
+    expect(isCompleteWhatsappCommand(text)).toBe(false);
+  });
+
   it("restaura falha anterior à mutação com o interactionId canônico do pendingKind", async () => {
     const { service, repository, processFood } = createHarness();
     const start = new Date("2026-07-21T20:00:00.000Z");

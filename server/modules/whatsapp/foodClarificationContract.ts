@@ -18,6 +18,7 @@ import {
   isStandaloneWhatsappCommandWord,
   normalizeStandaloneWhatsappCommand,
 } from "./standaloneCommandWords";
+import { parseMealCommandFromWhatsApp } from "./mealCommandParser";
 
 export const PENDING_FOOD_CLARIFICATION_TYPE = "food_registration_clarification";
 export const PENDING_FOOD_CLARIFICATION_ORIGIN = "foodClarification";
@@ -84,6 +85,11 @@ const SAFE_TYPO_REPLACEMENTS: Record<string, string> = {
 const NON_FOOD_COUNT_CONTEXT = /\b(?:relatorio|resumo|registro|opcao|dia|semana|mes|ano|paciente|mensagem|pergunta|consulta|arquivo|foto|imagem)\b/i;
 const DESTRUCTIVE_OR_QUERY_COMMAND = /\b(?:excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
 const COMPLETE_COMMAND_SIGNAL = /\b(?:registrar|registre|registra|adicionar|adicione|adiciona|incluir|inclua|comi|bebi|tomei|excluir|remover|apagar|deletar|trocar|corrigir|alterar|consultar|resumo|relatorio)\b/i;
+const COMPOUND_ACTION_VERB = "(?:troca|trocar|substitui|substituir|remove|remover|tira|tirar|retira|retirar|exclui|excluir|apaga|apagar|deleta|deletar|corrige|corrigir|ajusta|ajustar|soma|somar|some|adiciona|adicionar|adicione|inclui|inclua|lan[cç]a|lanca|registre|registrar|registra|n[aã]o\\s+e|n[aã]o\\s+era)";
+const COMPOUND_ACTION_BOUNDARY = new RegExp(
+  `\\s+(?:e|depois|ent[aã]o)\\s+(?=${COMPOUND_ACTION_VERB}\\b)|\\s*[,;]\\s*(?=${COMPOUND_ACTION_VERB}\\b)`,
+  "iu",
+);
 const COUNTABLE_SERVING = /\b(?:unidades?|unid|und|fatias?|pedacos?|x[ií]caras?|copos?|colheres?|doses?|scoops?|latas?|garrafas?|long\s*necks?|por[cç][oõ]es|por[cç][aã]o)\b/i;
 const EXPLICIT_MASS_OR_VOLUME = /^(\d+(?:[,.]\d+)?)\s*(g|gramas?|ml|mililitros?|l|litros?)\b/i;
 const HOUSEHOLD_QUANTITY_UNIT = "colheres? de cha|colheres? de sopa|saches?|pacotes?";
@@ -361,6 +367,20 @@ export function isCompleteWhatsappCommand(text?: string | null) {
   const raw = text?.trim() ?? "";
   if (!raw || isStandaloneWhatsappCommandWord(raw)) return false;
   const normalized = normalizeStandaloneWhatsappCommand(raw);
+  const parsedMealCommand = parseMealCommandFromWhatsApp(normalized);
+  const isIncompleteMealAddition = parsedMealCommand.intent === "add_items_to_meal"
+    && (
+      parsedMealCommand.items.length === 0
+      || parsedMealCommand.items.some(item => item.missingFields.length > 0)
+    );
+  const isPotentialCompoundCommand = COMPOUND_ACTION_BOUNDARY.test(normalized);
+  // A command verb is not enough to bypass an active clarification. In
+  // particular, "adicionar água ontem" and "adicionar ao jantar, banana"
+  // still lack the quantity/unit required by the canonical meal parser.
+  // A second action is handled by the all-or-nothing multi-action coordinator,
+  // so it must retain the existing precedence path instead of being reduced to
+  // the first incomplete meal clause.
+  if (isIncompleteMealAddition && !isPotentialCompoundCommand) return false;
   const explicitFood = COMPLETE_EXPLICIT_FOOD.test(normalized);
   const countedFood = parseCountedFoodRequest(raw) !== null;
   const operationalCommand = COMPLETE_COMMAND_SIGNAL.test(normalized) && normalized.split(/\s+/).length >= 2;

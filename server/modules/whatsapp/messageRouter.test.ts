@@ -354,4 +354,25 @@ describe("resolveWhatsAppPrecedenceGate", () => {
     expect(decision).not.toEqual({ step: "continue_pipeline" });
     expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
   });
+
+  it("não substitui pendência alimentar para item sem quantidade", async () => {
+    const userId = 9;
+    await repository.createPendingOperation({
+      userId,
+      type: "food_registration_clarification",
+      origin: "foodClarification",
+      target: { pendingKind: "identity", originalCandidate: "Queijo Muçarela" },
+      ttlMs: 600_000,
+    });
+
+    const decision = await resolveWhatsAppPrecedenceGate({
+      userId,
+      text: "Adicionar ao jantar, banana",
+      receivedAt: new Date(),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(decision).not.toEqual({ step: "continue_pipeline" });
+    expect((await repository.getLatestPendingOperation(userId))?.state).toBe("active");
+  });
 });
