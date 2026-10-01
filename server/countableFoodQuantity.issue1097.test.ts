@@ -8,26 +8,27 @@ import {
 
 describe("issue #1097 — porções comuns e Panco Premium", () => {
   it.each([
-    ["1 fatia de mussarela", "mussarela", 20],
-    ["1 fatia de presunto", "presunto", 18],
-  ])("resolve %s por catálogo local em %s g", (text, foodName, grams) => {
+    ["1 fatia de mussarela", "mussarela", 20, 1],
+    ["1 fatia de presunto", "presunto", 18, 1],
+    ["1,5 fatias de mortadela", "mortadela", 22.5, 1.5],
+  ])("resolve %s por catálogo local em %s g", (text, foodName, grams, count) => {
     const request = parseCountableFoodQuantitySegment(text);
 
     expect(request).toEqual(
       expect.objectContaining({
         foodName,
         requestedUnit: "fatia",
-        count: 1,
+        count,
       })
     );
     expect(
       request ? getSafeCatalogCountableGrams(undefined, request, true) : null
     ).toBe(grams);
-    expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia", true)).toEqual(
+    expect(resolveSafeCountableCatalogGrams(foodName, count, "fatia", true)).toEqual(
       expect.objectContaining({
         grams,
         food: expect.objectContaining({
-          name: expect.stringMatching(/mussarela|presunto/i),
+          name: expect.stringMatching(/mussarela|presunto|mortadela/i),
         }),
       })
     );
@@ -89,5 +90,34 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
     expect(prepared.registrationText).toContain(
       "25 g de pão de forma panco Premium"
     );
+  });
+  it("registra 1,5 fatias de mortadela pela porção canônica de 15 g", async () => {
+    const prepared = await prepareCountableFoodRegistrationResolved(
+      42,
+      "1,5 fatias de mortadela",
+    );
+
+    expect(prepared.pendingItems).toEqual([]);
+    expect(prepared.registrationText).toBe("22.5 g de mortadela");
+    expect(prepared.resolutions[0]).toEqual(expect.objectContaining({
+      request: expect.objectContaining({
+        foodName: "mortadela",
+        count: 1.5,
+        requestedUnit: "fatia",
+      }),
+      resolution: expect.objectContaining({
+        kind: "canonical_portion",
+        grams: 22.5,
+      }),
+    }));
+  });
+  it("preserva 1,5 fatias de mortadela dentro de uma mensagem multi-item", async () => {
+    const prepared = await prepareCountableFoodRegistrationResolved(
+      42,
+      "1 pão francês, 1,5 fatias de mortadela, 10 g de manteiga",
+    );
+
+    expect(prepared.pendingItems).toEqual([]);
+    expect(prepared.registrationText).toContain("22.5 g de mortadela");
   });
 });

@@ -25,7 +25,7 @@ vi.mock("./mealInferenceFallbackTelemetry", () => ({
 const { processMealInput } = await import("./nutritionEngine");
 const { findTacoFood } = await import("./tacoLookup");
 
-function installInference(foodName: string) {
+function installInference(foodName: string, brand: string | null = null) {
   createTextResponseMock.mockResolvedValue({
     id: "response-issue-1198",
     outputText: JSON.stringify({
@@ -34,7 +34,7 @@ function installInference(foodName: string) {
       reasoning: "Alimento genérico reconhecido sem evidência de marca.",
       items: [{
         foodName,
-        brand: null,
+        brand,
         quantity: 100,
         unit: "g",
         portionText: "100 g",
@@ -107,6 +107,19 @@ describe("issue #1198 — referência genérica no processamento real", () => {
       }),
     }));
     expect(result.items[0].calories).not.toBe(150);
+  });
+  it("ignora a marca duplicada quando a visão classifica muçarela como marca", async () => {
+    installInference("Queijo Muçarela", "Muçarela");
+    const result = await processMealInput({
+      imageUrl: "data:image/jpeg;base64,issue-1198-duplicated-cheese-brand",
+    });
+
+    expect(result.semanticContract.needsClarification).toBe(false);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      canonicalName: "Queijo Mozarela",
+      brand: null,
+      source: "catalog",
+    }));
   });
 
   it("mantém fail-closed para a variante light sem referência compatível", async () => {

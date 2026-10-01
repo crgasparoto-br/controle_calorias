@@ -142,6 +142,7 @@ export async function executeWhatsappDatedFoodAdditionIntent(
         options: {
           title: items.length === 1 ? "Alimento adicionado" : "Alimentos adicionados",
           actionLines: [`Criei a refeição configurada ${configuredSchedule.mealLabel} de ${formatReplyDate(new Date(configuredOccurredAt), timeZone)} e adicionei ${items.length} item(ns).`],
+          mealResultState: "registered",
         },
       }),
       eventType: "whatsapp.intent.meal_item_added",

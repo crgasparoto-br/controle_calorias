@@ -59,6 +59,18 @@ describe("mealTextParsing arithmetic quantity expressions", () => {
     }));
   });
 
+  it.each(["1,5 fatias de mortadela", "1.5 fatias de mortadela"])(
+    "preserva quantidade decimal com unidade de fatias: %s",
+    input => {
+      expect(parseFoodText(input)).toEqual(expect.objectContaining({
+        foodName: "mortadela",
+        quantity: 1.5,
+        unit: "fatia",
+        portionText: "1,5 fatia",
+      }));
+    },
+  );
+
   it("extrai uma quantidade explícita calculada para reaplicar em item único", () => {
     expect(extractExplicitQuantities("2x176g de laranja pêra")).toEqual([
       { quantity: 352, unit: "g", estimatedGrams: 352 },

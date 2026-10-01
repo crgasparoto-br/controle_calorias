@@ -56,7 +56,10 @@ export function normalizedTokenIncludes(haystack: string, needle: string) {
 
 export function cleanFoodName(value: string) {
   return value
-    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    // Keep decimal separators between digits so `1,5 fatias` remains a
+    // quantity-bearing expression instead of becoming `1 5 fatias`.
+    .replace(/[^\p{L}\p{N}\s.,-]/gu, " ")
+    .replace(/(?<!\d)[.,]|[.,](?!\d)/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

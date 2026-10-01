@@ -3,13 +3,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   listMeals: vi.fn(),
   updateMeal: vi.fn(),
+  createManualMeal: vi.fn(),
+  listMealSchedules: vi.fn(),
   findMealByLabel: vi.fn(),
   resolveCanonicalFoodAdditionItems: vi.fn(),
   resolveDateSelection: vi.fn(),
   composeReply: vi.fn(async () => "ok"),
 }));
 
-vi.mock("../../../../shared/timeZone", () => ({ DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo" }));
+vi.mock("../../../../shared/timeZone", async () => ({
+  ...(await vi.importActual<typeof import("../../../../shared/timeZone")>("../../../../shared/timeZone")),
+  DEFAULT_APP_TIME_ZONE: "America/Sao_Paulo",
+}));
+// O recorte desta regressão é o gate de data explícita; a criação da refeição
+// habitual configurada em adição datada é coberta pela #1271.
+vi.mock("../../mealSchedules/service", async () => ({
+  ...(await vi.importActual<typeof import("../../mealSchedules/service")>("../../mealSchedules/service")),
+  listMealSchedules: mocks.listMealSchedules,
+}));
 vi.mock("../../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   MealInferenceError: class MealInferenceError extends Error {},
 }));
@@ -20,7 +31,11 @@ vi.mock("../foodQuantityClarification", () => ({
 }));
 vi.mock("../replyMessages", () => ({ buildWhatsAppClarificationReplyMessage: vi.fn((value: string) => value) }));
 vi.mock("../mealActionReplyComposer", () => ({ composeWhatsAppMealActionReply: mocks.composeReply }));
-vi.mock("../../meals/service", () => ({ listMeals: mocks.listMeals, updateMeal: mocks.updateMeal }));
+vi.mock("../../meals/service", () => ({
+  listMeals: mocks.listMeals,
+  updateMeal: mocks.updateMeal,
+  createManualMeal: mocks.createManualMeal,
+}));
 vi.mock("./dateTime", () => ({
   formatReplyDate: vi.fn(() => "24/08/2026"),
   resolveRelativeOccurredAt: vi.fn((_text: string, receivedAt: Date) => receivedAt),
@@ -76,6 +91,7 @@ describe("handleFoodAdditionIntent explicit date selection (#1006)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listMeals.mockResolvedValue([olderMeal]);
+    mocks.listMealSchedules.mockResolvedValue([]);
     mocks.resolveCanonicalFoodAdditionItems.mockResolvedValue({ kind: "items", items: [resolvedBread] });
     mocks.updateMeal.mockImplementation(async (_userId, input) => ({ ...olderMeal, ...input }));
     mocks.findMealByLabel.mockImplementation((_meals, _label, _date, _tz, options) =>

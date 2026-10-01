@@ -6,6 +6,7 @@ import {
 } from "./catalogMatching";
 import { extractCommercialVariant } from "./commercialProductIdentity";
 import { detectKnownBrand } from "./foodBrandDetection";
+import { normalizeForMatching } from "./mealTextParsing";
 import type { MealInferenceError } from "./nutritionEngine";
 
 const GENERIC_ZERO_COMMERCIAL_VARIANTS = new Set(["zero", "diet"]);
@@ -25,6 +26,28 @@ export type CanonicalCommercialIdentityPreflight = {
   brand: string | null;
   identityClarification?: CommercialIdentityClarification;
 };
+
+/**
+ * Vision models sometimes repeat a generic food descriptor in the `brand`
+ * field, e.g. foodName="Queijo Muçarela" and brand="Muçarela". That is not
+ * commercial evidence; only discard it when the complete food identity has a
+ * single compatible unbranded catalog reference.
+ */
+export function normalizeRedundantCommercialBrand(
+  foodName: string,
+  brand: string | null | undefined,
+) {
+  const trimmedBrand = brand?.trim();
+  if (!trimmedBrand) return brand ?? null;
+
+  const foodTokens = normalizeForMatching(foodName).trim().split(/\s+/).filter(Boolean);
+  const brandTokens = normalizeForMatching(trimmedBrand).trim().split(/\s+/).filter(Boolean);
+  if (!brandTokens.length || !brandTokens.every(token => foodTokens.includes(token))) {
+    return trimmedBrand;
+  }
+
+  return findGenericCatalogFood(foodName) ? null : trimmedBrand;
+}
 
 function inferUnverifiedCommercialVariant(
   request: CommercialIdentityPreflightRequest
@@ -84,7 +107,9 @@ function buildUnverifiedCommercialIdentityClarification(
 export function resolveStructuredCommercialIdentity(
   request: CommercialIdentityPreflightRequest
 ): CanonicalCommercialIdentityPreflight {
-  if (request.brand) return { brand: request.brand };
+  const normalizedBrand = normalizeRedundantCommercialBrand(request.foodName, request.brand);
+  if (normalizedBrand) return { brand: normalizedBrand };
+  if (request.brand) return { brand: null };
 
   const knownBrand = detectKnownBrand(request.foodName);
   if (knownBrand) return { brand: knownBrand };

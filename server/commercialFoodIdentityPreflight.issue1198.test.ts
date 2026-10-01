@@ -44,6 +44,13 @@ describe("issue #1198 — identidade genérica não-branded", () => {
       brand: null,
     })).toEqual({ brand: null });
   });
+  it("não trata o nome genérico repetido pela visão como marca comercial", () => {
+    expect(resolveStructuredCommercialIdentity({
+      segment: "1 porção de Queijo Muçarela (Muçarela)",
+      foodName: "Queijo Muçarela",
+      brand: "Muçarela",
+    })).toEqual({ brand: null });
+  });
 
   it.each([
     "Queijo Muçarela Marca X",
