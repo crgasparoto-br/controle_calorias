@@ -160,6 +160,40 @@ describe("parseMealCommandFromWhatsApp", () => {
     ]);
   });
 
+  it("reconhece nome livre de refeição quando ele vem da configuração do usuário", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar à colação de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Colação"] },
+    );
+
+    expect(result.intent).toBe("add_items_to_meal");
+    expect(result.mealType).toBe("Colação");
+    expect(result.items).toEqual([
+      expect.objectContaining({ foodName: "banana nanica", quantity: 1, unit: "unidade" }),
+    ]);
+  });
+
+  it("prioriza o nome configurado completo quando ele começa com um alias canônico", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar especial de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Jantar especial"] },
+    );
+
+    expect(result.mealType).toBe("Jantar especial");
+    expect(result.items).toEqual([
+      expect.objectContaining({ foodName: "banana nanica", quantity: 1, unit: "unidade" }),
+    ]);
+  });
+
+  it("não reduz rótulo composto desconhecido ao alias canônico quando há configuração", () => {
+    const result = parseMealCommandFromWhatsApp(
+      "Adicionar ao jantar especial de ontem, 1 banana nanica",
+      { referenceDate, mealLabels: ["Jantar parcial"] },
+    );
+
+    expect(result.mealType).toBeNull();
+  });
+
   it("interpreta adicao multipla com refeicao antes dos itens", () => {
     const result = parseMealCommandFromWhatsApp(
       "Adicionar ao jantar de ontem 300g amendoim japonês Elma Chips, 330ml de cerveja Budweiser",
