@@ -43,6 +43,21 @@ export type ParsedMealCommand = {
   missingFields: string[];
 };
 
+const EXPLICIT_FOOD_ADDITION_COMMAND = /^(?:adicionar|adicione|adiciona|incluir|inclua)\b/i;
+
+/**
+ * Identifica uma nova adição alimentar completa, distinguindo-a de uma
+ * resposta curta que deve resolver uma pendência já aberta.
+ */
+export function isExplicitFoodAdditionCommand(input?: string | null): boolean {
+  const raw = input?.trim() ?? "";
+  if (!raw || !EXPLICIT_FOOD_ADDITION_COMMAND.test(raw)) return false;
+
+  const parsed = parseMealCommandFromWhatsApp(raw);
+  return parsed.intent === "add_items_to_meal"
+    && parsed.items.some(item => Boolean(item.foodName?.trim()));
+}
+
 export type MealCommandContext = {
   referenceDate?: Date;
   recentMealType?: string | null;

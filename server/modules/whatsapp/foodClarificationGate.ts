@@ -12,6 +12,7 @@ import {
 import { handleWhatsappFoodClarification } from "./foodClarification";
 import { parseLatestFoodCorrection } from "./contextualFoodReplacementIntent";
 import { isCompleteWhatsappCommand } from "./foodClarificationContract";
+import { isExplicitFoodAdditionCommand } from "./mealCommandParser";
 import { attachWhatsappFoodClarificationPresentation } from "./foodClarificationPresentation";
 import { getCurrentWhatsappInboundExternalMessageId } from "./inboundCorrelationContext";
 import { createWhatsappIntentClarificationInteraction } from "./intentClarificationInteraction";
@@ -229,6 +230,7 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   userTimezone: string;
   messageId?: string | null;
   skipStalePendingResponse?: boolean;
+  skipActivePendingForExplicitFoodAddition?: boolean;
 }): Promise<PendingInteractionResult | null> {
   const active = await pendingOperationRepository.getActivePendingOperation(
     input.userId,
@@ -236,6 +238,31 @@ export async function resolvePendingWhatsappFoodClarification(input: {
   );
   const correlatedMessageId =
     input.messageId?.trim() || getCurrentWhatsappInboundExternalMessageId();
+
+  if (
+    active &&
+    input.skipActivePendingForExplicitFoodAddition &&
+    isExplicitFoodAdditionCommand(input.text)
+  ) {
+    const superseded = await pendingOperationRepository.supersedePendingOperation(active.id);
+    if (superseded.superseded) return null;
+    return {
+      handled: true,
+      action: "clarification_needed",
+      reply:
+        "Não consegui substituir a pendência anterior com segurança. Envie CANCELAR e repita o novo comando de adição.",
+      eventType: "whatsapp.interaction.pending_replacement_blocked",
+      detail:
+        "Novo comando explícito de adição não conseguiu substituir a pendência ativa com claim atômico.",
+      data: {
+        pendingOperationId: active.id,
+        pendingType: active.type,
+        fallbackBlocked: true,
+        fallbackBlockReason: "explicit_food_addition_pending_replacement_failed",
+        interactionLifecycle: "blocked",
+      },
+    };
+  }
 
   const activeInteractionForCorrection = active
     ? findWhatsappRegisteredInteraction(active.type, active.target)
