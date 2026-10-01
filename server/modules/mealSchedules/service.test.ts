@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestMealLabelForTime, updateMealSchedules } from "./service";
+import { findConfiguredMealSchedule, suggestMealLabelForTime, updateMealSchedules } from "./service";
 
 describe("meal schedules", () => {
   it("suggests lunch inside the default lunch range", async () => {
@@ -52,5 +52,16 @@ describe("meal schedules", () => {
     });
 
     expect(result.mealLabel).toBe("lanche da tarde reforçado");
+  });
+
+  it("resolves WhatsApp labels against active configured meals", () => {
+    const schedules = [
+      { mealLabel: "Café da manhã", startTime: "05:00", endTime: "10:59", enabled: true },
+      { mealLabel: "Lanche da tarde", startTime: "15:00", endTime: "17:29", enabled: true },
+      { mealLabel: "Jantar", startTime: "18:30", endTime: "22:59", enabled: false },
+    ];
+
+    expect(findConfiguredMealSchedule(schedules, "lanche")).toEqual(schedules[1]);
+    expect(findConfiguredMealSchedule(schedules, "jantar")).toBeNull();
   });
 });

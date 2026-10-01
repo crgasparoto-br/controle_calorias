@@ -51,6 +51,44 @@ function normalizeSchedules(schedules: MealScheduleItemInput[]) {
   }));
 }
 
+function normalizeMealLabel(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Resolves a WhatsApp meal label against the active meal names configured by
+ * the user. The exact configured label wins; the containment fallback keeps
+ * natural requests such as "lanche" compatible with "lanche da tarde".
+ */
+export function findConfiguredMealSchedule(
+  schedules: MealScheduleItemInput[],
+  requestedLabel: string,
+) {
+  const requested = normalizeMealLabel(requestedLabel);
+  if (!requested) return null;
+
+  return schedules
+    .filter(schedule => schedule.enabled)
+    .map((schedule, index) => {
+      const configured = normalizeMealLabel(schedule.mealLabel);
+      const score = configured === requested
+        ? 3
+        : configured.includes(requested) || requested.includes(configured)
+          ? 2
+          : 0;
+      return { schedule, index, score };
+    })
+    .filter(candidate => candidate.score > 0)
+    .sort((left, right) => right.score - left.score || left.index - right.index)[0]
+    ?.schedule ?? null;
+}
+
 function parseStoredSchedules(value: string | null | undefined) {
   if (!value) return DEFAULT_MEAL_SCHEDULES;
   try {

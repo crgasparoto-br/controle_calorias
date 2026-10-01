@@ -4,6 +4,8 @@ const createManualMealMock = vi.fn();
 const listMealsMock = vi.fn();
 const processMealInputMock = vi.fn();
 const updateMealMock = vi.fn();
+const listMealSchedulesMock = vi.fn();
+const findConfiguredMealScheduleMock = vi.fn();
 
 vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn(),
   processMealInput: processMealInputMock,
@@ -13,6 +15,11 @@ vi.mock("../meals/service", () => ({
   createManualMeal: createManualMealMock,
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
+}));
+
+vi.mock("../mealSchedules/service", () => ({
+  findConfiguredMealSchedule: findConfiguredMealScheduleMock,
+  listMealSchedules: listMealSchedulesMock,
 }));
 
 const { executeWhatsappDatedFoodAdditionIntent } = await import("./datedFoodAdditionIntent");
@@ -41,7 +48,11 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     listMealsMock.mockReset();
     processMealInputMock.mockReset();
     updateMealMock.mockReset();
+    listMealSchedulesMock.mockReset();
+    findConfiguredMealScheduleMock.mockReset();
     listMealsMock.mockResolvedValue([]);
+    listMealSchedulesMock.mockResolvedValue([]);
+    findConfiguredMealScheduleMock.mockReturnValue(null);
     processMealInputMock.mockResolvedValue({ items: [buildItem()] });
     createManualMealMock.mockImplementation(async (_userId, input) => ({ id: 99, ...input }));
     updateMealMock.mockImplementation(async (_userId, input) => ({ id: input.mealId, ...input }));
@@ -110,6 +121,51 @@ describe("executeWhatsappDatedFoodAdditionIntent", () => {
     expect(result?.reply).toContain("Refeição atualizada:");
     expect(result?.reply).toContain("Arroz");
     expect(result?.reply).toContain("Pão sovado");
+  });
+
+  it("cria a refeição configurada quando o dia ainda não tem um registro", async () => {
+    const configuredSchedule = {
+      mealLabel: "lanche da tarde",
+      startTime: "15:00",
+      endTime: "17:29",
+      enabled: true,
+    };
+    listMealSchedulesMock.mockResolvedValue([configuredSchedule]);
+    findConfiguredMealScheduleMock.mockReturnValue(configuredSchedule);
+    processMealInputMock.mockResolvedValue({ items: [buildItem("Pêra Packans"), buildItem("Banana nanica")] });
+    createManualMealMock.mockResolvedValue({
+      id: 77,
+      mealLabel: configuredSchedule.mealLabel,
+      occurredAt: "2026-09-30T18:00:00.000Z",
+      items: [buildItem("Pêra Packans"), buildItem("Banana nanica")],
+    });
+
+    const result = await executeWhatsappDatedFoodAdditionIntent(42, {
+      text: "adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
+      receivedAt: new Date("2026-10-01T09:20:00.000Z"),
+      userTimezone: "America/Sao_Paulo",
+    });
+
+    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealLabel: "lanche da tarde",
+      occurredAt: "2026-09-30T18:00:00.000Z",
+      items: [
+        expect.objectContaining({ foodName: "Pêra Packans" }),
+        expect.objectContaining({ foodName: "Banana nanica" }),
+      ],
+    }));
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      handled: true,
+      action: "meal_item_added",
+      data: expect.objectContaining({
+        mealId: 77,
+        mealLabel: "lanche da tarde",
+        explicitDate: true,
+        createdFromConfiguredSchedule: true,
+      }),
+    }));
+    expect(result?.reply).toContain("Criei a refeição configurada");
   });
 
   it("não intercepta comando sem data explícita, preservando o fluxo contextual", async () => {
