@@ -10,8 +10,10 @@ import {
 import { isCoffeeOrTeaBeverage } from "./foodSemanticCompatibility";
 import type { HouseholdMeasureResolution } from "./householdMeasureResolution";
 import {
+  cleanFoodName,
   normalizeUnit,
   parseFoodText,
+  QUANTITY_UNIT_PATTERN,
   splitFoodTextSegments,
 } from "./mealTextParsing";
 import type { CatalogFood } from "./nutritionEngineTypes";
@@ -81,7 +83,23 @@ export function parseCountableFoodQuantitySegment(
   segment: string,
 ): CountableFoodQuantityRequest | null {
   const parsed = parseFoodText(segment);
-  if (parsed.quantity && parsed.unit) {
+  const parsedUnit = parsed.unit ? normalizeUnit(parsed.unit) : null;
+  const parsedCatalog = parsed.foodName
+    ? findCountableCatalogReference(parsed.foodName)
+    : null;
+  const hasDecimalQuantity = /^\s*\d+[.,]\d+/u.test(segment);
+  // A resolved branded food can re-enter this gate as its canonical mass
+  // (for example, 41.5 g of Kit Kat). Keep that legacy reprocessing path while
+  // allowing direct generic mass/volume input to fail closed below.
+  const preserveLegacyBrandedMassReprocessing = Boolean(
+    parsed.quantity
+      && parsedUnit
+      && MASS_VOLUME_UNITS.has(parsedUnit)
+      && hasDecimalQuantity
+      && parsedCatalog?.isBrandedProduct
+      && parsed.estimatedGrams === parsedCatalog.gramsPerServing,
+  );
+  if (parsed.quantity && parsed.unit && !preserveLegacyBrandedMassReprocessing) {
     const unit = normalizeUnit(parsed.unit);
     if (parsed.estimatedGrams !== undefined || MASS_VOLUME_UNITS.has(unit)) return null;
     if (isCoffeeOrTeaBeverage(parsed.foodName)) return null;
@@ -92,6 +110,31 @@ export function parseCountableFoodQuantitySegment(
       count: parsed.quantity,
       requestedUnit: unit,
     };
+  }
+
+  // `cleanFoodName` intentionally treats punctuation as a separator for the
+  // shared text parser. Countable quantities need one narrow exception so a
+  // decimal comma/dot before a household unit is not mistaken for a bare
+  // count whose food name starts with "fatias de".
+  const countableMatch = segment.trim().match(
+    new RegExp(
+      `^(${COUNTABLE_QUANTITY_PATTERN})\\s*(${QUANTITY_UNIT_PATTERN})\\s+(?:de\\s+)?(.+)$`,
+      "iu",
+    ),
+  );
+  if (countableMatch) {
+    const count = parseCountableQuantity(countableMatch[1]);
+    const unit = normalizeUnit(countableMatch[2]);
+    const foodName = cleanFoodName(countableMatch[3]);
+    if (count && !MASS_VOLUME_UNITS.has(unit) && !isCoffeeOrTeaBeverage(foodName)) {
+      return {
+        segment: segment.trim(),
+        foodName,
+        brand: detectKnownBrand(foodName),
+        count,
+        requestedUnit: unit,
+      };
+    }
   }
 
   const bare = parseBareCount(segment);
