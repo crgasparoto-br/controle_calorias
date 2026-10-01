@@ -13,6 +13,7 @@ describe("normalizeMeasurementUnit", () => {
     expect(normalizeMeasurementUnit("gramas")).toBe("g");
     expect(normalizeMeasurementUnit("mililitros")).toBe("ml");
     expect(normalizeMeasurementUnit("unidade")).toBe("un");
+    expect(normalizeMeasurementUnit("und")).toBe("un");
   });
 
   it("corrige abreviacoes provaveis de unidade quando o contexto e numerico", () => {
@@ -33,6 +34,7 @@ describe("normalizeTextMeasurementUnits", () => {
   it("normaliza unidades comuns preservando o restante da mensagem", () => {
     expect(normalizeTextMeasurementUnits("300mo água")).toBe("300 ml água");
     expect(normalizeTextMeasurementUnits("adicionar 2kgs arroz e 30grs feijão")).toBe("adicionar 2 kg arroz e 30 g feijão");
+    expect(normalizeTextMeasurementUnits("1 und pera")).toBe("1 un pera");
   });
 });
 

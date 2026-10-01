@@ -25,6 +25,7 @@ const FOOD_IDENTITY_STOP_WORDS = new Set([
   "fatia", "fatias", "unidade", "unidades", "colher", "colheres", "xicara", "xicaras",
   "copo", "copos", "porcao", "porcoes", "grama", "gramas", "mililitro", "mililitros",
   "litro", "litros", "pesa", "pesam", "corresponde", "correspondem", "aproximadamente",
+  "aprox", "g", "gr", "kg", "quilo", "quilos",
   "media", "medio", "usual", "tipica", "tipico", "tipicas", "tipicos", "normalmente", "geralmente",
   "tabela", "tabelas", "medida", "medidas", "peso", "pesos", "nutricional", "nutricionais",
   "nutricao", "referencia", "referencias", "fonte", "fontes", "dado", "dados", "informacao",
@@ -55,7 +56,7 @@ function foodIdentityTokens(value: string) {
   const tokens = normalizeFoodIdentityText(value)
     .replace(/\b(?:\d+(?:[,.]\d+)?\s*)?colher(?:es)?\s+de\s+(?:sopa|cha)\b/g, " ")
     .split(/\s+/)
-    .filter(token => token.length >= 3 && !FOOD_IDENTITY_STOP_WORDS.has(token));
+    .filter(token => token.length >= 3 && !/^\d+$/.test(token) && !FOOD_IDENTITY_STOP_WORDS.has(token));
   const specificTokens = tokens.filter(token => !BROAD_FOOD_IDENTITY_TOKENS.has(token));
   return [...new Set(specificTokens.length > 0 ? specificTokens : tokens)];
 }
