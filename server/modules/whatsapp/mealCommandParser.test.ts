@@ -401,10 +401,16 @@ describe("parseMealCommandFromWhatsApp", () => {
 });
 
 describe("isExplicitFoodAdditionCommand", () => {
-  it("reconhece uma adição completa com rótulo livre", () => {
+  it("reconhece uma adição completa", () => {
     expect(isExplicitFoodAdditionCommand(
-      "Adicionar ao jantar especial de ontem, 1 banana nanica",
+      "Adicionar ao jantar de ontem, 1 banana nanica",
     )).toBe(true);
+  });
+
+  it("não reconhece uma lista que começa com item sem quantidade", () => {
+    expect(isExplicitFoodAdditionCommand(
+      "Adicionar ao café da manhã pão e 1 banana",
+    )).toBe(false);
   });
 
   it("não reconhece uma lista que termina com item sem quantidade", () => {

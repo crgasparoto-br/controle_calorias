@@ -62,9 +62,7 @@ export function isExplicitFoodAdditionCommand(input?: string | null): boolean {
     && Number.isFinite(item.quantity)
     && Boolean(item.unit?.trim())
   );
-  const firstCompleteItemIndex = parsed.items.findIndex(isCompleteItem);
-  const completeItems = firstCompleteItemIndex >= 0
-    && parsed.items.slice(firstCompleteItemIndex).every(isCompleteItem);
+  const completeItems = parsed.items.length > 0 && parsed.items.every(isCompleteItem);
 
   return parsed.intent === "add_items_to_meal"
     && completeItems
