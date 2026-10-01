@@ -19,6 +19,26 @@ Exemplos:
 - Banana prata: 1 unidade media = 86 g.
 - Pao frances: 1 unidade = 50 g.
 
+### Referência canônica de porção unitária (#1278)
+
+Alimentos naturais contáveis resolvidos sem pesquisa mantêm a porção unitária na
+entrada curada do catálogo (`FOOD_CATALOG_REFERENCE`), que é o dono canônico da
+gramatura. `Pêra` passa a ter `1 unidade = 178 g`, com procedência registrada:
+medida caseira "médio" da Tabela de Composição Química dos Alimentos
+(UNIFESP/EPM, `Pera, cru`: pequeno 148,00 g, médio 178,00 g, grande 230,00 g,
+porção 166,00 g) e composição da mesma referência para 178,00 g (101 kcal,
+0,64 g de proteína, 27,11 g de carboidratos, 0,25 g de gordura, 5,5 g de fibra).
+
+A entrada cobre a identidade-base (`pêra`, `pêra williams`). Qualificadores de
+cultivar não comprovados (`pêra packans`) **não** são aliases de propósito: eles
+permanecem como identidade informada e continuam sujeitos à precedência da medida
+pesquisada da variedade. Somente quando a pesquisa não produz nenhuma referência
+utilizável (capacidade indisponível, falha de execução ou `found_false`) a porção
+curada do alimento-base sustenta uma **média usual estimada** para a medida
+contável, apresentada ao usuário como aproximação. Referências rejeitadas por
+conflito de grounding ou porção incompatível continuam exigindo clarificação, e
+identidade comercial comprovada nunca entra nesse fallback.
+
 ## Fluxo no registro de refeicao
 
 O item de refeicao passa a aceitar:

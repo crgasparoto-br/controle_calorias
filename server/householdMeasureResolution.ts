@@ -3,7 +3,10 @@ import { resolveCapabilityConfig } from "./_core/ai/configResolver";
 import { createDomainTextResponse } from "./_core/ai/domainTextResponse";
 import { AiOperationalError } from "./_core/ai/policyExecutor";
 import type { AiWebSearchResult } from "./_core/aiProvider";
-import { findCatalogFood } from "./catalogMatching";
+import {
+  findCatalogFood,
+  findNaturalProduceQuantityReferenceName,
+} from "./catalogMatching";
 import { hasFoodIdentityLexemes, isFoodIdentitySemanticallyCompatible } from "./foodSemanticCompatibility";
 import {
   loadPersistedHouseholdMeasureResolution,
@@ -28,6 +31,7 @@ import {
   createNutritionSearchTrace,
   logNutritionSearchDecision,
   nutritionSearchSourceCount,
+  type NutritionSearchDecisionReason,
   type NutritionSearchTelemetryContext,
 } from "./nutritionSearchDecisionTelemetry";
 
@@ -261,6 +265,58 @@ function explicitBrandMatches(input: HouseholdMeasureResolutionInput, candidate:
   const requestedBrand = normalize(input.brand ?? "");
   if (!requestedBrand) return true;
   return normalize(candidate.brandName ?? "") === requestedBrand;
+}
+
+/**
+ * Motivos de pesquisa em que *nenhuma* referência utilizável foi produzida.
+ * Referências rejeitadas por conflito de grounding ou por porção incompatível
+ * continuam exigindo clarificação e não entram neste fallback.
+ */
+const CURATED_PRODUCE_FALLBACK_SEARCH_REASONS = new Set([
+  "capability_unavailable",
+  "execution_failed",
+  "found_false",
+]);
+
+/**
+ * Fruta natural contável sem referência pesquisada utilizável (#1278).
+ *
+ * Quando `NUTRITION_SEARCH` está indisponível, falha ou devolve `found_false`,
+ * a porção canônica do *alimento-base* (`pêra` para `pêra packans`) sustenta uma
+ * média usual estimada, coerente com a política de degradação da capacidade
+ * (usar somente o fallback nutricional canônico permitido). A definição da
+ * variedade/qualificador nunca é promovida: a identidade do usuário permanece e
+ * a resposta é apresentada como aproximação. Identidade comercial comprovada
+ * não passa por aqui.
+ */
+function resolveCuratedProduceBaseMeasure(
+  input: HouseholdMeasureResolutionInput,
+  searchReason: string,
+): HouseholdMeasureResolution | null {
+  if (input.brand || input.commercialFood) return null;
+  if (!CURATED_PRODUCE_FALLBACK_SEARCH_REASONS.has(searchReason)) return null;
+  const baseName = findNaturalProduceQuantityReferenceName(input.foodName);
+  if (!baseName) return null;
+  const food = findCatalogFood(baseName, input.userId);
+  if (!food?.servingLabel || !Number.isFinite(food.gramsPerServing) || food.gramsPerServing <= 0) {
+    return null;
+  }
+  const serving = parseQuantityUnitFromPortionText(food.servingLabel);
+  if (!serving?.quantity || !serving.unit) return null;
+  const requestedUnit = normalizeCountableUnit(input.unit);
+  if (normalizeCountableUnit(serving.unit) !== requestedUnit) return null;
+  const grams = (food.gramsPerServing * input.quantity) / serving.quantity;
+  if (!Number.isFinite(grams) || grams <= 0) return null;
+
+  return {
+    kind: "usual_average",
+    grams: Number(grams.toFixed(2)),
+    requestedQuantity: input.quantity,
+    requestedUnit,
+    evidence: `${food.servingLabel} = ${food.gramsPerServing} g (${food.name}: medida caseira média da referência do alimento-base)`,
+    sourceUrls: food.sourceUrls ?? [],
+    referenceCount: 1,
+  };
 }
 
 function resolveStaticCatalogPortion(
@@ -772,10 +828,10 @@ function buildSearchResolution(
   };
 }
 
-async function searchVerifiedMeasure(
+async function searchVerifiedMeasureOutcome(
   input: HouseholdMeasureResolutionInput,
   runtime: HouseholdMeasureResolutionRuntime,
-): Promise<HouseholdMeasureResolution | null> {
+): Promise<{ resolution: HouseholdMeasureResolution | null; reason: NutritionSearchDecisionReason }> {
   const trace = createNutritionSearchTrace(input.nutritionSearchTelemetry ?? {
     userId: input.userId,
     origin: "system",
@@ -798,7 +854,7 @@ async function searchVerifiedMeasure(
   const policy = runtime.resolveCapabilityConfig("NUTRITION_SEARCH");
   if (policy.state === "disabled" || policy.state === "invalid" || !policy.primary) {
     logNutritionSearchDecision({ ...baseDecision, reason: "capability_unavailable" }, trace);
-    return null;
+    return { resolution: null, reason: "capability_unavailable" };
   }
   try {
     const execution = await runtime.executeResolvedCapability(
@@ -862,15 +918,22 @@ async function searchVerifiedMeasure(
         : 0,
       guards: decision.guards,
     }, trace);
-    return decision.resolution;
+    return { resolution: decision.resolution, reason: decision.reason };
   } catch (error) {
     logNutritionSearchDecision({
       ...baseDecision,
       reason: "execution_failed",
       operationalOutcome: classifyNutritionSearchOperationalOutcome(error),
     }, trace);
-    return null;
+    return { resolution: null, reason: "execution_failed" };
   }
+}
+
+async function searchVerifiedMeasure(
+  input: HouseholdMeasureResolutionInput,
+  runtime: HouseholdMeasureResolutionRuntime,
+): Promise<HouseholdMeasureResolution | null> {
+  return (await searchVerifiedMeasureOutcome(input, runtime)).resolution;
 }
 
 function resolutionFromPersisted(
@@ -1055,8 +1118,10 @@ export async function resolveHouseholdMeasure(
   const persisted = await resolvePersistedByPrecedence(normalizedInput, runtime);
   if (persisted) return persisted;
 
-  const researched = await searchVerifiedMeasure(normalizedInput, runtime);
-  if (!researched) return null;
-  await persistReusableResolution(normalizedInput, researched, runtime);
-  return researched;
+  const researched = await searchVerifiedMeasureOutcome(normalizedInput, runtime);
+  if (researched.resolution) {
+    await persistReusableResolution(normalizedInput, researched.resolution, runtime);
+    return researched.resolution;
+  }
+  return resolveCuratedProduceBaseMeasure(normalizedInput, researched.reason);
 }

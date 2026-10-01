@@ -101,6 +101,14 @@ const ADD_ITEMS_ACTION_PATTERN_SOURCE = "(?:adicionar|adiciona|adicione|incluir|
 const MEAL_PATTERN_SOURCE = "(?:caf[eé]\\s+da\\s+manh[aã]|desjejum|almo[cç]o|jantar|lanche(?:\\s+da\\s+tarde)?|ceia|pr[eé][\\s-]?treino|p[oó]s[\\s-]?treino)";
 const MEAL_DESTINATION_PATTERN_SOURCE = `(?:${MEAL_PATTERN_SOURCE}|caf[eé])`;
 const MEAL_PREPOSITION_PATTERN_SOURCE = "(?:a|ao|à|no|na|para\\s+(?:o|a))";
+/**
+ * Artigo opcional antes do rótulo da refeição. `adicionar o café da manhã, ...`
+ * é o mesmo comando de `adicionar ao café da manhã ...`; sem o artigo o rótulo
+ * vira um item alimentar incompleto e o comando inteiro é descartado.
+ */
+const MEAL_DESTINATION_ARTICLE_PATTERN_SOURCE = "(?:o|a|os|as)?";
+/** Pontuação de fim de frase que não faz parte de nenhum rótulo ou alimento. */
+const TRAILING_SENTENCE_PUNCTUATION_PATTERN = "[\\s.,;:!?]*";
 
 const MEAL_TYPES = [
   "cafe da manha",
@@ -484,12 +492,21 @@ function parseAddItemsCommand(input: string, context: MealCommandContext): Parse
     ? `(?:${configuredDestinationPattern}|${MEAL_DESTINATION_PATTERN_SOURCE})`
     : MEAL_DESTINATION_PATTERN_SOURCE;
   const mealPrefixPattern = `${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+(?:refei[cç][aã]o\\s+)?${mealDestinationPattern}${datePattern}`;
-  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)(?:\\s*[,;-]\\s*|\\s+)${mealPrefixPattern}\\s*$`, "i"));
+  // Um destino de refeição no fim da frase também pode encerrar com pontuação
+  // (`... ao almoço.`). Sem aceitar esse ponto final, a preposição e o rótulo
+  // permanecem dentro do nome do alimento e a medida contável nunca resolve.
+  const beforeMealMatch = afterAction.match(new RegExp(`^(.*?)(?:\\s*[,;-]\\s*|\\s+)${mealPrefixPattern}${TRAILING_SENTENCE_PUNCTUATION_PATTERN}$`, "i"));
+  // Destino antes dos itens: `adicionar o café da manhã, 1,5 fatias de mortadela`.
+  // Exige separador explícito (`:`/`,`/`;`) para não confundir o rótulo da
+  // refeição com o primeiro item da lista.
+  const destinationFirstMatch = afterAction.match(
+    new RegExp(`^\\s*(?:${MEAL_PREPOSITION_PATTERN_SOURCE}\\s+)?${MEAL_DESTINATION_ARTICLE_PATTERN_SOURCE}\\s*(?:refei[cç][aã]o\\s+)?${mealDestinationPattern}${datePattern}\\s*[,;:]\\s*(.+)$`, "i"),
+  );
   const afterMealMatch = afterAction.match(new RegExp(`^\\s*${mealPrefixPattern}(?:\\s*[,;:-]\\s*|\\s+)(.+)$`, "i"))
     ?? afterAction.match(new RegExp(`^\\s*${MEAL_PATTERN_SOURCE}${datePattern}\\s*[:;,]\\s*(.+)$`, "i"))
     ?? afterAction.match(/^\s*caf[eé]\s*[:;,]\s*(.+)$/i);
   const itemsText = stripConfiguredMealDestination(
-    beforeMealMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction,
+    beforeMealMatch?.[1] ?? destinationFirstMatch?.[1] ?? afterMealMatch?.[1] ?? afterAction,
     context,
   );
   const items = splitItemParts(itemsText).map(buildItemFromPart);
