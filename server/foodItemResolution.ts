@@ -81,6 +81,20 @@ const CURATED_COMMON_COUNTABLE_PORTIONS: Array<{
       fat: 1.22,
     },
   },
+  {
+    aliases: ["mortadela", "fatia de mortadela"],
+    food: {
+      slug: "curated-mortadela-fatia",
+      name: "Mortadela",
+      aliases: ["mortadela"],
+      servingLabel: "1 fatia",
+      gramsPerServing: 15,
+      calories: 40.32,
+      protein: 1.79,
+      carbs: 0.87,
+      fat: 3.25,
+    },
+  },
 ];
 
 function normalizeCuratedFoodName(value: string) {
