@@ -95,6 +95,38 @@ const CURATED_COMMON_COUNTABLE_PORTIONS: Array<{
       fat: 3.25,
     },
   },
+  {
+    // A referência pública de meia unidade informa 50 g; a porção operacional
+    // de uma unidade é, portanto, 100 g. A composição nutricional é a entrada
+    // TACO de linguiça de frango grelhada, a aproximação canônica disponível
+    // para o preparo assado informado pelo usuário.
+    aliases: [
+      "linguiça de frango assada",
+      "linguiça de frango assado",
+      "linguiças de frango assadas",
+      "linguiças de frango assado",
+      "linguiça frango assada",
+      "linguiça frango assado",
+    ],
+    food: {
+      slug: "curated-linguica-frango-assada-unidade",
+      name: "Lingüiça, frango, assada",
+      aliases: [
+        "linguiça de frango assada",
+        "linguiça de frango assado",
+        "linguiças de frango assadas",
+        "linguiças de frango assado",
+        "linguiça frango assada",
+        "linguiça frango assado",
+      ],
+      servingLabel: "1 unidade",
+      gramsPerServing: 100,
+      calories: 243.66,
+      protein: 18.19,
+      carbs: 0,
+      fat: 18.4,
+    },
+  },
 ];
 
 function normalizeCuratedFoodName(value: string) {
@@ -117,6 +149,9 @@ export function findCountableCatalogReference(foodName: string) {
   const direct = findCatalogFood(foodName);
   if (direct) return direct;
 
+  const curated = findCuratedCommonPortion(foodName);
+  if (curated) return curated;
+
   // O catálogo de nutrição mantém o preparo frito no TACO, mas a porção de
   // unidade pertence à referência genérica de ovo. A referência é usada
   // somente para converter a unidade em gramas; a identidade do item preserva
@@ -136,7 +171,7 @@ export function findCountableCatalogReference(foodName: string) {
  * rediscovering nutrition from rewritten registration text.
  */
 export function findCountableNutritionReference(foodName: string): CatalogFood | undefined {
-  return findCatalogFood(foodName) ?? findTacoFood(foodName) ?? undefined;
+  return findCatalogFood(foodName) ?? findTacoFood(foodName) ?? findCuratedCommonPortion(foodName);
 }
 
 export type CountableFoodQuantityRequest = {
