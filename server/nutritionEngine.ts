@@ -40,6 +40,7 @@ import {
   isResearchVerifiedCatalogFood,
 } from "./mealItemBuilders";
 import { decideCommercialNutritionPolicy } from "./foodItemResolution";
+import { normalizeRedundantCommercialBrand } from "./commercialFoodIdentityPreflight";
 import { cleanMealItems, fallbackFromText, sumTotals } from "./mealItemCleanup";
 import {
   isGenericNutritionFallbackItem,
@@ -977,10 +978,17 @@ async function buildItemsFromInference(
       normalizedItem,
       resolutionSourceText
     );
-    const resolvedItem = recoverExplicitBrandFromSource(
+    const recoveredItem = recoverExplicitBrandFromSource(
       normalizedItem,
       resolutionSourceText
     );
+    const normalizedBrand = normalizeRedundantCommercialBrand(
+      recoveredItem.foodName,
+      recoveredItem.brand,
+    );
+    const resolvedItem = normalizedBrand === recoveredItem.brand
+      ? recoveredItem
+      : { ...recoveredItem, brand: normalizedBrand };
     const semanticSource = resolveSemanticSourceForInferenceItem(
       resolvedItem,
       resolutionSourceText
