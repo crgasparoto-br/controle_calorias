@@ -28,7 +28,7 @@
       "detection_change": {
         "evidence": "Terminal verification compares certificate subject and result-only parent/path allowlist."
       },
-      "revalidated_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff",
@@ -101,7 +101,7 @@
       "detection_change": {
         "evidence": "O preflight compara certificado atual com a base imutável e rejeita subject estrangeiro antes da auditoria funcional."
       },
-      "revalidated_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:1276-handoff-readiness-001",
@@ -113,7 +113,64 @@
       "literal_case": {
         "procedure": "Comparar o subject do certificado com a PR atual antes de publicar o filho result-only.",
         "expected": "O certificado 1257/1258 herdado é descartado e substituído por um pacote ligado à PR 1276.",
-        "observed": "O pacote current-target foi reconstruído e validado para 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "observed": "O pacote current-target anterior foi revalidado e o novo material corrente agora está congelado em 17a8668a1b811b0713680206b6e3fe4762af5b83.",
+        "status": "passed"
+      }
+    },
+    {
+      "escape_id": "A-1276-002",
+      "status": "passed",
+      "remediation_mode": "targeted-remediation",
+      "escape_class": "whatsapp-incomplete-command-bypass",
+      "plausible_wrong_implementation": "Usar apenas o verbo de adição ou um sinal genérico de comando para substituir pending sem validar quantidade/unidade dos itens.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "complete-command-vs-pending",
+          "dimension": "complete-command-vs-pending"
+        },
+        {
+          "risk_family": "structural-contract",
+          "surface": "incomplete-command-keeps-pending",
+          "dimension": "incomplete-command-keeps-pending"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-1276-002-S1",
+          "status": "passed",
+          "surface": "incomplete-command-keeps-pending",
+          "dimension": "water-without-quantity"
+        },
+        {
+          "id": "A-1276-002-S2",
+          "status": "passed",
+          "surface": "incomplete-command-keeps-pending",
+          "dimension": "food-without-quantity"
+        }
+      ],
+      "prevention_change": {
+        "evidence": "A classificação canônica consulta o parser de refeição e não usa apenas o verbo de comando para decidir completude."
+      },
+      "detection_change": {
+        "evidence": "Regressões exact-head exercitam água sem quantidade, alimento sem quantidade, adição completa e multi-action no gate de pendências."
+      },
+      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
+        "audit_report_sha256": "6cd479ae19bc7800d9486ae5049fbcdb5a7b611f1d984a58c1ea54b386ba39f1",
+        "finding_ids": [
+          "A-1276-002"
+        ]
+      },
+      "literal_case": {
+        "procedure": "Avaliar isCompleteWhatsappCommand e atravessar o gate com pending ativo para água sem quantidade e alimento sem quantidade.",
+        "expected": "Ambos permanecem incompletos e a pendência continua ativa; uma adição com quantidade atravessa o pipeline.",
+        "observed": "No material 17a8668a1b811b0713680206b6e3fe4762af5b83, os contraexemplos retornam false, o comando completo retorna true e o teste de multi-action permanece verde.",
         "status": "passed"
       }
     }

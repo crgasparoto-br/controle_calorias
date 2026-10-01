@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "specification_snapshot": {
     "path": "specification-snapshot.json",
     "sha256": "6ac1c7dec65c4d28ebfba86ab4a1efeaa677f8062d263db3ef6a268a0488ab17"

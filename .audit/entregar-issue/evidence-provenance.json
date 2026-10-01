@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "material_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "material_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
   "evidence": [
     {
@@ -8,7 +8,7 @@
       "kind": "quantitative",
       "path": "server/countableFoodQuantity.issue1097.test.ts",
       "sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-      "subject_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "subject_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "freshness_policy": "exact-material-head",
       "producer": "focused exact-head regression execution",
       "status": "passed"

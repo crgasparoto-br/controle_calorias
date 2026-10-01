@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "requirements": [
     {
       "requirement_id": "R-1276-001",
@@ -23,11 +23,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-001, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "focused tests and exact-head runtime control for R-1276-001",
-        "evidence_sha256": "c0438cd429f718d9d0ec9118059c560c91bc5b34dba09feed2ddab50e4e67d7c",
+        "evidence_sha256": "52c89c7b85ae5a1a373f8dde5eed15b1bceccbad282a04de8d819ed903bbbea9",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-001 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-001 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-001 passou no material exact-SHA."
       },
       "negative_controls": [
@@ -38,14 +38,14 @@
           "dimension": "complete-command-vs-pending",
           "failure_mode": "A implementação pode passar no caminho feliz e violar complete-command-vs-pending sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle complete-command-vs-pending, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de complete-command-vs-pending.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de complete-command-vs-pending.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com complete-command-vs-pending.",
           "observed": "O controle exact-head passou para R-1276-001; o cenário discriminante preservou o resultado esperado de complete-command-vs-pending.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "2a48141afa69a8cac677933122c0ffc48d96c519a08581cda3379b1db3e4e70d",
+          "evidence_sha256": "00b25b5b36bdabbbf69c28596fbf8ff83ea3751cac16aeea636fb38cfc050167",
           "sibling_cases": [
             {
               "id": "NC-R-1276-001-01-S1",
@@ -60,9 +60,9 @@
         {
           "id": "REG-R-1276-001",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-001",
-          "evidence_sha256": "75381736c6fd4e823d72b413c3a2a8ee69b703adb4f82a243f390bba8fd7872f",
+          "evidence_sha256": "3d15e66a4e8482be856948ee60b3f649009be420880d7785e200f5159488e494",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-001.",
           "observed": "A regressão de R-1276-001 passou sem falha observada."
@@ -90,11 +90,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-002, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "focused tests and exact-head runtime control for R-1276-002",
-        "evidence_sha256": "9de1b8a775377051b058582f00dd76ef5436f4ade5ac607d47d6fb0415b98915",
+        "evidence_sha256": "4f24889a8414786d0a9ac6b0f3ec153932c5a81e64f66b5250470772d579f8e7",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-002 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-002 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-002 passou no material exact-SHA."
       },
       "negative_controls": [
@@ -105,14 +105,14 @@
           "dimension": "incomplete-command-keeps-pending",
           "failure_mode": "A implementação pode passar no caminho feliz e violar incomplete-command-keeps-pending sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle incomplete-command-keeps-pending, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de incomplete-command-keeps-pending.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de incomplete-command-keeps-pending.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com incomplete-command-keeps-pending.",
           "observed": "O controle exact-head passou para R-1276-002; o cenário discriminante preservou o resultado esperado de incomplete-command-keeps-pending.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "263623be42073408f86b0742a30df575bbf1ab99cb36ee0efb8ea7481dbc7113",
+          "evidence_sha256": "83e2a42c67ea28818b6da651c738ab7716f2c7e2bd03d82f75d17ea6b421e0e5",
           "sibling_cases": [
             {
               "id": "NC-R-1276-002-01-S1",
@@ -127,9 +127,9 @@
         {
           "id": "REG-R-1276-002",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-002",
-          "evidence_sha256": "a88f1933cf399d026c28cce959f9260d3d0ceb712a89ee61b7623127c372f768",
+          "evidence_sha256": "1e73dc46f671622ef9eec0a438861ce427a6bd56a756965d15ce14be09f3bc6d",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-002.",
           "observed": "A regressão de R-1276-002 passou sem falha observada."
@@ -157,11 +157,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-003, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "server/countableFoodQuantity.issue1097.test.ts",
         "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-003 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-003 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-003 passou no material exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1276-NUTRITION"
@@ -174,14 +174,14 @@
           "dimension": "configured-label-and-date",
           "failure_mode": "A implementação pode passar no caminho feliz e violar configured-label-and-date sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle configured-label-and-date, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de configured-label-and-date.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de configured-label-and-date.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com configured-label-and-date.",
           "observed": "O controle exact-head passou para R-1276-003; o cenário discriminante preservou o resultado esperado de configured-label-and-date.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "06bfab99a5f3218d97ee8b00f13100ad7fdcd11ceece6219ee6afbb8836d4a9f",
+          "evidence_sha256": "214ca9359dc806f137dd0168d67ccdadf9551cd12f93d547761461f0d31bd2d7",
           "sibling_cases": [
             {
               "id": "NC-R-1276-003-01-S1",
@@ -196,9 +196,9 @@
         {
           "id": "REG-R-1276-003",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-003",
-          "evidence_sha256": "d0a756478d3ad45908b38d2985ffb5e67b3e67cec823db92ae2f0362c68ee725",
+          "evidence_sha256": "6b782b78159ea837fde22c9c17c88799dcf44bf806a34d76f061c828d12ed427",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-003.",
           "observed": "A regressão de R-1276-003 passou sem falha observada."
@@ -226,11 +226,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-004, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "focused tests and exact-head runtime control for R-1276-004",
-        "evidence_sha256": "a2270608c5d8ca69c14ae8a0559197f3f7216319d584093ade2d5cf25fa2f171",
+        "evidence_sha256": "361675a2f15595eaecf29e520a73be8dfeb388ee1403cd96602246af3841d476",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-004 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-004 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-004 passou no material exact-SHA."
       },
       "negative_controls": [
@@ -241,14 +241,14 @@
           "dimension": "decimal-slice-materialization",
           "failure_mode": "A implementação pode passar no caminho feliz e violar decimal-slice-materialization sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle decimal-slice-materialization, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de decimal-slice-materialization.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de decimal-slice-materialization.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com decimal-slice-materialization.",
           "observed": "O controle exact-head passou para R-1276-004; o cenário discriminante preservou o resultado esperado de decimal-slice-materialization.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "6cdb2633bbdd5aca6c80aa9a017e40d679798e8d6bf51f1e6a42024bbaa6d7fd",
+          "evidence_sha256": "ccb603aa253238a75bbbbe4ac7b984f5b6d2f1c6a8a0a3eda1da54510bf78b65",
           "sibling_cases": [
             {
               "id": "NC-R-1276-004-01-S1",
@@ -263,9 +263,9 @@
         {
           "id": "REG-R-1276-004",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-004",
-          "evidence_sha256": "6878985a393dc9bc9571f862ddecacfcf18637793ceb154d22aa44f821f4400b",
+          "evidence_sha256": "e46362e3117afa3da6ddfbfe0f46188103b29967443d5c164ab7a809711abcf8",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-004.",
           "observed": "A regressão de R-1276-004 passou sem falha observada."
@@ -293,11 +293,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-005, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "server/countableFoodQuantity.issue1097.test.ts",
         "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-005 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-005 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-005 passou no material exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1276-NUTRITION"
@@ -310,14 +310,14 @@
           "dimension": "unit-to-grams-resolution",
           "failure_mode": "A implementação pode passar no caminho feliz e violar unit-to-grams-resolution sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle unit-to-grams-resolution, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de unit-to-grams-resolution.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de unit-to-grams-resolution.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com unit-to-grams-resolution.",
           "observed": "O controle exact-head passou para R-1276-005; o cenário discriminante preservou o resultado esperado de unit-to-grams-resolution.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "acadd07bb803277ad5412853588b3c8ca073ed9dcd1274483ff879c057c66f18",
+          "evidence_sha256": "43d08c0fd7b0e4eea666ee389452ac1f60400927264f4ec89bfbe404c8230c1a",
           "sibling_cases": [
             {
               "id": "NC-R-1276-005-01-S1",
@@ -332,9 +332,9 @@
         {
           "id": "REG-R-1276-005",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-005",
-          "evidence_sha256": "f096e8da9cf2892b3526febc4b3a24162aaf44222c3bb1b6a09c3b7e877e832f",
+          "evidence_sha256": "fb9f01ec1fbb60fdee8a7839d35d30ced6ea28c98499d9cfd8aa575872560bae",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-005.",
           "observed": "A regressão de R-1276-005 passou sem falha observada."
@@ -362,11 +362,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-006, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "server/countableFoodQuantity.issue1097.test.ts",
         "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-006 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-006 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-006 passou no material exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1276-NUTRITION"
@@ -379,14 +379,14 @@
           "dimension": "curated-reference-vs-placeholder",
           "failure_mode": "A implementação pode passar no caminho feliz e violar curated-reference-vs-placeholder sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle curated-reference-vs-placeholder, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de curated-reference-vs-placeholder.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de curated-reference-vs-placeholder.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com curated-reference-vs-placeholder.",
           "observed": "O controle exact-head passou para R-1276-006; o cenário discriminante preservou o resultado esperado de curated-reference-vs-placeholder.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "fa77850e20789cc61241ada11d30b70f3c29f3945a3952013d799bbedf407200",
+          "evidence_sha256": "24e6f0a9450fd37e3a21669f4e3741aeab102886536cc094ed61e4eacaa84583",
           "sibling_cases": [
             {
               "id": "NC-R-1276-006-01-S1",
@@ -401,9 +401,9 @@
         {
           "id": "REG-R-1276-006",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-006",
-          "evidence_sha256": "523554ac6b28ef0bef2b4c354860f1b3812be1742b754e0914a963fbc01fc69b",
+          "evidence_sha256": "7415f429cc157b209ad7c8666f6ba40cf58773d8ac67428a6ad5653d622d4faa",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-006.",
           "observed": "A regressão de R-1276-006 passou sem falha observada."
@@ -431,11 +431,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-007, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "server/countableFoodQuantity.issue1097.test.ts",
         "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-007 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-007 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-007 passou no material exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1276-NUTRITION"
@@ -448,14 +448,14 @@
           "dimension": "focused-regression-matrix",
           "failure_mode": "A implementação pode passar no caminho feliz e violar focused-regression-matrix sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle focused-regression-matrix, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de focused-regression-matrix.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de focused-regression-matrix.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com focused-regression-matrix.",
           "observed": "O controle exact-head passou para R-1276-007; o cenário discriminante preservou o resultado esperado de focused-regression-matrix.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "64e3bf1f66ee5dc9717524edc96e1e9075441aaa7d3029aefa7af91232638122",
+          "evidence_sha256": "bbf05352bebbc084b7b3200151cf8b5a89b9e674ce11c33a220950c53f925d17",
           "sibling_cases": [
             {
               "id": "NC-R-1276-007-01-S1",
@@ -470,9 +470,9 @@
         {
           "id": "REG-R-1276-007",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-007",
-          "evidence_sha256": "70f3b22d88eeeeb76d99cce1b9e625f76c20d4129c3d4ac51712c447f64317f9",
+          "evidence_sha256": "312b07783de1d038b02f18c8634fc8fd59bf0cc456f2e654b4834ccc8752657f",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-007.",
           "observed": "A regressão de R-1276-007 passou sem falha observada."
@@ -505,11 +505,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-008, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "server/countableFoodQuantity.issue1097.test.ts",
         "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-008 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-008 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-008 passou no material exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1276-NUTRITION"
@@ -522,14 +522,14 @@
           "dimension": "canonical-source-vs-parallel-map",
           "failure_mode": "A parallel catalog or non-canonical source can preserve the happy path while diverging from the canonical source.",
           "plausible_wrong_implementation": "Use a parallel catalog map or a text rewrite instead of the shared canonical source and catalog resolver.",
-          "procedure": "Compare the canonical source and catalog resolver with the WhatsApp path on SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, including the discriminant sibling case.",
+          "procedure": "Compare the canonical source and catalog resolver with the WhatsApp path on SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, including the discriminant sibling case.",
           "expected": "The canonical source is used and a parallel catalog cannot silently change the resolved portion.",
           "observed": "O controle exact-head passou para R-1276-008; o cenário discriminante preservou o resultado esperado de canonical-source-consistency.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "2b87f6f0a02a8b25492444acd877a31437b1cdf51eb9f00f38dcf1cd414a3233",
+          "evidence_sha256": "d822e2ff5db2a098eca8ff73f3f60377a8ad1fb06676d6b468e4bf9a6a466e28",
           "sibling_cases": [
             {
               "id": "NC-R-1276-008-01-S1",
@@ -546,14 +546,14 @@
           "dimension": "identity-vs-quantity-reference",
           "failure_mode": "Incompatible linked identity and quantity values can be written together while the happy path still appears correct.",
           "plausible_wrong_implementation": "Persist incompatible food identity and unit/reference values without traversing the canonical mutation boundary.",
-          "procedure": "Create linked records with deliberately incompatible identity and quantity references, traverse the canonical producer/write boundary on SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, and read the result back.",
+          "procedure": "Create linked records with deliberately incompatible identity and quantity references, traverse the canonical producer/write boundary on SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, and read the result back.",
           "expected": "The incompatible linked values are rejected or explicitly transformed before the downstream consumer observes them.",
           "observed": "O controle exact-head passou para R-1276-008; o cenário discriminante preservou o resultado esperado de relational-semantic-integrity.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "311d5300dc647205d1d0aef020442d30f31ec9b70afebd827caf5a28e696bbfd",
+          "evidence_sha256": "0f0950e1ba737e9ca60f0333944d611df2271b2a842b9de90abd2aec6e9840af",
           "sibling_cases": [
             {
               "id": "NC-R-1276-008-02-S1",
@@ -574,9 +574,9 @@
         {
           "id": "REG-R-1276-008",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-008",
-          "evidence_sha256": "073bc32a4eaf0e8ddff3e48a8f4b7129f5967cc6ac7264c40784c11888e725e2",
+          "evidence_sha256": "5a83a16703778334dd8eb2575df62a305dfb9ab4740e51beda35eb5a10956656",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-008.",
           "observed": "A regressão de R-1276-008 passou sem falha observada."
@@ -616,11 +616,11 @@
       "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-009, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
         "evidence": "focused tests and exact-head runtime control for R-1276-009",
-        "evidence_sha256": "9df8bc32e1345017044b347e2c719a3416a57ae57620005929f7e06e0dafa594",
+        "evidence_sha256": "795c9bc8913866fbe2450c647208c1e90033cee70e52ac0676cba4b1f05942ee",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-009 no material exact-SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510.",
+        "procedure": "Executar a prova positiva de R-1276-009 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
         "observed": "A prova positiva de R-1276-009 passou no material exact-SHA."
       },
       "negative_controls": [
@@ -631,14 +631,14 @@
           "dimension": "specified-cases-have-distinct-controls",
           "failure_mode": "A implementação pode passar no caminho feliz e violar specified-test-matrix sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle specified-test-matrix, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de specified-test-matrix.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de specified-test-matrix.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com specified-test-matrix.",
           "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de specified-test-matrix.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "414ae89df488d8c4fbd4b8224883d6e092fb25695f1cc4228b1ccee54063f78c",
+          "evidence_sha256": "8d7360f5cef315ed2fce45089248f7c2900dbe38686505926710cc4468fc15f4",
           "sibling_cases": [
             {
               "id": "NC-R-1276-009-01-S1",
@@ -655,14 +655,14 @@
           "dimension": "docs-and-build-contract",
           "failure_mode": "A implementação pode passar no caminho feliz e violar documentation-consistency sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle documentation-consistency, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de documentation-consistency.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de documentation-consistency.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com documentation-consistency.",
           "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de documentation-consistency.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "7eec5468f2ead4cb9746da6860af58c61679d10043238fca5b59c31d26f1a30f",
+          "evidence_sha256": "c7ad0db0562c51c7472b823d52ffb9bc1a80d4402d22d0e3018402b724fc2d1b",
           "sibling_cases": [
             {
               "id": "NC-R-1276-009-02-S1",
@@ -679,14 +679,14 @@
           "dimension": "material-head-and-clean-tree",
           "failure_mode": "A implementação pode passar no caminho feliz e violar exact-head-freshness sem que a pendência, a porção ou a referência nutricional fique correta.",
           "plausible_wrong_implementation": "Ignorar o controle exact-head-freshness, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 21c9fd6eaedd6b60a91553db933aeb65a0648510, variando o cenário discriminante de exact-head-freshness.",
+          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de exact-head-freshness.",
           "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com exact-head-freshness.",
           "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de exact-head-freshness.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "92e8b5307006b452712b5b44b0b20cb8d799970266ae813059aa6b8b9c3678fd",
+          "evidence_sha256": "7cd44b6600dae2b55da1a9266824ae0c1102e9011f1e62df687e25074ccc91cd",
           "sibling_cases": [
             {
               "id": "NC-R-1276-009-03-S1",
@@ -701,9 +701,9 @@
         {
           "id": "REG-R-1276-009",
           "status": "passed",
-          "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
           "evidence": "focused regression suite for R-1276-009",
-          "evidence_sha256": "05f32e5b82b07a341e44e609fb5189bc9d91502ddd056fab2f67e7b9cf15a20e",
+          "evidence_sha256": "66b5f74d4ef6249357fff5c63b076c1b7ba8046720b77706ce12b52d675dbeab",
           "control_type": "test",
           "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-009.",
           "observed": "A regressão de R-1276-009 passou sem falha observada."

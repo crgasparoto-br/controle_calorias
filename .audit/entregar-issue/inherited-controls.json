@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "controls": [],
   "retired_controls": [
     {
       "id": "INH-DELIVERY-TARGET-001",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "subject_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
-      "evidence_sha256": "6b1b987cc02c4555c592ee41bfab21410d2c928c533c4e449661a47d726b2bd6",
+      "evidence_sha256": "eab266745ba6758ebbcd917c1d84be6a3b06b378ac569a87fe6f2acb5e38ef90",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."
@@ -18,9 +18,9 @@
       "id": "IC-1237-ATOMIC-MOVE",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+      "subject_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
-      "evidence_sha256": "671049b360265615704662c1a46f56dcee105569437180096237eb7ed33987fa",
+      "evidence_sha256": "da286db220c4ab5b63454282ef3c513a53d46ce1141a3056572621ce179bf2dc",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "The current closure does not require the prior control risk family/surface, so the inherited control is retired with an explicit disposition."

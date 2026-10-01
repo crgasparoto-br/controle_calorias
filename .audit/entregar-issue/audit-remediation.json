@@ -3,23 +3,26 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
+  "candidate_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:1276-handoff-readiness-001",
-    "audited_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
-    "audit_report_sha256": "69e2519b739d9a7191ce227102ea83c7a9819894970a2b2549a703f8529aac49"
+    "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
+    "audited_head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
+    "audit_report_sha256": "6cd479ae19bc7800d9486ae5049fbcdb5a7b611f1d984a58c1ea54b386ba39f1"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1276-001",
+      "source_id": "A-1276-002",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": "Novo handoff current-target foi reconstruído com subject da PR 1276, material head 21c9fd6e e artefatos críticos exact-SHA.",
+      "evidence": "foodClarificationContract agora consulta o parser canônico e rejeita adições simples sem quantidade/unidade; o gate mantém pending ativo. Comandos compostos continuam na precedência multi-action.",
       "validations": [
-        "check_delivery_preflight.py validou o pacote corrente contra a base imutável.",
-        "validate_terminal_handoff.py validou parent direto e allowlist do filho result-only."
+        "pnpm exec vitest run server/modules/whatsapp/foodClarification.auditRegression.test.ts server/modules/whatsapp/messageRouter.test.ts server/modules/whatsapp/mealCommandParser.test.ts server/modules/whatsapp/service.issue856.pending.test.ts --reporter=dot → 4 arquivos/61 testes verdes.",
+        "pnpm exec vitest run server/modules/whatsapp --pool=threads --poolOptions.threads.singleThread --reporter=dot → 256 arquivos/1.658 testes verdes.",
+        "pnpm test -- --reporter=dot --maxWorkers=2 → 732 arquivos/4.813 testes verdes; 4 testes skipped.",
+        "pnpm check; pnpm architecture:check; pnpm docs:check; pnpm build; git diff --check → verdes.",
+        "Runtime adversarial: água e banana sem quantidade false; adição com unidade e multi-action true."
       ]
     }
   ]
