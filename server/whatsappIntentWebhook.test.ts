@@ -12,6 +12,7 @@ const getWhatsAppWeightVariationMock = vi.fn();
 const getWhatsAppUserTimeZoneMock = vi.fn();
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
+const createManualMealMock = vi.fn();
 const tryCreateQuickEditLinkForMealMock = vi.fn();
 const { beginInboundMessageMock, recordOutboundReplyMock, recordDomainLinkMock, markMessageProcessedMock, releaseMessageForRetryMock } = vi.hoisted(() => ({
   beginInboundMessageMock: vi.fn(async () => ({ conversationId: 1, messageId: 1 })),
@@ -208,6 +209,7 @@ vi.mock("./modules/whatsapp/userMeasurementReplyContext", () => ({
 vi.mock("./modules/meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
+  createManualMeal: createManualMealMock,
 }));
 
 const { __resetWhatsAppTextIntentContextForTests, handleWhatsAppWebhookWithTextIntent } = await import("./whatsappIntentWebhook");
@@ -331,6 +333,7 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
     getWhatsAppUserTimeZoneMock.mockReset();
     listMealsMock.mockReset();
     updateMealMock.mockReset();
+    createManualMealMock.mockReset();
     tryCreateQuickEditLinkForMealMock.mockReset();
     beginInboundMessageMock.mockReset();
     recordOutboundReplyMock.mockReset();
@@ -362,6 +365,11 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       created: true,
     }));
     tryCreateQuickEditLinkForMealMock.mockResolvedValue(null);
+    createManualMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: 1271,
+      userId: 42,
+      ...input,
+    }));
     handleWhatsAppWebhookMock.mockImplementation(async (_req, res: MockResponse) => res.status(200).json({ ok: true, processed: 1 }));
     global.fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const payload = init?.body ? JSON.parse(String(init.body)) : {};
@@ -800,6 +808,74 @@ describe("handleWhatsAppWebhookWithTextIntent", () => {
       eventType: "whatsapp.intent.meal_item_added",
     }));
     expect(sentMessages.at(-1)).toContain("pêra packans");
+  });
+
+  it("cria a refeição habitual configurada quando a data explícita ainda não tem registro (#1271)", async () => {
+    listMealsMock.mockResolvedValue([]);
+    const req = createTextWebhookRequest(
+      "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
+      { id: "issue-1271-configured-meal", timestamp: "1790855700" },
+    );
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(handleWhatsAppWebhookMock).not.toHaveBeenCalled();
+    expect(updateMealMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealLabel: "lanche da tarde",
+      occurredAt: "2026-09-30T18:00:00.000Z",
+      items: [
+        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
+        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
+      ],
+    }));
+    expect(logInferenceEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      origin: "whatsapp",
+      status: "success",
+      eventType: "whatsapp.intent.meal_item_added",
+    }));
+    expect(recordDomainLinkMock).toHaveBeenCalledWith(
+      { conversationId: 1, messageId: 1 },
+      expect.objectContaining({ mealId: 1271 }),
+    );
+    expect(sentMessages.at(-1)).toContain("pêra packans");
+    expect(sentMessages.at(-1)).toContain("banana nanica");
+    expect(sentMessages.at(-1)).toContain("Refeição registrada:");
+  });
+
+  it("não cria refeição duplicada quando a data explícita já tem o registro do rótulo (#1271)", async () => {
+    listMealsMock.mockResolvedValue([
+      {
+        id: 1270,
+        userId: 42,
+        mealLabel: "Lanche da tarde",
+        occurredAt: new Date("2026-09-30T18:00:00.000Z").getTime(),
+        notes: "Registro pelo WhatsApp",
+        items: [riceItem],
+      },
+    ]);
+    updateMealMock.mockImplementation(async (_userId: number, input: Record<string, unknown>) => ({
+      id: (input as { mealId: number }).mealId,
+      ...input,
+    }));
+    const req = createTextWebhookRequest(
+      "Adicionar ao lanche da tarde de ontem, 1 pêra packans e 1 banana nanica",
+      { id: "issue-1271-existing-meal", timestamp: "1790855700" },
+    );
+    const res = createResponse();
+
+    await handleWhatsAppWebhookWithTextIntent(req as never, res as never);
+
+    expect(createManualMealMock).not.toHaveBeenCalled();
+    expect(updateMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealId: 1270,
+      items: [
+        riceItem,
+        expect.objectContaining({ foodName: "pêra packans", estimatedGrams: 150 }),
+        expect.objectContaining({ foodName: "banana nanica", estimatedGrams: 80 }),
+      ],
+    }));
   });
 
   it("substitui gramas do alimento existente e não delega para inferência nutricional", async () => {
