@@ -36,6 +36,7 @@ O contrato público de [registro de refeições](../product-specs/meal-registrat
 A regressão da #1054 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1054.test.ts` e pelos controles de adição em `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.audit1055.test.ts`, `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1016.test.ts` e `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.foodAddition1054.test.ts`. Os testes exercitam resolvedor real onde o boundary externo permite, variantes/marcas incompatíveis, marca fora da allowlist, pesquisa indisponível e retomada sem persistência parcial ou duplicada.
 
 A regressão da #1057 é coberta por `server/modules/whatsapp/mealIntentRegistrationDetailsInteraction.issue1057.test.ts`, incluindo o gate central, resposta curta/completa, preservação de quantidade e segmentos irmãos, marca alternativa, conflito de quantidade, substituição por comando incompatível, stale/expiração, idempotência e isolamento entre usuários.
+A regressão da #1278 é coberta por `server/modules/whatsapp/mealCommandParser.issue1278.test.ts` (parser), `server/modules/whatsapp/foodAddition.issue1278.test.ts` (adição canônica resolvida na refeição de destino), `server/countableFoodQuantity.issue1278.test.ts` (porção canônica local, lote misto de frutas e controle negativo `laranja pêra`) e `server/whatsappIntentWebhook.issue1278.test.ts` (entrypoint público, sem passthrough indevido para comando de adição e sem clarificação de peso para o lote de frutas).
 
 A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegistrationGate.issue1072.test.ts`, incluindo a fronteira de registro confirmado com o payload multi-item de produção, preservação do `resolvedSegment` comercial, prova de que o item Panco já comprovado não volta à extração/inferência nutricional geral e o controle negativo em que uma massa informada diretamente segue o caminho mass-only normal sem herdar a proveniência de uma resolução contável que não ocorreu.
 
@@ -44,6 +45,17 @@ A regressão da #1072 é coberta por `server/modules/whatsapp/countableFoodRegis
 O vocabulário de contagem por extenso é compartilhado entre o resolvedor contável e o contrato de clarificação (`um/uma`, `dois/duas`, `três` até `dez`). Entradas diretas como `1 banana nanica`, `uma banana nanica`, `duas bananas` e `três ovos cozidos` são sinais de registro quando o domínio consegue resolver a identidade e a porção; não é necessário acrescentar `registrar`, `adicionar` ou outro verbo operacional.
 
 Esse sinal continua subordinado às precedências existentes de pergunta, exclusão, correção, ajuste, hidratação, peso e adição explícita a uma refeição.
+
+## Comando de adição com destino antes ou depois dos itens (#1278)
+
+O produtor canônico de adição aceita as duas ordens do destino da refeição e nunca promove o rótulo da refeição a item alimentar:
+
+- itens antes do destino: `Adicionar 2 fatias de mussarela ao café da manhã`;
+- destino antes dos itens, com separador explícito: `Adicionar o café da manhã, 1,5 fatias de mortadela`.
+
+Pontuação de fim de frase depois do destino (`... ao almoço.`) faz parte do enunciado e não do nome do alimento. Um comando de adição reconhecido não cai no pipeline nutricional genérico: se o destino não existir, a resposta é a clarificação de refeição, não o registro de uma refeição nova com o texto original interpretado como alimento.
+
+O item contável do comando continua passando pela mesma `resolveCanonicalFoodQuantity` do registro: porção canônica local antes de medida caseira e pesquisa. For uma fruta natural com qualificador de cultivar não comprovado (`1 pêra packans`), a identidade informada é preservada e continua valendo a precedência da medida pesquisada da variedade; se a pesquisa não produzir nenhuma referência utilizável (capacidade indisponível, falha de execução ou `found_false`), a porção curada do alimento-base (`pêra` → `178 g`) sustenta uma média usual estimada, apresentada como aproximação. Referências rejeitadas por conflito de grounding continuam exigindo clarificação e identidade comercial comprovada nunca entra nesse fallback.
 
 ## Proveniência apresentada ao usuário
 
