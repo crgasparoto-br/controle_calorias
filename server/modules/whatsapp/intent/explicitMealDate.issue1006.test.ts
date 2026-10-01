@@ -60,4 +60,19 @@ describe("data explícita de adição de refeição (#1006)", () => {
       allowCrossDayFallback: false,
     })?.id).toBe(24);
   });
+
+  it("prioriza o rótulo exato quando existe também um rótulo parcial no mesmo dia", () => {
+    const meals = [
+      { id: 1, mealLabel: "Jantar", occurredAt: "2026-08-24T22:00:00.000Z" },
+      { id: 2, mealLabel: "Jantar especial", occurredAt: "2026-08-24T12:00:00.000Z" },
+    ];
+
+    expect(findMealByLabel(
+      meals,
+      "Jantar especial",
+      new Date("2026-08-24T15:00:00.000Z"),
+      timeZone,
+      { allowCrossDayFallback: false },
+    )?.id).toBe(2);
+  });
 });

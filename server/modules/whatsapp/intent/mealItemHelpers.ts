@@ -258,15 +258,19 @@ export function findMealByLabel<T extends { mealLabel: string; occurredAt: numbe
   const normalizedLabel = normalizeIntentText(mealLabel);
   const dayStart = startOfZonedDay(referenceDate, timeZone).getTime();
   const dayEnd = endOfZonedDay(referenceDate, timeZone).getTime();
-  const matches = meals.filter(meal => {
+  const exactMatches = meals.filter(meal => normalizeIntentText(meal.mealLabel) === normalizedLabel);
+  const partialMatches = meals.filter(meal => {
     const candidate = normalizeIntentText(meal.mealLabel);
-    return candidate === normalizedLabel || candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
+    return candidate !== normalizedLabel && (candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate));
   });
-  const sameDayMatch = matches.find(meal => {
+  const findSameDay = (candidates: T[]) => candidates.find(meal => {
     const occurredAt = new Date(meal.occurredAt).getTime();
     return occurredAt >= dayStart && occurredAt <= dayEnd;
   });
-  return sameDayMatch ?? (options.allowCrossDayFallback === false ? null : matches[0] ?? null);
+  const sameDayMatch = findSameDay(exactMatches) ?? findSameDay(partialMatches);
+  return sameDayMatch ?? (options.allowCrossDayFallback === false
+    ? null
+    : exactMatches[0] ?? partialMatches[0] ?? null);
 }
 
 export function parseItemQuantity(item: MealItemInput) {
