@@ -368,8 +368,8 @@ function normalizedEvidenceText(value: string) {
     .trim();
 }
 
-function numberPattern(value: number, includeOneWords = false) {
-  const rounded = Number(value.toFixed(2));
+function numberPattern(value: number, includeOneWords = false, precision = 2) {
+  const rounded = Number(value.toFixed(precision));
   const numeric = Number.isInteger(rounded)
     ? `${rounded}(?:[.,]0+)?`
     : String(rounded).replace(".", "[.,]");
@@ -384,9 +384,16 @@ function measureUnitPattern(value: string) {
   const pluralWords = [...words];
   const first = words[0];
   pluralWords[0] = first.endsWith("r") ? `${first}es` : `${first}s`;
-  return [...new Set([normalized, pluralWords.join(" ")])]
+  const aliases = normalized === "unidade" ? ["un", "und"] : [];
+  return [...new Set([normalized, pluralWords.join(" "), ...aliases])]
     .map(escapeRegExp)
     .join("|");
+}
+
+function measureMassPattern(reference: PortionReference) {
+  const grams = numberPattern(reference.grams);
+  const kilograms = numberPattern(reference.grams / 1_000, false, 3);
+  return `(?:${grams}\\s*(?:g|gr|grama|gramas)|${kilograms}\\s*(?:kg|quilo|quilos))`;
 }
 
 function evidenceSupportsMeasureRelation(text: string, reference: PortionReference) {
@@ -394,35 +401,44 @@ function evidenceSupportsMeasureRelation(text: string, reference: PortionReferen
   const unit = measureUnitPattern(reference.measureUnit);
   if (!unit) return false;
   const quantity = numberPattern(reference.measureQuantity, true);
-  const grams = numberPattern(reference.grams);
+  const mass = measureMassPattern(reference);
   const measure = `${quantity}\\s*(?:${unit})`;
-  const mass = `${grams}\\s*(?:g|gr|grama|gramas)`;
   const relationVerb = "(?:pesa(?:m)?|corresponde(?:m)?(?:\\s+a)?|equivale(?:m)?(?:\\s+a)?|representa(?:m)?|tem|contem|mede(?:m)?)";
-  const approximation = "(?:\\s+(?:aproximadamente|aprox|cerca\\s+de|em\\s+media|na\\s+media))?";
+  const approximation = "(?:\\s+(?:aproximadamente|aprox\\.?|cerca\\s+de|em\\s+media|na\\s+media))?";
   const forward = new RegExp(
     `\\b${measure}\\b[^\\n.;!?]{0,100}?\\b${relationVerb}\\b${approximation}\\s*\\b${mass}\\b`,
     "i",
   );
-  const compact = new RegExp(`\\b${measure}\\b\\s*(?:=|:|-)\\s*\\b${mass}\\b`, "i");
+  const delimitedForward = new RegExp(
+    `\\b${measure}\\b\\s*(?:/|[-–—])\\s*(?:aproximadamente|aprox\\.?|cerca\\s+de|em\\s+media|na\\s+media)?\\s*\\b${mass}\\b`,
+    "i",
+  );
+  const compact = new RegExp(`\\b${measure}\\b\\s*(?:=|:)\\s*\\b${mass}\\b`, "i");
   const parenthetical = new RegExp(
     `\\b${measure}\\b[^\\n.;!?()]{0,80}\\(\\s*${mass}\\s*\\)`,
     "i",
   );
   const reverse = new RegExp(`\\b${mass}\\b\\s*(?:por|para|/|=)\\s*\\b${measure}\\b`, "i");
+  const delimitedReverse = new RegExp(
+    `\\b${mass}\\b\\s*(?:/|[-–—])\\s*(?:aproximadamente|aprox\\.?|cerca\\s+de|em\\s+media|na\\s+media)?\\s*\\b${measure}\\b`,
+    "i",
+  );
   const reverseParenthetical = new RegExp(
     `\\b${mass}\\b[^\\n.;!?()]{0,80}\\(\\s*${measure}\\s*\\)`,
     "i",
   );
   return forward.test(evidence)
+    || delimitedForward.test(evidence)
     || compact.test(evidence)
     || parenthetical.test(evidence)
     || reverse.test(evidence)
+    || delimitedReverse.test(evidence)
     || reverseParenthetical.test(evidence);
 }
 
 function evidenceSupportsTypicalMeasure(text: string) {
   const evidence = normalizedEvidenceText(text);
-  return /\b(?:media|medio|usual|tipic[oa]s?|normalmente|geralmente)\b/.test(evidence);
+  return /\b(?:media|medio|usual|tipic[oa]s?|normalmente|geralmente|aproximad(?:amente)?|aprox\.?)\b/.test(evidence);
 }
 
 function sourceContainsBrand(sourceText: string, brand: string | null | undefined) {
@@ -433,7 +449,7 @@ function sourceContainsBrand(sourceText: string, brand: string | null | undefine
 
 function semanticEvidenceSpans(value: string) {
   return value
-    .split(/[\n;!?]+|(?<!\d)\.(?!\d)/u)
+    .split(/[\n;!?]+|(?<!\d)(?<!aprox)\.(?!\d)/u)
     .map(span => span.trim())
     .filter(Boolean);
 }
@@ -534,7 +550,10 @@ function structuredEvidenceSupportsReference(
 ) {
   const evidence = reference.evidence.trim();
   if (!evidence) return true;
-  return evidenceFragmentSupportsReference(input, reference, evidence);
+  const identityContext = [reference.matchedFoodName, reference.brandName, reference.foodTypeName]
+    .filter(Boolean)
+    .join(" ");
+  return evidenceFragmentSupportsReference(input, reference, evidence, identityContext);
 }
 
 function verifiedReference(

@@ -44,6 +44,10 @@ vi.mock("./structuredCoffeeIntentActions", () => ({ tryExecuteWhatsappStructured
 vi.mock("./messageRouter", () => ({
   resolveWhatsAppPrecedenceGate: vi.fn(async () => ({ step: "continue_pipeline" })),
 }));
+vi.mock("./learningArtifactPersistence", () => ({
+  persistWhatsappLearningArtifact: vi.fn(async () => ({ id: 1 })),
+  listPersistedWhatsappLearningArtifacts: vi.fn(async () => []),
+}));
 vi.mock("../meals/service", () => ({ listMeals: vi.fn(), updateMeal: vi.fn() }));
 vi.mock("../water/service", () => ({ createWaterLog: vi.fn() }));
 vi.mock("../onboarding/profileRead", () => ({
@@ -146,6 +150,44 @@ describe("issue #1225 - canonical coffee routing with durable personal memory", 
       expect(structured).not.toHaveBeenCalled();
     },
   );
+
+  it("learns the exact personal statement and applies it to the next generic coffee addition", async () => {
+    const preference = await executeWhatsappTextIntent(101, {
+      text: "O meu café é sem açúcar",
+      receivedAt,
+      userTimezone: "America/Sao_Paulo",
+      messageId: "wamid.issue1225.preference",
+    });
+    expect(preference).toMatchObject({
+      action: "preference_recorded",
+      data: {
+        preferenceRecognized: true,
+        preferencePersisted: true,
+        preparationChoice: "without_sugar",
+      },
+    });
+
+    const addition = await executeWhatsappTextIntent(101, {
+      text: "Adicionar 3 xícaras de café ao café da manhã",
+      receivedAt: new Date(receivedAt.getTime() + 60_000),
+      userTimezone: "America/Sao_Paulo",
+      messageId: "wamid.issue1225.addition",
+    });
+
+    expect(addition).toMatchObject({
+      action: "meal_item_added",
+      data: {
+        contextMemoryApplied: true,
+        preparationChoice: "without_sugar",
+      },
+    });
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 101,
+      registrationText: "Adicionar 3 xícaras de café sem açúcar ao café da manhã",
+      originalText: "Adicionar 3 xícaras de café ao café da manhã",
+    }));
+    expect(structured).not.toHaveBeenCalled();
+  });
 
   it("keeps #974 and isolates users when no applicable persisted memory exists", async () => {
     await persistCoffeePreference(101);

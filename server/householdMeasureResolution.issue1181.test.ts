@@ -76,6 +76,40 @@ describe("resolveHouseholdMeasure (#1181)", () => {
     }));
   });
 
+  it("aceita evidência de varejo com faixa de unidades e massa em quilogramas", async () => {
+    const runtime = baseRuntime();
+    runtime.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([reference({
+      matchedFoodName: "Pêra Packans",
+      measureQuantity: 4,
+      grams: 600,
+      describesTypicalMeasure: true,
+      sourceUrl: "https://example.test/pera-packans-varejo",
+      evidence: "Pêra Packans inteira: 600 g — aproximadamente 4 unidades.",
+    })]));
+
+    await expect(resolveHouseholdMeasure(input, runtime as any)).resolves.toEqual(expect.objectContaining({
+      kind: "usual_average",
+      grams: 150,
+      requestedQuantity: 1,
+      sourceUrls: ["https://example.test/pera-packans-varejo"],
+    }));
+
+    const runtimeWithKg = baseRuntime();
+    runtimeWithKg.createDomainTextResponse.mockResolvedValueOnce(searchedResponse([reference({
+      matchedFoodName: "Pêra Packans",
+      grams: 207,
+      describesTypicalMeasure: true,
+      sourceUrl: "https://example.test/pera-packans-unidade",
+      evidence: "1 un / aprox. 0,207 kg.",
+    })]));
+
+    await expect(resolveHouseholdMeasure(input, runtimeWithKg as any)).resolves.toEqual(expect.objectContaining({
+      kind: "usual_average",
+      grams: 207,
+      sourceUrls: ["https://example.test/pera-packans-unidade"],
+    }));
+  });
+
   it("prefere a referência específica verificável da variedade à média genérica", async () => {
     const runtime = baseRuntime();
     const specific = reference({
