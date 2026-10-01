@@ -41,9 +41,9 @@ No registro textual normal, `handleWhatsAppWebhookWithTextIntent` preserva os ha
 - O preflight consulta os catálogos canônicos de alimento natural antes de interpretar tokens residuais como marca; não há mapa de `packans`, peso fixo de pêra ou alias de cultivar no WhatsApp.
 - O qualificador original continua no segmento encaminhado ao resolvedor de medida, enquanto `resolveHouseholdMeasure` permanece o único dono da gramatura e da procedência `contextual_estimate`/`usual_average`.
 - Para fruta natural sem marca comprovada, o preflight pode carregar uma referência canônica do alimento-base exclusivamente para ampliar a pesquisa de quantidade. Essa referência não reescreve a identidade original, não confirma cultivar e só pode produzir `same_food_type` quando os guards de evidência do resolvedor real forem satisfeitos.
-- Os dois golden flows da reabertura são exercitados a partir de `handleWhatsAppWebhookWithTextIntent`, sem mock do gate ou de `resolveHouseholdMeasure`; apenas boundaries externos de IA/pesquisa e entrega HTTP são substituídos no teste.
+- Os dois golden flows da reabertura são exercitados a partir de `handleWhatsAppWebhookWithTextIntent`, sem mock do gate ou de `resolveHouseholdMeasure`; a cobertura adicional da #1196 atravessa o mesmo entrypoint na adição a uma refeição existente (`server/whatsappIntentWebhook.test.ts`). Apenas boundaries externos de IA/pesquisa e entrega HTTP são substituídos nos testes.
 - A exceção é limitada a alimento natural não comercial; marca conhecida ou identidade comercial estruturada mantém precedência e o contrato fail-closed de #1088.
-- A regressão atravessa o gate de registro contável e valida que uma referência `same_food_type` preenche somente a quantidade, sem reescrever a identidade específica.
+- A regressão atravessa o gate de registro contável e o resolvedor canônico de adição, validando que uma referência `same_food_type` preenche somente a quantidade, sem reescrever a identidade específica; `server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1196.test.ts` protege também o multiplicador de 6 uvas.
 
 ## Regressão #1043 — estimativa contextual persistida e aprendizado
 

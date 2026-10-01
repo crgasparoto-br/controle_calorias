@@ -294,8 +294,8 @@ export function findNaturalProduceQuantityReferenceName(foodName: string) {
   for (let length = 1; length <= sourceTokens.length; length += 1) {
     const prefixTokens = sourceTokens.slice(0, length);
     const candidates = [
-      prefixTokens.join(" "),
       [...prefixTokens.slice(0, -1), singularNaturalProduceToken(prefixTokens.at(-1) ?? "")].join(" "),
+      prefixTokens.join(" "),
     ].filter((value, index, values) => value && values.indexOf(value) === index);
 
     for (const candidateName of candidates) {
