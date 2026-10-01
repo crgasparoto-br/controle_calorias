@@ -180,6 +180,21 @@ describe("handleFoodAdditionIntent com refeição habitual configurada (#1271)",
     expect(result.action).toBe("clarification_needed");
   });
 
+  it("mantém o esclarecimento seguro quando o horário configurado é inválido", async () => {
+    mocks.listMealSchedules.mockResolvedValue([
+      { mealLabel: "lanche da tarde", startTime: "25:00", endTime: "26:00", enabled: true },
+    ]);
+
+    const result = await handleFoodAdditionIntent(42, addition as never, "America/Sao_Paulo", {
+      originalText: "Adicionar ao lanche da tarde de ontem, 1 pêra packans",
+      receivedAt,
+    });
+
+    expect(mocks.createManualMeal).not.toHaveBeenCalled();
+    expect(mocks.updateMeal).not.toHaveBeenCalled();
+    expect(result.action).toBe("clarification_needed");
+  });
+
   it("não cria refeição nova quando a continuação esperava um alvo específico", async () => {
     const result = await handleFoodAdditionIntent(42, addition as never, "America/Sao_Paulo", {
       originalText: "Adicionar ao lanche da tarde de ontem, 1 pêra packans",

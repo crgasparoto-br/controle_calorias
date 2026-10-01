@@ -226,11 +226,18 @@ async function createConfiguredDatedMealAddition(input: {
   });
   if (resolution.kind !== "items") return null;
 
-  const targetDateKey = getDateKeyInTimeZone(input.dateSelection.date, input.timeZone);
-  const occurredAt = zonedDateTimeLocalToIso(
-    `${targetDateKey}T${schedule.startTime}:00`,
-    input.timeZone,
-  );
+  let occurredAt: string;
+  try {
+    const targetDateKey = getDateKeyInTimeZone(input.dateSelection.date, input.timeZone);
+    occurredAt = zonedDateTimeLocalToIso(
+      `${targetDateKey}T${schedule.startTime}:00`,
+      input.timeZone,
+    );
+  } catch {
+    // Horário configurado inválido ou inexistente no fuso: mantém o
+    // esclarecimento seguro em vez de derrubar a mensagem do usuário.
+    return null;
+  }
   const createdMeal = await createManualMeal(input.userId, {
     mealLabel: schedule.mealLabel,
     occurredAt,
