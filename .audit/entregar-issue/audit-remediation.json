@@ -1,1 +1,29 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","status":"closed","candidate_head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","remediation_mode":"targeted-remediation","source":{"rejection_id":"audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff","audited_head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","audit_report_sha256":"de22c9b8b15234673a7f067f27e4c5d7e4f97d5c5afb52ec9361a718b5b4b082"},"items":[{"source_kind":"finding","source_id":"A-001","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"handoff-rebuild","evidence":["Fresh current-target package rebuilt for issue 1257 / PR 1258; inherited issue 1259 / PR 1260 certificate is not reused."],"validations":["Agent-first gate run 36735032697 completed success on exact material SHA af9c6be23aac4035584cbe7bf178da90e3eefbcb; Full tests, TypeScript, architecture, documentation, build and agent checks passed.","WhatsApp context TiDB gate 36735032825 completed success on the same material SHA."]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "status": "closed",
+  "candidate_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "remediation_mode": "targeted-remediation",
+  "source": {
+    "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
+    "audited_head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
+    "audit_report_sha256": "6cd479ae19bc7800d9486ae5049fbcdb5a7b611f1d984a58c1ea54b386ba39f1"
+  },
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1276-002",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "evidence": "foodClarificationContract agora consulta o parser canônico e rejeita adições simples sem quantidade/unidade; o gate mantém pending ativo. Comandos compostos continuam na precedência multi-action.",
+      "validations": [
+        "pnpm exec vitest run server/modules/whatsapp/foodClarification.auditRegression.test.ts server/modules/whatsapp/messageRouter.test.ts server/modules/whatsapp/mealCommandParser.test.ts server/modules/whatsapp/service.issue856.pending.test.ts --reporter=dot → 4 arquivos/61 testes verdes.",
+        "pnpm exec vitest run server/modules/whatsapp --pool=threads --poolOptions.threads.singleThread --reporter=dot → 256 arquivos/1.658 testes verdes.",
+        "pnpm test -- --reporter=dot --maxWorkers=2 → 732 arquivos/4.813 testes verdes; 4 testes skipped.",
+        "pnpm check; pnpm architecture:check; pnpm docs:check; pnpm build; git diff --check → verdes.",
+        "Runtime adversarial: água e banana sem quantidade false; adição com unidade e multi-action true."
+      ]
+    }
+  ]
+}

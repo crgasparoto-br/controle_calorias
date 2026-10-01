@@ -16,9 +16,15 @@ describe("issue #997 countable registration and local nutrition", () => {
     expect(item.quantity).toBe(2);
   });
 
-  it.each(["1 fatia presunto", "1 fatia mussarela"])(
-    "não promove 100 g nutricionais a porção contável: %s",
-    text => expect(findUnsafeCountableFoodQuantity(text)).not.toBeNull(),
+  it.each([
+    ["1 fatia presunto", "presunto", 18],
+    ["1 fatia mussarela", "mussarela", 20],
+  ])(
+    "reconhece a porção curada sem promovê-la a 100 g nutricionais: %s",
+    (text, foodName, grams) => {
+      expect(findUnsafeCountableFoodQuantity(text)).toBeNull();
+      expect(resolveSafeCountableCatalogGrams(foodName, 1, "fatia")?.grams).toBe(grams);
+    },
   );
 
   it.each([
@@ -34,8 +40,8 @@ describe("issue #997 countable registration and local nutrition", () => {
     const prepared = prepareCountableFoodRegistration([
       "1 pão francês",
       "1 ovo frito",
-      "1 fatia presunto",
-      "1 fatia mussarela",
+      "1 fatia de pão francês",
+      "1 fatia de queijo prato",
       "45g requeijão catupiry light",
       "3 xícaras de café sem açúcar",
     ].join("\n"));
@@ -45,8 +51,8 @@ describe("issue #997 countable registration and local nutrition", () => {
     expect(prepared.registrationText).toContain("45g requeijão catupiry light");
     expect(prepared.registrationText).toContain("3 xícaras de café sem açúcar");
     expect(prepared.pendingItems.map(item => item.foodName)).toEqual([
-      "presunto",
-      "mussarela",
+      "pão francês",
+      "queijo prato",
     ]);
   });
 

@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
-  "base_sha": "379ba427952c04fb9be2f39870937e0c1c0c8f6b",
+  "material_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
   "evidence": [
     {
-      "evidence_id": "EV-1246-UI-NUTRITION",
+      "evidence_id": "EV-1276-NUTRITION",
       "kind": "quantitative",
-      "path": ".audit/entregar-issue/evidence/ui-component-observation.txt",
-      "sha256": "4076a51431bf723b8389beaee2cc56b09f1511373e886d1c2e739844841de3c8",
-      "subject_sha": "17e66e2baa91d1b682487f337a2b106d2f2b0356",
+      "path": "server/countableFoodQuantity.issue1097.test.ts",
+      "sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
+      "subject_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
       "freshness_policy": "exact-material-head",
-      "producer": "GitHub Actions exact-head test evidence plus source assertions",
+      "producer": "focused exact-head regression execution",
       "status": "passed"
     }
   ]

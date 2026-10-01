@@ -17,6 +17,7 @@ import { sendWhatsAppAiQuestionAcknowledgement } from "./questionAcknowledgement
 import { executeWhatsappDeleteIntent } from "./deleteIntent";
 import { resolvePendingWhatsappFoodClarification } from "./foodClarificationGate";
 import { claimWhatsAppInteractiveCallback } from "./interactiveCallback";
+import { isExplicitFoodAdditionCommand } from "./mealCommandParser";
 import {
   completeWhatsappRegisteredCallback,
   describeWhatsappRegisteredInteraction,
@@ -206,6 +207,7 @@ export async function resolveWhatsAppPrecedenceGate(input: {
     userTimezone: input.userTimezone ?? DEFAULT_APP_TIME_ZONE,
     messageId: input.messageId,
     skipStalePendingResponse: input.skipStalePendingResponse,
+    skipActivePendingForExplicitFoodAddition: isExplicitFoodAdditionCommand(input.text),
   });
   if (pendingInteraction) {
     if (pendingInteraction.eventType.startsWith("whatsapp.action_")) {

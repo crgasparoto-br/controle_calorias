@@ -1,0 +1,22 @@
+# Escopo
+
+Esta entrega corrige o fluxo de adição de alimentos pelo WhatsApp quando há uma pendência anterior e quando a adição usa uma refeição configurada ou uma data explícita. O mesmo fluxo deve resolver porções contáveis curadas para os casos de mortadela e linguiça de frango assada.
+
+# Requisitos
+
+- O sistema deve reconhecer comandos explícitos completos de adição alimentar e encaminhá-los pelo parser e handler canônicos, mesmo quando existe uma pendência alimentar anterior.
+- O sistema não pode substituir ou consumir a pendência quando o comando estiver incompleto, quando faltar quantidade de um alimento ou quando a mensagem for água sem quantidade.
+- O sistema deve encaminhar adições datadas para a refeição configurada correspondente, incluindo o rótulo configurado `lanche da tarde`, o horário e a data solicitada, preservando atualização de registro existente.
+- O sistema deve reconhecer `1,5 fatias de mortadela` como quantidade decimal contável e materializar a massa canônica sem abrir pendência.
+- O sistema deve reconhecer `1 linguiça de frango assado` e `2 linguiças de frango assadas` por unidade, materializando respectivamente 100 g e 200 g sem abrir pendência.
+- A resolução da linguiça de frango assada deve usar uma referência nutricional curada de uma unidade de 100 g, com 243.66 kcal, 18.19 g de proteína, 0 g de carboidratos e 18.4 g de gordura, e não pode usar o placeholder genérico.
+- A entrega deve preservar a identidade textual do alimento, reutilizar a fonte canônica de resolução de quantidade e possuir testes focados para caminho positivo, casos incompletos, água sem quantidade, pendência anterior, refeição configurada e porções unitárias.
+
+# Critérios de aceite
+
+Os testes focados e a suíte completa devem passar no material exact-SHA; arquitetura, documentação e build devem permanecer válidos; a árvore de trabalho deve permanecer limpa antes do handoff.
+
+# Fora de escopo
+
+- Não alterar o contrato nutricional de alimentos não relacionados.
+- Não publicar alterações diretamente em branches protegidas.

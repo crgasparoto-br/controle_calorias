@@ -1,30 +1,19 @@
 {
   "schema_version": 1,
-  "head_sha": "cfc1ad0e1bcb330ed51a6d6115831f8363787f56",
+  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
   "families": [
     {
       "family": "authorization",
-      "applicable": true,
-      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
-      "control_ids": [
-        "NC-R-1251-002-AUTH"
-      ],
-      "dimensions": [
-        {
-          "surface": "item-image-authorization",
-          "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
-          "control_ids": [
-            "NC-R-1251-002-AUTH"
-          ]
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -32,7 +21,7 @@
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -40,7 +29,7 @@
     {
       "family": "reference-liveness",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -48,17 +37,17 @@
     {
       "family": "temporal-consistency",
       "applicable": true,
-      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
       "control_ids": [
-        "NC-R-1251-043-TEMPORAL-CONSISTENCY"
+        "NC-R-1276-009-03"
       ],
       "dimensions": [
         {
-          "surface": "meal-item-image-behavior",
+          "surface": "exact-head-freshness",
           "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "reason": "A superfície possui controle discriminante exact-head.",
           "control_ids": [
-            "NC-R-1251-043-TEMPORAL-CONSISTENCY"
+            "NC-R-1276-009-03"
           ]
         }
       ],
@@ -67,7 +56,7 @@
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -75,34 +64,23 @@
     {
       "family": "concurrency-atomicity",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "idempotency",
-      "applicable": true,
-      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
-      "control_ids": [
-        "NC-R-1251-037-IDEMP"
-      ],
-      "dimensions": [
-        {
-          "surface": "duplicate-processing",
-          "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
-          "control_ids": [
-            "NC-R-1251-037-IDEMP"
-          ]
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -110,7 +88,7 @@
     {
       "family": "historical-immutability",
       "applicable": false,
-      "reason": "No current source-derived or inherited risk surface requires this family.",
+      "reason": "Nenhum requisito corrente exige esta família de risco.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -118,34 +96,98 @@
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
       "control_ids": [
-        "NC-ESC-CURRENT-TARGET",
-        "NC-ESC-DIRECT-PARENT",
-        "NC-R-1251-007-STRUCTURAL-CONTRACT",
-        "NC-R-1251-022-STRUCTURAL-CONTRACT",
-        "NC-R-1251-022-CANONICAL",
-        "NC-R-1251-045-STRUCTURAL-CONTRACT"
+        "NC-R-1276-001-01",
+        "NC-R-1276-002-01",
+        "NC-R-1276-003-01",
+        "NC-R-1276-004-01",
+        "NC-R-1276-005-01",
+        "NC-R-1276-006-01",
+        "NC-R-1276-007-01",
+        "NC-R-1276-008-01",
+        "NC-R-1276-008-02",
+        "NC-R-1276-009-01"
       ],
       "dimensions": [
         {
           "surface": "canonical-source-consistency",
           "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "reason": "A superfície possui controle discriminante exact-head.",
           "control_ids": [
-            "NC-ESC-CURRENT-TARGET",
-            "NC-ESC-DIRECT-PARENT",
-            "NC-R-1251-022-CANONICAL"
+            "NC-R-1276-008-01"
           ]
         },
         {
-          "surface": "item-media-provenance",
+          "surface": "complete-command-vs-pending",
           "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "reason": "A superfície possui controle discriminante exact-head.",
           "control_ids": [
-            "NC-R-1251-007-STRUCTURAL-CONTRACT",
-            "NC-R-1251-022-STRUCTURAL-CONTRACT",
-            "NC-R-1251-045-STRUCTURAL-CONTRACT"
+            "NC-R-1276-001-01"
+          ]
+        },
+        {
+          "surface": "configured-label-and-date",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-003-01"
+          ]
+        },
+        {
+          "surface": "curated-reference-vs-placeholder",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-006-01"
+          ]
+        },
+        {
+          "surface": "decimal-slice-materialization",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-004-01"
+          ]
+        },
+        {
+          "surface": "focused-regression-matrix",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-007-01"
+          ]
+        },
+        {
+          "surface": "incomplete-command-keeps-pending",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-002-01"
+          ]
+        },
+        {
+          "surface": "relational-semantic-integrity",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-008-02"
+          ]
+        },
+        {
+          "surface": "specified-test-matrix",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-009-01"
+          ]
+        },
+        {
+          "surface": "unit-to-grams-resolution",
+          "status": "passed",
+          "reason": "A superfície possui controle discriminante exact-head.",
+          "control_ids": [
+            "NC-R-1276-005-01"
           ]
         }
       ],
@@ -154,19 +196,17 @@
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "Current source-derived or inherited risk surface has exact-head adversarial coverage.",
+      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
       "control_ids": [
-        "NC-R-1251-054-DOCUMENTATION",
-        "NC-R-1251-055-DOCUMENTATION"
+        "NC-R-1276-009-02"
       ],
       "dimensions": [
         {
-          "surface": "canonical-claims",
+          "surface": "documentation-consistency",
           "status": "passed",
-          "reason": "Exact-head discriminant controls cover this declared attack surface.",
+          "reason": "A superfície possui controle discriminante exact-head.",
           "control_ids": [
-            "NC-R-1251-054-DOCUMENTATION",
-            "NC-R-1251-055-DOCUMENTATION"
+            "NC-R-1276-009-02"
           ]
         }
       ],

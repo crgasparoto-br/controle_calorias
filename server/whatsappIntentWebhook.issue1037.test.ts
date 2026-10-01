@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
   parseMealCommand: vi.fn(),
 }));
 
-vi.mock("./catalogRuntime", () => ({ getCatalogCache: () => [] }));
+vi.mock("./catalogRuntime", () => ({
+  getCatalogCache: () => [],
+  refreshCatalogCache: vi.fn(async () => undefined),
+}));
 vi.mock("./modules/whatsapp/foodAssistant", () => ({
   executeWhatsAppFoodAssistantIntent: () => null,
 }));

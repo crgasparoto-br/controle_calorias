@@ -46,7 +46,7 @@ const receivedAt = new Date("2026-08-23T12:34:56.000Z");
 const clarificationResult = {
   handled: true as const,
   action: "food_clarification_requested" as const,
-  reply: "Para registrar 1 ovo frito sem assumir 100 g, informe somente o peso ou volume correspondente.",
+  reply: "Para registrar 1 fatia de pão francês sem assumir uma gramatura, informe somente o peso ou volume correspondente.",
   eventType: "whatsapp.food_clarification.requested",
   detail: "Refeição textual aguardando quantidade segura antes do registro, sem persistência parcial.",
 };
@@ -62,7 +62,7 @@ describe("issue #997 - preflight contável no executor textual", () => {
   it("interrompe o fallback nutricional para alimento TACO sem porção caseira segura", async () => {
     const text = [
       "1 pão francês",
-      "1 ovo frito",
+      "1 fatia de pão francês",
       "1 fatia presunto",
       "1 fatia mussarela",
       "45g requeijão catupiry light",

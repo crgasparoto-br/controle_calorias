@@ -58,7 +58,7 @@ describe("issue #1037 — consumidor direto de executeWhatsappTextIntent", () =>
   });
 
   it("mantém o preflight contável para chamadas que não passam pelo wrapper textual", async () => {
-    const text = "1 fatia de presunto";
+    const text = "1 fatia de pão francês";
     const receivedAt = new Date("2026-09-02T18:00:00.000Z");
 
     const result = await executeWhatsappTextIntent(42, {

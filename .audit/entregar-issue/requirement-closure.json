@@ -1,1 +1,252 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","head_sha":"af9c6be23aac4035584cbe7bf178da90e3eefbcb","specification_snapshot":{"path":"specification-snapshot.json","sha256":"4a1b195c600151760ff154c6cffe5202a09ab50a9f164c1114ce4fbbbf1e1b3f"},"obligations":[{"id":"O-001","candidate_key":"203bc5af190f83a90ba0c915368bb4b0c7edaec98e88acf7da1900e0406ebe56","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":19,"source_text":"Registrar checkpoints estruturados antes/depois de download, normalização Sharp/libvips, base64/data URL, storage e inferência.","flags":[],"disposition":"covered","requirement_ids":["R-001"]},{"id":"O-002","candidate_key":"12d7f376fe57260ff812b9237a25d8814ba0c1e34568bb05854b9f506427e6df","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":20,"source_text":"Checkpoints incluem identificador correlacionável e memória de processo/container sem conteúdo sensível.","flags":[],"disposition":"covered","requirement_ids":["R-002"]},{"id":"O-003","candidate_key":"c7fd35e6fc976ae6b56890edbfc15fc1b49a8c7a05854337f06c6c35ceaeadd0","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":21,"source_text":"Instrumentar início/fim dos schedulers de manutenção relevantes para correlação temporal.","flags":[],"disposition":"covered","requirement_ids":["R-003"]},{"id":"O-004","candidate_key":"6cdef47cfeb69e45f1eb482ac54fc67debef3118d9da80bc965faee338605991","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":22,"source_text":"Limitar Sharp/libvips em ambiente de memória pequena sem alterar contrato funcional.","flags":[],"disposition":"covered","requirement_ids":["R-004"]},{"id":"O-005","candidate_key":"866d617c2bbc4dc02d171dff1526e83b7cefd97fbe862f7c2701ccbf82fc9d46","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":23,"source_text":"Adicionar testes focados e preservar idempotência do fluxo WhatsApp.","flags":[],"disposition":"covered","requirement_ids":["R-005"]},{"id":"O-006","candidate_key":"790964aa5bd8fffda09775e105f04d5cc439ed1e4a0eac518a5d127f3dea328c","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":24,"source_text":"Não registrar payload bruto, imagem, telefone ou texto da mensagem.","flags":[],"disposition":"covered","requirement_ids":["R-006"]},{"id":"O-007","candidate_key":"24422ad085f5cf6bcc11860ead857bb3e0d16afd4d1ae7508711d6bf5c1ce512","source_id":"SRC-ISSUE","source_sha256":"941afaea19a0db3f2b62ac3dda21e7e74ae4553fcfb8312dbce296084277785c","source_line":25,"source_text":"Documentar interpretação dos logs em incidente de memória.","flags":[],"disposition":"covered","requirement_ids":["R-007"]}],"source_coverage":[{"source_id":"SRC-ISSUE","candidate_count":7,"unmapped_candidate_keys":[]}],"structural_invariant_closures":{"status":"not-applicable","applicability_reason":"A especificação não define caminho canônico estrutural adicional além dos pontos instrumentados."},"read_model_closures":{"status":"not-applicable","applicability_reason":"A especificação não altera histórico, paginação, autoria ou versionamento de read models."},"canonical_source_consistency":{"status":"not-applicable","applicability_reason":"A especificação não introduz fontes canônicas concorrentes que exijam reconciliação."},"documentation_consistency":{"status":"passed","applicability_reason":"O runbook docs/RELIABILITY.md foi atualizado e o Documentation check do exact-head passou."},"scope_reduction_review":{"status":"passed","reviewed":true,"finding_count":0},"pass_c":{"status":"passed","reviewed_all_specification_sources":true,"obligation_ids":["O-001","O-002","O-003","O-004","O-005","O-006","O-007"]}}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "6ac1c7dec65c4d28ebfba86ab4a1efeaa677f8062d263db3ef6a268a0488ab17"
+  },
+  "obligations": [
+    {
+      "candidate_key": "101cec0eab8431b2279bff742e82de9cfd56d2bc4e8c9d6c6f9c8d51a94000a7",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 3,
+      "source_text": "Esta entrega corrige o fluxo de adição de alimentos pelo WhatsApp quando há uma pendência anterior e quando a adição usa uma refeição configurada ou uma data explícita. O mesmo fluxo deve resolver porções contáveis curadas para os casos de mortadela e linguiça de frango assada.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "id": "O-1276-001",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-001"
+      ]
+    },
+    {
+      "candidate_key": "6946debcc121e1eb30b8dca66259e34c432b092c1c6f27ace7cb8685bca2b548",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 7,
+      "source_text": "O sistema deve reconhecer comandos explícitos completos de adição alimentar e encaminhá-los pelo parser e handler canônicos, mesmo quando existe uma pendência alimentar anterior.",
+      "flags": [
+        "semantic-effect"
+      ],
+      "id": "O-1276-002",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-002"
+      ]
+    },
+    {
+      "candidate_key": "44b025465da7a18dbda65798af0d7b2b7265dd3248ef2c9c7d175e164a709905",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 8,
+      "source_text": "O sistema não pode substituir ou consumir a pendência quando o comando estiver incompleto, quando faltar quantidade de um alimento ou quando a mensagem for água sem quantidade.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "O-1276-003",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-003"
+      ]
+    },
+    {
+      "candidate_key": "0db151abb5f3ad89cbda7f075a663dedd93d4d58b5fc0d0bf19c462971c6b174",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 9,
+      "source_text": "O sistema deve encaminhar adições datadas para a refeição configurada correspondente, incluindo o rótulo configurado `lanche da tarde`, o horário e a data solicitada, preservando atualização de registro existente.",
+      "flags": [],
+      "id": "O-1276-004",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-004"
+      ]
+    },
+    {
+      "candidate_key": "5233743b880ca9f214ceb98ce3764674f16fc93a456d92d1ab90deee8491110c",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 10,
+      "source_text": "O sistema deve reconhecer `1,5 fatias de mortadela` como quantidade decimal contável e materializar a massa canônica sem abrir pendência.",
+      "flags": [
+        "negative",
+        "atomicity"
+      ],
+      "id": "O-1276-005",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-005"
+      ]
+    },
+    {
+      "candidate_key": "af5e64e70f2c0aac787c5b517ffed8974e3506dc9b3d2bcf5ed2d87fa6270723",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 11,
+      "source_text": "O sistema deve reconhecer `1 linguiça de frango assado` e `2 linguiças de frango assadas` por unidade, materializando respectivamente 100 g e 200 g sem abrir pendência.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "id": "O-1276-006",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-006"
+      ]
+    },
+    {
+      "candidate_key": "31bcc248c71e08987d311a1b0c1f3f530c6a86cc14c0e1e2ddb39b3a80000624",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 12,
+      "source_text": "A resolução da linguiça de frango assada deve usar uma referência nutricional curada de uma unidade de 100 g, com 243.66 kcal, 18.19 g de proteína, 0 g de carboidratos e 18.4 g de gordura, e não pode usar o placeholder genérico.",
+      "flags": [
+        "negative",
+        "review-surface"
+      ],
+      "id": "O-1276-007",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-007"
+      ]
+    },
+    {
+      "candidate_key": "a9c6214e8d00eaa00e0bc5bc5110e828cf95d4fddc9dba6c1c23835245dd8223",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 13,
+      "source_text": "A entrega deve preservar a identidade textual do alimento, reutilizar a fonte canônica de resolução de quantidade e possuir testes focados para caminho positivo, casos incompletos, água sem quantidade, pendência anterior, refeição configurada e porções unitárias.",
+      "flags": [
+        "negative",
+        "atomicity",
+        "structural",
+        "semantic-effect"
+      ],
+      "id": "O-1276-008",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-008"
+      ]
+    },
+    {
+      "candidate_key": "9b8beeed322329868278eb4dae25fc6f8cf3d491d42252649dbe968664adadd6",
+      "source_id": "SRC-ISSUE-1276",
+      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "source_line": 17,
+      "source_text": "Os testes focados e a suíte completa devem passar no material exact-SHA; arquitetura, documentação e build devem permanecer válidos; a árvore de trabalho deve permanecer limpa antes do handoff.",
+      "flags": [
+        "temporal",
+        "structural"
+      ],
+      "id": "O-1276-009",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1276-009"
+      ]
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1276",
+      "candidate_count": 9,
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "A especificação exige fonte única de resolução, precedência do parser/handler canônico e verificação da forma estrutural dos testes e dos gates.",
+    "entries": [
+      {
+        "id": "SIC-1276-001",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-1276-008"
+        ],
+        "obligation_ids": [
+          "O-1276-008"
+        ],
+        "plausible_wrong_implementation": "Criar um mapa paralelo de porções de linguiça ou reescrever o texto no WhatsApp sem atravessar o resolvedor de quantidade compartilhado.",
+        "canonical_path": "server/foodItemResolution.ts:findCountableCatalogReference",
+        "competing_paths": [
+          "server/modules/whatsapp/mealCommandParser.ts",
+          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
+        ],
+        "evidence_ids": [
+          "server/countableFoodQuantity.issue1097.test.ts"
+        ],
+        "scenario_ids": [
+          "R-1276-008"
+        ],
+        "negative_control_evidence": [
+          "Executar o gate real com linguiça singular/plural, mortadela decimal e comando incompleto; comparar referência canônica, texto materializado e pendências.",
+          "O resultado esperado preserva a identidade textual e usa o mesmo resolvedor de porções no fluxo local e no WhatsApp.",
+          "server/countableFoodQuantity.issue1097.test.ts"
+        ]
+      },
+      {
+        "id": "SIC-1276-002",
+        "kind": "structural",
+        "requirement_ids": [
+          "R-1276-009"
+        ],
+        "obligation_ids": [
+          "O-1276-009"
+        ],
+        "plausible_wrong_implementation": "Atualizar somente a documentação ou aceitar build verde enquanto a regra de adição configurada permanece em um caminho concorrente sem teste exact-SHA.",
+        "canonical_path": "server/whatsappIntentWebhook.ts:handleWhatsappIntentWebhook",
+        "competing_paths": [
+          "server/modules/whatsapp/messageRouter.ts",
+          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
+        ],
+        "evidence_ids": [
+          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
+        ],
+        "scenario_ids": [
+          "R-1276-009"
+        ],
+        "negative_control_evidence": [
+          "Executar arquitetura, documentação, build e suíte completa no SHA material; conferir a árvore limpa e o conjunto de testes do fluxo configurado.",
+          "Os gates estruturais passam e os testes discriminam caminho completo, incompleto, água sem quantidade, pendência e refeição configurada.",
+          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
+        ]
+      }
+    ],
+    "unresolved_invariants": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "A documentação e os contratos existentes permanecem consistentes; docs:check passou no material exact-SHA."
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "reviewed": true,
+    "finding_count": 0
+  },
+  "pass_c": {
+    "status": "passed",
+    "reviewed_all_specification_sources": true,
+    "obligation_ids": [
+      "O-1276-001",
+      "O-1276-002",
+      "O-1276-003",
+      "O-1276-004",
+      "O-1276-005",
+      "O-1276-006",
+      "O-1276-007",
+      "O-1276-008",
+      "O-1276-009"
+    ]
+  },
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "A entrega não altera read models, histórico, paginação, autoria ou versionamento persistido."
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "A entrega reutiliza a fonte canônica existente de resolução de quantidade; a matriz estrutural cobre a ausência de mapa paralelo."
+  }
+}
