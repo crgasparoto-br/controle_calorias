@@ -3,18 +3,19 @@
   "result": "REPROVADA",
   "validity": "Independente",
   "release_allowed": false,
-  "rejection_id": "audit-rejection:eecafcfa-0af6-4e47-beeb-c0495ab8e3db",
-  "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+  "rejection_id": "audit-rejection:pr1263-f001-handoff-not-produced",
+  "audit_report_sha256": "d7d4ce5cf0e56697e7c47ca74edf97545483bbfca6566b072a4982fd964ee1d1",
+  "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
   "identity": {
-    "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
-    "base_sha": "0993e650d2efc3d6e418914977ad127803bc5092",
-    "parent_sha": "590c38721756934fa205fa42ea388727288ad7cc",
+    "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+    "base_sha": "67470706fddfdb6bd730001b99b53761a4b13ef3",
+    "parent_sha": "67470706fddfdb6bd730001b99b53761a4b13ef3",
     "issue_number": 1196,
-    "pull_request_number": 1197
+    "pull_request_number": 1263
   },
   "findings": [
     {
-      "id": "A-001",
+      "id": "F-001",
       "severity": "BLOCKER",
       "category": "delivery-handoff-identity",
       "gate": "handoff-readiness",
@@ -22,16 +23,16 @@
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "reason": "Current head inherited a foreign handoff for issue #1194 / PR #1195."
+      "reason": "The candidate inherited a handoff certificate whose subject belonged to another delivery; current-target certificate production was required."
     }
   ],
   "recommendations": [
     {
-      "id": "R-002",
+      "id": "REC-001",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
-      "reason": "Confirm Agent-first gate terminal success on exact head."
+      "reason": "Produce and validate a fresh current-target handoff result-only child, then re-audit the same material head."
     }
   ],
   "return_control_to": "entregar-issue",

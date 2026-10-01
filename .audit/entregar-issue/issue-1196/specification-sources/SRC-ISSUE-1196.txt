@@ -1,23 +1,95 @@
-## Problema observado
-Em 2026-09-26, o fluxo WhatsApp ainda pediu a gramatura para uma entrada composta como `1 banana nanica, 6 uvas pretas, 1 pera packans`, embora frutas naturais contáveis devam poder usar uma relação verificável do alimento-base para calcular a quantidade. Isso deixa o registro inteiro bloqueado por um único item e não preserva o multiplicador das uvas.
-A regressão foi reproduzida na PR aberta #1187. A causa é que o caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não carregava a referência canônica `uva` exclusivamente para pesquisa de quantidade.
+## Objetivo
+
+Corrigir a clarificação indevida de gramatura em frutas naturais contáveis com qualificador, preservando a identidade informada pelo usuário e usando a referência natural canônica apenas para resolver quantidade/peso quando houver evidência verificável.
+
+## Contexto
+
+Em 2026-09-26, a entrada composta `1 banana nanica, 6 uvas pretas, 1 pera packans` ainda pediu gramatura, embora frutas naturais contáveis possam usar uma relação verificável do alimento-base para calcular quantidade. Isso bloqueia o lote inteiro por um único item e perde o multiplicador das uvas.
+
+A regressão foi reproduzida na PR #1187. O caminho de medida pesquisava apenas a identidade qualificada (`uvas pretas`) e não reutilizava a referência natural canônica (`uva`) exclusivamente para pesquisa de quantidade.
+
+As fontes canônicas já existentes são:
+- `docs/design-docs/whatsapp-countable-measure-passthrough.md`: o resolvedor de medida é o único dono da gramatura e a identidade aceita não deve ser re-inferida;
+- `docs/testing/whatsapp-response-contract-regression.md`: a regressão #1181 define que uma referência `same_food_type` pode preencher somente a quantidade sem reescrever a identidade específica.
 
 ## Escopo
-- preservar a identidade original e seus qualificadores;
-- usar a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`;
-- preservar o multiplicador (`6 unidades` -> gramatura proporcional);
-- não promover a referência-base a marca, cultivar ou identidade exata;
-- manter o fail-closed para alimentos comerciais e medidas ambíguas;
-- registrar os itens válidos e explicar somente os itens inconsistentes quando houver lote misto.
+
+- Preservar a identidade original e seus qualificadores naturais.
+- Permitir que o resolvedor use a referência natural canônica somente para ampliar a pesquisa de gramatura de `same_food_type`.
+- Preservar o multiplicador contável informado pelo usuário.
+- Manter a decisão de gramatura no resolvedor canônico já existente; não criar tabela/mapa paralelo no webhook ou intent.
+- Manter o fail-closed para alimentos comerciais, medidas ambíguas, relação física não verificável e referências semanticamente incompatíveis.
+- Em lote misto, preservar os itens resolvidos e clarificar apenas os itens realmente inconsistentes, sem persistência parcial indevida.
+
+## Fora de escopo
+
+- Alterar a política de identidade comercial.
+- Criar aliases de cultivar/marca para `uvas pretas`, `pera packans` ou casos equivalentes.
+- Introduzir pesos fixos por fruta no WhatsApp.
+- Reprocessar ou re-inferir nutricionalmente um item cuja identidade e medida já tenham sido resolvidas.
+
+## Requisitos funcionais
+
+1. `uvas pretas` e `pera packans` permanecem como identidade apresentada/transportada; `uva` e `pera` podem ser usadas apenas como referência auxiliar de quantidade.
+2. Uma relação `same_food_type` só pode ser aceita quando a referência física for compatível com o alimento-base e com a unidade solicitada.
+3. Para `6 uvas pretas`, uma relação válida de `1 unidade` deve ser multiplicada por 6; o multiplicador original não pode ser descartado.
+4. Referência auxiliar não pode ser promovida a marca, cultivar, variante comercial ou nova identidade nutricional.
+5. Marca explícita, fonte ausente, relação divergente, unidade estruturalmente ambígua ou múltiplas referências conflitantes continuam exigindo clarificação.
+6. O fluxo deve reutilizar o resolvedor real de medida e o pipeline nutricional existente; não deve calcular macros no webhook.
+7. Em entrada composta, um item pendente não deve apagar resultados válidos dos demais nem autorizar gravação parcial antes da resolução do lote.
+
+## Invariantes
+
+- **must_reuse:** `resolveHouseholdMeasure` / fluxo canônico de medida contável e o contrato de passthrough existente.
+- **must_not_behave:** não reescrever `uvas pretas` como `uva` ou `pera packans` como `pera` na identidade do usuário.
+- **must_not_depend_on:** mapa hardcoded de pesos/cultivares, fallback genérico de 100 g ou nova inferência nutricional para reconstruir item já resolvido.
+- **precedência:** identidade específica preservada > referência-base auxiliar de quantidade; massa explicitamente digitada pelo usuário continua mais restritiva que estimativa contável.
+
+Implementação plausível errada: normalizar permanentemente o item para `uva` antes da resolução. Isso pode fazer o caminho feliz passar, mas perde qualificadores e permite associação nutricional indevida. O teste deve verificar que a referência-base é usada somente no boundary da medida.
+
+## Cenários e casos extremos
+
+- `1 banana nanica, 1 pera packans` com relação verificável de unidade de pera.
+- `1 banana nanica, 6 uvas pretas, 1 pera packans` com multiplicação correta das 6 unidades.
+- Referência `same_food_type` incompatível ou sem relação unidade→gramas.
+- Duas referências conflitantes para a mesma unidade.
+- Produto comercial com marca explícita usando termo semelhante a fruta natural.
+- Lote com dois itens resolvidos e um item ainda ambíguo.
+- Massa explícita digitada pelo usuário, que não deve ser substituída pela referência contável.
 
 ## Critérios de aceite
-1. `1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável da unidade de pera.
-2. `1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` para pesquisa com medida `6 unidade` e registra a gramatura multiplicada.
-3. A busca mantém `uvas pretas`/`pera packans` como identidade do usuário e usa `uva`/`pera` apenas como referência de quantidade.
-4. Referências divergentes, fonte ausente, marca conhecida ou unidade estruturalmente ambígua continuam em clarificação; não há fallback silencioso.
-5. Os testes atravessam o entrypoint público `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida.
+
+- [ ] `1 banana nanica, 1 pera packans` resolve sem pedir peso quando existe evidência verificável para `1 unidade de pera`.
+- [ ] `1 banana nanica, 6 uvas pretas, 1 pera packans` encaminha `6 uvas pretas` com medida original preservada e produz gramatura proporcional a 6 unidades.
+- [ ] `uvas pretas`/`pera packans` permanecem como identidade; `uva`/`pera` são usadas apenas como referência de quantidade.
+- [ ] Referência-base não altera marca, cultivar, variante ou proveniência nutricional do item.
+- [ ] Fonte ausente, referência conflitante, marca explícita ou unidade ambígua continuam em clarificação; não há fallback silencioso.
+- [ ] Itens válidos do lote permanecem preservados enquanto somente o item inconsistente é clarificado, sem persistência parcial da refeição.
+- [ ] Testes atravessam `handleWhatsAppWebhookWithTextIntent` e o resolvedor real de medida, sem mockar a decisão central.
+- [ ] Regressões #1037/#1043/#1054/#1072/#1181 continuam verdes.
+
+## Considerações de testes
+
+- Regressão end-to-end do entrypoint textual com o caso composto de produção.
+- Teste discriminante provando que a identidade específica sai inalterada enquanto o lookup de quantidade consulta a referência-base.
+- Teste do multiplicador > 1.
+- Controles negativos para marca explícita, relação incompatível, conflito entre fontes e massa explícita.
+- Teste de lote misto sem persistência parcial.
+
+## Impacto na documentação
+
+A regra durável já está coberta por `docs/design-docs/whatsapp-countable-measure-passthrough.md` e `docs/testing/whatsapp-response-contract-regression.md`. Atualizar essas fontes somente se a implementação mudar o contrato vigente; caso contrário, adicionar apenas a regressão desta issue à matriz de testes apropriada.
+
+## Base de implementação
+
+Partir da branch `develop` de `crgasparoto-br/controle_calorias`.
+
+## Prontidão
+
+**Pronta.** O comportamento, a precedência e os controles discriminantes estão definidos e reutilizam fontes canônicas já existentes.
 
 ## Referências
-- Regressão operacional relatada pelo usuário em 2026-09-26.
+
+- Regressão operacional relatada em 2026-09-26.
 - PR histórica #1187, preservada sem alteração de histórico.
-- Issue encerrada #1181, cujo fluxo foi reaberto por este novo caso.
+- Issue encerrada #1181, cuja fronteira de referência natural foi reaberta por este caso.

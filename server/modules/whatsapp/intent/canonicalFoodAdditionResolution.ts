@@ -1,5 +1,8 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
-import { inferUnresolvedCommercialIdentityHint } from "../../../catalogMatching";
+import {
+  findNaturalProduceQuantityReferenceName,
+  inferUnresolvedCommercialIdentityHint,
+} from "../../../catalogMatching";
 import { resolveStructuredCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
 import {
   isMassOrVolumeUnit,
@@ -226,6 +229,9 @@ export async function resolveCanonicalFoodAdditionItems(
         brand: resolvedBrand,
         variant: commercialFood?.productVariant ?? null,
         portionLabel: commercialFood?.servingLabel ?? null,
+        quantityReferenceFoodName: resolvedBrand
+          ? null
+          : findNaturalProduceQuantityReferenceName(item.foodName),
         quantity: item.quantity,
         unit: normalizedUnit,
         ...(commercialFood ? { commercialFood } : {}),

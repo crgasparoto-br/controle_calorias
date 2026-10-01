@@ -1,43 +1,36 @@
 {
   "schema_version": 2,
   "status": "ready",
-  "created_at": "2026-09-26T13:04:18.007469+00:00",
+  "created_at": "2026-10-01T00:39:22.605357+00:00",
   "identity": {
-    "head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
-    "material_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
-    "base_sha": "0993e650d2efc3d6e418914977ad127803bc5092",
-    "merge_preview_sha": null,
-    "material_merge_preview_sha": null
+    "head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+    "material_head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
+    "base_sha": "67470706fddfdb6bd730001b99b53761a4b13ef3",
+    "merge_preview_sha": "11dcef79d1b0b0dc04884a842208f7143a71abf1",
+    "material_merge_preview_sha": "11dcef79d1b0b0dc04884a842208f7143a71abf1"
   },
   "subject": {
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1196,
-    "pull_request_number": 1197,
+    "pull_request_number": 1263,
     "work_item_kind": "pr",
-    "work_item_number": 1197,
-    "pull_request": 1197,
+    "work_item_number": 1263,
+    "pull_request": 1263,
     "base_ref": "develop",
-    "head_ref": "fix/1196-natural-fruit-quantity"
+    "head_ref": "fix/1196-natural-fruit-quantity-v2"
   },
   "scope": {
     "schema_version": 1,
-    "work_item_start_sha": "0993e650d2efc3d6e418914977ad127803bc5092",
-    "material_head_sha": "d08698af64bead7b8bf09e32c6ce89b9f47885a9",
+    "work_item_start_sha": "67470706fddfdb6bd730001b99b53761a4b13ef3",
+    "material_head_sha": "3693b582625b94cdaf7c67fe6858de2dc4b7dc98",
     "issue_changed_paths": [
-      "docs/design-docs/food-portions-household-measures.md",
-      "docs/design-docs/whatsapp-countable-measure-passthrough.md",
       "docs/testing/whatsapp-response-contract-regression.md",
       "server/catalogMatching.ts",
-      "server/countableFoodQuantity.ts",
-      "server/householdMeasureResolution.issue1181.test.ts",
-      "server/householdMeasureResolution.ts",
-      "server/modules/whatsapp/countableFoodRegistrationGate.issue1037.test.ts",
-      "server/modules/whatsapp/countableFoodRegistrationGate.ts",
-      "server/whatsappIntentWebhook.issue1181.test.ts",
-      "server/whatsappIntentWebhook.ts",
-      "server/whatsappWebhook.issue1094.characterization.test.ts"
+      "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.issue1196.test.ts",
+      "server/modules/whatsapp/intent/canonicalFoodAdditionResolution.ts",
+      "server/whatsappIntentWebhook.test.ts"
     ],
-    "issue_delta_sha256": "702eb0de84f1bffe2d0f0f94e96b3a7cb44eaacfc045c546df6b8c55573d5404"
+    "issue_delta_sha256": "b1084e56a38331e37f7e110077c15c34f9b62afee69c153cf9c0080a4c65e2b2"
   },
   "certificate_commit_policy": {
     "mode": "result-only-child",
@@ -62,7 +55,7 @@
   "remediation_mode": "targeted-remediation",
   "producer": {
     "skill": "entregar-issue",
-    "skill_sha256": "e5c235031c3c8117c765da8132369148cf8accf1a01c9df9806e594ffd3b3e13"
+    "skill_sha256": "0245a5d68097be67322963ee03bdf18b947225c5fb67d0a52c98253e11bbcb74"
   },
   "validators": {
     "validate_specification_coverage.py": "01709833e61dfcf4cbb81b25f75b52c486dc65e9d498df19a35da7062f7a196b",
@@ -86,9 +79,9 @@
   "artifacts": {
     "specification_snapshot": {
       "name": "specification-snapshot.json",
-      "sha256": "e1915b6e2924368bea8acf1ddd3bf656ef88e280dbad17ca322d2c9b2d01eef0",
-      "logical_sha256": "e1915b6e2924368bea8acf1ddd3bf656ef88e280dbad17ca322d2c9b2d01eef0",
-      "logical_size": 581,
+      "sha256": "c9efcb32c7ba7516ea467902ae72c6a982d461f42fa29c5f9fbe3e6e93fc4cc0",
+      "logical_sha256": "c9efcb32c7ba7516ea467902ae72c6a982d461f42fa29c5f9fbe3e6e93fc4cc0",
+      "logical_size": 563,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -96,9 +89,9 @@
     },
     "requirement_closure": {
       "name": "requirement-closure.json",
-      "sha256": "71931671a73a353ceec4d330e0be8aa9f8e54870cbf68bbcd93027f2385ee573",
-      "logical_sha256": "71931671a73a353ceec4d330e0be8aa9f8e54870cbf68bbcd93027f2385ee573",
-      "logical_size": 16003,
+      "sha256": "5d0b08f940c7618aaac78aa689b241d63ee43dcbd55d04d85a4ed4fad61e6f8b",
+      "logical_sha256": "5d0b08f940c7618aaac78aa689b241d63ee43dcbd55d04d85a4ed4fad61e6f8b",
+      "logical_size": 36333,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -106,9 +99,9 @@
     },
     "requirement_attack_matrix": {
       "name": "requirement-attack-matrix.json",
-      "sha256": "a9eb2da122f505da3550ab8b430b349fd8a444ad988fa5ad1edc91ac7b93a547",
-      "logical_sha256": "a9eb2da122f505da3550ab8b430b349fd8a444ad988fa5ad1edc91ac7b93a547",
-      "logical_size": 25228,
+      "sha256": "8adc796a880e0bacc301e98e7983d5d58ba537e3c650657410915bf49f40dd3e",
+      "logical_sha256": "8adc796a880e0bacc301e98e7983d5d58ba537e3c650657410915bf49f40dd3e",
+      "logical_size": 73432,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -116,9 +109,9 @@
     },
     "risk_saturation": {
       "name": "risk-saturation.json",
-      "sha256": "f8244557ca1de870a0a8874018e052ad6e03d2ca964af795ac97b04c2874ee10",
-      "logical_sha256": "f8244557ca1de870a0a8874018e052ad6e03d2ca964af795ac97b04c2874ee10",
-      "logical_size": 5253,
+      "sha256": "583306484af327ca6fa76f6a5951ff8cc7e92fe5c3fdfa99a19e4cd893812c67",
+      "logical_sha256": "583306484af327ca6fa76f6a5951ff8cc7e92fe5c3fdfa99a19e4cd893812c67",
+      "logical_size": 6170,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -126,9 +119,9 @@
     },
     "inherited_controls": {
       "name": "inherited-controls.json",
-      "sha256": "cc6cbb9430f753e7d7406ef7d6e96d138e238fe95574fd7c8aeef01b2f9ca4b2",
-      "logical_sha256": "cc6cbb9430f753e7d7406ef7d6e96d138e238fe95574fd7c8aeef01b2f9ca4b2",
-      "logical_size": 2058,
+      "sha256": "e7ceae415f288e1d5c3937c5abda20fae47ea51eb9155666e702d2a8f7999293",
+      "logical_sha256": "e7ceae415f288e1d5c3937c5abda20fae47ea51eb9155666e702d2a8f7999293",
+      "logical_size": 2198,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -136,9 +129,9 @@
     },
     "evidence_provenance": {
       "name": "evidence-provenance.json",
-      "sha256": "24583ff8e5369fa0281672d48674902edcba26c7f96714642d8489bf40abc7be",
-      "logical_sha256": "24583ff8e5369fa0281672d48674902edcba26c7f96714642d8489bf40abc7be",
-      "logical_size": 712,
+      "sha256": "e58b047e4f66fdc0417f967de15091a71bc8bf1a4f46d22e6fb43732db240729",
+      "logical_sha256": "e58b047e4f66fdc0417f967de15091a71bc8bf1a4f46d22e6fb43732db240729",
+      "logical_size": 807,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -146,9 +139,9 @@
     },
     "audit_escape_closure": {
       "name": "audit-escape-closure.json",
-      "sha256": "a9c17c8b943195f12d786548c9164c474dab21a0ba88e74d29c9530228fd1e63",
-      "logical_sha256": "a9c17c8b943195f12d786548c9164c474dab21a0ba88e74d29c9530228fd1e63",
-      "logical_size": 2569,
+      "sha256": "beb779c0282f5d21db5236523030a8afd79d09a4fe910f2cd09caab75b4690f1",
+      "logical_sha256": "beb779c0282f5d21db5236523030a8afd79d09a4fe910f2cd09caab75b4690f1",
+      "logical_size": 2618,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -156,9 +149,9 @@
     },
     "learning_closure": {
       "name": "learning-closure.json",
-      "sha256": "c7f2b03640016cc4aaf62cc9f1cbdc532fac6de78ace2f4b8f0991c65a38eeec",
-      "logical_sha256": "c7f2b03640016cc4aaf62cc9f1cbdc532fac6de78ace2f4b8f0991c65a38eeec",
-      "logical_size": 595,
+      "sha256": "80d114e5399ac8da58bf859e0a997290c398fbe4266224a912674a89793ceb97",
+      "logical_sha256": "80d114e5399ac8da58bf859e0a997290c398fbe4266224a912674a89793ceb97",
+      "logical_size": 551,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -166,9 +159,9 @@
     },
     "audit_remediation": {
       "name": "audit-remediation.json",
-      "sha256": "0537217c50315a8a54c077f043bf4352a421453b6a3bee095bec8036dbabf6c7",
-      "logical_sha256": "0537217c50315a8a54c077f043bf4352a421453b6a3bee095bec8036dbabf6c7",
-      "logical_size": 2363,
+      "sha256": "3f26d9530352805bea211b5336d14eb8b18b888e615d51d8d41f9f5a0bb3bf79",
+      "logical_sha256": "3f26d9530352805bea211b5336d14eb8b18b888e615d51d8d41f9f5a0bb3bf79",
+      "logical_size": 2619,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
@@ -176,9 +169,9 @@
     },
     "audit_source_result": {
       "name": "audit-source-result.json",
-      "sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
-      "logical_sha256": "9444bf28eab05557fb127a45f614f3231110e6df40b37094c75a5ab55fa32040",
-      "logical_size": 1259,
+      "sha256": "5fb871735f92a2c3f72bd90266999e0c826e3ce3416501490f8af835313c321a",
+      "logical_sha256": "5fb871735f92a2c3f72bd90266999e0c826e3ce3416501490f8af835313c321a",
+      "logical_size": 1475,
       "artifact_transport": {
         "format": "plain-json",
         "version": 1
