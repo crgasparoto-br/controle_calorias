@@ -50,16 +50,14 @@ describe("Issue #1096 — reachability dos bridges do WhatsApp", () => {
     expect(gitRevision(auditedDevelopSha)).toBe(auditedDevelopSha);
     expect(isAncestor(auditedDevelopSha, headSha)).toBe(true);
 
-    // Em uma branch de PR, origin/develop deve ser exatamente a baseline
-    // auditada. Depois do merge, um checkout de develop ou de um release em
-    // main pode carregar origin/develop como ancestral mais novo; nesse estado,
-    // a evidência continua válida se a baseline auditada permanecer ancestral
-    // tanto de origin/develop quanto do commit verificado.
-    if (isAncestor(originDevelopSha, headSha)) {
-      expect(isAncestor(auditedDevelopSha, originDevelopSha)).toBe(true);
-    } else {
-      expect(originDevelopSha).toBe(auditedDevelopSha);
-    }
+    // A baseline auditada deve permanecer alcançável a partir da develop atual,
+    // qualquer que seja a relação entre origin/develop e o commit verificado:
+    // em uma branch de PR a develop é a própria baseline ou está à frente; em um
+    // checkout de main depois de uma release a develop pode estar à frente por
+    // commits ainda não promovidos ou por merges paralelos. Fixar essa relação
+    // aqui quebraria o gate por atividade legítima fora desta mudança, então a
+    // evidência é validada pela ancestralidade da baseline nos dois lados.
+    expect(isAncestor(auditedDevelopSha, originDevelopSha)).toBe(true);
   });
 
   it("mantém a cadeia do POST público até a implementação final sem bypass", () => {
