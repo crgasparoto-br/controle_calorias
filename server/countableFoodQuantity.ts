@@ -30,6 +30,27 @@ import {
 } from "./modules/whatsapp/quantityUnitVocabulary";
 const MASS_VOLUME_UNITS = new Set(["mg", "g", "kg", "ml", "l"]);
 
+function isCanonicalCommercialMassRequest(
+  food: CatalogFood | null | undefined,
+  request: CountableFoodQuantityRequest,
+) {
+  if (
+    !food?.isBrandedProduct
+    || !request.brand
+    || request.count !== 1
+    || normalizeUnit(request.requestedUnit) !== "un"
+  ) return false;
+
+  const parsed = parseFoodText(request.segment);
+  const unit = parsed.unit ? normalizeUnit(parsed.unit) : null;
+  return Boolean(
+    unit
+    && MASS_VOLUME_UNITS.has(unit)
+    && parsed.estimatedGrams !== undefined
+    && Math.abs(parsed.estimatedGrams - food.gramsPerServing) < 0.01,
+  );
+}
+
 // A porção canônica local pertence à fronteira `foodItemResolution`; estes
 // re-exports preservam a API histórica dos consumidores existentes.
 export {
@@ -154,6 +175,7 @@ export function findUnsafeCountableFoodQuantity(
     const request = parseCountableFoodQuantitySegment(segment);
     if (!request) continue;
     const local = findCountableCatalogReference(request.foodName);
+    if (isCanonicalCommercialMassRequest(local, request)) continue;
     if (getSafeCatalogCountableGrams(local, request, false)) continue;
     return request;
   }
@@ -169,6 +191,7 @@ export function hasUnsafeKnownCountableFoodQuantity(
     if (!request) continue;
     const local = findCountableCatalogReference(request.foodName) ?? findTacoFood(request.foodName);
     if (!local) continue;
+    if (isCanonicalCommercialMassRequest(local, request)) continue;
     if (!getSafeCatalogCountableGrams(local, request, false)) return true;
   }
   return false;

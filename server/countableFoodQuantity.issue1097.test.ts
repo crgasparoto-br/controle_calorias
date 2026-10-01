@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  findUnsafeCountableFoodQuantity,
   getSafeCatalogCountableGrams,
+  hasUnsafeKnownCountableFoodQuantity,
   parseCountableFoodQuantitySegment,
   prepareCountableFoodRegistrationResolved,
   resolveSafeCountableCatalogGrams,
@@ -121,6 +123,14 @@ describe("issue #1097 — porções comuns e Panco Premium", () => {
       expect(parseCountableFoodQuantitySegment(input)).toBeNull();
     },
   );
+  it("não reabre massa canônica comercial no gate de contagem", () => {
+    const input = "41,5 g de Kit Kat ao leite Nestlé";
+
+    expect(findUnsafeCountableFoodQuantity(input)).toBeNull();
+    expect(hasUnsafeKnownCountableFoodQuantity(input)).toBe(false);
+    expect(hasUnsafeKnownCountableFoodQuantity("1 unidade de Kit Kat ao leite Nestlé")).toBe(true);
+    expect(hasUnsafeKnownCountableFoodQuantity("100 g de arroz")).toBe(false);
+  });
   it("preserva 1,5 fatias de mortadela dentro de uma mensagem multi-item", async () => {
     const prepared = await prepareCountableFoodRegistrationResolved(
       42,
