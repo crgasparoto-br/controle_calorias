@@ -1,4 +1,4 @@
-import { DEFAULT_APP_TIME_ZONE } from "../../../../shared/timeZone";
+import { DEFAULT_APP_TIME_ZONE, getDateKeyInTimeZone, zonedDateTimeLocalToIso } from "../../../../shared/timeZone";
 import { MealInferenceError } from "../../../nutritionEngine";
 import { createWhatsappCoffeeAdditionClarification } from "../coffeeAdditionClarification";
 import { createWhatsappMealIntentRegistrationDetailsInteraction } from "../mealIntentRegistrationDetailsInteraction";
@@ -8,10 +8,14 @@ import {
 } from "../foodQuantityClarification";
 import { buildWhatsAppClarificationReplyMessage } from "../replyMessages";
 import { composeWhatsAppMealActionReply } from "../mealActionReplyComposer";
-import { listMeals, updateMeal } from "../../meals/service";
+import { createManualMeal, listMeals, updateMeal } from "../../meals/service";
+import { findConfiguredMealSchedule, listMealSchedules } from "../../mealSchedules/service";
 import type { MealItemInput } from "../../meals/schemas";
 import { formatReplyDate, resolveRelativeOccurredAt } from "./dateTime";
-import { resolveWhatsappRelativeMealDateSelection } from "./explicitMealDate";
+import {
+  resolveWhatsappRelativeMealDateSelection,
+  type WhatsappRelativeMealDateSelection,
+} from "./explicitMealDate";
 import {
   resolveCanonicalFoodAdditionItems,
   type CanonicalFoodAdditionItem,
@@ -177,6 +181,110 @@ async function resolveAdditionItems(input: {
   }
 }
 
+/**
+ * Adição datada para um rótulo que corresponde a uma refeição habitual ATIVA do
+ * usuário: cria a refeição no dia pedido, no horário inicial configurado, com os
+ * alimentos resolvidos (#1271).
+ *
+ * A resolução dos alimentos acontece ANTES da mutação: se algum item exigir
+ * esclarecimento de identidade ou quantidade, nada é criado (não existe refeição
+ * vazia e nenhum dia é alterado por engano). Rótulo que não corresponde a uma
+ * refeição configurada continua fail-closed.
+ */
+async function createConfiguredDatedMealAddition(input: {
+  userId: number;
+  addition: FoodAdditionIntent;
+  dateSelection: WhatsappRelativeMealDateSelection;
+  timeZone: string;
+  context?: AdditionExecutionContext;
+}): Promise<WhatsappIntentResult | null> {
+  if (!input.dateSelection.explicit) return null;
+
+  // Continuação vinculada a um alvo específico mantém o gate de "alvo mudou":
+  // se a refeição esperada pela pendência não existe mais, nada é criado.
+  if (
+    input.context?.expectedMealId
+    || input.context?.expectedMealLabel
+    || input.context?.expectedOccurredAt
+  ) {
+    return null;
+  }
+
+  const schedule = findConfiguredMealSchedule(
+    await listMealSchedules(input.userId),
+    input.addition.mealLabel,
+  );
+  if (!schedule) return null;
+
+  const receivedAt = input.context?.receivedAt ?? input.addition.date;
+  const resolution = await resolveCanonicalFoodAdditionItems({
+    userId: input.userId,
+    addition: input.addition,
+    occurredAt: receivedAt,
+    timeZone: input.timeZone,
+    resolvedItems: input.context?.resolvedItems,
+  });
+  if (resolution.kind !== "items") return null;
+
+  let occurredAt: string;
+  try {
+    const targetDateKey = getDateKeyInTimeZone(input.dateSelection.date, input.timeZone);
+    occurredAt = zonedDateTimeLocalToIso(
+      `${targetDateKey}T${schedule.startTime}:00`,
+      input.timeZone,
+    );
+  } catch {
+    // Horário configurado inválido ou inexistente no fuso: mantém o
+    // esclarecimento seguro em vez de derrubar a mensagem do usuário.
+    return null;
+  }
+  const createdMeal = await createManualMeal(input.userId, {
+    mealLabel: schedule.mealLabel,
+    occurredAt,
+    items: resolution.items,
+  });
+  const itemCount = resolution.items.length;
+
+  return {
+    handled: true,
+    action: "meal_item_added",
+    reply: await composeWhatsAppMealActionReply({
+      userId: input.userId,
+      meal: createdMeal,
+      timeZone: input.timeZone,
+      options: {
+        title: itemCount === 1 ? "Alimento adicionado" : "Alimentos adicionados",
+        actionLines: [
+          `Criei a refeição configurada ${schedule.mealLabel} de ${formatReplyDate(new Date(occurredAt), input.timeZone)} e adicionei ${itemCount} item(ns).`,
+        ],
+        mealResultState: "registered",
+      },
+    }),
+    eventType: "whatsapp.intent.meal_item_added",
+    detail: `${itemCount} alimento(s) adicionados a uma nova refeição criada a partir da configuração habitual ${schedule.mealLabel}.`,
+    data: {
+      mealId: createdMeal.id,
+      mealLabel: schedule.mealLabel,
+      occurredAt,
+      itemCount,
+      explicitDate: true,
+      createdFromConfiguredSchedule: true,
+      items: resolution.items.map(item => ({
+        foodName: item.foodName,
+        quantity: item.quantity,
+        unit: item.unit,
+        estimatedGrams: item.estimatedGrams,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        nutritionSource: item.source,
+        quantityResolution: item.quantityResolution,
+      })),
+    },
+  };
+}
+
 export async function handleFoodAdditionIntent(
   userId: number,
   addition: FoodAdditionIntent,
@@ -209,6 +317,16 @@ export async function handleFoodAdditionIntent(
       )
   );
   if (!targetMeal || targetChanged) {
+    if (!targetChanged) {
+      const configuredMealAddition = await createConfiguredDatedMealAddition({
+        userId,
+        addition,
+        dateSelection,
+        timeZone,
+        context,
+      });
+      if (configuredMealAddition) return configuredMealAddition;
+    }
     return {
       handled: true,
       action: "clarification_needed",
