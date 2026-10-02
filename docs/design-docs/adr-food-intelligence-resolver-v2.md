@@ -247,23 +247,245 @@ Cadastrar um novo alimento, alias, porção, marca, variante ou rótulo **não d
 
 Exceções emergenciais podem existir apenas como mitigação temporária explicitamente rastreada e com plano de migração para dados governados.
 
-### 8.2. Migração
+### 8.2. Decisão: remodelar o domínio alimentar agora
 
-A implementação futura deve inventariar e consolidar as fontes existentes, incluindo quando aplicável:
+Como a base de usuários ainda é pequena e a duplicidade estrutural já está visível, a direção escolhida é **refatorar o modelo alimentar antes de consolidar o Food Intelligence V2**, em vez de prolongar a coexistência entre `foods` e `foodCatalog`.
 
-- `foods`;
-- `foodAliases`;
-- `foodPortions`;
+A migração deve preservar dados e histórico, mas pode alterar schema, FKs e ownership quando isso simplificar o domínio.
+
+Princípios:
+
+- não criar um terceiro catálogo;
+- usar a base relacional atual como ponto de partida, mas sem obrigação de preservar o desenho físico atual;
+- retirar de `foods` a responsabilidade de armazenar simultaneamente identidade e valores nutricionais mutáveis;
+- extinguir `foodCatalog` e `portions` como fontes paralelas após a migração;
+- migrar conhecimento WhatsApp genérico/pessoal para estruturas de domínio explícitas quando ele representar alimento, alias, porção, evidência ou revisão;
+- manter snapshots históricos de refeições imutáveis;
+- preferir uma migração estrutural agora a bridges permanentes difíceis de remover depois.
+
+### 8.3. Modelo lógico alvo
+
+O modelo físico exato ainda poderá ser refinado, mas a separação de responsabilidades abaixo passa a ser decisão arquitetural.
+
+#### `foods` — identidade alimentar canônica
+
+Representa a família conceitual do alimento.
+
+Exemplos:
+
+- pão de forma;
+- amendoim;
+- leite;
+- ovo;
+- refrigerante.
+
+Não deve ser fonte de macros diretamente.
+
+Campos conceituais mínimos:
+
+- identidade canônica;
+- nome/normalização;
+- categoria;
+- escopo `global | user`;
+- `ownerUserId` quando privado;
+- estado estrutural `active | deprecated | merged`;
+- relação de merge quando aplicável.
+
+#### `food_variants` — identidade efetivamente resolvível
+
+Representa a forma concreta que o resolver pode escolher.
+
+Exemplos:
+
+- pão de forma genérico integral;
+- Panco Premium 100% Integral;
+- amendoim torrado sem sal;
+- leite Itambé Integral UHT;
+- ovo frito.
+
+Toda resolução final de identidade deve apontar para uma variante. Alimentos genéricos também possuem variante genérica explícita; isso evita regras especiais entre alimento “comum” e produto comercial.
+
+Responsabilidades:
+
+- marca;
+- linha/produto;
+- variante;
+- preparo;
+- qualificadores como `zero`, `light`, `integral`, `sem açúcar`;
+- chave canônica de identidade;
+- estado de publicação;
+- vínculo com `foods`.
+
+#### `food_nutrition_profiles` — nutrição versionada
+
+Os valores nutricionais deixam de morar na identidade.
+
+Cada perfil deve ser versionável e guardar:
+
+- `foodVariantId`;
+- fonte;
+- base nutricional;
+- valores por 100 g/ml;
+- valores por porção quando fornecidos pela fonte;
+- unidade/base original;
+- validade;
+- versão;
+- status `provisional | pending_review | verified | rejected | revoked`;
+- hash/snapshot do conteúdo normalizado;
+- timestamps de coleta/verificação.
+
+Uma correção de nutrição publicada deve criar nova versão ou novo perfil; não reescrever silenciosamente a evidência histórica.
+
+#### `food_aliases` — aliases globais
+
+Alias global aponta para a identidade/variante governada e possui:
+
+- texto original;
+- texto normalizado;
+- origem;
+- confiança/estado;
+- validade;
+- evidência.
+
+Aliases pessoais não devem compartilhar o mesmo escopo lógico.
+
+#### `user_food_aliases` — aprendizado pessoal
+
+Mapeia expressão pessoal para uma variante canônica.
+
+Exemplos:
+
+- `meu pão` -> variante Panco específica;
+- `café` -> café sem açúcar para aquele usuário, quando isso tiver sido explicitamente confirmado.
+
+Deve registrar origem, data, confiança e revogação.
+
+Entrada explícita incompatível no turno atual sempre vence esse aprendizado.
+
+#### `food_portions` — medidas e gramaturas
+
+Porção é conhecimento associado à variante, não ao handler.
+
+Deve representar:
+
+- unidade;
+- quantidade;
+- gramatura/volume;
+- natureza `exact | usual_average | contextual_estimate`;
+- fonte/evidência;
+- validade;
+- status de governança.
+
+#### `food_barcodes` — identidade comercial exata
+
+Código de barras deve ser entidade própria e apontar para `food_variants`.
+
+Isso permite:
+
+- unicidade;
+- histórico/reatribuição controlada;
+- mais de um código para uma mesma variante/embalagem quando necessário;
+- auditoria sem poluir a tabela de identidade.
+
+#### `food_evidence` — evidências normalizadas
+
+Representa evidência usada para criar, corrigir ou verificar conhecimento.
+
+Tipos possíveis:
+
+- rótulo nutricional/OCR;
+- código de barras;
+- site do fabricante;
+- fonte oficial;
+- fonte externa verificável;
+- correção explícita do usuário;
+- imagem/visão quando aplicável.
+
+A evidência deve guardar somente o necessário para auditoria e respeitar as regras de retenção/LGPD. Imagem bruta não deve ser copiada indiscriminadamente para essa tabela.
+
+#### `food_review_cases` e `food_review_events` — governança global
+
+`food_review_cases` agrega ocorrências equivalentes numa única pendência de conhecimento.
+
+Deve permitir target de revisão como:
+
+- nova variante;
+- novo alias global;
+- novo perfil nutricional;
+- nova porção;
+- conflito/correção de conhecimento existente.
+
+`food_review_events` mantém histórico append-only de:
+
+- abertura;
+- aprovação;
+- correção + aprovação;
+- rejeição;
+- revogação;
+- reabertura.
+
+O review case não é o conhecimento em si; ele governa a publicação do conhecimento nas tabelas canônicas.
+
+#### `food_resolution_events` — rastreabilidade do resolvedor
+
+Registra de forma sanitizada e com política de retenção:
+
+- `traceId`;
+- entrypoint/modalidade;
+- candidatos relevantes;
+- decisão;
+- fonte/perfil escolhido;
+- campos não resolvidos;
+- necessidade de clarificação;
+- razão de fallback;
+- versão do resolvedor/política.
+
+Não deve copiar mídia bruta ou texto sensível sem necessidade.
+
+### 8.4. Persistência de refeição
+
+`mealItems` deve apontar, quando aplicável, para:
+
+- `foodVariantId`;
+- `nutritionProfileId`;
+- porção utilizada.
+
+Além das referências, deve manter snapshot imutável da identidade e dos valores efetivamente usados no cálculo.
+
+Correções futuras do catálogo não recalculam refeições históricas automaticamente.
+
+### 8.5. O que será aposentado
+
+A migração deverá retirar da rota canônica, com validação de cobertura antes da remoção:
+
 - `foodCatalog`;
-- catálogos estáticos;
-- TACO/TBCA e outras fontes;
-- porções curadas em código;
-- resultados persistidos de pesquisa;
-- rótulos nutricionais;
-- memória pessoal;
-- aliases aprendidos.
+- `portions` ligado a `foodCatalog`;
+- duplicidade nutricional dentro de `foods`;
+- catálogos estáticos/hardcodes alimentares;
+- aliases alimentares escondidos em estruturas genéricas de preferência;
+- uso de `whatsappLearningArtifacts` como storage permanente de conhecimento alimentar que possua modelo de domínio próprio.
 
-O schema físico final e os nomes definitivos de tabelas permanecem `OPEN`.
+Estruturas genéricas podem permanecer para outros usos do WhatsApp que não sejam conhecimento alimentar.
+
+### 8.6. Estratégia de migração
+
+A preferência é por uma migração controlada e curta, aproveitando o volume atual reduzido.
+
+Ordem alvo:
+
+1. criar estruturas V2;
+2. migrar `foods`, `foodCatalog`, aliases, porções, códigos e evidências;
+3. gerar relatório de reconciliação com contagens e conflitos;
+4. migrar referências de `mealItems` preservando snapshots;
+5. rodar Golden Food Corpus e replay de dados reais sanitizados;
+6. ativar leitura V2;
+7. impedir novas escritas no legado;
+8. observar canário;
+9. remover bridges e tabelas legadas somente após comprovação;
+10. manter rollback por backup/migration reversível até o corte ser aceito.
+
+Não manter dual-write indefinido.
+
 
 ## 9. Geração e ranking de candidatos
 
@@ -380,18 +602,36 @@ Papéis exatos, permissões administrativas e interface permanecem `OPEN`.
 
 ## 12. Estados de governança
 
-A modelagem física permanece `OPEN`, mas o sistema deve distinguir conceitualmente pelo menos:
+A governança deve separar **publicação global** de **confirmação pessoal**.
+
+### 12.1. Estado do conhecimento global
+
+Variantes, perfis nutricionais, aliases e porções governadas devem poder distinguir:
 
 ```text
 provisional
-confirmed_personal
-pending_global_review
-verified_global
+pending_review
+verified
 rejected
 revoked
 ```
 
-Esses estados não significam necessariamente uma única coluna ou uma única máquina de estados; significam que o domínio precisa representar essas diferenças sem ambiguidade.
+O estado pertence ao artefato de conhecimento correspondente e pode ser refletido/derivado pelo review case, conforme o desenho físico final.
+
+### 12.2. Confirmação pessoal não é estado global
+
+`confirmed_personal` deixa de ser tratado como estado da mesma máquina global.
+
+Confirmação pessoal pertence a estruturas como `user_food_aliases`, preferências ou memórias pessoais, sempre com:
+
+- `userId`;
+- alvo canônico;
+- origem da confirmação;
+- data;
+- validade quando aplicável;
+- revogação.
+
+Isso impede que uma única correção pessoal seja promovida implicitamente para todos os usuários.
 
 ### 12.1. Provisório não significa inutilizável
 
@@ -651,6 +891,9 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - existir um único resolvedor alimentar de domínio;
 - canais multimodais produzem evidência e não resoluções concorrentes;
 - banco de conhecimento é único e governado;
+- o domínio alimentar será remodelado agora, antes da consolidação do V2, eliminando a coexistência permanente `foods`/ `foodCatalog`;
+- identidade, variante e perfil nutricional são conceitos separados;
+- refeições preservam snapshot histórico e referências à variante/perfil usados;
 - conhecimento alimentar novo deve ser dado, não hardcode;
 - memória pessoal é separada de conhecimento global;
 - aprovação tem três níveis: automática, confirmação pessoal e revisão administrativa global;
@@ -667,8 +910,8 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
 
 1. nomes e schema finais de `FoodObservation` e `FoodResolutionDecision`;
-2. modelo físico final do banco;
-3. estratégia de versionamento de `nutrition_profiles`;
+2. nomes físicos finais/índices/check constraints das tabelas V2;
+3. detalhes de versionamento e vigência de `food_nutrition_profiles`;
 4. thresholds de confiança;
 5. regras automáticas de promoção global;
 6. papéis/permissões dos revisores;
