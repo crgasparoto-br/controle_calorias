@@ -531,6 +531,60 @@ Léxico e alias alimentar têm responsabilidades distintas: o alias aponta para 
 
 Equivalente pessoal do léxico, sempre com `user_id`, origem da confirmação, confiança, validade e revogação. É isolado por usuário e nunca eleva a confiança do conhecimento global.
 
+#### `food_attributes` — vocabulário de atributos
+
+Vocabulário controlado dos **tipos** de atributo que podem qualificar uma variante ou uma observação. Não guarda valores e não decide materialidade.
+
+Tipos iniciais previstos: `preparation`, `fat_level`, `sweetening`, `cultivar`, `line`, `flavor`, `processing`, `packaging`, `portion_form`, `fortification`.
+
+Campos conceituais mínimos: `code` estável, rótulo, natureza do valor (`enumerated | free_text`) e estado. Cadastrar um novo tipo de atributo é dado, não código (§8.1).
+
+#### `food_variant_attributes` — valores de atributo por variante
+
+Resolve a lacuna de `qualifiers_json`: qualificador relevante para busca, ranking ou identidade precisa ser **indexado**, não apenas guardado em JSON (§8.10).
+
+Campos conceituais mínimos: `food_variant_id`, `attribute_id`, `value`, `normalized_value`, origem/evidência opcionais, confiança e estado. `qualifiers_json` permanece restrito a cauda longa e a qualificadores não indexados.
+
+#### `food_attribute_materiality` — materialidade por família
+
+Responde a pergunta que hoje é resolvida por lista lexical em código: **para esta família, este atributo muda a resposta?**
+
+```text
+materiality = identity | nutrition | both | informational
+```
+
+A materialidade **não é opinião curada; é derivada**:
+
+- **identidade é derivada por construção** — se a ontologia possui variantes da mesma família que diferem por um atributo, esse atributo é material para identidade naquela família, por definição; se nenhum par de variantes difere apenas por ele, é informacional;
+- **nutrição é medida** — comparar os perfis por 100 g das variantes da família que diferem apenas por esse atributo; delta acima da tolerância implica materialidade nutricional, dentro da tolerância implica informacional.
+
+A derivação é reproduzível, versionada e auditável. A tolerância numérica permanece `OPEN` para calibração por corpus (§25).
+
+Campos mínimos: `food_id`, `attribute_id`, `materiality`, `derivation` (`from_variants | from_profile_divergence | override`), referência de evidência opcional, `confidence`, `status = provisional | pending_review | verified | rejected | revoked`, `supersedes_id` opcional e timestamps.
+
+#### `food_attribute_materiality_overrides` — curadoria explícita
+
+Único lugar onde existe julgamento humano sobre materialidade, e ele fica auditável: `food_id`, `attribute_id`, `materiality`, `justification`, `evidence_id` opcional, autor, estado e timestamps.
+
+#### Regra de composição da `identity_key`
+
+A `identity_key` da variante é composta **apenas** por atributos com `materiality = identity | both` na família correspondente, mais a identidade da família e a marca/linha quando elas forem materiais naquela família.
+
+Consequências:
+
+- uma superfície nova não cria variante por acidente: ela mapeia para variante existente ou vira candidato/review case;
+- a chave deixa de ser um palpite lexical e passa a ser consequência da política governada;
+- a explosão de variantes por sinônimo, embalagem ou descritor irrelevante é estruturalmente impedida.
+
+#### Assimetria do estado provisório
+
+Materialidade `provisional` pode declarar um atributo como **material**, nunca como **imaterial**.
+
+- declarar material sem revisão, no pior caso, produz uma pergunta a mais;
+- declarar imaterial sem revisão, no pior caso, produz macro errado ao usar perfil do valor default como se fosse o valor observado (`#1088`, `#1158`).
+
+Enquanto não houver estado `verified` para a conclusão de imaterialidade, o atributo é tratado como potencialmente material (fail-closed).
+
 #### `food_portions` — medidas e gramaturas
 
 Porção é conhecimento associado à variante, não ao handler.
@@ -649,6 +703,8 @@ A migração deve manter um inventário reproduzível, atualizado por busca repo
 - `CURATED_COMMON_COUNTABLE_PORTIONS` e equivalentes de porções específicas em código;
 - constantes/regra específica de café, açúcar, ovo ou qualquer alimento individual usada como autoridade produtiva;
 - token sets/listas léxicas como `BROAD_COMMERCIAL_CATEGORY_TOKENS`, `NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS` e equivalentes que decidam identidade/suficiência;
+
+- listas de materialidade em código: a decisão "este descritor altera a resposta?" passa a ser derivada em `food_attribute_materiality` (§8.3), com evidência e vigência, e não uma lista de palavras;
 - matchers concorrentes que respondam à mesma pergunta de identidade sem atravessar o resolver público;
 - gates de clarificação/registro por canal que reimplementem `identity`, `variant`, `quantity` ou `nutrition`;
 - stores ou caches que tenham se tornado fonte concorrente de conhecimento em vez de cache de dado governado.
@@ -673,7 +729,6 @@ Ordem alvo:
 10. manter rollback por backup/migration reversível até o corte ser aceito.
 
 Não manter dual-write indefinido.
-
 
 
 ### 8.7. Modelo físico V2 fechado nesta revisão
@@ -989,6 +1044,62 @@ Campos mínimos de `user_food_lexicon_entries`:
 
 Invariantes: no máximo um mapeamento corrente por `scope + user_id + locale + normalized_term + kind`; busca principal por `normalized_term + status`; nenhum termo de léxico pode alterar ou suprimir qualificador nutricional (§4.1.4, regra 2).
 
+#### `food_attributes` e `food_variant_attributes`
+
+Campos mínimos de `food_attributes`:
+
+- `id`;
+- `code` estável e único;
+- `label`;
+- `value_kind = enumerated | free_text`;
+- `is_indexed`;
+- `status = active | deprecated | merged`;
+- timestamps.
+
+Campos mínimos de `food_variant_attributes`:
+
+- `id`;
+- `food_variant_id`;
+- `attribute_id`;
+- `value` e `normalized_value`;
+- `source_id` e `evidence_id` opcionais;
+- `confidence`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `supersedes_id` opcional;
+- timestamps.
+
+Índice principal: `food_variant_id + attribute_id + normalized_value + status`. Unicidade do valor corrente por variante e atributo.
+
+#### `food_attribute_materiality` e `food_attribute_materiality_overrides`
+
+Campos mínimos de `food_attribute_materiality`:
+
+- `id`;
+- `food_id`;
+- `attribute_id`;
+- `materiality = identity | nutrition | both | informational`;
+- `derivation = from_variants | from_profile_divergence | override`;
+- referência de evidência opcional;
+- `confidence`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `supersedes_id` opcional;
+- `valid_from` e `valid_to` opcionais;
+- timestamps.
+
+Campos mínimos de `food_attribute_materiality_overrides`:
+
+- `id`;
+- `food_id`;
+- `attribute_id`;
+- `materiality`;
+- `justification`;
+- `evidence_id` opcional;
+- `author`;
+- `status = active | revoked`;
+- timestamps.
+
+Invariantes: unicidade corrente por `food_id + attribute_id`; toda variação material precisa de vigência e auditoria; a materialidade efetiva é o override ativo quando existir, senão a derivação; conclusão de imaterialidade só é vinculante com `status = verified`.
+
 ### 8.8. Consolidação de favoritos e sinais
 
 A tabela `foodFavorites` ligada a `foodCatalog` será aposentada.
@@ -1029,6 +1140,10 @@ O schema V2 deve, no mínimo, sustentar:
 
 - busca de `foods` por escopo, owner, nome normalizado e status;
 - `food_variants.identity_key` única;
+
+- valores de atributo indexados por `food_variant_id + attribute_id + normalized_value + status`, com valor corrente único por variante e atributo;
+- materialidade corrente única por `food_id + attribute_id`, consultável por família e atributo para decidir suficiência;
+- `identity_key` composta apenas por atributos com materialidade `identity | both` na família (§8.3);
 - busca de variante por `food_id + status` e `brand_id + normalized_name + status`;
 - `food_variant_sources.source_identity_key` única e, quando houver código, unicidade de fonte + código;
 - `food_nutrition_profiles(profile_key, version)` único e índice por variante + status + vigência;
@@ -1095,6 +1210,14 @@ Mapeamento obrigatório:
    - remover `clarificationQuestion` do normalizador: perguntar é decisão da política de incerteza (§10);
    - preservar a cobertura de `informalLanguageNormalizer.test.ts` e `inboundNormalizer.test.ts` como casos do Golden Food Corpus quando representarem comportamento válido;
    - impedir nova escrita linguística dentro de módulo de canal depois do cutover.
+
+8. materialidade de atributos (`server/foodItemResolution.ts`)
+   - importar o vocabulário de tipos de atributo para `food_attributes`;
+   - semear `food_attribute_materiality` pela derivação de §8.3 e comparar o resultado com `BROAD_COMMERCIAL_CATEGORY_TOKENS` e `NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS`; cada divergência é um caso de revisão, e o diff inicial é a lista priorizada das falhas hoje corrigidas uma a uma;
+   - tratar `NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS` como materialidade `informational` por família, não global;
+   - tratar `BROAD_COMMERCIAL_CATEGORY_TOKENS` como consequência da existência de variantes comerciais cujo `brand`/`line` é material naquela família;
+   - registrar toda conclusão derivada como `provisional` e respeitar a assimetria de §8.3: provisório pode declarar material, nunca imaterial;
+   - remover as listas de produção depois do cutover, sem owner concorrente equivalente;
 
 ### 8.12. Gate de corte do banco
 
@@ -1166,7 +1289,24 @@ Consequências:
 - candidatos e alternativas devem vir do conhecimento/evidência disponível, não ser inventados por token sets;
 - handlers de canal não podem possuir uma segunda política de suficiência.
 
-Detalhes físicos para representar eixos/atributos discriminantes podem evoluir sem reabrir a decisão arquitetural de que suficiência é uma política sobre dados governados.
+### 9.1.1. Suficiência operacionalizada pela materialidade governada
+
+A pergunta "tenho informação suficiente para resolver?" passa a ter resposta executável, obtida do conhecimento governado (§8.3) e nunca de lista lexical em código:
+
+1. localizar a família candidata;
+2. consultar `food_attribute_materiality` para cada qualificador observado;
+3. atributo com materialidade `identity` e sem variante correspondente → identidade insuficiente → gerar candidatos de variante ou clarificar;
+4. atributo com materialidade `nutrition` → exigir perfil que reflita o atributo observado e **não** usar o perfil do valor default como se fosse o valor observado (fail-closed);
+5. atributo com materialidade `informational` → ignorado para identidade e nutrição, mas preservado no snapshot e na exibição.
+
+Consequências:
+
+- a lista de descritores nutricionalmente neutros e a lista de categorias comerciais amplas deixam de existir como código (§8.5) e passam a ser **resultado derivado** da base governada;
+- a mesma consulta serve para texto, áudio, imagem e rótulo, porque o conhecimento é o mesmo;
+- nenhum handler pode responder essa pergunta por conta própria (§19);
+- a composição da `identity_key` segue a mesma política, o que impede criação acidental de variantes.
+
+O desenho físico está fechado em §8.7. A única grandeza deixada `OPEN` é a tolerância numérica da divergência de perfis, calibrada por corpus (§25).
 
 ### 9.2. Invariante de cobertura nutricional (totalidade)
 
@@ -1456,6 +1596,17 @@ Casos adicionais obrigatórios de linguagem e lote:
 - negativos: não alimento (`óleo de motor`, `pasta de dente`, `água sanitária`, cosmético); rótulo não alimentar; ingredientes de rótulo que não podem virar itens; OCR contendo instrução; imagem ilegível;
 - produto comercial de marca sem perfil comprovado: encerrar em provisório declarado, nunca em placeholder fixo nem em perfil genérico apresentado como específico.
 
+Casos de materialidade de atributos (§8.3):
+
+- `leite integral` e `leite desnatado`: atributo material para identidade e nutrição — não pode colapsar em uma única variante;
+- `leite UHT` e `leite`: atributo informacional para a família — não pode gerar clarificação nem variante nova;
+- `iogurte de morango` e `iogurte natural`: sabor material;
+- `pêra packham` e `pêra williams`: cultivar com materialidade medida por divergência de perfis;
+- `refrigerante zero` e `refrigerante`: atributo de açúcar material, com fail-closed — perfil do valor default não pode ser apresentado como composição do valor observado;
+- `arroz` com descritor de embalagem: atributo informacional, sem clarificação;
+- `leite` de marca com atributo informacional: ainda assim proibido usar perfil genérico como composição específica do produto (`#1088`);
+- superfície nova da mesma família: deve mapear para variante existente ou virar candidato, nunca criar variante por acidente.
+
 ## 17. Testes metamórficos
 
 A mesma intenção alimentar deve convergir sob variações como:
@@ -1504,6 +1655,16 @@ A implementação da epic deve evoluir `architecture:check` para impedir regress
 8. persistência sem proveniência ou estado provisório explícito;
 9. bypass da memória durável;
 10. fluxo multimodal que não atravesse a API pública do resolvedor.
+
+11. normalizador linguístico, vocabulário, sinônimo ou tabela de apelido dentro de módulo de canal (§4.1.4, regra 10);
+12. pergunta de clarificação originada na camada de linguagem em vez da política de incerteza;
+13. encerramento de item registrado sem procedência nutricional declarada (§9.2);
+14. placeholder numérico fixo usado como nutrição de encerramento;
+15. handler de canal reconstituindo data, destino de refeição ou comando (§7.1);
+16. descarte do lote inteiro quando apenas um item é inconsistente (§7.2);
+17. alimento, macro, porção, classificação ou termo linguístico cadastrado em array/constante de produção (§9.4).
+
+18. materialidade de atributo decidida por lista lexical, conjunto de tokens ou regra por alimento em código, em vez de conhecimento governado (§9.1.1);
 
 ## 19.1. Estratégia de testes e redução da suíte
 
@@ -1623,6 +1784,15 @@ Regras obrigatórias:
 
 Os valores exatos de SLO, timeout, quantidade máxima de chamadas e orçamento econômico permanecem `OPEN` até medição do shadow mode e corpus.
 
+O ciclo padrão de resolução é **cache-through**: consultar primeiro o conhecimento governado e a evidência exata; recorrer à IA ou à pesquisa externa somente no miss; persistir o resultado como conhecimento provisório com evidência; e não repetir a mesma consulta dentro da mesma resolução nem nas seguintes enquanto ela for válida.
+
+Consequências:
+
+- a segunda ocorrência do mesmo alimento não deve custar o mesmo que a primeira;
+- resultado de IA persistido entra como provisório e candidato a revisão, nunca como verificado;
+- cache nunca transforma evidência provisória em verificada e nunca sobrevive a mudança de versão, validade ou escopo que o invalidem;
+- a camada de linguagem segue a mesma disciplina: S1/S2 antes de S3 (§4.1.3).
+
 ## 19.4. Hierarquia, validade e ciclo de vida das fontes
 
 O V2 deve distinguir **força de identidade**, **força nutricional**, **atualidade** e **escopo** da evidência. Não existe uma ordem única e cega que sirva para todos os campos.
@@ -1698,6 +1868,18 @@ Métricas mínimas, sempre sanitizadas:
 Telemetria não deve conter texto cru, transcrição, imagem, rótulo integral, prompt, resposta de provider, telefone, URL assinada ou dado pessoal desnecessário. Correlação deve usar IDs internos, hashes sanitizados ou agregados conforme `PRIVACY_LGPD.md` e `SECURITY.md`.
 
 Os SLOs e limites que bloqueiam rollout permanecem `OPEN`; devem ser definidos com baseline do fluxo atual e dados do shadow mode.
+
+Métricas adicionais obrigatórias:
+
+- percentual de observações encerradas em S1, S2 e S3 da camada de linguagem;
+- taxa de encerramento por degrau da escada de §9.2, incluindo o degrau de falha explícita;
+- taxa de item registrado sem procedência nutricional declarada (deve ser zero);
+- taxa de uso de placeholder numérico fixo (deve ser zero);
+- taxa de alimento novo resolvido **sem alteração de código**;
+- taxa de exclusão individual em lotes e distribuição de `unresolvedReason`;
+- incidência de correção silenciosa indevida (deve ser zero);
+- top N de superfícies não cobertas pelo léxico, alimentando curadoria por dado;
+- reincidência por classe da matriz de §9.3.
 
 ## 19.8. Privacidade, retenção e minimização de evidências
 
@@ -1880,6 +2062,20 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - suficiência de identidade/nutrição é política do resolvedor sobre dados/evidências governados, não regra lexical por canal;
 - a remoção do legado será guiada por inventário repository-wide de owners concorrentes, não apenas por uma lista fixa de arquivos.
 
+- existe uma única camada de compreensão linguística, com léxico governado como dado e papel semântico explícito, sem owner concorrente por canal;
+- a linguagem é normalizada para **observação estruturada**, nunca por round-trip texto -> estrutura -> nova inferência;
+- o resolvedor é uma função total: todo item registrado possui procedência nutricional declarada, e ausência silenciosa de macros é proibida;
+- nenhum alimento, macro, porção, classificação ou termo linguístico exige cadastro em código para ser resolvido;
+- operação da refeição (data, destino, comando) possui owner único, com a mesma disciplina da identidade alimentar;
+- em lote, itens válidos são registrados e apenas os inconsistentes são excluídos, com explicação estruturada;
+- o ciclo de resolução é cache-through, e conhecimento obtido por IA ou pesquisa externa só é persistido como provisório com evidência;
+- o histórico do domínio alimentar é tratado como matriz de não-recorrência (§9.3), e cada classe de falha possui garantia e gate.
+
+- a materialidade de um atributo alimentar é conhecimento governado e derivado por família, nunca lista lexical, token set ou regra por alimento em código;
+- a materialidade é derivada por construção para identidade e medida por divergência de perfis para nutrição, com override humano auditável como única exceção;
+- a `identity_key` da variante é composta apenas por atributos com materialidade `identity | both` na família, impedindo criação acidental de variantes;
+- materialidade provisória pode declarar um atributo como material, nunca como imaterial, enquanto a imaterialidade não for verificada.
+
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
@@ -1898,6 +2094,17 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 12. compatibilidade/migração de `semanticContract`;
 13. momento exato de remoção dos owners/bridges atuais.
 
+14. locale inicial da camada de linguagem e política de fallback entre locales;
+15. política de revisão do léxico global e limiar para promoção automática;
+16. tratamento de superfície totalmente desconhecida: observação marcada para curadoria ou descarte;
+17. limiares de S1/S2 para escalar a S3 e meta de redução de custo de IA;
+18. se comandos de operação fazem parte da camada de linguagem ou apenas do parser de operação (§7.1);
+19. regra numérica da escada de §9.2 por categoria, especialmente quando a estimativa provisória é permitida;
+20. inventário de consumidores downstream de `foodCatalog`, `portions`, favoritos duplicados e macros de identidade antes do cutover;
+21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
+
+22. tolerância numérica de divergência de perfis por 100 g para derivar materialidade nutricional de um atributo, e tratamento de famílias com poucas variantes para derivar materialidade de identidade.
+
 ## 26. Regra de evolução deste ADR
 
 Durante a discussão:
@@ -1913,47 +2120,3 @@ Durante a discussão:
 **Ainda não implementado como arquitetura completa.**
 
 Este ADR começa como contrato de direção. A futura Epic Food Intelligence Resolver V2 e suas subissues deverão referenciar este documento como fonte arquitetural, sem substituir os design docs que descrevem o comportamento produtivo atual até cada migração ser efetivamente concluída.
-11. normalizador linguístico, vocabulário, sinônimo ou tabela de apelido dentro de módulo de canal (§4.1.4, regra 10);
-12. pergunta de clarificação originada na camada de linguagem em vez da política de incerteza;
-13. encerramento de item registrado sem procedência nutricional declarada (§9.2);
-14. placeholder numérico fixo usado como nutrição de encerramento;
-15. handler de canal reconstituindo data, destino de refeição ou comando (§7.1);
-16. descarte do lote inteiro quando apenas um item é inconsistente (§7.2);
-17. alimento, macro, porção, classificação ou termo linguístico cadastrado em array/constante de produção (§9.4).
-
-O ciclo padrão de resolução é **cache-through**: consultar primeiro o conhecimento governado e a evidência exata; recorrer à IA ou à pesquisa externa somente no miss; persistir o resultado como conhecimento provisório com evidência; e não repetir a mesma consulta dentro da mesma resolução nem nas seguintes enquanto ela for válida.
-
-Consequências:
-
-- a segunda ocorrência do mesmo alimento não deve custar o mesmo que a primeira;
-- resultado de IA persistido entra como provisório e candidato a revisão, nunca como verificado;
-- cache nunca transforma evidência provisória em verificada e nunca sobrevive a mudança de versão, validade ou escopo que o invalidem;
-- a camada de linguagem segue a mesma disciplina: S1/S2 antes de S3 (§4.1.3).
-
-Métricas adicionais obrigatórias:
-
-- percentual de observações encerradas em S1, S2 e S3 da camada de linguagem;
-- taxa de encerramento por degrau da escada de §9.2, incluindo o degrau de falha explícita;
-- taxa de item registrado sem procedência nutricional declarada (deve ser zero);
-- taxa de uso de placeholder numérico fixo (deve ser zero);
-- taxa de alimento novo resolvido **sem alteração de código**;
-- taxa de exclusão individual em lotes e distribuição de `unresolvedReason`;
-- incidência de correção silenciosa indevida (deve ser zero);
-- top N de superfícies não cobertas pelo léxico, alimentando curadoria por dado;
-- reincidência por classe da matriz de §9.3.
-- existe uma única camada de compreensão linguística, com léxico governado como dado e papel semântico explícito, sem owner concorrente por canal;
-- a linguagem é normalizada para **observação estruturada**, nunca por round-trip texto -> estrutura -> nova inferência;
-- o resolvedor é uma função total: todo item registrado possui procedência nutricional declarada, e ausência silenciosa de macros é proibida;
-- nenhum alimento, macro, porção, classificação ou termo linguístico exige cadastro em código para ser resolvido;
-- operação da refeição (data, destino, comando) possui owner único, com a mesma disciplina da identidade alimentar;
-- em lote, itens válidos são registrados e apenas os inconsistentes são excluídos, com explicação estruturada;
-- o ciclo de resolução é cache-through, e conhecimento obtido por IA ou pesquisa externa só é persistido como provisório com evidência;
-- o histórico do domínio alimentar é tratado como matriz de não-recorrência (§9.3), e cada classe de falha possui garantia e gate.
-14. locale inicial da camada de linguagem e política de fallback entre locales;
-15. política de revisão do léxico global e limiar para promoção automática;
-16. tratamento de superfície totalmente desconhecida: observação marcada para curadoria ou descarte;
-17. limiares de S1/S2 para escalar a S3 e meta de redução de custo de IA;
-18. se comandos de operação fazem parte da camada de linguagem ou apenas do parser de operação (§7.1);
-19. regra numérica da escada de §9.2 por categoria, especialmente quando a estimativa provisória é permitida;
-20. inventário de consumidores downstream de `foodCatalog`, `portions`, favoritos duplicados e macros de identidade antes do cutover;
-21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
