@@ -309,6 +309,8 @@ Consequências obrigatórias:
 - uma correção explícita do usuário não pode ser anulada por memória antiga;
 - itens resolvidos em uma entrada multi-item não podem ser descartados porque outro item permanece ambíguo.
 
+- nenhum leitor pode recomputar macro ou remapear identidade de item histórico, e nenhuma correção de catálogo, nutrição ou classificação pode alterar relatório registrado sem operação explícita e auditada (§8.14).
+
 ## 7. Separação entre operação da refeição e alimento
 
 O sistema deve separar:
@@ -1134,6 +1136,8 @@ Itens `recipe` e `free_text` mantêm seus contratos próprios; a migração não
 
 Correções futuras de catálogo, nutrição ou classificação não recalculam automaticamente snapshots históricos.
 
+A referência histórica é imutável: variante é aposentada por status, nunca deletada, e `set null` em cascata não pode esvaziar referência de item histórico. O identificador exibido e o agrupamento seguem o contrato de leitura de §8.14.
+
 ### 8.10. Índices e invariantes mínimos
 
 O schema V2 deve, no mínimo, sustentar:
@@ -1312,6 +1316,106 @@ O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
 - gate de aceite da base inicial (§8.12) aprovado no nível B;
 
 Depois do aceite do cutover, remover bridges e tabelas legadas numa migration separada. Não manter dual-write como estado final.
+
+### 8.14. Contrato de leitura e inventário de consumidores
+
+O desenho acima define com rigor o caminho de **escrita** — observação, resolução, decisão e snapshot. Ele quase não define o caminho de **leitura**, e é por ali que o legado sobrevive.
+
+Levantamento no repositório, excluindo testes: **32 arquivos** citam `foodCatalog`, com **45 ocorrências** de `foodCatalogId` em 16 deles. Mais grave que o número é a forma do uso:
+
+- `mealItems` mantém **quatro referências simultâneas** (`foodId`, `foodCatalogId`, `recipeId`, `portionId`), todas `onDelete: set null`;
+- existem **duas famílias de porção** — `foodPortions` aponta para `foods` e `portions` aponta para `foodCatalog`, com a mesma tabela `foodCatalog` servindo de identidade paralela;
+- `mealFavorites` aparece importado junto ao catálogo, caracterizando os favoritos duplicados;
+- `server/repositories/mealsRepository.ts` **resolve e remapeia `foodCatalogId` no tempo de leitura** (`resolvedCatalogIds`, `resolveMealItemFoodCatalogId`);
+- `shared/reportsGoalAnalytics.ts` carrega `foodCatalogId` por item e agrega categorias por ele.
+
+#### 8.14.1. Diagnóstico: o ciclo também volta pela leitura
+
+Um leitor que recompõe identidade ou macro por fora da decisão governada é um **resolvedor silencioso**. Ele não aparece na auditoria da resolução, não aparece na fila de revisão e não respeita a monotonicidade de §6.
+
+O modo de falha concreto é a **reclassificação retroativa silenciosa**: se um leitor agrupa ou exibe pelo `foodCatalogId` atual, corrigir um alimento hoje altera o relatório de meses atrás. Para o usuário, isso é indistinguível de o sistema estar errado de novo — o mesmo mecanismo que produz a sensação de ciclo sem fim.
+
+Nenhuma camada de compreensão linguística, nenhum léxico governado e nenhuma materialidade derivada corrigem isso, porque o dano não está na resolução: está em quem lê.
+
+#### 8.14.2. Regras do contrato de leitura
+
+1. **Nenhum leitor recalcula macro.** Quem lê refeição lê o snapshot. Nenhum leitor multiplica quantidade por perfil para produzir macro histórico.
+2. **Nenhum leitor remapeia identidade.** O identificador exibido e o agrupamento vêm do snapshot e da variante referenciada. Resolver id de catálogo no tempo de leitura é proibido.
+3. **Um DTO versionado por caso de uso.** Casos de uso explícitos: histórico de refeição, resumo e relatório, busca, favoritos, receitas e console administrativa. Nenhum deles acessa o catálogo diretamente.
+4. **Referência histórica é imutável.** A referência aponta para a variante e o perfil **usados**. Variante é aposentada por status, nunca deletada, e `set null` em cascata não pode esvaziar referência de item histórico.
+
+A regra 4 é o que hoje permite que `legacyDeletion.ts` faça `UPDATE` e `DELETE` em `foodCatalog` e que quatro chaves `set null` transformem histórico em órfão.
+
+#### 8.14.3. Exibição e agregação: estáveis por padrão
+
+A agregação usa **identidade histórica** por padrão, e a reclassificação retroativa é **operação explícita, auditada e visível**:
+
+- **visão histórica** é o padrão: totais, categorias e nomes como foram registrados;
+- **visão atual** existe, é explícita e mostra como os itens são classificados hoje;
+- **reclassificação retroativa** é operação deliberada, com registro de autor, data, motivo, conjunto afetado e possibilidade de reversão;
+- nenhuma correção de catálogo, nutrição ou classificação altera relatório registrado como efeito colateral.
+
+A distinção é deliberada: reclassificar retroativamente às vezes é desejado, mas precisa ser um ato, não um efeito colateral de corrigir um alimento.
+
+#### 8.14.4. Inventário de consumidores
+
+`Papel` descreve o que o arquivo faz hoje; `Destino` descreve o que ele passa a fazer; `Fase` é a fase de §20 em que isso ocorre.
+
+| Arquivo | Papel atual | Destino V2 | Fase |
+| --- | --- | --- | --- |
+| `server/foodCatalogSync.ts` | escrita e sincronização do catálogo | absorvido pelo serviço único de conhecimento governado | B |
+| `server/catalogRuntime.ts` | bootstrap do catálogo antes do HTTP (#1061) | absorvido pelo serviço único | B |
+| `server/_core/index.ts` | agenda o sync do catálogo no startup | deixa de agendar sincronização legada | F |
+| `server/_core/runtimeStartupScheduling.ts` | atraso do sync no startup | idem | F |
+| `server/schemaCompatibility.ts` | garante colunas de `foodCatalog` | substituído pelo gate de corte (§8.13) | F |
+| `server/modules/foods/legacyDeletion.ts` | UPDATE e DELETE em `foodCatalog` | aposentar por status, nunca deletar (regra 4) | F |
+| `server/repositories/accountRepository.ts` | altera catálogo na exclusão de conta | revoga dado pessoal sem tocar conhecimento global | F |
+| `server/nutritionLabelCandidateService.ts` | publica candidato no catálogo global | publica variante e perfil provisórios com evidência | E |
+| `server/repositories/foodCatalogRepository.ts` | repositório de leitura e escrita do catálogo | substituído pelos repositórios de conhecimento V2 | B |
+| `server/nutritionEngine.ts` | reexporta a referência de catálogo | absorvido pelo resolvedor único | D |
+| `server/nutritionEngineTypes.ts` | tipo com `foodCatalogId` | tipos V2 | B |
+| `server/modules/foods/catalog.ts` | usa referência e repositório de catálogo | absorvido pelo resolvedor único | D |
+| `server/modules/whatsapp/intent/mealItemHelpers.ts` | referência de catálogo no intent | consome `FoodObservation` | D |
+| `server/modules/whatsapp/foodClarificationContract.ts` | referência de catálogo na clarificação | consome a política de incerteza | D |
+| `server/modules/whatsapp/mixedMealItemIncrementPlan.ts` | lê `foodCatalogId` do item | lê referência de variante | D |
+| `server/coffeeSugarNutrition.ts` | referência de catálogo | absorvido pelo resolvedor único | B |
+| `server/brandedNutritionPersistence.ts` | persiste nutrição de marca | publica variante e perfil | E |
+| `server/repositories/mealsRepository.ts` | remapeia `foodCatalogId` no tempo de leitura | lê o snapshot; nenhum remapeamento | C |
+| `server/householdMeasureMealUpdate.ts` | mesmo remapeamento em medida caseira | idem | C |
+| `server/modules/insights/service.ts` | coleta `foodCatalogId` dos itens | lê o snapshot | C |
+| `server/modules/insights/foodQuality.ts` | classifica por `foodCatalogId` | classifica pela classificação do snapshot | C |
+| `server/modules/foods/catalogClassificationReview.ts` | revisão de classificação | revisão sobre conhecimento governado | E |
+| `shared/reportsGoalAnalytics.ts` | agrega por `foodCatalogId` | agrupa por identidade histórica (padrão) | C |
+| `client/src/features/reports/FoodQualityUnclassifiedDiagnostics.tsx` | exibe o id de catálogo | exibe identidade do snapshot | C |
+| `client/src/features/reports/FoodQualityUnclassifiedDiagnosticsContent.tsx` | idem | idem | C |
+| `client/src/pages/AdminPage.tsx` | console administrativa do catálogo | console sobre conhecimento governado (§19.2) | E |
+| `server/foodCatalogKeys.ts` | chave de identidade `catalog:<id>` | chave de variante e perfil | B |
+| `server/modules/meals/schemas.ts` | `foodCatalogId` no schema de entrada | DTO de entrada V2 | B |
+| `shared/nutritionModelSchemas.ts` | `foodCatalogId` no contrato compartilhado | DTO versionado (regra 3) | B |
+| `server/modules/quickEdit/mealUpdateConfirmation.ts` | compara e propaga `foodCatalogId` | compara por referência de variante | D |
+| `server/nutritionRouter.ts` | grupo tRPC `foodCatalog` administrativo | grupo de conhecimento governado | E |
+| `server/dbImplementation.ts` | injeta o repositório legado | injeta os repositórios V2 | B |
+
+Grupos por papel: escrita do catálogo (9 arquivos), resolução e registro (8), leitura de identidade no tempo de leitura (5), agregação e exibição (4), contrato e schema (6).
+
+O grupo de leitura é o mais urgente: os cinco arquivos precisam estar migrados **antes** do shadow mode, porque o shadow mode mede os leitores, não apenas o resolvedor.
+
+#### 8.14.5. Gate 19 — contrato de leitura
+
+O contrato é verificável por teste metamórfico determinístico, na camada 2 de §19.0.1:
+
+> **Alterar o perfil nutricional de um alimento não pode mudar nenhum total histórico.**
+
+Complementos obrigatórios:
+
+- alterar a **classificação** de um alimento não muda relatório registrado;
+- **mesclar** duas variantes não muda histórico;
+- **aposentar** uma variante não deixa item histórico sem referência;
+- **apagar** linha de catálogo não esvazia referência histórica.
+
+Verificador estático complementar: detecção de join entre item de refeição e perfil ou catálogo no caminho de leitura.
+
+Esse gate é o que encerra o ciclo pela porta da leitura — ele falha no mesmo instante em que um leitor volta a recalcular ou remapear.
 
 ## 9. Geração e ranking de candidatos
 
@@ -1743,6 +1847,8 @@ A implementação da epic deve evoluir `architecture:check` para impedir regress
 
 18. materialidade de atributo decidida por lista lexical, conjunto de tokens ou regra por alimento em código, em vez de conhecimento governado (§9.1.1);
 
+19. leitor que recomputa macro ou remapeia identidade de item histórico, ou correção de catálogo, nutrição ou classificação que altera relatório registrado sem operação explícita e auditada (§8.14);
+
 ## 19.0. Camadas de verificação e execução dos gates
 
 Os dezoito gates deste capítulo **não são homogêneos**. Eles exigem três técnicas distintas de verificação, e parte deles não é verificável estaticamente. Declarar um gate em camada que não o consegue verificar produz **segurança falsa**: o código passa a impressão de correção enquanto a falha permanece em execução.
@@ -1752,7 +1858,7 @@ Os dezoito gates deste capítulo **não são homogêneos**. Eles exigem três t�
 | Camada | Técnica | Gates |
 | --- | --- | --- |
 | 1. Fronteira estática | grafo de imports, AST e detecção de literais | 1, 2, 3, 4, 5, 10, 11, 17, 18 |
-| 2. Propriedade e invariante | testes de contrato e metamórficos sobre o resolvedor | 7, 9, 12, 13, 14, 16 |
+| 2. Propriedade e invariante | testes de contrato e metamórficos sobre o resolvedor | 7, 9, 12, 13, 14, 16, 19 |
 | 3. Guarda de runtime | asserção no caminho de escrita e telemetria | 6, 8, 15 |
 
 O gate 12 possui verificador estático complementar (direção de dependência) além do verificador de propriedade (origem da decisão).
@@ -1807,7 +1913,7 @@ Consumidores do relatório: o critério de rollout e canário (§19.9), o gate d
 | Onda | Camada | Gates | Efeito |
 | --- | --- | --- | --- |
 | 1 | estática | 17, 18, 5, 11, 3, 10, 1, 2, 4 | congela o padrão atual e impede hardcode novo |
-| 2 | propriedade | 13, 14, 16, 12, 7, 9 | prova que o resolvedor cumpre os invariantes |
+| 2 | propriedade | 13, 14, 16, 12, 7, 9, 19 | prova que o resolvedor e os leitores cumprem os invariantes |
 | 3 | runtime | 6, 8, 15 | guarda o caminho de escrita e a telemetria |
 
 Os gates 17 e 18 são implementados primeiro, e não por acaso: o detector de "alimento, macro, porção, classificação ou termo linguístico em array de produção" **produz automaticamente o inventário de owners concorrentes de §8.5**, e mede as listas de materialidade substituídas em §8.3. O primeiro gate entrega o mapa do que precisa ser removido.
@@ -2091,6 +2197,8 @@ Processar a mesma entrada com o fluxo atual e o novo resolver sem mudar a persis
 
 - exigir a aprovação do Gate A de §8.12 antes de iniciar a comparação;
 
+- migrar os cinco arquivos do grupo de leitura de §8.14.4, porque o shadow mode mede os leitores, não apenas o resolvedor;
+
 Comparar:
 
 - identidade;
@@ -2114,6 +2222,8 @@ Migrar progressivamente:
 7. rótulo;
 8. continuidade multi-turn;
 9. simulador.
+
+10. consumidores de leitura classificados em §8.14.4.
 
 ### Fase E — governança e aprendizado
 
@@ -2242,6 +2352,10 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - a dívida arquitetural é declarada em `architecture-debt.json` com expiração máxima de 90 dias e issue proprietária obrigatória; violação nova e entrada vencida falham a verificação (§19.0.3);
 - o relatório do verificador identifica a classe de §9.3 de cada violação, e não apenas a regra quebrada (§19.0.4).
 
+- o contrato de leitura de §8.14 vale para todo consumidor: nenhum leitor recalcula macro ou remapeia identidade de item histórico;
+- a referência histórica de refeição é imutável, e `set null` em cascata não pode esvaziá-la: variante é aposentada por status, nunca deletada;
+- exibição e agregação são estáveis por padrão, por identidade histórica, e a reclassificação retroativa é operação explícita, auditada e reversível.
+
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
@@ -2276,6 +2390,8 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 
 25. escopo efetivo por regra: tratamento de teste, fixture, arquivo gerado e documentação na definição de violação;
 26. critério e prazo para promover uma regra da camada de runtime de aviso para bloqueio.
+
+27. definição do registro de operação de reclassificação retroativa: escopo, visibilidade para o usuário e reversão.
 
 ## 26. Regra de evolução deste ADR
 
