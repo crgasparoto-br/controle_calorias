@@ -72,6 +72,21 @@ Oferecer registro conversacional de refeições usando um único número oficial
 - O interpretador estruturado pode usar LLM, mas o LLM só pode retornar intenção JSON validada; a execução continua controlada pelo backend.
 - Mensagens de consulta como `refeições registradas` não devem cair na resposta de alimento incompleto.
 - Quando o usuário informar alimentos junto de uma refeição válida ainda inexistente **sem data explícita**, o backend pode criar a refeição automaticamente se a intenção validada permitir `createIfMissing`. Quando o comando trouxer data relativa explícita (`hoje`, `ontem`, `anteontem` ou `amanhã`) e a refeição indicada não existir no dia interpretado, o backend deve pedir esclarecimento antes de qualquer mutação, mesmo que `createIfMissing` esteja habilitado — **exceto** quando o rótulo informado corresponder a uma refeição habitual ativa configurada na agenda do usuário: nesse caso a refeição é criada no dia pedido, no horário inicial configurado, com os alimentos resolvidos na mesma mensagem (#1271). Rótulo não configurado, agenda desativada ou alimentos que ainda exigem esclarecimento de identidade/quantidade permanecem fail-closed, sem criar refeição e sem alterar outro dia.
+
+Complemento (#1291): quando a data não é explícita, o alvo é sempre o **dia do
+recebimento**. A refeição habitual configurada é criada nesse dia (no horário
+inicial da agenda) mesmo sem data no comando, e não existe busca por refeição
+homônima sem limite de tempo: o fallback contextual alcança apenas refeições
+dentro de **24 horas** do horário da mensagem. Antes desta regra, `adicionar ...
+ao lanche da tarde` enviado em 01/10 foi gravado no lanche da tarde de 28/09.
+
+Complemento (#1291): quando a quantidade de uma adição já foi resolvida
+localmente (porção canônica, medida caseira ou massa/volume explícitos) e a
+identidade existe no catálogo local, a indisponibilidade do motor nutricional
+não descarta o pedido: o item é materializado a partir do catálogo canônico
+(`buildItemFromResolvedCatalogFood`). Lote ambíguo do motor (mais de um item para
+um único pedido) continua fail-closed, e clarificações de identidade/quantidade
+continuam propagando.
 - Envios de imagem e áudio pelo WhatsApp devem tentar usar o contexto ativo e a refeição lógica compatível do mesmo dia antes de criar um novo bloco de refeição.
 - A mensagem inbound deve permanecer única pelo `message.id` da Meta; depois do download ou da transcrição, a mesma entrada persistida deve ser enriquecida com transcrição sanitizada e referência opaca de mídia, sem criar outro turno.
 - Falha ao enriquecer o contexto persistente não pode bloquear o processamento nutricional já possível; o sistema deve seguir com o fallback seguro e registrar somente metadados operacionais.

@@ -228,7 +228,10 @@ async function createConfiguredDatedMealAddition(input: {
   timeZone: string;
   context?: AdditionExecutionContext;
 }): Promise<WhatsappIntentResult | null> {
-  if (!input.dateSelection.explicit) return null;
+  // Sem data explícita o alvo é o próprio dia do recebimento (`dateSelection.date`
+  // acompanha o horário da mensagem). Criar a refeição habitual configurada nesse
+  // dia mantém o registro em "hoje" em vez de deslocá-lo para uma refeição antiga
+  // de outro dia.
 
   // Continuação vinculada a um alvo específico mantém o gate de "alvo mudou":
   // se a refeição esperada pela pendência não existe mais, nada é criado.

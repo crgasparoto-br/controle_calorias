@@ -1,6 +1,7 @@
 import { normalizeMeasurementUnit } from "../../../../shared/measurementUnits";
 import {
   findNaturalProduceQuantityReferenceName,
+  findLocalNutritionReference,
   inferUnresolvedCommercialIdentityHint,
 } from "../../../catalogMatching";
 import { resolveStructuredCommercialIdentity } from "../../../commercialFoodIdentityPreflight";
@@ -20,7 +21,10 @@ import {
   processMealInput,
   resolveCommercialFoodIdentity,
 } from "../../../nutritionEngine";
-import { buildItemFromResolvedCommercialFood } from "../../../mealItemBuilders";
+import {
+  buildItemFromResolvedCatalogFood,
+  buildItemFromResolvedCommercialFood,
+} from "../../../mealItemBuilders";
 import type { MealItemInput } from "../../meals/schemas";
 import type { FoodAdditionIntent } from "./types";
 import {
@@ -154,6 +158,49 @@ async function resolveAdditionInference(
     if (error instanceof MealInferenceError) throw error;
     return null;
   }
+}
+
+/**
+ * Fronteira determinística para adições já medidas.
+ *
+ * Quando a quantidade foi resolvida localmente (`householdMeasure`), a
+ * identidade existe no catálogo canônico e o motor nutricional está
+ * indisponível, o item é construído a partir do próprio catálogo. Sem isso a
+ * mensagem `Adicionar ao café da manhã, 1,5 fatias de mortadela` respondia
+ * "Não foi possível gerar um rascunho revisável para esta refeição agora."
+ * mesmo com 1 fatia = 15 g e a referência de mortadela disponíveis.
+ */
+function buildMeasuredCatalogFallbackItem(input: {
+  item: FoodAdditionIntent["items"][number];
+  brand: string | null;
+  unit: string;
+  measure: HouseholdMeasureResolution;
+}): MealItemInput | null {
+  const food = findLocalNutritionReference(input.item.foodName);
+  if (!food) return null;
+  return toMealItemInput(
+    buildItemFromResolvedCatalogFood({
+      food,
+      foodName: input.item.foodName.trim(),
+      brand: input.brand,
+      quantity: input.item.quantity,
+      unit: input.unit,
+      grams: input.measure.grams,
+      measureResolution: {
+        kind: input.measure.kind,
+        requestedQuantity: input.measure.requestedQuantity,
+        requestedUnit: input.measure.requestedUnit,
+        sourceUrls: input.measure.sourceUrls,
+        evidence: input.measure.evidence,
+        referenceCount: input.measure.referenceCount,
+      },
+    }),
+  );
+}
+
+function isNutritionEngineUnavailable(error: unknown) {
+  return error instanceof MealInferenceError
+    && error.code === "meal_inference_unavailable";
 }
 
 export async function resolveCanonicalFoodAdditionItems(
@@ -291,14 +338,34 @@ export async function resolveCanonicalFoodAdditionItems(
         },
       }));
     } else {
-      const processed = await resolveAdditionInference(runtime, {
-        text: processingText,
-        occurredAt: input.occurredAt,
-        timeZone: input.timeZone,
-      });
+      let processed: Awaited<ReturnType<typeof resolveAdditionInference>> = null;
+      try {
+        processed = await resolveAdditionInference(runtime, {
+          text: processingText,
+          occurredAt: input.occurredAt,
+          timeZone: input.timeZone,
+        });
+      } catch (error) {
+        // Clarificações de domínio (identidade/quantidade) continuam propagando;
+        // só a indisponibilidade do motor é absorvida por uma medida já resolvida.
+        if (!isNutritionEngineUnavailable(error) || !householdMeasure) throw error;
+      }
       resolved = findSingleResolvedItem(
         toMealItemInputs(processed?.items ?? []),
       );
+      // Um lote ambíguo (mais de um item para um único pedido) continua
+      // fail-closed: a ambiguidade do motor não é resolvida em silêncio. O
+      // fallback medido cobre apenas a ausência de item (motor indisponível ou
+      // resposta vazia), quando a quantidade já está resolvida localmente.
+      const engineReturnedAmbiguousBatch = (processed?.items?.length ?? 0) > 1;
+      if (!resolved && householdMeasure && !engineReturnedAmbiguousBatch) {
+        resolved = buildMeasuredCatalogFallbackItem({
+          item,
+          brand: resolvedBrand,
+          unit: normalizedUnit,
+          measure: householdMeasure,
+        });
+      }
     }
     if (!resolved) {
       // Falha anterior a qualquer mutação: devolve um resultado controlado com

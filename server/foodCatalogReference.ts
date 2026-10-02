@@ -338,6 +338,45 @@ export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [
     sourceConfidence: 0.99,
   },
   {
+    // Tabela nutricional da Antarctica Original Pilsen reproduzida no rótulo e
+    // nas fichas de varejo do produto (porção de 200 ml = 1 copo), consultada
+    // em 01/10/2026. Sem esta referência o token "original" era lido como
+    // variante comercial não comprovada e a cerveja não era registrada.
+    slug: "cerveja-original-antarctica",
+    name: "Cerveja Original",
+    aliases: [
+      "cerveja original",
+      "cerveja antarctica original",
+      "antarctica original",
+      "original pilsen",
+      "cerveja pilsen original",
+      "cerveja original lata",
+      "cerveja original 600ml",
+    ],
+    servingLabel: "200 ml (1 copo)",
+    gramsPerServing: 200,
+    calories: 87,
+    protein: 0.7,
+    carbs: 7.2,
+    fat: 0,
+    fiber: 0,
+    processingLevel: "ultra_processed",
+    brandName: "Antarctica",
+    productVariant: "original",
+    variants: ["original"],
+    isUltraProcessed: true,
+    isBrandedProduct: true,
+    researchIdentityKey: "official:antarctica-original:200ml",
+    sourceUrls: [
+      "https://www.zonasul.com.br/cerveja-antarctica-original-pilsen-lata-350ml-953725/p",
+      "https://www.tendaatacado.com.br/produto/cerveja-pilsen-antarctica-original-600ml-3459",
+    ],
+    sourceEvidence:
+      "Cerveja Pilsen Antarctica Original — porção de 200 ml (um copo): 87 kcal (365 kJ) e 7,2 g de carboidratos; não contém quantidade significativa de proteínas, gorduras totais ou fibras alimentares.",
+    sourceVerifiedAt: "2026-10-01T00:00:00.000Z",
+    sourceConfidence: 0.85,
+  },
+  {
     slug: "leite-molico-desnatado",
     name: "Leite Molico desnatado",
     aliases: [
