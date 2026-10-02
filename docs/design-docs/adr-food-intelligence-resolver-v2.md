@@ -1272,6 +1272,134 @@ A migração de interface deve ocorrer depois que os contratos/repositórios V2 
 
 Não manter dois formulários independentes representando o mesmo conhecimento em estruturas V1 e V2.
 
+## 19.3. Orçamento de desempenho e custo
+
+O resolvedor V2 deve operar com **orçamento explícito por resolução**, evitando que qualidade seja buscada por chamadas externas ilimitadas.
+
+Regras obrigatórias:
+
+- resolver primeiro com conhecimento local governado, evidência exata e memória pessoal compatível;
+- código de barras, alias pessoal confirmado, variante exata e rótulo suficientemente comprovado não devem acionar pesquisa externa desnecessária;
+- chamadas de IA, OCR, embeddings e pesquisa externa devem ser tratadas como recursos com custo, latência e disponibilidade finitos;
+- cada etapa externa deve possuir timeout e política de retry limitada, reutilizando a fundação multi-provider quando aplicável;
+- o resolvedor deve impedir loops de pesquisa/fallback e limitar o número de tentativas por resolução;
+- cache só pode reutilizar resultado quando identidade da consulta, versão/política, validade e escopo permitirem; cache nunca transforma evidência provisória em verificada;
+- uma mesma evidência ou pesquisa equivalente dentro da mesma resolução não deve ser executada repetidamente;
+- degradação de custo nunca pode substituir uma fonte comprovada por informação nutricional menos confiável sem marcar a decisão e aplicar a política de incerteza.
+
+Os valores exatos de SLO, timeout, quantidade máxima de chamadas e orçamento econômico permanecem `OPEN` até medição do shadow mode e corpus.
+
+## 19.4. Hierarquia, validade e ciclo de vida das fontes
+
+O V2 deve distinguir **força de identidade**, **força nutricional**, **atualidade** e **escopo** da evidência. Não existe uma ordem única e cega que sirva para todos os campos.
+
+Princípios:
+
+- evidência exata do próprio produto, como código de barras compatível e rótulo associado de forma comprovada, prevalece sobre fuzzy matching ou estimativa;
+- fonte oficial/fabricante pode sustentar identidade ou nutrição somente para a variante compatível;
+- bases estruturadas como TBCA/TACO podem ser referências fortes para alimentos genéricos, sem provar automaticamente um produto comercial específico;
+- fonte externa colaborativa, como Open Food Facts, é candidata/evidência e não publicação automática;
+- pesquisa web ou IA não vira fonte de verdade por si só; deve preservar URL/origem/evidência verificável quando usada para conhecimento governado;
+- memória pessoal pode resolver preferência/alias do próprio usuário, mas não eleva a confiança do conhecimento global;
+- estimativa heurística ou por IA é sempre explicitamente provisória e não pode substituir silenciosamente perfil verificado;
+- conflito material entre fontes fortes deve abrir clarificação ou revisão, não ser resolvido por 'última escrita vence';
+- perfis, classificações, porções e evidências devem suportar validade, supersessão, revogação e revalidação quando a fonte mudar ou envelhecer.
+
+A matriz final de confiança por tipo de fonte, tempos de validade/revalidação e thresholds permanecem `OPEN` para calibração e decisão de produto.
+
+## 19.5. Concorrência, deduplicação e idempotência
+
+O resolvedor e a governança devem ser seguros em múltiplas instâncias e sob retries.
+
+Regras obrigatórias:
+
+- uma resolução possui `traceId` estável para correlação, mas persistências idempotentes devem usar chaves de negócio apropriadas e não depender apenas do trace;
+- criar a mesma variante, perfil, barcode, alias ou review case de forma concorrente deve convergir para um único conhecimento corrente quando semanticamente equivalente;
+- `identity_key`, `profile_key + version`, barcode, `case_key` e demais invariantes definidos no schema devem ser reforçados por constraints/transactions, não apenas por checagem em memória;
+- retries não podem duplicar review cases, eventos de promoção, perfis nutricionais ou mutações de refeição;
+- confirmação/revogação administrativa deve revalidar estado e autoridade dentro da transação antes do commit;
+- concorrência entre duas evidências incompatíveis não escolhe silenciosamente a última gravação; o conflito permanece explícito e governável;
+- callbacks ou mensagens duplicadas continuam sujeitos aos contratos idempotentes existentes antes de produzir nova resolução ou mutação.
+
+## 19.6. Modo degradado e indisponibilidade
+
+O resolvedor deve possuir comportamento determinístico quando uma capacidade externa estiver indisponível.
+
+Ordem de princípio:
+
+1. usar conhecimento local governado e evidência já disponível;
+2. aplicar memória pessoal somente quando compatível com a entrada explícita;
+3. usar caminhos determinísticos locais permitidos para quantidade/normalização;
+4. usar estimativa provisória somente quando a categoria e a política permitirem;
+5. pedir apenas o campo/evidência que falta;
+6. falhar de forma controlada quando registrar implicaria inventar identidade, variante ou nutrição.
+
+Regras:
+
+- indisponibilidade de provider não autoriza fallback oculto para macros genéricos de produto comercial;
+- timeout externo não deve reiniciar etapas já resolvidas nem degradar evidência forte;
+- modo degradado deve ser observável por razão estruturada;
+- queda de uma capacidade opcional não deve bloquear resolução que já esteja suficientemente comprovada localmente;
+- fallback cross-provider continua obedecendo à política central de IA, segurança e LGPD; o Food Intelligence V2 não cria uma política paralela.
+
+## 19.7. Observabilidade funcional, SLOs e custo
+
+A telemetria do V2 deve medir a qualidade do **resultado de domínio**, além da saúde técnica dos providers.
+
+Métricas mínimas, sempre sanitizadas:
+
+- volume de resoluções por modalidade/entrypoint;
+- latência total e por estágio;
+- taxa de `resolved`, `partially_resolved`, `ambiguous` e `unknown`;
+- taxa e motivo de clarificação;
+- taxa e motivo de fallback/estimativa provisória;
+- uso de fonte local, rótulo, fonte externa e IA;
+- divergência V1 x V2 durante shadow mode;
+- quantidade de chamadas externas, retries e custo estimado por resolução/capacidade;
+- taxa de conflitos entre fontes;
+- criação, aprovação, rejeição, revogação e tempo de fila de review cases;
+- incidência de reabertura/correção de conhecimento previamente verificado;
+- regressões do Golden Food Corpus e taxa de erro por classe de cenário.
+
+Telemetria não deve conter texto cru, transcrição, imagem, rótulo integral, prompt, resposta de provider, telefone, URL assinada ou dado pessoal desnecessário. Correlação deve usar IDs internos, hashes sanitizados ou agregados conforme `PRIVACY_LGPD.md` e `SECURITY.md`.
+
+Os SLOs e limites que bloqueiam rollout permanecem `OPEN`; devem ser definidos com baseline do fluxo atual e dados do shadow mode.
+
+## 19.8. Privacidade, retenção e minimização de evidências
+
+O Food Intelligence V2 não cria exceção às regras existentes de LGPD, segurança e exclusão.
+
+Regras obrigatórias:
+
+- `food_evidence` guarda somente fatos estruturados, referência e conteúdo mínimo necessário para auditoria;
+- mídia bruta permanece no storage apropriado e não é duplicada no banco para conveniência;
+- OCR/texto bruto só pode ser retido quando houver finalidade explícita e período definido;
+- fila administrativa deve preferir evidência sanitizada e agregada, sem expor identidade do usuário quando ela não for necessária para a decisão;
+- `food_resolution_events` deve ter retenção finita e não pode virar histórico permanente de texto alimentar;
+- exclusão/exportação da conta deve considerar memória pessoal, evidências vinculadas ao usuário e eventos de resolução conforme a finalidade e obrigações aplicáveis;
+- promoção para conhecimento global deve remover dependência de dado pessoal identificável sempre que possível;
+- qualquer novo compartilhamento com provider externo continua dependendo das políticas por capacidade já documentadas.
+
+Os períodos exatos de retenção de evidência visual/OCR e a política de anonimização para candidatos promovidos permanecem `OPEN` antes da implementação correspondente.
+
+## 19.9. Critério de rollout, canário e rollback
+
+O V2 deve ser promovido por evidência, não apenas por conclusão de código.
+
+Cada avanço de rollout deve verificar pelo menos:
+
+- Golden Food Corpus e testes metamórficos verdes;
+- divergência V1 x V2 dentro do limite aceito por classe de cenário;
+- ausência de regressão relevante em clarificação, fallback e erro nutricional;
+- latência e custo dentro do orçamento aprovado;
+- nenhuma regressão de privacidade, idempotência ou integridade;
+- fila de revisão sem crescimento incompatível com a capacidade operacional;
+- rollback funcional e de leitura comprovado sem destruir dados V2 já coletados.
+
+O rollout pode usar shadow mode, feature flag e percentuais/cortes progressivos por entrypoint. O rollback deve preferir retornar leitura/decisão ao caminho anterior preservando dados e evidências V2, em vez de executar downgrade destrutivo.
+
+Percentuais, janelas, limites de divergência e métricas exatas de promoção/bloqueio permanecem `OPEN` até existirem dados do shadow mode.
+
 ## 20. Migração
 
 A migração deve ser incremental e observável.
@@ -1379,6 +1507,11 @@ O programa só pode ser considerado concluído quando houver evidência de que:
 - gate arquitetural impede caminhos paralelos;
 - toda decisão é auditável por evidência, fonte e versão;
 - revisão humana global não vira gargalo do registro individual.
+- resolução respeita orçamento aprovado de latência/custo e não executa pesquisa externa redundante;
+- retries/concorrência não criam conhecimento ou review cases duplicados;
+- indisponibilidade externa produz degradação explícita e nunca fallback nutricional oculto;
+- métricas sanitizadas demonstram qualidade funcional, custo e operação do resolver;
+- critérios de rollout e rollback foram exercitados antes da remoção do legado.
 
 ## 24. Decisões já acordadas
 
@@ -1402,23 +1535,31 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - mocks não podem esconder a etapa que o teste pretende validar.
 - a suíte de testes do domínio alimentar será auditada e reduzida no V2, preservando somente cobertura efetiva de contrato, regressão e integração.
 - as telas de manutenção do usuário e da administração serão migradas para os mesmos contratos V2, com escopo pessoal separado de governança global.
+- o resolver operará sob orçamento explícito de latência, tentativas e custo, priorizando conhecimento local e evitando chamadas externas redundantes;
+- força e validade de fonte serão avaliadas por campo/identidade, sem política cega de última escrita ou confiança única;
+- persistência e governança serão idempotentes e seguras sob concorrência/múltiplas instâncias;
+- indisponibilidade externa terá modo degradado determinístico e fail-closed quando registrar exigiria inventar fatos;
+- observabilidade funcional e econômica do V2 será sanitizada e fará parte do gate de rollout;
+- evidências seguirão minimização e retenção intencional, sem duplicação indiscriminada de mídia ou texto bruto;
+- rollout será progressivo, mensurável e reversível sem downgrade destrutivo.
 
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
 
 1. nomes e schema finais de `FoodObservation` e `FoodResolutionDecision`;
-2. thresholds de confiança;
-3. regras automáticas de promoção global;
+2. thresholds numéricos de confiança e matriz final por tipo de fonte/campo;
+3. regras e números mínimos para promoção automática de conhecimento global;
 4. papéis/permissões dos revisores;
 5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
-6. fórmula de prioridade;
+6. fórmula numérica de prioridade da fila;
 7. política exata para estimativa provisória por categoria;
-8. estratégia de embeddings/fuzzy matching;
-9. retenção de evidências visuais e impacto LGPD;
-10. rollout/canário e métricas de sucesso;
-11. compatibilidade/migração de `semanticContract`;
-12. momento exato de remoção dos owners/bridges atuais.
+8. estratégia de embeddings/fuzzy matching e seus thresholds;
+9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
+10. SLOs de latência, timeout, número máximo de chamadas e orçamento econômico por resolução/capacidade;
+11. percentuais, janelas e limites de divergência/qualidade para avanço ou rollback do canário;
+12. compatibilidade/migração de `semanticContract`;
+13. momento exato de remoção dos owners/bridges atuais.
 
 ## 26. Regra de evolução deste ADR
 
