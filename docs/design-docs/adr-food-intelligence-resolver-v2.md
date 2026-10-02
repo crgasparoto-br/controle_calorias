@@ -90,6 +90,17 @@ type FoodObservation = {
     brand: string | null;
     variant: string | null;
     preparation: string[];
+    qualifiers: Array<{
+      value: string;
+      role:
+        | "preparation"
+        | "cultivar"
+        | "line"
+        | "flavor"
+        | "packaging"
+        | "other";
+      confidence: number;
+    }>;
     barcode: string | null;
   };
 
@@ -117,6 +128,9 @@ type FoodObservation = {
 ```
 
 O contrato deve representar **o que foi observado**, não uma decisão final já tomada.
+Além do valor textual, qualificadores relevantes devem carregar **papel semântico explícito** quando a evidência permitir. Termos como `frito`, `integral`, `Packans`, `zero`, `UHT`, cultivar, linha, sabor ou embalagem não devem ser reinterpretados downstream por listas léxicas ad hoc para decidir se são marca, preparo, variante ou ruído.
+
+O contrato final pode alterar nomes/campos, mas deve preservar a separação entre superfície observada e papel semântico inferido, com confiança/evidência por campo.
 
 ## 5. Resultado atômico
 
@@ -466,6 +480,20 @@ A migração deverá retirar da rota canônica, com validação de cobertura ant
 - uso de `whatsappLearningArtifacts` como storage permanente de conhecimento alimentar que possua modelo de domínio próprio.
 
 Estruturas genéricas podem permanecer para outros usos do WhatsApp que não sejam conhecimento alimentar.
+#### Inventário mínimo de legado a absorver ou remover
+
+A migração deve manter um inventário reproduzível, atualizado por busca repository-wide, dos owners e atalhos que deixam de ser fonte de decisão. O inventário inicial inclui, quando ainda existirem no código no momento da implementação:
+
+- `server/foodCatalogReference.ts` e outros arrays estáticos de alimentos;
+- `server/tacoCatalog.json` como catálogo embarcado de produção — o conteúdo válido deve migrar para fonte governada/versionada;
+- `CURATED_COMMON_COUNTABLE_PORTIONS` e equivalentes de porções específicas em código;
+- constantes/regra específica de café, açúcar, ovo ou qualquer alimento individual usada como autoridade produtiva;
+- token sets/listas léxicas como `BROAD_COMMERCIAL_CATEGORY_TOKENS`, `NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS` e equivalentes que decidam identidade/suficiência;
+- matchers concorrentes que respondam à mesma pergunta de identidade sem atravessar o resolver público;
+- gates de clarificação/registro por canal que reimplementem `identity`, `variant`, `quantity` ou `nutrition`;
+- stores ou caches que tenham se tornado fonte concorrente de conhecimento em vez de cache de dado governado.
+
+Um nome desta lista pode mudar ou desaparecer antes da issue de remoção. O critério não é o arquivo histórico em si: é não permanecer nenhum owner concorrente equivalente após o cutover. Fixtures e dados exclusivamente de teste podem continuar quando estiverem claramente classificados como tal.
 
 ### 8.6. Estratégia de migração
 
@@ -913,6 +941,29 @@ O ranking deve considerar, entre outros sinais:
 - conflitos explícitos.
 
 Correspondência aproximada nunca deve suplantar evidência exata mais forte.
+### 9.1. Política de suficiência baseada em dados
+
+A decisão `tenho informação suficiente para resolver?` pertence ao resolvedor e deve ser calculada sobre **dados estruturados e evidência**, não sobre listas de palavras específicas mantidas em handlers.
+
+A política deve considerar, conforme o campo:
+
+- identidade/variante candidatas e seus qualificadores semânticos;
+- existência de variante genérica ou comercial compatível;
+- eixos/atributos materialmente necessários para distinguir composição quando modelados no conhecimento governado;
+- disponibilidade e status do perfil nutricional aplicável;
+- porção/quantidade resolvida e natureza da medida;
+- força, atualidade e conflito da evidência;
+- regra da categoria para permitir ou proibir estimativa provisória.
+
+Consequências:
+
+- ausência de marca não implica automaticamente insuficiência quando existe variante genérica compatível e perfil aplicável;
+- presença de marca não autoriza usar perfil genérico como se fosse composição específica de produto;
+- embalagem, preparo, cultivar, linha e sabor só alteram a decisão quando o conhecimento/política indicar que são materialmente relevantes;
+- candidatos e alternativas devem vir do conhecimento/evidência disponível, não ser inventados por token sets;
+- handlers de canal não podem possuir uma segunda política de suficiência.
+
+Detalhes físicos para representar eixos/atributos discriminantes podem evoluir sem reabrir a decisão arquitetural de que suficiência é uma política sobre dados governados.
 
 ## 10. Política de incerteza
 
@@ -1542,6 +1593,9 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - observabilidade funcional e econômica do V2 será sanitizada e fará parte do gate de rollout;
 - evidências seguirão minimização e retenção intencional, sem duplicação indiscriminada de mídia ou texto bruto;
 - rollout será progressivo, mensurável e reversível sem downgrade destrutivo.
+- qualificadores alimentares relevantes devem preservar papel semântico estruturado, evitando reclassificação downstream por listas léxicas específicas;
+- suficiência de identidade/nutrição é política do resolvedor sobre dados/evidências governados, não regra lexical por canal;
+- a remoção do legado será guiada por inventário repository-wide de owners concorrentes, não apenas por uma lista fixa de arquivos.
 
 ## 25. Questões abertas
 
