@@ -2484,7 +2484,7 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 4. papéis/permissões dos revisores;
 5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
 6. fórmula numérica de prioridade da fila;
-7. política exata para estimativa provisória por categoria;
+7. calibração numérica dos limiares de cada eixo da política de estimativa provisória por família, cuja estrutura está definida na seção 10.1;
 8. estratégia de embeddings/fuzzy matching e seus thresholds;
 9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
 10. SLOs de latência, timeout, número máximo de chamadas e orçamento econômico por resolução/capacidade;
