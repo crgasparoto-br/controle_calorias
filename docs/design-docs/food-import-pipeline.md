@@ -1,5 +1,7 @@
 # Design tecnico: pipeline de importacao de alimentos
 
+> **Baseline produtivo transitório.** Os comandos e tabelas abaixo descrevem o importador V1 atualmente executável. O alvo do Food Intelligence V2 está em `adr-food-intelligence-resolver-v2.md`. Novas extensões não devem consolidar macros em `foods` nem acoplar aliases/porções à família quando o dado pertence à variante.
+
 Parent: #150
 Issue: #152
 Depends on: #151
@@ -76,6 +78,24 @@ Os macros principais sao gravados por 100 g:
 - sodio
 
 Campos adicionais da fonte sao preservados em `nutrients_json` nos importadores CSV.
+
+
+## Destino no Food Intelligence V2
+
+A migração do importador deve preservar a semântica de idempotência e governança de fonte, mas trocar os destinos físicos:
+
+- `food_sources` e `food_source_imports` continuam representando fonte e execução da carga;
+- família canônica vai para `foods`;
+- identidade concreta importada vai para `food_variants`;
+- `source_id + source_food_code` migra para `food_variant_sources`;
+- macros/nutrientes migram para `food_nutrition_profiles`;
+- classificação, quando a fonte a fornecer, migra para `food_variant_classifications`;
+- aliases globais apontam para a variante;
+- porções importadas apontam para a variante em `food_portions`;
+- a reimportação da mesma fonte/versão não sobrescreve silenciosamente perfil nutricional já verificado; mudança material gera nova versão/perfil conforme a política do ADR.
+
+Até o cutover, o executor V1 continua válido operacionalmente. Depois que a leitura V2 estiver ativa e reconciliada, novas escritas nos destinos V1 devem ser bloqueadas e o bridge removido.
+
 
 ## Limites desta versao
 
