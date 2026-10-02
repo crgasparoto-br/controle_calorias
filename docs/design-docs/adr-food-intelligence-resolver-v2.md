@@ -1171,6 +1171,46 @@ A implementação da epic deve evoluir `architecture:check` para impedir regress
 9. bypass da memória durável;
 10. fluxo multimodal que não atravesse a API pública do resolvedor.
 
+## 19.1. Estratégia de testes e redução da suíte
+
+A implementação do Food Intelligence Resolver V2 **não deve carregar automaticamente toda a suíte histórica existente**.
+
+O programa deve incluir uma revisão explícita de testes para reduzir tempo de execução sem reduzir a proteção real contra regressões.
+
+Cada teste relacionado ao domínio alimentar deve ser classificado em uma destas ações:
+
+1. **manter** — protege contrato, regressão ou integração que continua relevante no V2;
+2. **consolidar** — cobre o mesmo comportamento de outros testes e deve virar uma matriz/caso único mais representativo;
+3. **reescrever** — testa comportamento válido, mas está acoplado à arquitetura V1, a mocks excessivos ou a detalhes internos que deixarão de existir;
+4. **remover** — cobre implementação aposentada, repete cobertura sem sinal adicional ou possui custo desproporcional ao risco protegido.
+
+Princípios obrigatórios:
+
+- preferir testes de contrato, Golden Food Corpus e testes metamórficos a múltiplos testes quase idênticos por incidente;
+- evitar testes nomeados por issue como mecanismo permanente quando o comportamento já puder ser representado por uma suíte de domínio;
+- um bug histórico relevante deve sobreviver como caso do corpus/regressão, não necessariamente como arquivo ou fluxo de teste separado;
+- testes unitários devem proteger lógica determinística e rápida;
+- testes de integração devem provar fronteiras reais importantes sem repetir todas as combinações dos testes unitários;
+- testes end-to-end e smokes devem ser poucos, orientados a jornadas críticas e não duplicar o que já foi comprovado em camadas inferiores;
+- chamadas reais a providers externos, banco remoto, mídia ou serviços de terceiros não devem fazer parte do caminho rápido quando um boundary controlado comprovar o mesmo contrato;
+- testes lentos ou dependentes de ambiente devem ser executados somente no perfil/gate que corresponda ao risco da mudança;
+- o gate da PR deve continuar escolhendo o menor conjunto suficiente para o diff, enquanto a regressão completa da branch protege integração sistêmica;
+- métricas de duração, flakiness e cobertura de risco devem orientar a remoção/consolidação; quantidade de testes não é objetivo por si só;
+- nenhum teste deve ser mantido apenas porque existia antes da migração.
+
+A revisão da suíte deve produzir um inventário reproduzível com, no mínimo:
+
+- arquivo/suite atual;
+- comportamento protegido;
+- custo aproximado de execução;
+- dependências externas;
+- sobreposição com outros testes;
+- ação `keep | consolidate | rewrite | remove`;
+- destino no V2;
+- justificativa.
+
+O corte do V2 não é considerado concluído enquanto a suíte do domínio alimentar continuar dependendo de testes redundantes da arquitetura antiga ou de checks históricos que não protejam contrato vigente.
+
 ## 20. Migração
 
 A migração deve ser incremental e observável.
@@ -1299,6 +1339,7 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - decisão estruturada é monotônica;
 - Golden Food Corpus é gate de aceite;
 - mocks não podem esconder a etapa que o teste pretende validar.
+- a suíte de testes do domínio alimentar será auditada e reduzida no V2, preservando somente cobertura efetiva de contrato, regressão e integração.
 
 ## 25. Questões abertas
 
