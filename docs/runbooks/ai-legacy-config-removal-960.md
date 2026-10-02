@@ -31,7 +31,7 @@
 | `usedLegacyVariables` | retain-nonlegacy | Campo de resultado tipado mantido temporariamente como forma estável para fixtures; desde #960 é literal `false` e não representa branch, seleção ou diagnóstico de compatibilidade. |
 | `.audit/entregar-issue/**` | historical-only | Snapshots/evidências de auditorias anteriores preservam o estado histórico e não são fonte operacional atual. |
 | `docs/runbooks/openai-rollout-checklist.md` | historical-only | O próprio documento está marcado como deprecado desde #927 e redireciona para o runbook multi-provider vigente. |
-| `analise_ia_fotos.md` e análises equivalentes | historical-only | Preservam trechos e decisões do estado anterior para referência histórica; não são instrução operacional vigente. |
+| análises antigas de IA/fotos removidas da árvore ativa | historical-only | Permanecem recuperáveis pelo histórico Git; não são instrução operacional vigente e não devem voltar como fonte normativa. |
 
 ## Migração de consumidores
 
