@@ -1,5 +1,9 @@
 # Design tecnico: API do catalogo global de alimentos
 
+
+> Esta API é uma superfície de catálogo, não um resolvedor alimentar. O Food Intelligence V2 deve consumi-la como parte da base governada sem duplicar regras de identidade, ranking nutricional ou aprovação no router. Direção arquitetural: `adr-food-intelligence-resolver-v2.md`.
+
+
 Parent: #150
 Issues: #154, #161, #162, #163
 Depends on: #151, #152
