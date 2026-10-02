@@ -39,6 +39,8 @@ O importador atualiza somente a identidade global correspondente a fonte e ao co
 
 ## Nutrientes
 
+> **Baseline físico atual:** `foods` ainda guarda nutrientes por 100 g. Na arquitetura alvo do Food Intelligence V2, identidade e nutrição serão separadas e esses valores migrarão para `food_nutrition_profiles` versionados. Não ampliar o acoplamento atual.
+
 `foods` guarda os nutrientes principais por 100 g:
 
 - `calories_kcal_per_100g`
