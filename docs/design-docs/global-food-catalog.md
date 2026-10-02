@@ -1,5 +1,7 @@
 # Design tecnico: catalogo global de alimentos
 
+> **Baseline produtivo transitório.** Este documento descreve o catálogo global V1 que ainda existe no runtime. O modelo físico alvo do Food Intelligence V2 está em `adr-food-intelligence-resolver-v2.md`: `foods` passa a ser família canônica, variantes/nutrição/classificação/porções/favoritos são separados e `foodCatalog` é aposentado após o cutover. Não ampliar o desenho V1 como arquitetura futura.
+
 Parent: #150
 Primeira fatia: #151
 
