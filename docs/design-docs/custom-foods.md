@@ -4,6 +4,8 @@
 > Alimentos personalizados continuam pertencendo à mesma base governada de conhecimento, com escopo do usuário. Eles não devem criar um catálogo/resolvedor paralelo. A separação entre conhecimento pessoal e global e a direção de consolidação estão em `adr-food-intelligence-resolver-v2.md`.
 
 
+> **Interface V2:** `client/src/pages/FoodsPage.tsx` é a superfície do usuário para sua base alimentar. No alvo V2 ela deixa de representar um formulário direto do catálogo legado e passa a administrar conhecimento pessoal sobre os mesmos contratos canônicos do resolver: variantes próprias, aliases pessoais, porções pessoais, favoritos/recentes e propostas de correção. Usuário comum não edita conhecimento global; divergências viram evidência/candidato para governança administrativa.
+
 ## Objetivo
 
 Permitir que cada usuario cadastre alimentos proprios dentro do mesmo contrato do catalogo global, sem duplicar nem alterar alimentos globais. O registro personalizado usa a tabela `foods` com `owner_user_id` preenchido.
