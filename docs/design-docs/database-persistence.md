@@ -9,14 +9,33 @@
 
 O ADR `adr-food-intelligence-resolver-v2.md` define a consolidação futura do conhecimento alimentar.
 
-Até a migração, `foods`, `food_aliases`, `food_portions`, `food_sources`, `foodCatalog`, `whatsappLearningArtifacts` e estruturas legadas podem coexistir porque ainda existem consumidores produtivos. Essa coexistência é **transitória**, não uma autorização para criar novas fontes concorrentes.
+A decisão atual é **remodelar o domínio alimentar antes de consolidar o V2**, aproveitando o volume reduzido atual para eliminar a duplicidade estrutural em vez de mantê-la indefinidamente.
+
+Durante a migração, `foods`, `food_aliases`, `food_portions`, `food_sources`, `foodCatalog`, `whatsappLearningArtifacts` e estruturas legadas ainda podem coexistir por compatibilidade. Essa coexistência é temporária.
+
+Modelo lógico alvo:
+
+- `foods`: identidade/família canônica, sem ser a fonte direta de macros;
+- `food_variants`: identidade concreta resolvível, genérica ou comercial;
+- `food_nutrition_profiles`: nutrição versionada e governada;
+- `food_aliases`: aliases globais governados;
+- `user_food_aliases`: aprendizado pessoal isolado;
+- `food_portions`: medidas/gramaturas por variante e procedência;
+- `food_barcodes`: identidade comercial exata;
+- `food_evidence`: evidência normalizada com retenção/LGPD;
+- `food_review_cases` + `food_review_events`: governança administrativa;
+- `food_resolution_events`: rastreabilidade sanitizada do resolvedor.
 
 Regras para novas mudanças:
 
 - novos alimentos, aliases, porções, variantes e evidências não devem ganhar arrays/constantes TypeScript como fonte permanente;
+- `foodCatalog` e `portions` ligados a ele são legado a aposentar, não destinos para novos recursos;
+- macros não devem permanecer acoplados à identidade quando a migração V2 separar perfis nutricionais;
 - uma nova fonte persistente que responda à mesma pergunta alimentar exige plano explícito de consolidação, compatibilidade e aposentadoria;
 - memória pessoal e conhecimento global devem permanecer distinguíveis;
 - snapshots históricos de refeição não podem ser reescritos quando o conhecimento global for corrigido;
+- `mealItems` deve migrar para referências de variante/perfil preservando o snapshot usado no cálculo;
+- não manter dual-write indefinido entre V1 e V2;
 - migrações do Food Intelligence V2 deverão atualizar também `docs/generated/db-schema.md`.
 
 ## Tabelas críticas
