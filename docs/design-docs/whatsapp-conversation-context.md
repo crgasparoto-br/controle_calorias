@@ -1,5 +1,9 @@
 # Contexto conversacional persistente do WhatsApp
 
+
+> O contexto conversacional fornece continuidade e evidência de turno, mas **não é fonte de verdade nutricional nem resolvedor alimentar**. Para Food Intelligence V2, use `adr-food-intelligence-resolver-v2.md`; memória pessoal aplicável deve entrar como evidência governada e permanecer isolada por usuário.
+
+
 Épico: #762. Implementação base: #763 a #767. Gate de rollout e regressão: #768.
 
 ## Objetivo
