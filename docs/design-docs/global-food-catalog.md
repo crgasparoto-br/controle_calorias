@@ -51,9 +51,16 @@ O importador atualiza somente a identidade global correspondente a fonte e ao co
 
 Nutrientes fora desse conjunto ficam em `nutrients_json`, como campo flexivel para fontes TACO/TBCA ou curadoria interna.
 
-## Compatibilidade
+## Compatibilidade e direção de consolidação
 
-Esta primeira fatia adiciona a estrutura nova sem remover `foodCatalog`, `foodBrands`, `portions` ou relacoes atuais. As proximas subissues devem migrar APIs e fluxos de forma incremental para evitar regressao no registro de refeicoes.
+A estrutura `foods` + `food_aliases` + `food_portions` + `food_sources` continua sendo a base relacional do catálogo global. `foodCatalog`, `foodBrands`, `portions`, catálogos estáticos e outros stores alimentares legados ainda podem existir por compatibilidade com consumidores atuais, mas são **fontes transitórias**.
+
+A arquitetura alvo está em `adr-food-intelligence-resolver-v2.md`. Até a migração:
+
+- não ampliar o legado com novas famílias de dados quando a informação puder entrar na base governada;
+- toda compatibilidade nova precisa declarar o owner futuro e a condição de aposentadoria;
+- nenhum consumidor deve interpretar a coexistência como permissão para escolher arbitrariamente entre duas fontes concorrentes;
+- a retirada do legado deve ser incremental e comprovada por golden flows/replay, preservando snapshots históricos de refeições.
 
 ## Fora desta fatia
 
