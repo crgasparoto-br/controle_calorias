@@ -1343,6 +1343,7 @@ Nenhuma camada de compreensão linguística, nenhum léxico governado e nenhuma 
 2. **Nenhum leitor remapeia identidade.** O identificador exibido e o agrupamento vêm do snapshot e da variante referenciada. Resolver id de catálogo no tempo de leitura é proibido.
 3. **Um DTO versionado por caso de uso.** Casos de uso explícitos: histórico de refeição, resumo e relatório, busca, favoritos, receitas e console administrativa. Nenhum deles acessa o catálogo diretamente.
 4. **Referência histórica é imutável.** A referência aponta para a variante e o perfil **usados**. Variante é aposentada por status, nunca deletada, e `set null` em cascata não pode esvaziar referência de item histórico.
+5. **Porta única de leitura.** Todo acesso ao conhecimento alimentar — candidatos, identidade, variante, perfil, alias, porção — passa por um único contrato de leitura governado. O resolvedor, as telas, os relatórios e os canais são consumidores desse contrato; nenhum deles consulta tabelas de conhecimento diretamente. Esse contrato é a fronteira estável que isola os consumidores da física de armazenamento: enquanto o Gate A e o schema V2 evoluem por trás dele, os consumidores não mudam. Qualquer leitura fora dessa porta é, por definição, um resolvedor silencioso e é barrada pelo Gate 19.
 
 A regra 4 é o que hoje permite que `legacyDeletion.ts` faça `UPDATE` e `DELETE` em `foodCatalog` e que quatro chaves `set null` transformem histórico em órfão.
 
