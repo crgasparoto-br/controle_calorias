@@ -265,7 +265,7 @@ Princípios:
 
 ### 8.3. Modelo lógico alvo
 
-O modelo físico exato ainda poderá ser refinado, mas a separação de responsabilidades abaixo passa a ser decisão arquitetural.
+A separação de responsabilidades abaixo passa a ser decisão arquitetural. O modelo físico base foi fechado na seção 8.7; ajustes futuros podem alterar detalhes de implementação sem reintroduzir fontes paralelas ou misturar identidade, nutrição e memória pessoal.
 
 #### `foods` — identidade alimentar canônica
 
@@ -486,6 +486,401 @@ Ordem alvo:
 
 Não manter dual-write indefinido.
 
+
+
+### 8.7. Modelo físico V2 fechado nesta revisão
+
+A revisão do schema atual encontrou quatro duplicidades estruturais que o V2 deve eliminar:
+
+- `foods` e `foodCatalog` respondem parcialmente à mesma pergunta de identidade/nutrição;
+- `food_portions` e `portions` modelam porções em catálogos diferentes;
+- `user_food_favorites` e `foodFavorites` modelam favoritos contra identidades diferentes;
+- `mealItems` pode apontar simultaneamente para `foods`, `foodCatalog` e `portions`, além de manter dois conjuntos de colunas nutricionais.
+
+Também foi confirmado que classificação de alimentos (`processingLevel`, fruta, vegetal e ultraprocessado) é usada por relatórios e não pode ser perdida durante a migração.
+
+O modelo físico alvo passa a ser o seguinte.
+
+#### Tabelas preservadas e reposicionadas
+
+- `foodBrands`: permanece como cadastro de marcas. Não deve ser renomeada apenas por estética.
+- `food_sources`: permanece como cadastro de origem/versionamento de fontes. A origem de identidade e a origem nutricional passam a ser referenciadas pelas tabelas V2 apropriadas.
+- `foods`: permanece com o mesmo nome físico, mas passa a representar somente a família/identidade canônica.
+
+#### `foods`
+
+Campos obrigatórios do alvo:
+
+- `id`;
+- `scope = global | user`;
+- `owner_user_id` quando `scope=user`;
+- `canonical_name`;
+- `normalized_name`;
+- `canonical_key` estável e único;
+- `category`;
+- `description`;
+- `status = active | deprecated | merged`;
+- `merged_into_food_id`;
+- timestamps.
+
+Deixarão de pertencer a `foods` após a migração:
+
+- `source_id` e `source_food_code`;
+- marca comercial;
+- calorias/macros;
+- nutrientes de cauda longa.
+
+Regra: uma família alimentar não é uma versão nutricional.
+
+#### `food_variants`
+
+Identidade concreta resolvível.
+
+Campos mínimos:
+
+- `id`;
+- `food_id`;
+- `brand_id` opcional;
+- `variant_type = generic | branded | custom`;
+- `display_name`;
+- `normalized_name`;
+- `variant_name` opcional;
+- `preparation` opcional;
+- `qualifiers_json` somente para qualificadores não indexados;
+- `identity_key` determinística e única;
+- `status = draft | active | deprecated | merged`;
+- `merged_into_variant_id`;
+- timestamps.
+
+Cada `food` utilizável deve possuir ao menos uma variante. Alimento genérico também usa uma variante genérica explícita.
+
+#### `food_variant_sources`
+
+Mapeia a identidade de uma variante nas fontes externas sem acoplar a fonte à família ou ao perfil nutricional.
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `source_id`;
+- `source_item_code` opcional;
+- `source_identity_key` determinística e única;
+- `source_url` opcional;
+- `status = active | deprecated`;
+- `first_seen_at`;
+- `last_seen_at`.
+
+Quando a fonte possuir código estável, a combinação `source_id + source_item_code` deve ser única.
+
+#### `food_nutrition_profiles`
+
+Única fonte persistente de valores nutricionais canônicos por variante.
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `source_id`;
+- `food_variant_source_id` opcional;
+- `profile_key`;
+- `version` inteiro crescente por `profile_key`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `basis_quantity`;
+- `basis_unit = g | ml | serving`;
+- `calories_kcal`;
+- `protein_g`;
+- `carb_g`;
+- `fat_g`;
+- `fiber_g`, `sugar_g`, `sodium_mg` opcionais;
+- `nutrients_json` apenas para nutrientes de cauda longa;
+- dados de porção original da fonte quando existirem;
+- `content_hash`;
+- `supersedes_profile_id` opcional;
+- `valid_from` e `valid_to` opcionais;
+- `collected_at`, `verified_at` e timestamps.
+
+Regras de versão:
+
+- `profile_key + version` é único;
+- perfil `verified` não é sobrescrito silenciosamente;
+- correção material cria nova versão/perfil e referencia a versão substituída;
+- `rejected` e `revoked` permanecem auditáveis;
+- seleção do perfil aplicável considera status, vigência, fonte e política do resolvedor.
+
+#### `food_variant_classifications`
+
+Classificação usada por relatórios e qualidade alimentar fica separada de identidade e nutrição.
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `version`;
+- `processing_level`;
+- `is_fruit`;
+- `is_vegetable`;
+- `is_ultra_processed`;
+- `source_id` opcional;
+- `source_kind`;
+- `confidence`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `supersedes_classification_id` opcional;
+- timestamps.
+
+O snapshot histórico da refeição deve preservar a classificação efetivamente usada quando ela afetar relatórios.
+
+#### `food_aliases`
+
+Alias global deve apontar para `food_variants`, não para uma família ambígua.
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `alias`;
+- `normalized_alias`;
+- `locale` opcional;
+- `source_id` opcional;
+- `confidence`;
+- `status = active | deprecated | rejected`;
+- timestamps.
+
+Índice principal de busca: `normalized_alias + status`.
+A unicidade deve impedir duplicação do mesmo alias normalizado para a mesma variante, sem impedir que um alias ambíguo possua candidatos diferentes.
+
+#### `user_food_aliases`
+
+Memória pessoal isolada.
+
+Campos mínimos:
+
+- `id`;
+- `user_id`;
+- `food_variant_id`;
+- `alias`;
+- `normalized_alias`;
+- `source = user_confirmed | imported | system_suggested`;
+- `confidence`;
+- `status = active | revoked`;
+- `confirmed_at`;
+- `revoked_at`;
+- timestamps.
+
+Deve existir no máximo um mapeamento corrente por `user_id + normalized_alias`. A entrada explícita atual continua prevalecendo.
+
+#### `food_portions`
+
+Será a única tabela canônica de porções, substituindo tanto o significado atual de `food_portions` ligado a `foods` quanto `portions` ligado a `foodCatalog`.
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `label`;
+- `normalized_label`;
+- `unit`;
+- `quantity`;
+- `grams` opcional;
+- `milliliters` opcional;
+- `measure_kind = exact | usual_average | contextual_estimate`;
+- `source_id` opcional;
+- `evidence_id` opcional;
+- `confidence`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `is_default`;
+- `valid_from` e `valid_to` opcionais;
+- timestamps.
+
+Valores estimados não podem ser promovidos silenciosamente a `exact`.
+
+#### `food_barcodes`
+
+Campos mínimos:
+
+- `id`;
+- `food_variant_id`;
+- `barcode` único;
+- quantidade/unidade da embalagem quando conhecidas;
+- `source_id` opcional;
+- `evidence_id` opcional;
+- `status = active | revoked`;
+- timestamps.
+
+Reatribuição de barcode exige evento de revisão; não deve ocorrer por fuzzy matching.
+
+#### `food_evidence`
+
+Evidência normalizada e sanitizada.
+
+Campos mínimos:
+
+- `id`;
+- `subject_key` determinística;
+- `food_variant_id` opcional enquanto o candidato ainda não foi publicado;
+- `evidence_type = nutrition_label | ocr | barcode | manufacturer | official_source | external_source | user_correction | image`;
+- `source_id` opcional;
+- `source_reference`/URL opcional;
+- `content_hash`;
+- `payload_json` sanitizado;
+- `confidence`;
+- `captured_at`;
+- `retention_until` opcional;
+- timestamps.
+
+Mídia bruta deve permanecer no storage apropriado com política de retenção; esta tabela guarda referência e conteúdo mínimo necessário para auditoria.
+
+#### `food_review_cases` e `food_review_events`
+
+`food_review_cases`:
+
+- `case_key` única para agrupar ocorrências equivalentes;
+- `case_type`;
+- `status = open | approved | rejected | revoked | superseded`;
+- `priority_score`;
+- `occurrence_count`;
+- `distinct_user_count` agregado;
+- `first_seen_at`/`last_seen_at`;
+- referências/candidato proposto quando já existirem;
+- `proposed_payload_json` sanitizado;
+- timestamps.
+
+`food_review_events` é append-only e registra ator, ação, motivo/payload e data.
+
+#### `food_resolution_events`
+
+Tabela de alto volume para rastreabilidade sanitizada.
+
+Campos mínimos:
+
+- `id` de alta capacidade;
+- `trace_id` único;
+- `user_id` opcional conforme política de privacidade;
+- modalidade/entrypoint;
+- status da resolução;
+- `food_variant_id`, `nutrition_profile_id` e `food_portion_id` opcionais;
+- razão de fallback/clarificação;
+- versão do resolvedor e da política;
+- hash sanitizado da entrada;
+- `decision_json` com o mínimo necessário;
+- `created_at`;
+- `expires_at` conforme retenção.
+
+Não usar esta tabela como catálogo nem como memória pessoal.
+
+### 8.8. Consolidação de favoritos e sinais
+
+A tabela `foodFavorites` ligada a `foodCatalog` será aposentada.
+
+`user_food_favorites` passa a ser a única tabela de favoritos e deve referenciar `food_variants`.
+
+`user_food_usage_stats` também deve migrar de `food_id` para `food_variant_id`, porque frequência de uso de uma variante comercial ou preparo específico não deve ser colapsada na família.
+
+### 8.9. Forma final de `mealItems`
+
+Para itens de tipo `food`, o alvo é:
+
+- `food_variant_id` opcional;
+- `nutrition_profile_id` opcional;
+- `food_portion_id` opcional;
+- snapshot de nome exibido/canônico;
+- `quantity`, `unit`, `portion_text`;
+- `grams`;
+- um único conjunto de nutrientes calculados: `calories_kcal`, `protein_g`, `carb_g`, `fat_g`, `fiber_g`, `sodium_mg`;
+- `food_snapshot_json` sanitizado para identidade, versão de nutrição, classificação e proveniência efetivamente usadas;
+- referência de mídia somente quando necessária.
+
+Após backfill e cutover, devem ser removidos de `mealItems`:
+
+- `foodId`;
+- `foodCatalogId`;
+- `portionId`;
+- `estimatedGrams` quando `grams` já for a fonte canônica;
+- o conjunto duplicado `calories/protein/carbs/fat`.
+
+Itens `recipe` e `free_text` mantêm seus contratos próprios; a migração não deve forçá-los a apontar para variante alimentar.
+
+Correções futuras de catálogo, nutrição ou classificação não recalculam automaticamente snapshots históricos.
+
+### 8.10. Índices e invariantes mínimos
+
+O schema V2 deve, no mínimo, sustentar:
+
+- busca de `foods` por escopo, owner, nome normalizado e status;
+- `food_variants.identity_key` única;
+- busca de variante por `food_id + status` e `brand_id + normalized_name + status`;
+- `food_variant_sources.source_identity_key` única e, quando houver código, unicidade de fonte + código;
+- `food_nutrition_profiles(profile_key, version)` único e índice por variante + status + vigência;
+- aliases globais por `normalized_alias + status`;
+- alias pessoal único corrente por usuário + alias normalizado;
+- porções por variante + label normalizado + unidade + status;
+- barcode único;
+- fila de revisão por status + prioridade + última ocorrência;
+- eventos de resolução por usuário/data, variante/data, `trace_id` e expiração.
+
+Campos usados para busca, join, status, ranking ou integridade devem ser colunas tipadas. JSON fica restrito a cauda longa, payload de auditoria e qualificadores não indexados.
+
+Conhecimento governado referenciado deve ser depreciado, mesclado, revogado ou versionado; hard delete não é o mecanismo normal de correção.
+
+### 8.11. Mapeamento de migração V1 -> V2
+
+A migração deve produzir relatório reproduzível de contagens, mapeamentos e conflitos.
+
+Mapeamento obrigatório:
+
+1. `foods`
+   - criar/manter família em `foods`;
+   - criar variante genérica correspondente;
+   - mover `source_id/source_food_code` para `food_variant_sources`;
+   - mover macros/nutrientes para `food_nutrition_profiles`;
+   - reatribuir `food_aliases` e `food_portions` à variante.
+
+2. `foodCatalog`
+   - localizar/criar família canônica;
+   - criar variante genérica ou comercial;
+   - preservar `foodBrands`;
+   - transformar `researchIdentityKey`, origem e URLs em `food_variant_sources`/evidência;
+   - transformar macros em perfil nutricional;
+   - transformar classificação em `food_variant_classifications`;
+   - transformar barcode em `food_barcodes`;
+   - migrar `portions` para `food_portions`.
+
+3. Favoritos e uso
+   - migrar `foodFavorites` e `user_food_favorites` para uma única `user_food_favorites` por variante, deduplicando pares equivalentes;
+   - migrar `user_food_usage_stats` para variante.
+
+4. `mealItems`
+   - resolver primeiro `foodCatalogId`, depois `foodId`, para a variante/perfil correspondentes;
+   - preservar o snapshot já gravado como autoridade histórica;
+   - preencher as novas FKs quando o mapeamento for determinístico;
+   - manter FK nula e snapshot intacto quando a origem histórica não puder ser mapeada com segurança;
+   - consolidar os dois conjuntos atuais de macros em um conjunto canônico sem alterar o valor histórico efetivamente registrado.
+
+5. `whatsappLearningArtifacts`
+   - migrar somente artefatos que representem alias pessoal, candidato alimentar, rótulo/evidência ou revisão para as tabelas de domínio;
+   - manter artefatos WhatsApp não alimentares na estrutura genérica;
+   - impedir novas escritas alimentares nessa tabela depois do cutover.
+
+6. hardcodes/catálogos estáticos
+   - importar conhecimento válido para tabelas governadas;
+   - manter apenas fixtures/test data explicitamente identificados;
+   - remover arrays de produção como fonte de identidade, macro, porção ou classificação.
+
+### 8.12. Gate de corte do banco
+
+O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
+
+- reconciliação de contagens e amostras sem perda silenciosa;
+- conflitos explicitamente classificados;
+- `mealItems` históricos preservados;
+- favoritos/uso reconciliados;
+- classificação usada em relatórios preservada;
+- Golden Food Corpus verde;
+- replay sanitizado de dados reais verde;
+- nenhum runtime ativo escreve em `foodCatalog`, `portions` ou conhecimento alimentar de `whatsappLearningArtifacts`;
+- busca repository-wide não encontra owner nutricional concorrente não classificado;
+- rollback comprovado até o ponto de corte.
+
+Depois do aceite do cutover, remover bridges e tabelas legadas numa migration separada. Não manter dual-write como estado final.
 
 ## 9. Geração e ranking de candidatos
 
@@ -910,19 +1305,17 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
 
 1. nomes e schema finais de `FoodObservation` e `FoodResolutionDecision`;
-2. nomes físicos finais/índices/check constraints das tabelas V2;
-3. detalhes de versionamento e vigência de `food_nutrition_profiles`;
-4. thresholds de confiança;
-5. regras automáticas de promoção global;
-6. papéis/permissões dos revisores;
-7. desenho da tela administrativa;
-8. fórmula de prioridade;
-9. política exata para estimativa provisória por categoria;
-10. estratégia de embeddings/fuzzy matching;
-11. retenção de evidências visuais e impacto LGPD;
-12. rollout/canário e métricas de sucesso;
-13. compatibilidade/migração de `semanticContract`;
-14. momento exato de remoção dos owners/bridges atuais.
+2. thresholds de confiança;
+3. regras automáticas de promoção global;
+4. papéis/permissões dos revisores;
+5. desenho da tela administrativa;
+6. fórmula de prioridade;
+7. política exata para estimativa provisória por categoria;
+8. estratégia de embeddings/fuzzy matching;
+9. retenção de evidências visuais e impacto LGPD;
+10. rollout/canário e métricas de sucesso;
+11. compatibilidade/migração de `semanticContract`;
+12. momento exato de remoção dos owners/bridges atuais.
 
 ## 26. Regra de evolução deste ADR
 
