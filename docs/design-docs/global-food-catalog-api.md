@@ -78,6 +78,16 @@ A ordenacao prioriza:
 8. alimentos globais;
 9. nome alfabetico.
 
+## Interface administrativa no V2
+
+`client/src/pages/AdminPage.tsx`, na área **Base de alimentos**, é a superfície administrativa atual. No V2 ela deve evoluir para uma console de governança sobre os mesmos artefatos canônicos consumidos pelo resolvedor.
+
+A console deve permitir pesquisar e inspecionar famílias/variantes, perfis nutricionais versionados, classificações, aliases, porções, códigos de barras, fontes e evidências; operar `food_review_cases`; e executar aprovação, correção, rejeição, revogação, depreciação ou merge conforme permissão.
+
+A tela administrativa não deve implementar regras próprias de resolução ou manter um catálogo paralelo. Importação e curadoria devem publicar conhecimento governado somente pelos serviços V2, com prévia/reconciliação e trilha de `food_review_events`.
+
+O detalhamento visual/responsivo continua aberto, mas a separação de responsabilidade por audiência está definida no ADR do Food Intelligence Resolver V2.
+
 ## Curadoria administrativa
 
 `admin.curateGlobalFood` permite que administradores alterem somente alimentos globais (`owner_user_id IS NULL`). A curadoria cobre:
