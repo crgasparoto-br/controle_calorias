@@ -132,6 +132,111 @@ Além do valor textual, qualificadores relevantes devem carregar **papel semânt
 
 O contrato final pode alterar nomes/campos, mas deve preservar a separação entre superfície observada e papel semântico inferido, com confiança/evidência por campo.
 
+### 4.1. Camada de Compreensão Linguística
+
+A entrada do sistema é linguagem humana: texto digitado, transcrição de áudio, OCR de rótulo, legenda de imagem. A mesma intenção alimentar chega em formas muito diferentes — acento ausente, abreviação, gíria, regionalismo, erro de digitação, erro de transcrição, ordem variável, plural/singular, vírgula ou ponto decimal, numerais escritos, apelido pessoal.
+
+Este ADR decide que canais produzem **evidências** e que existe **um único resolvedor**. Falta explicitar a camada que transforma linguagem em observação. Sem ela, a normalização linguística volta a ser uma inteligência parcial de canal — e o padrão que este ADR pretende eliminar reaparece dentro dela.
+
+Evidência histórica dessa classe: `#120`, `#168`, `#311`, `#332`, `#427`, `#522`, `#717`, `#719`, `#720`, `#742`, `#769`, `#1224`, `#1287`.
+
+#### 4.1.1. Responsabilidade e não-responsabilidade
+
+A Camada de Compreensão Linguística (LCL):
+
+- **produz** `FoodObservation[]` rastreáveis a partir de texto, transcrição, OCR, legendas e código de barras;
+- **preserva** a superfície original como âncora de evidência;
+- **atribui** papel semântico a qualificadores (preparo, cultivar, linha, sabor, embalagem, açúcar, gordura, lactose, processamento);
+- **marca** ambiguidade, termos incertos e necessidade de clarificação como **estado**, não como pergunta.
+
+A LCL **não**:
+
+- escolhe alimento, marca, variante ou perfil nutricional;
+- escolhe fonte nutricional ou calcula macros;
+- calcula gramatura final;
+- persiste refeição;
+- cria conhecimento global;
+- pergunta ao usuário.
+
+A decisão de interação pertence à política de incerteza (§10). A LCL apenas declara **o que não ficou resolvido e por quê**.
+
+#### 4.1.2. Princípio anti-lossy (proibição de round-trip)
+
+A LCL não pode ter como contrato de saída apenas um texto normalizado que será reinferido downstream. O contrato é **observação estruturada com spans**; o texto normalizado, quando existir, é derivado e observável, nunca a entrada de uma nova inferência.
+
+```text
+PROIBIDO
+entrada -> normalizedText -> nova inferência de identidade/quantidade
+
+OBRIGATÓRIO
+entrada (preservada) -> FoodObservation[] com spans e papel semântico -> resolvedor
+```
+
+Esta regra é a aplicação direta da invariante de monotonicidade (§6) à camada de linguagem.
+
+#### 4.1.3. Estágios
+
+```text
+S1 — normalização determinística
+S2 — léxico governado (dado)
+S3 — interpretação semântica residual (IA)
+```
+
+**S1 — determinístico.** Normalização Unicode/acentuação/caixa; segmentação de itens e conectores; plural/singular; vírgula e ponto decimal; numerais escritos (`meia`, `um e meio`, `duas`); abreviações de unidade conhecidas; identificação de fragmentos de comando/operação; proteção de tokens protegidos (marca, cultivar, termo de linha).
+
+**S2 — léxico governado.** Substituições rastreáveis de gíria, abreviação, regionalismo, apelido e erro recorrente, aplicadas conforme escopo, confiança e validade (§4.1.4). Cada substituição é registrada com origem e span.
+
+**S3 — interpretação semântica residual.** Recebe somente o que S1 e S2 não resolveram com segurança e devolve observações com qualificadores e papel semântico, **alternativas ranqueadas** e evidência por campo. A IA não é autoridade final (§3) e não inventa identidade.
+
+Um item que S1/S2 resolvem com segurança **não deve** consumir chamada de IA. Isso é requisito de custo (§19.3) e de reprodutibilidade.
+
+#### 4.1.4. Regras obrigatórias
+
+1. **Preservação da superfície.** `rawInput` é imutável e permanece como evidência do turno; spans referenciam o original.
+2. **Integridade semântica.** Nenhum estágio pode remover, inverter ou inventar qualificador nutricional (`zero`, `light`, `diet`, `sem açúcar`, `integral`, `desnatado`, `frito`, `cozido`). Reescrita de superfície não altera semântica nutricional.
+3. **Papel semântico explícito.** Qualificador relevante carrega seu papel; termos como `frito`, `integral`, `Packans`, `zero`, `UHT`, cultivar, linha, sabor ou embalagem não podem ser reclassificados downstream por listas léxicas ad hoc (`#1224`, `#1194`).
+4. **Ambiguidade é dado.** Havendo mais de uma interpretação plausível, a LCL devolve alternativas com confiança — nunca escolhe.
+5. **Correção silenciosa proibida.** Erro de digitação ou de transcrição que altere identidade (`banco` → `branco`/`Panco`, `pêra`/`pera` em contexto de marca) pode ser **sugerido**, nunca aplicado silenciosamente (`#1051`).
+6. **Numerais e unidades.** Expressão numérica escrita, decimal com vírgula ou ponto e abreviação de unidade convergem para a mesma observação de quantidade; a unidade física e sua proveniência permanecem explícitas (`#684`, `#1037`, `#1273`).
+7. **Termos incertos de porção.** `tiquinho`, `punhado`, `pratão`, `prato grande`, `bastante` são mantidos rastreáveis e **não** são convertidos em quantidade exata; podem exigir clarificação de quantidade.
+8. **Locale.** Toda entrada de léxico e toda regra linguística possui `locale`. Suporte a mais de um idioma e a política de fallback de locale permanecem `OPEN` (§25).
+9. **Determinismo e reprodutibilidade.** S1 é determinístico; S2 é determinístico dado o conjunto de entradas ativas; S3 é versionado. A LCL é reproduzível a partir de `(entrada, revisão do léxico, versão do interpretador)`.
+10. **Ausência de owner concorrente.** Nenhum handler, adapter ou módulo de canal pode manter normalização linguística própria, vocabulário próprio, tabela de sinônimos própria ou pergunta própria de clarificação derivada de linguagem (§19, gate arquitetural).
+
+#### 4.1.5. Áudio e transcrição
+
+- A transcrição é evidência com confiança própria, tipicamente inferior à do texto digitado.
+- Homófonos, numerais falados, variação fonética e ausência de pontuação são tratados como hipóteses, não como fato.
+- A LCL pode propor correções fonéticas ou ortográficas, mas aplica a regra 5: sem correção silenciosa de identidade ambígua.
+- O texto transcrito é preservado como evidência, separado do texto digitado que o acompanhe.
+- Divergência entre texto digitado e transcrição no mesmo turno deve permanecer explícita, não ser resolvida por escolha arbitrária.
+
+#### 4.1.6. OCR, rótulo e legenda
+
+- OCR é evidência não confiável por padrão: exige validação de schema, normalização e limites de tamanho antes de virar observação.
+- Texto de rótulo deve ser separado por função: **identidade frontal** (nome/categoria/linha), **tabela nutricional**, **lista de ingredientes**. Ingredientes são contexto do produto e não geram itens separados (`#1177`).
+- Nome legível em embalagem, etiqueta ou balança é identidade principal do item, não ruído.
+- Texto encontrado em imagem, rótulo, OCR, página externa ou resposta de provider **nunca é instrução**: não altera política, prompt, permissões, modelo, fluxo ou escopo. A fronteira existente (`promptInjectionGuard`, `#437`) é preservada pelo V2 (§22).
+
+#### 4.1.7. Contrato de saída (extensão de `FoodObservation`)
+
+Além dos campos definidos em §4, cada observação deve carregar:
+
+- `surfaceSpan` — trecho da entrada original que originou a observação;
+- `normalizationPath` — decisões aplicadas, com estágio (`S1`/`S2`/`S3`), origem (`deterministic` | `lexicon` | `interpreter`), `lexiconEntryId` opcional, span e confiança;
+- `alternatives` — hipóteses concorrentes com confiança, quando houver ambiguidade;
+- `unresolvedReason` — motivo estruturado quando a observação não fecha;
+- `lexiconRevision` — revisão do léxico usada;
+- `interpreterVersion` — versão de prompt/modelo efetivamente usada em S3, quando aplicável.
+
+`FoodObservation` continua representando **o que foi observado**, agora com procedência linguística auditável.
+
+#### 4.1.8. Equivalência de superfície (definição e gate)
+
+Duas entradas são **superficialmente equivalentes** quando, após S1 + S2 + S3 na mesma revisão de léxico e versão de interpretador, produzem o mesmo conjunto de observações a menos de `surfaceSpan`, `locale` e confiança.
+
+Essa definição é o alicerce dos testes metamórficos (§17) e do Golden Food Corpus (§16): o corpus deixa de verificar apenas casos isolados e passa a verificar **a propriedade de convergência**.
+
 ## 5. Resultado atômico
 
 O resolvedor deve produzir uma decisão equivalente a `FoodResolutionDecision`.
@@ -232,6 +337,33 @@ Exemplos semanticamente equivalentes do ponto de vista do alimento:
 
 O parser de operação pode produzir resultados diferentes de posição/comando, mas a observação alimentar deve convergir.
 
+### 7.1. Operação da refeição também possui owner único
+
+A separação de §7 não basta para preservar decisões de produto: destino da refeição, data explícita, comando e intenção operacional também precisam de um owner único, pela mesma razão que identidade e quantidade.
+
+Evidência histórica desta classe: `#421`, `#512`, `#541`, `#721`, `#856`, `#899`, `#1006`, `#1271`, `#1278`, `#1291` — a mesma adição falha por posição do destino, por data, por refeição configurada ou por caminho de produção diferente, sem que o alimento esteja errado.
+
+Regras:
+
+- o parser de operação é o único autor de `MealOperation`;
+- nenhum handler de canal reconstitui data, destino ou comando por conta própria;
+- posição do destino na frase não altera a operação;
+- data explícita sempre prevalece sobre padrão temporal;
+- refeição configurada do usuário é conhecimento operacional, não identidade alimentar;
+- a operação resolvida é monotônica: uma etapa posterior não a reescreve;
+- a operação entra no corpus e nos gates com o mesmo peso que a resolução alimentar.
+
+### 7.2. Persistência em lote
+
+Um turno pode conter vários itens alimentares com qualidade de evidência diferente. A política é:
+
+- **item resolvido é registrado**; item inconsistente é excluído **apenas ele**, com motivo estruturado e explicação ao usuário;
+- a operação só é considerada concluída com relatório explícito de itens registrados e não registrados;
+- um item ambíguo **nunca** invalida itens resolvidos do mesmo turno (`#1177`, `#1287`);
+- o usuário não deve receber erro genérico quando parte do lote é válida (`#1282`);
+- cada exclusão deve referenciar o `unresolvedReason` da observação que a originou;
+- nenhum item do lote pode ser registrado sem procedência nutricional declarada (§9.2).
+
 ## 8. Banco de conhecimento único
 
 A direção arquitetural é possuir **uma única base governada de conhecimento alimentar**.
@@ -258,6 +390,8 @@ Ela deve representar, sem exigir alteração de código por alimento:
 ### 8.1. Regra obrigatória
 
 Cadastrar um novo alimento, alias, porção, marca, variante ou rótulo **não deve exigir mudança em arrays/constantes TypeScript ou novo deploy de aplicação**.
+
+Cadastrar um novo significado linguístico (gíria, abreviação, regionalismo, erro recorrente, apelido pessoal) ou ajustar uma regra de interpretação segue a mesma regra: é dado governado, não código de canal.
 
 Exceções emergenciais podem existir apenas como mitigação temporária explicitamente rastreada e com plano de migração para dados governados.
 
@@ -376,6 +510,27 @@ Deve registrar origem, data, confiança e revogação.
 
 Entrada explícita incompatível no turno atual sempre vence esse aprendizado.
 
+#### `food_lexicon_entries` — conhecimento linguístico global
+
+Representa como uma superfície chega ao sistema: gíria, abreviação, regionalismo, erro recorrente, termo de porção, termo de unidade e token protegido.
+
+Campos conceituais mínimos:
+
+- termo e termo normalizado;
+- `kind` (`slang | abbreviation | regionalism | typo | alias_surface | portion_term | unit_term | protected_token`);
+- alvo (`canonical_term | food_variant | none`) e referência opcional;
+- `locale`;
+- escopo `global | user`;
+- origem, evidência e confiança;
+- marcação de termo que exige clarificação de quantidade;
+- estado de governança e validade.
+
+Léxico e alias alimentar têm responsabilidades distintas: o alias aponta para uma variante resolvida; o léxico descreve a superfície de entrada. Não devem ser fundidos em uma única tabela.
+
+#### `user_food_lexicon_entries` — vocabulário pessoal
+
+Equivalente pessoal do léxico, sempre com `user_id`, origem da confirmação, confiança, validade e revogação. É isolado por usuário e nunca eleva a confiança do conhecimento global.
+
 #### `food_portions` — medidas e gramaturas
 
 Porção é conhecimento associado à variante, não ao handler.
@@ -480,6 +635,11 @@ A migração deverá retirar da rota canônica, com validação de cobertura ant
 - uso de `whatsappLearningArtifacts` como storage permanente de conhecimento alimentar que possua modelo de domínio próprio.
 
 Estruturas genéricas podem permanecer para outros usos do WhatsApp que não sejam conhecimento alimentar.
+
+- `server/modules/whatsapp/informalLanguageNormalizer.ts` e a parte linguística de `server/modules/whatsapp/inboundNormalizer.ts` (issue `#427`) — normalização de gíria, abreviação, regionalismo e erro de digitação presa ao canal WhatsApp, com substituições embutidas em código;
+- regras de forma linguística embutidas em `server/mealTextParsing.ts` que não sejam gramática operacional (quantidade, unidade, comando, data);
+- qualquer vocabulário, sinônimo, tabela de apelido ou pergunta de clarificação derivada de linguagem que resida em handler de canal.
+
 #### Inventário mínimo de legado a absorver ou remover
 
 A migração deve manter um inventário reproduzível, atualizado por busca repository-wide, dos owners e atalhos que deixam de ser fonte de decisão. O inventário inicial inclui, quando ainda existirem no código no momento da implementação:
@@ -795,6 +955,40 @@ Campos mínimos:
 
 Não usar esta tabela como catálogo nem como memória pessoal.
 
+#### `food_lexicon_entries` e `user_food_lexicon_entries`
+
+Campos mínimos de `food_lexicon_entries`:
+
+- `id`;
+- `term` e `normalized_term`;
+- `kind = slang | abbreviation | regionalism | typo | alias_surface | portion_term | unit_term | protected_token`;
+- `target_type = canonical_term | food_variant | none`;
+- `target_ref` opcional;
+- `scope = global | user`;
+- `locale`;
+- `source_id` e `evidence_id` opcionais;
+- `confidence`;
+- `requires_clarification`;
+- `status = provisional | pending_review | verified | rejected | revoked`;
+- `supersedes_id` opcional;
+- `valid_from` e `valid_to` opcionais;
+- timestamps.
+
+Campos mínimos de `user_food_lexicon_entries`:
+
+- `id`;
+- `user_id`;
+- `term` e `normalized_term`;
+- `kind`;
+- `target_type` e `target_ref`;
+- `locale`;
+- `source = user_confirmed | imported | system_suggested`;
+- `confidence`;
+- `status = active | revoked`;
+- `confirmed_at`, `revoked_at` e timestamps.
+
+Invariantes: no máximo um mapeamento corrente por `scope + user_id + locale + normalized_term + kind`; busca principal por `normalized_term + status`; nenhum termo de léxico pode alterar ou suprimir qualificador nutricional (§4.1.4, regra 2).
+
 ### 8.8. Consolidação de favoritos e sinais
 
 A tabela `foodFavorites` ligada a `foodCatalog` será aposentada.
@@ -893,6 +1087,15 @@ Mapeamento obrigatório:
    - manter apenas fixtures/test data explicitamente identificados;
    - remover arrays de produção como fonte de identidade, macro, porção ou classificação.
 
+7. normalização linguística (`#427`)
+   - importar `BUILT_IN_REPLACEMENTS` e `UNCERTAIN_PORTION_PATTERNS` como entradas de `food_lexicon_entries`, preservando origem e confiança;
+   - converter `replacements[]` em `normalizationPath` da observação;
+   - converter `uncertainTerms[]` em léxico com `kind = portion_term` e `requires_clarification = true`;
+   - converter `candidateGlobalAliases[]` em `food_review_cases`;
+   - remover `clarificationQuestion` do normalizador: perguntar é decisão da política de incerteza (§10);
+   - preservar a cobertura de `informalLanguageNormalizer.test.ts` e `inboundNormalizer.test.ts` como casos do Golden Food Corpus quando representarem comportamento válido;
+   - impedir nova escrita linguística dentro de módulo de canal depois do cutover.
+
 ### 8.12. Gate de corte do banco
 
 O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
@@ -965,6 +1168,65 @@ Consequências:
 
 Detalhes físicos para representar eixos/atributos discriminantes podem evoluir sem reabrir a decisão arquitetural de que suficiência é uma política sobre dados governados.
 
+### 9.2. Invariante de cobertura nutricional (totalidade)
+
+O resolvedor é uma **função total** sobre observações de alimento consumível: toda observação encerra em uma decisão com **procedência nutricional declarada**. Não existe caminho silencioso para "sem macros".
+
+Ordem de encerramento:
+
+1. perfil verificado da variante exata (rótulo, código de barras, fonte oficial);
+2. perfil de variante comercial equivalente comprovada;
+3. perfil da variante genérica governada do alimento;
+4. perfil herdado da família/preparo com classificação aplicável;
+5. estimativa provisória pela política da categoria, marcada como provisória;
+6. clarificação do campo realmente faltante, preservando tudo o que já foi resolvido;
+7. falha explícita controlada, somente quando registrar implicaria inventar identidade ou composição.
+
+Regras:
+
+- todo encerramento declara fonte, estado e provisoriedade;
+- estimativa nunca é apresentada como verificada e nunca substitui perfil verificado (§19.4);
+- ausência de marca não impede resolução por variante genérica; presença de marca nunca autoriza perfil genérico como se fosse composição específica do produto (`#1088`, `#1158`);
+- o item 7 é exceção auditável, não caminho comum, e deve ser observável por métrica;
+- placeholder numérico fixo (por exemplo 150/6/15/5) deixa de ser mecanismo de encerramento (`#1194`, `#1256`);
+- a cobertura é propriedade do resolvedor: não depende de o alimento estar previamente cadastrado.
+
+Isso responde ao requisito de produto: independentemente de 1, 2 ou 10 alimentos no mesmo turno, o sistema entrega a proposta de macronutrientes com procedência declarada — ou explica exatamente o que falta.
+
+### 9.3. Matriz de não-recorrência
+
+O histórico do domínio alimentar acumulou classes de falha que se repetem. Esta matriz é o compromisso explícito de que cada classe possui uma garantia arquitetural e um gate que a impede de voltar.
+
+| Classe de falha | Evidência histórica | Garantia arquitetural | Gate de prevenção |
+| --- | --- | --- | --- |
+| A. Interpretação de linguagem livre | `#120`, `#168`, `#311`, `#332`, `#427`, `#522`, `#717`, `#719`, `#720`, `#742`, `#769`, `#1224`, `#1287` | LCL única com S1/S2/S3, léxico governado e papel semântico (§4.1) | Gate de normalizador por canal; equivalência de superfície no corpus |
+| B. Identidade comercial e marca | `#401`, `#407`, `#660`, `#661`, `#742`, `#903`, `#987`, `#1072`, `#1088`, `#1158`, `#1214`, `#1215`, `#1243` | Variante como identidade resolvível; fail-closed comercial; pesquisa por marca com evidência (§8.3, §19.4) | Casos de marca no corpus; proibição de fallback genérico para produto de marca |
+| C. Quantidade, medida caseira e porção | `#182`–`#187`, `#332`, `#544`, `#684`, `#1016`, `#1037`, `#1043`, `#1047`, `#1054`, `#1057`, `#1181`, `#1196`, `#1269`, `#1273`, `#1278` | Porção como conhecimento da variante/família com precedência formal e conversão física explícita (§8.3) | Matriz de medidas caseiras e metamórficos de quantidade |
+| D. Fallback genérico e nutrição inventada | `#307`, `#402`, `#903`, `#956`, `#982`, `#997`, `#1194`, `#1195`, `#1256`, `#1282` | Invariante de cobertura com procedência declarada (§9.2) | Proibição de placeholder numérico; divergência V1×V2 no shadow mode |
+| E. Imagem, rótulo e associação de mídia | `#159`, `#250`, `#346`, `#357`, `#367`, `#496`, `#758`, `#874`, `#986`, `#1174`, `#1177`, `#1191`, `#1210`, `#1215`, `#1235`, `#1243`, `#1251` | Adapters produzem evidência; identidade visual e rótulo entram no mesmo resolvedor (§3) | Casos de visão/rótulo no corpus; multimodal obrigado a atravessar a API pública |
+| F. Operação: data, destino e comando | `#421`, `#512`, `#541`, `#721`, `#856`, `#899`, `#1006`, `#1271`, `#1278`, `#1291` | Owner único de `MealOperation` (§7.1) | Corpus de operação; gate que impede handler reconstituir data/destino |
+| G. Multi-item, lote e multi-ação | `#169`, `#189`, `#247`, `#271`, `#422`, `#559`, `#578`, `#918`, `#1177`, `#1287` | Persistência em lote com exclusão apenas do item inconsistente (§7.2) | Casos de lote no corpus; proibição de erro genérico com item válido |
+| H. Memória pessoal e promoção | `#403`, `#524`, `#1051`, `#1059`, `#1153`, `#1225` | Memória pessoal durável isolada; entrada explícita prevalece; promoção com governança (§11, §12.2, §15) | Regressão de memória após restart e conflito no mesmo turno |
+| I. Ownership concorrente entre canais | `#732`, `#769`, `#1051`, `#1090`, `#1095`, `#1244`, `#1256`, `#1271` | Resolvedor único; canais só produzem evidência (§2, §3) | `architecture:check` repository-wide contra owners concorrentes |
+| J. Classificação e relatórios | `#266`, `#590`, `#591`, `#592`, `#593`, `#595`, `#1245` | Classificação separada de identidade e nutrição, versionada e preservada no snapshot (§8.7) | Casos de classificação no corpus; inventário de consumidores downstream |
+| K. Resiliência e runtime | `#873`, `#1061`, `#1191`, `#1257`, `#1282` | Atomicidade, idempotência, modo degradado e orçamento (§19.5, §19.6) | Testes de retry, concorrência e indisponibilidade |
+| L. Privacidade e segurança | `#437`, `#736`, `#737` | Minimização, retenção e fronteira de instrução (§4.1.6, §19.8) | Casos adversariais no corpus; revisão de privacidade no gate de rollout |
+
+Se uma issue futura propuser resolver novamente uma dessas classes fora da garantia correspondente, ela deve ser rejeitada ou o ADR revisado explicitamente (§26).
+
+### 9.4. Nenhum alimento exige código
+
+A capacidade de resolver **1, 2 ou 10 alimentos arbitrários** não pode depender de cadastro prévio nem de alteração de código. A regra operacional é:
+
+1. a primeira ocorrência de um alimento desconhecido **já encerra** pela escada de §9.2 (tipicamente variante genérica, herança de família/preparo ou estimativa provisória marcada);
+2. a recorrência gera `food_review_cases` agrupado, sem exigir ação humana imediata;
+3. a promoção publica conhecimento governado;
+4. nenhuma dessas etapas altera código, constante ou array de produção.
+
+Consequência de produto: o usuário não espera por correção de código para registrar um alimento. A qualidade melhora por **dado**, de forma incremental e auditável.
+
+Gate: `architecture:check` deve falhar quando houver alimento, macro, porção, classificação ou termo linguístico cadastrado em array/constante de produção.
+
 ## 10. Política de incerteza
 
 Princípio:
@@ -978,6 +1240,10 @@ Exemplos:
 - duas variantes plausíveis -> perguntar variante;
 - três itens na imagem, dois resolvidos e um ambíguo -> preservar os dois e perguntar somente o terceiro;
 - imagem ilegível -> não inventar alimento.
+
+Uma entrada com vários itens segue §7.2: os itens resolvidos são registrados, os inconsistentes são excluídos individualmente com motivo estruturado, e o usuário recebe explicação do que entrou e do que não entrou. A política de incerteza nunca é motivo para descartar o lote inteiro nem para silenciar a ausência de um item.
+
+A política também não pode produzir ausência silenciosa de nutrição: se o item foi registrado, ele possui procedência nutricional declarada conforme §9.2.
 
 Os thresholds numéricos de confiança permanecem `OPEN` e devem ser calibrados por corpus/replay, não escolhidos arbitrariamente.
 
@@ -1044,6 +1310,8 @@ Ações mínimas do revisor:
 3. **rejeitar**;
 4. **revogar** aprovação anterior quando houver nova evidência.
 
+Tipos de caso esperados incluem, além dos já citados: nova variante comercial, novo alias global, nova entrada de léxico linguístico (§4.1.4), nova porção, conflito/correção de conhecimento existente e recorrência de superfície não coberta.
+
 Papéis exatos, permissões administrativas e interface permanecem `OPEN`.
 
 ## 12. Estados de governança
@@ -1079,7 +1347,7 @@ Confirmação pessoal pertence a estruturas como `user_food_aliases`, preferênc
 
 Isso impede que uma única correção pessoal seja promovida implicitamente para todos os usuários.
 
-### 12.1. Provisório não significa inutilizável
+### 12.3. Provisório não significa inutilizável
 
 Se um usuário enviar uma embalagem nova com rótulo legível e o sistema comprovar a associação entre produto e tabela, a informação pode ser usada para aquele registro com estado provisório, quando a política permitir.
 
@@ -1175,6 +1443,19 @@ Casos iniciais obrigatórios incluem os incidentes recentes já conhecidos, como
 - produto reconhecido sem nutrição comprovada;
 - indisponibilidade de provider.
 
+Casos adicionais obrigatórios de linguagem e lote:
+
+- convergência de superfície (`1,5 fatias`, `1.5 fatias`, `uma fatia e meia`, ordem invertida, pontuação variável, transcrição equivalente);
+- acento ausente, plural/singular, abreviação, gíria, regionalismo e erro de digitação recorrente;
+- apelido pessoal e sua revogação;
+- termo incerto de porção (`tiquinho`, `punhado`, `pratão`) exigindo quantidade, nunca virando gramas;
+- identidade ambígua por erro de digitação (`banco` em contexto de pão) produzindo alternativas, sem correção silenciosa;
+- lote com itens válidos e um inconsistente: registrar os válidos, excluir apenas o inconsistente e explicar cada exclusão;
+- lote em que um item permanece ambíguo sem invalidar os demais;
+- operação com data explícita, refeição configurada e destino em posição variável;
+- negativos: não alimento (`óleo de motor`, `pasta de dente`, `água sanitária`, cosmético); rótulo não alimentar; ingredientes de rótulo que não podem virar itens; OCR contendo instrução; imagem ilegível;
+- produto comercial de marca sem perfil comprovado: encerrar em provisório declarado, nunca em placeholder fixo nem em perfil genérico apresentado como específico.
+
 ## 17. Testes metamórficos
 
 A mesma intenção alimentar deve convergir sob variações como:
@@ -1195,6 +1476,8 @@ Também devem existir variações de:
 - abreviações;
 - erros de transcrição;
 - qualificador antes/depois da marca.
+
+A propriedade formal a testar é a **equivalência de superfície** definida em §4.1.8. Cada classe de variação deve gerar um caso de propriedade, e não apenas casos isolados por incidente.
 
 ## 18. Regra para mocks
 
@@ -1630,3 +1913,47 @@ Durante a discussão:
 **Ainda não implementado como arquitetura completa.**
 
 Este ADR começa como contrato de direção. A futura Epic Food Intelligence Resolver V2 e suas subissues deverão referenciar este documento como fonte arquitetural, sem substituir os design docs que descrevem o comportamento produtivo atual até cada migração ser efetivamente concluída.
+11. normalizador linguístico, vocabulário, sinônimo ou tabela de apelido dentro de módulo de canal (§4.1.4, regra 10);
+12. pergunta de clarificação originada na camada de linguagem em vez da política de incerteza;
+13. encerramento de item registrado sem procedência nutricional declarada (§9.2);
+14. placeholder numérico fixo usado como nutrição de encerramento;
+15. handler de canal reconstituindo data, destino de refeição ou comando (§7.1);
+16. descarte do lote inteiro quando apenas um item é inconsistente (§7.2);
+17. alimento, macro, porção, classificação ou termo linguístico cadastrado em array/constante de produção (§9.4).
+
+O ciclo padrão de resolução é **cache-through**: consultar primeiro o conhecimento governado e a evidência exata; recorrer à IA ou à pesquisa externa somente no miss; persistir o resultado como conhecimento provisório com evidência; e não repetir a mesma consulta dentro da mesma resolução nem nas seguintes enquanto ela for válida.
+
+Consequências:
+
+- a segunda ocorrência do mesmo alimento não deve custar o mesmo que a primeira;
+- resultado de IA persistido entra como provisório e candidato a revisão, nunca como verificado;
+- cache nunca transforma evidência provisória em verificada e nunca sobrevive a mudança de versão, validade ou escopo que o invalidem;
+- a camada de linguagem segue a mesma disciplina: S1/S2 antes de S3 (§4.1.3).
+
+Métricas adicionais obrigatórias:
+
+- percentual de observações encerradas em S1, S2 e S3 da camada de linguagem;
+- taxa de encerramento por degrau da escada de §9.2, incluindo o degrau de falha explícita;
+- taxa de item registrado sem procedência nutricional declarada (deve ser zero);
+- taxa de uso de placeholder numérico fixo (deve ser zero);
+- taxa de alimento novo resolvido **sem alteração de código**;
+- taxa de exclusão individual em lotes e distribuição de `unresolvedReason`;
+- incidência de correção silenciosa indevida (deve ser zero);
+- top N de superfícies não cobertas pelo léxico, alimentando curadoria por dado;
+- reincidência por classe da matriz de §9.3.
+- existe uma única camada de compreensão linguística, com léxico governado como dado e papel semântico explícito, sem owner concorrente por canal;
+- a linguagem é normalizada para **observação estruturada**, nunca por round-trip texto -> estrutura -> nova inferência;
+- o resolvedor é uma função total: todo item registrado possui procedência nutricional declarada, e ausência silenciosa de macros é proibida;
+- nenhum alimento, macro, porção, classificação ou termo linguístico exige cadastro em código para ser resolvido;
+- operação da refeição (data, destino, comando) possui owner único, com a mesma disciplina da identidade alimentar;
+- em lote, itens válidos são registrados e apenas os inconsistentes são excluídos, com explicação estruturada;
+- o ciclo de resolução é cache-through, e conhecimento obtido por IA ou pesquisa externa só é persistido como provisório com evidência;
+- o histórico do domínio alimentar é tratado como matriz de não-recorrência (§9.3), e cada classe de falha possui garantia e gate.
+14. locale inicial da camada de linguagem e política de fallback entre locales;
+15. política de revisão do léxico global e limiar para promoção automática;
+16. tratamento de superfície totalmente desconhecida: observação marcada para curadoria ou descarte;
+17. limiares de S1/S2 para escalar a S3 e meta de redução de custo de IA;
+18. se comandos de operação fazem parte da camada de linguagem ou apenas do parser de operação (§7.1);
+19. regra numérica da escada de §9.2 por categoria, especialmente quando a estimativa provisória é permitida;
+20. inventário de consumidores downstream de `foodCatalog`, `portions`, favoritos duplicados e macros de identidade antes do cutover;
+21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
