@@ -40,6 +40,22 @@ aproximação. A exceção é o conflito material entre referências verificadas
 mesma fruta (`grounding_conflict`, #1181), que continua exigindo clarificação, e
 identidade comercial comprovada nunca entra nesse fallback.
 
+### Bebida com variante comercial não comprovada (#1291)
+
+Bebidas de commodity passam a ter referência curada própria quando o token do
+rótulo (`original`) não tem evidência comercial verificável e a busca não
+consegue comprová-la. `Cerveja Original` (Antarctica Original Pilsen) foi
+cadastrada em `FOOD_CATALOG_REFERENCE` com porção de 200 ml = 87 kcal (365 kJ) e
+7,2 g de carboidratos, procedência registrada (tabela nutricional do rótulo
+reproduzida em fichas de varejo) e `productVariant: "original"`.
+
+Como a variante agora existe na referência local, o preflight de identidade
+comercial deixa de bloquear o registro e a composição vem do catálogo — antes a
+mensagem `600ml cerveja original` era respondida com clarificação de identidade e
+a bebida não era registrada. O mecanismo é o mesmo já previsto no preflight:
+variante declarada pela referência local não é tratada como variante comercial
+não comprovada. Bebidas sem referência local continuam fail-closed.
+
 ## Fluxo no registro de refeicao
 
 O item de refeicao passa a aceitar:

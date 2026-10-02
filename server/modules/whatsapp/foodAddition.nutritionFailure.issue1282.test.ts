@@ -112,28 +112,54 @@ describe("issue #1282 — falha do motor nutricional na adição canônica", () 
     );
   });
 
+  // #1291: quando a quantidade já foi resolvida localmente (1 fatia = 15 g) e a
+  // identidade existe no catálogo, a indisponibilidade do motor não pode
+  // descartar o pedido: o item é materializado pelo catálogo canônico.
   it.each([
     ["motor indisponível (null)", () => null],
     ["resposta sem itens", () => ({ items: [] })],
-    ["lote ambíguo com dois itens", () => ({
-      items: [buildItem(22.5, "mortadela"), buildItem(50, "pão francês")],
-    })],
   ])(
-    "responde de forma controlada quando o motor retorna %s",
+    "registra a medida resolvida localmente quando o motor retorna %s",
     async (_label, engineResult) => {
       processMealInputMock.mockImplementation(async () => engineResult() as unknown);
 
       const result = await run(PRODUCTION_MESSAGE);
 
-      // Nunca lança: a mensagem de produção precisa de retorno ao usuário.
-      expect(result?.action).toBe("clarification_needed");
-      expect(result?.eventType).toBe("whatsapp.food_addition.nutrition_failure");
-      expect(String(result?.reply ?? "")).toContain("Não consegui concluir agora");
-      expect(String(result?.reply ?? "")).toMatch(/nada foi adicionado à refeição/i);
-      // Falha anterior à mutação: a refeição permanece intacta.
-      expect(updateMealMock).not.toHaveBeenCalled();
+      expect(result?.action).toBe("meal_item_added");
+      expect(updateMealMock).toHaveBeenCalledWith(USER_ID, expect.objectContaining({
+        mealId: BREAKFAST_MEAL.id,
+        mealLabel: "Café da manhã",
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            foodName: "mortadela",
+            quantity: 1.5,
+            unit: "fatia",
+            estimatedGrams: 22.5,
+            calories: 60.5,
+            source: "catalog",
+          }),
+        ]),
+      }));
     },
   );
+
+  // Lote ambíguo continua fail-closed: a ambiguidade do motor não é resolvida
+  // em silêncio nem substituída pela medida local.
+  it("responde de forma controlada quando o motor devolve lote ambíguo com dois itens", async () => {
+    processMealInputMock.mockImplementation(async () => ({
+      items: [buildItem(22.5, "mortadela"), buildItem(50, "pão francês")],
+    }));
+
+    const result = await run(PRODUCTION_MESSAGE);
+
+    // Nunca lança: a mensagem de produção precisa de retorno ao usuário.
+    expect(result?.action).toBe("clarification_needed");
+    expect(result?.eventType).toBe("whatsapp.food_addition.nutrition_failure");
+    expect(String(result?.reply ?? "")).toContain("Não consegui concluir agora");
+    expect(String(result?.reply ?? "")).toMatch(/nada foi adicionado à refeição/i);
+    // Falha anterior à mutação: a refeição permanece intacta.
+    expect(updateMealMock).not.toHaveBeenCalled();
+  });
 
   it("mantém a adição funcionando quando o motor responde com um único item", async () => {
     processMealInputMock.mockImplementation(async () => ({

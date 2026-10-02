@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMealsMock = vi.fn();
 const updateMealMock = vi.fn();
+const createManualMealMock = vi.fn();
 const createWaterLogMock = vi.fn();
 const getUserNutritionGoalMock = vi.fn();
 const processMealInputMock = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("../../nutritionEngine", () => ({ resolveCommercialFoodIdentity: vi.fn()
 vi.mock("../meals/service", () => ({
   listMeals: listMealsMock,
   updateMeal: updateMealMock,
+  createManualMeal: createManualMealMock,
 }));
 
 vi.mock("../water/service", () => ({
@@ -562,19 +564,30 @@ describe("executeWhatsappTextIntent", () => {
     expect(result?.reply).not.toContain("por estimativa");
   });
 
-  it("pede esclarecimento quando não encontra a refeição para adicionar café", async () => {
+  it("cria a refeição configurada do próprio dia quando não encontra o registro e a data não é explícita", async () => {
     listMealsMock.mockResolvedValue([]);
+    createManualMealMock.mockImplementation(async (userId: number, input: Record<string, unknown>) => ({
+      id: 9191,
+      userId,
+      notes: null,
+      ...input,
+    }));
 
     const result = await executeWhatsappTextIntent(42, {
       text: "Adicionar 3 xícaras de café sem açúcar a refeição café da manhã",
       receivedAt: new Date("2026-06-03T12:00:00.000Z"),
     });
 
+    // Sem data explícita o alvo é o dia do recebimento (03/06) e a refeição
+    // habitual configurada é criada às 05:00 de America/Sao_Paulo (#1291).
     expect(updateMealMock).not.toHaveBeenCalled();
+    expect(createManualMealMock).toHaveBeenCalledWith(42, expect.objectContaining({
+      mealLabel: "café da manhã",
+      occurredAt: "2026-06-03T08:00:00.000Z",
+    }));
     expect(result).toEqual(expect.objectContaining({
       handled: true,
-      action: "clarification_needed",
-      reply: expect.stringContaining("Não encontrei a refeição"),
+      action: "meal_item_added",
     }));
   });
 

@@ -153,6 +153,18 @@ function resolveIntentDateSelection(intent: WhatsappInterpretedIntent, receivedA
     : { date: parsed, explicit: true, source: "intent" };
 }
 
+/**
+ * Janela máxima do fallback contextual de refeição quando o usuário não
+ * informou data.
+ *
+ * Uma adição sem data precisa continuar alcançando a refeição que acabou de
+ * acontecer (por exemplo o jantar de ontem às 00h30), mas nunca um registro de
+ * outro dia distante: em 01/10/2026 a mensagem "adicionar ... ao lanche da
+ * tarde" gravou em 28/09 porque o fallback aceitava qualquer refeição com o
+ * mesmo rótulo, sem limite de tempo.
+ */
+const CROSS_DAY_MEAL_FALLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 function findMealByLabel(
   meals: ExistingMeal[],
   label: string,
@@ -161,9 +173,18 @@ function findMealByLabel(
   options: { allowCrossDayFallback?: boolean } = {},
 ) {
   const normalizedLabel = normalizeText(normalizeMealLabel(label));
-  return meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date, timeZone))
-    ?? (options.allowCrossDayFallback ? meals.find(meal => normalizeText(meal.mealLabel) === normalizedLabel) : null)
-    ?? null;
+  const sameDayMeal = meals.find(
+    meal => normalizeText(meal.mealLabel) === normalizedLabel && isMealInsideDay(meal, date, timeZone),
+  );
+  if (sameDayMeal) return sameDayMeal;
+  if (!options.allowCrossDayFallback) return null;
+  const referenceTime = date.getTime();
+  return meals.find(meal => {
+    if (normalizeText(meal.mealLabel) !== normalizedLabel) return false;
+    const occurredAtTime = new Date(meal.occurredAt).getTime();
+    return Number.isFinite(occurredAtTime)
+      && Math.abs(referenceTime - occurredAtTime) <= CROSS_DAY_MEAL_FALLBACK_WINDOW_MS;
+  }) ?? null;
 }
 
 type ResolvedFoodMeasurement = {
