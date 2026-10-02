@@ -37,6 +37,17 @@ type FindMealByLabelOptions = {
   allowCrossDayFallback?: boolean;
 };
 
+/**
+ * Janela máxima do fallback contextual de refeição quando o usuário não
+ * informou data.
+ *
+ * A adição sem data precisa alcançar a refeição que acabou de acontecer (por
+ * exemplo o jantar de ontem às 00h30), mas nunca um registro de outro dia
+ * distante: em 01/10/2026 "adicionar ... ao lanche da tarde" foi gravado em
+ * 28/09 porque o fallback aceitava qualquer refeição com o mesmo rótulo.
+ */
+const CROSS_DAY_FALLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export function normalizeAdditionUnit(unit: string | null) {
   return unit ? normalizeMeasurementUnit(unit) : "g";
 }
@@ -268,9 +279,15 @@ export function findMealByLabel<T extends { mealLabel: string; occurredAt: numbe
     return occurredAt >= dayStart && occurredAt <= dayEnd;
   });
   const sameDayMatch = findSameDay(exactMatches) ?? findSameDay(partialMatches);
-  return sameDayMatch ?? (options.allowCrossDayFallback === false
-    ? null
-    : exactMatches[0] ?? partialMatches[0] ?? null);
+  if (sameDayMatch) return sameDayMatch;
+  if (options.allowCrossDayFallback === false) return null;
+  const referenceTime = referenceDate.getTime();
+  const findWithinWindow = (candidates: T[]) => candidates.find(meal => {
+    const occurredAt = new Date(meal.occurredAt).getTime();
+    return Number.isFinite(occurredAt)
+      && Math.abs(referenceTime - occurredAt) <= CROSS_DAY_FALLBACK_WINDOW_MS;
+  });
+  return findWithinWindow(exactMatches) ?? findWithinWindow(partialMatches) ?? null;
 }
 
 export function parseItemQuantity(item: MealItemInput) {

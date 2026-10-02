@@ -47,7 +47,15 @@ describe("data explícita de adição de refeição (#1006)", () => {
     expect(findMealByLabel(meals, "café da manhã", requestedDate, timeZone, {
       allowCrossDayFallback: false,
     })).toBeNull();
-    expect(findMealByLabel(meals, "café da manhã", requestedDate, timeZone)).toEqual(olderMeal);
+    // O fallback contextual alcança a refeição imediatamente anterior...
+    const recentMeal = {
+      id: 23,
+      mealLabel: "Café da manhã",
+      occurredAt: "2026-08-23T15:00:00.000Z",
+    };
+    expect(findMealByLabel([recentMeal], "café da manhã", requestedDate, timeZone)).toEqual(recentMeal);
+    // ...mas nunca um registro de dois dias antes (#1291).
+    expect(findMealByLabel(meals, "café da manhã", requestedDate, timeZone)).toBeNull();
   });
 
   it("seleciona o registro do mesmo dia antes de qualquer fallback", () => {
