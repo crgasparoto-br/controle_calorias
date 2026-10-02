@@ -10,6 +10,20 @@ Converter entradas de refeição em rascunhos revisáveis e, após confirmação
 entrada multimodal -> contrato semântico canônico -> resolução de identidade/nutrição -> revisão/clarificação -> confirmação -> refeição persistida
 ```
 
+## Direção arquitetural em evolução — Food Intelligence Resolver V2
+
+A arquitetura alvo para a próxima consolidação do domínio alimentar está registrada em `docs/design-docs/adr-food-intelligence-resolver-v2.md`.
+
+Esse ADR está em estado **PROPOSED / EM EVOLUÇÃO**. Ele define a direção futura — observação pré-resolução, resolvedor único, banco de conhecimento governado, decisão monotônica e aprovação em três níveis — mas **não declara que o código atual já implementa essa arquitetura**.
+
+Enquanto a migração não estiver concluída:
+
+- este documento continua descrevendo o comportamento produtivo atual;
+- novas implementações que alterem ownership de identidade, quantidade, nutrição, memória, rótulo ou multimodalidade devem consultar também o ADR;
+- uma issue não pode considerar a unificação concluída apenas por reutilizar `semanticContract`, `processMealInput`, `foodItemResolution` ou nomenclatura de "owner canônico";
+- divergências entre a arquitetura alvo e o baseline atual devem ser tratadas explicitamente como migração, com golden flows e gate arquitetural.
+
+
 ## Diretrizes
 
 - Inferência é sugestão, não verdade final.

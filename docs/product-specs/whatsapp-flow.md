@@ -1,5 +1,13 @@
 # Especificação de produto: fluxo WhatsApp
 
+
+## Relação com o Food Intelligence Resolver V2
+
+Para registro alimentar, o WhatsApp é um canal de entrada e continuidade conversacional; não deve se tornar um resolvedor nutricional independente. A arquitetura alvo está em `../design-docs/adr-food-intelligence-resolver-v2.md`.
+
+Os handlers, gates, preflights e pendências descritos neste documento continuam sendo o **baseline produtivo atual** enquanto a migração não termina. Novas mudanças devem reduzir, e não ampliar, decisões de identidade, quantidade ou nutrição específicas do canal. Fatos alimentares já estruturados podem ser transportados, persistidos ou apresentados pelo WhatsApp, mas não reabertos sem nova evidência conflitante.
+
+
 ## Contrato de resposta da epic #779
 
 - Cada inbound produz no máximo uma resposta funcional lógica; texto, CTA e mídia auxiliar podem formar uma sequência física única.

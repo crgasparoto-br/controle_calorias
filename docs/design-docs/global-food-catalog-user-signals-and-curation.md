@@ -1,5 +1,9 @@
 # Design tecnico: sinais de uso e curadoria do catalogo global
 
+
+> A curadoria descrita aqui é o **baseline atual** de status/merge do catálogo e não equivale, por si só, à governança completa do Food Intelligence V2. Aprovação de novo conhecimento global, evidências, promoção e revogação seguem a direção de `adr-food-intelligence-resolver-v2.md`.
+
+
 Parent: #150
 Issues: #161, #162, #163
 

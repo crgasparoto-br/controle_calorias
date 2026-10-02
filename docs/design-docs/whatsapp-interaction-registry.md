@@ -1,5 +1,9 @@
 # Registro executável de interações do WhatsApp
 
+
+> O registry é owner da **continuidade e apresentação da interação**, não da decisão nutricional. Clarificações de alimento devem transportar o estado estruturado produzido pelo domínio e, na arquitetura alvo, convergir para o Food Intelligence Resolver V2 (`adr-food-intelligence-resolver-v2.md`) sem reimplementar matching, quantidade ou nutrição no canal.
+
+
 ## Objetivo
 
 A issue #858 centraliza apresentação, validação, resolução e reapresentação das decisões fechadas alcançáveis pelo WhatsApp, reutilizando `whatsappPendingOperations` como única persistência operacional.

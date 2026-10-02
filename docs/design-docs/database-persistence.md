@@ -4,6 +4,84 @@
 
 `drizzle/schema.ts` e os schemas de domínio em `drizzle/*-schema.ts` são a fonte de verdade do modelo relacional. Migrações em `drizzle/` devem refletir mudanças de schema e ser aplicadas antes de validar fluxos em produção.
 
+
+## Direção de persistência para Food Intelligence V2
+
+O ADR `adr-food-intelligence-resolver-v2.md` define a consolidação futura do conhecimento alimentar.
+
+A decisão atual é **remodelar o domínio alimentar antes de consolidar o V2**, aproveitando o volume reduzido atual para eliminar a duplicidade estrutural em vez de mantê-la indefinidamente.
+
+Durante a migração, `foods`, `food_aliases`, `food_portions`, `food_sources`, `foodCatalog`, `whatsappLearningArtifacts` e estruturas legadas ainda podem coexistir por compatibilidade. Essa coexistência é temporária.
+
+Modelo lógico alvo:
+
+- `foods`: identidade/família canônica, sem ser a fonte direta de macros;
+- `food_variants`: identidade concreta resolvível, genérica ou comercial;
+- `food_variant_sources`: identidade da variante em fontes externas;
+- `food_nutrition_profiles`: nutrição versionada e governada;
+- `food_variant_classifications`: classificação versionada usada por relatórios/qualidade;
+- `food_aliases`: aliases globais governados;
+- `user_food_aliases`: aprendizado pessoal isolado;
+- `food_portions`: medidas/gramaturas por variante e procedência;
+- `food_barcodes`: identidade comercial exata;
+- `food_evidence`: evidência normalizada com retenção/LGPD;
+- `food_review_cases` + `food_review_events`: governança administrativa;
+- `food_resolution_events`: rastreabilidade sanitizada do resolvedor.
+
+
+### Modelo físico alvo e consolidação
+
+O modelo físico base foi fechado no ADR e passa a orientar as futuras migrations do Food Intelligence V2.
+
+| Estrutura | Papel alvo |
+| --- | --- |
+| `foodBrands` | Marca; permanece como cadastro de referência |
+| `food_sources` | Origem/versionamento de fontes |
+| `foods` | Família/identidade canônica, sem macros |
+| `food_variants` | Identidade concreta resolvível |
+| `food_variant_sources` | Chave/URL de identidade da variante em fontes externas |
+| `food_nutrition_profiles` | Única fonte persistente de nutrição canônica por variante, com versão/status/vigência |
+| `food_variant_classifications` | Processamento/flags usados em relatórios, versionados separadamente |
+| `food_aliases` | Alias global apontando para variante |
+| `user_food_aliases` | Memória pessoal de alias |
+| `food_portions` | Única tabela canônica de porções por variante |
+| `food_barcodes` | Barcode único apontando para variante |
+| `food_evidence` | Evidência sanitizada e auditável |
+| `food_review_cases` / `food_review_events` | Governança global e histórico append-only |
+| `food_resolution_events` | Rastreabilidade sanitizada com retenção |
+| `user_food_favorites` | Único modelo de favoritos, por variante |
+| `user_food_usage_stats` | Frequência/recência por variante |
+| `mealItems` | Referências opcionais a variante/perfil/porção + snapshot imutável |
+
+Duplicidades a aposentar no cutover:
+
+- `foodCatalog`;
+- `portions` ligada a `foodCatalog`;
+- `foodFavorites`;
+- macros e nutrientes persistidos diretamente em `foods`;
+- FKs simultâneas `foodId + foodCatalogId + portionId` em `mealItems`;
+- conjunto duplicado de macros `calories/protein/carbs/fat` versus `caloriesKcal/proteinG/carbG/fatG`;
+- uso alimentar permanente de `whatsappLearningArtifacts`.
+
+A migração deve preservar `processingLevel`, `isFruit`, `isVegetable` e `isUltraProcessed` em `food_variant_classifications` e no snapshot histórico quando esses valores forem usados por relatórios.
+
+Novas tabelas do domínio alimentar devem privilegiar colunas tipadas para campos usados em busca, join, ranking, status e integridade. JSON fica restrito a nutrientes de cauda longa, qualificadores não indexados e payloads sanitizados de auditoria.
+
+`mealItems` deve convergir para um único conjunto de nutrientes de snapshot: `grams`, `caloriesKcal`, `proteinG`, `carbG`, `fatG`, `fiberG` e `sodiumMg`, preservando `foodSnapshotJson` como prova do valor efetivamente usado.
+
+
+Regras para novas mudanças:
+
+- novos alimentos, aliases, porções, variantes e evidências não devem ganhar arrays/constantes TypeScript como fonte permanente;
+- `foodCatalog` e `portions` ligados a ele são legado a aposentar, não destinos para novos recursos;
+- macros não devem permanecer acoplados à identidade quando a migração V2 separar perfis nutricionais;
+- uma nova fonte persistente que responda à mesma pergunta alimentar exige plano explícito de consolidação, compatibilidade e aposentadoria;
+- memória pessoal e conhecimento global devem permanecer distinguíveis;
+- snapshots históricos de refeição não podem ser reescritos quando o conhecimento global for corrigido;
+- `mealItems` deve migrar para referências de variante/perfil preservando o snapshot usado no cálculo;
+- não manter dual-write indefinido entre V1 e V2;
+- migrações do Food Intelligence V2 deverão atualizar também `docs/generated/db-schema.md`.
+
 ## Tabelas críticas
 
 | Tabela                                | Papel                                                                      |
@@ -64,7 +142,9 @@
 - Uma operação pendente do WhatsApp deve ser persistida em `whatsappPendingOperations` antes de enviar pergunta, botão ou solicitação que dependa desse contexto. Falha de criação impede o outbound e qualquer mutação de domínio.
 - `server/repositories/whatsappPendingOperationRepository.ts` pode usar memória do processo somente em testes ou desenvolvimento não produtivo com `ALLOW_MEMORY_PERSISTENCE=true`. Em produção, banco ausente ou falhando retorna resultados fail-closed para criação, leitura, claim e transições; memória local nunca é tratada como persistência durável.
 
-## Catálogo global de alimentos
+## Catálogo global de alimentos — baseline produtivo transitório
+
+> Esta seção descreve o runtime/schema atual antes do cutover do Food Intelligence V2. Ela não define o modelo físico alvo.
 
 A migration `0000_global_food_catalog.sql` cria a primeira estrutura dedicada ao catálogo alimentar global:
 
@@ -75,7 +155,9 @@ A migration `0000_global_food_catalog.sql` cria a primeira estrutura dedicada ao
 
 A estratégia inicial contra duplicidade usa `foods_source_code_unique` para impedir repetição de `source_id` + `source_food_code` quando a fonte disponibiliza código estável.
 
-## Snapshot nutricional de refeições
+## Snapshot nutricional de refeições — baseline produtivo transitório
+
+> O princípio de snapshot imutável permanece no V2, mas as FKs e colunas duplicadas atuais serão consolidadas conforme o ADR.
 
 A migration idempotente `0035_meal_item_nutrition_snapshot_repair.sql` garante em `mealItems` os campos `foodId`, `grams`, macros calculados, `fiberG`, `sodiumMg` e `foodSnapshotJson` mesmo em ambientes com histórico antigo de migrations.
 

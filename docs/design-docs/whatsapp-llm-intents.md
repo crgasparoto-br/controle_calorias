@@ -1,5 +1,9 @@
 # Design técnico: intents LLM do WhatsApp
 
+
+> Intenção conversacional e resolução alimentar são responsabilidades diferentes. A camada de intents decide a operação do usuário; quando a operação é alimentar, identidade, quantidade, nutrição, evidência e incerteza devem seguir a direção de `adr-food-intelligence-resolver-v2.md`, sem criar resolução paralela dentro do classificador de intents.
+
+
 ## Responsabilidade
 
 A camada de intents LLM interpreta mensagens textuais do WhatsApp que não foram resolvidas pelos comandos determinísticos já existentes. Ela deve responder consultas e correções contextuais quando houver confiança suficiente e manter o fallback nutricional normal para mensagens comuns de refeição.

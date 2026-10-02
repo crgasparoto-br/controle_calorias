@@ -1,5 +1,9 @@
 # Adapter Open Food Facts — consulta opt-in por código de barras
 
+
+> No Food Intelligence V2, este adapter é uma **fonte externa de evidência/candidatos**, não um resolvedor nem uma autoridade de publicação. A decisão final continua pertencendo ao resolvedor de domínio descrito em `adr-food-intelligence-resolver-v2.md`; o rollout atual abaixo permanece válido enquanto o adapter estiver em uso.
+
+
 ## Estado de rollout
 
 A integração está implementada como **adapter de fase 2**, desligado por padrão. Ela não é fonte do catálogo local, não executa sincronização em massa e não publica candidatos.
