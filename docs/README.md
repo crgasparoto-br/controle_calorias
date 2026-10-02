@@ -41,6 +41,7 @@ Use `docs/design-docs/` para decisões técnicas, contratos internos e detalhes 
 Exemplos principais:
 
 - `design-docs/nutrition-engine.md`
+- `design-docs/adr-food-intelligence-resolver-v2.md` — ADR em evolução para a arquitetura alvo de resolução alimentar multimodal, governança e aprendizado.
 - `design-docs/database-persistence.md`
 - `design-docs/timezone.md`
 - `design-docs/timezone-backend-reports.md`
