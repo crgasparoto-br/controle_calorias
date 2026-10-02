@@ -1219,7 +1219,82 @@ Mapeamento obrigatório:
    - registrar toda conclusão derivada como `provisional` e respeitar a assimetria de §8.3: provisório pode declarar material, nunca imaterial;
    - remover as listas de produção depois do cutover, sem owner concorrente equivalente;
 
-### 8.12. Gate de corte do banco
+### 8.12. Gate de aceite da base inicial
+
+A migração pode produzir uma base **estruturalmente limpa e funcionalmente inútil**. Este gate existe para impedir que isso passe por aceite.
+
+Evidência do risco: o catálogo TACO embarcado possui 616 itens nomeados na gramática da fonte (`Carne, bovina, acém, moído, cozido`). Quebrados pela primeira vírgula, produzem 255 "famílias" ingênuas, das quais 144 têm uma única entrada. Se a estrutura da base V2 for derivada dessa gramática, o vocabulário nasce na língua do produtor, não na língua de quem registra — e toda superfície do usuário vira alias de um conceito que ela nunca nomeia assim.
+
+#### 8.12.1. Inversão de origem
+
+- **estrutura nasce do consumo** — as famílias e variantes que precisam existir são determinadas pelo histórico real de refeições, pelas superfícies registradas nos canais e pelo Golden Food Corpus;
+- **perfil nasce da fonte** — TACO, TBCA, Open Food Facts, fabricante e rótulo entram como fonte de perfil e evidência para as variantes que o consumo definiu;
+- **cauda longa entra em quarentena governada**, não em produção, e é promovida por consumo ou curadoria.
+
+#### 8.12.2. Dois gates
+
+| Gate | Momento | Comportamento |
+| --- | --- | --- |
+| **A — base mínima viável** | antes do shadow mode (§20, Fase C) | **bloqueia** nos critérios de cobertura do consumo real e de corpus; **reporta** os demais |
+| **B — base completa** | antes da remoção do legado (§8.13, Fase F) | bloqueia todos os critérios |
+
+A assimetria é deliberada: sem cobertura do consumo real e sem passar o corpus, o shadow mode mediria a base e não o resolvedor, produzindo conclusão errada sobre o V2. Por outro lado, exigir pureza total antes do shadow mode paralisa o programa por um problema que só os dados do shadow mode resolvem.
+
+#### 8.12.3. Critérios bloqueantes do Gate A
+
+- cobertura do consumo real: percentual mínimo do histórico recente mapeado a família/variante canônica;
+- Golden Food Corpus (§16) sem falha sobre a base inicial;
+- matriz de não-recorrência (§9.3) sem falha sobre a base inicial;
+- nenhum item do corpus encerrando por placeholder ou fallback oculto (§9.2).
+
+Os números exatos de cobertura, janela e amostragem permanecem `OPEN` para calibração por baseline (§25).
+
+#### 8.12.4. Critérios reportados no Gate A e bloqueantes no Gate B
+
+- nenhuma família com duas variantes que difiram **apenas** por atributo `informational`;
+- nenhuma variante com atributo material não modelado;
+- nenhuma variante sem perfil nutricional de fonte declarada;
+- distribuição de perfis `verified` versus `provisional`, sem exigir pureza no Gate A;
+- quarentena com motivo estruturado e plano, sem exigir zero no Gate A;
+- reconciliação de origem fechada.
+
+#### 8.12.5. Validador derivado da materialidade
+
+O aceite da base é verificável, e não opinativo, porque reutiliza a materialidade de §8.3 como validador da própria ontologia:
+
+- variante cujo único diferencial é um atributo `informational` → duplicata ilegítima, deve ser mesclada;
+- variante com atributo material não modelado → variante subespecificada;
+- `identity_key` de toda variante precisa ser derivável da materialidade da família.
+
+Rodar esse validador sobre a base migrada produz, automaticamente, a lista de famílias malformadas.
+
+#### 8.12.6. Quarentena
+
+Linha de origem que não mapeia com segurança não entra em produção. Ela vai para quarentena com motivo estruturado, no mínimo:
+
+```text
+familia_ambigua
+atributo_nao_modelado
+perfil_insuficiente
+duplicata_potencial
+nome_fora_da_gramatica_de_consumo
+```
+
+A quarentena é visível na console administrativa (§19.2), não bloqueia o cutover por si só, e sua promoção exige o mesmo caminho de governança de qualquer conhecimento novo (§11.3).
+
+#### 8.12.7. Reconciliação obrigatória
+
+```text
+linhas de origem = mapeadas + mescladas + quarentenadas
+```
+
+Nenhuma perda silenciosa. Toda linha não mapeada possui motivo auditável, o que permite afirmar que a migração está correta sem inspeção manual item a item.
+
+#### 8.12.8. Implementação e evidência
+
+O gate é um script versionado executado no caminho de verificação, produzindo relatório reproduzível. Esse relatório não serve apenas à migração: ele é o **baseline de qualidade** que o critério de rollout e canário (§19.9) usa como referência para decidir avanço ou rollback.
+
+### 8.13. Gate de corte do banco
 
 O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
 
@@ -1233,6 +1308,8 @@ O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
 - nenhum runtime ativo escreve em `foodCatalog`, `portions` ou conhecimento alimentar de `whatsappLearningArtifacts`;
 - busca repository-wide não encontra owner nutricional concorrente não classificado;
 - rollback comprovado até o ponto de corte.
+
+- gate de aceite da base inicial (§8.12) aprovado no nível B;
 
 Depois do aceite do cutover, remover bridges e tabelas legadas numa migration separada. Não manter dual-write como estado final.
 
@@ -1912,6 +1989,8 @@ Cada avanço de rollout deve verificar pelo menos:
 - fila de revisão sem crescimento incompatível com a capacidade operacional;
 - rollback funcional e de leitura comprovado sem destruir dados V2 já coletados.
 
+- baseline de qualidade da base inicial (§8.12) como referência de comparação e de bloqueio.
+
 O rollout pode usar shadow mode, feature flag e percentuais/cortes progressivos por entrypoint. O rollback deve preferir retornar leitura/decisão ao caminho anterior preservando dados e evidências V2, em vez de executar downgrade destrutivo.
 
 Percentuais, janelas, limites de divergência e métricas exatas de promoção/bloqueio permanecem `OPEN` até existirem dados do shadow mode.
@@ -1936,6 +2015,8 @@ A migração deve ser incremental e observável.
 ### Fase C — resolver em shadow mode
 
 Processar a mesma entrada com o fluxo atual e o novo resolver sem mudar a persistência produtiva.
+
+- exigir a aprovação do Gate A de §8.12 antes de iniciar a comparação;
 
 Comparar:
 
@@ -2076,6 +2157,9 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - a `identity_key` da variante é composta apenas por atributos com materialidade `identity | both` na família, impedindo criação acidental de variantes;
 - materialidade provisória pode declarar um atributo como material, nunca como imaterial, enquanto a imaterialidade não for verificada.
 
+- a base inicial passa por gate de aceite próprio: estrutura derivada do consumo real, perfil derivado de fonte, cauda longa em quarentena governada;
+- o Gate A bloqueia apenas cobertura do consumo real e corpus, e reporta os demais critérios; o Gate B, antes da remoção do legado, bloqueia todos.
+
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
@@ -2104,6 +2188,9 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
 
 22. tolerância numérica de divergência de perfis por 100 g para derivar materialidade nutricional de um atributo, e tratamento de famílias com poucas variantes para derivar materialidade de identidade.
+
+23. percentual mínimo de cobertura do consumo real, janela de histórico e amostragem usados como critério bloqueante do Gate A;
+24. política de promoção de itens em quarentena e prazo para esvaziamento antes do Gate B.
 
 ## 26. Regra de evolução deste ADR
 
