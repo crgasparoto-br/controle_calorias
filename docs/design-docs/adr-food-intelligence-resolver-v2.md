@@ -1743,6 +1743,75 @@ A implementação da epic deve evoluir `architecture:check` para impedir regress
 
 18. materialidade de atributo decidida por lista lexical, conjunto de tokens ou regra por alimento em código, em vez de conhecimento governado (§9.1.1);
 
+## 19.0. Camadas de verificação e execução dos gates
+
+Os dezoito gates deste capítulo **não são homogêneos**. Eles exigem três técnicas distintas de verificação, e parte deles não é verificável estaticamente. Declarar um gate em camada que não o consegue verificar produz **segurança falsa**: o código passa a impressão de correção enquanto a falha permanece em execução.
+
+### 19.0.1. Camadas
+
+| Camada | Técnica | Gates |
+| --- | --- | --- |
+| 1. Fronteira estática | grafo de imports, AST e detecção de literais | 1, 2, 3, 4, 5, 10, 11, 17, 18 |
+| 2. Propriedade e invariante | testes de contrato e metamórficos sobre o resolvedor | 7, 9, 12, 13, 14, 16 |
+| 3. Guarda de runtime | asserção no caminho de escrita e telemetria | 6, 8, 15 |
+
+O gate 12 possui verificador estático complementar (direção de dependência) além do verificador de propriedade (origem da decisão).
+
+Os gates 6, 8 e 15 **não podem ser provados estaticamente**. Persistência sem proveniência pode ter aparência textual correta e ainda gravar sem procedência; por isso a camada 3 é asserção em runtime, ativa em teste e desenvolvimento e convertida em telemetria no shadow mode.
+
+### 19.0.2. Estrutura de regras
+
+O verificador arquitetural existente já extrai famílias de regra em módulos próprios (`whatsapp-response-architecture.ts`, `timezone-architecture.ts`), agregadas por `scripts/check-architecture.ts`. O domínio alimentar segue o mesmo padrão:
+
+```text
+scripts/food-intelligence-architecture.ts  -> findFoodIntelligenceViolations(files)
+scripts/food-lexicon-architecture.ts       -> findLexiconViolations(files)
+scripts/food-materiality-architecture.ts   -> findMaterialityViolations(files)
+```
+
+Cada módulo exporta a mesma assinatura e devolve lista de violações. O agregador não conhece detalhe de regra.
+
+A tabela de regras é **dado**, com `id`, camada, severidade, escopo e classe de §9.3. Cadastrar uma regra é adicionar uma linha, não um caminho de código novo.
+
+> Se cada gate virar um `if` específico, o verificador se torna a própria lista específica por alimento que ele existe para impedir — apenas na forma de regra em vez de dado.
+
+### 19.0.3. Livro de dívida arquitetural
+
+No momento de entrada em vigor, o código viola parte destes gates, porque o legado existe. Um gate que falha em tudo nunca é ligado; por isso a dívida é declarada, e não ignorada.
+
+Arquivo versionado `architecture-debt.json`, com entradas `{ ruleId, file, reason, owner, issue, expiresAt }`.
+
+Comportamento:
+
+- violação **não coberta** por entrada vigente → **falha**; nenhuma dívida nova entra;
+- entrada **vencida** → **falha**; a dívida decai sozinha;
+- violação coberta por entrada vigente → **aviso**, com contagem e idade visíveis.
+
+Regras do livro:
+
+- **prazo máximo de 90 dias** por entrada, sem prorrogação;
+- **issue proprietária obrigatória** — entrada sem issue é inválida e falha;
+- o livro não é allowlist permanente: ele mede dívida com prazo, não autoriza exceção;
+- toda entrada é removida quando a causa é resolvida, e o verificador acusa entrada que não corresponde mais a violação existente.
+
+### 19.0.4. Relatório
+
+O verificador produz relatório reproduzível com regras cobertas por camada, achados, tamanho, idade e vencimento da dívida, e a **classe de §9.3** de cada violação.
+
+Isso faz o gate falar a mesma língua da matriz de não-recorrência: o relatório diz qual classe histórica está sendo reintroduzida, não apenas qual regra foi quebrada.
+
+Consumidores do relatório: o critério de rollout e canário (§19.9), o gate de aceite da base inicial (§8.12) e o inventário de aposentadoria (§8.5).
+
+### 19.0.5. Ordem de implementação
+
+| Onda | Camada | Gates | Efeito |
+| --- | --- | --- | --- |
+| 1 | estática | 17, 18, 5, 11, 3, 10, 1, 2, 4 | congela o padrão atual e impede hardcode novo |
+| 2 | propriedade | 13, 14, 16, 12, 7, 9 | prova que o resolvedor cumpre os invariantes |
+| 3 | runtime | 6, 8, 15 | guarda o caminho de escrita e a telemetria |
+
+Os gates 17 e 18 são implementados primeiro, e não por acaso: o detector de "alimento, macro, porção, classificação ou termo linguístico em array de produção" **produz automaticamente o inventário de owners concorrentes de §8.5**, e mede as listas de materialidade substituídas em §8.3. O primeiro gate entrega o mapa do que precisa ser removido.
+
 ## 19.1. Estratégia de testes e redução da suíte
 
 A implementação do Food Intelligence Resolver V2 **não deve carregar automaticamente toda a suíte histórica existente**.
@@ -2006,11 +2075,15 @@ A migração deve ser incremental e observável.
 - construir Golden Food Corpus;
 - instrumentar traceId e métricas.
 
+- implementar a onda 1 de gates (§19.0.5), começando por 17 e 18, cujo relatório entrega o inventário de hardcodes de §8.5;
+
 ### Fase B — conhecimento governado
 
 - consolidar catálogos, aliases, variantes, porções e perfis;
 - migrar hardcodes;
 - criar compatibilidade temporária quando necessário.
+
+- quitar as entradas do livro de dívida arquitetural (§19.0.3) alcançadas por esta fase.
 
 ### Fase C — resolver em shadow mode
 
@@ -2050,9 +2123,14 @@ Migrar progressivamente:
 - promoção global;
 - revogação/rollback.
 
+- implementar a onda 2 de gates (§19.0.5).
+
 ### Fase F — remoção do legado
 
 Somente depois do corpus/gates aprovados:
+
+- implementar a onda 3 de gates (§19.0.5);
+- exigir o livro de dívida arquitetural (§19.0.3) vigente, sem entradas vencidas e com as violações das regras de identidade e nutrição quitadas.
 
 - remover reinterpretações concorrentes;
 - remover resolvers paralelos;
@@ -2160,6 +2238,10 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - a base inicial passa por gate de aceite próprio: estrutura derivada do consumo real, perfil derivado de fonte, cauda longa em quarentena governada;
 - o Gate A bloqueia apenas cobertura do consumo real e corpus, e reporta os demais critérios; o Gate B, antes da remoção do legado, bloqueia todos.
 
+- os gates arquiteturais são classificados por camada de verificação, e é proibido declarar um gate em camada incapaz de verificá-lo (§19.0.1);
+- a dívida arquitetural é declarada em `architecture-debt.json` com expiração máxima de 90 dias e issue proprietária obrigatória; violação nova e entrada vencida falham a verificação (§19.0.3);
+- o relatório do verificador identifica a classe de §9.3 de cada violação, e não apenas a regra quebrada (§19.0.4).
+
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
@@ -2191,6 +2273,9 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 
 23. percentual mínimo de cobertura do consumo real, janela de histórico e amostragem usados como critério bloqueante do Gate A;
 24. política de promoção de itens em quarentena e prazo para esvaziamento antes do Gate B.
+
+25. escopo efetivo por regra: tratamento de teste, fixture, arquivo gerado e documentação na definição de violação;
+26. critério e prazo para promover uma regra da camada de runtime de aviso para bloqueio.
 
 ## 26. Regra de evolução deste ADR
 
