@@ -42,13 +42,13 @@ Exemplos principais:
 
 - `design-docs/nutrition-engine.md`
 - `design-docs/adr-food-intelligence-resolver-v2.md` — ADR em evolução para a arquitetura alvo de resolução alimentar multimodal, governança e aprendizado.
+  - Para implementação atual, leia também `design-docs/nutrition-engine.md`; o ADR define a arquitetura alvo e não reescreve retroativamente o baseline produtivo.
 - `design-docs/database-persistence.md`
 - `design-docs/timezone.md`
 - `design-docs/timezone-backend-reports.md`
 - `design-docs/timezone-frontend.md`
 - `design-docs/quick-edit-timezone.md`
 - `design-docs/timezone-architecture-guard.md`
-- `design-docs/photo-analysis-catalog-integration.md`
 - `design-docs/manual-meal-catalog-search.md`
 - `design-docs/food-portions-household-measures.md`
 - `design-docs/custom-foods.md`
