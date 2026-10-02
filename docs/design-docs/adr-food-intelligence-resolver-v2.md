@@ -1569,6 +1569,22 @@ A política também não pode produzir ausência silenciosa de nutrição: se o 
 
 Os thresholds numéricos de confiança permanecem `OPEN` e devem ser calibrados por corpus/replay, não escolhidos arbitrariamente.
 
+### 10.1. Política de estimativa provisória por família
+
+A seção 10 autoriza estimativa provisória 'somente quando a política permitir'. Esta seção define essa política. A decisão de estimar ou parar é derivada do conhecimento governado por família (§8.3), nunca de lista em código, e combina três eixos:
+
+dispersão nutricional da família — o quanto os macros variam entre variantes da mesma família; famílias de baixa dispersão toleram estimativa, famílias de alta dispersão não;
+âncora genérica defensável — existência de perfil de fonte confiável aplicável à família; sem âncora, estimar é chute e não é permitido;
+impacto calórico do erro — densidade energética da família; quanto maior a caloria por grama, menor a tolerância a estimar.
+
+O veredito tem três faixas:
+
+baixa dispersão com âncora genérica — estima, marca o item como aproximado e segue sem interromper o usuário;
+alta dispersão ou alto impacto calórico — não estima; aplica a política de incerteza da §10 e pergunta o campo faltante;
+faixa intermediária — estima com âncora genérica, rebaixa a confiança e abre caso na fila de curadoria para virar conhecimento.
+
+Onde a estimativa é permitida, o valor provém sempre do genérico governado marcado como aproximado, nunca de número inventado; a regra fail-closed de §9.1.1, item 4, permanece intacta. Os limiares numéricos de cada eixo permanecem OPEN e são calibrados por corpus (§25).
+
 ## 11. Governança e aprovação humana
 
 A aprovação deve ser uma camada de governança de dados, não uma correção de código.
