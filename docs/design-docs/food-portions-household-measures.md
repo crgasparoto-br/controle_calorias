@@ -1,5 +1,9 @@
 # Porcoes e medidas caseiras do catalogo
 
+
+> **Baseline transitório.** As regras de conversão e porções ainda descrevem comportamento produtivo. Entretanto, entradas curadas em código como `FOOD_CATALOG_REFERENCE` são legado a ser migrado para conhecimento governado conforme `adr-food-intelligence-resolver-v2.md`. Novos alimentos/porções não devem ampliar esse hardcode como solução permanente.
+
+
 ## Objetivo
 
 Permitir que alimentos do catalogo sejam registrados por medidas comuns, como colher de sopa, concha, unidade, fatia ou xicara. Cada medida fica vinculada a um alimento especifico em `food_portions` e possui conversao propria para gramas.
