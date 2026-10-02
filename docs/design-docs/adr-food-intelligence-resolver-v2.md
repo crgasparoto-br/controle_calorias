@@ -1692,20 +1692,117 @@ Os números mínimos de ocorrências/evidências permanecem `OPEN`.
 
 ## 14. Priorização da fila de revisão
 
-A revisão humana não deve ser FIFO cego.
+A revisão humana não pode ser FIFO cego, e também não pode ser soma de defeitos. Com capacidade limitada, a única medida útil é **impacto por minuto investido**. Esta seção fecha a fórmula que permanecia `OPEN`.
 
-A prioridade pode considerar:
+### 14.1. A unidade da fila é o caso, não o alimento
 
-- frequência recente;
-- número de usuários afetados;
-- repetição de clarificações;
-- impacto nutricional;
-- conflito entre fontes;
-- taxa de fallback;
-- risco de propagação de informação errada;
-- existência de rótulo/código de barras que torne a revisão rápida.
+A fila não contém alimentos: contém **casos de curadoria**, agrupando ocorrências equivalentes (§11.3). Tipos de caso:
 
-A fórmula exata permanece `OPEN`.
+```text
+identity        — variante ou identidade não determinada
+lexicon         — superfície não mapeada ou mapeada de forma ambígua
+materiality     — atributo com materialidade não decidida
+portion         — porção ou gramatura sem base
+profile         — perfil nutricional ausente ou em conflito entre fontes
+classification  — classificação ausente, estimada ou de baixa confiança
+```
+
+Uma decisão resolve N ocorrências. É isso que torna a curadoria sustentável dentro do orçamento de §14.5.
+
+### 14.2. Fórmula de prioridade
+
+```text
+Impacto    = log10(1 + A) × G × R × log10(1 + F)
+Custo      = clamp(1 + E − Ev, 0,5 ; 5)
+Prioridade = (Impacto / Custo) × (1 + min(D, 1))
+```
+
+| Termo | Significado |
+| --- | --- |
+| `A` | usuários distintos afetados na janela de 90 dias |
+| `F` | ocorrências do caso na janela de 90 dias |
+| `G` | gravidade nutricional, de 1 a 5 |
+| `R` | risco de propagação |
+| `E` | esforço de decisão, em pontos somados |
+| `Ev` | evidência pronta, em pontos subtraídos |
+| `D` | dias do caso na fila dividido por 30, limitado a 1 |
+
+Três propriedades são deliberadas:
+
+- **`log10` em `A` e `F`** impede que um único usuário muito ativo ou um alimento hiperfrequente domine a fila; alcance e frequência crescem, mas não linearmente;
+- **`R` é multiplicativo, e o risco de propagação domina o alcance**: um erro que se propaga para o conhecimento global vale o dobro de um erro pessoal idêntico em alcance e frequência. Esta é a assimetria que a pontuação anterior não possuía;
+- **`1 + E − Ev`** torna a revisão barata quando existe evidência pronta: um caso grave com rótulo ou código de barras disponível sobe na fila e é resolvido em segundos. Atacar primeiro o que é grave **e** rápido é o que torna a hora semanal suficiente.
+
+### 14.3. Escalas
+
+Gravidade `G`:
+
+| Valor | Condição | Classe de §9.3 |
+| --- | --- | --- |
+| 5 | macro ausente ou placeholder fixo apresentado como nutrição | classes com falha explícita de procedência |
+| 4 | identidade ambígua que altera macro acima de 20% | identidade trocada |
+| 3 | divergência de fonte ou perfil default usado como específico | conflito de fonte e default indevido |
+| 2 | classificação ausente ou estimada | classificação |
+| 1 | metadado incompleto sem efeito em macro | curadoria leve |
+
+Propagação `R`:
+
+| Valor | Alcance do conhecimento |
+| --- | --- |
+| 2,0 | o caso, se promovido, vira conhecimento **global** |
+| 1,5 | o caso alimenta o **léxico** ou a materialidade governada |
+| 1,0 | o caso permanece **pessoal** |
+
+Esforço `E`: soma **+1** por identidade ambígua, perfil ausente, porção canônica ausente, fontes em conflito e necessidade de julgar materialidade.
+
+Evidência pronta `Ev`: **2** quando há rótulo, código de barras ou embalagem disponível; **1** quando há fonte oficial inequívoca.
+
+O decaimento `D` no máximo **dobra** a prioridade, e existe para que nenhum caso fique na fila indefinidamente.
+
+### 14.4. Faixas e SLA
+
+| Prioridade | Faixa | SLA |
+| --- | --- | --- |
+| `critical` | ≥ 12 | mesma semana |
+| `high` | 6 a 12 | 2 semanas |
+| `medium` | 2 a 6 | 30 dias |
+| `low` | < 2 | sem SLA; candidato a promoção automática por consumo futuro |
+
+### 14.5. Orçamento de curadoria
+
+O orçamento é de **1 hora por semana**, com `critical` e `high` obrigatórios.
+
+- a fórmula define a **ordem**; o orçamento define a **linha de corte**;
+- a linha de corte é o que cabe na hora, sempre respeitando a ordem;
+- `critical` e `high` não podem ser postergados em nenhuma semana;
+- se `critical` e `high` juntos excederem o orçamento, a fila é tratada em ordem e o excedente gera **alerta operacional** — é sinal de que o desenho está produzindo trabalho em vez de absorvê-lo.
+
+### 14.6. Métrica de sustentabilidade
+
+A métrica que prova que o sistema está aprendendo é:
+
+> **casos de curadoria por 1.000 registros.**
+
+Ela **deve decair** ao longo do tempo. É a única medida honesta de que o conhecimento está sendo absorvido em vez de gerado como trabalho. Se subir, o desenho está acumulando dívida, ainda que a fórmula esteja correta.
+
+### 14.7. Encaixe com a fila de classificação existente
+
+A fila de classificação em `server/modules/foods/classificationReview.ts` é a base, não o destino:
+
+- a pontuação aditiva de `calculatePriority` evolui para a razão impacto/custo desta seção;
+- o escopo passa de **1** tipo de caso para **6** (§14.1);
+- os 13 motivos de `ClassificationReviewReason` permanecem, reclassificados como `reasons` do caso, e o score atual alimenta a gravidade `G`;
+- a confiança mínima de 0,72, declarada em `catalogClassificationReview.ts`, permanece como limiar de entrada da classe `classification`.
+
+### 14.8. Ciclo de vida do caso
+
+```text
+open -> in_review -> resolved -> closed
+              \-> rejected
+              \-> reopened (nova evidência, §6)
+```
+
+Cada decisão registra autor, data, decisão, escopo afetado e reversibilidade, alinhada à regra de reclassificação retroativa explícita de §8.14.3.
 
 ## 15. Aprendizado pessoal
 
@@ -2356,6 +2453,10 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - a referência histórica de refeição é imutável, e `set null` em cascata não pode esvaziá-la: variante é aposentada por status, nunca deletada;
 - exibição e agregação são estáveis por padrão, por identidade histórica, e a reclassificação retroativa é operação explícita, auditada e reversível.
 
+- a prioridade da fila de curadoria é uma razão entre impacto e custo, calculada sobre casos agrupados, e o risco de propagação domina o alcance (§14.2);
+- o orçamento de curadoria é de 1 hora por semana, com `critical` e `high` obrigatórios, e a fórmula define a ordem enquanto o orçamento define a linha de corte (§14.5);
+- a métrica de sustentabilidade da curadoria é casos por 1.000 registros, e ela deve decair (§14.6).
+
 ## 25. Questões abertas
 
 Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente:
@@ -2392,6 +2493,9 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 26. critério e prazo para promover uma regra da camada de runtime de aviso para bloqueio.
 
 27. definição do registro de operação de reclassificação retroativa: escopo, visibilidade para o usuário e reversão.
+
+28. calibração numérica da gravidade `G` por classe da matriz de §9.3 e dos limiares de alcance e frequência usados no agrupamento em casos;
+29. peso do decaimento `D` e teto de casos `critical` admitidos por semana antes de virar alerta operacional.
 
 ## 26. Regra de evolução deste ADR
 
