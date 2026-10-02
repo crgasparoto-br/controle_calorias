@@ -44,6 +44,19 @@ pnpm agent:check
 
 Para mudanças de resolução alimentar, catálogo, memória, rótulo ou multimodalidade, ler também `docs/design-docs/adr-food-intelligence-resolver-v2.md`. Enquanto o ADR estiver em migração, regressões devem provar o comportamento no entrypoint público e distinguir o baseline atual da arquitetura alvo; mocks não podem substituir a própria decisão alimentar que o teste pretende validar.
 
+### Contratos operacionais do Food Intelligence V2
+
+Além da convergência funcional, o V2 deve ser validado como sistema operacionalmente seguro:
+
+- cada resolução opera sob orçamento explícito de latência, tentativas e custo; chamadas externas redundantes são defeito;
+- retries e múltiplas instâncias devem permanecer idempotentes para variantes, perfis, aliases, review cases e mutações de refeição;
+- indisponibilidade de IA/OCR/pesquisa externa aplica modo degradado determinístico, sem transformar falha externa em fallback nutricional oculto;
+- telemetria sanitizada deve medir status da resolução, clarificação, fallback, divergência, latência, chamadas externas e custo estimado;
+- shadow mode e canário só avançam quando Golden Food Corpus, qualidade, latência, custo, integridade e privacidade permanecem dentro dos limites aprovados;
+- rollback deve ser não destrutivo: restaurar leitura/decisão anterior sem apagar evidências e dados V2 já persistidos.
+
+Os valores numéricos de SLO, timeout, orçamento e limites de rollout são definidos no ADR a partir de baseline e shadow mode, não por constante arbitrária isolada.
+
 Quando houver `DATABASE_URL` disponível:
 
 ```bash
