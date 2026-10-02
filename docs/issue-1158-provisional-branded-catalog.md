@@ -1,5 +1,9 @@
 # Issue 1158 — Catálogo comercial provisional e governança de rótulos
 
+
+> **Registro histórico de implementação, não fonte canônica futura.** Este documento preserva como a #1158 foi entregue e continua útil para compreender o baseline ainda existente. Para novas decisões, use `design-docs/adr-food-intelligence-resolver-v2.md`, `product-specs/meal-registration.md` e `design-docs/nutrition-engine.md`. Quando o Food Intelligence V2 substituir integralmente esses mecanismos, este arquivo deve ser removido da árvore ativa; o histórico Git preservará a evidência da #1158.
+
+
 A implementação da issue 1158 separa **identidade comercial** de **verificação nutricional**. Um alimento comercial só pode seguir para registro automático quando a variante informada for inequívoca e os valores fornecidos pela inferência forem uma estimativa defensável. Nesse caso, o item recebe `resolution.nutritionOrigin = "provisional_estimate"` e `resolution.nutritionVerified = false`. A resposta do WhatsApp informa explicitamente que os nutrientes são provisórios e orienta o usuário a enviar um rótulo legível.
 
 Quando a variante permanece ambígua, quando há alternativas concorrentes ou quando a estimativa é ausente ou fisicamente implausível, o motor continua fail-closed e solicita clarificação. A exceção provisional não reutiliza o catálogo genérico para simular uma marca e não transforma uma estimativa de IA em fonte oficial.
