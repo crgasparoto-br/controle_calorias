@@ -54,6 +54,9 @@ Senhas nunca devem ser persistidas em texto puro, retornadas para o frontend ou 
 3. O usuário revisa ou confirma pelo fluxo conversacional.
 4. A refeição confirmada alimenta dashboard, relatórios e hábitos.
 
+
+A direção arquitetural para evoluir esse fluxo está em `docs/design-docs/adr-food-intelligence-resolver-v2.md`. O ADR está **PROPOSED / EM EVOLUÇÃO**: texto, áudio, imagem, OCR e rótulo devem convergir para evidências de uma única decisão alimentar, mas os design docs atuais continuam descrevendo o runtime enquanto a migração não estiver concluída.
+
 A confirmação de refeição não depende de chamada externa. Falhas de transcrição, inferência ou imagem auxiliar são tratadas de forma controlada para não corromper dados nem bloquear a confirmação local.
 
 ## Estado da arquitetura de IA
