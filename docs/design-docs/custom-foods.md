@@ -1,5 +1,9 @@
 # Alimentos personalizados por usuario
 
+
+> Alimentos personalizados continuam pertencendo à mesma base governada de conhecimento, com escopo do usuário. Eles não devem criar um catálogo/resolvedor paralelo. A separação entre conhecimento pessoal e global e a direção de consolidação estão em `adr-food-intelligence-resolver-v2.md`.
+
+
 ## Objetivo
 
 Permitir que cada usuario cadastre alimentos proprios dentro do mesmo contrato do catalogo global, sem duplicar nem alterar alimentos globais. O registro personalizado usa a tabela `foods` com `owner_user_id` preenchido.
