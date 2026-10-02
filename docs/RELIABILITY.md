@@ -21,6 +21,7 @@ Garantir que os fluxos críticos possam ser validados por humanos e agentes ante
 
 - Autenticação e sessão.
 - Registro de refeição por texto, imagem e áudio.
+- Convergência da resolução alimentar entre canais durante a migração do Food Intelligence V2, sem reabrir fatos estruturados nem criar owners paralelos.
 - Confirmação de rascunho de refeição.
 - Relatórios e dashboard.
 - Integrações de saúde, incluindo OAuth, sincronização automática do Strava e exibição de métricas detalhadas de atividades.
@@ -39,6 +40,9 @@ pnpm architecture:check
 pnpm docs:check
 pnpm agent:check
 ```
+
+
+Para mudanças de resolução alimentar, catálogo, memória, rótulo ou multimodalidade, ler também `docs/design-docs/adr-food-intelligence-resolver-v2.md`. Enquanto o ADR estiver em migração, regressões devem provar o comportamento no entrypoint público e distinguir o baseline atual da arquitetura alvo; mocks não podem substituir a própria decisão alimentar que o teste pretende validar.
 
 Quando houver `DATABASE_URL` disponível:
 
