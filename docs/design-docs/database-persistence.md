@@ -4,6 +4,21 @@
 
 `drizzle/schema.ts` e os schemas de domínio em `drizzle/*-schema.ts` são a fonte de verdade do modelo relacional. Migrações em `drizzle/` devem refletir mudanças de schema e ser aplicadas antes de validar fluxos em produção.
 
+
+## Direção de persistência para Food Intelligence V2
+
+O ADR `adr-food-intelligence-resolver-v2.md` define a consolidação futura do conhecimento alimentar.
+
+Até a migração, `foods`, `food_aliases`, `food_portions`, `food_sources`, `foodCatalog`, `whatsappLearningArtifacts` e estruturas legadas podem coexistir porque ainda existem consumidores produtivos. Essa coexistência é **transitória**, não uma autorização para criar novas fontes concorrentes.
+
+Regras para novas mudanças:
+
+- novos alimentos, aliases, porções, variantes e evidências não devem ganhar arrays/constantes TypeScript como fonte permanente;
+- uma nova fonte persistente que responda à mesma pergunta alimentar exige plano explícito de consolidação, compatibilidade e aposentadoria;
+- memória pessoal e conhecimento global devem permanecer distinguíveis;
+- snapshots históricos de refeição não podem ser reescritos quando o conhecimento global for corrigido;
+- migrações do Food Intelligence V2 deverão atualizar também `docs/generated/db-schema.md`.
+
 ## Tabelas críticas
 
 | Tabela                                | Papel                                                                      |
