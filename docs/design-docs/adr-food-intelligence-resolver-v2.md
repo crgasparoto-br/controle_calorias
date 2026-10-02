@@ -1211,6 +1211,67 @@ A revisão da suíte deve produzir um inventário reproduzível com, no mínimo:
 
 O corte do V2 não é considerado concluído enquanto a suíte do domínio alimentar continuar dependendo de testes redundantes da arquitetura antiga ou de checks históricos que não protejam contrato vigente.
 
+## 19.2. Interfaces de manutenção alinhadas ao V2
+
+A reformulação do domínio alimentar inclui as duas superfícies existentes de manutenção de alimentos. Elas devem usar os mesmos serviços e contratos V2, mas com responsabilidades distintas por audiência.
+
+### Tela do usuário — `FoodsPage` / Minha base alimentar
+
+A tela do usuário administra **conhecimento pessoal e sinais pessoais**, não o catálogo global.
+
+Responsabilidades alvo:
+
+- buscar alimentos globais e pessoais resolvíveis pela base V2;
+- favoritar e consultar recentes sem duplicar identidade alimentar;
+- criar e editar apenas variantes/alimentos de escopo pessoal autorizados;
+- manter aliases pessoais, porções pessoais e preferências explicitamente confirmadas;
+- anexar rótulo/evidência ou propor correção quando a informação global parecer incorreta, sem alterar conhecimento global diretamente;
+- exibir de forma compreensível a identidade/variante, porção, perfil nutricional aplicado, origem e estado de confiança quando isso for relevante para a decisão do usuário;
+- preservar histórico: editar alimento pessoal não recalcula refeições antigas;
+- permitir desativação/revogação segura do conhecimento pessoal sem apagar evidência histórica necessária.
+
+A interface não deve expor o schema físico como formulário bruto. O fluxo deve ser orientado à intenção do usuário: nome/identidade -> marca/variante -> porção -> nutrição/evidência -> revisão antes de salvar.
+
+Alimentos globais podem ser consultados e usados, mas não editados diretamente por usuário comum. Quando houver divergência, a ação correta é **sugerir correção/enviar evidência**, gerando candidato/review case conforme a política do V2.
+
+### Tela administrativa — `AdminPage` / Base de alimentos
+
+A área administrativa passa a ser uma **console de governança do conhecimento alimentar**, e não apenas uma tabela de catálogo/importação.
+
+Responsabilidades alvo:
+
+- pesquisar famílias e variantes globais e inspecionar relacionamentos entre elas;
+- visualizar e comparar perfis nutricionais versionados, classificações, porções, aliases, barcodes, fontes e evidências;
+- operar a fila agrupada de `food_review_cases`;
+- aprovar, corrigir e aprovar, rejeitar, revogar, depreciar ou mesclar conhecimento conforme permissão;
+- identificar conflitos entre fontes e versões sem sobrescrever silenciosamente conhecimento verificado;
+- revisar candidatos originados de rótulo, OCR, código de barras, pesquisa externa e correções dos usuários;
+- acompanhar impacto e frequência agregada para priorização, sem expor dados pessoais desnecessários;
+- administrar/importar fontes em fluxo com prévia, reconciliação e publicação controlada;
+- acessar histórico de `food_review_events` e proveniência suficiente para auditoria;
+- distinguir claramente conhecimento `provisional`, `pending_review`, `verified`, `rejected`, `revoked`, `deprecated` e `merged`.
+
+A administração não deve possuir regras próprias de resolução alimentar. Ela governa os mesmos artefatos que o Food Intelligence Resolver consome.
+
+### Componentes e navegação
+
+As duas telas podem compartilhar componentes de apresentação de identidade, variante, porção, nutrição, fonte e status, mas devem preservar semântica de audiência:
+
+- usuário: foco em uso pessoal, clareza e correção do próprio conhecimento;
+- administrador: foco em governança, evidência, conflito, versionamento e publicação global.
+
+No desktop, formulários longos de alimento/variante devem usar área de detalhe própria ou drawer/página suficientemente ampla, em vez de concentrar todo o modelo V2 em uma coluna lateral estreita. No mobile, ações essenciais devem continuar acessíveis sem esmagar tabelas de governança.
+
+Estados obrigatórios para ambas as superfícies: carregando, vazio, erro, sem permissão, item inativo/revogado, conflito e sucesso. Ações destrutivas ou de publicação global exigem confirmação proporcional ao risco.
+
+### Regra de migração das telas
+
+As telas atuais são baseline V1 e não devem ser expandidas com novos campos do modelo antigo durante a migração.
+
+A migração de interface deve ocorrer depois que os contratos/repositórios V2 necessários estiverem disponíveis e deve remover dependências de `foodCatalog`, `portions`, favoritos duplicados e macros armazenados diretamente na identidade.
+
+Não manter dois formulários independentes representando o mesmo conhecimento em estruturas V1 e V2.
+
 ## 20. Migração
 
 A migração deve ser incremental e observável.
@@ -1340,6 +1401,7 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - Golden Food Corpus é gate de aceite;
 - mocks não podem esconder a etapa que o teste pretende validar.
 - a suíte de testes do domínio alimentar será auditada e reduzida no V2, preservando somente cobertura efetiva de contrato, regressão e integração.
+- as telas de manutenção do usuário e da administração serão migradas para os mesmos contratos V2, com escopo pessoal separado de governança global.
 
 ## 25. Questões abertas
 
@@ -1349,7 +1411,7 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 2. thresholds de confiança;
 3. regras automáticas de promoção global;
 4. papéis/permissões dos revisores;
-5. desenho da tela administrativa;
+5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
 6. fórmula de prioridade;
 7. política exata para estimativa provisória por categoria;
 8. estratégia de embeddings/fuzzy matching;
