@@ -31,7 +31,7 @@ Modelo lógico alvo:
 
 ### Modelo físico alvo e consolidação
 
-O modelo físico base está consolidado no ADR, seção 8.7. A separação de entidades orienta as futuras migrations do Food Intelligence V2, mas o mapeamento persistido dos estados de governança e do ciclo de revisão permanece `OPEN` nas seções 12.1, 14.8 e 25, item 31. Essa pendência bloqueia as migrations/transições correspondentes; este documento não declara o schema integralmente fechado. Estado estrutural `active`, encerramento da tarefa e aprovação/publicação de conhecimento não são equivalentes.
+O modelo físico base está consolidado no ADR, seção 8.7. O mapeamento dos estados estrutural/de governança e do ciclo de revisão foi aprovado em 2026-10-05 (seções 12.1, 14.8 e 25, item 31). Variantes/aliases separam disponibilidade de `governance_status`; perfis e porções mantêm o estado de governança existente sem coluna duplicada. Casos usam `open | in_review | closed`, com resultado separado por ciclo e evento idempotente; aprovação é por artefato/versão e fechamento de tarefa não publica conhecimento. Constraints, transições e efeitos atômicos têm definição única no ADR, não neste resumo. Este fechamento é documental: não declara migrations executadas nem dispensa as permissões/políticas e os demais gates ainda abertos.
 
 | Estrutura | Papel alvo |
 | --- | --- |

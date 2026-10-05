@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED / EM EVOLUÇÃO
 - **Data inicial:** 2026-10-02
-- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-1`; revisão material de R1–R6 sobre o contrato do commit `47bf4799b73975e193dae5d750b46d5d99d5c6bf`. Snapshots anteriores devem ser reavaliados para os requisitos alterados.
+- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-2`; fechamento de §25.6 e §25.31 aprovado pelo responsável pelo produto em 2026-10-05, sobre o contrato do commit `7643d2e54a4dac37f6354dcb36b98b6371461626`. Snapshots anteriores devem ser reavaliados para os requisitos alterados; aprovação documental não comprova implementação.
 - **Branch de discussão:** `docs/food-intelligence-v2-adr`
 - **Base:** `develop`
 - **Escopo:** reconhecimento, resolução e governança de alimentos em entradas textuais, áudio/transcrição, imagem/OCR, rótulo nutricional e fluxos multimodais
@@ -456,7 +456,7 @@ Princípios:
 
 ### 8.3. Modelo lógico alvo
 
-A separação de responsabilidades abaixo passa a ser decisão arquitetural. O modelo físico base está consolidado na seção 8.7, com a pendência explícita de governança de §12.1/§14.8. Ajustes futuros não podem reintroduzir fontes paralelas ou misturar identidade, nutrição e memória pessoal; o recorte dependente da máquina de estados ainda não está fechado para implementação.
+A separação de responsabilidades abaixo é decisão arquitetural. O modelo físico base de §8.7 incorpora o contrato de governança aprovado em §12.1/§14.8. Ajustes futuros não podem reintroduzir fontes paralelas ou misturar identidade, nutrição e memória pessoal. O fechamento desse recorte não elimina as demais dependências de implementação e ativação de §25.
 
 #### `foods` — identidade alimentar canônica
 
@@ -776,7 +776,7 @@ Ordem alvo:
 Não manter dual-write indefinido.
 
 
-### 8.7. Modelo físico base e pendências de governança
+### 8.7. Modelo físico base e contrato de governança
 
 A revisão do schema atual encontrou quatro duplicidades estruturais que o V2 deve eliminar:
 
@@ -787,7 +787,7 @@ A revisão do schema atual encontrou quatro duplicidades estruturais que o V2 de
 
 Também foi confirmado que classificação de alimentos (`processingLevel`, fruta, vegetal e ultraprocessado) é usada por relatórios e não pode ser perdida durante a migração.
 
-O modelo físico base passa a ser o seguinte. A separação entre entidades está decidida, mas a representação persistida dos estados de governança de variantes/aliases e do ciclo de revisão permanece `OPEN` (§12.1, §14.8 e §25, item 31). Essa pendência bloqueia as migrations e transições correspondentes; não autoriza interpretar estado estrutural como aprovação nem declarar o schema integralmente fechado.
+O modelo físico base passa a ser o seguinte. A representação dos estados estruturais/de governança de variantes e aliases e do ciclo de revisão está definida em §12.1 e §14.8, conforme a decisão de §25, item 31. Isso fecha o contrato desse recorte, não declara o schema implementado nem dispensa permissões, políticas de promoção e demais gates ainda abertos.
 
 #### Tabelas preservadas e reposicionadas
 
@@ -836,7 +836,9 @@ Campos mínimos:
 - `preparation` opcional;
 - `qualifiers_json` somente para qualificadores não indexados;
 - `identity_key` determinística e única;
-- `status = draft | active | deprecated | merged`;
+- `status = draft | active | deprecated | merged` (estrutural);
+- `governance_status = provisional | pending_review | verified | rejected | revoked`;
+- `revision` inteira crescente para controle de concorrência e referência da decisão;
 - `merged_into_variant_id`;
 - timestamps.
 
@@ -932,13 +934,15 @@ Campos mínimos:
 - `locale` opcional;
 - `source_id` opcional;
 - `confidence`;
-- `status = active | deprecated | rejected`;
+- `status = active | deprecated` (disponibilidade);
+- `governance_status = provisional | pending_review | verified | rejected | revoked`;
+- `revision` inteira crescente para controle de concorrência e referência da decisão;
 - timestamps.
 
 Índice principal de busca: `normalized_alias + status`.
 A unicidade deve impedir duplicação do mesmo alias normalizado para a mesma variante, sem impedir que um alias ambíguo possua candidatos diferentes.
 
-Esse estado de disponibilidade não substitui a governança exigida por §12.1. A representação persistida das duas dimensões é parte da decisão bloqueante de §25, item 31; um alias `active` não é aprovado globalmente por implicação.
+O estado de disponibilidade não substitui `governance_status`: `active` não é aprovação global. `rejected` pertence somente à governança, não a `status`. A consulta exige elegibilidade de cada artefato segundo §12.1; um alias aprovado não aprova a variante, o perfil ou a porção.
 
 #### `user_food_aliases`
 
@@ -1023,22 +1027,26 @@ Mídia bruta deve permanecer no storage apropriado com política de retenção; 
 
 #### `food_review_cases` e `food_review_events`
 
-`food_review_cases`:
+`food_review_cases` guarda a tarefa, não a autorização de uso do conhecimento:
 
-- `case_key` única para agrupar ocorrências equivalentes;
+- `id` e `case_key` única para agrupar ocorrências equivalentes;
 - `case_type`;
-- ciclo operacional do caso e resultado da revisão representados sem confusão com o estado do conhecimento; nomes de campos, enums e transições persistidas permanecem `OPEN` em §14.8/§25, item 31;
-- `priority_score`;
-- `occurrence_count`;
-- `distinct_user_count` agregado;
-- `first_seen_at`/`last_seen_at`;
-- referências/candidato proposto quando já existirem;
-- `proposed_payload_json` sanitizado;
-- timestamps.
+- `status = open | in_review | closed`;
+- `outcome = approved | rejected | revoked | superseded | no_change`, nulo enquanto o ciclo estiver aberto/em revisão;
+- `review_cycle` inteiro positivo; reabertura incrementa o ciclo sem apagar eventos anteriores;
+- `state_version` inteira crescente para compare-and-set;
+- `cycle_opened_at`, `closed_at` opcional e `assigned_reviewer_id` opcional, atribuído somente a ator autorizado;
+- `superseded_by_case_id` obrigatório quando `outcome=superseded`, sem autorreferência ou ciclos;
+- `priority_score` e referência/snapshot sanitizado da avaliação: entradas, versão da política, instante de referência e meta de prazo de §14.2–§14.5;
+- `occurrence_count`, `distinct_user_count` agregado e `first_seen_at`/`last_seen_at`;
+- alvo tipado da revisão: tipo de artefato, identificador, versão/revisão esperada e hash do conteúdo avaliado; uma decisão nunca aprova genericamente o alimento inteiro;
+- `proposed_payload_json` sanitizado e timestamps.
 
-`food_review_events` é append-only e registra ator, ação, motivo/payload e data.
+Invariantes: `closed` exige `outcome` e `closed_at`; `open`/`in_review` exigem `outcome=null` e `closed_at=null`. Na reabertura, a projeção corrente é reiniciada, mas resultado, ator e alvo do ciclo anterior permanecem em `food_review_events`. Um caso substituído continua histórico; novas ocorrências seguem o caso sucessor, sem criar um segundo caso ativo equivalente.
 
-A antiga enumeração única `open | approved | rejected | revoked | superseded` não é contrato físico vigente para o V2: misturava situação da tarefa com resultado e governança. Não deve ser implementada como equivalente automático do fluxo operacional. O fechamento deste recorte exige a matriz única de §14.8; até lá, sua implementação permanece bloqueada.
+`food_review_events` é append-only. Cada comando registra caso, ciclo, chave de idempotência, ação, ator autenticado ou identidade interna autorizada, estado anterior/novo, resultado, alvo exato/versão/hash, evidências, motivo, versão da política e data. O evento de decisão guarda a revisão efetivamente aprovada/rejeitada/revogada; o estado corrente da tarefa não substitui essa referência.
+
+A chave `case_id + review_cycle + request_key` identifica um comando idempotente e seu evento de resultado; a mesma chave com ator, ação, alvo ou payload incompatíveis é conflito. Efeitos atômicos, transições, reabertura e contenção seguem §14.8. `resolved` e `reopened` não são estados persistidos da tarefa: resolver produz um resultado e encerra o ciclo; reabrir é evento que retorna a `open`.
 
 #### `food_resolution_events`
 
@@ -1216,7 +1224,7 @@ O schema V2 deve, no mínimo, sustentar:
 - léxico global e pessoal com as chaves correntes distintas e o isolamento definidos em §8.7;
 - porções por variante + label normalizado + unidade + status;
 - barcode único;
-- fila de revisão por status + prioridade + última ocorrência, após fechamento da máquina canônica de §14.8;
+- fila de revisão por status + prioridade + abertura do ciclo + identificador estável; transições versionadas e unicidade de comando/evento conforme §14.8;
 - eventos de resolução por usuário/data, variante/data, `trace_id` e expiração.
 
 Campos usados para busca, join, status, ranking ou integridade devem ser colunas tipadas. JSON fica restrito a cauda longa, payload de auditoria e qualificadores não indexados.
@@ -1549,7 +1557,7 @@ Consequências:
 - nenhum handler pode responder essa pergunta por conta própria (§19);
 - a composição da `identity_key` segue a mesma política, o que impede criação acidental de variantes.
 
-O desenho físico de materialidade está definido em §8.7. Neste recorte, a tolerância numérica da divergência de perfis permanece `OPEN`, calibrada por corpus (§25); isso não fecha as demais pendências de governança declaradas no modelo base.
+O desenho físico de materialidade está definido em §8.7. Neste recorte, a tolerância numérica da divergência de perfis permanece `OPEN`, calibrada por corpus (§25); o contrato de estados de §12.1/§14.8 não substitui essa calibração.
 
 ### 9.2. Invariante de cobertura nutricional (totalidade)
 
@@ -1719,21 +1727,24 @@ A governança deve separar **publicação global** de **confirmação pessoal**.
 
 ### 12.1. Estado do conhecimento global
 
-Variantes, perfis nutricionais, aliases e porções governadas devem poder distinguir:
+**Decisão aprovada em 2026-10-05 (§25.31).** Situação da tarefa, resultado da revisão, estado estrutural e governança são dimensões distintas:
 
-```text
-provisional
-pending_review
-verified
-rejected
-revoked
-```
+| Dimensão | Representação canônica | Autoridade |
+| --- | --- | --- |
+| Tarefa | `food_review_cases.status`: `open`, `in_review`, `closed` | Somente o ciclo operacional; não autoriza o resolvedor a usar o dado. |
+| Resultado do ciclo | `food_review_cases.outcome`: `approved`, `rejected`, `revoked`, `superseded`, `no_change`; nulo antes do encerramento | Projeção da decisão registrada no evento; não aprova outros artefatos. |
+| Estrutura/disponibilidade | `status` das variantes: `draft`, `active`, `deprecated`, `merged`; dos aliases: `active`, `deprecated` | Disponibilidade estrutural, sem conferir verificação. |
+| Governança do artefato | `provisional`, `pending_review`, `verified`, `rejected`, `revoked` | Condição de aprovação do alvo/versão exatos, sempre combinada com escopo, vigência e política. |
 
-O estado pertence ao artefato de conhecimento correspondente, não à tarefa de revisão. Estado estrutural (`active`, `deprecated`, `merged`), estado de governança, resultado da decisão e ciclo operacional do caso são dimensões distintas. `active` não significa `verified`; encerrar um caso não publica conhecimento; reabrir uma tarefa não restaura uma aprovação revogada.
+Variantes e aliases usam `governance_status` explícito (§8.7). Perfis nutricionais, porções, classificações e demais artefatos cujo `status` já representa governança mantêm esse campo; não adicionar uma segunda coluna equivalente. Confirmação pessoal continua separada (§12.2).
 
-A elegibilidade de uso/publicação deve considerar explicitamente escopo, estado estrutural, governança, vigência e política aplicável. O uso individual provisório permitido por §12.3 não equivale a publicação global.
+A aprovação é **por artefato e versão**, nunca pelo alimento inteiro. Aprovar identidade não aprova macros; aprovar perfil não confirma gramatura de fatia; aprovar alias não aprova seus alvos por implicação. Cada evento aponta tipo, identificador, versão/revisão e hash avaliados; uma alteração material exige nova avaliação, sem transportar o `verified` anterior por inércia.
 
-**OPEN bloqueante (§25, item 31):** fechar a representação física e a correspondência entre essas dimensões para variantes, aliases e casos de revisão. Os estados de perfis e porções já explicitados em §8.7 são preservados, mas não podem ser extrapolados por convenção implícita para outras tabelas. Antes das migrations e transições correspondentes, a matriz de §14.8 deve definir uma única interpretação persistida para cada ação.
+A seleção valida cada artefato necessário à operação. `active` não significa `verified`; encerrar tarefa não publica conhecimento; reabrir tarefa não restaura aprovação revogada. Artefato `rejected`/`revoked` não participa de novas resoluções; permanece acessível somente no histórico/auditoria autorizado. O uso individual provisório de §12.3 não equivale a publicação global.
+
+Transições de governança: um candidato `provisional` pode ser submetido como `pending_review`; aprovação autorizada leva o candidato avaliado a `verified`; rejeição de candidato leva a `rejected`; revogação de versão verificada leva a `revoked`. Rejeitar um candidato não retira outra versão válida. Reconsiderar dado rejeitado/revogado exige nova versão/candidato com nova evidência, não reativar a antiga aprovação. Revisar conhecimento publicado não o rebaixa automaticamente: a revisão do novo candidato e eventual revogação do anterior são decisões distintas e explícitas.
+
+A política de promoção automática e a matriz final de permissões continuam dependências de §25, itens 3, 4 e 15. Enquanto não aprovadas, não há autorização implícita de publicação automática nem relaxamento da fronteira administrativa existente. A máquina aprovada é especificada em §14.8, não declarada implementada por este documento.
 
 ### 12.2. Confirmação pessoal não é estado global
 
@@ -1774,7 +1785,7 @@ Os números mínimos de ocorrências/evidências permanecem `OPEN`.
 
 ## 14. Priorização da fila de revisão
 
-A revisão humana não pode ser FIFO cego, e também não pode ser soma de defeitos. Com capacidade limitada, a medida adotada é **impacto por minuto investido**. A fórmula de §14.2 está definida; classificação exclusiva dos fatores e compatibilização de capacidade/SLA permanecem explicitamente abertas em §14.3–§14.5 e §25. Fórmula definida não significa política operacional integralmente pronta.
+A revisão humana não pode ser FIFO cego, e também não pode ser soma de defeitos. A fórmula de §14.2 e a política operacional de §14.3–§14.5 estão definidas pela decisão aprovada de §25.6. Os valores são uma política inicial versionada, não resultados de calibração empírica. Curadoria ordinária e contenção de erro ativo têm obrigações distintas, sem criar um segundo catálogo ou fluxo paralelo de aprovação.
 
 ### 14.1. A unidade da fila é o caso, não o alimento
 
@@ -1815,7 +1826,9 @@ Três propriedades são deliberadas:
 - **`R` é multiplicativo**: com os demais fatores iguais, um caso classificado como global (`R=2`) recebe o dobro da prioridade de um pessoal (`R=1`). Isso não significa que `R` domine qualquer diferença de alcance/frequência;
 - **`1 + E − Ev`** reduz o custo estimado quando há evidência pronta; essa preferência ajuda a ordenar a fila, mas não comprova que uma hora semanal será suficiente.
 
-A fórmula, seus parâmetros e a janela usados em uma avaliação devem ser registrados por versão. Com `A=0` ou `F=0`, o impacto calculado é zero; ausência de ocorrências não prova resolução, não encerra o caso e não autoriza promoção automática. Ordenação de empates e tratamento operacional desses casos devem ser fechados conforme §25, item 6.
+A avaliação registra entradas `A`, `F`, `G`, `R`, `E`, `Ev`, `D`, versão da política, janela de 90 dias e instante de referência. Com `A=0` ou `F=0` efetivamente apurados, o impacto é zero; isso não encerra o caso nem autoriza promoção. Falha de consulta ou fator sem evidência não vira zero: a avaliação fica explicitamente indisponível, gera pendência operacional e não simula baixa prioridade.
+
+A ordenação dos casos com avaliação válida é **pontuação decrescente, gravidade `G` decrescente, `cycle_opened_at` crescente e `id` crescente**. Usa-se a pontuação antes do arredondamento de exibição, com a mesma precisão/política registrada. Casos sem avaliação são mostrados separadamente como pendentes de apuração, sem desaparecer da fila ou suspender seus prazos. Pontuação zero participa do desempate normal; não tem encerramento automático. Contenção de risco confirmado segue §14.5 independentemente da pontuação.
 
 ### 14.3. Escalas
 
@@ -1829,46 +1842,51 @@ Gravidade `G`:
 | 2 | classificação ausente ou estimada | classificação |
 | 1 | metadado incompleto sem efeito em macro | curadoria leve |
 
-Propagação `R`:
+Propagação `R`, definida exclusivamente pelo alcance do conhecimento:
 
-| Valor | Alcance do conhecimento |
+| Valor | Escopo da proposta avaliada |
 | --- | --- |
-| 2,0 | o caso, se promovido, vira conhecimento **global** |
-| 1,5 | o caso alimenta o **léxico** ou a materialidade governada |
-| 1,0 | o caso permanece **pessoal** |
+| 2 | Global, incluindo léxico e materialidade globais. |
+| 1 | Exclusivamente pessoal, restrito ao proprietário autorizado. |
 
-**OPEN bloqueante para o classificador de prioridade (§25, item 6):** essas descrições podem se sobrepor, por exemplo em um caso de léxico global. A matriz deve atribuir exatamente um `R` a cada combinação de tipo e escopo, com precedência aprovada; não é permitido escolher silenciosamente mínimo, máximo, soma ou produto. Os valores existentes são preservados, sem calibrar números novos nesta revisão.
+O nível intermediário `1,5` foi retirado por decisão explícita em 2026-10-05; tipo de artefato não cria outro escopo. Um caso de léxico global recebe `R=2`; um apelido pessoal recebe `R=1`. Escopo é validado no backend a partir do alvo/proposta, não confiado ao cliente. Propor uso global exige o processo de promoção e nova avaliação de alcance, sem promover por simples troca de fator.
 
-Esforço `E`: soma **+1** por identidade ambígua, perfil ausente, porção canônica ausente, fontes em conflito e necessidade de julgar materialidade.
+Quando mais de uma condição de gravidade se aplicar, `G` recebe a **maior gravidade aplicável**, sem somar. Condição não comprovada não ganha gravidade por inferência silenciosa; insuficiência para classificar fica explícita na avaliação.
 
-Evidência pronta `Ev`: **2** quando há rótulo, código de barras ou embalagem disponível; **1** quando há fonte oficial inequívoca.
+Esforço `E`: soma **+1 uma única vez por condição** presente — identidade ambígua, perfil ausente, porção canônica ausente, fontes em conflito, necessidade de julgar materialidade. Evidências repetidas não multiplicam a mesma condição.
 
-O fator de envelhecimento `D` no máximo **dobra** a prioridade. Esse teto não garante atendimento de todo caso, especialmente quando o impacto é zero ou a faixa não possui SLA; não deve ser apresentado como garantia contra permanência indefinida na fila.
+Evidência pronta `Ev` não é cumulativa: **2** para rótulo legível, barcode ou embalagem comprovadamente associados e úteis para resolver o campo sob revisão; **1** para fonte oficial inequívoca utilizável; **0** sem evidência pronta útil. Usa-se a evidência útil mais forte. A simples presença de foto/barcode não comprova macros, nem reduz o esforço de um perfil cuja composição continua desconhecida.
 
-### 14.4. Faixas e SLA
+O fator de envelhecimento `D` no máximo **dobra** a prioridade, contado da abertura do ciclo até o instante de referência da avaliação, sem idade negativa. Não garante atendimento de todo caso, especialmente quando o impacto é zero ou a faixa não possui meta de prazo. A validação empírica permanece em §25.28/§25.29; mudar parâmetros exige nova versão e aprovação explícita.
 
-Para uma prioridade calculada com fatores válidos, as faixas são disjuntas. Os limites numéricos existentes são preservados:
+### 14.4. Faixas e metas operacionais
 
-| Prioridade | Faixa | SLA proposto, sujeito a §14.5 |
+Para uma prioridade calculada com fatores válidos, as faixas são disjuntas. As metas aprovadas são contadas em dias corridos desde a abertura do ciclo:
+
+| Prioridade | Faixa | Meta inicial de conclusão |
 | --- | --- | --- |
-| `critical` | ≥ 12 | mesma semana |
-| `high` | ≥ 6 e < 12 | 2 semanas |
-| `medium` | ≥ 2 e < 6 | 30 dias |
-| `low` | < 2 | sem SLA; candidatura futura depende da política de promoção |
+| `critical` | ≥ 12 | Até 7 dias corridos. |
+| `high` | ≥ 6 e < 12 | Até 14 dias corridos. |
+| `medium` | ≥ 2 e < 6 | Até 30 dias corridos. |
+| `low` | < 2 | Sem prazo garantido; idade e pendência continuam visíveis. |
 
-Aceite dos limites: prioridade exatamente `2` é `medium`, exatamente `6` é `high` e exatamente `12` é `critical`. Um caso recebe uma única faixa. A ausência de SLA em `low` não dispensa a governança de §13.
+Prioridade exatamente `2` é `medium`, `6` é `high` e `12` é `critical`. A substituição de "mesma semana" por sete dias foi aprovada em 2026-10-05. Estas são **metas acompanhadas, não SLAs garantidos**, até haver capacidade demonstrada e compromisso operacional aprovado.
 
-### 14.5. Orçamento de curadoria
+`cycle_opened_at` e a meta calculada ficam rastreáveis. Repriorizar não reinicia a contagem nem posterga uma meta já registrada para ocultar atraso; uma faixa mais urgente pode antecipá-la. Reabertura legítima inicia novo ciclo com motivo/nova evidência e conserva os prazos e resultados do anterior. Ausência de prazo em `low` não dispensa governança nem autoriza promoção automática.
 
-O orçamento de referência é de **1 hora por semana**, com prioridade para `critical` e `high`.
+### 14.5. Capacidade, excedente e contenção
 
-- a fórmula define a ordem relativa; o orçamento define a capacidade disponível;
-- excesso de demanda obrigatória deve permanecer visível, gerar **alerta operacional** e registrar casos afetados, capacidade e risco de descumprimento; alerta não equivale a cumprimento de SLA;
-- não é permitido baixar artificialmente gravidade, fechar casos sem decisão ou promover conhecimento para simular atendimento dentro da capacidade.
+O orçamento ordinário é de **1 hora por semana** de curadoria. A fórmula determina a ordem de §14.2 e a capacidade determina quanto trabalho humano normal pode ser executado, não quantos casos serão ficticiamente concluídos. A semana civil e os prazos usam o timezone operacional configurado e o contrato compartilhado de tempo do repositório.
 
-**OPEN bloqueante para a política operacional (§25, item 6):** a redação anterior exigia conclusão de `critical` e `high` em toda semana, atribuía duas semanas a `high` e impunha teto de uma hora. Esses compromissos não podem ser tratados como simultaneamente garantidos quando a demanda excede a capacidade. Deve ser aprovada a precedência entre teto e prazos, a obrigação semanal de cada faixa, o responsável e a ação sobre o excedente. Até essa decisão, os SLAs de §14.4 são proposta, não compromisso operacional fechado; esta revisão não autoriza ampliar horas nem flexibilizar prazos por conta própria.
+Quando a demanda exceder a capacidade, executar a fila na ordem definida até o limite ordinário, manter os demais casos pendentes com as datas originais e emitir **alerta consolidado de capacidade, casos afetados e risco/ocorrência de atraso**. Alerta não é cumprimento de meta. Não ampliar horas automaticamente, baixar gravidade, apagar pendências, alterar prazos ou publicar conhecimento para simular atendimento. O fluxo individual seguro de §12.3 não aguarda essa fila global.
 
-O aceite deve incluir uma semana em que a demanda prioritária supera uma hora: a política aprovada precisa determinar uma ação única e auditável, sem perda de casos, falsa conclusão ou promessa de SLA sem capacidade.
+Antes da ativação, registrar um **responsável operacional nominal pela base alimentar**, destinatário do alerta, e o timezone operacional. A atribuição precisa ser efetiva e verificável, não apenas um papel abstrato. Esta ADR não afirma que uma pessoa já foi configurada. Falta de responsável/destino de alerta bloqueia a ativação da operação correspondente.
+
+**Erro ativo confirmado não espera pela curadoria semanal.** Contenção aplica os gatilhos objetivos e autorizados de §1.3/§19.9: interromper o comportamento inseguro/coorte afetada, preservar evidências sanitizadas e notificar o responsável. Uma suspeita isolada da IA não revoga conhecimento global. A contenção pode tornar uma versão inelegível ou desativar a rota V2, conforme a política aprovada, sem apagar snapshots e sem reintroduzir fallback oculto.
+
+A correção definitiva permanece em caso rastreado da mesma governança. Conter não significa corrigir: registrar evento e manter a pendência de correção; se uma decisão de revogação encerrar seu ciclo, abrir/reabrir explicitamente o ciclo de correção vinculado, sem duplicar caso equivalente. Esforço humano extraordinário depende de decisão explícita do responsável; não é promessa implícita dentro da hora semanal.
+
+Aceite discriminante: demanda prioritária maior que uma hora preserva pendências, datas e ordem, expõe atraso e gera o alerta, sem falsa conclusão. Em paralelo, fallback silencioso confirmado dispara a contenção autorizada mesmo com capacidade esgotada, mas não publica correção nem encerra o trabalho definitivo por implicação.
 
 ### 14.6. Métrica de sustentabilidade
 
@@ -1891,22 +1909,33 @@ A fila de classificação em `server/modules/foods/classificationReview.ts` é a
 
 ### 14.8. Ciclo de vida do caso
 
-**OPEN bloqueante (§25, item 31):** a máquina canônica do caso e seu mapeamento persistido ainda precisam ser aprovados. O diagrama anterior `open -> in_review -> resolved -> closed`, com ramificações `rejected`/`reopened`, era uma proposta de fluxo, não uma enumeração compatível com o antigo `food_review_cases.status`. Nenhuma das duas representações deve ser implementada por inferência como contrato final.
+**Máquina aprovada em 2026-10-05 (§25.31):** somente `open`, `in_review` e `closed`. O resultado fica em `outcome` e a governança de cada artefato segue §12.1. A representação física está em §8.7; não manter enums concorrentes por canal ou interface.
 
-A decisão deverá manter separadas as dimensões de §12.1 e registrar, para cada ação, estado de origem e destino, versão esperada, autoridade, efeito persistido, evento e comportamento em repetição ou conflito. A matriz deve cobrir:
+| Ação | Origem → destino | Resultado do ciclo | Efeito autorizado |
+| --- | --- | --- | --- |
+| Abrir | Caso ausente → `open` | Nulo | Criar ciclo 1 e alvo/proposta; não publicar. Repetição agrega ocorrência idempotente no mesmo caso. |
+| Iniciar revisão | `open` → `in_review` | Nulo | Atribuir revisor autorizado e versão esperada; não publicar. |
+| Aprovar | `in_review` → `closed` | `approved` | Aprovar somente candidato/versão elegível e explicitamente avaliado; registrar evidência e evento. |
+| Corrigir e aprovar | `in_review` → `closed` | `approved` | Criar a versão corrigida; mudança de identidade exige variante correspondente. Aprovar o novo alvo, sem sobrescrever nutrição/histórico verificados. |
+| Rejeitar | `in_review` → `closed` | `rejected` | Rejeitar o candidato e registrar motivo; não invalidar outro artefato/versão aprovado. |
+| Revogar | `in_review` → `closed` | `revoked` | Revogar a versão verificada alvo, impedir novas utilizações e invalidar reutilização/cache afetado; preservar histórico. |
+| Reabrir | `closed` → `open` | Nulo no novo ciclo | Exigir nova evidência/motivo, incrementar ciclo e versão; preservar o resultado anterior em eventos. Não reativar aprovação. |
+| Encerrar sem alteração | `open` ou `in_review` → `closed` | `no_change` | Registrar justificativa; nenhuma publicação ou mudança nutricional. |
+| Substituir caso | `open` ou `in_review` → `closed` | `superseded` | Vincular caso sucessor válido; não aprovar conhecimento nem criar duplicata ativa. |
 
-| Ação | Garantia obrigatória para fechar a transição |
-| --- | --- |
-| Abrir/iniciar revisão | Identificar caso, candidato, escopo e responsável sem publicar conhecimento. |
-| Aprovar / corrigir e aprovar | Revalidar autoridade, versão, evidências e política; publicar somente o artefato/versão autorizado e registrar a decisão. |
-| Rejeitar | Registrar motivo e alvo rejeitado sem retirar, por implicação, outro conhecimento válido. |
-| Revogar | Invalidar o uso futuro do artefato/versão afetado e caches aplicáveis, preservando evidência e snapshots históricos. |
-| Reabrir | Exigir nova evidência/motivo e preservar o histórico; não restaurar aprovação revogada automaticamente. |
-| Encerrar / superseder | Registrar o destino operacional e eventual relação de substituição; fechamento da tarefa não implica aprovação ou publicação. |
+`resolved` não é um estado adicional, e `reopened` é evento, não estado. Abrir nova revisão de conhecimento publicado não muda sua governança automaticamente; reabrir caso não restaura versão revogada. Uma alteração sem efeito material comprovado pode terminar em `no_change`, nunca em aprovação fabricada.
 
-Cada decisão registra autor, data, decisão, escopo afetado e reversibilidade, alinhada à regra de reclassificação retroativa explícita de §8.14.3. Autoridade e versão são revalidadas na transação conforme §19.5; repetição não duplica publicação/evento de decisão e decisões concorrentes incompatíveis não produzem duas versões correntes.
+Toda transição valida ator, escopo, ação, alvo exato, ciclo, versão esperada e chave de idempotência no backend. A decisão, a atualização autorizada do artefato, o estado/resultado do caso e o evento são gravados juntos em transação curta, com constraints e compare-and-set persistidos. Não manter transação aberta enquanto o revisor analisa a tela nem depender de checagem "não encontrei outra linha"/lock em memória para exclusividade.
 
-Aceite discriminante: fechar uma tarefa sem aprovação não publica conhecimento; `active` sem governança válida não vira `verified`; reabrir caso revogado não reativa o artefato; duas decisões concorrentes não passam por validação apenas em memória. A matriz final precisa permitir verificar esses cenários no serviço e na persistência, não apenas na interface. Enquanto faltarem estados, transições ou mapeamento físico aprovados, este recorte permanece `specification-gap`.
+Repetir diretamente o mesmo comando público e chave, inclusive após reinício/falha na resposta, devolve o resultado persistido sem republicar nem duplicar evento. Reuso incompatível da chave ou versão obsoleta resulta em conflito explícito. Duas decisões incompatíveis concorrentes não produzem duas versões correntes para a mesma chave semântica; conflito de fontes distintas continua governado conforme §19.4. Falha da transação não informa sucesso. Falha de notificação posterior não desfaz a decisão e seu retry não repete a mutação.
+
+`in_review` não é lease de processo: reinício não perde o caso. Retomada/reassociação por revisor autorizado revalida a versão e registra o evento. Abandonar a tela não aprova, rejeita nem cancela o caso; cancelar um comando antes do commit não altera conhecimento. Uma submissão obsoleta precisa recarregar a versão corrente, não sobrescrevê-la.
+
+Revogação e publicação alteram a revisão governada usada na leitura/cache (§8.14/§19.3). Nova resolução não pode consumir a versão revogada mesmo quando o cache ou sua notificação de invalidação estiver atrasado; indisponibilidade para comprovar vigência aplica a política de falha explícita, sem reautorizar o dado. Snapshots de refeições já confirmadas não são reescritos.
+
+**Contenção autorizada:** diante de gatilho objetivo de §14.5, uma ação interna explicitamente autorizada pode compor abertura/reabertura, início e decisão em uma execução atômica, registrando a sequência e o alvo. Não espera que um humano inicie a tarefa; não usa suspeita isolada de IA como autoridade e não contorna as permissões/política. O caso/ciclo da correção definitiva continua rastreado, conforme §14.5. Desativar uma coorte por feature flag não revoga todos os seus artefatos por implicação.
+
+Critérios discriminantes: fechar com `no_change` não publica; aprovar identidade/alias não aprova macros/porções; `active` não vira `verified`; reabrir não reativa versão revogada; duas decisões concorrentes e retry após reinício produzem um resultado coerente; revogar impede reuso por cache sem modificar refeições antigas. Os testes devem atingir serviço e persistência, não apenas a interface. Permissões finais e ativação das ações automáticas continuam sujeitas aos respectivos itens de §25.
 
 ## 15. Aprendizado pessoal
 
@@ -2584,23 +2613,23 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 - a referência histórica de refeição é imutável, e `set null` em cascata não pode esvaziá-la: variante é aposentada por status, nunca deletada;
 - exibição e agregação são estáveis por padrão, por identidade histórica, e a reclassificação retroativa é operação explícita, auditada e reversível.
 
-- a prioridade da fila de curadoria é a razão entre impacto e custo de §14.2, calculada sobre casos agrupados; a classificação exclusiva dos fatores ainda depende de §25, item 6;
-- o orçamento de referência é de 1 hora por semana, com prioridade para `critical` e `high`; compatibilização de prazos, obrigação semanal e excedente permanece `OPEN` conforme §14.5;
+- a prioridade da fila de curadoria segue a fórmula de §14.2, com `R=2` global (inclusive léxico/materialidade) ou `R=1` pessoal, `G` máximo aplicável, esforços distintos e evidência útil não cumulativa; desempate é por gravidade, abertura do ciclo e identificador;
+- o orçamento ordinário de curadoria é de 1 hora semanal; metas de 7/14/30 dias não são SLAs garantidos; excedente preserva casos/datas e gera alerta a responsável nominal, sem ampliar capacidade automaticamente; contenção autorizada de erro ativo não espera a fila (§14.4/§14.5);
 - casos de curadoria por 1.000 registros medem sustentabilidade, com meta de redução comparável, não prova isolada de aprendizado (§14.6); generalização exige §16.1;
 - equivalência é definida por referência independente, não pela igualdade entre saídas (§4.1.8);
 - léxico pessoal possui uma única fonte com proprietário obrigatório, separada do léxico global (§8.7);
-- estado estrutural, governança, resultado da revisão e ciclo do caso não são sinônimos; a representação física ainda depende da decisão de §25, item 31.
+- tarefa usa `open | in_review | closed`, com resultado separado; aprovação é por artefato/versão, governança e estrutura são independentes; reabertura é evento e não restaura aprovação; decisões são atômicas, autorizadas, versionadas e idempotentes (§12.1/§14.8).
 
 ## 25. Questões abertas
 
-Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da implementação correspondente. A fórmula de §14.2 já está definida; os itens abaixo não a recolocam em aberto sem revisão explícita. A numeração anterior é preservada para rastreabilidade.
+Este registro preserva os números das decisões para rastreabilidade. **Itens 6 e 31 decididos em 2026-10-05** conforme aprovação do responsável pelo produto; os demais permanecem `OPEN` até a evidência e aprovação correspondentes. Contrato decidido não significa implementação validada. A fórmula de §14.2 não volta a ficar aberta por existir calibração futura.
 
 1. nomes e schema finais de `FoodObservation` e `FoodResolutionDecision`;
 2. thresholds numéricos de confiança e matriz final por tipo de fonte/campo;
 3. regras e números mínimos para promoção automática de conhecimento global;
 4. papéis/permissões dos revisores;
 5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
-6. fechamento da política operacional da fila: matriz exclusiva e precedência de `R` em tipos/escopos sobrepostos, desempate reproduzível, tratamento de casos sem ocorrências na janela e compatibilização entre capacidade, obrigação semanal, SLA e excedente (§14.2–§14.5). Bloqueia o classificador/agendamento correspondente; a fórmula numérica em si está definida;
+6. **DECIDIDO — 2026-10-05:** política operacional da fila de §14.2–§14.5: dois fatores de alcance, composição exclusiva, ordenação/desempates, tratamento de zero e dado indisponível, metas de prazo, capacidade/excedente, responsabilidade nominal e contenção separada. Restam implementação, validação empírica de 28/29 e configuração operacional antes da ativação;
 7. calibração numérica dos limiares de cada eixo da política de estimativa provisória por família, cuja estrutura está definida na seção 10.1;
 8. estratégia de embeddings/fuzzy matching e seus thresholds;
 9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
@@ -2632,7 +2661,32 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 29. validação por baseline dos parâmetros atuais de envelhecimento `D` e do limiar de alerta por capacidade; qualquer alteração dos valores já definidos em §14 exige revisão explícita, sem transformar o limite atual em garantia de atendimento.
 
 30. tolerâncias de arredondamento de macros entre entradas equivalentes (§1.1), distintas da tolerância de materialidade do item 22 e obrigatórias antes da ativação produtiva.
-31. máquina canônica e mapeamento físico de ciclo do caso, resultado da revisão e estados estrutural/de governança de variantes e aliases (§8.7, §12.1 e §14.8), incluindo origem/destino, autoridade, versão, efeito e evento por ação. Bloqueia as migrations/transições correspondentes; encerramento operacional e `active` nunca equivalem implicitamente a publicação ou `verified`.
+31. **DECIDIDO — 2026-10-05:** máquina e mapeamento físico em §8.7, §12.1 e §14.8; três estados da tarefa, resultado por ciclo, governança por artefato/versão e transições autorizadas, atômicas e idempotentes. Não dispensa a matriz de permissões do item 4 nem as políticas de promoção de 3/15; execução ainda deve ser comprovada.
+
+### 25.1. Responsabilidade, bloqueio e evidência das pendências
+
+Cada item ainda aberto tem ownership pelo papel abaixo. Antes de iniciar seu recorte bloqueado, a issue/plano de entrega deve nomear a pessoa responsável e manter vínculo com esta fonte canônica; não presumir atribuição nominal já realizada. Fechamento exige decisão/evidência versionada e aprovação, não remover `OPEN` por conclusão de código.
+
+| Itens | Natureza | Papel responsável | Recorte bloqueado até fechar | Evidência de fechamento |
+| --- | --- | --- | --- | --- |
+| 1, 12 | Contrato | Arquitetura do domínio | Contratos públicos/adapters correspondentes | Schemas finais, compatibilidade e matriz de migração aprovados. |
+| 2, 7, 17, 19, 22, 30 | Calibração | Domínio alimentar e qualidade | Uso decisório dos limiares; arredondamento antes da ativação | Corpus rotulado, protocolo/amostra, tolerâncias por finalidade e resultados aprovados, sem inferir qualidade da confiança da IA. |
+| 3, 15 | Contrato/promoção | Produto e governança alimentar | Promoção automática global/linguística | Política por fonte/artefato, evidências independentes e negativos/revogação aprovados. |
+| 4 | Autorização | Produto e segurança | Rotas/ações administrativas e identidades internas novas | Matriz ator × ação × escopo e testes de negação, inclusive ações automáticas. |
+| 5 | Interface | Produto e design | Console administrativa correspondente | Fluxos, navegação, estados e verificação responsiva/acessível aprovados. |
+| 8 | Contrato/calibração | Busca e domínio alimentar | Busca fuzzy/semântica correspondente | Estratégia, limites e comparação no corpus, com evidência exata preservada. |
+| 9, 21 | Privacidade/fontes | Privacidade e governança de fontes | Retenção nova e redistribuição de cada fonte | Finalidades, períodos, anonimização/exclusão e licença/atribuição verificadas por fonte. |
+| 10 | Calibração operacional | Engenharia e operações | Chamadas/execução externa correspondente | Orçamentos, limites e timeouts iniciais controlados para avaliação, medidos em corpus/shadow e aprovados antes de servir produção. |
+| 11 | Ativação | Qualidade e operações | Canário produtivo e sua expansão | Amostra/janelas/limites aprovados, responsáveis nominais, telemetria e rollback exercitados. |
+| 13, 20 | Retirada | Arquitetura e persistência | Remoção dos owners/bridges | Inventário final por SHA, consumidores migrados e gates de corte/rollback aprovados. |
+| 14 | Contrato | Produto e linguagem | Suporte/fallback de locale correspondente | Locale inicial e política explícita, com casos equivalentes e negativos. |
+| 16, 18 | Contrato | Produto e linguagem | Tratamento de desconhecidos e fronteira da operação | Decisões de preservação/clarificação/descarte e ownership do parser, sem canal concorrente. |
+| 23, 24 | Calibração/corte | Dados e domínio alimentar | Gate A/shadow e Gate B/retirada, respectivamente | Cobertura/janela/amostra aprovadas e política de quarentena com reconciliação. |
+| 25, 26 | Gate/ativação | Arquitetura e qualidade | Aceite do verificador e promoção de aviso para bloqueio | Escopos de regra, positivos/negativos e data/critério de enforcement aprovados. |
+| 27 | Contrato | Produto e persistência | Operação de reclassificação retroativa | Autorização, conjunto afetado, visibilidade e reversão verificáveis. |
+| 28, 29 | Calibração | Governança alimentar e operações | Alegar calibração ou alterar parâmetros da fila | Baseline de gravidade, alcance, frequência, envelhecimento e capacidade; política inicial de §14 permanece explícita até revisão aprovada. |
+
+Os itens 6 e 31 têm decisão aprovada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
 
 ## 26. Regra de evolução deste ADR
 
