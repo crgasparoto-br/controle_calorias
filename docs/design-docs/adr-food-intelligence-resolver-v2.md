@@ -20,6 +20,42 @@ O problema arquitetural que este ADR pretende resolver é:
 
 O objetivo não é tornar uma LLM a fonte de verdade. O objetivo é construir um resolvedor central que combine evidências, banco de conhecimento, memória, rótulos, fontes externas e regras de confiança de forma auditável.
 
+### 1.1. Critérios de Sucesso
+
+O resolvedor deve atingir **≥95% de pareamento correto no conjunto de teste, 0 fallback silencioso em produção e consistência de macros entre variações equivalentes de entrada**.
+
+O conjunto de teste deve ser versionado e possuir resultados esperados rotulados, incluindo variações equivalentes de texto, áudio/transcrição e imagem. Pareamento correto significa selecionar a identidade/variante esperada, com marca e preparação compatíveis quando aplicáveis; a taxa compara acertos com todos os casos rotulados como resolvíveis, não apenas com aqueles que o resolvedor declarou `resolved`. Casos que exigem clarificação ou rejeição também devem ter sua decisão esperada verificada. A meta agregada de ≥95% **não relaxa** a exigência de Golden Food Corpus, matriz de não-recorrência e testes metamórficos sem falhas (§8.12, §16, §17 e §19.9).
+
+A consistência de macros deve ser avaliada para o mesmo alimento, marca/variante, preparação e quantidade, com contexto e evidência equivalentes e as mesmas versões de conhecimento e política. Variações de superfície ou modalidade não podem alterar o perfil aplicável nem os macros, exceto por tolerâncias de arredondamento documentadas. A tolerância de arredondamento permanece `OPEN` (§25) e não se confunde com a tolerância de divergência nutricional usada para derivar materialidade (§8.3).
+
+Todo fallback permitido deve declarar motivo, fonte e estado provisório no resultado e na observabilidade, sem apresentar estimativa genérica como pareamento confirmado ou composição verificada. **0 fallback silencioso não significa 0 estimativas transparentes**: a escada de cobertura e a política de incerteza continuam aplicáveis (§9.2 e §10). Estes são critérios da arquitetura alvo, não resultados já comprovados em produção.
+
+### 1.2. Contexto e Contrato
+
+O resolvedor deve sempre considerar **a mensagem anterior, as preferências do usuário e o histórico recente** vinculados ao usuário e à conversa em processamento. A disponibilidade dessas fontes deve ser consultada e representada explicitamente a cada resolução, respeitando isolamento, expiração, retenção e o contrato de contexto conversacional existente. Mensagens de outra conversa, contexto expirado e memória de outro usuário não podem preencher lacunas.
+
+Ausência ou indisponibilidade de contexto nunca pode ser silenciosa: o contrato de resolução e o evento sanitizado correspondente devem distinguir contexto disponível, ausente, expirado, indisponível por falha ou não aplicável, com motivo e origem por fonte. Marcar uma fonte como não aplicável exige justificativa; não pode ocultar falha de consulta. O registro dessa condição não autoriza copiar texto cru, preferências sensíveis ou histórico integral para logs (§19.7 e §19.8).
+
+Considerar contexto não significa inventar informações nem usar o histórico como fonte de verdade nutricional. Entrada explícita no turno atual prevalece sobre memória anterior incompatível (§6 e §15). Quando faltar informação indispensável, a política de incerteza deve identificar a lacuna e solicitar somente o esclarecimento necessário, preservando identidade, quantidade, evidências e itens já resolvidos. A ausência de contexto opcional não bloqueia uma entrada que já seja suficiente por si só; ainda assim, permanece explícita.
+
+### 1.3. Rollout e Observabilidade
+
+A ativação do resolvedor deve ocorrer **obrigatoriamente via feature flag**, com monitoramento em tempo real das taxas de pareamento, fallback e divergência de macros e gatilhos claros para rollback. Shadow mode, canário e expansão progressiva seguem §19.9 e §20, sem dispensar a flag nem os critérios de sucesso de §1.1.
+
+O monitoramento deve distinguir taxa de resolução de taxa de pareamento correto: acurácia exige resultado esperado ou evidência de verificação, não pode ser inferida apenas do status `resolved`. Para produção, devem ser declaradas a amostra verificada e sua cobertura; casos ainda não verificados não contam como acertos comprovados. As métricas devem separar modalidade/entrypoint, versão e coorte, registrar contexto ausente/indisponível e diferenciar fallback declarado de fallback silencioso. Divergência de macros deve ser comparada entre entradas efetivamente equivalentes; diferença V1 x V2 é sinal para avaliação, não prova isolada de erro do V2.
+
+Gatilhos mínimos:
+
+| Gatilho | Condição e ação |
+| --- | --- |
+| Fallback silencioso | Qualquer ocorrência confirmada viola o limite zero: interromper a expansão e desativar o V2 na coorte afetada, preservando evidência sanitizada e a política de falha explícita. |
+| Regressão de pareamento | Taxa de pareamento correto verificada abaixo do limite operacional aprovado, ou regressão além do limite aceito frente ao baseline, na janela e amostra definidas: interromper a expansão e executar rollback da coorte afetada. Falha dos gates de corpus também bloqueia promoção. |
+| Divergência de macros | Divergência confirmada entre entradas equivalentes, sem nova evidência que a justifique e acima da tolerância de arredondamento aprovada: interromper a expansão e executar rollback da coorte afetada. |
+
+Limiares operacionais de pareamento, janelas de observação, amostragem, tolerâncias, latência máxima de atualização da telemetria e responsáveis pela execução devem ser documentados e aprovados **antes da ativação produtiva**. O que ainda não estiver definido permanece `OPEN` (§25) e bloqueia essa ativação; não deve ser preenchido com números arbitrários. O limite zero de fallback silencioso e a meta de teste de ≥95% já estão definidos e não são questões abertas.
+
+O rollback deve permitir desativar o novo resolvedor pela feature flag e retornar ao caminho de leitura/decisão previamente validado, **sem perda dos registros alimentares, snapshots e evidências V2 já persistidos**. Desativar a flag não executa downgrade destrutivo nem recalcula histórico. O caminho de retorno deve preservar as mesmas garantias de transparência e segurança; se não houver caminho seguro, aplica-se a falha explícita controlada (§19.6), não a reintrodução de fallback silencioso. A reversibilidade precisa ser exercitada antes da promoção e da remoção do legado (§8.13 e §19.9).
+
 ## 2. Decisão principal
 
 Adotar uma arquitetura de **Food Intelligence Resolver V2** com um único owner de domínio para resolver:
@@ -2223,6 +2259,9 @@ Métricas mínimas, sempre sanitizadas:
 - taxa de `resolved`, `partially_resolved`, `ambiguous` e `unknown`;
 - taxa e motivo de clarificação;
 - taxa e motivo de fallback/estimativa provisória;
+- taxa de pareamento correto verificado e cobertura da amostra, separadas da taxa de resolução (§1.3);
+- incidência de fallback silencioso e divergência de macros entre entradas equivalentes (§1.1);
+- disponibilidade de mensagem anterior, preferências e histórico recente, com motivo explícito de ausência/indisponibilidade (§1.2);
 - uso de fonte local, rótulo, fonte externa e IA;
 - divergência V1 x V2 durante shadow mode;
 - quantidade de chamadas externas, retries e custo estimado por resolução/capacidade;
@@ -2233,7 +2272,7 @@ Métricas mínimas, sempre sanitizadas:
 
 Telemetria não deve conter texto cru, transcrição, imagem, rótulo integral, prompt, resposta de provider, telefone, URL assinada ou dado pessoal desnecessário. Correlação deve usar IDs internos, hashes sanitizados ou agregados conforme `PRIVACY_LGPD.md` e `SECURITY.md`.
 
-Os SLOs e limites que bloqueiam rollout permanecem `OPEN`; devem ser definidos com baseline do fluxo atual e dados do shadow mode.
+Os critérios mínimos de §1.1 já estão definidos. SLOs e demais limites operacionais que bloqueiam rollout permanecem `OPEN`; devem ser calibrados com baseline do fluxo atual e dados do shadow mode e aprovados antes da ativação produtiva, conforme §1.3.
 
 Métricas adicionais obrigatórias:
 
@@ -2270,6 +2309,7 @@ O V2 deve ser promovido por evidência, não apenas por conclusão de código.
 
 Cada avanço de rollout deve verificar pelo menos:
 
+- critérios de sucesso, contexto explícito e gatilhos de rollback de §1.1–§1.3 atendidos;
 - Golden Food Corpus e testes metamórficos verdes;
 - divergência V1 x V2 dentro do limite aceito por classe de cenário;
 - ausência de regressão relevante em clarificação, fallback e erro nutricional;
@@ -2280,9 +2320,9 @@ Cada avanço de rollout deve verificar pelo menos:
 
 - baseline de qualidade da base inicial (§8.12) como referência de comparação e de bloqueio.
 
-O rollout pode usar shadow mode, feature flag e percentuais/cortes progressivos por entrypoint. O rollback deve preferir retornar leitura/decisão ao caminho anterior preservando dados e evidências V2, em vez de executar downgrade destrutivo.
+O rollout deve ser controlado por feature flag, conforme §1.3, podendo combinar shadow mode e percentuais/cortes progressivos por entrypoint. O rollback deve permitir desativar o V2 e retornar leitura/decisão ao caminho anterior validado, preservando registros, snapshots, dados e evidências V2, sem downgrade destrutivo nem reintrodução de fallback silencioso.
 
-Percentuais, janelas, limites de divergência e métricas exatas de promoção/bloqueio permanecem `OPEN` até existirem dados do shadow mode.
+Percentuais, janelas, amostragem e limites operacionais de divergência/qualidade permanecem `OPEN` até calibração com dados do shadow mode. Sua aprovação é obrigatória antes da ativação produtiva; isso não reabre o limite zero de fallback silencioso nem a meta de teste de ≥95% (§1.1).
 
 ## 20. Migração
 
@@ -2393,6 +2433,7 @@ Este ADR não autoriza regressão de:
 
 O programa só pode ser considerado concluído quando houver evidência de que:
 
+- os critérios de sucesso de §1.1 e o contrato de contexto explícito de §1.2 foram comprovados;
 - texto, áudio e imagem equivalentes convergem para a mesma identidade/perfil quando a evidência é equivalente;
 - todos os incidentes representativos do Golden Food Corpus passam pelo entrypoint público;
 - nenhum item conhecido recebe fallback oculto incompatível;
@@ -2488,7 +2529,7 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 8. estratégia de embeddings/fuzzy matching e seus thresholds;
 9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
 10. SLOs de latência, timeout, número máximo de chamadas e orçamento econômico por resolução/capacidade;
-11. percentuais, janelas e limites de divergência/qualidade para avanço ou rollback do canário;
+11. percentuais, janelas, amostragem, cobertura verificada e limites operacionais de divergência/pareamento para avanço ou rollback do canário, além da latência máxima de atualização da telemetria e responsáveis pela execução; são bloqueantes antes da ativação produtiva (§1.3), sem reabrir os critérios mínimos de §1.1;
 12. compatibilidade/migração de `semanticContract`;
 13. momento exato de remoção dos owners/bridges atuais.
 
@@ -2513,6 +2554,8 @@ Permanecem `OPEN` e devem ser decididas nas próximas conversas/etapas antes da 
 
 28. calibração numérica da gravidade `G` por classe da matriz de §9.3 e dos limiares de alcance e frequência usados no agrupamento em casos;
 29. peso do decaimento `D` e teto de casos `critical` admitidos por semana antes de virar alerta operacional.
+
+30. tolerâncias de arredondamento de macros entre entradas equivalentes (§1.1), distintas da tolerância de materialidade do item 22 e obrigatórias antes da ativação produtiva.
 
 ## 26. Regra de evolução deste ADR
 
