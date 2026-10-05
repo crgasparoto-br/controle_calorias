@@ -31,7 +31,7 @@ Modelo lógico alvo:
 
 ### Modelo físico alvo e consolidação
 
-O modelo físico base foi fechado no ADR e passa a orientar as futuras migrations do Food Intelligence V2.
+O modelo físico base está consolidado no ADR, seção 8.7. A separação de entidades orienta as futuras migrations do Food Intelligence V2, mas o mapeamento persistido dos estados de governança e do ciclo de revisão permanece `OPEN` nas seções 12.1, 14.8 e 25, item 31. Essa pendência bloqueia as migrations/transições correspondentes; este documento não declara o schema integralmente fechado. Estado estrutural `active`, encerramento da tarefa e aprovação/publicação de conhecimento não são equivalentes.
 
 | Estrutura | Papel alvo |
 | --- | --- |
@@ -44,6 +44,8 @@ O modelo físico base foi fechado no ADR e passa a orientar as futuras migration
 | `food_variant_classifications` | Processamento/flags usados em relatórios, versionados separadamente |
 | `food_aliases` | Alias global apontando para variante |
 | `user_food_aliases` | Memória pessoal de alias |
+| `food_lexicon_entries` | Léxico exclusivamente global; não armazena vocabulário privado |
+| `user_food_lexicon_entries` | Léxico pessoal com proprietário obrigatório |
 | `food_portions` | Única tabela canônica de porções por variante |
 | `food_barcodes` | Barcode único apontando para variante |
 | `food_evidence` | Evidência sanitizada e auditável |
@@ -52,6 +54,8 @@ O modelo físico base foi fechado no ADR e passa a orientar as futuras migration
 | `user_food_favorites` | Único modelo de favoritos, por variante |
 | `user_food_usage_stats` | Frequência/recência por variante |
 | `mealItems` | Referências opcionais a variante/perfil/porção + snapshot imutável |
+
+As chaves correntes, a precedência de leitura e os critérios de isolamento/revogação do léxico são definidos somente na seção 8.7 do ADR. Não criar armazenamento misto de vocabulário pessoal na tabela global nem uma segunda regra de unicidade neste resumo.
 
 Duplicidades a aposentar no cutover:
 
