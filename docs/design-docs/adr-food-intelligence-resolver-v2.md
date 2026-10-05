@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED / EM EVOLUÇÃO
 - **Data inicial:** 2026-10-02
-- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-2`; fechamento de §25.6 e §25.31 aprovado pelo responsável pelo produto em 2026-10-05, sobre o contrato do commit `7643d2e54a4dac37f6354dcb36b98b6371461626`. Snapshots anteriores devem ser reavaliados para os requisitos alterados; aprovação documental não comprova implementação.
+- **Versão da especificação (`specification_version`):** `2026-10-05-revisao-1296-3`; consolidação autorizada do núcleo sobre `82c117c95c9f05559d8ade634cabe731d8bb7208`. Substitui a revisão 2 somente nos requisitos alterados; snapshots anteriores desses requisitos exigem nova avaliação.
 - **Branch de discussão:** `docs/food-intelligence-v2-adr`
 - **Base:** `develop`
 - **Escopo:** reconhecimento, resolução e governança de alimentos em entradas textuais, áudio/transcrição, imagem/OCR, rótulo nutricional e fluxos multimodais
@@ -111,69 +111,101 @@ A IA pode participar da extração de evidências, geração de candidatos, norm
 
 ## 4. Contrato pré-resolução
 
-A arquitetura alvo deve introduzir um contrato equivalente a `FoodObservation` **antes** da decisão nutricional.
-
-Exemplo conceitual:
+**Contrato do núcleo consolidado nesta revisão (§25, item 1).** Os nomes e campos abaixo substituem os exemplos conceituais anteriores. São especificação do V2 a implementar, não tipos já publicados pelo runtime. As origens reutilizam o vocabulário de `server/nutritionEngineTypes.ts`, acrescentando `barcode` como evidência explícita, nunca inferida.
 
 ```ts
+type FoodField = "identity" | "variant" | "quantity" | "nutrition";
+type FoodInputType = "text" | "audio_transcript" | "image" | "multimodal";
+type FoodEvidenceOrigin =
+  | "text" | "transcription" | "ocr" | "vision" | "memory" | "catalog"
+  | "web_research" | "nutrition_label" | "barcode"
+  | "provisional_estimate" | "ai_estimate" | "heuristic" | "unavailable";
+type FoodAnchor = {
+  sourceRef: string;
+  span: { start: number; end: number } | null;
+  region: { x: number; y: number; width: number; height: number } | null;
+};
+type FoodEvidence = {
+  evidenceId: string;
+  field: string;
+  origin: FoodEvidenceOrigin;
+  value: string | number | boolean | null;
+  unit: string | null;
+  confidence: number | null;
+  verified: boolean;
+  anchor: FoodAnchor;
+  sourceId: number | null;
+};
+type FoodIdentityHints = {
+  foodName: string | null;
+  brand: string | null;
+  variant: string | null;
+  preparation: string[];
+  qualifiers: Array<{
+    value: string;
+    attributeCode: string | null;
+    role: string | null;
+    confidence: number | null;
+  }>;
+  barcode: string | null;
+};
+type FoodQuantityHints = {
+  value: number | null;
+  unit: string | null;
+  servingText: string | null;
+  visiblePackageQuantity: number | null;
+  visiblePackageUnit: string | null;
+};
 type FoodObservation = {
+  schemaVersion: 2;
   observationId: string;
-  modality: "text" | "audio" | "image" | "multimodal";
+  modality: FoodInputType;
   rawInput: string | null;
   normalizedInput: string | null;
-
-  identityHints: {
-    foodName: string | null;
-    brand: string | null;
-    variant: string | null;
-    preparation: string[];
-    qualifiers: Array<{
-      value: string;
-      role:
-        | "preparation"
-        | "cultivar"
-        | "line"
-        | "flavor"
-        | "packaging"
-        | "other";
-      confidence: number;
-    }>;
-    barcode: string | null;
+  locale: {
+    requested: string | null;
+    effective: "pt-BR" | null;
+    status: "explicit" | "defaulted" | "unsupported";
   };
-
-  quantityHints: {
-    value: number | null;
-    unit: string | null;
-    servingText: string | null;
-    visiblePackageQuantity: number | null;
-  };
-
-  evidence: Array<{
-    field: string;
-    origin:
-      | "text"
-      | "transcription"
-      | "ocr"
-      | "vision"
-      | "nutrition_label"
-      | "barcode";
-    value: unknown;
-    confidence: number;
-    regionOrSpan?: unknown;
+  surfaceSpan: FoodAnchor;
+  identityHints: FoodIdentityHints;
+  quantityHints: FoodQuantityHints;
+  evidence: FoodEvidence[];
+  normalizationPath: Array<{
+    stage: "S1" | "S2" | "S3";
+    origin: "deterministic" | "lexicon" | "interpreter";
+    lexiconEntryId: number | null;
+    anchor: FoodAnchor;
+    confidence: number | null;
   }>;
+  alternatives: Array<{
+    hypothesisId: string;
+    identityHints: FoodIdentityHints;
+    quantityHints: FoodQuantityHints;
+    evidenceIds: string[];
+    confidence: number | null;
+  }>;
+  unresolvedReason: string | null;
+  lexiconRevision: string;
+  interpreterVersion: string | null;
 };
 ```
 
-O contrato deve representar **o que foi observado**, não uma decisão final já tomada.
-Além do valor textual, qualificadores relevantes devem carregar **papel semântico explícito** quando a evidência permitir. Termos como `frito`, `integral`, `Packans`, `zero`, `UHT`, cultivar, linha, sabor ou embalagem não devem ser reinterpretados downstream por listas léxicas ad hoc para decidir se são marca, preparo, variante ou ruído.
+Os campos são obrigatórios; ausência usa `null` ou coleção vazia conforme o tipo, nunca zero como substituto de desconhecido. Números devem ser finitos; confiança, quando disponível, fica entre 0 e 1, sem equivaler a probabilidade calibrada. IDs de banco são inteiros positivos; identificadores de observação, hipótese e evidência são opacos e não vazios. Evidência pode registrar o valor inválido observado; isso não o torna quantidade aceita.
 
-O contrato final pode alterar nomes/campos, mas deve preservar a separação entre superfície observada e papel semântico inferido, com confiança/evidência por campo.
+`FoodAnchor.sourceRef` identifica a fonte original autorizada, não uma URL assinada. Spans usam offsets UTF-16 `[start, end)` do texto original referenciado; regiões usam coordenadas normalizadas de 0 a 1 dentro da imagem. Uma âncora de mídia pode ter span nulo; uma fonte estruturada pode ter span e região nulos, mas conserva sua referência. IDs de evidência devem resolver sem ambiguidade no envelope da requisição; registros de nutrientes usam evidências escalares por campo, sem payload arbitrário de provider.
+
+`FoodEvidence.field` é um caminho validado do contrato, como `identity.brand`, `quantity.value` ou `nutrition.protein`; códigos de atributo e papéis semânticos são validados contra o vocabulário governado de §8.3. Qualificador sem classificação conserva `value` e `role=null`, não vira ruído. Novos atributos continuam sendo dados, sem uma enumeração fechada de alimentos no código. `unresolvedReason` usa código estável registrado pelo domínio, não mensagem livre como controle de fluxo.
+
+A observação representa **o que foi observado**, não uma decisão de identidade ou nutrição. `rawInput` é preservado durante o processamento autorizado, mas o contrato não concede retenção ilimitada nem autoriza copiá-lo para logs. A LCL não pode declarar `verified` por confiança autodeclarada da IA; evidência observada precisa passar pela validação de fonte/campo do domínio.
+
+Cada execução recebe um envelope interno versionado com `traceId`, chave idempotente da operação, proprietário autenticado, referências de conversa/turno quando aplicáveis, timezone efetivo, `MealOperation` separado e revisões de código, conhecimento, léxico e política. Os adapters reutilizam autenticação, contexto e lifecycle existentes: identidade enviada por cliente/provider não é autoridade. Para `previousMessage`, `preferences` e `recentHistory`, o envelope exige `status = available | absent | expired | unavailable | not_applicable`, motivo e referência de origem por fonte, conforme §1.2. Falha de consulta não pode virar ausência ou não aplicabilidade.
 
 ### 4.1. Camada de Compreensão Linguística
 
 A entrada do sistema é linguagem humana: texto digitado, transcrição de áudio, OCR de rótulo, legenda de imagem. A mesma intenção alimentar chega em formas muito diferentes — acento ausente, abreviação, gíria, regionalismo, erro de digitação, erro de transcrição, ordem variável, plural/singular, vírgula ou ponto decimal, numerais escritos, apelido pessoal.
 
-Este ADR decide que canais produzem **evidências** e que existe **um único resolvedor**. Falta explicitar a camada que transforma linguagem em observação. Sem ela, a normalização linguística volta a ser uma inteligência parcial de canal — e o padrão que este ADR pretende eliminar reaparece dentro dela.
+Este ADR decide que canais produzem **evidências** e que existe **um único resolvedor**. Esta seção explicita a camada que transforma linguagem em observação. Sem ela, a normalização linguística volta a ser uma inteligência parcial de canal — e o padrão que este ADR pretende eliminar reaparece dentro dela.
 
 Evidência histórica dessa classe: `#120`, `#168`, `#311`, `#332`, `#427`, `#522`, `#717`, `#719`, `#720`, `#742`, `#769`, `#1224`, `#1287`.
 
@@ -236,7 +268,7 @@ Um item que S1/S2 resolvem com segurança **não deve** consumir chamada de IA. 
 5. **Correção silenciosa proibida.** Erro de digitação ou de transcrição que altere identidade (`banco` → `branco`/`Panco`, `pêra`/`pera` em contexto de marca) pode ser **sugerido**, nunca aplicado silenciosamente (`#1051`).
 6. **Numerais e unidades.** Expressão numérica escrita, decimal com vírgula ou ponto e abreviação de unidade convergem para a mesma observação de quantidade; a unidade física e sua proveniência permanecem explícitas (`#684`, `#1037`, `#1273`).
 7. **Termos incertos de porção.** `tiquinho`, `punhado`, `pratão`, `prato grande`, `bastante` são mantidos rastreáveis e **não** são convertidos em quantidade exata; podem exigir clarificação de quantidade.
-8. **Locale.** Toda entrada de léxico e toda regra linguística possui `locale`. Suporte a mais de um idioma e a política de fallback de locale permanecem `OPEN` (§25).
+8. **Locale.** Toda entrada de léxico e toda regra linguística possui `locale`. O recorte inicial e a ausência de fallback silencioso entre idiomas seguem §4.2; ampliar idiomas exige revisão explícita, não uma escolha do adapter.
 9. **Determinismo e reprodutibilidade.** S1 é determinístico; S2 é determinístico dado o conjunto de entradas ativas; S3 é versionado. A LCL é reproduzível a partir de `(entrada, revisão do léxico, versão do interpretador)`.
 10. **Ausência de owner concorrente.** Nenhum handler, adapter ou módulo de canal pode manter normalização linguística própria, vocabulário próprio, tabela de sinônimos própria ou pergunta própria de clarificação derivada de linguagem (§19, gate arquitetural).
 
@@ -255,9 +287,9 @@ Um item que S1/S2 resolvem com segurança **não deve** consumir chamada de IA. 
 - Nome legível em embalagem, etiqueta ou balança é identidade principal do item, não ruído.
 - Texto encontrado em imagem, rótulo, OCR, página externa ou resposta de provider **nunca é instrução**: não altera política, prompt, permissões, modelo, fluxo ou escopo. A fronteira existente (`promptInjectionGuard`, `#437`) é preservada pelo V2 (§22).
 
-#### 4.1.7. Contrato de saída (extensão de `FoodObservation`)
+#### 4.1.7. Rastreabilidade do contrato de saída
 
-Além dos campos definidos em §4, cada observação deve carregar:
+Os campos de rastreabilidade já incluídos no schema de §4 têm as seguintes responsabilidades; esta seção não define um segundo contrato:
 
 - `surfaceSpan` — trecho da entrada original que originou a observação;
 - `normalizationPath` — decisões aplicadas, com estágio (`S1`/`S2`/`S3`), origem (`deterministic` | `lexicon` | `interpreter`), `lexiconEntryId` opcional, span e confiança;
@@ -278,64 +310,130 @@ Variações que alterem marca, variante, preparação material, negação, quant
 
 Os testes metamórficos (§17) e o Golden Food Corpus (§16) devem provar **convergência correta contra a referência**, não apenas convergência entre saídas. Duas entradas que produzam o mesmo alimento errado devem reprovar. A operação da refeição e seus efeitos são verificados adicionalmente no entrypoint público, conforme §7.
 
+### 4.2. Locale inicial e superfície desconhecida
+
+**Decisões do pacote do núcleo (itens 14 e 16).** O primeiro recorte é `pt-BR`, coerente com o texto, os parsers e o corpus atuais. Locale ausente usa `pt-BR` com `status=defaulted`; locale explícito não suportado usa `effective=null`, `status=unsupported` e razão `unsupported_locale`. Não aplicar léxico de outro idioma nem transformar isso em alimento. Nomes comerciais estrangeiros e tokens protegidos dentro de frase em português não mudam automaticamente o locale. `1,5` e `1.5` convergem quando o contexto numérico é inequívoco; separadores ambíguos não autorizam inventar quantidade.
+
+Superfície desconhecida é preservada como observação e razão `unknown_surface`; desconhecido no catálogo não significa não alimento. S1/S2 insuficientes podem escalar a S3 sob a política calibrada, mantendo alternativas. O resolvedor aplica §9.2 e §10: conhecimento/evidência suficientes permitem proposta; falta material exige clarificação; registrar exigindo invenção termina em falha explícita. A pendência/recorrência pode alimentar o caso de revisão agrupado, sem publicação global automática nem deploy por alimento.
+
+Descarte como `non_food` exige evidência negativa afirmativa, conforme a fronteira de mundo aberto do baseline de `nutrition-engine.md`; ausência em allowlist ou em catálogo não é evidência. Imagem ilegível usa `unreadable_evidence`, não identidade inventada. Entrada de outro domínio, como hidratação, segue o roteamento canônico existente, sem virar alimento ou um segundo parser. Em lote, preservar os demais itens e explicar o resultado individual de cada observação.
+
 ## 5. Resultado atômico
 
-O resolvedor deve produzir uma decisão equivalente a `FoodResolutionDecision`.
-
-Exemplo conceitual:
+O resultado por item é `FoodResolutionDecision`, com `schemaVersion: 2`. A decisão é atômica como contrato de dados, **não é recibo de gravação** nem autoriza mutação sem confirmação/fluxo equivalente e operação válida.
 
 ```ts
+type FoodNutritionValues = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+  sugar: number | null;
+  sodiumMg: number | null;
+};
+type FoodAlternative = {
+  candidateKey: string;
+  foodEntityId: number | null;
+  variantId: number | null;
+  name: string;
+  brand: string | null;
+  variant: string | null;
+  preparation: string[];
+  qualifiers: FoodIdentityHints["qualifiers"];
+  evidenceIds: string[];
+  confidence: number | null;
+};
 type FoodResolutionDecision = {
-  status:
-    | "resolved"
-    | "partially_resolved"
-    | "ambiguous"
-    | "unknown";
-
+  schemaVersion: 2;
+  decisionId: string;
+  revision: number;
+  observationIds: string[];
+  traceId: string;
+  status: "resolved" | "partially_resolved" | "ambiguous" | "unknown";
+  nextAction: "propose" | "clarify" | "reject" | "retry";
   identity: {
+    candidateKey: string | null;
     foodEntityId: number | null;
     variantId: number | null;
     canonicalName: string | null;
     brand: string | null;
     variant: string | null;
     preparation: string[];
-    confidence: number;
+    qualifiers: FoodIdentityHints["qualifiers"];
+    barcode: string | null;
+    confidence: number | null;
+    evidenceIds: string[];
   };
-
   quantity: {
     value: number | null;
     unit: string | null;
     grams: number | null;
+    milliliters: number | null;
     portionId: number | null;
     source: string | null;
-    confidence: number;
+    measureKind: "exact" | "usual_average" | "contextual_estimate" | null;
+    confidence: number | null;
+    evidenceIds: string[];
   };
-
   nutrition: {
     profileId: number | null;
     sourceId: number | null;
     verified: boolean;
     provisional: boolean;
-    per100g: {
-      calories: number;
-      protein: number;
-      carbs: number;
-      fat: number;
+    basis: {
+      quantity: number;
+      unit: "g" | "ml" | "serving";
+      values: FoodNutritionValues;
     } | null;
+    consumed: FoodNutritionValues | null;
     snapshotHash: string | null;
+    evidenceIds: string[];
   };
-
-  unresolvedFields: Array<
-    "identity" | "variant" | "quantity" | "nutrition"
-  >;
-
-  alternatives: unknown[];
-  evidence: unknown[];
-  traceId: string;
+  classification: {
+    version: string | null;
+    processingLevel: "natural_or_minimally_processed"
+      | "processed_culinary_ingredient" | "processed" | "ultra_processed" | null;
+    isFruit: boolean | null;
+    isVegetable: boolean | null;
+    isUltraProcessed: boolean | null;
+    confidence: number | null;
+    provisional: boolean;
+    evidenceIds: string[];
+  } | null;
+  unresolvedFields: FoodField[];
+  reasonCodes: string[];
+  alternatives: FoodAlternative[];
+  evidence: FoodEvidence[];
+  knowledgeRevision: string;
+  policyVersion: string;
 };
 ```
 
-A forma final exata dos tipos permanece `OPEN`, mas as propriedades arquiteturais acima são obrigatórias.
+`foodEntityId` referencia a família `foods`; `variantId` referencia `food_variants`; perfil e porção referenciam seus artefatos V2. Candidato ainda não publicado usa `candidateKey` e evidência, sem fabricar ID nem obrigar promoção global. Antes da gravação de um novo item alimentar resolvido, a materialização governada deve fornecer a variante correspondente ao candidato no escopo autorizado, sem exigir publicação global; as exceções históricas de FK nula seguem §8.9/§8.11. Versões/hashes usados permanecem no snapshot, inclusive quando uma FK histórica for legitimamente nula.
+
+A base nutricional explícita substitui `per100g` como único formato: o modelo físico já suporta `g`, `ml` e `serving`. Calorias usam kcal, macros/fibra/açúcar usam g e sódio usa mg. Quantidades de base e de consumo aceitas são positivas; nutrientes são finitos e não negativos. Zero comprovado é valor válido; ausência de nutrição usa `basis=null`/`consumed=null`, nunca um conjunto de zeros. `consumed` é calculado pela relação física comprovada e preserva a base original. Converter ml em g exige densidade/evidência; peso de embalagem não é quantidade consumida e 100 g não é uma unidade implícita.
+
+`revision` é inteiro positivo crescente na mesma decisão; nova evidência pode gerar nova revisão com vínculo à anterior na continuidade persistente. Referências de evidência, hipóteses e candidatos não podem apontar para outro proprietário. `status` segue precedência: conflito material → `ambiguous`; sem identidade sustentada → `unknown`; identidade sustentada com lacuna material → `partially_resolved`; demais fatos necessários suficientes → `resolved`.
+
+Semântica obrigatória:
+
+| Estado | Condição | Ação |
+| --- | --- | --- |
+| `resolved` | Identidade suficiente, quantidade e nutrição utilizáveis, `unresolvedFields=[]`, evidência e snapshot rastreáveis | `propose`; pode ser provisório permitido, nunca equivale automaticamente a `verified` ou `persisted`. |
+| `partially_resolved` | Fatos preservados, mas falta campo material ou capacidade necessária | `clarify` quando o usuário pode completar, ou `retry` para indisponibilidade operacional recuperável; não gravar esse item como completo. |
+| `ambiguous` | Evidência/alternativas materialmente concorrentes | `clarify` com o campo faltante e alternativas rastreáveis; não selecionar apenas pelo maior score. |
+| `unknown` | Nenhuma identidade sustentada ou entrada rejeitável | `clarify` para falta recuperável, `retry` para falha transitória, `reject` para não alimento/entrada inválida com motivo; nunca `propose`. |
+
+Os flags nutricionais são exclusivos: verificado `(true,false)`, provisório utilizável `(false,true)` e indisponível `(false,false)` com valores nulos; `(true,true)` é inválido. Perfil verificado com quantidade estimada não torna a quantidade exata. Classificação nula ou provisória não pode virar classificação verificada nos relatórios.
+
+`reasonCodes` referencia o registro tipado de motivos do domínio: preservar os códigos comerciais existentes (`brand_variant_unresolved`, `commercial_identity_unverified`, `commercial_nutrition_unverified`, `image_identity_unresolved`) e distinguir `unknown_surface`, `unsupported_locale`, `non_food`, `unreadable_evidence`, `quantity_missing`, `quantity_conversion_unproven`, `source_conflict`, `provider_unavailable`, `context_unavailable`, `policy_not_calibrated` e `unsupported_schema_version`. Acrescentar motivo exige contrato/teste, não mensagem livre interpretada como comando. Resultado não resolvido exige motivo e campos faltantes quando aplicáveis. `retry` não ordena repetidas chamadas: sem condição de recuperação (por exemplo, política ainda não aprovada), o fluxo permanece explicitamente bloqueado, sem loop.
+
+O resultado de lote associa cada `observationId` a uma decisão, preserva multiplicidade e apresenta separadamente itens propostos e pendentes/rejeitados. O executor existente da operação é quem retorna o efeito persistido e a resposta terminal. Falha de banco não pode ser ocultada por `status=resolved`, e retry não repete itens já confirmados (§7.2/§19.5).
+
+### 5.1. Validação e evolução do contrato
+
+A implementação deve produzir schemas executáveis Zod e tipos inferidos a partir da mesma definição, nas fronteiras de domínio já previstas em `AGENTS.md`; não manter tipos e validação com regras divergentes por canal. `unknown[]` e campos arbitrários de provider não são substitutos dos contratos acima. Rejeitar versão incompatível antes de mutação, validar referências/proveniência e testar invariantes entre campos, não apenas formato JSON. Evolução incompatível exige nova versão e adapter explícito. Este pacote fecha a forma do contrato; valores de calibração continuam regidos por §16.2 e §25.
 
 ## 6. Invariante de monotonicidade
 
@@ -395,6 +493,12 @@ Regras:
 - refeição configurada do usuário é conhecimento operacional, não identidade alimentar;
 - a operação resolvida é monotônica: uma etapa posterior não a reescreve;
 - a operação entra no corpus e nos gates com o mesmo peso que a resolução alimentar.
+
+### 7.1.1. Fronteira entre linguagem e operação
+
+**Item 18 decidido.** S1/LCL identifica spans e pistas de comando, data e destino; somente o parser canônico de operação interpreta essas pistas e produz `MealOperation`, reutilizando timezone, refeições configuradas e autorização existentes. Pistas não executam ações. Alimento, quantidade e qualificador permanecem em `FoodObservation`; verbo, data e destino não viram alimento. A LCL não cria um segundo parser operacional, e handlers não refazem a decisão.
+
+Operação ausente/ambígua não invalida a observação nem autoriza gravar no destino presumido. O fluxo pode clarificar a operação preservando as decisões alimentares. `o segundo`, resposta de rótulo e comandos durante pendência obedecem ao contexto/registry persistentes e suas regras de precedência, expiração e cancelamento; não reclassificar texto de resposta anterior da IA como autorização.
 
 ### 7.2. Persistência em lote
 
@@ -1618,6 +1722,23 @@ Consequência de produto: o usuário não espera por correção de código para 
 
 Gate: `architecture:check` deve falhar quando houver alimento, macro, porção, classificação ou termo linguístico cadastrado em array/constante de produção.
 
+### 9.5. Estratégia de busca do núcleo
+
+**Item 8: estratégia definida; calibração de limites ainda pendente.** A busca gera candidatos, não escolhe macros nem publica conhecimento. Todas as estratégias atravessam a porta governada de leitura (§8.14) e o mesmo filtro de compatibilidade/suficiência. Não criar serviço ou catálogo vetorial autoritativo paralelo.
+
+| Estágio | Contrato |
+| --- | --- |
+| Exato/local | Consultar evidência exata, barcode compatível, memória pessoal confirmada e identidade/alias normalizados governados; aplicar escopo e qualificadores antes de aceitar. Conflito entre evidências fortes fica explícito. |
+| Textual aproximado | Produzir candidatos com tolerância a variação lexical, sem corrigir silenciosamente identidade ambígua, remover marca/negação ou transformar semelhança em comprovação. |
+| Semântico residual | Usar a capacidade `EMBEDDING` da fundação atual, somente quando etapas anteriores forem insuficientes e dentro do orçamento. Indexar projeções do conhecimento governado, não respostas nutricionais livres. |
+| Fonte externa | Reutilizar `NUTRITION_SEARCH`/adapters atuais quando faltar evidência compatível; registrar fonte, identidade e validade. A resposta é evidência candidata, não autoridade por ser externa. |
+
+Não consultar IA/pesquisa adicional quando os fatos locais/exatos já forem suficientes. Um match exato incompatível não fecha o caso; um fuzzy com score maior não vence evidência exata compatível. Variante comercial, preparo e atributos materiais são restrições de elegibilidade, não apenas pesos compensáveis por similaridade. Empate material permanece ambiguidade.
+
+Embeddings são índice derivado reconstruível. Revisão de conhecimento/léxico, modelo/dimensão, política, locale, vigência e escopo fazem parte de sua identidade; não comparar vetores de espaços diferentes nem compartilhar índice pessoal entre proprietários. Revogação/filtro de acesso prevalece inclusive quando o índice ou cache ainda não foi reconstruído.
+
+Similaridade, confiança de extração e verificação da fonte são medidas distintas. `SIMILARITY_THRESHOLD` e demais constantes do baseline `catalogSemanticSearchCore.ts` não são limiares V2 calibrados. Limite de candidatos, thresholds/margens e escolha do algoritmo textual concreto entram no protocolo de §16.2: podem ser comparados em avaliação isolada, mas não habilitam decisão produtiva até aprovação. Desabilitar embedding não impede o caminho exato suficiente; ausência de política calibrada gera `policy_not_calibrated`, não valor arbitrário ou fallback oculto.
+
 ## 10. Política de incerteza
 
 Princípio:
@@ -2037,6 +2158,18 @@ Repetir apenas a frase aprendida mede reutilização literal, não generalizaç�
 Nos cenários multietapas, usar os contratos existentes de `whatsapp-conversation-context.md` e `whatsapp-interaction-registry.md`: estado persistido antes da pergunta, correlação por usuário/conversa/alvo/versão, cancelamento, expiração, resposta inválida e consumo idempotente. O teste de reinício/reentrega repete diretamente o mesmo entrypoint público e a mesma chave, sem GET, health-check ou listagem auxiliar para recuperar o fluxo; deve comprovar efeito e resposta funcional únicos e coerentes. A retomada de rótulo preserva identidade, quantidade e demais itens, sem segunda refeição nem sucesso antes da persistência.
 
 O relatório registra revisões de código, modelo/interpretador, catálogo, léxico, memória, política e conjunto de avaliação. Deve separar melhoria por conhecimento da melhoria por mudança de código/modelo, com dados sanitizados e minimizados conforme §19.8. Este gate especifica a prova exigida; não declara que o aprendizado do V2 já foi executado ou comprovado.
+
+### 16.2. Protocolo de calibração e evidência de aprovação
+
+Este protocolo define **como fechar** os valores dos itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e 30, sem declarar nenhum número medido nesta rodada. O significado de cada limite deve ser separado: confiança, similaridade, materialidade, arredondamento, cobertura, custo e capacidade não compartilham uma tolerância genérica.
+
+Cada avaliação versiona objetivo, parâmetro/faixa candidata, unidade, corpus/rotulagem independente, critérios de seleção antes dos resultados, revisões de código/conhecimento/léxico/modelo/política, amostra, janela, exclusões e responsável. Separar aquisição, calibração e avaliação reservada; as respostas reservadas não entram em aliases, prompts ou promoção durante a medição. No benchmark de calibração, separar grupos de variações para que duplicatas ou suas respostas não vazem para o holdout. A prova antes/depois de §16.1 pode reutilizar o conhecimento legitimamente adquirido, mas nunca as paráfrases/respostas reservadas para avaliá-lo.
+
+Medir identidade/variante, quantidade/unidade, fonte/nutrição, operação, clarificação necessária/desnecessária, aceitação indevida, latência e custo separadamente. Segmentar por modalidade, marca, preparação/atributo material, medida e continuidade; agregar não pode esconder regressão do corpus obrigatório. Denominador zero significa amostra ausente. Registrar falhas/abstenções, não calcular acurácia somente nos `resolved`. Casos negativos, conflitos e revogação fazem parte da aceitação.
+
+Experimentos externos exigem previamente limites finitos de chamadas, custo, tentativas e tempo usando a fundação de IA existente. Orçamento experimental não é SLO produtivo. Sem limite aprovado/configurado, limitar o trabalho aos testes locais controlados, sem chamada externa ilimitada. Shadow não responde ao usuário, não muda refeição nem aplica aprendizado/promoção ao conhecimento produtivo; efeitos para comparação permanecem isolados, sanitizados e sujeitos à retenção.
+
+O resultado informa, para cada candidato, métricas, incerteza/amostra, falhas por classe, comparação com baseline e decisão de aprovar/rejeitar. Aprovação exige evidência e responsável nominal antes do uso correspondente; não ajustar o limite após ver o holdout só para fazer passar. Falha exige nova revisão e conjunto reservado adequado. A meta de §1.1 e os invariantes de limite zero não são relaxados por calibração. Um item só sai de `OPEN` quando seu valor/política e resultado aprovados estiverem versionados, não porque o harness foi implementado.
 
 ## 17. Testes metamórficos
 
@@ -2514,6 +2647,25 @@ Até a migração:
 - uma issue não pode declarar a arquitetura alvo concluída apenas por reutilizar nomes como "canônico", "owner único" ou "semantic contract";
 - cada etapa precisa provar, por código + golden flows + gates, que eliminou ou isolou o ownership concorrente correspondente.
 
+### 21.1. Migração do `semanticContract` e primeira entrega delimitada
+
+**Item 12 decidido.** O baseline real em `server/nutritionEngineTypes.ts` possui `MealSemanticContract.version=1`; `CanonicalMealProcessingResult` exige `semanticContract`, enquanto `MealProcessingResult` admite sua ausência somente para histórico. `mealSemanticContract.ts` monta esse contrato **depois** da resolução. Ele não é uma observação pré-resolução e não deve ser passado como verdade observada ao V2.
+
+| Entrada/consumidor | Adapter e invariante de migração |
+| --- | --- |
+| Texto/transcrição/imagem novos | Adapter produz §4 antes da decisão e preserva origem por campo. Não chamar V1 para fabricar uma decisão usada como entrada do V2. |
+| Consumidor público V1 ainda não migrado | Preservar sua assinatura e semântica. Projeção V2 para DTO V1 somente quando representar fielmente estado, quantidade, fonte e provisoriedade; não converter incompatibilidade para zeros/`verified` ou reinferir texto. Migrar o consumidor antes de habilitar caso que ele não consiga representar. |
+| Histórico com/sem `semanticContract` | Ler snapshot pela versão conhecida, sem novas inferências, macros recalculados, evidência fabricada ou backfill destrutivo. Ausência histórica não vira permissão de omitir o contrato em nova execução. |
+| Pendência V1 ativa, inclusive rótulo | Guardar versão do contrato/resolvedor com a pendência, alvo e fatos originais; manter handler compatível até consumo/cancelamento/expiração. Migração explícita somente com equivalência comprovada, sem reinterpretar pergunta anterior ou reaplicar efeito. |
+| Simulador e entrypoint produtivo | Mesmo adapter/serviço e fixtures de contrato; resultado no simulador não substitui teste pelo entrypoint público real. |
+| Feature flag/rollback | Fixar a versão na operação; retry/continuação não troca de resolvedor no meio. Rollback preserva leitura de snapshots V2 e bloqueia novas decisões incompatíveis sem apagar dados. |
+
+`modality=audio` do exemplo conceitual anterior se torna `audio_transcript`, alinhado ao baseline; áudio bruto permanece mídia/evidência. `variant` V2 corresponde a `productVariant` no DTO V1; `foodEntityId` não pode ser confundido com `foodCatalogId`. Base `ml` não pode ser projetada para `estimatedGrams` sem conversão comprovada. Mensagem explicativa continua apresentação, não fonte de estado. Pendência antiga sem tag de versão continua no handler legado identificado pelo seu contrato persistido; não inferir V2 por data ou texto. Fixar versão não reautoriza comportamento inseguro: revogação, perda de acesso ou contenção invalidam a execução e exigem falha explícita/retomada autorizada, não migração silenciosa.
+
+Primeira entrega autorizável após este pacote: schemas/validação de §4/§5, contratos dos adapters, fixtures sintéticas, testes de precedência/monotonicidade/serialização e harness de corpus/calibração sem servir decisões produtivas. Reutilizar `pnpm check`, testes relacionados, `pnpm architecture:check`, `pnpm docs:check` e o gate aplicável de `CONTRIBUTING.md`; nomes de novos comandos só se tornam obrigatórios quando implementados.
+
+Ficam fora dessa primeira entrega: cutover, retirada do legado, promoção global automática, nova retenção de dados reais, console administrativa e ativação de thresholds ainda não calibrados. Dependências dos itens abertos não são ignoradas por haver schemas prontos. Testes discriminantes: versão desconhecida sem mutação; transcrição/texto equivalentes com origem preservada; ml sem densidade; quantidade presente não reaberta; snapshot V1 sem reinferência; pendência retomada após restart com a mesma chave e sem duplicação; variação de flag durante operação; alimento desconhecido preservado e não alimento comprovado rejeitado.
+
 ## 22. Compatibilidade com contratos existentes
 
 Contratos atuais que já preservam fatos estruturados, proveniência, fail-closed comercial, atomicidade, idempotência, privacidade e continuidade devem ser reutilizados sempre que forem compatíveis.
@@ -2622,27 +2774,27 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 
 ## 25. Questões abertas
 
-Este registro preserva os números das decisões para rastreabilidade. **Itens 6 e 31 decididos em 2026-10-05** conforme aprovação do responsável pelo produto; os demais permanecem `OPEN` até a evidência e aprovação correspondentes. Contrato decidido não significa implementação validada. A fórmula de §14.2 não volta a ficar aberta por existir calibração futura.
+Este registro preserva os números das decisões para rastreabilidade. **Itens 1, 6, 12, 14, 16, 18 e 31 decididos em 2026-10-05** conforme aprovação do responsável pelo produto; os demais permanecem `OPEN` até a evidência e aprovação correspondentes. Contrato decidido não significa implementação validada. A fórmula de §14.2 não volta a ficar aberta por existir calibração futura.
 
-1. nomes e schema finais de `FoodObservation` e `FoodResolutionDecision`;
+1. **DECIDIDO — 2026-10-05:** nomes, campos, tipos e invariantes de `FoodObservation`/`FoodResolutionDecision` v2 em §4/§5. Implementar schemas e testes é entrega futura; calibração e ativação não foram comprovadas;
 2. thresholds numéricos de confiança e matriz final por tipo de fonte/campo;
 3. regras e números mínimos para promoção automática de conhecimento global;
 4. papéis/permissões dos revisores;
 5. desenho visual detalhado, navegação e composição responsiva da console administrativa, mantendo as responsabilidades definidas na seção 19.2;
 6. **DECIDIDO — 2026-10-05:** política operacional da fila de §14.2–§14.5: dois fatores de alcance, composição exclusiva, ordenação/desempates, tratamento de zero e dado indisponível, metas de prazo, capacidade/excedente, responsabilidade nominal e contenção separada. Restam implementação, validação empírica de 28/29 e configuração operacional antes da ativação;
 7. calibração numérica dos limiares de cada eixo da política de estimativa provisória por família, cuja estrutura está definida na seção 10.1;
-8. estratégia de embeddings/fuzzy matching e seus thresholds;
+8. **PARCIALMENTE DECIDIDO:** estratégia e fronteiras em §9.5; permanecem `OPEN` a escolha comparada do algoritmo textual, limites de candidatos, thresholds/margens e evidência de calibração pelo protocolo de §16.2 antes do uso decisório;
 9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
 10. SLOs de latência, timeout, número máximo de chamadas e orçamento econômico por resolução/capacidade;
 11. percentuais, janelas, amostragem, cobertura verificada e limites operacionais de divergência/pareamento para avanço ou rollback do canário, além da latência máxima de atualização da telemetria e responsáveis pela execução; são bloqueantes antes da ativação produtiva (§1.3), sem reabrir os critérios mínimos de §1.1;
-12. compatibilidade/migração de `semanticContract`;
+12. **DECIDIDO — 2026-10-05:** compatibilidade e migração de `semanticContract` em §21.1: adapters explícitos, histórico imutável, pendências versionadas e rollout sem troca de resolvedor no meio da operação;
 13. momento exato de remoção dos owners/bridges atuais.
 
-14. locale inicial da camada de linguagem e política de fallback entre locales;
+14. **DECIDIDO — 2026-10-05:** recorte inicial `pt-BR`, default explícito quando ausente, locale não suportado sem fallback silencioso, conforme §4.2;
 15. política de revisão do léxico global e limiar para promoção automática;
-16. tratamento de superfície totalmente desconhecida: observação marcada para curadoria ou descarte;
+16. **DECIDIDO — 2026-10-05:** preservar desconhecido como observação, aplicar cobertura/clarificação e governança; descarte `non_food` exige evidência negativa afirmativa (§4.2);
 17. limiares de S1/S2 para escalar a S3 e meta de redução de custo de IA;
-18. se comandos de operação fazem parte da camada de linguagem ou apenas do parser de operação (§7.1);
+18. **DECIDIDO — 2026-10-05:** LCL extrai pistas/spans; somente parser canônico produz `MealOperation`, sem execução pela LCL ou reinterpretação por canal (§7.1.1);
 19. regra numérica da escada de §9.2 por categoria, especialmente quando a estimativa provisória é permitida;
 20. atualização e verificação final repository-wide do inventário de consumidores downstream de `foodCatalog`, `portions`, favoritos duplicados e macros de identidade antes do cutover; o inventário inicial já existe em §8.14.4;
 21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
@@ -2669,24 +2821,21 @@ Cada item ainda aberto tem ownership pelo papel abaixo. Antes de iniciar seu rec
 
 | Itens | Natureza | Papel responsável | Recorte bloqueado até fechar | Evidência de fechamento |
 | --- | --- | --- | --- | --- |
-| 1, 12 | Contrato | Arquitetura do domínio | Contratos públicos/adapters correspondentes | Schemas finais, compatibilidade e matriz de migração aprovados. |
 | 2, 7, 17, 19, 22, 30 | Calibração | Domínio alimentar e qualidade | Uso decisório dos limiares; arredondamento antes da ativação | Corpus rotulado, protocolo/amostra, tolerâncias por finalidade e resultados aprovados, sem inferir qualidade da confiança da IA. |
 | 3, 15 | Contrato/promoção | Produto e governança alimentar | Promoção automática global/linguística | Política por fonte/artefato, evidências independentes e negativos/revogação aprovados. |
 | 4 | Autorização | Produto e segurança | Rotas/ações administrativas e identidades internas novas | Matriz ator × ação × escopo e testes de negação, inclusive ações automáticas. |
 | 5 | Interface | Produto e design | Console administrativa correspondente | Fluxos, navegação, estados e verificação responsiva/acessível aprovados. |
-| 8 | Contrato/calibração | Busca e domínio alimentar | Busca fuzzy/semântica correspondente | Estratégia, limites e comparação no corpus, com evidência exata preservada. |
+| 8 | Calibração/seleção técnica | Busca e domínio alimentar | Uso decisório de busca aproximada/semântica | Estratégia de §9.5 preservada; comparar algoritmo/limites no protocolo de §16.2 e aprovar evidência antes do uso. |
 | 9, 21 | Privacidade/fontes | Privacidade e governança de fontes | Retenção nova e redistribuição de cada fonte | Finalidades, períodos, anonimização/exclusão e licença/atribuição verificadas por fonte. |
 | 10 | Calibração operacional | Engenharia e operações | Chamadas/execução externa correspondente | Orçamentos, limites e timeouts iniciais controlados para avaliação, medidos em corpus/shadow e aprovados antes de servir produção. |
 | 11 | Ativação | Qualidade e operações | Canário produtivo e sua expansão | Amostra/janelas/limites aprovados, responsáveis nominais, telemetria e rollback exercitados. |
 | 13, 20 | Retirada | Arquitetura e persistência | Remoção dos owners/bridges | Inventário final por SHA, consumidores migrados e gates de corte/rollback aprovados. |
-| 14 | Contrato | Produto e linguagem | Suporte/fallback de locale correspondente | Locale inicial e política explícita, com casos equivalentes e negativos. |
-| 16, 18 | Contrato | Produto e linguagem | Tratamento de desconhecidos e fronteira da operação | Decisões de preservação/clarificação/descarte e ownership do parser, sem canal concorrente. |
 | 23, 24 | Calibração/corte | Dados e domínio alimentar | Gate A/shadow e Gate B/retirada, respectivamente | Cobertura/janela/amostra aprovadas e política de quarentena com reconciliação. |
 | 25, 26 | Gate/ativação | Arquitetura e qualidade | Aceite do verificador e promoção de aviso para bloqueio | Escopos de regra, positivos/negativos e data/critério de enforcement aprovados. |
 | 27 | Contrato | Produto e persistência | Operação de reclassificação retroativa | Autorização, conjunto afetado, visibilidade e reversão verificáveis. |
 | 28, 29 | Calibração | Governança alimentar e operações | Alegar calibração ou alterar parâmetros da fila | Baseline de gravidade, alcance, frequência, envelhecimento e capacidade; política inicial de §14 permanece explícita até revisão aprovada. |
 
-Os itens 6 e 31 têm decisão aprovada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
+Os itens 1, 6, 12, 14, 16, 18 e 31 têm decisão documentada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. Permanecem 24 itens com trabalho de definição/calibração/gate, incluindo o item 8 parcialmente decidido. O protocolo de §16.2 e o primeiro recorte de §21.1 não significam valores medidos nem liberação produtiva. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
 
 ## 26. Regra de evolução deste ADR
 
