@@ -2852,3 +2852,13 @@ Durante a discussão:
 **Ainda não implementado como arquitetura completa.**
 
 Este ADR começa como contrato de direção. A futura Epic Food Intelligence Resolver V2 e suas subissues deverão referenciar este documento como fonte arquitetural, sem substituir os design docs que descrevem o comportamento produtivo atual até cada migração ser efetivamente concluída.
+
+### 27.1. Primeiro entregável delimitado de §21.1 (issue #1298)
+
+O primeiro entregável autorizável de §21.1 existe como módulo `server/modules/foodIntelligenceV2/` (contratos de §4/§5, contratos dos adapters, fixtures sintéticas e testes discriminantes). Ele declara e valida o contrato; **não** serve decisões produtivas.
+
+- `schemas.ts` e `contracts.ts` validam `FoodObservation`, `FoodResolutionDecision`, envelope de operação e `MealOperation`, rejeitando versão incompatível e campo não governado antes de qualquer mutação.
+- `adapters.ts` implementa a invariante de que `MealSemanticContract` V1 é resultado pós-resolução (não observação pré-resolução), a projeção V2 → DTO V1 com fidelidade declarada, a leitura de snapshot histórico pela versão conhecida e a preservação de origem por campo.
+- `pendingOperation.ts` implementa a pendência versionada da tabela de §21.1 (versão fixada, retomada sem troca de resolvedor, efeito idempotente e pendência legada no handler compatível).
+
+Nenhum entrypoint produtivo foi migrado: `noProductionConsumer.test.ts` trava a fronteira enquanto o cutover (Fase D) não acontecer. Cutover, retirada do legado, persistência durável (issue #1301), corpus/calibração, console administrativa e thresholds permanecem fora desta entrega, e nenhum item de §25 foi fechado por ela.
