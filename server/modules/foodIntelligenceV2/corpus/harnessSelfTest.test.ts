@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GOLDEN_CORPUS_MIN_MATCH_RATE,
   goldenCorpusSchema,
   type CorpusRevisions,
   type GoldenCorpus,
@@ -480,5 +481,235 @@ describe("autoverificação do harness", () => {
     expect(revocation?.differentFromSatisfied).toBe(false);
     expect(report.gate.blockReasons).toContain("scenario_invariant_violated");
     expect(report.gate.status).toBe("blocked");
+  });
+
+  it("rejeita expectativa incoerente entre presença e valores declarados", () => {
+    const incoherent = [
+      {
+        nome: "identidade proibida com nome",
+        mutate: (entry: (typeof corpus.cases)[number]) => ({
+          ...entry,
+          expected: {
+            ...entry.expected,
+            decisions: entry.expected.decisions.map(decision => ({
+              ...decision,
+              identity: {
+                ...decision.identity,
+                presence: "forbidden" as const,
+                canonicalName: "arroz",
+              },
+            })),
+          },
+        }),
+      },
+      {
+        nome: "quantidade não afirmada com valor",
+        mutate: (entry: (typeof corpus.cases)[number]) => ({
+          ...entry,
+          expected: {
+            ...entry.expected,
+            decisions: entry.expected.decisions.map(decision => ({
+              ...decision,
+              quantity: {
+                ...decision.quantity,
+                presence: "unspecified" as const,
+                value: 10,
+                unit: "g",
+              },
+            })),
+          },
+        }),
+      },
+      {
+        nome: "nutrição ausente com restrição de origem",
+        mutate: (entry: (typeof corpus.cases)[number]) => ({
+          ...entry,
+          expected: {
+            ...entry.expected,
+            decisions: entry.expected.decisions.map(decision => ({
+              ...decision,
+              nutrition: {
+                ...decision.nutrition,
+                requirement: "absent" as const,
+                forbiddenOrigins: ["memory"],
+              },
+            })),
+          },
+        }),
+      },
+    ];
+
+    for (const { nome, mutate } of incoherent) {
+      const broken = goldenCorpusSchema.parse({
+        ...corpus,
+        learningScenarios: [],
+        cases: corpus.cases.map(entry =>
+          entry.caseId === "c-ovo-frito"
+            ? {
+                ...mutate(entry),
+                metamorphicGroup: null,
+                negativeControlOf: null,
+                learningScenarioId: null,
+                equivalenceReference: null,
+              }
+            : {
+                ...entry,
+                metamorphicGroup: null,
+                negativeControlOf: null,
+                learningScenarioId: null,
+                equivalenceReference: null,
+              }
+        ),
+      });
+      const integrity = inspectCorpusIntegrity(broken);
+      expect(integrity.status, nome).toBe("invalid");
+      expect(integrity.invalidCases.length, nome).toBeGreaterThan(0);
+    }
+  });
+
+  it("reprova operação fora do schema canônico de refeição", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:operacao-invalida",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            operation: {
+              action: "add",
+              targetMeal: "almoço",
+              date: "2026-10-06",
+              campoNaoGovernado: "x",
+            },
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("operation_invalid");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("reprova métrica de latência/custo inválida e não a agrega", async () => {
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:metrica-invalida",
+        revision: "1",
+        resolve: request => ({
+          decisions: [],
+          metrics: { latencyMs: -1, costUsd: Number.NaN },
+          caseId: request.case.caseId,
+        }),
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("metrics_invalid");
+    expect(report.overall.latencySamples).toBe(0);
+    expect(report.overall.costSamples).toBe(0);
+    expect(report.overall.totalLatencyMs).toBeNull();
+    expect(report.overall.totalCostUsd).toBeNull();
+  });
+
+  it("bloqueia por equivalência sem referência declarada", async () => {
+    // Isola a única inconsistência: um membro de grupo metamórfico sem
+    // referência independente declarada. O restante do corpus permanece válido.
+    const broken = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-acento-ausente"
+          ? { ...entry, equivalenceReference: null }
+          : entry
+      ),
+    });
+    const integrity = inspectCorpusIntegrity(broken);
+    expect(integrity.undeclaredEquivalence.length).toBeGreaterThan(0);
+    const report = await runCorpus(
+      broken,
+      createReferenceResolver(broken),
+      pinned
+    );
+    expect(report.gate.blockReasons).toContain("undeclared_equivalence");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("invalida grupo cujos membros declaram operação material diferente", () => {
+    const groupId = "g-acento-pao-frances";
+    const broken = goldenCorpusSchema.parse({
+      ...corpus,
+      learningScenarios: [],
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-acento-ausente" &&
+        entry.metamorphicGroup === groupId
+          ? {
+              ...entry,
+              expected: {
+                ...entry.expected,
+                operation: {
+                  action: "add",
+                  targetMeal: "jantar",
+                  date: "2026-10-06",
+                },
+              },
+            }
+          : entry
+      ),
+    });
+    const integrity = inspectCorpusIntegrity(broken);
+    expect(integrity.status).toBe("invalid");
+    expect(
+      integrity.divergentGroupExpectations.some(
+        item => item.groupId === groupId
+      )
+    ).toBe(true);
+  });
+
+  it("não permite relaxar a meta de §1.1 por opção de execução", async () => {
+    const reference = createReferenceResolver(corpus);
+    const targets = new Set(
+      corpus.cases
+        .filter(
+          entry =>
+            entry.decisionClass === "resolvable" &&
+            entry.metamorphicGroup === null &&
+            entry.negativeControlOf === null
+        )
+        .slice(0, 4)
+        .map(entry => entry.caseId)
+    );
+    expect(targets.size).toBe(4);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:abaixo-da-meta",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          if (!targets.has(request.case.caseId)) return result;
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              identity: { ...decision.identity, canonicalName: "item trocado" },
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    // A meta é fixa: não existe opção para reduzi-la, e o gate usa §1.1.
+    expect(report.gate.minMatchRate).toBe(GOLDEN_CORPUS_MIN_MATCH_RATE);
+    expect(report.gate.matchRate).toBeLessThan(GOLDEN_CORPUS_MIN_MATCH_RATE);
+    expect(report.gate.status).toBe("failed");
+  });
+
+  it("não conta controle negativo que não foi executado como discriminante", async () => {
+    const report = await runGoldenFoodCorpus(createEmptyResolver(), pinned);
+    expect(report.negativeControls.length).toBeGreaterThan(0);
+    for (const control of report.negativeControls) {
+      expect(control.executed).toBe(false);
+      expect(control.discriminating).toBe(false);
+      expect(control.discriminatingDimension).toBe("not_executed");
+    }
   });
 });

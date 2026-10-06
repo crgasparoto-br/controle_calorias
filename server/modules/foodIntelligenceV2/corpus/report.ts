@@ -198,6 +198,9 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
   lines.push(
     `- Custo total: ${numberOrDash(report.overall.totalCostUsd)} USD em ${report.overall.costSamples} amostras`
   );
+  lines.push(
+    "- Amostra de latência/custo não finita ou negativa é falha declarada (`metrics_invalid`) e não entra na agregação."
+  );
   lines.push("");
 
   lines.push(segmentTable("Global", [report.overall]));
@@ -250,16 +253,22 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
     lines.push("- Nenhum controle declarado.");
   } else {
     lines.push(
-      "| Controle | Alvo | Dimensão discriminante | Discriminante | Hipótese de implementação errada |"
+      "| Controle | Alvo | Executado | Dimensão discriminante | Discriminante | Hipótese de implementação errada |"
     );
-    lines.push("| --- | --- | --- | --- | --- |");
+    lines.push("| --- | --- | --- | --- | --- | --- |");
     for (const control of report.negativeControls) {
       lines.push(
-        `| ${control.caseId} | ${control.targetCaseId} | ${control.discriminatingDimension} | ${
+        `| ${control.caseId} | ${control.targetCaseId} | ${
+          control.executed ? "sim" : "não"
+        } | ${control.discriminatingDimension} | ${
           control.discriminating ? "sim" : "NÃO (reprova)"
         } | ${control.hypothesis} |`
       );
     }
+    lines.push("");
+    lines.push(
+      "- Controle que absteve dos dois lados não discrimina nada: sem saída não há evidência de distinção, e o controle conta como não discriminante."
+    );
     lines.push("");
     for (const control of report.negativeControls) {
       lines.push(

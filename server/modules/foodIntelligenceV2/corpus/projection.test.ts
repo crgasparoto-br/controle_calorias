@@ -230,4 +230,56 @@ describe("projeção semântica (§4.1.8)", () => {
       materialAttributeKey(projectExpectedDecision(expectedDecision()).identity)
     ).toBe("none");
   });
+
+  it("considera a procedência nutricional na igualdade semântica", () => {
+    const base = projectDecision(buildFoodResolutionDecisionFixture());
+    const declared = projectExpectedDecision(
+      expectedDecision({
+        nutrition: {
+          requirement: "provenance_declared",
+          allowedOrigins: ["nutrition_label"],
+          forbiddenOrigins: ["user_memory"],
+          provisionalRequired: false,
+          genericProfileMustNotBeVerified: true,
+        },
+      })
+    );
+    const sameDeclaration = projectExpectedDecision(
+      expectedDecision({
+        nutrition: {
+          requirement: "provenance_declared",
+          allowedOrigins: ["nutrition_label"],
+          forbiddenOrigins: ["user_memory"],
+          provisionalRequired: false,
+          genericProfileMustNotBeVerified: true,
+        },
+      })
+    );
+    const relaxedDeclaration = projectExpectedDecision(
+      expectedDecision({
+        nutrition: {
+          requirement: "provenance_declared",
+          allowedOrigins: ["nutrition_label"],
+          forbiddenOrigins: [],
+          provisionalRequired: false,
+          genericProfileMustNotBeVerified: false,
+        },
+      })
+    );
+    expect(decisionsSemanticallyEqual(declared, sameDeclaration)).toBe(true);
+    // Restrição de origem e proibição de perfil genérico mudam a expectativa.
+    expect(decisionsSemanticallyEqual(declared, relaxedDeclaration)).toBe(
+      false
+    );
+    // Procedência observada também: origem e verificação não são arredondamento.
+    const drifted = {
+      ...base,
+      nutrition: {
+        ...base.nutrition,
+        origins: [],
+        verifiedBySpecificEvidence: false,
+      },
+    };
+    expect(decisionsSemanticallyEqual(base, drifted)).toBe(false);
+  });
 });

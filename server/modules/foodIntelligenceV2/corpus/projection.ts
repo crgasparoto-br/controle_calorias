@@ -65,6 +65,21 @@ export interface ProjectedNutrition {
    * (`#1088`, §8.3).
    */
   verifiedBySpecificEvidence: boolean;
+  /**
+   * Requisito declarado pela expectativa (`provenance_declared`,
+   * `provisional_declared` ou `absent`); `null` na projeção de uma decisão
+   * observada, que é medida pelo que produz.
+   */
+  requirement: string | null;
+  /** Origens permitidas declaradas pela expectativa. */
+  allowedOrigins: readonly string[];
+  /** Origens proibidas declaradas pela expectativa. */
+  forbiddenOrigins: readonly string[];
+  /**
+   * `true` quando a expectativa proíbe sustentar o valor por perfil genérico
+   * (§8.3, `#1088`).
+   */
+  genericProfileMustNotBeVerified: boolean;
 }
 
 export interface ProjectedAlternative {
@@ -234,6 +249,10 @@ export function projectDecision(
       origins: nutritionOrigins,
       identityOrigins,
       verifiedBySpecificEvidence,
+      requirement: null,
+      allowedOrigins: [],
+      forbiddenOrigins: [],
+      genericProfileMustNotBeVerified: false,
     },
     alternatives: decision.alternatives.map(alternative => ({
       name: alternative.name,
@@ -291,6 +310,11 @@ export function projectExpectedDecision(
       origins: [],
       identityOrigins: [],
       verifiedBySpecificEvidence: false,
+      requirement: expected.nutrition.requirement,
+      allowedOrigins: sortedUnique(expected.nutrition.allowedOrigins),
+      forbiddenOrigins: sortedUnique(expected.nutrition.forbiddenOrigins),
+      genericProfileMustNotBeVerified:
+        expected.nutrition.genericProfileMustNotBeVerified,
     },
     alternatives: expected.alternatives.map(alternative => ({
       name: alternative.name,
@@ -350,6 +374,25 @@ export function decisionsSemanticallyEqual(
     a.quantity.measureKind === b.quantity.measureKind &&
     sameMultiset(a.unresolvedFields, b.unresolvedFields) &&
     sameMultiset(a.reasonCodes, b.reasonCodes) &&
+    // Procedência nutricional entra na igualdade semântica: presença, origem,
+    // verificação e declaração de provisório não dependem de arredondamento, e
+    // tratá-las como irrelevantes faria duas decisões materialmente diferentes
+    // convergirem. Os **valores** de macro ficam de fora de propósito: eles
+    // dependem da tolerância de arredondamento de §1.1, ainda `OPEN` (§25 item
+    // 30), e são medidos por `macroConsistency`, que bloqueia enquanto a
+    // tolerância não estiver calibrada.
+    a.nutrition.present === b.nutrition.present &&
+    a.nutrition.verified === b.nutrition.verified &&
+    a.nutrition.provisional === b.nutrition.provisional &&
+    sameMultiset(a.nutrition.origins, b.nutrition.origins) &&
+    sameMultiset(a.nutrition.identityOrigins, b.nutrition.identityOrigins) &&
+    a.nutrition.verifiedBySpecificEvidence ===
+      b.nutrition.verifiedBySpecificEvidence &&
+    a.nutrition.requirement === b.nutrition.requirement &&
+    sameMultiset(a.nutrition.allowedOrigins, b.nutrition.allowedOrigins) &&
+    sameMultiset(a.nutrition.forbiddenOrigins, b.nutrition.forbiddenOrigins) &&
+    a.nutrition.genericProfileMustNotBeVerified ===
+      b.nutrition.genericProfileMustNotBeVerified &&
     sameMultiset(
       a.alternatives.map(alternativeKey),
       b.alternatives.map(alternativeKey)

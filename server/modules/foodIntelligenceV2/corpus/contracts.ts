@@ -235,6 +235,8 @@ export const CORPUS_FAILURE_CODES = [
   "unexpected_decision",
   "operation_missing",
   "operation_mismatch",
+  "operation_invalid",
+  "metrics_invalid",
   "exclusion_not_explained",
   "learning_applied_during_measurement",
   "scenario_step_mismatch",
@@ -266,6 +268,7 @@ export const CORPUS_GATE_BLOCK_REASONS = [
   "holdout_knowledge_write",
   "scenario_invariant_violated",
   "corpus_invalid",
+  "undeclared_equivalence",
 ] as const;
 export type CorpusGateBlockReason = (typeof CORPUS_GATE_BLOCK_REASONS)[number];
 

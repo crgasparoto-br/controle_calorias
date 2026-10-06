@@ -45,6 +45,7 @@ import {
   type CorpusKnowledgeLedgerEntry,
   type CorpusLearningPhase,
   type CorpusRevisions,
+  type CorpusResolverMetrics,
   type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type CorpusSegmentDimension,
@@ -65,10 +66,50 @@ import {
   type ProjectedDecision,
 } from "./projection";
 import {
+  foodMealOperationSchema,
   foodResolutionDecisionSchema,
   type FoodResolutionDecision,
   type MealOperation,
 } from "../schemas";
+
+/**
+ * Valida a amostra de latência/custo reportada pelo resolvedor (§16.2).
+ * Latência ou custo não finito, negativo ou de tipo errado é falha declarada:
+ * o relatório não agrega número inválido, e `NaN` não pode virar `null` no
+ * JSON mantendo a contagem de amostras.
+ */
+function validateMetrics(
+  caseId: string,
+  metrics: CorpusResolverMetrics | undefined
+): CorpusFailure | null {
+  if (!metrics) return null;
+  const offenders: string[] = [];
+  if (metrics.latencyMs !== undefined) {
+    if (
+      typeof metrics.latencyMs !== "number" ||
+      !Number.isFinite(metrics.latencyMs) ||
+      metrics.latencyMs < 0
+    ) {
+      offenders.push(`latencyMs=${String(metrics.latencyMs)}`);
+    }
+  }
+  if (metrics.costUsd !== undefined) {
+    if (
+      typeof metrics.costUsd !== "number" ||
+      !Number.isFinite(metrics.costUsd) ||
+      metrics.costUsd < 0
+    ) {
+      offenders.push(`costUsd=${String(metrics.costUsd)}`);
+    }
+  }
+  if (offenders.length === 0) return null;
+  return {
+    caseId,
+    label: null,
+    codes: ["metrics_invalid"],
+    detail: `métrica inválida descartada da agregação: ${offenders.join(", ")}`,
+  };
+}
 
 /** Opções de execução da medição. */
 export interface CorpusRunOptions {
@@ -78,15 +119,12 @@ export interface CorpusRunOptions {
    * silenciosamente aceita (§25 item 30).
    */
   roundingTolerance: number | null;
-  /** Meta de pareamento de §1.1 (única meta numérica já decidida). */
-  minMatchRate: number;
   /** Revisões fixadas da medição (§16.1): código, conhecimento, léxico, modelo, política. */
   revisions: CorpusRevisions;
 }
 
 export const DEFAULT_CORPUS_RUN_OPTIONS: CorpusRunOptions = {
   roundingTolerance: null,
-  minMatchRate: GOLDEN_CORPUS_MIN_MATCH_RATE,
   revisions: CORPUS_UNPINNED_REVISIONS,
 };
 
@@ -168,6 +206,11 @@ export interface NegativeControlEvidence {
   targetCaseId: string;
   /** Implementação errada plausível declarada pelo corpus. */
   hypothesis: string;
+  /**
+   * `false` quando algum dos lados não produziu decisão: sem saída não existe
+   * evidência de discriminação, e o controle conta como não discriminante.
+   */
+  executed: boolean;
   /** `true` quando o controle não converge para a saída do alvo. */
   discriminating: boolean;
   /** Primeira dimensão em que as duas saídas divergem. */
@@ -615,6 +658,57 @@ export function inspectCorpusIntegrity(
           message: `decisão '${expected.label}' declara alternativas sem exigir preservação`,
         });
       }
+
+      // Coerência da presença: `forbidden` exige ausência **de valores**, e
+      // `unspecified` não pode carregar valor material — nos dois casos o valor
+      // não seria comparado, e declará-lo transformaria a expectativa em
+      // aparência de verificação.
+      if (expected.identity.presence !== "expected") {
+        const declaredIdentity = [
+          expected.identity.canonicalName,
+          expected.identity.brand,
+          expected.identity.variant,
+          expected.identity.barcode,
+        ].some(value => value !== null);
+        if (
+          declaredIdentity ||
+          expected.identity.preparation.length > 0 ||
+          expected.identity.qualifiers.length > 0
+        ) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' declara identidade com presença '${expected.identity.presence}': valor não comparado não pode ser declarado`,
+          });
+        }
+      }
+      if (expected.quantity.presence !== "expected") {
+        const declaredQuantity = [
+          expected.quantity.value,
+          expected.quantity.unit,
+          expected.quantity.grams,
+          expected.quantity.milliliters,
+          expected.quantity.measureKind,
+        ].some(value => value !== null);
+        if (declaredQuantity) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' declara quantidade com presença '${expected.quantity.presence}': valor não comparado não pode ser declarado`,
+          });
+        }
+      }
+      if (expected.nutrition.requirement === "absent") {
+        if (
+          expected.nutrition.allowedOrigins.length > 0 ||
+          expected.nutrition.forbiddenOrigins.length > 0 ||
+          expected.nutrition.provisionalRequired ||
+          expected.nutrition.genericProfileMustNotBeVerified
+        ) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' exige nutrição ausente e não pode declarar restrição de origem`,
+          });
+        }
+      }
     }
 
     const expectedStep = stepsByCase.get(entry.caseId);
@@ -762,7 +856,20 @@ export function inspectCorpusIntegrity(
     );
     const divergent = entries.filter(entry => {
       const projection = entry.expected.decisions.map(projectExpectedDecision);
-      return !projectionMultisetEqual(projection, referenceProjection);
+      // Decisões **e** operação material de refeição precisam coincidir: dois
+      // membros que agem em refeições diferentes não são a mesma superfície
+      // medida duas vezes. A **data** é contexto declarado e pode variar — o
+      // grupo de §16.1 mede generalização para outro dia —, e por isso não
+      // entra na equivalência (a operação é segmentada à parte em §16.2).
+      const sameOperation =
+        entry.expected.operation?.action ===
+          reference.expected.operation?.action &&
+        entry.expected.operation?.targetMeal ===
+          reference.expected.operation?.targetMeal;
+      return (
+        !sameOperation ||
+        !projectionMultisetEqual(projection, referenceProjection)
+      );
     });
     if (divergent.length > 0) {
       divergentGroupExpectations.push({
@@ -1232,7 +1339,23 @@ function evaluateResult(
     projections.push(projectDecision(decision));
   }
 
-  if (result.operation) operation = result.operation;
+  // A operação de refeição faz parte do contrato público (§9.2) e é validada
+  // contra o schema canônico, que é estrito: campo não governado reprova.
+  if (result.operation !== undefined && result.operation !== null) {
+    const validation = foodMealOperationSchema.safeParse(result.operation);
+    if (!validation.success) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["operation_invalid"],
+        detail: `operação inválida: ${validation.error.issues
+          .map(issue => `${issue.path.join(".")}: ${issue.message}`)
+          .join("; ")}`,
+      });
+    } else {
+      operation = validation.data;
+    }
+  }
 
   const { unmatchedExpected, unmatchedProduced, codesByLabel } = matchDecisions(
     entry.expected.decisions,
@@ -1532,6 +1655,10 @@ export async function runCorpus(
     }
 
     const evaluated = evaluateResult(entry, result, recordedWrites);
+    // Métricas são evidência de custo e latência (§16.2): amostra não finita ou
+    // negativa é falha declarada, nunca valor silenciosamente agregado.
+    const metricFailure = validateMetrics(entry.caseId, result.metrics);
+    if (metricFailure) evaluated.failures.push(metricFailure);
 
     outcomes.push({
       case: entry,
@@ -1541,8 +1668,8 @@ export async function runCorpus(
       projections: evaluated.projections,
       operation: evaluated.operation,
       rawDecisions: evaluated.rawDecisions,
-      latencyMs: result.metrics?.latencyMs ?? null,
-      costUsd: result.metrics?.costUsd ?? null,
+      latencyMs: metricFailure ? null : (result.metrics?.latencyMs ?? null),
+      costUsd: metricFailure ? null : (result.metrics?.costUsd ?? null),
     });
   }
 
@@ -1634,6 +1761,11 @@ export async function runCorpus(
     ) {
       blockReasons.push("corpus_invalid");
     }
+    // Equivalência sem referência declarada é uma causa própria de bloqueio:
+    // sem referência independente não existe verificação de §4.1.8.
+    if (integrity.undeclaredEquivalence.length > 0) {
+      blockReasons.push("undeclared_equivalence");
+    }
   }
   if (wrongConvergence.length > 0 || convergedControls.length > 0) {
     blockReasons.push("negative_control_convergence");
@@ -1663,8 +1795,7 @@ export async function runCorpus(
     overall,
     failures.length,
     nonResolvableFailureCount,
-    blockReasons,
-    resolvedOptions.minMatchRate
+    blockReasons
   );
 
   return {
@@ -1891,9 +2022,12 @@ function buildGate(
   overall: CorpusSegmentMetrics,
   failureCount: number,
   nonResolvableFailureCount: number,
-  blockReasons: readonly CorpusGateBlockReason[],
-  minMatchRate: number
+  blockReasons: readonly CorpusGateBlockReason[]
 ): CorpusGate {
+  // A meta de §1.1 é fixa. Ela não é parâmetro de execução: aceitar um valor
+  // menor transformaria o gate em carimbo, permitindo aprovar um resolvedor
+  // abaixo da meta acordada.
+  const minMatchRate = GOLDEN_CORPUS_MIN_MATCH_RATE;
   const base = {
     minMatchRate,
     matchRate: overall.matchRate,
@@ -2039,6 +2173,12 @@ function buildNegativeControlEvidence(
     const control = outcomeByCaseId.get(entry.caseId);
     const target = outcomeByCaseId.get(entry.negativeControlOf);
     if (!control || !target) continue;
+    // Um controle que absteve dos dois lados não discrimina nada: ausência de
+    // saída não é evidência de distinção. `projectionMultisetEqual` devolve
+    // `false` para listas vazias, e ler isso como discriminação produziria
+    // evidência positiva a partir de nada.
+    const executed =
+      control.projections.length > 0 && target.projections.length > 0;
     const converged = projectionMultisetEqual(
       control.projections,
       target.projections
@@ -2047,10 +2187,13 @@ function buildNegativeControlEvidence(
       caseId: entry.caseId,
       targetCaseId: entry.negativeControlOf,
       hypothesis: entry.negativeControlHypothesis ?? "(não declarada)",
-      discriminating: !converged,
-      discriminatingDimension: converged
-        ? "none"
-        : discriminatingDimensionOf(control.projections, target.projections),
+      executed,
+      discriminating: executed && !converged,
+      discriminatingDimension: !executed
+        ? "not_executed"
+        : converged
+          ? "none"
+          : discriminatingDimensionOf(control.projections, target.projections),
       controlSignature: projectionSignature(control.projections),
       targetSignature: projectionSignature(target.projections),
       revisions,

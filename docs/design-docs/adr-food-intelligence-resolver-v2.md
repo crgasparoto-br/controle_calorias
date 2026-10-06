@@ -2908,7 +2908,11 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   cenários de §16.1 declaram passos ordenados com fases (`before_acquisition`,
   `acquisition`, `reserved_measurement`, `restart`, `explicit_override`,
   `isolation`, `revocation`), chaves revogadas e as invariantes de reprodução e
-  de diferença entre passos.
+  de diferença entre passos. A coerência entre presença e valores é validada
+  **antes da medição**: identidade ou quantidade com presença diferente de
+  `expected` não pode declarar valor material, e nutrição `absent` não pode
+  declarar restrição de origem — declarar valor que não seria comparado
+  transformaria a expectativa em aparência de verificação.
 - `projection.ts` projeta observações e decisões para a comparação semântica de
   §4.1.8, preservando identidade, qualificadores, quantidade/unidade,
   multiplicidade, alternativas e campos não resolvidos, e excluindo
@@ -2916,7 +2920,15 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   modalidade, trilhas de normalização e confiança. A mesma projeção é aplicada
   à **expectativa declarada**, o que permite validar antes da medição que os
   membros de um grupo metamórfico realmente declaram o mesmo resultado: um
-  grupo com expectativas divergentes é inválido, não uma equivalência.
+  grupo com expectativas divergentes é inválido, não uma equivalência. A
+  igualdade semântica inclui a **procedência nutricional** (presença,
+  verificação, provisório, origem e restrições declaradas), porque nada disso
+  depende de arredondamento; os **valores** de macro ficam fora e são medidos
+  por `macroConsistency`, bloqueante enquanto a tolerância estiver `OPEN`.
+  Dentro de um grupo, os membros precisam coincidir em decisão e em operação
+  material de refeição (`action` e `targetMeal`); a **data** é contexto
+  declarado e pode variar, como no grupo de §16.1 que mede generalização para
+  outro dia.
 - `harness.ts` entrega cada caso ao resolvedor sob teste (nunca fabrica a
   decisão), verifica integridade (duplicatas, vazamento para o holdout,
   equivalência sem referência declarada, grupos inválidos, expectativa
@@ -2924,6 +2936,12 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   calcula a meta de §1.1 sobre todos os casos rotulados como resolvíveis,
   executa os cenários de §16.1 contra a **mesma instância** do resolvedor com
   armazenamento de conhecimento por cenário e produz relatório segmentado.
+  Equivalência sem referência declarada tem motivo de bloqueio próprio
+  (`undeclared_equivalence`). A operação de refeição devolvida pelo resolvedor é
+  validada contra `foodMealOperationSchema`, que é estrito: campo não governado,
+  data não ISO ou tipo errado reprovam com `operation_invalid`. Amostra de
+  latência/custo não finita ou negativa reprova com `metrics_invalid` e não
+  entra na agregação.
 - `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
 
 Denominador zero significa **amostra ausente** (`sample_missing`), nunca zero.
@@ -2958,7 +2976,13 @@ cache obsoleto após a revogação reprova o cenário.
 
 Controles negativos produzem evidência adversarial estruturada: hipótese de
 implementação errada, dimensão discriminante, assinatura da saída do controle e
-do alvo e as revisões do material medido.
+do alvo e as revisões do material medido. Um controle que absteve dos dois lados
+é registrado como **não executado** e não conta como discriminante: ausência de
+saída não é evidência de distinção.
+
+A meta de pareamento de §1.1 é **fixa**: ela não é parâmetro de execução, e não
+existe opção para reduzi-la. Somente a tolerância de arredondamento e as
+revisões são configuráveis, e a primeira continua `OPEN` (§25 item 30).
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e
