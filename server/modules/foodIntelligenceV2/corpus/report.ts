@@ -137,10 +137,16 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
     "- O gate é fail-closed e não se dilui na taxa: `holdout_knowledge_write` (escrita em partição reservada), `knowledge_write_outside_acquisition` (escrita fora da aquisição em qualquer partição, inclusive tentada depois do fim do passo), `metrics_invalid` (amostra de latência/custo inválida) e `reference_not_verified` (fonte canônica divergente ou seção inexistente) bloqueiam por si."
   );
   lines.push(
+    "- A fachada de conhecimento é a única porta instrumentada e é entregue congelada (`read`/`write`/`mode` não graváveis): substituí-la para escapar da auditoria não é possível."
+  );
+  lines.push(
     "- A janela de observação não tem brecha: a recusa é gravada pela própria fachada **no instante da tentativa**, num registro autoritativo compartilhado por medição, cenários e ablação, sem depender de colheita posterior. Efeito que se materializa depois do relatório ainda bloqueia, e a evidência exposta é visão derivada somente leitura: apagá-la não reverte o veredito."
   );
   lines.push(
     "- A isenção de quantidade (`input.nonQuantityTokens`) apenas corrobora um contexto de não-quantidade já visível na superfície, vale para **uma** ocorrência e não atravessa superfícies: sem marcador explícito de identificação na janela — ou na segunda ocorrência do mesmo token — a quantidade continua material."
+  );
+  lines.push(
+    "- Quantidade material é reconhecida em qualquer dígito decimal Unicode (`\p{Nd}`), em numerais romanos I–XX, em frações Unicode e por extenso: nenhuma grafia esconde porção declarada atrás de `unspecified`."
   );
   lines.push(
     "- A ablação aplica a mesma política de efeitos da medição e exige o contra-factual declarado por inteiro: decisões **e** operação (`MealOperation`) precisam conferir."

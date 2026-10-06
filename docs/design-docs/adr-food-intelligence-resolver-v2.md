@@ -2942,8 +2942,10 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   material, porque uma declaração não pode esconder a segunda quantidade. Isentar
   um token numa superfície não isenta a mesma quantidade consumida noutra:
   `Marca 2 Café` na fala e `2 maçãs` na transcrição continuam inválidos. Os
-  numerais romanos I a XX integram o vocabulário de quantidade. A isenção é
-  visível na revisão e não alcança a expectativa, apenas o token. Toda
+  numerais romanos I a XX integram o vocabulário de quantidade, assim como
+  **qualquer dígito decimal Unicode** (`\p{Nd}`: ASCII, fullwidth, arábico-
+  índico e demais escritas) — um numeral exótico não esconde porção declarada. A
+  isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -3031,6 +3033,12 @@ O gate é **fail-closed** em caminhos que não se diluem na taxa de pareamento.
 Escrita de conhecimento fora da fase de aquisição bloqueia em **qualquer**
 partição: `holdout_knowledge_write` para a partição reservada e
 `knowledge_write_outside_acquisition` para as demais.
+
+A fachada de conhecimento é a **única** porta instrumentada, e ela é entregue
+congelada: `read`, `write` e `mode` são propriedades não graváveis nem
+configuráveis. Substituir `knowledge.write` por função própria — gravando em
+memória privada para escapar da instrumentação — não é possível; o único caminho
+existente passa pela closure auditada.
 
 A janela de observação não é um intervalo com brecha, e a garantia não depende
 de colheita nem de drenagem: a recusa é gravada **pela própria fachada no

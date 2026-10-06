@@ -1180,8 +1180,8 @@ function quantitySignalsOf(entry: GoldenCorpusCase): QuantitySignal[] {
   ].filter((value): value is string => value !== null);
   for (const surface of surfaces) {
     const cleaned = surface
-      .replace(/\d{4}-\d{2}-\d{2}/g, m => " ".repeat(m.length))
-      .replace(/\d{1,2}:\d{2}/g, m => " ".repeat(m.length))
+      .replace(/\p{Nd}{4}-\p{Nd}{2}-\p{Nd}{2}/gu, m => " ".repeat(m.length))
+      .replace(/\p{Nd}{1,2}:\p{Nd}{2}/gu, m => " ".repeat(m.length))
       .replace(NON_QUANTITY_DIGIT_PATTERN, m => " ".repeat(m.length));
     const tokens: { token: string; index: number }[] = [];
     for (const match of cleaned.matchAll(globalOf(FRACTION_PATTERN))) {
@@ -1190,7 +1190,10 @@ function quantitySignalsOf(entry: GoldenCorpusCase): QuantitySignal[] {
     for (const match of cleaned.matchAll(globalOf(QUANTITY_SIGNAL_PATTERN))) {
       tokens.push({ token: match[0], index: match.index ?? 0 });
     }
-    for (const match of cleaned.matchAll(/\d/g)) {
+    // Qualquer dígito decimal Unicode (`\p{Nd}`: ASCII, fullwidth, arábico-
+    // índico ...) é quantidade material: um numeral exótico não pode esconder
+    // porção declarada.
+    for (const match of cleaned.matchAll(/\p{Nd}/gu)) {
       tokens.push({ token: match[0], index: match.index ?? 0 });
     }
     tokens.sort((a, b) => a.index - b.index);
@@ -2032,7 +2035,9 @@ export function createKnowledgeStore(options: {
   const persistWrites = options.persistWrites ?? true;
   const entries = new Map<string, string>();
   const ledger: CorpusKnowledgeLedgerEntry[] = [];
-  const openGates = new Set<CorpusKnowledgeGate>();
+  // Registro privado dos fechamentos: a fachada entregue é imutável e não
+  // carrega estado mutável alcançável pelo resolvedor.
+  const openGates = new Map<CorpusKnowledgeGate, () => void>();
   const refusedWrites = options.refusedWrites;
   return {
     ledger,
@@ -2047,9 +2052,7 @@ export function createKnowledgeStore(options: {
      * janela observada não pode passar como medição limpa.
      */
     closeGates() {
-      for (const gate of openGates) {
-        (gate as CorpusKnowledgeGate & { close?: () => void }).close?.();
-      }
+      for (const close of openGates.values()) close();
       openGates.clear();
     },
     gateFor(caseId, split, mode) {
@@ -2096,13 +2099,41 @@ export function createKnowledgeStore(options: {
           if (persistWrites) entries.set(key, value);
         },
       };
-      openGates.add(gate);
-      const registered = gate as CorpusKnowledgeGate & { close: () => void };
-      registered.close = () => {
+      // A fachada é entregue **congelada**: `read`/`write`/`mode` são
+      // propriedades não graváveis nem configuráveis. Substituir
+      // `knowledge.write` por função própria — gravando em memória privada e
+      // escapando da instrumentação — é o ataque que isto fecha: o único
+      // caminho possível passa pela closure instrumentada (§16.1).
+      const frozen = Object.freeze(
+        Object.defineProperties(
+          {},
+          {
+            mode: {
+              value: mode,
+              writable: false,
+              configurable: false,
+              enumerable: true,
+            },
+            read: {
+              value: gate.read,
+              writable: false,
+              configurable: false,
+              enumerable: true,
+            },
+            write: {
+              value: gate.write,
+              writable: false,
+              configurable: false,
+              enumerable: true,
+            },
+          }
+        )
+      ) as CorpusKnowledgeGate;
+      openGates.set(frozen, () => {
         closed = true;
-        openGates.delete(gate);
-      };
-      return registered;
+        openGates.delete(frozen);
+      });
+      return frozen;
     },
   };
 }

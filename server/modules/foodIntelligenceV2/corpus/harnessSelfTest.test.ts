@@ -1293,6 +1293,61 @@ describe("autoverificação do harness", () => {
     );
   });
 
+  it("entrega a fachada congelada e imune à substituição de métodos", async () => {
+    // Ataque da auditoria: substituir `knowledge.write` por função própria,
+    // gravar em memória privada e escapar da instrumentação.
+    const reference = createReferenceResolver(corpus);
+    const observations: { frozen: boolean; replaced: boolean }[] = [];
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:fachada-imutavel",
+        revision: "1",
+        async resolve(request) {
+          const gate = request.knowledge as unknown as {
+            write: unknown;
+            mode: string;
+          };
+          observations.push({ frozen: Object.isFrozen(gate), replaced: false });
+          try {
+            gate.write = async () => undefined;
+          } catch {
+            // Em módulo estrito a escrita lança; se não lançar, não altera.
+          }
+          observations[observations.length - 1].replaced =
+            gate.write !== undefined &&
+            (gate.write as { name?: string }).name === "";
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(observations.length).toBeGreaterThan(0);
+    expect(observations.every(item => item.frozen)).toBe(true);
+    expect(observations.every(item => !item.replaced)).toBe(true);
+    expect(report.gate.status).toBe("passed");
+  });
+
+  it("recusa quantidade declarada com dígitos decimais Unicode", () => {
+    const comTexto = (text: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? { ...item, input: { ...item.input, text } }
+            : item
+        ),
+      });
+    const material = (text: string) =>
+      inspectCorpusIntegrity(comTexto(text)).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    // Fullwidth e arábico-índico são dígitos decimais: quantidade material.
+    expect(material("２ maçãs")).toBe(true);
+    expect(material("٢ تفاحة")).toBe(true);
+    expect(material("٣ fatias de pão")).toBe(true);
+    expect(material("3 fatias de pão")).toBe(true);
+  });
+
   it("registra na origem a recusa, sem depender de colheita posterior", async () => {
     // Ataque da auditoria: escrever numa promise encadeada, de modo que a
     // recusa aconteça depois da última colheita do passo. A violação é gravada
