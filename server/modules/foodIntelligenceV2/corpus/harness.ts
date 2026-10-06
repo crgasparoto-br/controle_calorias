@@ -1146,9 +1146,14 @@ const NON_QUANTITY_DIGIT_PATTERN =
  * ser lido como quantidade material; por isso o número inteiro é mascarado de
  * uma vez, sempre **ancorado em marcador explícito** de identificação — sem o
  * marcador, `2 2` continuaria sendo quantidade declarada.
+ *
+ * O mascaramento é contido: grupo separado **apenas por espaço** precisa ter ao
+ * menos dois dígitos. Assim `telefone 11 2222 2 maçãs` mascara o telefone e
+ * preserva a porção material (`2 maçãs`), enquanto `cep 22222-222` e
+ * `telefone (11) 91234-5678` são mascarados por inteiro.
  */
 const FORMATTED_IDENTIFIER_PATTERN =
-  /(?<![\p{L}\p{N}])(telefone|tel|fone|celular|whatsapp|cep|cpf|cnpj)\s*[:.]?\s*[+(]?\s*\p{Nd}{1,}(?:[\s().\/-]+\p{Nd}{1,})*/giu;
+  /(?<![\p{L}\p{N}])(telefone|tel|fone|celular|whatsapp|cep|cpf|cnpj)\s*[:.]?\s*[+(]?\s*\p{Nd}{1,}(?:[\s().\/-]*[().\/-][\s().\/-]*\p{Nd}{1,}|\s+\p{Nd}{2,})*/giu;
 
 /**
  * Marcador explícito de que o número identifica algo, não mede consumo. Sem

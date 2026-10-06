@@ -2954,7 +2954,10 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   é. Número **formatado** de identificação — grupos separados por espaço, hífen,
   parênteses ou barra, como `telefone (11) 91234-5678` e `cep 22222-222` — é
   mascarado por inteiro, em qualquer grafia decimal; sem marcador explícito de
-  identificação a mesma forma (`2 2 maçãs`) continua sendo quantidade. A isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
+  identificação a mesma forma (`2 2 maçãs`) continua sendo quantidade. O
+  mascaramento é **contido**: grupo separado apenas por espaço precisa ter ao
+  menos dois dígitos, de modo que `telefone 11 2222 2 maçãs` preserve a porção
+  material em vez de escondê-la atrás do identificador. A isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.

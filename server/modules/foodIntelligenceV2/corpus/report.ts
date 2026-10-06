@@ -149,7 +149,7 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
     "- A isenção de quantidade (`input.nonQuantityTokens`) apenas corrobora um contexto de não-quantidade já visível na superfície, vale para **uma** ocorrência e não atravessa superfícies: sem marcador explícito de identificação na janela — ou na segunda ocorrência do mesmo token — a quantidade continua material."
   );
   lines.push(
-    "- Quantidade material é reconhecida em qualquer dígito decimal Unicode (`\p{Nd}`), em numerais romanos I–XX, em frações Unicode e por extenso: nenhuma grafia esconde porção declarada atrás de `unspecified`. A exclusão de contexto não-material usa a mesma classe, com fronteiras por lookaround, e número formatado de identificação (telefone, CEP, CPF) é mascarado por inteiro."
+    "- Quantidade material é reconhecida em qualquer dígito decimal Unicode (`\p{Nd}`), em numerais romanos I–XX, em frações Unicode e por extenso: nenhuma grafia esconde porção declarada atrás de `unspecified`. A exclusão de contexto não-material usa a mesma classe, com fronteiras por lookaround, e número formatado de identificação (telefone, CEP, CPF) é mascarado por inteiro, de forma contida: grupo separado só por espaço precisa ter ao menos dois dígitos, para que `telefone 11 2222 2 maçãs` preserve a porção material."
   );
   lines.push(
     "- A ablação aplica a mesma política de efeitos da medição e exige o contra-factual declarado por inteiro: decisões **e** operação (`MealOperation`) precisam conferir."

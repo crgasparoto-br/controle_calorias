@@ -1407,6 +1407,10 @@ describe("autoverificação do harness", () => {
     expect(material("2 2 maçãs")).toBe(true);
     // Porção material depois do identificador não é escondida.
     expect(material("cep 22222-222 e 2 fatias")).toBe(true);
+    expect(material("telefone 11 2222 2 maçãs")).toBe(true);
+    expect(material("cep 22222-222 3 fatias")).toBe(true);
+    expect(material("cpf 222.222.222-22 2 porções")).toBe(true);
+    expect(material("telefone 11 2222 2 maçãs 3 bananas")).toBe(true);
   });
 
   it("reconhece contexto não-material em dígitos Unicode", () => {
