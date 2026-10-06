@@ -333,7 +333,7 @@ export interface CorpusIntegrityReport {
    * exemplo agendadas em timer). A fachada é inutilizada ao fim de cada passo e
    * a tentativa tardia é registrada como violação.
    */
-  knowledgeWritesAfterStep: { caseId: string; key: string }[];
+  knowledgeWritesAfterStep: readonly { caseId: string; key: string }[];
   /**
    * Verificação da referência independente de §4.1.8 contra a fonte canônica:
    * hash da ADR usada e seções declaradas que não existem no documento.
@@ -1137,6 +1137,13 @@ const FRACTION_PATTERN = /[½¼¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒]|
 const NON_QUANTITY_DIGIT_PATTERN =
   /\b(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\d+\b|\d+\s*°\s*[cf]?\b|\b\d+\s*(vezes|x)\b/gi;
 
+/**
+ * Marcador explícito de que o número identifica algo, não mede consumo. Sem
+ * ele, uma isenção declarada pelo corpus não é aceita (§8.3, §16).
+ */
+const NON_QUANTITY_MARKER_PATTERN =
+  /\b(marca|linha|c[óo]digo|modelo|vers[ãa]o|tamanho|sabor|tipo|n[úu]mero|n[ºo]|item|ref|refer[êe]ncia|sku|id|lote|nota|etiqueta|r[óo]tulo|p[áa]gina)\b/i;
+
 /** Unidade ou porção que torna a quantidade material inegociável. */
 const PORTION_UNIT_PATTERN =
   /\b(g|kg|ml|l|gramas?|quilos?|mililitros?|litros?|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|por[çc][ãa]o|por[çc][õo]es|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|d[úu]zias?|dezenas?)\b/i;
@@ -1208,6 +1215,11 @@ function isExemptQuantityToken(
     Math.max(0, signal.index - 12),
     signal.index + signal.token.length + 12
   );
+  // A isenção **corrobora** um contexto de não-quantidade já visível na
+  // superfície; ela não fabrica um. Sem marcador explícito (marca, código,
+  // versão, linha, tamanho ...) na mesma janela, a ocorrência continua material
+  // — inclusive quando o mesmo token aparece material em outra superfície.
+  if (!NON_QUANTITY_MARKER_PATTERN.test(window)) return false;
   return !PORTION_UNIT_PATTERN.test(window);
 }
 
@@ -1221,7 +1233,9 @@ function isExemptQuantityToken(
 async function ablatedScenarioProjections(
   scenario: GoldenLearningScenario,
   byCaseId: ReadonlyMap<string, GoldenCorpusCase>,
-  resolver: CorpusResolverUnderTest
+  resolver: CorpusResolverUnderTest,
+  writesOutside: { caseId: string; writes: string[] }[],
+  lateWrites: { caseId: string; key: string }[]
 ): Promise<Map<string, AblatedStepOutcome>> {
   const knowledge = createKnowledgeStore({ persistWrites: false });
   const projections = new Map<string, AblatedStepOutcome>();
@@ -1229,6 +1243,8 @@ async function ablatedScenarioProjections(
     const entry = byCaseId.get(step.caseId);
     if (!entry) continue;
     for (const key of step.revokeKeys) knowledge.revoke(key);
+    const ledgerStart = knowledge.ledger.length;
+    const afterStepMark = knowledge.writesAfterStep.length;
     const gate = knowledge.gateFor(
       entry.caseId,
       entry.split,
@@ -1240,16 +1256,37 @@ async function ablatedScenarioProjections(
         allowLearning: step.writesAllowed,
         knowledge: gate,
       });
+      // A ablação aplica a **mesma** política de efeitos: escrita fora da
+      // aquisição é violação observada aqui como em qualquer passo.
+      const harvested = harvestWrites(
+        knowledge,
+        ledgerStart,
+        entry,
+        step.writesAllowed ? [] : writesOutside
+      );
       projections.set(step.stepId, {
         result,
-        projections: evaluateResult(entry, result, [], step.writesAllowed)
-          .projections,
+        projections: evaluateResult(
+          entry,
+          result,
+          harvested,
+          step.writesAllowed
+        ).projections,
       });
     } catch {
+      harvestWrites(
+        knowledge,
+        ledgerStart,
+        entry,
+        step.writesAllowed ? [] : writesOutside
+      );
       // Falha no passo ablacionado é, por si, mudança de comportamento; o
       // cenário normal já registra o erro. Aqui só não há projeção.
       projections.set(step.stepId, { result: null, projections: [] });
     }
+    knowledge.closeGates();
+    await drainKnowledgeWindow();
+    lateWrites.push(...knowledge.writesAfterStep.slice(afterStepMark));
   }
   return projections;
 }
@@ -1951,13 +1988,22 @@ export interface CorpusKnowledgeStore {
 
 /** Cria um armazenamento de conhecimento instrumentado e isolado. */
 export function createKnowledgeStore(
-  options: { persistWrites?: boolean } = {}
+  options: {
+    persistWrites?: boolean;
+    /**
+     * Coletor **vivo** de violações tardias. Quando informado, a violação cai
+     * diretamente na evidência do relatório — mesmo que o efeito se materialize
+     * depois de a medição terminar.
+     */
+    lateWrites?: { caseId: string; key: string }[];
+  } = {}
 ): CorpusKnowledgeStore {
   const persistWrites = options.persistWrites ?? true;
   const entries = new Map<string, string>();
   const ledger: CorpusKnowledgeLedgerEntry[] = [];
   const openGates = new Set<CorpusKnowledgeGate>();
-  const writesAfterStep: { caseId: string; key: string }[] = [];
+  const writesAfterStep: { caseId: string; key: string }[] =
+    options.lateWrites ?? [];
   return {
     ledger,
     writesAfterStep,
@@ -2031,10 +2077,20 @@ export function createKnowledgeStore(
  * pelo resolvedor precisa ter chance de acontecer **antes** de o harness fechar
  * a medição, senão o efeito escaparia da janela observada.
  */
-function settleKnowledgeWindow(): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, 0));
+/**
+ * Drenagem da janela de observação. A rodada leve roda ao fim de cada passo; a
+ * rodada longa roda uma vez, ao fim da medição, para capturar efeitos
+ * agendados com atraso maior antes de o relatório ser construído. Efeito
+ * posterior continua invalidando o veredito pelo gate vivo.
+ */
+async function drainKnowledgeWindow(long = false): Promise<void> {
+  const delays = long ? [0, 1, 5, 25, 100] : [0];
+  for (const delay of delays) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
 }
 
+/** Colhe pontual das escritas de um passo (usada na execução ablacionada). */
 function harvestWrites(
   knowledge: CorpusKnowledgeStore,
   ledgerStart: number,
@@ -2049,6 +2105,46 @@ function harvestWrites(
     writesOutside.push({ caseId: entry.caseId, writes: recorded });
   }
   return recorded;
+}
+
+interface WriteHarvester {
+  /** Chaves escritas desde a última colheita. */
+  harvest(): string[];
+  /** Todas as chaves escritas no passo. */
+  all(): string[];
+}
+
+/**
+ * Colhe tentativas de escrita do ledger para um caso. É chamado várias vezes no
+ * mesmo passo — antes e **depois** de tocar o resultado do resolvedor — porque
+ * um efeito colateral pode ser disparado por getter de `metrics`/`decisions` e
+ * precisa ser observado como qualquer outro.
+ */
+function createWriteHarvester(
+  knowledge: CorpusKnowledgeStore,
+  ledgerStart: number,
+  entry: GoldenCorpusCase,
+  writesOutside: { caseId: string; writes: string[] }[]
+): WriteHarvester {
+  let cursor = ledgerStart;
+  const collected: string[] = [];
+  return {
+    harvest() {
+      const fresh = knowledge.ledger
+        .slice(cursor)
+        .filter(item => item.operation === "write_attempt")
+        .map(item => item.key);
+      cursor = knowledge.ledger.length;
+      if (fresh.length > 0) {
+        collected.push(...fresh);
+        writesOutside.push({ caseId: entry.caseId, writes: fresh });
+      }
+      return fresh;
+    },
+    all() {
+      return [...collected];
+    },
+  };
 }
 
 function withinTolerance(
@@ -2185,14 +2281,23 @@ export async function runCorpus(
   // uma falha que se dilui na taxa de pareamento.
   const knowledgeWritesOutside: { caseId: string; writes: string[] }[] = [];
   const knowledgeWritesAfterStep: { caseId: string; key: string }[] = [];
+  LIVE_COLLECTIONS.add(knowledgeWritesAfterStep);
   // Um armazenamento por execução: durante a medição de casos isolados o modo
   // é sempre `read_only`, então nenhuma escrita é aceita (§16.1).
-  const knowledge = createKnowledgeStore();
+  const knowledge = createKnowledgeStore({
+    lateWrites: knowledgeWritesAfterStep,
+  });
   let resolveCalls = 0;
 
   /** Mede um caso do corpus e registra o resultado. */
   const measureCase = async (entry: GoldenCorpusCase): Promise<void> => {
     const ledgerStart = knowledge.ledger.length;
+    const harvester = createWriteHarvester(
+      knowledge,
+      ledgerStart,
+      entry,
+      knowledgeWritesOutside
+    );
     const gate = knowledge.gateFor(entry.caseId, entry.split, "read_only");
     let result: CorpusResolverResult;
     try {
@@ -2204,7 +2309,7 @@ export async function runCorpus(
     } catch (error) {
       // Mesmo lançando, o resolvedor pode ter tentado escrever: a tentativa é
       // colhida aqui, não descartada junto com o erro (§16.1).
-      harvestWrites(knowledge, ledgerStart, entry, knowledgeWritesOutside);
+      harvester.harvest();
       outcomes.push({
         case: entry,
         matched: false,
@@ -2229,20 +2334,17 @@ export async function runCorpus(
       return;
     }
 
-    const recordedWrites = harvestWrites(
-      knowledge,
-      ledgerStart,
-      entry,
-      knowledgeWritesOutside
-    );
-    if (recordedWrites.length > 0 && entry.split === "holdout") {
+    harvester.harvest();
+    const evaluated = evaluateResult(entry, result, harvester.all());
+    // Segunda colheita: um efeito pode ter sido disparado por getter de
+    // `metrics`/`decisions` enquanto o resultado era lido.
+    harvester.harvest();
+    if (harvester.all().length > 0 && entry.split === "holdout") {
       holdoutKnowledgeWrites.push({
         caseId: entry.caseId,
-        writes: recordedWrites,
+        writes: harvester.all(),
       });
     }
-
-    const evaluated = evaluateResult(entry, result, recordedWrites);
     // Métricas são evidência de custo e latência (§16.2): amostra não finita ou
     // negativa é falha declarada, nunca valor silenciosamente agregado.
     const metricFailure = validateMetrics(entry.caseId, result.metrics);
@@ -2269,6 +2371,25 @@ export async function runCorpus(
           ? null
           : (result.metrics.costUsd ?? null),
     });
+    // Colheita final: getters de `metrics`/`decisions` podem disparar efeitos
+    // durante a própria leitura do resultado, depois das colheitas anteriores.
+    if (harvester.harvest().length > 0) {
+      const outcome = outcomes[outcomes.length - 1];
+      outcome.matched = false;
+      outcome.failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["learning_applied_during_measurement"],
+        detail:
+          "efeito colateral disparado durante a leitura do resultado do resolvedor",
+      });
+      if (entry.split === "holdout") {
+        holdoutKnowledgeWrites.push({
+          caseId: entry.caseId,
+          writes: harvester.all(),
+        });
+      }
+    }
   };
   for (const entry of parsed.cases) {
     resolveCalls += 1;
@@ -2278,12 +2399,14 @@ export async function runCorpus(
     // escrita agendada em timer depois do `await` é violação registrada, não
     // efeito invisível (§16.1).
     knowledge.closeGates();
-    await settleKnowledgeWindow();
-    knowledgeWritesAfterStep.push(
-      ...knowledge.writesAfterStep.slice(afterStepMark)
-    );
+    await drainKnowledgeWindow();
+    void afterStepMark;
   }
   integrity.holdoutKnowledgeWrites = holdoutKnowledgeWrites;
+  // Estas duas são **vivas**: continuam recebendo violações depois de o
+  // relatório ser construído e permanecem legíveis nele.
+  LIVE_COLLECTIONS.add(knowledgeWritesOutside);
+  LIVE_COLLECTIONS.add(knowledgeWritesAfterStep);
   integrity.knowledgeWritesOutside = knowledgeWritesOutside;
   integrity.knowledgeWritesAfterStep = knowledgeWritesAfterStep;
   if (
@@ -2349,7 +2472,8 @@ export async function runCorpus(
   const learningScenarios = await runLearningScenarios(
     parsed,
     resolver,
-    integrity
+    integrity,
+    knowledgeWritesAfterStep
   );
 
   const wrongConvergence = metamorphic.filter(item => item.wrongConvergence);
@@ -2441,7 +2565,9 @@ export async function runCorpus(
     overall,
     failures.length,
     nonResolvableFailureCount,
-    blockReasons
+    blockReasons,
+    () =>
+      knowledgeWritesAfterStep.length > 0 || knowledgeWritesOutside.length > 0
   );
 
   const report: CorpusReport = {
@@ -2477,6 +2603,9 @@ export async function runCorpus(
   return deepFreeze(report);
 }
 
+/** Coleções que permanecem mutáveis no relatório (violações vivas). */
+const LIVE_COLLECTIONS = new WeakSet<object>();
+
 /**
  * Congela recursivamente o relatório. Estruturas são convertidas em cópias
  * congeladas para que nenhuma referência compartilhada permaneça mutável.
@@ -2484,6 +2613,9 @@ export async function runCorpus(
 function deepFreeze<T>(value: T): T {
   if (value === null || typeof value !== "object") return value;
   if (Object.isFrozen(value)) return value;
+  // Coleções vivas de violação ficam mutáveis de propósito: um efeito tardio
+  // precisa continuar visível no relatório já entregue.
+  if (LIVE_COLLECTIONS.has(value as object)) return value;
   for (const nested of Object.values(value as Record<string, unknown>)) {
     deepFreeze(nested);
   }
@@ -2506,7 +2638,13 @@ export async function runGoldenFoodCorpus(
 export async function runLearningScenarios(
   corpus: GoldenCorpus,
   resolver: CorpusResolverUnderTest,
-  integrity: CorpusIntegrityReport
+  integrity: CorpusIntegrityReport,
+  /**
+   * Coletor **vivo** de violações tardias compartilhado com `runCorpus`: o
+   * cenário usa um armazenamento próprio, e uma escrita posterior ao passo
+   * precisa invalidar a medição inteira, não apenas o cenário.
+   */
+  lateWrites: { caseId: string; key: string }[]
 ): Promise<LearningScenarioResult[]> {
   const byCaseId = new Map(corpus.cases.map(entry => [entry.caseId, entry]));
   const results: LearningScenarioResult[] = [];
@@ -2519,7 +2657,7 @@ export async function runLearningScenarios(
     const conversationRefs = new Set<string>();
     // O armazenamento vive por cenário: é o que torna persistência após
     // reinício e revogação efeitos observáveis, e não rótulos de caso.
-    const knowledge = createKnowledgeStore();
+    const knowledge = createKnowledgeStore({ lateWrites });
     // Cadeia causal: chaves escritas na aquisição e chaves adquiridas que foram
     // efetivamente encontradas em leituras posteriores. Sem essa cadeia, o
     // cenário não prova aprendizado — prova apenas rótulos por caseId.
@@ -2569,6 +2707,7 @@ export async function runLearningScenarios(
 
       let evaluated: ReturnType<typeof evaluateResult>;
       let recordedWriteAttempts = 0;
+      let stepWriteKeys: string[] = [];
       try {
         const result = await resolver.resolve({
           case: toCorpusCaseInput(entry, step.phase),
@@ -2580,6 +2719,7 @@ export async function runLearningScenarios(
           .filter(item => item.operation === "write_attempt")
           .map(item => item.key);
         const reads = stepLedger.filter(item => item.operation === "read");
+        stepWriteKeys = recorded;
         recordedWriteAttempts = recorded.length;
         for (const key of recorded) {
           if (step.phase === "acquisition") acquiredKeys.add(key);
@@ -2647,6 +2787,19 @@ export async function runLearningScenarios(
         }
         evaluated = evaluateResult(entry, result, recorded, step.writesAllowed);
       } catch (error) {
+        // O passo falhou, mas pode ter tentado escrever antes: a tentativa é
+        // evidência e não pode ser descartada junto com o erro (§16.1).
+        const failedWrites = knowledge.ledger
+          .slice(ledgerStart)
+          .filter(item => item.operation === "write_attempt")
+          .map(item => item.key);
+        if (failedWrites.length > 0 && !step.writesAllowed) {
+          integrity.knowledgeWritesOutside.push({
+            caseId: entry.caseId,
+            writes: failedWrites,
+          });
+          integrity.status = "invalid";
+        }
         evaluated = {
           failures: [
             {
@@ -2707,6 +2860,12 @@ export async function runLearningScenarios(
           codes: ["learning_applied_during_measurement"],
           detail: `passo ${step.stepId} tentou escrever conhecimento fora da fase de aquisição`,
         });
+        // Violação dura: escrita fora da aquisição não se dilui na meta.
+        integrity.knowledgeWritesOutside.push({
+          caseId: entry.caseId,
+          writes: stepWriteKeys,
+        });
+        integrity.status = "invalid";
       }
       // Aquisição é prova de aprendizado: sem escrita observável, o passo é
       // rótulo, não efeito (§16.1).
@@ -2738,15 +2897,28 @@ export async function runLearningScenarios(
         differentFromSatisfied,
         failures,
       };
+      // Colheita final do passo: getters de `metrics`/`decisions` podem
+      // disparar efeitos durante a leitura do resultado.
+      const getterWrites = knowledge.ledger
+        .slice(ledgerStart)
+        .filter(item => item.operation === "write_attempt")
+        .map(item => item.key);
+      if (getterWrites.length > 0 && !step.writesAllowed) {
+        integrity.status = "invalid";
+        integrity.knowledgeWritesOutside.push({
+          caseId: entry.caseId,
+          writes: getterWrites,
+        });
+      }
       // Fecha a fachada do passo e drena a janela: escrita agendada em timer
       // depois do `await` é violação registrada, não efeito invisível.
       knowledge.closeGates();
-      await settleKnowledgeWindow();
-      const lateWrites = knowledge.writesAfterStep.slice(afterStepMark);
-      if (lateWrites.length > 0) {
+      await drainKnowledgeWindow();
+      const stepLateWrites = knowledge.writesAfterStep.slice(afterStepMark);
+      if (stepLateWrites.length > 0) {
         integrity.status = "invalid";
-        integrity.knowledgeWritesAfterStep.push(...lateWrites);
-        for (const late of lateWrites) {
+        // O coletor é o mesmo array do relatório: a violação já está nele.
+        for (const late of stepLateWrites) {
           failures.push({
             caseId: late.caseId,
             label: null,
@@ -2784,11 +2956,26 @@ export async function runLearningScenarios(
       (_, index) => acquisitionIndex >= 0 && index > acquisitionIndex
     );
     if (dependentSteps.length > 0) {
+      const ablationViolationsBefore = integrity.knowledgeWritesOutside.length;
       const ablated = await ablatedScenarioProjections(
         scenario,
         byCaseId,
-        resolver
+        resolver,
+        integrity.knowledgeWritesOutside,
+        lateWrites
       );
+      if (integrity.knowledgeWritesOutside.length > ablationViolationsBefore) {
+        // Escrita fora da aquisição na execução ablacionada é violação dura: a
+        // ablação aplica a mesma política de efeitos da medição.
+        integrity.status = "invalid";
+        scenarioFailures.push({
+          caseId: scenario.steps[0].caseId,
+          label: null,
+          codes: ["scenario_effect_missing"],
+          detail:
+            "execução ablacionada tentou escrever conhecimento fora da fase de aquisição",
+        });
+      }
       let changed = false;
       for (const step of dependentSteps) {
         const before = projectionsByStep.get(step.stepId);
@@ -2846,7 +3033,14 @@ function buildGate(
   overall: CorpusSegmentMetrics,
   failureCount: number,
   nonResolvableFailureCount: number,
-  blockReasons: readonly CorpusGateBlockReason[]
+  blockReasons: readonly CorpusGateBlockReason[],
+  /**
+   * Violações **vivas** observadas durante e depois da medição. Um efeito
+   * colateral que só se materializa após o relatório ser construído (timer,
+   * getter) ainda invalida o veredito: o gate é lido como estado corrente, não
+   * como fotografia imune ao que aconteceu depois (§16.1).
+   */
+  lateViolations: () => boolean
 ): CorpusGate {
   // A meta de §1.1 é fixa. Ela não é parâmetro de execução: aceitar um valor
   // menor transformaria o gate em carimbo, permitindo aprovar um resolvedor
@@ -2860,21 +3054,32 @@ function buildGate(
     blockReasons: [...blockReasons],
   };
 
-  if (blockReasons.length > 0) {
-    return { ...base, status: "blocked" };
-  }
-  if (overall.resolvableLabeled === 0) {
-    return { ...base, status: "sample_missing" };
-  }
-  // Falhas fora dos casos resolvíveis não são cobertas pela meta de §1.1:
-  // clarificação e rejeição esperadas precisam estar corretas integralmente.
-  if (nonResolvableFailureCount > 0) {
-    return { ...base, status: "failed" };
-  }
-  if (overall.matchRate === null || overall.matchRate < minMatchRate) {
-    return { ...base, status: "failed" };
-  }
-  return { ...base, status: "passed" };
+  const computed = (): CorpusGateStatus => {
+    if (blockReasons.length > 0 || lateViolations()) return "blocked";
+    if (overall.resolvableLabeled === 0) return "sample_missing";
+    // Falhas fora dos casos resolvíveis não são cobertas pela meta de §1.1:
+    // clarificação e rejeição esperadas precisam estar corretas integralmente.
+    if (nonResolvableFailureCount > 0) return "failed";
+    if (overall.matchRate === null || overall.matchRate < minMatchRate) {
+      return "failed";
+    }
+    return "passed";
+  };
+  return {
+    minMatchRate,
+    matchRate: overall.matchRate,
+    failureCount,
+    nonResolvableFailureCount,
+    get status() {
+      return computed();
+    },
+    get blockReasons(): CorpusGateBlockReason[] {
+      if (!lateViolations()) return [...blockReasons];
+      const reason: CorpusGateBlockReason =
+        "knowledge_write_outside_acquisition";
+      return [...new Set<CorpusGateBlockReason>([...blockReasons, reason])];
+    },
+  };
 }
 
 function buildMetamorphicResults(

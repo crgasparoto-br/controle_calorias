@@ -1293,6 +1293,121 @@ describe("autoverificação do harness", () => {
     );
   });
 
+  it("invalida o veredito mesmo quando a escrita tardia dispara após o relatório", async () => {
+    // Ataque da auditoria: agendar a escrita com atraso maior que a drenagem,
+    // de modo que ela só aconteça depois de `runCorpus` retornar. O veredito é
+    // lido como estado corrente e a evidência é viva: continua bloqueado.
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:escrita-pos-relatorio",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.scenario.phase === "restart") {
+            const gate = request.knowledge;
+            setTimeout(() => {
+              void gate.write("alias:tardio-longo", "x").catch(() => {});
+            }, 300);
+          }
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    await new Promise(resolve => setTimeout(resolve, 500));
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+    expect(report.integrity.knowledgeWritesAfterStep.length).toBeGreaterThan(0);
+  });
+
+  it("colhe efeito disparado por getter de metrics durante a leitura do resultado", async () => {
+    // Ataque da auditoria: escrever no getter de `metrics`, depois da colheita
+    // do passo, quando o resultado já seria considerado limpo.
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:getter-metrics",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          const gate = request.knowledge;
+          return {
+            ...result,
+            get metrics() {
+              void gate.write("alias:getter", "x").catch(() => {});
+              return { latencyMs: 1, costUsd: 0 };
+            },
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
+  it("observa escrita fora da aquisição na execução ablacionada", async () => {
+    // Ataque da auditoria: detectar a ablação e escrever conhecimento nos
+    // passos posteriores, devolvendo as saídas corretas. A ablação aplica a
+    // mesma política de efeitos da medição.
+    const reference = createReferenceResolver(corpus);
+    let calls = 0;
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:ablacao-com-escrita",
+        revision: "1",
+        async resolve(request) {
+          calls += 1;
+          if (calls > corpus.cases.length) {
+            try {
+              await request.knowledge.write("indevido:ablacao", "x");
+            } catch {
+              // A tentativa é registrada mesmo assim.
+            }
+          }
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
+  it("colhe a escrita do passo de cenário que falha depois de tentar escrever", async () => {
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:cenario-erro-apos-escrita",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.scenario.phase === "isolation") {
+            try {
+              await request.knowledge.write("indevido:cenario", "x");
+            } catch {
+              // ignora
+            }
+            throw new Error("falha depois da tentativa de escrita");
+          }
+          return createReferenceResolver(corpus).resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
   it("não aceita isenção que esconde outra ocorrência material nem isenção decorativa", () => {
     const comTexto = (text: string, token: string) =>
       goldenCorpusSchema.parse({
@@ -1318,8 +1433,47 @@ describe("autoverificação do harness", () => {
     expect(invalido("Marca 2 Café, depois 2 fatias", "2")).toBe(true);
     // Isenção de token que não ocorre é decorativa e não é aceita.
     expect(invalido("café", "9")).toBe(true);
-    // Isenção legítima e única continua aceita.
-    expect(invalido("Coca-Cola 3", "3")).toBe(false);
+    // Isenção corroborada por marcador explícito de identificação é aceita.
+    expect(invalido("Coca-Cola linha 3", "3")).toBe(false);
+  });
+
+  it("não aceita isenção sem marcador nem isenção que atravessa superfícies", () => {
+    // Ataque da auditoria: declarar o token como identificador numa superfície
+    // e consumir a mesma quantidade em outra. A isenção só vale onde há
+    // marcador explícito de não-quantidade; fora dele a ocorrência é material.
+    const comSuperficies = (
+      text: string,
+      transcription: string,
+      token: string
+    ) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? {
+                ...item,
+                input: {
+                  ...item.input,
+                  text,
+                  transcription,
+                  nonQuantityTokens: [
+                    { token, reason: "número da linha do produto" },
+                  ],
+                },
+              }
+            : item
+        ),
+      });
+    const invalido = (text: string, transcription: string, token: string) =>
+      inspectCorpusIntegrity(comSuperficies(text, transcription, token));
+    // Marcador na fala, quantidade material na transcrição: inválido.
+    expect(invalido("Marca 2 Café", "2 maçãs", "2").status).toBe("invalid");
+    // Isenção sem qualquer marcador visível: inválida.
+    expect(invalido("Coca-Cola 3", "3 maçãs", "3").status).toBe("invalid");
+    // Ambos os lados corroborados por marcador: aceito.
+    expect(invalido("Marca 2 Café", "linha 2 do produto", "2").status).toBe(
+      "valid"
+    );
   });
 
   it("marca a integridade como inválida quando a referência canônica não é verificada", () => {
@@ -1406,9 +1560,12 @@ describe("autoverificação do harness", () => {
       inspectCorpusIntegrity(corpusComIsencao).invalidCases.some(item =>
         item.message.includes("não pode ficar")
       );
-    expect(declara(comIsencao("Coca-Cola 3", "3"))).toBe(false);
+    expect(declara(comIsencao("Coca-Cola linha 3", "3"))).toBe(false);
     // Isenção adjacente a unidade/porção é recusada: `2 fatias` é material.
     expect(declara(comIsencao("2 fatias de pão", "2"))).toBe(true);
+    // Isenção sem marcador explícito de identificação não é aceita.
+    expect(declara(comIsencao("2 maçãs", "2"))).toBe(true);
+    expect(declara(comIsencao("Coca-Cola 3", "3"))).toBe(true);
   });
 
   it("congela o relatório para que a evidência não seja adulterada", async () => {

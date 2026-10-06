@@ -137,6 +137,12 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
     "- O gate é fail-closed e não se dilui na taxa: `holdout_knowledge_write` (escrita em partição reservada), `knowledge_write_outside_acquisition` (escrita fora da aquisição em qualquer partição, inclusive tentada depois do fim do passo), `metrics_invalid` (amostra de latência/custo inválida) e `reference_not_verified` (fonte canônica divergente ou seção inexistente) bloqueiam por si."
   );
   lines.push(
+    "- A janela de observação não tem brecha: a fachada é inutilizada ao fim de cada passo, a tentativa é colhida em todas as fronteiras (erro do resolvedor, leitura do resultado, passo de cenário que falha, execução ablacionada) e a evidência de violação é viva — efeito que se materializa depois do relatório ainda bloqueia."
+  );
+  lines.push(
+    "- A isenção de quantidade (`input.nonQuantityTokens`) apenas corrobora um contexto de não-quantidade já visível na superfície: sem marcador explícito de identificação na janela, a ocorrência continua material, inclusive quando o mesmo token foi isentado noutra superfície."
+  );
+  lines.push(
     "- O aprendizado é provado por ablação contra o **contra-factual declarado** pelo corpus: com a aquisição ablacionada, cada passo posterior precisa produzir o resultado correto do mundo sem conhecimento. Diferença fabricada não passa. Limite declarado: o corpus não define mapeamento valor→resultado, portanto o harness prova dependência de presença do conhecimento, não a interpretação semântica do valor armazenado."
   );
   lines.push("");

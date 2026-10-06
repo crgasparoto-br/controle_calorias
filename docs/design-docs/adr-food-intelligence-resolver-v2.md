@@ -2931,11 +2931,17 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
 
   Onde a heurística não distingue (por exemplo o número de uma marca), o caso
   pode declarar uma **isenção governada** (`input.nonQuantityTokens`) com o
-  token exato e motivo obrigatório. A isenção é recusada mecanicamente quando o
-  token está adjacente a uma unidade ou porção (`2 fatias` nunca pode ser
-  declarado "não é quantidade"), quando o token não ocorre na superfície
-  (isenção decorativa) e quando o mesmo token é declarado duas vezes. A isenção
-  é visível na revisão e não alcança a expectativa, apenas o token. Toda
+  token exato e motivo obrigatório. A isenção **corrobora** um contexto de
+  não-quantidade já visível na superfície; ela não fabrica um. Por isso é
+  recusada mecanicamente quando o token está adjacente a uma unidade ou porção
+  (`2 fatias` nunca pode ser declarado "não é quantidade"), quando a janela da
+  ocorrência não traz marcador explícito de identificação (`marca`, `linha`,
+  `código`, `versão`, `tamanho`, `sabor`, `ref`, `lote` ...), quando o token não
+  ocorre na superfície (isenção decorativa) e quando o mesmo token é declarado
+  duas vezes. Isentar um token numa superfície não isenta a mesma quantidade
+  consumida noutra: `Marca 2 Café` na fala e `2 maçãs` na transcrição continuam
+  inválidos. A isenção é visível na revisão e não alcança a expectativa, apenas
+  o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -3022,11 +3028,18 @@ cache obsoleto após a revogação reprova o cenário.
 O gate é **fail-closed** em caminhos que não se diluem na taxa de pareamento.
 Escrita de conhecimento fora da fase de aquisição bloqueia em **qualquer**
 partição: `holdout_knowledge_write` para a partição reservada e
-`knowledge_write_outside_acquisition` para as demais — inclusive quando o
-resolvedor lança depois de tentar escrever (o registro é colhido antes de
-descartar o caso) e inclusive quando a escrita é agendada em timer e dispara
-depois de o passo terminar (a fachada é inutilizada ao fim de cada passo e a
-janela é drenada; a tentativa tardia é registrada e reprovada). Amostra de
+`knowledge_write_outside_acquisition` para as demais.
+
+A janela de observação não é um intervalo com brecha. A fachada é inutilizada
+ao fim de cada passo e a janela é drenada, mas a garantia não depende da
+drenagem: a evidência de violação é um coletor **vivo** compartilhado com o
+relatório e o veredito do gate é lido como estado corrente, de modo que uma
+escrita agendada com atraso maior — inclusive disparada depois de `runCorpus`
+retornar — ainda aparece na evidência e ainda bloqueia. Tentativas são colhidas
+em todas as fronteiras: antes de descartar um caso que lançou, durante a leitura
+do resultado (getter de `metrics`/`decisions` que dispara efeito colateral),
+dentro de um passo de cenário que falha depois de escrever e na execução
+ablacionada, que aplica a **mesma** política de efeitos da medição. Amostra de
 latência/custo inválida bloqueia por `metrics_invalid`; a verificação da
 referência independente contra a fonte canônica bloqueia por
 `reference_not_verified`. Nenhum desses bloqueios depende de a taxa cair abaixo
