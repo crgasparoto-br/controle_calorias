@@ -32,6 +32,7 @@ import {
   FOOD_NORMALIZATION_STAGES,
   FOOD_NUTRITION_BASE_UNITS,
   FOOD_OBSERVATION_SCHEMA_VERSION,
+  FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION,
   FOOD_PROCESSING_LEVELS,
   FOOD_QUANTITY_EPSILON,
   FOOD_REASON_CODES,
@@ -357,6 +358,7 @@ export const foodContextSourcesSchema = z.strictObject({
 });
 
 export const foodOperationEnvelopeSchema = z.strictObject({
+  schemaVersion: z.literal(FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION),
   traceId: opaqueId(),
   idempotencyKey: opaqueId(),
   ownerUserId: positiveInt,
@@ -715,6 +717,35 @@ export const foodResolutionDecisionSchema = z
       }
     }
 
+    if (
+      decision.classification !== null &&
+      !decision.classification.provisional
+    ) {
+      if (decision.classification.evidenceIds.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Classificação não provisória exige evidência governada e verificada; ausência de evidência não pode ser promovida silenciosamente.",
+          path: ["classification", "evidenceIds"],
+        });
+      } else {
+        const hasVerifiedGrounding = decision.classification.evidenceIds.some(
+          evidenceId => {
+            const evidence = evidenceById.get(evidenceId);
+            return evidence?.verified === true;
+          }
+        );
+        if (!hasVerifiedGrounding) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Classificação não provisória exige ao menos uma evidência verificada do domínio classification.",
+            path: ["classification", "evidenceIds"],
+          });
+        }
+      }
+    }
+
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
 
     const barcodeEvidence = decision.evidence.some(
@@ -939,15 +970,11 @@ export function parseFoodResolutionDecision(
 export function parseFoodOperationEnvelope(
   input: unknown
 ): FoodContractParseResult<FoodOperationEnvelope> {
-  const parsed = foodOperationEnvelopeSchema.safeParse(input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      code: "invalid-contract",
-      issues: toIssues(parsed.error),
-    };
-  }
-  return { ok: true, value: parsed.data };
+  return parseContract(
+    foodOperationEnvelopeSchema,
+    FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION,
+    input
+  );
 }
 
 /** `status`/`nextAction` aceitos pelo contrato (reexportado para consumidores). */

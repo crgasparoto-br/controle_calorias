@@ -60,7 +60,7 @@ export type PendingOperation = {
   effect: PendingOperationEffect | null;
 };
 
-export type PendingOperationOwner = "v2" | "legacy-v1";
+export type PendingOperationOwner = "v2" | "legacy-v1" | "unknown-version";
 
 export type PendingOperationRequest = {
   operationKey: string;
@@ -89,6 +89,7 @@ export type PendingOperationResumeResult =
         | "authorization-invalid"
         | "resolver-version-changed"
         | "legacy-handler-required"
+        | "unsupported-schema-version"
         | "pending-version-missing";
       detail: string;
     };
@@ -126,9 +127,14 @@ function isIsoInstant(value: unknown): value is string {
 export function classifyPendingOperationOwner(
   pending: PendingOperation
 ): PendingOperationOwner {
-  return pending.versionTag?.contractVersion === FOOD_OBSERVATION_SCHEMA_VERSION
-    ? "v2"
-    : "legacy-v1";
+  if (pending.versionTag === null) return "legacy-v1";
+  if (pending.versionTag.contractVersion === 1) return "legacy-v1";
+  if (
+    pending.versionTag.contractVersion === FOOD_OBSERVATION_SCHEMA_VERSION
+  ) {
+    return "v2";
+  }
+  return "unknown-version";
 }
 
 export type PendingOperationCreationResult =
@@ -253,12 +259,22 @@ export function resumePendingOperation(
     };
   }
 
-  if (classifyPendingOperationOwner(pending) === "legacy-v1") {
+  const owner = classifyPendingOperationOwner(pending);
+  if (owner === "unknown-version") {
+    return {
+      resumed: false,
+      reason: "unsupported-schema-version",
+      detail:
+        `Pendência declara contractVersion=${String(pending.versionTag?.contractVersion)}, desconhecida por este runtime; versão futura nunca é tratada como V1.`,
+    };
+  }
+
+  if (owner === "legacy-v1") {
     return {
       resumed: false,
       reason: "legacy-handler-required",
       detail:
-        "Pendência legada sem tag de versão permanece no handler compatível; a versão nunca é inferida por data ou texto.",
+        "Pendência legada sem tag ou com contrato V1 permanece no handler compatível; a versão nunca é inferida por data ou texto.",
     };
   }
 

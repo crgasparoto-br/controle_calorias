@@ -283,6 +283,7 @@ export function buildMealOperationFixture(overrides: unknown = {}) {
 
 export function buildFoodOperationEnvelopeFixture(overrides: unknown = {}) {
   const base = {
+    schemaVersion: 2,
     traceId: "trace-1",
     idempotencyKey: "op-1",
     ownerUserId: 7,

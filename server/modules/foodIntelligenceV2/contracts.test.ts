@@ -783,6 +783,56 @@ describe("FoodResolutionDecision v2", () => {
     }
   });
 
+  it("exige grounding verificável para classificação não provisória", () => {
+    const semEvidencia = parseFoodResolutionDecision(
+      buildFoodResolutionDecisionFixture({
+        classification: {
+          version: "cls-1",
+          processingLevel: "processed",
+          isFruit: false,
+          isVegetable: false,
+          isUltraProcessed: false,
+          confidence: 0.9,
+          provisional: false,
+          evidenceIds: [],
+        },
+      })
+    );
+    expectInvalid(semEvidencia);
+
+    const comEvidencia = parseFoodResolutionDecision(
+      buildFoodResolutionDecisionFixture({
+        classification: {
+          version: "cls-1",
+          processingLevel: "processed",
+          isFruit: false,
+          isVegetable: false,
+          isUltraProcessed: false,
+          confidence: 0.9,
+          provisional: false,
+          evidenceIds: ["ev-classification"],
+        },
+        evidence: [
+          {},
+          {},
+          {},
+          {
+            evidenceId: "ev-classification",
+            field: "classification.processingLevel",
+            origin: "catalog",
+            value: "processed",
+            unit: null,
+            confidence: 0.9,
+            verified: true,
+            anchor: buildFoodAnchorFixture(),
+            sourceId: 12,
+          },
+        ],
+      })
+    );
+    expect(comEvidencia.ok).toBe(true);
+  });
+
   it("mantém contrato de serialização estável (round-trip JSON)", () => {
     const decision = buildFoodResolutionDecisionFixture();
     const observation = buildFoodObservationFixture();
@@ -811,6 +861,18 @@ describe("envelope interno da operação", () => {
       buildFoodOperationEnvelopeFixture()
     );
     expect(result.ok).toBe(true);
+  });
+
+  it("rejeita versão desconhecida do envelope sem mutar a entrada", () => {
+    const input = buildFoodOperationEnvelopeFixture({ schemaVersion: 3 });
+    const snapshot = structuredClone(input);
+
+    const result = parseFoodOperationEnvelope(input);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("esperado rejeição");
+    expect(result.code).toBe("unsupported-schema-version");
+    expect(input).toStrictEqual(snapshot);
   });
 
   it("exige previousMessage, preferences e recentHistory explicitamente", () => {
