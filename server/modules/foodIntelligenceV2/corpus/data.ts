@@ -25,6 +25,7 @@ type Identity = ExpectedDecision["identity"];
 type Quantity = ExpectedDecision["quantity"];
 type Nutrition = ExpectedDecision["nutrition"];
 type Ambiguity = ExpectedDecision["ambiguity"];
+type Classification = ExpectedDecision["classification"];
 type Clarification = ExpectedDecision["clarification"];
 type CaseInput = GoldenCorpusCase["input"];
 type CaseOperation = GoldenCorpusCase["mealOperation"];
@@ -139,6 +140,23 @@ const alternative = (
   ...over,
 });
 
+/**
+ * Classificação esperada. Por padrão o caso **não afirma o conteúdo** e a
+ * classificação fica sujeita às invariantes estruturais (presente, versionada e
+ * com o estado de provisoriedade declarado). Casos que medem classificação
+ * (§9.3 classe J) declaram os valores explicitamente.
+ */
+const classification = (
+  over: Partial<Classification> = {}
+): Classification => ({
+  measured: false,
+  processingLevel: null,
+  isFruit: null,
+  isVegetable: null,
+  isUltraProcessed: null,
+  provisionalRequired: false,
+  ...over,
+});
 const clarification = (
   ...fields: Clarification["requiredFields"]
 ): Clarification => ({
@@ -161,6 +179,7 @@ const decision = (
     quantity:
       over.quantity ?? (proposes ? unspecifiedQuantity() : noQuantity()),
     nutrition: over.nutrition ?? (proposes ? nutrition() : noNutrition()),
+    classification: over.classification ?? classification(),
     ambiguity: ambiguity(),
     alternatives: [],
     clarification: clarification(),
@@ -190,7 +209,7 @@ const operation = (over: Partial<CaseOperation> = {}): CaseOperation => ({
 });
 
 /** Referência independente padrão que declara os resultados esperados. */
-const REFERENCE = "referencia-independente:adr-food-intelligence-resolver-v2";
+const REFERENCE = "adr-food-intelligence-resolver-v2";
 
 /**
  * Incidentes históricos obrigatórios de §16. Cada caso registra a superfície,
@@ -418,6 +437,13 @@ const historicalIncidentCases: CaseDraft[] = [
             brand: "Piracanjuba",
             variant: "integral",
           }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
           nutrition: nutrition({
             allowedOrigins: ["nutrition_label", "catalog"],
@@ -437,6 +463,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-leite-integral-marca",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "UHT é informacional: converge com as variações de ordem do qualificador (§8.3, §17).",
     },
     notes:
@@ -470,6 +497,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-pera-packham-acento",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Cultivares divergem por perfil: packham é material para a identidade.",
     },
   },
@@ -533,6 +561,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-pera-packham-acento",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Ausência de acento é variação de superfície (§17).",
     },
   },
@@ -597,6 +626,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Mesma intenção alimentar sob variação de superfície (§17).",
     },
   },
@@ -632,6 +662,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "1,5 e 1.5 convergem com contexto numérico inequívoco (§4.2).",
     },
   },
@@ -667,6 +698,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Linguagem natural de quantidade preserva a mesma intenção.",
     },
   },
@@ -702,6 +734,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Ordem invertida é variação de superfície (§17).",
     },
   },
@@ -740,6 +773,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Transcrição equivalente converge com o texto (#17).",
     },
   },
@@ -779,6 +813,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-mortadela-fatia-e-meia",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Imagem + legenda equivalente converge com o texto (§17).",
     },
   },
@@ -820,6 +855,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-ovo-plural",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Preparo é atributo material de identidade e nutrição.",
     },
   },
@@ -861,6 +897,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-ovo-plural",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Singular/plural é variação de superfície, com a mesma quantidade.",
     },
   },
@@ -959,6 +996,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-cerveja-original-modalidade",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Texto e imagem com evidência equivalente convergem para a identidade.",
     },
   },
@@ -1085,6 +1123,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-destino-posicao",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Posição do destino é variação de superfície; a operação é a mesma.",
     },
   },
@@ -1120,6 +1159,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: "g-destino-posicao",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Posição variável do destino não altera a operação (§7.1).",
     },
   },
@@ -1321,6 +1361,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-acento-pao-frances",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Acento ausente é variação de superfície (§17).",
     },
   },
@@ -1359,6 +1400,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-acento-pao-frances",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Forma acentuada de referência para a mesma intenção.",
     },
   },
@@ -1390,6 +1432,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-abreviacao-colher",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Abreviação é variação de superfície da mesma medida caseira.",
     },
   },
@@ -1421,6 +1464,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-abreviacao-colher",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Medida caseira por extenso da mesma intenção.",
     },
   },
@@ -1503,9 +1547,7 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "bolo de chocolate" }),
-          quantity: unspecifiedQuantity({
-            unitMustNotBeConvertedToGrams: true,
-          }),
+          quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: false,
             minAlternatives: 0,
@@ -1544,9 +1586,7 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "castanha de caju" }),
-          quantity: unspecifiedQuantity({
-            unitMustNotBeConvertedToGrams: true,
-          }),
+          quantity: noQuantity(),
           clarification: clarification("quantity"),
           unresolvedFields: ["quantity"],
           reasonCodes: ["quantity_missing"],
@@ -1580,9 +1620,7 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: unspecifiedQuantity({
-            unitMustNotBeConvertedToGrams: true,
-          }),
+          quantity: noQuantity(),
           clarification: clarification("quantity"),
           unresolvedFields: ["quantity"],
           reasonCodes: ["quantity_missing"],
@@ -1767,6 +1805,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-pontuacao-lista",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Pontuação e multiplicidade preservadas sob variação de superfície.",
     },
   },
@@ -1808,6 +1847,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-pontuacao-lista",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Ausência de pontuação não altera a multiplicidade dos itens.",
     },
   },
@@ -1817,7 +1857,7 @@ const languageAndBatchCases: CaseDraft[] = [
     split: "calibration",
     modality: "text",
     decisionClass: "resolvable",
-    nonRecurrenceClasses: ["A", "B"],
+    nonRecurrenceClasses: ["A", "B", "J"],
     knownRegression: true,
     incidentRefs: ["#1088"],
     adrSections: ["§17", "§8.3"],
@@ -1835,6 +1875,13 @@ const languageAndBatchCases: CaseDraft[] = [
             brand: "Piracanjuba",
             variant: "integral",
           }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
           nutrition: nutrition({
             allowedOrigins: ["nutrition_label", "catalog"],
@@ -1854,6 +1901,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-leite-integral-marca",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Ordem qualificador/marca é variação de superfície (§17).",
     },
   },
@@ -1863,7 +1911,7 @@ const languageAndBatchCases: CaseDraft[] = [
     split: "calibration",
     modality: "text",
     decisionClass: "resolvable",
-    nonRecurrenceClasses: ["A", "B"],
+    nonRecurrenceClasses: ["A", "B", "J"],
     knownRegression: true,
     incidentRefs: ["#1088"],
     adrSections: ["§17", "§8.3"],
@@ -1881,6 +1929,13 @@ const languageAndBatchCases: CaseDraft[] = [
             brand: "Piracanjuba",
             variant: "integral",
           }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
           nutrition: nutrition({
             allowedOrigins: ["nutrition_label", "catalog"],
@@ -1900,6 +1955,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-leite-integral-marca",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Marca não pode engolir o qualificador material na tokenização.",
     },
   },
@@ -1937,6 +1993,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: "g-cerveja-original-modalidade",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Transcrição equivalente converge com o texto escrito.",
     },
   },
@@ -2255,6 +2312,13 @@ const materialityCases: CaseDraft[] = [
         decision({
           label: "leite",
           identity: identity({ canonicalName: "leite" }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
         }),
       ],
@@ -2270,6 +2334,7 @@ const materialityCases: CaseDraft[] = [
     metamorphicGroup: "g-leite-uht-informacional",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Base de referência para o atributo informacional UHT (§8.3).",
     },
   },
@@ -2279,7 +2344,7 @@ const materialityCases: CaseDraft[] = [
     split: "calibration",
     modality: "text",
     decisionClass: "resolvable",
-    nonRecurrenceClasses: ["B"],
+    nonRecurrenceClasses: ["B", "J"],
     knownRegression: true,
     incidentRefs: ["#1088"],
     adrSections: ["§8.3", "§16"],
@@ -2293,6 +2358,13 @@ const materialityCases: CaseDraft[] = [
         decision({
           label: "leite",
           identity: identity({ canonicalName: "leite" }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
         }),
       ],
@@ -2308,6 +2380,7 @@ const materialityCases: CaseDraft[] = [
     metamorphicGroup: "g-leite-uht-informacional",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "UHT não gera clarificação nem variante nova: converge com 'leite' (§8.3).",
     },
   },
@@ -2331,6 +2404,13 @@ const materialityCases: CaseDraft[] = [
         decision({
           label: "leite integral",
           identity: identity({ canonicalName: "leite", variant: "integral" }),
+          classification: classification({
+            measured: true,
+            processingLevel: "processed",
+            isFruit: false,
+            isVegetable: false,
+            isUltraProcessed: false,
+          }),
           quantity: quantity({ value: 200, unit: "ml" }),
         }),
       ],
@@ -2587,6 +2667,7 @@ const materialityCases: CaseDraft[] = [
     metamorphicGroup: "g-arroz-embalagem-informacional",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Base de referência para descritor de embalagem informacional.",
     },
   },
@@ -2618,6 +2699,7 @@ const materialityCases: CaseDraft[] = [
     metamorphicGroup: "g-arroz-embalagem-informacional",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Descritor de embalagem não gera clarificação nem variante nova (§8.3).",
     },
   },
@@ -2760,6 +2842,7 @@ const learningScenarioCases: CaseDraft[] = [
     metamorphicGroup: "g-aprendizado-cafe-firma",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Alias pessoal confirmado, fonte de aquisição de conhecimento.",
     },
   },
@@ -2805,6 +2888,7 @@ const learningScenarioCases: CaseDraft[] = [
     metamorphicGroup: "g-aprendizado-cafe-firma",
     equivalenceReference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Formulação reservada equivalente: mede generalização, não repetição literal.",
     },
   },
@@ -3091,6 +3175,7 @@ const learningScenarios: GoldenLearningScenario[] = [
     adrSections: ["§16.1", "§16.2"],
     reference: {
       declaredBy: REFERENCE,
+      adrSection: "§4.1.8",
       note: "Protocolo de §16.1 declarado por referência independente: cada fase tem efeito observável, não rótulo de caso.",
     },
     steps: [
@@ -3137,7 +3222,7 @@ const learningScenarios: GoldenLearningScenario[] = [
         writesAllowed: false,
         revokeKeys: [],
         sameResultAsStepId: null,
-        differentFromStepId: null,
+        differentFromStepId: "step-aquisicao",
       },
       {
         stepId: "step-isolamento",
@@ -3149,20 +3234,20 @@ const learningScenarios: GoldenLearningScenario[] = [
         differentFromStepId: "step-aquisicao",
       },
       {
-        stepId: "step-revogacao",
-        phase: "revocation",
-        caseId: "c-aprendizado-revogacao",
-        writesAllowed: false,
-        revokeKeys: ["owner-a:alias:cafe-da-firma"],
-        sameResultAsStepId: null,
-        differentFromStepId: "step-aquisicao",
-      },
-      {
         stepId: "step-controle-negativo",
         phase: "isolation",
         caseId: "c-aprendizado-controle-negativo-alias",
         writesAllowed: false,
         revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: "step-aquisicao",
+      },
+      {
+        stepId: "step-revogacao",
+        phase: "revocation",
+        caseId: "c-aprendizado-revogacao",
+        writesAllowed: false,
+        revokeKeys: ["owner-a:alias:cafe-da-firma"],
         sameResultAsStepId: null,
         differentFromStepId: "step-aquisicao",
       },

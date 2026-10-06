@@ -7,6 +7,7 @@ import {
 } from "./contracts";
 import { goldenFoodCorpus } from "./data";
 import {
+  CORPUS_ROUNDING_TOLERANCE,
   inspectCorpusIntegrity,
   runCorpus,
   runGoldenFoodCorpus,
@@ -267,20 +268,16 @@ describe("harness do Golden Food Corpus", () => {
           : entry
       ),
     }));
-    const withoutTolerance = await runGoldenFoodCorpus(
+    // A tolerância não é parâmetro de execução: não existe opção capaz de
+    // aceitar a divergência. Só a decisão que fechar §25 item 30 pode
+    // introduzi-la, como constante com fonte declarada.
+    expect(CORPUS_ROUNDING_TOLERANCE).toBeNull();
+    const report = await runGoldenFoodCorpus(
       createReferenceResolver(corpus),
       pinned
     );
-    expect(withoutTolerance.gate.status).toBe("blocked");
-    expect(withoutTolerance.gate.blockReasons).toContain(
-      "rounding_tolerance_not_calibrated"
-    );
-
-    const withTolerance = await runGoldenFoodCorpus(
-      createReferenceResolver(corpus),
-      { ...pinned, roundingTolerance: 0.5 }
-    );
-    expect(withTolerance.gate.blockReasons).not.toContain(
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
       "rounding_tolerance_not_calibrated"
     );
   });

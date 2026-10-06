@@ -46,6 +46,7 @@ function segmentRow(metrics: CorpusSegmentMetrics): string {
     String(metrics.families.nutritionFailures),
     String(metrics.families.operationFailures),
     String(metrics.families.clarificationFailures),
+    String(metrics.families.classificationFailures),
   ].join(" | ");
 }
 
@@ -69,9 +70,10 @@ function segmentTable(
     "Nutr.",
     "Oper.",
     "Clarif.",
+    "Classif.",
   ].join(" | ");
   const separator =
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |";
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |";
   if (metrics.length === 0) {
     return `### ${title}\n\n_Sem casos._\n`;
   }
@@ -295,7 +297,9 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
     }
     lines.push("");
     lines.push(
-      "- A tolerância de arredondamento de macros é `OPEN` (§25 item 30): sem calibração declarada, divergência **bloqueia** em vez de ser aceita."
+      "- A tolerância de arredondamento de macros é `OPEN` (§25 item 30): ela não é parâmetro de execução e divergência de macros **bloqueia** sempre.",
+      "- A meta de pareamento de §1.1 é fixa: não existe opção que a reduza.",
+      "- Classificação (§8.7, §9.3 classe J) é medida: item proposto exige classificação presente e versionada, e os casos de classe J declaram o conteúdo."
     );
   }
   lines.push("");

@@ -180,9 +180,12 @@ describe("Golden Food Corpus", () => {
       for (const phase of CORPUS_LEARNING_PHASES) {
         expect(phases.has(phase)).toBe(true);
       }
+      // A referência é governada: só a fonte canônica pode declarar
+      // equivalência, e ela aponta a seção que a declara.
       expect(scenario.reference.declaredBy).toBe(
-        "referencia-independente:adr-food-intelligence-resolver-v2"
+        "adr-food-intelligence-resolver-v2"
       );
+      expect(scenario.reference.adrSection).toMatch(/^§\d+/);
     }
   });
 

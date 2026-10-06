@@ -712,4 +712,383 @@ describe("autoverificação do harness", () => {
       expect(control.discriminatingDimension).toBe("not_executed");
     }
   });
+  it("rejeita quantidade não afirmada sobre superfície que declara quantidade", () => {
+    const broken = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-ovo-frito"
+          ? {
+              ...entry,
+              input: { ...entry.input, text: "2 ovos fritos" },
+              expected: {
+                ...entry.expected,
+                decisions: entry.expected.decisions.map(decision => ({
+                  ...decision,
+                  quantity: {
+                    presence: "unspecified" as const,
+                    value: null,
+                    unit: null,
+                    grams: null,
+                    milliliters: null,
+                    measureKind: null,
+                    unitMustNotBeConvertedToGrams: false,
+                  },
+                })),
+              },
+            }
+          : entry
+      ),
+    });
+    const integrity = inspectCorpusIntegrity(broken);
+    expect(integrity.status).toBe("invalid");
+    expect(
+      integrity.invalidCases.some(
+        item =>
+          item.caseId === "c-ovo-frito" &&
+          item.message.includes("não pode ficar 'unspecified'")
+      )
+    ).toBe(true);
+  });
+
+  it("reprova item proposto sem quantidade utilizável quando ela não é afirmada", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:quantidade-inutilizavel",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              quantity: {
+                ...decision.quantity,
+                value: null,
+                unit: null,
+                grams: null,
+                milliliters: null,
+                measureKind: null,
+              },
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("quantity_unusable");
+    expect(report.gate.status).not.toBe("passed");
+  });
+
+  it("reprova classificação ausente, não versionada ou divergente", async () => {
+    const reference = createReferenceResolver(corpus);
+    const missing = await runGoldenFoodCorpus(
+      {
+        id: "test:classificacao-ausente",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              classification: null,
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(missing)).toContain("classification_missing");
+
+    const unversioned = await runGoldenFoodCorpus(
+      {
+        id: "test:classificacao-sem-versao",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision =>
+              decision.classification === null
+                ? decision
+                : {
+                    ...decision,
+                    classification: {
+                      ...decision.classification,
+                      version: null,
+                    },
+                  }
+            ),
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(unversioned)).toContain("classification_unversioned");
+
+    // A classe J de §9.3 mede conteúdo: nível de processamento errado reprova.
+    const drifted = await runGoldenFoodCorpus(
+      {
+        id: "test:classificacao-divergente",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision =>
+              decision.classification === null
+                ? decision
+                : {
+                    ...decision,
+                    classification: {
+                      ...decision.classification,
+                      processingLevel: "ultra_processed",
+                    },
+                  }
+            ),
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(drifted)).toContain("classification_mismatch");
+    const classificationCases = drifted.failures.filter(failure =>
+      failure.codes.includes("classification_mismatch")
+    );
+    expect(classificationCases.length).toBeGreaterThan(0);
+    // Só os casos que medem classificação reprovam por conteúdo.
+    expect(
+      classificationCases.every(failure =>
+        corpus.cases
+          .find(entry => entry.caseId === failure.caseId)!
+          .expected.decisions.some(decision => decision.classification.measured)
+      )
+    ).toBe(true);
+  });
+
+  it("compara a operação de refeição sempre, e exige a expectativa declarada", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:operacao-errada",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            operation: {
+              action: "remove",
+              targetMeal: "jantar",
+              date: "2099-12-31",
+            },
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("operation_mismatch");
+    expect(report.gate.status).not.toBe("passed");
+
+    // Operação é obrigatória no contrato: não existe caso sem operação esperada.
+    const { expected, ...rest } = corpus.cases[0];
+    const { operation, ...expectedWithoutOperation } = expected;
+    expect(() =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: [
+          { ...rest, expected: expectedWithoutOperation },
+          ...corpus.cases.slice(1),
+        ],
+      })
+    ).toThrow();
+  });
+
+  it("rejeita data impossível no calendário", () => {
+    expect(() =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(entry =>
+          entry.caseId === "c-ovo-frito"
+            ? {
+                ...entry,
+                expected: {
+                  ...entry.expected,
+                  operation: {
+                    ...entry.expected.operation,
+                    date: "2026-99-99",
+                  },
+                },
+              }
+            : entry
+        ),
+      })
+    ).toThrow();
+  });
+
+  it("rejeita referência de equivalência não governada", () => {
+    const groupMember = corpus.cases.find(
+      entry => entry.equivalenceReference !== null
+    )!;
+    expect(() =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(entry =>
+          entry.caseId === groupMember.caseId
+            ? {
+                ...entry,
+                equivalenceReference: {
+                  ...groupMember.equivalenceReference!,
+                  declaredBy: "atacante",
+                },
+              }
+            : entry
+        ),
+      })
+    ).toThrow();
+    expect(() =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(entry =>
+          entry.caseId === groupMember.caseId
+            ? {
+                ...entry,
+                equivalenceReference: {
+                  declaredBy: groupMember.equivalenceReference!.declaredBy,
+                  note: "sem seção",
+                },
+              }
+            : entry
+        ),
+      })
+    ).toThrow();
+  });
+
+  it("exige motivo estruturado para item não proposto", () => {
+    const target = corpus.cases.find(entry =>
+      entry.expected.decisions.some(
+        decision => decision.nextAction === "reject"
+      )
+    );
+    expect(target).toBeDefined();
+    const broken = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === target!.caseId
+          ? {
+              ...entry,
+              expected: {
+                ...entry.expected,
+                decisions: entry.expected.decisions.map(decision =>
+                  decision.nextAction === "propose"
+                    ? decision
+                    : { ...decision, reasonCodes: [] }
+                ),
+              },
+            }
+          : entry
+      ),
+    });
+    const integrity = inspectCorpusIntegrity(broken);
+    expect(integrity.status).toBe("invalid");
+    expect(
+      integrity.invalidCases.some(item =>
+        item.message.includes("precisa declarar código de motivo")
+      )
+    ).toBe(true);
+  });
+
+  it("invalida cenário de §16.1 que não prova efeito observável", () => {
+    const scenario = corpus.learningScenarios[0];
+    const withoutInvariants = goldenCorpusSchema.parse({
+      ...corpus,
+      learningScenarios: [
+        {
+          ...scenario,
+          steps: scenario.steps.map(step => ({
+            ...step,
+            sameResultAsStepId: null,
+            differentFromStepId: null,
+          })),
+        },
+      ],
+    });
+    const integrity = inspectCorpusIntegrity(withoutInvariants);
+    expect(integrity.status).toBe("invalid");
+    expect(integrity.invalidScenarios.length).toBeGreaterThan(0);
+
+    const revokedWithoutKeys = goldenCorpusSchema.parse({
+      ...corpus,
+      learningScenarios: [
+        {
+          ...scenario,
+          steps: scenario.steps.map(step =>
+            step.phase === "revocation" ? { ...step, revokeKeys: [] } : step
+          ),
+        },
+      ],
+    });
+    expect(inspectCorpusIntegrity(revokedWithoutKeys).status).toBe("invalid");
+  });
+
+  it("bloqueia quando a aquisição não registra escrita observável", async () => {
+    const report = await runGoldenFoodCorpus(
+      createReferenceResolver(corpus),
+      pinned
+    );
+    expect(report.gate.status).toBe("passed");
+    const acquisition = report.learningScenarios[0].steps.find(
+      step => step.phase === "acquisition"
+    );
+    expect(acquisition?.recordedWriteAttempts).toBeGreaterThan(0);
+
+    // Um resolvedor que devolve o resultado certo mas **não registra** nada na
+    // aquisição não prova aprendizado: o passo de aquisição fica sem efeito.
+    const silent = await runGoldenFoodCorpus(
+      {
+        id: "test:aquisicao-silenciosa",
+        revision: "1",
+        async resolve(request) {
+          const reference = createReferenceResolver(corpus);
+          return reference.resolve({
+            ...request,
+            knowledge: { ...request.knowledge, write: async () => undefined },
+          });
+        },
+      },
+      pinned
+    );
+    expect(silent.learningScenarios[0].passed).toBe(false);
+    expect(silent.gate.blockReasons).toContain("scenario_invariant_violated");
+  });
+
+  it("não aceita métricas de tipo inválido", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:metrica-tipo-invalido",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return { ...result, metrics: "invalido" as never };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("metrics_invalid");
+    expect(report.overall.latencySamples).toBe(0);
+  });
+
+  it("congela o relatório para que a evidência não seja adulterada", async () => {
+    const report = await runGoldenFoodCorpus(
+      createReferenceResolver(corpus),
+      pinned
+    );
+    expect(Object.isFrozen(report)).toBe(true);
+    expect(Object.isFrozen(report.gate)).toBe(true);
+    expect(Object.isFrozen(report.overall)).toBe(true);
+    expect(() => {
+      (report.gate as { status: string }).status = "passed";
+    }).toThrow();
+  });
 });

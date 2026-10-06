@@ -254,7 +254,32 @@ export function buildDecisionForExpected(
           snapshotHash: null,
           evidenceIds: [],
         },
-    classification: null,
+    // Classificação (§8.7, §9.3 classe J): o duplo de referência devolve
+    // classificação **presente e versionada** em item proposto. Quando o caso
+    // mede classificação, devolve exatamente o conteúdo declarado; quando não
+    // mede, devolve o conteúdo estrutural mínimo, sem afirmar o que o caso não
+    // afirma.
+    classification:
+      expected.nextAction === "propose"
+        ? {
+            version: "class-2026-10-06",
+            processingLevel: expected.classification.measured
+              ? expected.classification.processingLevel
+              : null,
+            isFruit: expected.classification.measured
+              ? expected.classification.isFruit
+              : null,
+            isVegetable: expected.classification.measured
+              ? expected.classification.isVegetable
+              : null,
+            isUltraProcessed: expected.classification.measured
+              ? expected.classification.isUltraProcessed
+              : null,
+            confidence: 0.9,
+            provisional: expected.classification.provisionalRequired,
+            evidenceIds: [],
+          }
+        : null,
     unresolvedFields: [...expected.unresolvedFields] as FoodField[],
     reasonCodes: [...expected.reasonCodes] as FoodReasonCode[],
     alternatives,
@@ -299,9 +324,18 @@ export function createReferenceResolver(
   return {
     id: "self-test:reference-oracle",
     revision: "self-test-2",
-    resolve({ case: entry }) {
+    async resolve({ case: entry, allowLearning, knowledge }) {
       const source = byCaseId.get(entry.caseId);
       if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      // A referência independente também **registra** a aquisição quando a fase
+      // permite escrita: §16.1 exige efeito observável, e um passo de aquisição
+      // sem escrita não prova aprendizado nenhum.
+      if (allowLearning && knowledge.mode === "acquisition") {
+        await knowledge.write(
+          `${entry.scenario.ownerRef}:${ALIAS_KEY}`,
+          ALIAS_VALUE
+        );
+      }
       return resultFor(source);
     },
   };
@@ -456,6 +490,14 @@ function syntheticAmbiguousExpectation(): ExpectedDecision {
       preparation: [],
       qualifiers: [],
       barcode: null,
+    },
+    classification: {
+      measured: false,
+      processingLevel: null,
+      isFruit: null,
+      isVegetable: null,
+      isUltraProcessed: null,
+      provisionalRequired: false,
     },
     quantity: {
       presence: "forbidden",

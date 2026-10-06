@@ -26,6 +26,7 @@ import {
   FOOD_FIELD_VALUES,
   FOOD_INPUT_TYPES,
   FOOD_MEASURE_KINDS,
+  FOOD_PROCESSING_LEVELS,
   FOOD_REASON_CODES,
   type FoodReasonCode,
 } from "../contracts";
@@ -129,6 +130,14 @@ export const CORPUS_FIELD_PRESENCE = [
 export type CorpusFieldPresence = (typeof CORPUS_FIELD_PRESENCE)[number];
 
 /**
+ * Presença de identidade: identidade material é **afirmada ou proibida**.
+ * `unspecified` não existe para identidade — uma decisão que não pode ser
+ * verificada quanto ao nome não pode, ao mesmo tempo, ser dada como correta.
+ */
+export const CORPUS_IDENTITY_PRESENCE = ["expected", "forbidden"] as const;
+export type CorpusIdentityPresence = (typeof CORPUS_IDENTITY_PRESENCE)[number];
+
+/**
  * Requisito nutricional esperado do caso (§9.2: procedência declarada; §8.3:
  * perfil genérico não pode ser apresentado como composição verificada).
  */
@@ -136,7 +145,6 @@ export const CORPUS_NUTRITION_REQUIREMENTS = [
   "absent",
   "provenance_declared",
   "provisional_declared",
-  "unspecified",
 ] as const;
 export type CorpusNutritionRequirement =
   (typeof CORPUS_NUTRITION_REQUIREMENTS)[number];
@@ -237,6 +245,11 @@ export const CORPUS_FAILURE_CODES = [
   "operation_mismatch",
   "operation_invalid",
   "metrics_invalid",
+  "classification_missing",
+  "classification_unversioned",
+  "classification_mismatch",
+  "quantity_unusable",
+  "scenario_effect_missing",
   "exclusion_not_explained",
   "learning_applied_during_measurement",
   "scenario_step_mismatch",
@@ -277,12 +290,30 @@ const nonEmptyText = z.string().trim().min(1).max(600);
 const nullableText = (max: number) =>
   z.string().trim().min(1).max(max).nullable();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Data ISO com **calendário real**: formato correto não basta. `2026-99-99`
+ * passa numa regex e não é data; aceitá-la permitiria medir e aprovar operação
+ * impossível (§7.1.1, §16).
+ */
+const isoCalendarDate = z
+  .string()
+  .trim()
+  .regex(ISO_DATE, "data exige formato ISO (YYYY-MM-DD).")
+  .refine(value => {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "data inexistente no calendário.");
 const ISSUE_REF = /^#\d+$/;
 const finiteNumber = z.number().finite();
 
 const expectedIdentitySchema = z.strictObject({
-  /** `expected` compara; `forbidden` exige ausência; `unspecified` ignora. */
-  presence: z.enum(CORPUS_FIELD_PRESENCE),
+  /** `expected` compara; `forbidden` exige ausência. */
+  presence: z.enum(CORPUS_IDENTITY_PRESENCE),
   canonicalName: nullableText(300),
   brand: nullableText(200),
   variant: nullableText(200),
@@ -342,6 +373,23 @@ const expectedClarificationSchema = z.strictObject({
     .max(FOOD_FIELD_VALUES.length),
 });
 
+/**
+ * Classificação esperada (§8.7, §9.3 classe J). `measured: true` exige valores
+ * declarados e comparados; `measured: false` significa que o caso não afirma o
+ * **conteúdo**, mas a classificação continua sujeita às invariantes
+ * estruturais: presente e versionada em item proposto, e com o mesmo estado de
+ * provisoriedade declarado aqui. `confidence` fica fora: é limiar numérico
+ * `OPEN` (§25) e não pode ser comparado por igualdade.
+ */
+const expectedClassificationSchema = z.strictObject({
+  measured: z.boolean(),
+  processingLevel: z.enum(FOOD_PROCESSING_LEVELS).nullable(),
+  isFruit: z.boolean().nullable(),
+  isVegetable: z.boolean().nullable(),
+  isUltraProcessed: z.boolean().nullable(),
+  provisionalRequired: z.boolean(),
+});
+
 /** Decisão esperada de um item (§5), independente da saída do resolvedor. */
 export const expectedDecisionSchema = z.strictObject({
   label: opaqueId,
@@ -350,6 +398,7 @@ export const expectedDecisionSchema = z.strictObject({
   identity: expectedIdentitySchema,
   quantity: expectedQuantitySchema,
   nutrition: expectedNutritionSchema,
+  classification: expectedClassificationSchema,
   ambiguity: expectedAmbiguitySchema,
   /** Alternativas materialmente concorrentes esperadas (§4.1.8, §16). */
   alternatives: z.array(expectedAlternativeSchema).max(20),
@@ -368,14 +417,18 @@ export type ExpectedDecision = z.infer<typeof expectedDecisionSchema>;
 const expectedOperationSchema = z.strictObject({
   action: z.enum(CORPUS_OPERATION_ACTIONS),
   targetMeal: nonEmptyText,
-  date: z.string().regex(ISO_DATE),
+  date: isoCalendarDate,
 });
 
 const expectedSchema = z.strictObject({
   /** Multiplicidade: uma entrada pode gerar várias decisões (§7.2). */
   decisions: z.array(expectedDecisionSchema).min(1).max(20),
-  /** Operação esperada da refeição (§7.1); `null` quando não afirmada. */
-  operation: expectedOperationSchema.nullable(),
+  /**
+   * Operação esperada da refeição (§7.1). É **obrigatória**: deixá-la opcional
+   * permitiria que um resolvedor devolvesse refeição ou data materialmente
+   * erradas sem que nada fosse comparado.
+   */
+  operation: expectedOperationSchema,
   /** Exige que toda decisão esperada `resolved` seja preservada (§7.2). */
   mustPreserveAllResolvedItems: z.boolean(),
   /** Exige explicação estruturada para cada item excluído (§7.2). */
@@ -401,15 +454,30 @@ export type CorpusInput = z.infer<typeof corpusInputSchema>;
 const corpusMealOperationSchema = z.strictObject({
   action: z.enum(CORPUS_OPERATION_ACTIONS),
   targetMeal: nullableText(120),
-  date: z.string().regex(ISO_DATE).nullable(),
+  date: isoCalendarDate.nullable(),
   destinationPosition: z.enum(CORPUS_DESTINATION_POSITIONS),
 });
 
 export type CorpusMealOperation = z.infer<typeof corpusMealOperationSchema>;
 
+/**
+ * Fontes autorizadas a declarar equivalência de superfície. Não é texto livre:
+ * só a referência canônica do repositório pode declarar que duas superfícies
+ * devem produzir o mesmo resultado (§4.1.8, §17).
+ */
+export const CORPUS_EQUIVALENCE_SOURCES = [
+  "adr-food-intelligence-resolver-v2",
+] as const;
+export type CorpusEquivalenceSource =
+  (typeof CORPUS_EQUIVALENCE_SOURCES)[number];
+
 const equivalenceReferenceSchema = z.strictObject({
-  /** Identificador da referência independente que declarou a equivalência. */
-  declaredBy: nonEmptyText,
+  declaredBy: z.enum(CORPUS_EQUIVALENCE_SOURCES),
+  /** Seção da fonte canônica que declara a equivalência. */
+  adrSection: z
+    .string()
+    .trim()
+    .regex(/^§\d+(\.\d+)*$/, "seção da fonte canônica exige formato §N[.M]."),
   note: nonEmptyText,
 });
 

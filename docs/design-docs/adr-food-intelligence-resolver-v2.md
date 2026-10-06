@@ -2912,7 +2912,15 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   **antes da medição**: identidade ou quantidade com presença diferente de
   `expected` não pode declarar valor material, e nutrição `absent` não pode
   declarar restrição de origem — declarar valor que não seria comparado
-  transformaria a expectativa em aparência de verificação.
+  transformaria a expectativa em aparência de verificação. Identidade só admite
+  `expected` ou `forbidden`. Quantidade só admite `unspecified` em item proposto
+  resolvido cuja superfície realmente não declara quantidade (o corpus verifica
+  o sinal de quantidade no texto, descontando datas; `ocrText` é evidência do
+  produto, não porção consumida); nesse estado o resolvedor precisa produzir
+  quantidade utilizável com unidade explícita (`quantity_unusable`). Toda
+  decisão que não propõe precisa declarar código de motivo, independentemente
+  da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
+  data passa por calendário real: `2026-99-99` não é data.
 - `projection.ts` projeta observações e decisões para a comparação semântica de
   §4.1.8, preservando identidade, qualificadores, quantidade/unidade,
   multiplicidade, alternativas e campos não resolvidos, e excluindo
@@ -2925,8 +2933,11 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   verificação, provisório, origem e restrições declaradas), porque nada disso
   depende de arredondamento; os **valores** de macro ficam fora e são medidos
   por `macroConsistency`, bloqueante enquanto a tolerância estiver `OPEN`.
-  Dentro de um grupo, os membros precisam coincidir em decisão e em operação
-  material de refeição (`action` e `targetMeal`); a **data** é contexto
+  Classificação (§8.7, §9.3 classe J) também entra na igualdade: presente e
+  versionada em item proposto, provisoriedade declarada e conteúdo comparado
+  quando o caso mede — `confidence` fica fora, porque é limiar numérico `OPEN`
+  (§25). Dentro de um grupo, os membros precisam coincidir em decisão e em
+  operação material de refeição (`action` e `targetMeal`); a **data** é contexto
   declarado e pode variar, como no grupo de §16.1 que mede generalização para
   outro dia.
 - `harness.ts` entrega cada caso ao resolvedor sob teste (nunca fabrica a
@@ -2937,11 +2948,15 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   executa os cenários de §16.1 contra a **mesma instância** do resolvedor com
   armazenamento de conhecimento por cenário e produz relatório segmentado.
   Equivalência sem referência declarada tem motivo de bloqueio próprio
-  (`undeclared_equivalence`). A operação de refeição devolvida pelo resolvedor é
-  validada contra `foodMealOperationSchema`, que é estrito: campo não governado,
-  data não ISO ou tipo errado reprovam com `operation_invalid`. Amostra de
-  latência/custo não finita ou negativa reprova com `metrics_invalid` e não
-  entra na agregação.
+  (`undeclared_equivalence`), e a referência é **governada**: só a fonte
+  canônica (`adr-food-intelligence-resolver-v2`) pode declarar equivalência, e
+  cada declaração aponta a seção que a fundamenta. A operação de refeição
+  devolvida pelo resolvedor é validada contra `foodMealOperationSchema`, que é
+  estrito: campo não governado, data não ISO ou tipo errado reprovam com
+  `operation_invalid`. Amostra de latência/custo não finita, negativa, de tipo
+  errado ou que não seja objeto reprova com `metrics_invalid` e não entra na
+  agregação. O relatório é **congelado** antes de ser devolvido: a evidência de
+  aceite não pode ser adulterada por quem a consome.
 - `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
 
 Denominador zero significa **amostra ausente** (`sample_missing`), nunca zero.
@@ -2981,8 +2996,22 @@ do alvo e as revisões do material medido. Um controle que absteve dos dois lado
 saída não é evidência de distinção.
 
 A meta de pareamento de §1.1 é **fixa**: ela não é parâmetro de execução, e não
-existe opção para reduzi-la. Somente a tolerância de arredondamento e as
-revisões são configuráveis, e a primeira continua `OPEN` (§25 item 30).
+existe opção para reduzi-la. A tolerância de arredondamento também não é opção:
+enquanto §25 item 30 permanecer `OPEN`, a tolerância vigente é `null`
+(`CORPUS_ROUNDING_TOLERANCE`) e divergência de macros bloqueia sempre — aceitar
+um número configurável, inclusive `Infinity`, transformaria um item `OPEN` em
+threshold aprovado sem decisão registrada. A calibração futura entra como
+constante com fonte declarada, não como parâmetro de chamada. Somente as
+revisões da medição são configuráveis.
+
+Cenários de §16.1 são validados **estruturalmente antes da medição**: ordem de
+fases, início no estado anterior à aquisição, aquisição como única fase com
+escrita permitida, `sameResultAsStepId` obrigatório em medição reservada e
+reinício, `differentFromStepId` obrigatório em precedência explícita,
+isolamento e revogação, chaves revogadas declaradas e ao menos um passo que
+prove diferença observável. Em execução, o passo de aquisição precisa registrar
+escrita de conhecimento (`scenario_effect_missing`): sem efeito observável, o
+cenário seria rótulo de caso, não protocolo.
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e

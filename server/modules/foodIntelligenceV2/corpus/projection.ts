@@ -90,6 +90,25 @@ export interface ProjectedAlternative {
   qualifierValues: readonly string[];
 }
 
+/**
+ * Classificação projetada (§8.7, §9.3 classe J): separada de identidade e
+ * nutrição, versionada e preservada. `confidence` fica fora de propósito — é
+ * limiar numérico `OPEN` (§25) e não pode ser comparado por igualdade.
+ */
+export interface ProjectedClassification {
+  present: boolean;
+  versioned: boolean;
+  processingLevel: string | null;
+  isFruit: boolean | null;
+  isVegetable: boolean | null;
+  isUltraProcessed: boolean | null;
+  provisional: boolean;
+  /** `true` quando a expectativa declara o conteúdo da classificação. */
+  measured: boolean;
+  /** Estado de provisoriedade exigido pela expectativa. */
+  provisionalRequired: boolean;
+}
+
 /** Decisão projetada: unidade comparável de §4.1.8. */
 export interface ProjectedDecision {
   label: string | null;
@@ -100,6 +119,7 @@ export interface ProjectedDecision {
   unresolvedFields: readonly FoodField[];
   reasonCodes: readonly string[];
   nutrition: ProjectedNutrition;
+  classification: ProjectedClassification;
   alternatives: readonly ProjectedAlternative[];
   alternativeCount: number;
 }
@@ -254,6 +274,19 @@ export function projectDecision(
       forbiddenOrigins: [],
       genericProfileMustNotBeVerified: false,
     },
+    classification: {
+      present: decision.classification !== null,
+      versioned:
+        decision.classification !== null &&
+        decision.classification.version !== null,
+      processingLevel: decision.classification?.processingLevel ?? null,
+      isFruit: decision.classification?.isFruit ?? null,
+      isVegetable: decision.classification?.isVegetable ?? null,
+      isUltraProcessed: decision.classification?.isUltraProcessed ?? null,
+      provisional: decision.classification?.provisional ?? false,
+      measured: false,
+      provisionalRequired: false,
+    },
     alternatives: decision.alternatives.map(alternative => ({
       name: alternative.name,
       brand: alternative.brand,
@@ -315,6 +348,17 @@ export function projectExpectedDecision(
       forbiddenOrigins: sortedUnique(expected.nutrition.forbiddenOrigins),
       genericProfileMustNotBeVerified:
         expected.nutrition.genericProfileMustNotBeVerified,
+    },
+    classification: {
+      present: expected.classification.measured,
+      versioned: false,
+      processingLevel: expected.classification.processingLevel,
+      isFruit: expected.classification.isFruit,
+      isVegetable: expected.classification.isVegetable,
+      isUltraProcessed: expected.classification.isUltraProcessed,
+      provisional: expected.classification.provisionalRequired,
+      measured: expected.classification.measured,
+      provisionalRequired: expected.classification.provisionalRequired,
     },
     alternatives: expected.alternatives.map(alternative => ({
       name: alternative.name,
@@ -393,6 +437,17 @@ export function decisionsSemanticallyEqual(
     sameMultiset(a.nutrition.forbiddenOrigins, b.nutrition.forbiddenOrigins) &&
     a.nutrition.genericProfileMustNotBeVerified ===
       b.nutrition.genericProfileMustNotBeVerified &&
+    // Classificação separada de identidade e nutrição, versionada e
+    // preservada (§8.7): entra na igualdade semântica, exceto `confidence`.
+    a.classification.present === b.classification.present &&
+    a.classification.processingLevel === b.classification.processingLevel &&
+    a.classification.isFruit === b.classification.isFruit &&
+    a.classification.isVegetable === b.classification.isVegetable &&
+    a.classification.isUltraProcessed === b.classification.isUltraProcessed &&
+    a.classification.provisional === b.classification.provisional &&
+    a.classification.measured === b.classification.measured &&
+    a.classification.provisionalRequired ===
+      b.classification.provisionalRequired &&
     sameMultiset(
       a.alternatives.map(alternativeKey),
       b.alternatives.map(alternativeKey)

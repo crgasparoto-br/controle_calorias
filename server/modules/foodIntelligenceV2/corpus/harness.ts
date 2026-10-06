@@ -29,6 +29,7 @@
  *   `OPEN` (§25 item 30) e sua ausência bloqueia em vez de ser preenchida.
  */
 import {
+  CORPUS_LEARNING_PHASES,
   CORPUS_REVISION_KEYS,
   GOLDEN_CORPUS_MIN_MATCH_RATE,
   CORPUS_UNPINNED_REVISIONS,
@@ -82,7 +83,15 @@ function validateMetrics(
   caseId: string,
   metrics: CorpusResolverMetrics | undefined
 ): CorpusFailure | null {
-  if (!metrics) return null;
+  if (metrics === undefined || metrics === null) return null;
+  if (typeof metrics !== "object" || Array.isArray(metrics)) {
+    return {
+      caseId,
+      label: null,
+      codes: ["metrics_invalid"],
+      detail: `métricas não são objeto: ${typeof metrics}`,
+    };
+  }
   const offenders: string[] = [];
   if (metrics.latencyMs !== undefined) {
     if (
@@ -111,22 +120,29 @@ function validateMetrics(
   };
 }
 
-/** Opções de execução da medição. */
+/**
+ * Opções de execução da medição.
+ *
+ * A tolerância de arredondamento de macros **não** é opção: ela é `OPEN` (§25
+ * item 30) e por isso a divergência de macros bloqueia sempre. Aceitar um
+ * número configurável (inclusive `Infinity`) transformaria um item `OPEN` em
+ * threshold aprovado sem decisão registrada.
+ */
 export interface CorpusRunOptions {
-  /**
-   * Tolerância de arredondamento de macros entre entradas equivalentes (§1.1).
-   * `null` significa não calibrada: divergência bloqueia em vez de ser
-   * silenciosamente aceita (§25 item 30).
-   */
-  roundingTolerance: number | null;
   /** Revisões fixadas da medição (§16.1): código, conhecimento, léxico, modelo, política. */
   revisions: CorpusRevisions;
 }
 
 export const DEFAULT_CORPUS_RUN_OPTIONS: CorpusRunOptions = {
-  roundingTolerance: null,
   revisions: CORPUS_UNPINNED_REVISIONS,
 };
+
+/**
+ * Tolerância de arredondamento de macros vigente. Fixa em `null` enquanto §25
+ * item 30 permanecer `OPEN`: a calibração será introduzida por decisão própria,
+ * com fonte declarada, e não por parâmetro de execução.
+ */
+export const CORPUS_ROUNDING_TOLERANCE: number | null = null;
 
 /** Falha classificada do harness. */
 export interface CorpusFailure {
@@ -146,6 +162,7 @@ export interface CorpusFamilyCounters {
   nutritionFailures: number;
   operationFailures: number;
   clarificationFailures: number;
+  classificationFailures: number;
   unexpectedDecisions: number;
 }
 
@@ -405,7 +422,20 @@ export function familyCounters(
     )
       ? 1
       : 0,
-    operationFailures: has("operation_missing", "operation_mismatch") ? 1 : 0,
+    operationFailures: has(
+      "operation_missing",
+      "operation_mismatch",
+      "operation_invalid"
+    )
+      ? 1
+      : 0,
+    classificationFailures: has(
+      "classification_missing",
+      "classification_unversioned",
+      "classification_mismatch"
+    )
+      ? 1
+      : 0,
     clarificationFailures: has(
       "clarification_mismatch",
       "unresolved_fields_mismatch",
@@ -429,6 +459,7 @@ function emptyFamilies(): CorpusFamilyCounters {
     nutritionFailures: 0,
     operationFailures: 0,
     clarificationFailures: 0,
+    classificationFailures: 0,
     unexpectedDecisions: 0,
   };
 }
@@ -446,6 +477,7 @@ function addFamilies(
     nutritionFailures: a.nutritionFailures + b.nutritionFailures,
     operationFailures: a.operationFailures + b.operationFailures,
     clarificationFailures: a.clarificationFailures + b.clarificationFailures,
+    classificationFailures: a.classificationFailures + b.classificationFailures,
     unexpectedDecisions: a.unexpectedDecisions + b.unexpectedDecisions,
   };
 }
@@ -663,7 +695,7 @@ export function inspectCorpusIntegrity(
       // `unspecified` não pode carregar valor material — nos dois casos o valor
       // não seria comparado, e declará-lo transformaria a expectativa em
       // aparência de verificação.
-      if (expected.identity.presence !== "expected") {
+      if (expected.identity.presence === "forbidden") {
         const declaredIdentity = [
           expected.identity.canonicalName,
           expected.identity.brand,
@@ -695,6 +727,77 @@ export function inspectCorpusIntegrity(
             message: `decisão '${expected.label}' declara quantidade com presença '${expected.quantity.presence}': valor não comparado não pode ser declarado`,
           });
         }
+      }
+      // `unspecified` só é legítimo quando a superfície realmente não declara
+      // quantidade **e** o item é proposto com porção usual (§8.3). Fora disso
+      // ele esconderia um campo material.
+      if (expected.quantity.presence === "unspecified") {
+        if (!proposes || expected.status !== "resolved") {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' (${expected.status}/${expected.nextAction}) não pode deixar a quantidade sem comparação`,
+          });
+        }
+        const signal = quantitySignalOf(entry);
+        if (signal !== null) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `superfície declara quantidade ('${signal}') e por isso a quantidade não pode ficar 'unspecified'`,
+          });
+        }
+      }
+      // Classificação: conteúdo declarado ou invariante estrutural declarada.
+      if (expected.classification.measured) {
+        const declared = [
+          expected.classification.processingLevel,
+          expected.classification.isFruit,
+          expected.classification.isVegetable,
+          expected.classification.isUltraProcessed,
+        ];
+        if (declared.some(value => value === null)) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' mede classificação e precisa declarar nível de processamento, fruta, hortaliça e ultraprocessado`,
+          });
+        }
+        if (!entry.nonRecurrenceClasses.includes("J")) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' mede classificação e por isso declara a classe J de §9.3`,
+          });
+        }
+      } else if (
+        expected.classification.processingLevel !== null ||
+        expected.classification.isFruit !== null ||
+        expected.classification.isVegetable !== null ||
+        expected.classification.isUltraProcessed !== null ||
+        expected.classification.provisionalRequired
+      ) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message: `decisão '${expected.label}' não mede classificação e não pode declarar valores`,
+        });
+      }
+      // Toda classe J do corpus precisa medir classificação de fato.
+      if (
+        entry.nonRecurrenceClasses.includes("J") &&
+        !entry.expected.decisions.some(
+          decision => decision.classification.measured
+        )
+      ) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message:
+            "classe J de §9.3 exige pelo menos uma decisão que meça classificação",
+        });
+      }
+      // Exclusão precisa de motivo estruturado, independentemente de a
+      // explicação das exclusões ser exigida (§7.2, §9.2).
+      if (!proposes && expected.reasonCodes.length === 0) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message: `decisão '${expected.label}' não propõe e por isso precisa declarar código de motivo`,
+        });
       }
       if (expected.nutrition.requirement === "absent") {
         if (
@@ -928,6 +1031,34 @@ export function inspectCorpusIntegrity(
   };
 }
 
+/**
+ * Vocabulário de quantidade reconhecido na superfície. É um sinal de
+ * integridade do corpus, não um normalizador: serve para impedir que um caso
+ * declare `unspecified` sobre uma superfície que declara quantidade.
+ */
+const QUANTITY_SIGNAL_PATTERN =
+  /(\d)|\b(g|kg|ml|l|gramas?|quilos?|mililitros?|litros?|fatias?|colheres?|copos?|xícaras?|unidades?|porç(ão|ões)|prato|tigela|punhado|tiquinho|pratão|dose)\b/i;
+
+function quantitySignalOf(entry: GoldenCorpusCase): string | null {
+  // Somente superfícies **declaradas pelo usuário** contam como quantidade
+  // consumida. `ocrText` é evidência do produto (por exemplo o peso da
+  // embalagem) e não afirma a porção consumida; datas e horas também não são
+  // quantidade.
+  const surfaces = [
+    entry.input.text,
+    entry.input.transcription,
+    entry.input.caption,
+  ].filter((value): value is string => value !== null);
+  for (const surface of surfaces) {
+    const cleaned = surface
+      .replace(/\d{4}-\d{2}-\d{2}/g, " ")
+      .replace(/\d{1,2}:\d{2}/g, " ");
+    const match = QUANTITY_SIGNAL_PATTERN.exec(cleaned);
+    if (match) return match[0];
+  }
+  return null;
+}
+
 function validateScenario(
   scenario: GoldenLearningScenario,
   knownCaseIds: ReadonlyMap<string, number>
@@ -989,6 +1120,86 @@ function validateScenario(
       });
     }
   }
+
+  // Estrutura mínima por fase: um passo só é prova se declarar o efeito
+  // observável que §16.1 exige. Sem isso, "cenário" vira rótulo de caso.
+  const order = (phase: CorpusLearningPhase) =>
+    CORPUS_LEARNING_PHASES.indexOf(phase);
+  for (let index = 1; index < scenario.steps.length; index += 1) {
+    const previous = scenario.steps[index - 1];
+    const current = scenario.steps[index];
+    if (order(current.phase) < order(previous.phase)) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${current.stepId} fora da ordem de fases de §16.1 (${previous.phase} → ${current.phase})`,
+      });
+    }
+  }
+  const first = scenario.steps[0];
+  if (first.phase !== "before_acquisition") {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message:
+        "cenário de §16.1 precisa começar pelo estado anterior à aquisição",
+    });
+  }
+  const acquisition = scenario.steps.find(step => step.phase === "acquisition");
+  if (acquisition && acquisition.sameResultAsStepId !== null) {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message: `passo ${acquisition.stepId}: aquisição não é reprodução de outro passo`,
+    });
+  }
+  const requiredInvariants: Record<
+    CorpusLearningPhase,
+    "same" | "different" | null
+  > = {
+    before_acquisition: null,
+    acquisition: null,
+    reserved_measurement: "same",
+    restart: "same",
+    explicit_override: "different",
+    isolation: "different",
+    revocation: "different",
+  };
+  for (const phase of Object.keys(
+    requiredInvariants
+  ) as CorpusLearningPhase[]) {
+    const required = requiredInvariants[phase];
+    if (required === null) continue;
+    const steps = scenario.steps.filter(step => step.phase === phase);
+    for (const step of steps) {
+      if (required === "same" && step.sameResultAsStepId === null) {
+        issues.push({
+          scenarioId: scenario.scenarioId,
+          message: `passo ${step.stepId} (${phase}) precisa declarar sameResultAsStepId`,
+        });
+      }
+      if (required === "different" && step.differentFromStepId === null) {
+        issues.push({
+          scenarioId: scenario.scenarioId,
+          message: `passo ${step.stepId} (${phase}) precisa declarar differentFromStepId`,
+        });
+      }
+    }
+  }
+  const revocation = scenario.steps.find(step => step.phase === "revocation");
+  if (revocation && revocation.revokeKeys.length === 0) {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message: `passo ${revocation.stepId}: revogação precisa declarar as chaves revogadas`,
+    });
+  }
+  const proving = scenario.steps.find(
+    step => step.differentFromStepId !== null
+  );
+  if (!proving) {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message:
+        "cenário de §16.1 exige ao menos um passo que prove diferença observável",
+    });
+  }
   return issues;
 }
 
@@ -1048,8 +1259,6 @@ export function compareExpectedDecision(
       if (hasIdentity) codes.push("identity_present_unexpected");
       break;
     }
-    case "unspecified":
-      break;
   }
 
   switch (expected.quantity.presence) {
@@ -1101,6 +1310,15 @@ export function compareExpectedDecision(
       break;
     }
     case "unspecified": {
+      // O valor não é comparado porque a superfície não o declarou, mas o item
+      // proposto precisa **produzir** quantidade utilizável com unidade
+      // explícita: "não comparar" não pode virar "não exigir" (§8.3).
+      if (
+        projected.quantity.value === null ||
+        projected.quantity.unit === null
+      ) {
+        codes.push("quantity_unusable");
+      }
       if (expected.quantity.unitMustNotBeConvertedToGrams) {
         if (
           projected.quantity.grams !== null ||
@@ -1113,6 +1331,34 @@ export function compareExpectedDecision(
     }
   }
 
+  // Classificação (§8.7, §9.3 classe J): presente e versionada em item
+  // proposto, provisoriedade declarada e conteúdo comparado quando o caso mede.
+  if (expected.nextAction === "propose") {
+    if (!projected.classification.present) {
+      codes.push("classification_missing");
+    } else if (!projected.classification.versioned) {
+      codes.push("classification_unversioned");
+    }
+  }
+  if (
+    projected.classification.provisional !==
+    expected.classification.provisionalRequired
+  ) {
+    codes.push("classification_mismatch");
+  }
+  if (expected.classification.measured) {
+    if (
+      projected.classification.processingLevel !==
+        expected.classification.processingLevel ||
+      projected.classification.isFruit !== expected.classification.isFruit ||
+      projected.classification.isVegetable !==
+        expected.classification.isVegetable ||
+      projected.classification.isUltraProcessed !==
+        expected.classification.isUltraProcessed
+    ) {
+      codes.push("classification_mismatch");
+    }
+  }
   if (!sameSet(expected.unresolvedFields, projected.unresolvedFields)) {
     codes.push("unresolved_fields_mismatch");
   }
@@ -1167,7 +1413,7 @@ export function compareExpectedDecision(
     if (projected.nutrition.present) {
       codes.push("nutrition_present_unexpected");
     }
-  } else if (nutrition.requirement !== "unspecified") {
+  } else {
     if (!projected.nutrition.present) codes.push("nutrition_missing");
     if (projected.nutrition.origins.length === 0) {
       codes.push("nutrition_provenance_missing");
@@ -1381,7 +1627,10 @@ function evaluateResult(
     });
   }
 
-  if (entry.expected.operation) {
+  {
+    // A operação esperada é obrigatória no schema: ela **sempre** é comparada.
+    // Deixar a comparação condicional permitiria operação materialmente errada
+    // passar sem que nada fosse verificado (§7.1, §9.2).
     if (!operation) {
       failures.push({
         caseId: entry.caseId,
@@ -1726,7 +1975,7 @@ export async function runCorpus(
   const macroConsistency = buildMacroConsistency(
     parsed,
     outcomeByCaseId,
-    resolvedOptions.roundingTolerance
+    CORPUS_ROUNDING_TOLERANCE
   );
   const learningScenarios = await runLearningScenarios(
     parsed,
@@ -1770,10 +2019,9 @@ export async function runCorpus(
   if (wrongConvergence.length > 0 || convergedControls.length > 0) {
     blockReasons.push("negative_control_convergence");
   }
-  if (
-    macroConsistency.some(item => !item.consistent) &&
-    resolvedOptions.roundingTolerance === null
-  ) {
+  // Divergência de macros entre entradas equivalentes bloqueia **sempre**:
+  // a tolerância é `OPEN` (§25 item 30) e não existe valor aprovado.
+  if (macroConsistency.some(item => !item.consistent)) {
     blockReasons.push("rounding_tolerance_not_calibrated");
   }
   if (
@@ -1784,6 +2032,15 @@ export async function runCorpus(
     blockReasons.push("revisions_not_pinned");
   }
   if (scenarioFailures.length > 0) {
+    blockReasons.push("scenario_invariant_violated");
+  }
+  if (
+    learningScenarios.some(scenario =>
+      scenario.steps.some(
+        step => step.phase === "acquisition" && step.recordedWriteAttempts === 0
+      )
+    )
+  ) {
     blockReasons.push("scenario_invariant_violated");
   }
 
@@ -1798,7 +2055,7 @@ export async function runCorpus(
     blockReasons
   );
 
-  return {
+  const report: CorpusReport = {
     corpusVersion: parsed.corpusVersion,
     corpusSchemaVersion: parsed.schemaVersion,
     resolver: { id: resolver.id, revision: resolver.revision },
@@ -1824,6 +2081,24 @@ export async function runCorpus(
     learningScenarios,
     gate,
   };
+
+  // O relatório é evidência de aceite (§16.2): uma vez produzido, não pode ser
+  // mutado por quem o consome. Um consumidor capaz de trocar `status` para
+  // `passed` depois da execução tornaria o gate decorativo.
+  return deepFreeze(report);
+}
+
+/**
+ * Congela recursivamente o relatório. Estruturas são convertidas em cópias
+ * congeladas para que nenhuma referência compartilhada permaneça mutável.
+ */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(nested);
+  }
+  return Object.freeze(value);
 }
 
 /** Executa o corpus canônico versionado. */
@@ -1976,6 +2251,16 @@ export async function runLearningScenarios(
           label: null,
           codes: ["learning_applied_during_measurement"],
           detail: `passo ${step.stepId} tentou escrever conhecimento fora da fase de aquisição`,
+        });
+      }
+      // Aquisição é prova de aprendizado: sem escrita observável, o passo é
+      // rótulo, não efeito (§16.1).
+      if (step.phase === "acquisition" && recordedWriteAttempts === 0) {
+        failures.push({
+          caseId: entry.caseId,
+          label: null,
+          codes: ["scenario_effect_missing"],
+          detail: `passo ${step.stepId} (aquisição) não registrou nenhuma escrita de conhecimento`,
         });
       }
 

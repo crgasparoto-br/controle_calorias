@@ -36,6 +36,14 @@ function expectedDecision(
       measureKind: "usual_average",
       unitMustNotBeConvertedToGrams: false,
     },
+    classification: {
+      measured: false,
+      processingLevel: null,
+      isFruit: null,
+      isVegetable: null,
+      isUltraProcessed: null,
+      provisionalRequired: false,
+    },
     nutrition: {
       requirement: "provenance_declared",
       allowedOrigins: [],
@@ -163,6 +171,14 @@ describe("projeção semântica (§4.1.8)", () => {
           measureKind: null,
           unitMustNotBeConvertedToGrams: false,
         },
+        classification: {
+          measured: false,
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          provisionalRequired: false,
+        },
         nutrition: {
           requirement: "absent",
           allowedOrigins: [],
@@ -235,6 +251,14 @@ describe("projeção semântica (§4.1.8)", () => {
     const base = projectDecision(buildFoodResolutionDecisionFixture());
     const declared = projectExpectedDecision(
       expectedDecision({
+        classification: {
+          measured: false,
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          provisionalRequired: false,
+        },
         nutrition: {
           requirement: "provenance_declared",
           allowedOrigins: ["nutrition_label"],
@@ -246,6 +270,14 @@ describe("projeção semântica (§4.1.8)", () => {
     );
     const sameDeclaration = projectExpectedDecision(
       expectedDecision({
+        classification: {
+          measured: false,
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          provisionalRequired: false,
+        },
         nutrition: {
           requirement: "provenance_declared",
           allowedOrigins: ["nutrition_label"],
@@ -257,6 +289,14 @@ describe("projeção semântica (§4.1.8)", () => {
     );
     const relaxedDeclaration = projectExpectedDecision(
       expectedDecision({
+        classification: {
+          measured: false,
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          provisionalRequired: false,
+        },
         nutrition: {
           requirement: "provenance_declared",
           allowedOrigins: ["nutrition_label"],
