@@ -25,6 +25,7 @@ import {
   nullablePositiveInt,
   nullableText,
   opaqueId,
+  positiveInt,
   rejectDuplicates,
 } from "./schemaShared";
 export const foodNutritionValuesSchema = z.strictObject({
