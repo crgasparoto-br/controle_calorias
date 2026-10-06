@@ -47,11 +47,11 @@ O monitoramento deve distinguir taxa de resolução de taxa de pareamento corret
 
 Gatilhos mínimos:
 
-| Gatilho | Condição e ação |
-| --- | --- |
-| Fallback silencioso | Qualquer ocorrência confirmada viola o limite zero: interromper a expansão e desativar o V2 na coorte afetada, preservando evidência sanitizada e a política de falha explícita. |
+| Gatilho                 | Condição e ação                                                                                                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Fallback silencioso     | Qualquer ocorrência confirmada viola o limite zero: interromper a expansão e desativar o V2 na coorte afetada, preservando evidência sanitizada e a política de falha explícita.                                                                                                     |
 | Regressão de pareamento | Taxa de pareamento correto verificada abaixo do limite operacional aprovado, ou regressão além do limite aceito frente ao baseline, na janela e amostra definidas: interromper a expansão e executar rollback da coorte afetada. Falha dos gates de corpus também bloqueia promoção. |
-| Divergência de macros | Divergência confirmada entre entradas equivalentes, sem nova evidência que a justifique e acima da tolerância de arredondamento aprovada: interromper a expansão e executar rollback da coorte afetada. |
+| Divergência de macros   | Divergência confirmada entre entradas equivalentes, sem nova evidência que a justifique e acima da tolerância de arredondamento aprovada: interromper a expansão e executar rollback da coorte afetada.                                                                              |
 
 Limiares operacionais de pareamento, janelas de observação, amostragem, tolerâncias, latência máxima de atualização da telemetria e responsáveis pela execução devem ser documentados e aprovados **antes da ativação produtiva**. O que ainda não estiver definido permanece `OPEN` (§25) e bloqueia essa ativação; não deve ser preenchido com números arbitrários. O limite zero de fallback silencioso e a meta de teste de ≥95% já estão definidos e não são questões abertas.
 
@@ -117,9 +117,19 @@ A IA pode participar da extração de evidências, geração de candidatos, norm
 type FoodField = "identity" | "variant" | "quantity" | "nutrition";
 type FoodInputType = "text" | "audio_transcript" | "image" | "multimodal";
 type FoodEvidenceOrigin =
-  | "text" | "transcription" | "ocr" | "vision" | "memory" | "catalog"
-  | "web_research" | "nutrition_label" | "barcode"
-  | "provisional_estimate" | "ai_estimate" | "heuristic" | "unavailable";
+  | "text"
+  | "transcription"
+  | "ocr"
+  | "vision"
+  | "memory"
+  | "catalog"
+  | "web_research"
+  | "nutrition_label"
+  | "barcode"
+  | "provisional_estimate"
+  | "ai_estimate"
+  | "heuristic"
+  | "unavailable";
 type FoodAnchor = {
   sourceRef: string;
   span: { start: number; end: number } | null;
@@ -392,8 +402,12 @@ type FoodResolutionDecision = {
   };
   classification: {
     version: string | null;
-    processingLevel: "natural_or_minimally_processed"
-      | "processed_culinary_ingredient" | "processed" | "ultra_processed" | null;
+    processingLevel:
+      | "natural_or_minimally_processed"
+      | "processed_culinary_ingredient"
+      | "processed"
+      | "ultra_processed"
+      | null;
     isFruit: boolean | null;
     isVegetable: boolean | null;
     isUltraProcessed: boolean | null;
@@ -418,12 +432,12 @@ A base nutricional explícita substitui `per100g` como único formato: o modelo 
 
 Semântica obrigatória:
 
-| Estado | Condição | Ação |
-| --- | --- | --- |
-| `resolved` | Identidade suficiente, quantidade e nutrição utilizáveis, `unresolvedFields=[]`, evidência e snapshot rastreáveis | `propose`; pode ser provisório permitido, nunca equivale automaticamente a `verified` ou `persisted`. |
-| `partially_resolved` | Fatos preservados, mas falta campo material ou capacidade necessária | `clarify` quando o usuário pode completar, ou `retry` para indisponibilidade operacional recuperável; não gravar esse item como completo. |
-| `ambiguous` | Evidência/alternativas materialmente concorrentes | `clarify` com o campo faltante e alternativas rastreáveis; não selecionar apenas pelo maior score. |
-| `unknown` | Nenhuma identidade sustentada ou entrada rejeitável | `clarify` para falta recuperável, `retry` para falha transitória, `reject` para não alimento/entrada inválida com motivo; nunca `propose`. |
+| Estado               | Condição                                                                                                          | Ação                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `resolved`           | Identidade suficiente, quantidade e nutrição utilizáveis, `unresolvedFields=[]`, evidência e snapshot rastreáveis | `propose`; pode ser provisório permitido, nunca equivale automaticamente a `verified` ou `persisted`.                                      |
+| `partially_resolved` | Fatos preservados, mas falta campo material ou capacidade necessária                                              | `clarify` quando o usuário pode completar, ou `retry` para indisponibilidade operacional recuperável; não gravar esse item como completo.  |
+| `ambiguous`          | Evidência/alternativas materialmente concorrentes                                                                 | `clarify` com o campo faltante e alternativas rastreáveis; não selecionar apenas pelo maior score.                                         |
+| `unknown`            | Nenhuma identidade sustentada ou entrada rejeitável                                                               | `clarify` para falta recuperável, `retry` para falha transitória, `reject` para não alimento/entrada inválida com motivo; nunca `propose`. |
 
 Os flags nutricionais são exclusivos: verificado `(true,false)`, provisório utilizável `(false,true)` e indisponível `(false,false)` com valores nulos; `(true,true)` é inválido. Perfil verificado com quantidade estimada não torna a quantidade exata. Classificação nula ou provisória não pode virar classificação verificada nos relatórios.
 
@@ -878,7 +892,6 @@ Ordem alvo:
 10. manter rollback por backup/migration reversível até o corte ser aceito.
 
 Não manter dual-write indefinido.
-
 
 ### 8.7. Modelo físico base e contrato de governança
 
@@ -1410,10 +1423,10 @@ Evidência do risco: o catálogo TACO embarcado possui 616 itens nomeados na gra
 
 #### 8.12.2. Dois gates
 
-| Gate | Momento | Comportamento |
-| --- | --- | --- |
-| **A — base mínima viável** | antes do shadow mode (§20, Fase C) | **bloqueia** nos critérios de cobertura do consumo real e de corpus; **reporta** os demais |
-| **B — base completa** | antes da remoção do legado (§8.13, Fase F) | bloqueia todos os critérios |
+| Gate                       | Momento                                    | Comportamento                                                                              |
+| -------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **A — base mínima viável** | antes do shadow mode (§20, Fase C)         | **bloqueia** nos critérios de cobertura do consumo real e de corpus; **reporta** os demais |
+| **B — base completa**      | antes da remoção do legado (§8.13, Fase F) | bloqueia todos os critérios                                                                |
 
 A assimetria é deliberada: sem cobertura do consumo real e sem passar o corpus, o shadow mode mediria a base e não o resolvedor, produzindo conclusão errada sobre o V2. Por outro lado, exigir pureza total antes do shadow mode paralisa o programa por um problema que só os dados do shadow mode resolvem.
 
@@ -1535,40 +1548,40 @@ A distinção é deliberada: reclassificar retroativamente às vezes é desejado
 
 `Papel` descreve o que o arquivo faz hoje; `Destino` descreve o que ele passa a fazer; `Fase` é a fase de §20 em que isso ocorre.
 
-| Arquivo | Papel atual | Destino V2 | Fase |
-| --- | --- | --- | --- |
-| `server/foodCatalogSync.ts` | escrita e sincronização do catálogo | absorvido pelo serviço único de conhecimento governado | B |
-| `server/catalogRuntime.ts` | bootstrap do catálogo antes do HTTP (#1061) | absorvido pelo serviço único | B |
-| `server/_core/index.ts` | agenda o sync do catálogo no startup | deixa de agendar sincronização legada | F |
-| `server/_core/runtimeStartupScheduling.ts` | atraso do sync no startup | idem | F |
-| `server/schemaCompatibility.ts` | garante colunas de `foodCatalog` | substituído pelo gate de corte (§8.13) | F |
-| `server/modules/foods/legacyDeletion.ts` | UPDATE e DELETE em `foodCatalog` | aposentar por status, nunca deletar (regra 4) | F |
-| `server/repositories/accountRepository.ts` | altera catálogo na exclusão de conta | revoga dado pessoal sem tocar conhecimento global | F |
-| `server/nutritionLabelCandidateService.ts` | publica candidato no catálogo global | publica variante e perfil provisórios com evidência | E |
-| `server/repositories/foodCatalogRepository.ts` | repositório de leitura e escrita do catálogo | substituído pelos repositórios de conhecimento V2 | B |
-| `server/nutritionEngine.ts` | reexporta a referência de catálogo | absorvido pelo resolvedor único | D |
-| `server/nutritionEngineTypes.ts` | tipo com `foodCatalogId` | tipos V2 | B |
-| `server/modules/foods/catalog.ts` | usa referência e repositório de catálogo | absorvido pelo resolvedor único | D |
-| `server/modules/whatsapp/intent/mealItemHelpers.ts` | referência de catálogo no intent | consome `FoodObservation` | D |
-| `server/modules/whatsapp/foodClarificationContract.ts` | referência de catálogo na clarificação | consome a política de incerteza | D |
-| `server/modules/whatsapp/mixedMealItemIncrementPlan.ts` | lê `foodCatalogId` do item | lê referência de variante | D |
-| `server/coffeeSugarNutrition.ts` | referência de catálogo | absorvido pelo resolvedor único | B |
-| `server/brandedNutritionPersistence.ts` | persiste nutrição de marca | publica variante e perfil | E |
-| `server/repositories/mealsRepository.ts` | remapeia `foodCatalogId` no tempo de leitura | lê o snapshot; nenhum remapeamento | C |
-| `server/householdMeasureMealUpdate.ts` | mesmo remapeamento em medida caseira | idem | C |
-| `server/modules/insights/service.ts` | coleta `foodCatalogId` dos itens | lê o snapshot | C |
-| `server/modules/insights/foodQuality.ts` | classifica por `foodCatalogId` | classifica pela classificação do snapshot | C |
-| `server/modules/foods/catalogClassificationReview.ts` | revisão de classificação | revisão sobre conhecimento governado | E |
-| `shared/reportsGoalAnalytics.ts` | agrega por `foodCatalogId` | agrupa por identidade histórica (padrão) | C |
-| `client/src/features/reports/FoodQualityUnclassifiedDiagnostics.tsx` | exibe o id de catálogo | exibe identidade do snapshot | C |
-| `client/src/features/reports/FoodQualityUnclassifiedDiagnosticsContent.tsx` | idem | idem | C |
-| `client/src/pages/AdminPage.tsx` | console administrativa do catálogo | console sobre conhecimento governado (§19.2) | E |
-| `server/foodCatalogKeys.ts` | chave de identidade `catalog:<id>` | chave de variante e perfil | B |
-| `server/modules/meals/schemas.ts` | `foodCatalogId` no schema de entrada | DTO de entrada V2 | B |
-| `shared/nutritionModelSchemas.ts` | `foodCatalogId` no contrato compartilhado | DTO versionado (regra 3) | B |
-| `server/modules/quickEdit/mealUpdateConfirmation.ts` | compara e propaga `foodCatalogId` | compara por referência de variante | D |
-| `server/nutritionRouter.ts` | grupo tRPC `foodCatalog` administrativo | grupo de conhecimento governado | E |
-| `server/dbImplementation.ts` | injeta o repositório legado | injeta os repositórios V2 | B |
+| Arquivo                                                                     | Papel atual                                  | Destino V2                                             | Fase |
+| --------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------ | ---- |
+| `server/foodCatalogSync.ts`                                                 | escrita e sincronização do catálogo          | absorvido pelo serviço único de conhecimento governado | B    |
+| `server/catalogRuntime.ts`                                                  | bootstrap do catálogo antes do HTTP (#1061)  | absorvido pelo serviço único                           | B    |
+| `server/_core/index.ts`                                                     | agenda o sync do catálogo no startup         | deixa de agendar sincronização legada                  | F    |
+| `server/_core/runtimeStartupScheduling.ts`                                  | atraso do sync no startup                    | idem                                                   | F    |
+| `server/schemaCompatibility.ts`                                             | garante colunas de `foodCatalog`             | substituído pelo gate de corte (§8.13)                 | F    |
+| `server/modules/foods/legacyDeletion.ts`                                    | UPDATE e DELETE em `foodCatalog`             | aposentar por status, nunca deletar (regra 4)          | F    |
+| `server/repositories/accountRepository.ts`                                  | altera catálogo na exclusão de conta         | revoga dado pessoal sem tocar conhecimento global      | F    |
+| `server/nutritionLabelCandidateService.ts`                                  | publica candidato no catálogo global         | publica variante e perfil provisórios com evidência    | E    |
+| `server/repositories/foodCatalogRepository.ts`                              | repositório de leitura e escrita do catálogo | substituído pelos repositórios de conhecimento V2      | B    |
+| `server/nutritionEngine.ts`                                                 | reexporta a referência de catálogo           | absorvido pelo resolvedor único                        | D    |
+| `server/nutritionEngineTypes.ts`                                            | tipo com `foodCatalogId`                     | tipos V2                                               | B    |
+| `server/modules/foods/catalog.ts`                                           | usa referência e repositório de catálogo     | absorvido pelo resolvedor único                        | D    |
+| `server/modules/whatsapp/intent/mealItemHelpers.ts`                         | referência de catálogo no intent             | consome `FoodObservation`                              | D    |
+| `server/modules/whatsapp/foodClarificationContract.ts`                      | referência de catálogo na clarificação       | consome a política de incerteza                        | D    |
+| `server/modules/whatsapp/mixedMealItemIncrementPlan.ts`                     | lê `foodCatalogId` do item                   | lê referência de variante                              | D    |
+| `server/coffeeSugarNutrition.ts`                                            | referência de catálogo                       | absorvido pelo resolvedor único                        | B    |
+| `server/brandedNutritionPersistence.ts`                                     | persiste nutrição de marca                   | publica variante e perfil                              | E    |
+| `server/repositories/mealsRepository.ts`                                    | remapeia `foodCatalogId` no tempo de leitura | lê o snapshot; nenhum remapeamento                     | C    |
+| `server/householdMeasureMealUpdate.ts`                                      | mesmo remapeamento em medida caseira         | idem                                                   | C    |
+| `server/modules/insights/service.ts`                                        | coleta `foodCatalogId` dos itens             | lê o snapshot                                          | C    |
+| `server/modules/insights/foodQuality.ts`                                    | classifica por `foodCatalogId`               | classifica pela classificação do snapshot              | C    |
+| `server/modules/foods/catalogClassificationReview.ts`                       | revisão de classificação                     | revisão sobre conhecimento governado                   | E    |
+| `shared/reportsGoalAnalytics.ts`                                            | agrega por `foodCatalogId`                   | agrupa por identidade histórica (padrão)               | C    |
+| `client/src/features/reports/FoodQualityUnclassifiedDiagnostics.tsx`        | exibe o id de catálogo                       | exibe identidade do snapshot                           | C    |
+| `client/src/features/reports/FoodQualityUnclassifiedDiagnosticsContent.tsx` | idem                                         | idem                                                   | C    |
+| `client/src/pages/AdminPage.tsx`                                            | console administrativa do catálogo           | console sobre conhecimento governado (§19.2)           | E    |
+| `server/foodCatalogKeys.ts`                                                 | chave de identidade `catalog:<id>`           | chave de variante e perfil                             | B    |
+| `server/modules/meals/schemas.ts`                                           | `foodCatalogId` no schema de entrada         | DTO de entrada V2                                      | B    |
+| `shared/nutritionModelSchemas.ts`                                           | `foodCatalogId` no contrato compartilhado    | DTO versionado (regra 3)                               | B    |
+| `server/modules/quickEdit/mealUpdateConfirmation.ts`                        | compara e propaga `foodCatalogId`            | compara por referência de variante                     | D    |
+| `server/nutritionRouter.ts`                                                 | grupo tRPC `foodCatalog` administrativo      | grupo de conhecimento governado                        | E    |
+| `server/dbImplementation.ts`                                                | injeta o repositório legado                  | injeta os repositórios V2                              | B    |
 
 Grupos por papel: escrita do catálogo (9 arquivos), resolução e registro (8), leitura de identidade no tempo de leitura (5), agregação e exibição (4), contrato e schema (6).
 
@@ -1622,6 +1635,7 @@ O ranking deve considerar, entre outros sinais:
 - conflitos explícitos.
 
 Correspondência aproximada nunca deve suplantar evidência exata mais forte.
+
 ### 9.1. Política de suficiência baseada em dados
 
 A decisão `tenho informação suficiente para resolver?` pertence ao resolvedor e deve ser calculada sobre **dados estruturados e evidência**, não sobre listas de palavras específicas mantidas em handlers.
@@ -1692,20 +1706,20 @@ Isso responde ao requisito de produto: independentemente de 1, 2 ou 10 alimentos
 
 O histórico do domínio alimentar acumulou classes de falha que se repetem. Esta matriz é o compromisso explícito de que cada classe possui uma garantia arquitetural e um gate que a impede de voltar.
 
-| Classe de falha | Evidência histórica | Garantia arquitetural | Gate de prevenção |
-| --- | --- | --- | --- |
-| A. Interpretação de linguagem livre | `#120`, `#168`, `#311`, `#332`, `#427`, `#522`, `#717`, `#719`, `#720`, `#742`, `#769`, `#1224`, `#1287` | LCL única com S1/S2/S3, léxico governado e papel semântico (§4.1) | Gate de normalizador por canal; equivalência de superfície no corpus |
-| B. Identidade comercial e marca | `#401`, `#407`, `#660`, `#661`, `#742`, `#903`, `#987`, `#1072`, `#1088`, `#1158`, `#1214`, `#1215`, `#1243` | Variante como identidade resolvível; fail-closed comercial; pesquisa por marca com evidência (§8.3, §19.4) | Casos de marca no corpus; proibição de fallback genérico para produto de marca |
-| C. Quantidade, medida caseira e porção | `#182`–`#187`, `#332`, `#544`, `#684`, `#1016`, `#1037`, `#1043`, `#1047`, `#1054`, `#1057`, `#1181`, `#1196`, `#1269`, `#1273`, `#1278` | Porção como conhecimento da variante/família com precedência formal e conversão física explícita (§8.3) | Matriz de medidas caseiras e metamórficos de quantidade |
-| D. Fallback genérico e nutrição inventada | `#307`, `#402`, `#903`, `#956`, `#982`, `#997`, `#1194`, `#1195`, `#1256`, `#1282` | Invariante de cobertura com procedência declarada (§9.2) | Proibição de placeholder numérico; divergência V1×V2 no shadow mode |
-| E. Imagem, rótulo e associação de mídia | `#159`, `#250`, `#346`, `#357`, `#367`, `#496`, `#758`, `#874`, `#986`, `#1174`, `#1177`, `#1191`, `#1210`, `#1215`, `#1235`, `#1243`, `#1251` | Adapters produzem evidência; identidade visual e rótulo entram no mesmo resolvedor (§3) | Casos de visão/rótulo no corpus; multimodal obrigado a atravessar a API pública |
-| F. Operação: data, destino e comando | `#421`, `#512`, `#541`, `#721`, `#856`, `#899`, `#1006`, `#1271`, `#1278`, `#1291` | Owner único de `MealOperation` (§7.1) | Corpus de operação; gate que impede handler reconstituir data/destino |
-| G. Multi-item, lote e multi-ação | `#169`, `#189`, `#247`, `#271`, `#422`, `#559`, `#578`, `#918`, `#1177`, `#1287` | Persistência em lote com exclusão apenas do item inconsistente (§7.2) | Casos de lote no corpus; proibição de erro genérico com item válido |
-| H. Memória pessoal e promoção | `#403`, `#524`, `#1051`, `#1059`, `#1153`, `#1225` | Memória pessoal durável isolada; entrada explícita prevalece; promoção com governança (§11, §12.2, §15) | Regressão de memória após restart e conflito no mesmo turno |
-| I. Ownership concorrente entre canais | `#732`, `#769`, `#1051`, `#1090`, `#1095`, `#1244`, `#1256`, `#1271` | Resolvedor único; canais só produzem evidência (§2, §3) | `architecture:check` repository-wide contra owners concorrentes |
-| J. Classificação e relatórios | `#266`, `#590`, `#591`, `#592`, `#593`, `#595`, `#1245` | Classificação separada de identidade e nutrição, versionada e preservada no snapshot (§8.7) | Casos de classificação no corpus; inventário de consumidores downstream |
-| K. Resiliência e runtime | `#873`, `#1061`, `#1191`, `#1257`, `#1282` | Atomicidade, idempotência, modo degradado e orçamento (§19.5, §19.6) | Testes de retry, concorrência e indisponibilidade |
-| L. Privacidade e segurança | `#437`, `#736`, `#737` | Minimização, retenção e fronteira de instrução (§4.1.6, §19.8) | Casos adversariais no corpus; revisão de privacidade no gate de rollout |
+| Classe de falha                           | Evidência histórica                                                                                                                            | Garantia arquitetural                                                                                      | Gate de prevenção                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| A. Interpretação de linguagem livre       | `#120`, `#168`, `#311`, `#332`, `#427`, `#522`, `#717`, `#719`, `#720`, `#742`, `#769`, `#1224`, `#1287`                                       | LCL única com S1/S2/S3, léxico governado e papel semântico (§4.1)                                          | Gate de normalizador por canal; equivalência de superfície no corpus            |
+| B. Identidade comercial e marca           | `#401`, `#407`, `#660`, `#661`, `#742`, `#903`, `#987`, `#1072`, `#1088`, `#1158`, `#1214`, `#1215`, `#1243`                                   | Variante como identidade resolvível; fail-closed comercial; pesquisa por marca com evidência (§8.3, §19.4) | Casos de marca no corpus; proibição de fallback genérico para produto de marca  |
+| C. Quantidade, medida caseira e porção    | `#182`–`#187`, `#332`, `#544`, `#684`, `#1016`, `#1037`, `#1043`, `#1047`, `#1054`, `#1057`, `#1181`, `#1196`, `#1269`, `#1273`, `#1278`       | Porção como conhecimento da variante/família com precedência formal e conversão física explícita (§8.3)    | Matriz de medidas caseiras e metamórficos de quantidade                         |
+| D. Fallback genérico e nutrição inventada | `#307`, `#402`, `#903`, `#956`, `#982`, `#997`, `#1194`, `#1195`, `#1256`, `#1282`                                                             | Invariante de cobertura com procedência declarada (§9.2)                                                   | Proibição de placeholder numérico; divergência V1×V2 no shadow mode             |
+| E. Imagem, rótulo e associação de mídia   | `#159`, `#250`, `#346`, `#357`, `#367`, `#496`, `#758`, `#874`, `#986`, `#1174`, `#1177`, `#1191`, `#1210`, `#1215`, `#1235`, `#1243`, `#1251` | Adapters produzem evidência; identidade visual e rótulo entram no mesmo resolvedor (§3)                    | Casos de visão/rótulo no corpus; multimodal obrigado a atravessar a API pública |
+| F. Operação: data, destino e comando      | `#421`, `#512`, `#541`, `#721`, `#856`, `#899`, `#1006`, `#1271`, `#1278`, `#1291`                                                             | Owner único de `MealOperation` (§7.1)                                                                      | Corpus de operação; gate que impede handler reconstituir data/destino           |
+| G. Multi-item, lote e multi-ação          | `#169`, `#189`, `#247`, `#271`, `#422`, `#559`, `#578`, `#918`, `#1177`, `#1287`                                                               | Persistência em lote com exclusão apenas do item inconsistente (§7.2)                                      | Casos de lote no corpus; proibição de erro genérico com item válido             |
+| H. Memória pessoal e promoção             | `#403`, `#524`, `#1051`, `#1059`, `#1153`, `#1225`                                                                                             | Memória pessoal durável isolada; entrada explícita prevalece; promoção com governança (§11, §12.2, §15)    | Regressão de memória após restart e conflito no mesmo turno                     |
+| I. Ownership concorrente entre canais     | `#732`, `#769`, `#1051`, `#1090`, `#1095`, `#1244`, `#1256`, `#1271`                                                                           | Resolvedor único; canais só produzem evidência (§2, §3)                                                    | `architecture:check` repository-wide contra owners concorrentes                 |
+| J. Classificação e relatórios             | `#266`, `#590`, `#591`, `#592`, `#593`, `#595`, `#1245`                                                                                        | Classificação separada de identidade e nutrição, versionada e preservada no snapshot (§8.7)                | Casos de classificação no corpus; inventário de consumidores downstream         |
+| K. Resiliência e runtime                  | `#873`, `#1061`, `#1191`, `#1257`, `#1282`                                                                                                     | Atomicidade, idempotência, modo degradado e orçamento (§19.5, §19.6)                                       | Testes de retry, concorrência e indisponibilidade                               |
+| L. Privacidade e segurança                | `#437`, `#736`, `#737`                                                                                                                         | Minimização, retenção e fronteira de instrução (§4.1.6, §19.8)                                             | Casos adversariais no corpus; revisão de privacidade no gate de rollout         |
 
 Se uma issue futura propuser resolver novamente uma dessas classes fora da garantia correspondente, ela deve ser rejeitada ou o ADR revisado explicitamente (§26).
 
@@ -1726,12 +1740,12 @@ Gate: `architecture:check` deve falhar quando houver alimento, macro, porção, 
 
 **Item 8: estratégia definida; calibração de limites ainda pendente.** A busca gera candidatos, não escolhe macros nem publica conhecimento. Todas as estratégias atravessam a porta governada de leitura (§8.14) e o mesmo filtro de compatibilidade/suficiência. Não criar serviço ou catálogo vetorial autoritativo paralelo.
 
-| Estágio | Contrato |
-| --- | --- |
-| Exato/local | Consultar evidência exata, barcode compatível, memória pessoal confirmada e identidade/alias normalizados governados; aplicar escopo e qualificadores antes de aceitar. Conflito entre evidências fortes fica explícito. |
-| Textual aproximado | Produzir candidatos com tolerância a variação lexical, sem corrigir silenciosamente identidade ambígua, remover marca/negação ou transformar semelhança em comprovação. |
-| Semântico residual | Usar a capacidade `EMBEDDING` da fundação atual, somente quando etapas anteriores forem insuficientes e dentro do orçamento. Indexar projeções do conhecimento governado, não respostas nutricionais livres. |
-| Fonte externa | Reutilizar `NUTRITION_SEARCH`/adapters atuais quando faltar evidência compatível; registrar fonte, identidade e validade. A resposta é evidência candidata, não autoridade por ser externa. |
+| Estágio            | Contrato                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exato/local        | Consultar evidência exata, barcode compatível, memória pessoal confirmada e identidade/alias normalizados governados; aplicar escopo e qualificadores antes de aceitar. Conflito entre evidências fortes fica explícito. |
+| Textual aproximado | Produzir candidatos com tolerância a variação lexical, sem corrigir silenciosamente identidade ambígua, remover marca/negação ou transformar semelhança em comprovação.                                                  |
+| Semântico residual | Usar a capacidade `EMBEDDING` da fundação atual, somente quando etapas anteriores forem insuficientes e dentro do orçamento. Indexar projeções do conhecimento governado, não respostas nutricionais livres.             |
+| Fonte externa      | Reutilizar `NUTRITION_SEARCH`/adapters atuais quando faltar evidência compatível; registrar fonte, identidade e validade. A resposta é evidência candidata, não autoridade por ser externa.                              |
 
 Não consultar IA/pesquisa adicional quando os fatos locais/exatos já forem suficientes. Um match exato incompatível não fecha o caso; um fuzzy com score maior não vence evidência exata compatível. Variante comercial, preparo e atributos materiais são restrições de elegibilidade, não apenas pesos compensáveis por similaridade. Empate material permanece ambiguidade.
 
@@ -1850,12 +1864,12 @@ A governança deve separar **publicação global** de **confirmação pessoal**.
 
 **Decisão aprovada em 2026-10-05 (§25.31).** Situação da tarefa, resultado da revisão, estado estrutural e governança são dimensões distintas:
 
-| Dimensão | Representação canônica | Autoridade |
-| --- | --- | --- |
-| Tarefa | `food_review_cases.status`: `open`, `in_review`, `closed` | Somente o ciclo operacional; não autoriza o resolvedor a usar o dado. |
-| Resultado do ciclo | `food_review_cases.outcome`: `approved`, `rejected`, `revoked`, `superseded`, `no_change`; nulo antes do encerramento | Projeção da decisão registrada no evento; não aprova outros artefatos. |
-| Estrutura/disponibilidade | `status` das variantes: `draft`, `active`, `deprecated`, `merged`; dos aliases: `active`, `deprecated` | Disponibilidade estrutural, sem conferir verificação. |
-| Governança do artefato | `provisional`, `pending_review`, `verified`, `rejected`, `revoked` | Condição de aprovação do alvo/versão exatos, sempre combinada com escopo, vigência e política. |
+| Dimensão                  | Representação canônica                                                                                                | Autoridade                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Tarefa                    | `food_review_cases.status`: `open`, `in_review`, `closed`                                                             | Somente o ciclo operacional; não autoriza o resolvedor a usar o dado.                          |
+| Resultado do ciclo        | `food_review_cases.outcome`: `approved`, `rejected`, `revoked`, `superseded`, `no_change`; nulo antes do encerramento | Projeção da decisão registrada no evento; não aprova outros artefatos.                         |
+| Estrutura/disponibilidade | `status` das variantes: `draft`, `active`, `deprecated`, `merged`; dos aliases: `active`, `deprecated`                | Disponibilidade estrutural, sem conferir verificação.                                          |
+| Governança do artefato    | `provisional`, `pending_review`, `verified`, `rejected`, `revoked`                                                    | Condição de aprovação do alvo/versão exatos, sempre combinada com escopo, vigência e política. |
 
 Variantes e aliases usam `governance_status` explícito (§8.7). Perfis nutricionais, porções, classificações e demais artefatos cujo `status` já representa governança mantêm esse campo; não adicionar uma segunda coluna equivalente. Confirmação pessoal continua separada (§12.2).
 
@@ -1931,15 +1945,15 @@ Custo      = clamp(1 + E − Ev, 0,5 ; 5)
 Prioridade = (Impacto / Custo) × (1 + min(D, 1))
 ```
 
-| Termo | Significado |
-| --- | --- |
-| `A` | usuários distintos afetados na janela de 90 dias |
-| `F` | ocorrências do caso na janela de 90 dias |
-| `G` | gravidade nutricional, de 1 a 5 |
-| `R` | risco de propagação |
-| `E` | esforço de decisão, em pontos somados |
-| `Ev` | evidência pronta, em pontos subtraídos |
-| `D` | dias do caso na fila dividido por 30, limitado a 1 |
+| Termo | Significado                                        |
+| ----- | -------------------------------------------------- |
+| `A`   | usuários distintos afetados na janela de 90 dias   |
+| `F`   | ocorrências do caso na janela de 90 dias           |
+| `G`   | gravidade nutricional, de 1 a 5                    |
+| `R`   | risco de propagação                                |
+| `E`   | esforço de decisão, em pontos somados              |
+| `Ev`  | evidência pronta, em pontos subtraídos             |
+| `D`   | dias do caso na fila dividido por 30, limitado a 1 |
 
 Três propriedades são deliberadas:
 
@@ -1955,20 +1969,20 @@ A ordenação dos casos com avaliação válida é **pontuação decrescente, gr
 
 Gravidade `G`:
 
-| Valor | Condição | Classe de §9.3 |
-| --- | --- | --- |
-| 5 | macro ausente ou placeholder fixo apresentado como nutrição | classes com falha explícita de procedência |
-| 4 | identidade ambígua que altera macro acima de 20% | identidade trocada |
-| 3 | divergência de fonte ou perfil default usado como específico | conflito de fonte e default indevido |
-| 2 | classificação ausente ou estimada | classificação |
-| 1 | metadado incompleto sem efeito em macro | curadoria leve |
+| Valor | Condição                                                     | Classe de §9.3                             |
+| ----- | ------------------------------------------------------------ | ------------------------------------------ |
+| 5     | macro ausente ou placeholder fixo apresentado como nutrição  | classes com falha explícita de procedência |
+| 4     | identidade ambígua que altera macro acima de 20%             | identidade trocada                         |
+| 3     | divergência de fonte ou perfil default usado como específico | conflito de fonte e default indevido       |
+| 2     | classificação ausente ou estimada                            | classificação                              |
+| 1     | metadado incompleto sem efeito em macro                      | curadoria leve                             |
 
 Propagação `R`, definida exclusivamente pelo alcance do conhecimento:
 
-| Valor | Escopo da proposta avaliada |
-| --- | --- |
-| 2 | Global, incluindo léxico e materialidade globais. |
-| 1 | Exclusivamente pessoal, restrito ao proprietário autorizado. |
+| Valor | Escopo da proposta avaliada                                  |
+| ----- | ------------------------------------------------------------ |
+| 2     | Global, incluindo léxico e materialidade globais.            |
+| 1     | Exclusivamente pessoal, restrito ao proprietário autorizado. |
 
 O nível intermediário `1,5` foi retirado por decisão explícita em 2026-10-05; tipo de artefato não cria outro escopo. Um caso de léxico global recebe `R=2`; um apelido pessoal recebe `R=1`. Escopo é validado no backend a partir do alvo/proposta, não confiado ao cliente. Propor uso global exige o processo de promoção e nova avaliação de alcance, sem promover por simples troca de fator.
 
@@ -1984,12 +1998,12 @@ O fator de envelhecimento `D` no máximo **dobra** a prioridade, contado da aber
 
 Para uma prioridade calculada com fatores válidos, as faixas são disjuntas. As metas aprovadas são contadas em dias corridos desde a abertura do ciclo:
 
-| Prioridade | Faixa | Meta inicial de conclusão |
-| --- | --- | --- |
-| `critical` | ≥ 12 | Até 7 dias corridos. |
-| `high` | ≥ 6 e < 12 | Até 14 dias corridos. |
-| `medium` | ≥ 2 e < 6 | Até 30 dias corridos. |
-| `low` | < 2 | Sem prazo garantido; idade e pendência continuam visíveis. |
+| Prioridade | Faixa      | Meta inicial de conclusão                                  |
+| ---------- | ---------- | ---------------------------------------------------------- |
+| `critical` | ≥ 12       | Até 7 dias corridos.                                       |
+| `high`     | ≥ 6 e < 12 | Até 14 dias corridos.                                      |
+| `medium`   | ≥ 2 e < 6  | Até 30 dias corridos.                                      |
+| `low`      | < 2        | Sem prazo garantido; idade e pendência continuam visíveis. |
 
 Prioridade exatamente `2` é `medium`, `6` é `high` e `12` é `critical`. A substituição de "mesma semana" por sete dias foi aprovada em 2026-10-05. Estas são **metas acompanhadas, não SLAs garantidos**, até haver capacidade demonstrada e compromisso operacional aprovado.
 
@@ -2032,17 +2046,17 @@ A fila de classificação em `server/modules/foods/classificationReview.ts` é a
 
 **Máquina aprovada em 2026-10-05 (§25.31):** somente `open`, `in_review` e `closed`. O resultado fica em `outcome` e a governança de cada artefato segue §12.1. A representação física está em §8.7; não manter enums concorrentes por canal ou interface.
 
-| Ação | Origem → destino | Resultado do ciclo | Efeito autorizado |
-| --- | --- | --- | --- |
-| Abrir | Caso ausente → `open` | Nulo | Criar ciclo 1 e alvo/proposta; não publicar. Repetição agrega ocorrência idempotente no mesmo caso. |
-| Iniciar revisão | `open` → `in_review` | Nulo | Atribuir revisor autorizado e versão esperada; não publicar. |
-| Aprovar | `in_review` → `closed` | `approved` | Aprovar somente candidato/versão elegível e explicitamente avaliado; registrar evidência e evento. |
-| Corrigir e aprovar | `in_review` → `closed` | `approved` | Criar a versão corrigida; mudança de identidade exige variante correspondente. Aprovar o novo alvo, sem sobrescrever nutrição/histórico verificados. |
-| Rejeitar | `in_review` → `closed` | `rejected` | Rejeitar o candidato e registrar motivo; não invalidar outro artefato/versão aprovado. |
-| Revogar | `in_review` → `closed` | `revoked` | Revogar a versão verificada alvo, impedir novas utilizações e invalidar reutilização/cache afetado; preservar histórico. |
-| Reabrir | `closed` → `open` | Nulo no novo ciclo | Exigir nova evidência/motivo, incrementar ciclo e versão; preservar o resultado anterior em eventos. Não reativar aprovação. |
-| Encerrar sem alteração | `open` ou `in_review` → `closed` | `no_change` | Registrar justificativa; nenhuma publicação ou mudança nutricional. |
-| Substituir caso | `open` ou `in_review` → `closed` | `superseded` | Vincular caso sucessor válido; não aprovar conhecimento nem criar duplicata ativa. |
+| Ação                   | Origem → destino                 | Resultado do ciclo | Efeito autorizado                                                                                                                                    |
+| ---------------------- | -------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Abrir                  | Caso ausente → `open`            | Nulo               | Criar ciclo 1 e alvo/proposta; não publicar. Repetição agrega ocorrência idempotente no mesmo caso.                                                  |
+| Iniciar revisão        | `open` → `in_review`             | Nulo               | Atribuir revisor autorizado e versão esperada; não publicar.                                                                                         |
+| Aprovar                | `in_review` → `closed`           | `approved`         | Aprovar somente candidato/versão elegível e explicitamente avaliado; registrar evidência e evento.                                                   |
+| Corrigir e aprovar     | `in_review` → `closed`           | `approved`         | Criar a versão corrigida; mudança de identidade exige variante correspondente. Aprovar o novo alvo, sem sobrescrever nutrição/histórico verificados. |
+| Rejeitar               | `in_review` → `closed`           | `rejected`         | Rejeitar o candidato e registrar motivo; não invalidar outro artefato/versão aprovado.                                                               |
+| Revogar                | `in_review` → `closed`           | `revoked`          | Revogar a versão verificada alvo, impedir novas utilizações e invalidar reutilização/cache afetado; preservar histórico.                             |
+| Reabrir                | `closed` → `open`                | Nulo no novo ciclo | Exigir nova evidência/motivo, incrementar ciclo e versão; preservar o resultado anterior em eventos. Não reativar aprovação.                         |
+| Encerrar sem alteração | `open` ou `in_review` → `closed` | `no_change`        | Registrar justificativa; nenhuma publicação ou mudança nutricional.                                                                                  |
+| Substituir caso        | `open` ou `in_review` → `closed` | `superseded`       | Vincular caso sucessor válido; não aprovar conhecimento nem criar duplicata ativa.                                                                   |
 
 `resolved` não é um estado adicional, e `reopened` é evento, não estado. Abrir nova revisão de conhecimento publicado não muda sua governança automaticamente; reabrir caso não restaura versão revogada. Uma alteração sem efeito material comprovado pode terminar em `no_change`, nunca em aprovação fabricada.
 
@@ -2238,11 +2252,11 @@ Os dezoito gates deste capítulo **não são homogêneos**. Eles exigem três t�
 
 ### 19.0.1. Camadas
 
-| Camada | Técnica | Gates |
-| --- | --- | --- |
-| 1. Fronteira estática | grafo de imports, AST e detecção de literais | 1, 2, 3, 4, 5, 10, 11, 17, 18 |
-| 2. Propriedade e invariante | testes de contrato e metamórficos sobre o resolvedor | 7, 9, 12, 13, 14, 16, 19 |
-| 3. Guarda de runtime | asserção no caminho de escrita e telemetria | 6, 8, 15 |
+| Camada                      | Técnica                                              | Gates                         |
+| --------------------------- | ---------------------------------------------------- | ----------------------------- |
+| 1. Fronteira estática       | grafo de imports, AST e detecção de literais         | 1, 2, 3, 4, 5, 10, 11, 17, 18 |
+| 2. Propriedade e invariante | testes de contrato e metamórficos sobre o resolvedor | 7, 9, 12, 13, 14, 16, 19      |
+| 3. Guarda de runtime        | asserção no caminho de escrita e telemetria          | 6, 8, 15                      |
 
 O gate 12 possui verificador estático complementar (direção de dependência) além do verificador de propriedade (origem da decisão).
 
@@ -2293,11 +2307,11 @@ Consumidores do relatório: o critério de rollout e canário (§19.9), o gate d
 
 ### 19.0.5. Ordem de implementação
 
-| Onda | Camada | Gates | Efeito |
-| --- | --- | --- | --- |
-| 1 | estática | 17, 18, 5, 11, 3, 10, 1, 2, 4 | congela o padrão atual e impede hardcode novo |
-| 2 | propriedade | 13, 14, 16, 12, 7, 9, 19 | prova que o resolvedor e os leitores cumprem os invariantes |
-| 3 | runtime | 6, 8, 15 | guarda o caminho de escrita e a telemetria |
+| Onda | Camada      | Gates                         | Efeito                                                      |
+| ---- | ----------- | ----------------------------- | ----------------------------------------------------------- |
+| 1    | estática    | 17, 18, 5, 11, 3, 10, 1, 2, 4 | congela o padrão atual e impede hardcode novo               |
+| 2    | propriedade | 13, 14, 16, 12, 7, 9, 19      | prova que o resolvedor e os leitores cumprem os invariantes |
+| 3    | runtime     | 6, 8, 15                      | guarda o caminho de escrita e a telemetria                  |
 
 Os gates 17 e 18 são implementados primeiro, e não por acaso: o detector de "alimento, macro, porção, classificação ou termo linguístico em array de produção" **produz automaticamente o inventário de owners concorrentes de §8.5**, e mede as listas de materialidade substituídas em §8.3. O primeiro gate entrega o mapa do que precisa ser removido.
 
@@ -2651,14 +2665,14 @@ Até a migração:
 
 **Item 12 decidido.** O baseline real em `server/nutritionEngineTypes.ts` possui `MealSemanticContract.version=1`; `CanonicalMealProcessingResult` exige `semanticContract`, enquanto `MealProcessingResult` admite sua ausência somente para histórico. `mealSemanticContract.ts` monta esse contrato **depois** da resolução. Ele não é uma observação pré-resolução e não deve ser passado como verdade observada ao V2.
 
-| Entrada/consumidor | Adapter e invariante de migração |
-| --- | --- |
-| Texto/transcrição/imagem novos | Adapter produz §4 antes da decisão e preserva origem por campo. Não chamar V1 para fabricar uma decisão usada como entrada do V2. |
+| Entrada/consumidor                      | Adapter e invariante de migração                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Texto/transcrição/imagem novos          | Adapter produz §4 antes da decisão e preserva origem por campo. Não chamar V1 para fabricar uma decisão usada como entrada do V2.                                                                                                                                                                     |
 | Consumidor público V1 ainda não migrado | Preservar sua assinatura e semântica. Projeção V2 para DTO V1 somente quando representar fielmente estado, quantidade, fonte e provisoriedade; não converter incompatibilidade para zeros/`verified` ou reinferir texto. Migrar o consumidor antes de habilitar caso que ele não consiga representar. |
-| Histórico com/sem `semanticContract` | Ler snapshot pela versão conhecida, sem novas inferências, macros recalculados, evidência fabricada ou backfill destrutivo. Ausência histórica não vira permissão de omitir o contrato em nova execução. |
-| Pendência V1 ativa, inclusive rótulo | Guardar versão do contrato/resolvedor com a pendência, alvo e fatos originais; manter handler compatível até consumo/cancelamento/expiração. Migração explícita somente com equivalência comprovada, sem reinterpretar pergunta anterior ou reaplicar efeito. |
-| Simulador e entrypoint produtivo | Mesmo adapter/serviço e fixtures de contrato; resultado no simulador não substitui teste pelo entrypoint público real. |
-| Feature flag/rollback | Fixar a versão na operação; retry/continuação não troca de resolvedor no meio. Rollback preserva leitura de snapshots V2 e bloqueia novas decisões incompatíveis sem apagar dados. |
+| Histórico com/sem `semanticContract`    | Ler snapshot pela versão conhecida, sem novas inferências, macros recalculados, evidência fabricada ou backfill destrutivo. Ausência histórica não vira permissão de omitir o contrato em nova execução.                                                                                              |
+| Pendência V1 ativa, inclusive rótulo    | Guardar versão do contrato/resolvedor com a pendência, alvo e fatos originais; manter handler compatível até consumo/cancelamento/expiração. Migração explícita somente com equivalência comprovada, sem reinterpretar pergunta anterior ou reaplicar efeito.                                         |
+| Simulador e entrypoint produtivo        | Mesmo adapter/serviço e fixtures de contrato; resultado no simulador não substitui teste pelo entrypoint público real.                                                                                                                                                                                |
+| Feature flag/rollback                   | Fixar a versão na operação; retry/continuação não troca de resolvedor no meio. Rollback preserva leitura de snapshots V2 e bloqueia novas decisões incompatíveis sem apagar dados.                                                                                                                    |
 
 `modality=audio` do exemplo conceitual anterior se torna `audio_transcript`, alinhado ao baseline; áudio bruto permanece mídia/evidência. `variant` V2 corresponde a `productVariant` no DTO V1; `foodEntityId` não pode ser confundido com `foodCatalogId`. Base `ml` não pode ser projetada para `estimatedGrams` sem conversão comprovada. Mensagem explicativa continua apresentação, não fonte de estado. Pendência antiga sem tag de versão continua no handler legado identificado pelo seu contrato persistido; não inferir V2 por data ou texto. Fixar versão não reautoriza comportamento inseguro: revogação, perda de acesso ou contenção invalidam a execução e exigem falha explícita/retomada autorizada, não migração silenciosa.
 
@@ -2819,21 +2833,21 @@ Este registro preserva os números das decisões para rastreabilidade. **Itens 1
 
 Cada item ainda aberto tem ownership pelo papel abaixo. Antes de iniciar seu recorte bloqueado, a issue/plano de entrega deve nomear a pessoa responsável e manter vínculo com esta fonte canônica; não presumir atribuição nominal já realizada. Fechamento exige decisão/evidência versionada e aprovação, não remover `OPEN` por conclusão de código.
 
-| Itens | Natureza | Papel responsável | Recorte bloqueado até fechar | Evidência de fechamento |
-| --- | --- | --- | --- | --- |
-| 2, 7, 17, 19, 22, 30 | Calibração | Domínio alimentar e qualidade | Uso decisório dos limiares; arredondamento antes da ativação | Corpus rotulado, protocolo/amostra, tolerâncias por finalidade e resultados aprovados, sem inferir qualidade da confiança da IA. |
-| 3, 15 | Contrato/promoção | Produto e governança alimentar | Promoção automática global/linguística | Política por fonte/artefato, evidências independentes e negativos/revogação aprovados. |
-| 4 | Autorização | Produto e segurança | Rotas/ações administrativas e identidades internas novas | Matriz ator × ação × escopo e testes de negação, inclusive ações automáticas. |
-| 5 | Interface | Produto e design | Console administrativa correspondente | Fluxos, navegação, estados e verificação responsiva/acessível aprovados. |
-| 8 | Calibração/seleção técnica | Busca e domínio alimentar | Uso decisório de busca aproximada/semântica | Estratégia de §9.5 preservada; comparar algoritmo/limites no protocolo de §16.2 e aprovar evidência antes do uso. |
-| 9, 21 | Privacidade/fontes | Privacidade e governança de fontes | Retenção nova e redistribuição de cada fonte | Finalidades, períodos, anonimização/exclusão e licença/atribuição verificadas por fonte. |
-| 10 | Calibração operacional | Engenharia e operações | Chamadas/execução externa correspondente | Orçamentos, limites e timeouts iniciais controlados para avaliação, medidos em corpus/shadow e aprovados antes de servir produção. |
-| 11 | Ativação | Qualidade e operações | Canário produtivo e sua expansão | Amostra/janelas/limites aprovados, responsáveis nominais, telemetria e rollback exercitados. |
-| 13, 20 | Retirada | Arquitetura e persistência | Remoção dos owners/bridges | Inventário final por SHA, consumidores migrados e gates de corte/rollback aprovados. |
-| 23, 24 | Calibração/corte | Dados e domínio alimentar | Gate A/shadow e Gate B/retirada, respectivamente | Cobertura/janela/amostra aprovadas e política de quarentena com reconciliação. |
-| 25, 26 | Gate/ativação | Arquitetura e qualidade | Aceite do verificador e promoção de aviso para bloqueio | Escopos de regra, positivos/negativos e data/critério de enforcement aprovados. |
-| 27 | Contrato | Produto e persistência | Operação de reclassificação retroativa | Autorização, conjunto afetado, visibilidade e reversão verificáveis. |
-| 28, 29 | Calibração | Governança alimentar e operações | Alegar calibração ou alterar parâmetros da fila | Baseline de gravidade, alcance, frequência, envelhecimento e capacidade; política inicial de §14 permanece explícita até revisão aprovada. |
+| Itens                | Natureza                   | Papel responsável                  | Recorte bloqueado até fechar                                 | Evidência de fechamento                                                                                                                    |
+| -------------------- | -------------------------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2, 7, 17, 19, 22, 30 | Calibração                 | Domínio alimentar e qualidade      | Uso decisório dos limiares; arredondamento antes da ativação | Corpus rotulado, protocolo/amostra, tolerâncias por finalidade e resultados aprovados, sem inferir qualidade da confiança da IA.           |
+| 3, 15                | Contrato/promoção          | Produto e governança alimentar     | Promoção automática global/linguística                       | Política por fonte/artefato, evidências independentes e negativos/revogação aprovados.                                                     |
+| 4                    | Autorização                | Produto e segurança                | Rotas/ações administrativas e identidades internas novas     | Matriz ator × ação × escopo e testes de negação, inclusive ações automáticas.                                                              |
+| 5                    | Interface                  | Produto e design                   | Console administrativa correspondente                        | Fluxos, navegação, estados e verificação responsiva/acessível aprovados.                                                                   |
+| 8                    | Calibração/seleção técnica | Busca e domínio alimentar          | Uso decisório de busca aproximada/semântica                  | Estratégia de §9.5 preservada; comparar algoritmo/limites no protocolo de §16.2 e aprovar evidência antes do uso.                          |
+| 9, 21                | Privacidade/fontes         | Privacidade e governança de fontes | Retenção nova e redistribuição de cada fonte                 | Finalidades, períodos, anonimização/exclusão e licença/atribuição verificadas por fonte.                                                   |
+| 10                   | Calibração operacional     | Engenharia e operações             | Chamadas/execução externa correspondente                     | Orçamentos, limites e timeouts iniciais controlados para avaliação, medidos em corpus/shadow e aprovados antes de servir produção.         |
+| 11                   | Ativação                   | Qualidade e operações              | Canário produtivo e sua expansão                             | Amostra/janelas/limites aprovados, responsáveis nominais, telemetria e rollback exercitados.                                               |
+| 13, 20               | Retirada                   | Arquitetura e persistência         | Remoção dos owners/bridges                                   | Inventário final por SHA, consumidores migrados e gates de corte/rollback aprovados.                                                       |
+| 23, 24               | Calibração/corte           | Dados e domínio alimentar          | Gate A/shadow e Gate B/retirada, respectivamente             | Cobertura/janela/amostra aprovadas e política de quarentena com reconciliação.                                                             |
+| 25, 26               | Gate/ativação              | Arquitetura e qualidade            | Aceite do verificador e promoção de aviso para bloqueio      | Escopos de regra, positivos/negativos e data/critério de enforcement aprovados.                                                            |
+| 27                   | Contrato                   | Produto e persistência             | Operação de reclassificação retroativa                       | Autorização, conjunto afetado, visibilidade e reversão verificáveis.                                                                       |
+| 28, 29               | Calibração                 | Governança alimentar e operações   | Alegar calibração ou alterar parâmetros da fila              | Baseline de gravidade, alcance, frequência, envelhecimento e capacidade; política inicial de §14 permanece explícita até revisão aprovada. |
 
 Os itens 1, 6, 12, 14, 16, 18 e 31 têm decisão documentada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. Permanecem 24 itens com trabalho de definição/calibração/gate, incluindo o item 8 parcialmente decidido. O protocolo de §16.2 e o primeiro recorte de §21.1 não significam valores medidos nem liberação produtiva. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
 
@@ -2862,3 +2876,48 @@ O primeiro entregável autorizável de §21.1 existe como módulo `server/module
 - `pendingOperation.ts` implementa a pendência versionada da tabela de §21.1 (versão fixada, retomada sem troca de resolvedor, efeito idempotente e pendência legada no handler compatível).
 
 Nenhum entrypoint produtivo foi migrado: `noProductionConsumer.test.ts` trava a fronteira enquanto o cutover (Fase D) não acontecer. Cutover, retirada do legado, persistência durável (issue #1301), corpus/calibração, console administrativa e thresholds permanecem fora desta entrega, e nenhum item de §25 foi fechado por ela.
+
+### 27.2. Golden Food Corpus e harness de calibração (issue #1299)
+
+O corpus e o harness de Fase A (§20) existem como módulo
+`server/modules/foodIntelligenceV2/corpus/`. Eles fecham o item "construir
+Golden Food Corpus" de §20 e a prova estrutural exigida por §16, §16.1, §16.2
+e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
+
+- `contracts.ts` define o vocabulário do corpus (partições `acquisition`,
+  `calibration` e `holdout`; classes de decisão; classes de não-recorrência
+  §9.3) e o schema que rejeita versão de schema desconhecida, campo não
+  governado e caso malformado antes de qualquer medição.
+- `data.ts` versiona o corpus (`golden-2026-10-06.1`) com os incidentes
+  históricos obrigatórios de §16, os casos adicionais de linguagem, lote e
+  negativos, os casos de materialidade de §8.3, os cenários de aprendizado e
+  generalização de §16.1 e o conjunto reservado. O resultado esperado de cada
+  caso é declarado por referência independente (§4.1.8), nunca derivado da
+  saída do resolvedor.
+- `projection.ts` projeta observações e decisões para a comparação semântica de
+  §4.1.8, preservando identidade, qualificadores, quantidade/unidade,
+  multiplicidade, alternativas e campos não resolvidos, e excluindo
+  identificadores de execução, `rawInput`, `normalizedInput`, spans,
+  modalidade, trilhas de normalização e confiança.
+- `harness.ts` entrega cada caso ao resolvedor sob teste (nunca fabrica a
+  decisão), verifica integridade (duplicatas, vazamento para o holdout,
+  equivalência sem referência declarada, grupos inválidos, conflitos de
+  controle negativo), calcula a meta de §1.1 sobre todos os casos rotulados
+  como resolvíveis e produz relatório por modalidade, classe de decisão,
+  partição e classe de §9.3.
+- `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
+
+Denominador zero significa **amostra ausente** (`sample_missing`), nunca zero.
+Abstenções, falhas e decisões inválidas entram no cálculo: a acurácia não é
+medida apenas sobre os itens que o resolvedor declarou `resolved`. Grupos
+metamórficos são verificados **contra a referência independente**; duas
+entradas que convergem para o mesmo resultado errado reprovam
+(`negative_control_convergence`). A divergência de macros entre entradas
+equivalentes **bloqueia** enquanto a tolerância de arredondamento permanecer
+`OPEN` (§25, item 30): o harness não preenche tolerância arbitrária.
+
+Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
+demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e
+30), ligação do corpus ao resolvedor V2 ainda não implementado (Fase C),
+shadow mode, cutover e console administrativa. Nenhum item de §25 foi fechado
+por esta entrega.
