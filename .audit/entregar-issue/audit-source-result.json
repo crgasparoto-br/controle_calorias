@@ -1,28 +1,18 @@
 {
   "schema_version": 1,
-  "status": "rejected",
-  "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
-  "head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
-  "identity": {
-    "repository": "crgasparoto-br/controle_calorias",
-    "pull_request": 1276,
-    "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
-    "material_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
-    "published_head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
-    "head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e"
-  },
+  "contract_version": "2026-08-20.3",
+  "rejection_id": "audit-rejection:1298-handoff-not-produced-693bca30",
+  "head_sha": "693bca30def5a690f303585526bfd13b6e742fc0",
   "findings": [
     {
-      "id": "A-1276-002",
-      "severity": "blocking",
+      "id": "B-1298-01",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "audit_escape": true,
       "remediation_mode": "targeted-remediation",
-      "class": "functional-contract",
-      "title": "Comando de adição incompleto substitui pendência ativa",
-      "evidence": "isCompleteWhatsappCommand aceitou \"adicionar água ontem\" e \"adicionar ao jantar, banana\" como completos no material 21c9fd6e/publicado 5f95e3e4; o gate de pending então podia substituir a pendência sem quantidade/unidade."
+      "class": "delivery-not-ready",
+      "reason": "handoff-not-produced",
+      "evidence": "Inherited handoff on candidate was blob-identical to base and belonged to issue/PR 1276."
     }
   ],
   "recommendations": []

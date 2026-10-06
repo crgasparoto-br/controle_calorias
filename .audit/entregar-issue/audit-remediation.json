@@ -3,26 +3,24 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "status": "closed",
-  "candidate_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "candidate_head_sha": "693bca30def5a690f303585526bfd13b6e742fc0",
   "remediation_mode": "targeted-remediation",
   "source": {
-    "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
-    "audited_head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
-    "audit_report_sha256": "6cd479ae19bc7800d9486ae5049fbcdb5a7b611f1d984a58c1ea54b386ba39f1"
+    "rejection_id": "audit-rejection:1298-handoff-not-produced-693bca30",
+    "audited_head_sha": "693bca30def5a690f303585526bfd13b6e742fc0",
+    "audit_report_sha256": "bea1d22d2168f0bd22c97c5eb5b2814629852779bc821bb6c45325bb3bdae8ab"
   },
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-1276-002",
+      "source_id": "B-1298-01",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "evidence": "foodClarificationContract agora consulta o parser canônico e rejeita adições simples sem quantidade/unidade; o gate mantém pending ativo. Comandos compostos continuam na precedência multi-action.",
+      "evidence": "Pacote certificado novo será publicado como filho result-only direto do material 693bca30 e vinculado semanticamente à Issue #1298 e PR #1315, substituindo o artefato herdado da #1276.",
       "validations": [
-        "pnpm exec vitest run server/modules/whatsapp/foodClarification.auditRegression.test.ts server/modules/whatsapp/messageRouter.test.ts server/modules/whatsapp/mealCommandParser.test.ts server/modules/whatsapp/service.issue856.pending.test.ts --reporter=dot → 4 arquivos/61 testes verdes.",
-        "pnpm exec vitest run server/modules/whatsapp --pool=threads --poolOptions.threads.singleThread --reporter=dot → 256 arquivos/1.658 testes verdes.",
-        "pnpm test -- --reporter=dot --maxWorkers=2 → 732 arquivos/4.813 testes verdes; 4 testes skipped.",
-        "pnpm check; pnpm architecture:check; pnpm docs:check; pnpm build; git diff --check → verdes.",
-        "Runtime adversarial: água e banana sem quantidade false; adição com unidade e multi-action true."
+        "classify_handoff_recovery: handoff-only, requires_refreeze=false, material_drift=false.",
+        "GitHub Actions run 37448073365 permanece terminal success no material SHA 693bca30.",
+        "Normative coverage, standard evidence e audit remediation são validados antes da publicação terminal."
       ]
     }
   ]

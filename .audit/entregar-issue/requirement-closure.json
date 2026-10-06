@@ -1,225 +1,245 @@
 {
   "schema_version": 1,
   "contract_version": "2026-08-20.3",
-  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "head_sha": "693bca30def5a690f303585526bfd13b6e742fc0",
   "specification_snapshot": {
     "path": "specification-snapshot.json",
-    "sha256": "6ac1c7dec65c4d28ebfba86ab4a1efeaa677f8062d263db3ef6a268a0488ab17"
+    "sha256": "95305a8c0318d87df152c4c0d2de1cf7e0db818f768818eef2385e1b8da1c492"
   },
   "obligations": [
     {
-      "candidate_key": "101cec0eab8431b2279bff742e82de9cfd56d2bc4e8c9d6c6f9c8d51a94000a7",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 3,
-      "source_text": "Esta entrega corrige o fluxo de adição de alimentos pelo WhatsApp quando há uma pendência anterior e quando a adição usa uma refeição configurada ou uma data explícita. O mesmo fluxo deve resolver porções contáveis curadas para os casos de mortadela e linguiça de frango assada.",
+      "candidate_key": "e36aaf20d2d3a254bef7b463a400aa5da59a01c8909ffc42f0f6bcd07e4bf0bd",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 14,
+      "source_text": "Criar tipos/schemas runtime para os contratos V2.",
       "flags": [
-        "semantic-effect"
-      ],
-      "id": "O-1276-001",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-001"
-      ]
-    },
-    {
-      "candidate_key": "6946debcc121e1eb30b8dca66259e34c432b092c1c6f27ace7cb8685bca2b548",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 7,
-      "source_text": "O sistema deve reconhecer comandos explícitos completos de adição alimentar e encaminhá-los pelo parser e handler canônicos, mesmo quando existe uma pendência alimentar anterior.",
-      "flags": [
-        "semantic-effect"
-      ],
-      "id": "O-1276-002",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-002"
-      ]
-    },
-    {
-      "candidate_key": "44b025465da7a18dbda65798af0d7b2b7265dd3248ef2c9c7d175e164a709905",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 8,
-      "source_text": "O sistema não pode substituir ou consumir a pendência quando o comando estiver incompleto, quando faltar quantidade de um alimento ou quando a mensagem for água sem quantidade.",
-      "flags": [
-        "negative",
-        "semantic-effect"
-      ],
-      "id": "O-1276-003",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-003"
-      ]
-    },
-    {
-      "candidate_key": "0db151abb5f3ad89cbda7f075a663dedd93d4d58b5fc0d0bf19c462971c6b174",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 9,
-      "source_text": "O sistema deve encaminhar adições datadas para a refeição configurada correspondente, incluindo o rótulo configurado `lanche da tarde`, o horário e a data solicitada, preservando atualização de registro existente.",
-      "flags": [],
-      "id": "O-1276-004",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-004"
-      ]
-    },
-    {
-      "candidate_key": "5233743b880ca9f214ceb98ce3764674f16fc93a456d92d1ab90deee8491110c",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 10,
-      "source_text": "O sistema deve reconhecer `1,5 fatias de mortadela` como quantidade decimal contável e materializar a massa canônica sem abrir pendência.",
-      "flags": [
-        "negative",
-        "atomicity"
-      ],
-      "id": "O-1276-005",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-005"
-      ]
-    },
-    {
-      "candidate_key": "af5e64e70f2c0aac787c5b517ffed8974e3506dc9b3d2bcf5ed2d87fa6270723",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 11,
-      "source_text": "O sistema deve reconhecer `1 linguiça de frango assado` e `2 linguiças de frango assadas` por unidade, materializando respectivamente 100 g e 200 g sem abrir pendência.",
-      "flags": [
-        "negative",
-        "review-surface"
-      ],
-      "id": "O-1276-006",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-006"
-      ]
-    },
-    {
-      "candidate_key": "31bcc248c71e08987d311a1b0c1f3f530c6a86cc14c0e1e2ddb39b3a80000624",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 12,
-      "source_text": "A resolução da linguiça de frango assada deve usar uma referência nutricional curada de uma unidade de 100 g, com 243.66 kcal, 18.19 g de proteína, 0 g de carboidratos e 18.4 g de gordura, e não pode usar o placeholder genérico.",
-      "flags": [
-        "negative",
-        "review-surface"
-      ],
-      "id": "O-1276-007",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-007"
-      ]
-    },
-    {
-      "candidate_key": "a9c6214e8d00eaa00e0bc5bc5110e828cf95d4fddc9dba6c1c23835245dd8223",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 13,
-      "source_text": "A entrega deve preservar a identidade textual do alimento, reutilizar a fonte canônica de resolução de quantidade e possuir testes focados para caminho positivo, casos incompletos, água sem quantidade, pendência anterior, refeição configurada e porções unitárias.",
-      "flags": [
-        "negative",
-        "atomicity",
-        "structural",
-        "semantic-effect"
-      ],
-      "id": "O-1276-008",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-008"
-      ]
-    },
-    {
-      "candidate_key": "9b8beeed322329868278eb4dae25fc6f8cf3d491d42252649dbe968664adadd6",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 17,
-      "source_text": "Os testes focados e a suíte completa devem passar no material exact-SHA; arquitetura, documentação e build devem permanecer válidos; a árvore de trabalho deve permanecer limpa antes do handoff.",
-      "flags": [
-        "temporal",
         "structural"
       ],
-      "id": "O-1276-009",
+      "id": "O-1298-001",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-009"
+        "R-1298-001"
+      ]
+    },
+    {
+      "candidate_key": "ea1c130ce44374787d60ff5e2386f8dce346ef28cae943213fc85c94b99a0019",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 15,
+      "source_text": "Validar `null`/coleções vazias, IDs, confiança, anchors, locale e bases físicas.",
+      "flags": [],
+      "id": "O-1298-002",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-002"
+      ]
+    },
+    {
+      "candidate_key": "10a2e2d9f2c1c2b93bbc00589baf61b7ecb8ce124ac3b458a808ed155b52c60f",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 16,
+      "source_text": "Implementar adapters explícitos para consumidores V1 compatíveis.",
+      "flags": [
+        "structural"
+      ],
+      "id": "O-1298-003",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-003"
+      ]
+    },
+    {
+      "candidate_key": "751d783c9c581b13c1d07768fadcc5fadf03036c75ad44ff80fbd546dcee1347",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 17,
+      "source_text": "Preservar snapshots históricos sem reinferência.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-004",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-004"
+      ]
+    },
+    {
+      "candidate_key": "bb75643cd1dfea02565ef684aabad0e718e0ff3e4563144c46f48fc97a7dffa1",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 18,
+      "source_text": "Fixar versão do resolver/contrato em operações pendentes.",
+      "flags": [
+        "structural"
+      ],
+      "id": "O-1298-005",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-005"
+      ]
+    },
+    {
+      "candidate_key": "7ace93dc53f8988366f50c0b2163225d56b0f3dc5d33a8760b644479f8709cd4",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 21,
+      "source_text": "`MealSemanticContract` V1 não vira observação pré-resolução.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-006",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-006"
+      ]
+    },
+    {
+      "candidate_key": "18966e018ee3d75c85ffe7fe22d81ba82475b0d07fb3df86493fa9af4a1ac2e5",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 22,
+      "source_text": "`ml` não vira gramas sem relação comprovada.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-007",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-007"
+      ]
+    },
+    {
+      "candidate_key": "2a9776bdbb4d8c11f44d7aa11b85d69d458a9bec5c189e53733c29bc3c9b07d8",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 23,
+      "source_text": "Ausência nunca vira zero/`verified` por conveniência.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-008",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-008"
+      ]
+    },
+    {
+      "candidate_key": "544bb2f6233796ffbb1ba2fc1bb05703c2cda49e5247215c2f5bc18901be8801",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 24,
+      "source_text": "Retry/continuação não troca de resolver no meio da operação.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "id": "O-1298-009",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-009"
+      ]
+    },
+    {
+      "candidate_key": "e1c88c802e7137c9bc96116be6ae749f9558f00e8de2a42b7987b69e36c21967",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 27,
+      "source_text": "[ ] Schemas V2 rejeitam versões/campos inválidos sem mutação.",
+      "flags": [
+        "negative",
+        "structural"
+      ],
+      "id": "O-1298-010",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-010"
+      ]
+    },
+    {
+      "candidate_key": "9a076581e2d7d8b53ea7313f7e9f868fe020131a67796804df4b49d5766f50c2",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 28,
+      "source_text": "[ ] Texto/transcrição equivalentes preservam origem distinta.",
+      "flags": [],
+      "id": "O-1298-011",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-011"
+      ]
+    },
+    {
+      "candidate_key": "94c8a760dacf92a2ae1c2366daf1cada290f0ee3190d8f09ed8429f5727448df",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 29,
+      "source_text": "[ ] Snapshot V1 é lido sem reinferência ou recalcular macros.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-012",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-012"
+      ]
+    },
+    {
+      "candidate_key": "894fd1d3960a7f1090219eed12bc5623e737aec692c85cba95af4376f51b3ef7",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 30,
+      "source_text": "[ ] Pendência versionada sobrevive a restart/retry sem efeito duplicado.",
+      "flags": [
+        "negative"
+      ],
+      "id": "O-1298-013",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-013"
+      ]
+    },
+    {
+      "candidate_key": "692f2a0c8b203fefc0a90bb5154db7944b905d9493d0c34b306d0cfb81878ef4",
+      "source_id": "SRC-ISSUE-1298",
+      "source_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "source_line": 31,
+      "source_text": "[ ] Nenhum entrypoint produtivo é migrado nesta issue.",
+      "flags": [
+        "structural"
+      ],
+      "id": "O-1298-014",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1298-014"
       ]
     }
   ],
   "source_coverage": [
     {
-      "source_id": "SRC-ISSUE-1276",
-      "candidate_count": 9,
+      "source_id": "SRC-ISSUE-1298",
+      "candidate_count": 14,
       "unmapped_candidate_keys": []
     }
   ],
   "structural_invariant_closures": {
     "status": "passed",
-    "applicability_reason": "A especificação exige fonte única de resolução, precedência do parser/handler canônico e verificação da forma estrutural dos testes e dos gates.",
-    "entries": [
-      {
-        "id": "SIC-1276-001",
-        "kind": "structural",
-        "requirement_ids": [
-          "R-1276-008"
-        ],
-        "obligation_ids": [
-          "O-1276-008"
-        ],
-        "plausible_wrong_implementation": "Criar um mapa paralelo de porções de linguiça ou reescrever o texto no WhatsApp sem atravessar o resolvedor de quantidade compartilhado.",
-        "canonical_path": "server/foodItemResolution.ts:findCountableCatalogReference",
-        "competing_paths": [
-          "server/modules/whatsapp/mealCommandParser.ts",
-          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
-        ],
-        "evidence_ids": [
-          "server/countableFoodQuantity.issue1097.test.ts"
-        ],
-        "scenario_ids": [
-          "R-1276-008"
-        ],
-        "negative_control_evidence": [
-          "Executar o gate real com linguiça singular/plural, mortadela decimal e comando incompleto; comparar referência canônica, texto materializado e pendências.",
-          "O resultado esperado preserva a identidade textual e usa o mesmo resolvedor de porções no fluxo local e no WhatsApp.",
-          "server/countableFoodQuantity.issue1097.test.ts"
-        ]
-      },
-      {
-        "id": "SIC-1276-002",
-        "kind": "structural",
-        "requirement_ids": [
-          "R-1276-009"
-        ],
-        "obligation_ids": [
-          "O-1276-009"
-        ],
-        "plausible_wrong_implementation": "Atualizar somente a documentação ou aceitar build verde enquanto a regra de adição configurada permanece em um caminho concorrente sem teste exact-SHA.",
-        "canonical_path": "server/whatsappIntentWebhook.ts:handleWhatsappIntentWebhook",
-        "competing_paths": [
-          "server/modules/whatsapp/messageRouter.ts",
-          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
-        ],
-        "evidence_ids": [
-          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
-        ],
-        "scenario_ids": [
-          "R-1276-009"
-        ],
-        "negative_control_evidence": [
-          "Executar arquitetura, documentação, build e suíte completa no SHA material; conferir a árvore limpa e o conjunto de testes do fluxo configurado.",
-          "Os gates estruturais passam e os testes discriminam caminho completo, incompleto, água sem quantidade, pendência e refeição configurada.",
-          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
-        ]
-      }
-    ],
+    "applicability_reason": "A issue define contratos, adapters e uma fronteira explícita que impede consumo produtivo nesta fase.",
+    "entries": [],
     "unresolved_invariants": []
+  },
+  "read_model_closures": {
+    "status": "passed",
+    "applicability_reason": "A leitura histórica V1 é requisito explícito e os testes verificam ausência de reinferência e recálculo."
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "A ADR indicada na issue permanece a fonte arquitetural canônica e a entrega atualiza apenas seu estado de adoção."
   },
   "documentation_consistency": {
     "status": "passed",
-    "applicability_reason": "A documentação e os contratos existentes permanecem consistentes; docs:check passou no material exact-SHA."
+    "applicability_reason": "A ADR foi atualizada para registrar a Fase A1 e docs:check passou no material exact-SHA."
   },
   "scope_reduction_review": {
     "status": "passed",
@@ -230,23 +250,20 @@
     "status": "passed",
     "reviewed_all_specification_sources": true,
     "obligation_ids": [
-      "O-1276-001",
-      "O-1276-002",
-      "O-1276-003",
-      "O-1276-004",
-      "O-1276-005",
-      "O-1276-006",
-      "O-1276-007",
-      "O-1276-008",
-      "O-1276-009"
+      "O-1298-001",
+      "O-1298-002",
+      "O-1298-003",
+      "O-1298-004",
+      "O-1298-005",
+      "O-1298-006",
+      "O-1298-007",
+      "O-1298-008",
+      "O-1298-009",
+      "O-1298-010",
+      "O-1298-011",
+      "O-1298-012",
+      "O-1298-013",
+      "O-1298-014"
     ]
-  },
-  "read_model_closures": {
-    "status": "not-applicable",
-    "applicability_reason": "A entrega não altera read models, histórico, paginação, autoria ou versionamento persistido."
-  },
-  "canonical_source_consistency": {
-    "status": "passed",
-    "applicability_reason": "A entrega reutiliza a fonte canônica existente de resolução de quantidade; a matriz estrutural cobre a ausência de mapa paralelo."
   }
 }
