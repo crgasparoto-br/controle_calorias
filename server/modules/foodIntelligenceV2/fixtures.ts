@@ -301,6 +301,11 @@ export function buildFoodOperationEnvelopeFixture(overrides: unknown = {}) {
         reason: "sem_preferencia_registrada",
         sourceRef: null,
       },
+      recentHistory: {
+        status: "absent",
+        reason: "sem_historico_recente",
+        sourceRef: null,
+      },
     },
     revisions: {
       code: "sha:code",

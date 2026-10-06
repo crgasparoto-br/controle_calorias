@@ -760,6 +760,40 @@ describe("envelope interno da operação", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("exige previousMessage, preferences e recentHistory explicitamente", () => {
+    const sources = [
+      "previousMessage",
+      "preferences",
+      "recentHistory",
+    ] as const;
+
+    for (const source of sources) {
+      const envelope = structuredClone(buildFoodOperationEnvelopeFixture());
+      const contextSources = envelope.contextSources as Partial<
+        typeof envelope.contextSources
+      >;
+      delete contextSources[source];
+
+      expect(parseFoodOperationEnvelope(envelope).ok).toBe(false);
+    }
+  });
+
+  it("exige sourceRef quando o contexto está disponível", () => {
+    expect(
+      parseFoodOperationEnvelope(
+        buildFoodOperationEnvelopeFixture({
+          contextSources: {
+            previousMessage: {
+              status: "available",
+              reason: null,
+              sourceRef: null,
+            },
+          },
+        })
+      ).ok
+    ).toBe(false);
+  });
+
   it("exige motivo estruturado quando o contexto não está disponível", () => {
     expect(
       parseFoodOperationEnvelope(

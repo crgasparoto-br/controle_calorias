@@ -338,6 +338,10 @@ const foodContextSourceSchema = (name: string) =>
     .refine(
       source => source.status === "available" || source.reason !== null,
       `Contexto ${name} indisponível exige motivo estruturado; falha de consulta não vira ausência.`
+    )
+    .refine(
+      source => source.status !== "available" || source.sourceRef !== null,
+      `Contexto ${name} disponível exige sourceRef explícito para preservar a origem.`
     );
 
 export const foodContextSourcesSchema = z.strictObject({
@@ -354,7 +358,7 @@ export const foodOperationEnvelopeSchema = z.strictObject({
   turnRef: nullableText(200),
   effectiveTimeZone: nonEmptyText.max(80),
   mealOperation: foodMealOperationSchema.nullable(),
-  contextSources: foodContextSourcesSchema.partial(),
+  contextSources: foodContextSourcesSchema,
   revisions: z.strictObject({
     code: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
     knowledge: nonEmptyText.max(FOOD_CONTRACT_LIMITS.shortText),
