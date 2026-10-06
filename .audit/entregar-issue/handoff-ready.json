@@ -1,1 +1,125 @@
-{"schema_version":2,"status":"ready","identity":{"head_sha":"693bca30def5a690f303585526bfd13b6e742fc0","material_head_sha":"693bca30def5a690f303585526bfd13b6e742fc0","base_sha":"98ab3eb0022c224ae9484985e1a63ebfc9025603"},"subject":{"repository":"crgasparoto-br/controle_calorias","issue_number":1298,"pull_request_number":1315,"work_item_kind":"pr","work_item_number":1315,"pull_request":1315,"base_ref":"develop","head_ref":"feat/1298-food-contracts-v2"},"scope":{"schema_version":1,"work_item_start_sha":"5fdd877f02f0c778cb0d6564013d62c40f49cf6a","material_head_sha":"693bca30def5a690f303585526bfd13b6e742fc0","issue_changed_paths":["docs/design-docs/adr-food-intelligence-resolver-v2.md","server/modules/foodIntelligenceV2/adapters.test.ts","server/modules/foodIntelligenceV2/adapters.ts","server/modules/foodIntelligenceV2/contracts.test.ts","server/modules/foodIntelligenceV2/contracts.ts","server/modules/foodIntelligenceV2/fixtures.ts","server/modules/foodIntelligenceV2/noProductionConsumer.test.ts","server/modules/foodIntelligenceV2/pendingOperation.test.ts","server/modules/foodIntelligenceV2/pendingOperation.ts","server/modules/foodIntelligenceV2/schemas.ts"],"issue_delta_sha256":"fc99dc4ff6e1c6417105f8758eb16001a175825959e1c4fc09749067c2145496"},"certificate_commit_policy":{"mode":"result-only-child","allowed_paths":[".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/audit-source-result.json",".audit/entregar-issue/handoff-ready.json",".audit/entregar-issue/requirement-closure.json",".audit/entregar-issue/specification-snapshot.json",".audit/entregar-issue/specification-sources/SRC-ISSUE-1298.txt",".audit/entregar-issue/standard-evidence.json"]},"contract_version":"2026-08-20.3","evidence_profile":"standard","remediation_mode":"targeted-remediation","producer":{"skill":"entregar-issue","skill_sha256":"d00aac3d94a8e176a1641ee4c7ad3db9cb99c5ab292e38a55ad5ae488aa2fa4f"},"artifacts":{"audit_remediation":{"name":"audit-remediation.json","sha256":"2941f85d3ab6a17be6f7dbfe6465ff25c21bf96740e361e1934c2e59e97e0500","logical_sha256":"2941f85d3ab6a17be6f7dbfe6465ff25c21bf96740e361e1934c2e59e97e0500","logical_size":1219,"artifact_transport":{"format":"plain-json","version":1}},"audit_source_result":{"name":"audit-source-result.json","sha256":"bea1d22d2168f0bd22c97c5eb5b2814629852779bc821bb6c45325bb3bdae8ab","logical_sha256":"bea1d22d2168f0bd22c97c5eb5b2814629852779bc821bb6c45325bb3bdae8ab","logical_size":596,"artifact_transport":{"format":"plain-json","version":1}},"requirement_closure":{"name":"requirement-closure.json","sha256":"65bacfa1bac7481824fb80adf65e298722e8d1aa6d9e538b4963b02525f0bf04","logical_sha256":"65bacfa1bac7481824fb80adf65e298722e8d1aa6d9e538b4963b02525f0bf04","logical_size":8827,"artifact_transport":{"format":"plain-json","version":1}},"specification_snapshot":{"name":"specification-snapshot.json","sha256":"95305a8c0318d87df152c4c0d2de1cf7e0db818f768818eef2385e1b8da1c492","logical_sha256":"95305a8c0318d87df152c4c0d2de1cf7e0db818f768818eef2385e1b8da1c492","logical_size":414,"artifact_transport":{"format":"plain-json","version":1}},"SRC_ISSUE_1298":{"name":"specification-sources/SRC-ISSUE-1298.txt","sha256":"e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b","logical_sha256":"e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b","logical_size":2182,"artifact_transport":{"format":"plain","version":1}},"standard_evidence":{"name":"standard-evidence.json","sha256":"52fbadde477ceb1f487677ed742cf8e7138b6cf10f35f7d171c9585c8377776b","logical_sha256":"52fbadde477ceb1f487677ed742cf8e7138b6cf10f35f7d171c9585c8377776b","logical_size":4177,"artifact_transport":{"format":"plain-json","version":1}}},"previous_independent_rejection":true}
+{
+  "schema_version": 2,
+  "status": "ready",
+  "identity": {
+    "head_sha": "d9f62f928eed1b598de2db7691b37943c48ea0cc",
+    "material_head_sha": "d9f62f928eed1b598de2db7691b37943c48ea0cc",
+    "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603"
+  },
+  "subject": {
+    "repository": "crgasparoto-br/controle_calorias",
+    "issue_number": 1298,
+    "pull_request_number": 1315,
+    "work_item_kind": "pr",
+    "work_item_number": 1315,
+    "pull_request": 1315,
+    "base_ref": "develop",
+    "head_ref": "feat/1298-food-contracts-v2"
+  },
+  "scope": {
+    "schema_version": 1,
+    "work_item_start_sha": "5fdd877f02f0c778cb0d6564013d62c40f49cf6a",
+    "material_head_sha": "d9f62f928eed1b598de2db7691b37943c48ea0cc",
+    "issue_changed_paths": [
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1298.txt",
+      ".audit/entregar-issue/standard-evidence.json",
+      "docs/design-docs/adr-food-intelligence-resolver-v2.md",
+      "server/modules/foodIntelligenceV2/adapters.test.ts",
+      "server/modules/foodIntelligenceV2/adapters.ts",
+      "server/modules/foodIntelligenceV2/contracts.test.ts",
+      "server/modules/foodIntelligenceV2/contracts.ts",
+      "server/modules/foodIntelligenceV2/fixtures.ts",
+      "server/modules/foodIntelligenceV2/noProductionConsumer.test.ts",
+      "server/modules/foodIntelligenceV2/pendingOperation.test.ts",
+      "server/modules/foodIntelligenceV2/pendingOperation.ts",
+      "server/modules/foodIntelligenceV2/schemas.ts"
+    ],
+    "issue_delta_sha256": "39072dca9bb96eaed98b3aee986b08b4259d0dfd9fa0153d6768fb41596f5d01"
+  },
+  "certificate_commit_policy": {
+    "mode": "result-only-child",
+    "allowed_paths": [
+      ".audit/entregar-issue/audit-remediation.json",
+      ".audit/entregar-issue/audit-source-result.json",
+      ".audit/entregar-issue/handoff-ready.json",
+      ".audit/entregar-issue/requirement-closure.json",
+      ".audit/entregar-issue/specification-snapshot.json",
+      ".audit/entregar-issue/specification-sources/SRC-ISSUE-1298.txt",
+      ".audit/entregar-issue/standard-evidence.json"
+    ]
+  },
+  "contract_version": "2026-08-20.3",
+  "evidence_profile": "standard",
+  "remediation_mode": "targeted-remediation",
+  "producer": {
+    "skill": "entregar-issue",
+    "skill_sha256": "d00aac3d94a8e176a1641ee4c7ad3db9cb99c5ab292e38a55ad5ae488aa2fa4f"
+  },
+  "artifacts": {
+    "audit_remediation": {
+      "name": "audit-remediation.json",
+      "sha256": "df8b9ee4364194b6b347d1af9cde74c877582b5c2c60257e76210ccb5359cd7c",
+      "logical_sha256": "df8b9ee4364194b6b347d1af9cde74c877582b5c2c60257e76210ccb5359cd7c",
+      "logical_size": 1334,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "audit_source_result": {
+      "name": "audit-source-result.json",
+      "sha256": "c16a4b08ef0ca8e73a2b2691c0a4ce93355dc79c6f68317355cdc2cbc716ab95",
+      "logical_sha256": "c16a4b08ef0ca8e73a2b2691c0a4ce93355dc79c6f68317355cdc2cbc716ab95",
+      "logical_size": 852,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "requirement_closure": {
+      "name": "requirement-closure.json",
+      "sha256": "4c2023841892a2ccb7a1f8b75f65f70825a4be337bef5e6ea6c4fb9babb0989f",
+      "logical_sha256": "4c2023841892a2ccb7a1f8b75f65f70825a4be337bef5e6ea6c4fb9babb0989f",
+      "logical_size": 4314,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "specification_snapshot": {
+      "name": "specification-snapshot.json",
+      "sha256": "7ffdfa74e1d48eed43203d1fcc8525285e240df2e22911af19467b164c835239",
+      "logical_sha256": "7ffdfa74e1d48eed43203d1fcc8525285e240df2e22911af19467b164c835239",
+      "logical_size": 332,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    },
+    "SRC_ISSUE_1298": {
+      "name": "specification-sources/SRC-ISSUE-1298.txt",
+      "sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "logical_sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
+      "logical_size": 2182,
+      "artifact_transport": {
+        "format": "plain",
+        "version": 1
+      }
+    },
+    "standard_evidence": {
+      "name": "standard-evidence.json",
+      "sha256": "607fcae99bcb72353bcaeb1674e3b627d9071edca46e6c1e5f415d6b4a4eacf7",
+      "logical_sha256": "607fcae99bcb72353bcaeb1674e3b627d9071edca46e6c1e5f415d6b4a4eacf7",
+      "logical_size": 10453,
+      "artifact_transport": {
+        "format": "plain-json",
+        "version": 1
+      }
+    }
+  }
+}

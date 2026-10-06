@@ -1,16 +1,1 @@
-{
-  "schema_version": 1,
-  "repository": "crgasparoto-br/controle_calorias",
-  "issue": 1298,
-  "primary_source_id": "SRC-ISSUE-1298",
-  "sources": [
-    {
-      "id": "SRC-ISSUE-1298",
-      "kind": "issue-body",
-      "path": "specification-sources/SRC-ISSUE-1298.txt",
-      "sha256": "e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b",
-      "textual": true,
-      "required": true
-    }
-  ]
-}
+{"schema_version":1,"repository":"crgasparoto-br/controle_calorias","issue":1298,"primary_source_id":"SRC-ISSUE-1298","sources":[{"id":"SRC-ISSUE-1298","kind":"issue-body","path":"specification-sources/SRC-ISSUE-1298.txt","sha256":"e2b2b2c3a18c54e835696646f10c49a5fa2f54d4c7e1eb8dd2863cf141ba741b","textual":true,"required":true}]}
