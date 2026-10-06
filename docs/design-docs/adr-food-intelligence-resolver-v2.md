@@ -2945,7 +2945,10 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   numerais romanos I a XX integram o vocabulário de quantidade, assim como
   **qualquer dígito decimal Unicode** (`\p{Nd}`: ASCII, fullwidth, arábico-
   índico e demais escritas) — um numeral exótico não esconde porção declarada. A
-  isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
+  exclusão de contexto não-material (versão, identificador, telefone, CEP, lote,
+  data, hora, temperatura, frequência) usa a mesma classe Unicode, com fronteiras
+  por lookaround: `arroz versão ２` não é quantidade consumida, `arroz ２ xícaras`
+  é. A isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -3049,6 +3052,11 @@ longo, `setInterval` — consegue produzir um efeito que não esteja registrado.
 veredito do gate é lido como estado corrente e as violações são publicadas no
 relatório como **visões derivadas somente leitura**: apagar a evidência exposta
 não reverte o veredito, e `integrity.status` acompanha o registro vivo.
+
+A leitura do resultado é parte da janela instrumentada: getter que **lança** em
+`decisions`, `operation` ou `metrics` não aborta a medição — o caso é registrado
+como falha declarada (`resolver_error`) e o veredito continua sendo produzido,
+fail-closed. Uma exceção de leitura nunca deixa o corpus sem gate.
 
 A execução ablacionada aplica a **mesma** política de efeitos da medição — mesmo
 registro, mesma recusa, mesmo bloqueio — e o contra-factual declarado é exigido

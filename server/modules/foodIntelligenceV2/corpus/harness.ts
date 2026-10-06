@@ -1132,11 +1132,12 @@ const QUANTITY_SIGNAL_PATTERN =
   /\b(um|uma|uns|umas|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|mil|meia|meio|metade|par|pouco|pouca|pouquinho|pouquinha|alguns|algumas|bastante|d[úu]zia|d[úu]zias|dezena|dezenas|por[çc][ãa]o|por[çc][õo]es|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|gramas?|quilos?|mililitros?|litros?|g|kg|ml|l|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xx)\b/i;
 
 /** Frações: Unicode e forma ASCII (`1/2`, `3 / 4`). */
-const FRACTION_PATTERN = /[½¼¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒]|\b\d+\s*\/\s*\d+\b/;
+const FRACTION_PATTERN =
+  /[½¼¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒]|(?<![\p{L}\p{N}])\p{Nd}+\s*\/\s*\p{Nd}+(?![\p{L}\p{N}])/u;
 
 /** Contextos que usam dígitos sem declarar quantidade consumida. */
 const NON_QUANTITY_DIGIT_PATTERN =
-  /\b(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\d+\b|\d+\s*°\s*[cf]?\b|\b\d+\s*(vezes|x)\b/gi;
+  /(?<![\p{L}\p{N}])(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\p{Nd}+(?![\p{Nd}])|\p{Nd}+\s*°\s*[cf]?(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])\p{Nd}+\s*(vezes|x)(?![\p{L}\p{N}])/giu;
 
 /**
  * Marcador explícito de que o número identifica algo, não mede consumo. Sem
@@ -2407,19 +2408,53 @@ export async function runCorpus(
     }
 
     harvester.harvest();
-    const evaluated = evaluateResult(entry, result, harvester.all());
-    // Segunda colheita: um efeito pode ter sido disparado por getter de
-    // `metrics`/`decisions` enquanto o resultado era lido.
-    harvester.harvest();
-    if (harvester.all().length > 0 && entry.split === "holdout") {
-      holdoutKnowledgeWrites.push({
-        caseId: entry.caseId,
-        writes: harvester.all(),
+    // A leitura do resultado é instrumentada: um getter de
+    // `decisions`/`operation`/`metrics` pode lançar, e uma exceção aqui não pode
+    // abortar a medição inteira — o caso é registrado como falha declarada e o
+    // veredito continua sendo produzido (§18, fail-closed).
+    let evaluated: ReturnType<typeof evaluateResult>;
+    let metricFailure: CorpusFailure | null = null;
+    let metricsValue: CorpusResolverResult["metrics"];
+    try {
+      evaluated = evaluateResult(entry, result, harvester.all());
+      // Segunda colheita: um efeito pode ter sido disparado por getter de
+      // `metrics`/`decisions` enquanto o resultado era lido.
+      harvester.harvest();
+      if (harvester.all().length > 0 && entry.split === "holdout") {
+        holdoutKnowledgeWrites.push({
+          caseId: entry.caseId,
+          writes: harvester.all(),
+        });
+      }
+      // Métricas são evidência de custo e latência (§16.2): amostra não finita
+      // ou negativa é falha declarada, nunca valor silenciosamente agregado.
+      metricsValue = result.metrics;
+      metricFailure = validateMetrics(entry.caseId, metricsValue);
+    } catch (error) {
+      harvester.harvest();
+      outcomes.push({
+        case: entry,
+        matched: false,
+        abstained: true,
+        failures: [
+          {
+            caseId: entry.caseId,
+            label: null,
+            codes: ["resolver_error"],
+            detail:
+              error instanceof Error
+                ? `leitura do resultado lançou: ${error.message}`
+                : "leitura do resultado lançou erro não identificado",
+          },
+        ],
+        projections: [],
+        operation: null,
+        rawDecisions: [],
+        latencyMs: null,
+        costUsd: null,
       });
+      return;
     }
-    // Métricas são evidência de custo e latência (§16.2): amostra não finita ou
-    // negativa é falha declarada, nunca valor silenciosamente agregado.
-    const metricFailure = validateMetrics(entry.caseId, result.metrics);
     if (metricFailure) evaluated.failures.push(metricFailure);
 
     outcomes.push({
@@ -2432,16 +2467,16 @@ export async function runCorpus(
       rawDecisions: evaluated.rawDecisions,
       latencyMs:
         metricFailure ||
-        typeof result.metrics !== "object" ||
-        result.metrics === null
+        typeof metricsValue !== "object" ||
+        metricsValue === null
           ? null
-          : (result.metrics.latencyMs ?? null),
+          : (metricsValue.latencyMs ?? null),
       costUsd:
         metricFailure ||
-        typeof result.metrics !== "object" ||
-        result.metrics === null
+        typeof metricsValue !== "object" ||
+        metricsValue === null
           ? null
-          : (result.metrics.costUsd ?? null),
+          : (metricsValue.costUsd ?? null),
     });
     // Colheita final: getters de `metrics`/`decisions` podem disparar efeitos
     // durante a própria leitura do resultado, depois das colheitas anteriores.

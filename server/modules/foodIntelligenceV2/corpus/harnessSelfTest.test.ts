@@ -1293,6 +1293,64 @@ describe("autoverificação do harness", () => {
     );
   });
 
+  it("trata getter que lança como falha declarada e ainda produz veredito", async () => {
+    // Ataque da auditoria: expor getter que lança em `decisions`, `operation` ou
+    // `metrics`. A leitura do resultado não pode abortar a medição: o caso é
+    // falha declarada e o gate continua sendo produzido, fail-closed.
+    const reference = createReferenceResolver(corpus);
+    for (const field of ["decisions", "operation", "metrics"] as const) {
+      const report = await runGoldenFoodCorpus(
+        {
+          id: `test:getter-lanca-${field}`,
+          revision: "1",
+          async resolve(request) {
+            const result = await reference.resolve(request);
+            const hostile = { ...result } as Record<string, unknown>;
+            Object.defineProperty(hostile, field, {
+              get() {
+                throw new Error(`getter ${field} falhou`);
+              },
+              enumerable: true,
+              configurable: true,
+            });
+            return hostile as typeof result;
+          },
+        },
+        pinned
+      );
+      expect(report.gate.status).toBe("blocked");
+      expect(report.caseCount).toBe(corpus.cases.length);
+      expect(
+        report.failures.some(failure =>
+          failure.codes.includes("resolver_error")
+        )
+      ).toBe(true);
+    }
+  });
+
+  it("reconhece contexto não-material em dígitos Unicode", () => {
+    const comTexto = (text: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? { ...item, input: { ...item.input, text } }
+            : item
+        ),
+      });
+    const material = (text: string) =>
+      inspectCorpusIntegrity(comTexto(text)).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    // Versão/identificador não é quantidade consumida — em nenhuma grafia.
+    expect(material("arroz versão 2")).toBe(false);
+    expect(material("arroz versão ２")).toBe(false);
+    expect(material("arroz versão ٢")).toBe(false);
+    // Mas a mesma grafia em contexto material continua sendo quantidade.
+    expect(material("arroz ２ xícaras")).toBe(true);
+    expect(material("arroz ٢ xícaras")).toBe(true);
+  });
+
   it("entrega a fachada congelada e imune à substituição de métodos", async () => {
     // Ataque da auditoria: substituir `knowledge.write` por função própria,
     // gravar em memória privada e escapar da instrumentação.
