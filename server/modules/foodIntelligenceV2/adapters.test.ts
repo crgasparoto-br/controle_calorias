@@ -135,7 +135,7 @@ describe("projeção V2 → DTO V1", () => {
         evidenceIds: [],
       },
       nutrition: { basis: { unit: "ml" } },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
     });
 
     expect(blockerCodes(projection)).toContain(
