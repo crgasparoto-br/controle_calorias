@@ -30,7 +30,7 @@ export const CANONICAL_ADR_PATH =
  * a referência precisa ser reexaminada, não herdada.
  */
 export const CANONICAL_ADR_SHA256 =
-  "1d98c91ba9cc6068a5ec2c19ecbee18b204f1dd8584861653dcf049ebb576a63";
+  "82e65e34e2064dec60f364c971bf3f273c489d21de1fb28871174cba84deb5f5";
 
 export interface CanonicalReference {
   readonly path: string;
@@ -81,6 +81,24 @@ export function declaredReferenceSections(
       declaredBy: scenario.reference.declaredBy,
       section: scenario.reference.adrSection.replace(/^§/, ""),
     });
+    // `adrSections` é declaração normativa como qualquer outra: apontar para
+    // seção inexistente é drift, não nota livre.
+    for (const section of scenario.adrSections) {
+      declared.push({
+        ownerId: scenario.scenarioId,
+        declaredBy: "scenario.adrSections",
+        section: section.replace(/^§/, ""),
+      });
+    }
+  }
+  for (const entry of corpus.cases) {
+    for (const section of entry.adrSections) {
+      declared.push({
+        ownerId: entry.caseId,
+        declaredBy: "case.adrSections",
+        section: section.replace(/^§/, ""),
+      });
+    }
   }
   return declared;
 }

@@ -25,10 +25,30 @@ describe("referência independente de §4.1.8", () => {
   it("declara equivalência apenas pela fonte canônica", () => {
     const declared = declaredReferenceSections(goldenFoodCorpus);
     expect(declared.length).toBeGreaterThan(0);
+    // Toda seção declarada — equivalência, caso ou cenário — é verificável
+    // contra a fonte canônica e usa formato governado.
     for (const item of declared) {
-      expect(item.declaredBy).toBe(CANONICAL_REFERENCE_SOURCE);
       expect(item.section).toMatch(/^\d+(\.\d+)*$/);
     }
+    const equivalence = declared.filter(
+      item => item.declaredBy === CANONICAL_REFERENCE_SOURCE
+    );
+    expect(equivalence.length).toBeGreaterThan(0);
+  });
+
+  it("acusa seção inexistente declarada por caso ou cenário", () => {
+    const forged = goldenCorpusSchema.parse({
+      ...goldenFoodCorpus,
+      cases: goldenFoodCorpus.cases.map((entry, index) =>
+        index === 0 ? { ...entry, adrSections: ["§999"] } : entry
+      ),
+    });
+    const reference = readCanonicalReference();
+    expect(
+      missingReferenceSections(forged, reference).some(
+        item => item.section === "999"
+      )
+    ).toBe(true);
   });
 
   it("aponta apenas seções que existem na ADR", () => {

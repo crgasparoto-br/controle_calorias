@@ -1293,6 +1293,152 @@ describe("autoverificação do harness", () => {
     );
   });
 
+  it("registra na origem a recusa, sem depender de colheita posterior", async () => {
+    // Ataque da auditoria: escrever numa promise encadeada, de modo que a
+    // recusa aconteça depois da última colheita do passo. A violação é gravada
+    // pela própria fachada no instante da recusa, então não existe janela.
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:promise-encadeada",
+        revision: "1",
+        async resolve(request) {
+          const gate = request.knowledge;
+          void Promise.resolve().then(() =>
+            Promise.resolve().then(() =>
+              gate.write("alias:promise-encadeada", "x").catch(() => {})
+            )
+          );
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+  });
+
+  it("não permite apagar a evidência viva para reverter o veredito", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:evidencia-imutavel",
+        revision: "1",
+        async resolve(request) {
+          await request.knowledge
+            .write("alias:evidencia", "x")
+            .catch(() => undefined);
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.gate.status).toBe("blocked");
+    // A evidência exposta é cópia derivada: mutá-la não altera o veredito.
+    const view = report.integrity.knowledgeWritesOutside as {
+      caseId: string;
+      writes: string[];
+    }[];
+    view.splice(0, view.length);
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.integrity.status).toBe("invalid");
+    // A visão é somente leitura: não pode ser substituída.
+    expect(() => {
+      Object.defineProperty(report.integrity, "knowledgeWritesOutside", {
+        value: [],
+        configurable: true,
+      });
+    }).toThrow();
+  });
+
+  it("aplica a política de efeitos na ablação, inclusive por getter e por timer", async () => {
+    const reference = createReferenceResolver(corpus);
+    const scenarioSteps = corpus.learningScenarios.reduce(
+      (total, scenario) => total + scenario.steps.length,
+      0
+    );
+    const threshold = corpus.cases.length + scenarioSteps;
+    let calls = 0;
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:ablacao-efeitos",
+        revision: "1",
+        async resolve(request) {
+          calls += 1;
+          const result = await reference.resolve(request);
+          if (calls > threshold) {
+            // Execução ablacionada: escrever por getter e agendar escrita.
+            setTimeout(() => {
+              void request.knowledge
+                .write("indevido:ablacao", "x")
+                .catch(() => {});
+            }, 200);
+            return {
+              ...result,
+              get metrics() {
+                void request.knowledge
+                  .write("indevido:ablacao-getter", "x")
+                  .catch(() => {});
+                return { latencyMs: 1, costUsd: 0 };
+              },
+            };
+          }
+          return result;
+        },
+      },
+      pinned
+    );
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+    // A recusa na ablação é registrada na origem — como tentativa fora da
+    // aquisição ou como escrita posterior ao passo fechado.
+    expect(
+      report.integrity.knowledgeWritesOutside.length +
+        report.integrity.knowledgeWritesAfterStep.length
+    ).toBeGreaterThan(0);
+  });
+
+  it("recusa contra-factual de ablação com operação divergente", async () => {
+    const reference = createReferenceResolver(corpus);
+    const scenarioSteps = corpus.learningScenarios.reduce(
+      (total, scenario) => total + scenario.steps.length,
+      0
+    );
+    const threshold = corpus.cases.length + scenarioSteps;
+    let calls = 0;
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:ablacao-operacao",
+        revision: "1",
+        async resolve(request) {
+          calls += 1;
+          const result = await reference.resolve(request);
+          if (calls > threshold && result.operation) {
+            // Decisões corretas, operação errada: a ablação não pode aprovar.
+            return {
+              ...result,
+              operation: { ...result.operation, date: "2099-12-31" },
+            };
+          }
+          return result;
+        },
+      },
+      pinned
+    );
+    expect(report.learningScenarios.some(scenario => !scenario.passed)).toBe(
+      true
+    );
+    expect(report.gate.status).toBe("blocked");
+  });
+
   it("invalida o veredito mesmo quando a escrita tardia dispara após o relatório", async () => {
     // Ataque da auditoria: agendar a escrita com atraso maior que a drenagem,
     // de modo que ela só aconteça depois de `runCorpus` retornar. O veredito é
@@ -1443,7 +1589,7 @@ describe("autoverificação do harness", () => {
     // marcador explícito de não-quantidade; fora dele a ocorrência é material.
     const comSuperficies = (
       text: string,
-      transcription: string,
+      transcription: string | null,
       token: string
     ) =>
       goldenCorpusSchema.parse({
@@ -1464,16 +1610,60 @@ describe("autoverificação do harness", () => {
             : item
         ),
       });
-    const invalido = (text: string, transcription: string, token: string) =>
-      inspectCorpusIntegrity(comSuperficies(text, transcription, token));
+    const invalido = (
+      text: string,
+      transcription: string | null,
+      token: string
+    ) => inspectCorpusIntegrity(comSuperficies(text, transcription, token));
     // Marcador na fala, quantidade material na transcrição: inválido.
     expect(invalido("Marca 2 Café", "2 maçãs", "2").status).toBe("invalid");
     // Isenção sem qualquer marcador visível: inválida.
     expect(invalido("Coca-Cola 3", "3 maçãs", "3").status).toBe("invalid");
-    // Ambos os lados corroborados por marcador: aceito.
+    // Duas ocorrências do mesmo token com **uma** isenção: a segunda continua
+    // material, porque cada isenção cobre uma única ocorrência.
     expect(invalido("Marca 2 Café", "linha 2 do produto", "2").status).toBe(
-      "valid"
+      "invalid"
     );
+    // Uma única ocorrência corroborada por marcador é aceita.
+    expect(invalido("Marca 2 Café", null, "2").status).toBe("valid");
+  });
+
+  it("exige isenção por ocorrência e reconhece numerais romanos I, V e X", () => {
+    const comTexto = (
+      text: string,
+      nonQuantityTokens: { token: string; reason: string }[] = []
+    ) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? { ...item, input: { ...item.input, text, nonQuantityTokens } }
+            : item
+        ),
+      });
+    const material = (
+      text: string,
+      tokens: { token: string; reason: string }[] = []
+    ) =>
+      inspectCorpusIntegrity(comTexto(text, tokens)).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    // Uma isenção não esconde a segunda ocorrência material do mesmo token.
+    expect(
+      material("Marca 2 2 Café", [
+        { token: "2", reason: "número da linha do produto" },
+      ])
+    ).toBe(true);
+    // Numerais romanos I, V e X são quantidade declarada.
+    expect(material("I maçã")).toBe(true);
+    expect(material("V fatias de pão")).toBe(true);
+    expect(material("X colheres de arroz")).toBe(true);
+    // Isenção governada continua valendo para uma única ocorrência.
+    expect(
+      material("Marca 2 Café", [
+        { token: "2", reason: "número da linha do produto" },
+      ])
+    ).toBe(false);
   });
 
   it("marca a integridade como inválida quando a referência canônica não é verificada", () => {

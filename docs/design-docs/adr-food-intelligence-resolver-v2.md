@@ -2938,10 +2938,12 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   ocorrência não traz marcador explícito de identificação (`marca`, `linha`,
   `código`, `versão`, `tamanho`, `sabor`, `ref`, `lote` ...), quando o token não
   ocorre na superfície (isenção decorativa) e quando o mesmo token é declarado
-  duas vezes. Isentar um token numa superfície não isenta a mesma quantidade
-  consumida noutra: `Marca 2 Café` na fala e `2 maçãs` na transcrição continuam
-  inválidos. A isenção é visível na revisão e não alcança a expectativa, apenas
-  o token. Toda
+  duas vezes. Cada isenção cobre **uma** ocorrência: `Marca 2 2 Café` continua
+  material, porque uma declaração não pode esconder a segunda quantidade. Isentar
+  um token numa superfície não isenta a mesma quantidade consumida noutra:
+  `Marca 2 Café` na fala e `2 maçãs` na transcrição continuam inválidos. Os
+  numerais romanos I a XX integram o vocabulário de quantidade. A isenção é
+  visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -3030,19 +3032,26 @@ Escrita de conhecimento fora da fase de aquisição bloqueia em **qualquer**
 partição: `holdout_knowledge_write` para a partição reservada e
 `knowledge_write_outside_acquisition` para as demais.
 
-A janela de observação não é um intervalo com brecha. A fachada é inutilizada
-ao fim de cada passo e a janela é drenada, mas a garantia não depende da
-drenagem: a evidência de violação é um coletor **vivo** compartilhado com o
-relatório e o veredito do gate é lido como estado corrente, de modo que uma
-escrita agendada com atraso maior — inclusive disparada depois de `runCorpus`
-retornar — ainda aparece na evidência e ainda bloqueia. Tentativas são colhidas
-em todas as fronteiras: antes de descartar um caso que lançou, durante a leitura
-do resultado (getter de `metrics`/`decisions` que dispara efeito colateral),
-dentro de um passo de cenário que falha depois de escrever e na execução
-ablacionada, que aplica a **mesma** política de efeitos da medição. Amostra de
+A janela de observação não é um intervalo com brecha, e a garantia não depende
+de colheita nem de drenagem: a recusa é gravada **pela própria fachada no
+instante da tentativa**, num registro autoritativo append-only compartilhado por
+medição, cenários e ablação. Não existe passo intermediário entre a recusa e o
+registro, portanto nenhum agendamento — promise encadeada, microtask, timer
+longo, `setInterval` — consegue produzir um efeito que não esteja registrado. O
+veredito do gate é lido como estado corrente e as violações são publicadas no
+relatório como **visões derivadas somente leitura**: apagar a evidência exposta
+não reverte o veredito, e `integrity.status` acompanha o registro vivo.
+
+A execução ablacionada aplica a **mesma** política de efeitos da medição — mesmo
+registro, mesma recusa, mesmo bloqueio — e o contra-factual declarado é exigido
+por inteiro: decisões **e** operação (`MealOperation`). Comparar apenas as
+decisões permitiria devolver data, refeição ou comando errados na ablação e
+ainda aprovar. Amostra de
 latência/custo inválida bloqueia por `metrics_invalid`; a verificação da
 referência independente contra a fonte canônica bloqueia por
-`reference_not_verified`. Nenhum desses bloqueios depende de a taxa cair abaixo
+`reference_not_verified`. Seções declaradas por `case.adrSections` e por
+`scenario.adrSections` são verificadas contra a fonte canônica como qualquer
+outra declaração normativa. Nenhum desses bloqueios depende de a taxa cair abaixo
 da meta, e todos são exercitados por controle negativo nos testes.
 
 `inspectCorpusIntegrity` também reporta `invalid` quando a referência canônica
