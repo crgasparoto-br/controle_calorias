@@ -1,5 +1,9 @@
 # Busca do catalogo no registro manual de refeicoes
 
+
+> Esta interface permanece um consumidor do catálogo e uma forma explícita de fornecer evidência/seleção pelo usuário. Ela não define um resolvedor alimentar paralelo. A direção de ownership está em `adr-food-intelligence-resolver-v2.md`.
+
+
 ## Objetivo
 
 Atualizar o registro manual para usar o catalogo global de alimentos, mantendo compatibilidade com o preenchimento livre atual.

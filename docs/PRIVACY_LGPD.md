@@ -89,6 +89,19 @@ O endpoint autenticado `nutrition.privacy.requestAccountDeletion` deve remover o
 
 Backups, logs de infraestrutura fora do banco e arquivos externos em storage dependem de política operacional de retenção ou automação específica.
 
+## Food Intelligence V2 — evidência e governança
+
+A evolução descrita em `design-docs/adr-food-intelligence-resolver-v2.md` pode introduzir novas evidências, eventos de resolução, correções pessoais e fila de revisão. Esses artefatos continuam sendo dados potencialmente sensíveis e devem obedecer às mesmas regras deste documento.
+
+- memória pessoal deve permanecer isolada por usuário e não ser promovida globalmente com conteúdo identificável;
+- fila/revisão global deve usar somente a evidência necessária para a decisão e evitar expor identidade do usuário quando não houver necessidade operacional;
+- imagens, OCR, transcrições e texto bruto não devem ser copiados para novas tabelas apenas para auditoria; prefira referências opacas, fatos estruturados e retenção explícita;
+- qualquer novo período de retenção ou uso de evidência visual precisa ser definido antes da implementação correspondente;
+- promoção, rejeição e revogação globais devem preservar autoria administrativa e justificativa sanitizada sem replicar conteúdo sensível desnecessário.
+- `food_resolution_events` deve possuir retenção finita e sanitizada; não pode se tornar arquivo permanente de texto, transcrição ou OCR do usuário;
+- promoção de candidato pessoal para conhecimento global deve remover associação identificável ao usuário sempre que a finalidade puder ser atendida sem ela;
+- exportação/exclusão deve classificar memória pessoal, evidências e eventos de resolução conforme vínculo, finalidade e obrigação de retenção antes do rollout correspondente.
+
 ## IA e serviços externos
 
 O assistente alimentar não deve enviar nome, e-mail ou identificador interno do usuário para o provedor de IA. Ainda assim, preferências, restrições alimentares, texto livre, foto, áudio ou transcrição podem conter dados sensíveis e devem ser tratados como conteúdo protegido.

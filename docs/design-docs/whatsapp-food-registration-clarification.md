@@ -1,5 +1,9 @@
 # Clarificação persistente de registro alimentar no WhatsApp
 
+
+> **Baseline transitório de canal.** Este documento continua descrevendo a persistência e a retomada atuais do WhatsApp. A decisão de quais campos alimentares estão resolvidos ou faltantes deve convergir para o Food Intelligence Resolver V2 (`adr-food-intelligence-resolver-v2.md`); o WhatsApp não deve ganhar novas regras nutricionais próprias durante a migração.
+
+
 Issue: #855  
 Épica coordenadora: #857  
 Consumidores do contrato: #858 e #860

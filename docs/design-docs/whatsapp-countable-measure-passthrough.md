@@ -1,5 +1,9 @@
 # Passthrough de medidas contáveis no registro textual do WhatsApp
 
+
+> **Baseline transitório.** Este documento descreve o comportamento produtivo atual e permanece necessário enquanto os consumers legados existirem. A arquitetura alvo está em `adr-food-intelligence-resolver-v2.md`: no estado final, decisões estruturadas de identidade/quantidade/nutrição devem atravessar o resolvedor único e não depender de reserialização em texto. Não expandir este mecanismo como nova arquitetura.
+
+
 ## Objetivo
 
 Garantir que medidas contáveis resolvidas antes da inferência nutricional, como `fatia`, `unidade` e outras porções domésticas, cheguem ao pipeline nutricional na gramatura determinada pelo resolvedor canônico em vez de retornar ao texto original.

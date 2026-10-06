@@ -1,5 +1,9 @@
 # Design tecnico: API do catalogo global de alimentos
 
+
+> Esta API é uma superfície de catálogo, não um resolvedor alimentar. O Food Intelligence V2 deve consumi-la como parte da base governada sem duplicar regras de identidade, ranking nutricional ou aprovação no router. Direção arquitetural: `adr-food-intelligence-resolver-v2.md`.
+
+
 Parent: #150
 Issues: #154, #161, #162, #163
 Depends on: #151, #152
@@ -73,6 +77,16 @@ A ordenacao prioriza:
 7. alimentos com fonte registrada;
 8. alimentos globais;
 9. nome alfabetico.
+
+## Interface administrativa no V2
+
+`client/src/pages/AdminPage.tsx`, na área **Base de alimentos**, é a superfície administrativa atual. No V2 ela deve evoluir para uma console de governança sobre os mesmos artefatos canônicos consumidos pelo resolvedor.
+
+A console deve permitir pesquisar e inspecionar famílias/variantes, perfis nutricionais versionados, classificações, aliases, porções, códigos de barras, fontes e evidências; operar `food_review_cases`; e executar aprovação, correção, rejeição, revogação, depreciação ou merge conforme permissão.
+
+A tela administrativa não deve implementar regras próprias de resolução ou manter um catálogo paralelo. Importação e curadoria devem publicar conhecimento governado somente pelos serviços V2, com prévia/reconciliação e trilha de `food_review_events`.
+
+O detalhamento visual/responsivo continua aberto, mas a separação de responsabilidade por audiência está definida no ADR do Food Intelligence Resolver V2.
 
 ## Curadoria administrativa
 

@@ -11,6 +11,15 @@ Permitir que o usuário registre refeições por texto, imagem, áudio ou entrad
 3. Usuário revisa e ajusta os itens inferidos.
 4. Sistema confirma a refeição, persiste itens individuais e atualiza totais, hábitos e relatórios.
 
+
+## Direção de produto — Food Intelligence V2
+
+A experiência alvo de reconhecimento alimentar é governada pelo ADR `../design-docs/adr-food-intelligence-resolver-v2.md`.
+
+Para o usuário, a regra é independente do canal: texto, voz, imagem ou combinação multimodal devem convergir para a mesma decisão quando carregarem evidência equivalente. O sistema deve perguntar somente a dimensão realmente ausente, preservar fatos já resolvidos e nunca apresentar fallback ou estimativa como dado oficial de uma marca sem a procedência correspondente.
+
+As seções abaixo que citam `processMealInput`, `semanticContract`, `foodItemResolution` ou fluxos específicos de WhatsApp descrevem o **baseline produtivo atual**. Elas não substituem a arquitetura alvo do ADR. Durante a migração, qualquer diferença entre baseline e ADR deve ser tratada explicitamente como dívida/migração, não como autorização para criar outro caminho paralelo.
+
 ## Regras de produto
 
 - Toda inferência nutricional deve ser tratada como rascunho até confirmação explícita ou fluxo conversacional equivalente.

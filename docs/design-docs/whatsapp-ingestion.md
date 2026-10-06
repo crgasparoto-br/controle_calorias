@@ -1,5 +1,9 @@
 # Design técnico: ingestão WhatsApp
 
+
+> **Baseline produtivo durante a migração.** Este documento descreve a composição HTTP, lifecycle, idempotência, mídia e os owners atualmente alcançáveis no runtime. Para resolução alimentar, a arquitetura alvo é `adr-food-intelligence-resolver-v2.md`. Os owners alimentares provisórios aqui documentados não devem ser ampliados nem tratados como arquitetura final; a migração deve convergir para evidências de canal + resolvedor único sem regredir lifecycle, privacidade ou idempotência.
+
+
 ## Responsabilidade
 
 Receber payloads da Meta, identificar usuário por telefone de origem, processar conteúdo multimodal e responder pelo número oficial da solução.

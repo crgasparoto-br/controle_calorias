@@ -39,6 +39,25 @@ drizzle/schema.ts              -> fonte de verdade do modelo relacional
 shared/*                       -> tipos, cálculos e mensagens sem dependência de ambiente
 ```
 
+
+## Direção arquitetural de inteligência alimentar
+
+A arquitetura alvo do reconhecimento e da resolução de alimentos está em `docs/design-docs/adr-food-intelligence-resolver-v2.md`.
+
+Esse ADR está em estado **PROPOSED / EM EVOLUÇÃO** e deve ser lido junto com o baseline produtivo em `docs/design-docs/nutrition-engine.md`. Até a migração ser concluída, os módulos atuais continuam descrevendo o runtime real; novas mudanças, porém, não devem ampliar ownership concorrente.
+
+A direção obrigatória é:
+
+- texto, áudio/transcrição, imagem, OCR, rótulo e código de barras produzem evidências estruturadas;
+- um único resolvedor de domínio deve ser o destino dessas evidências;
+- identidade, quantidade, nutrição, proveniência e incerteza devem viajar como decisão estruturada, sem round-trip estrutura -> texto -> nova inferência;
+- conhecimento alimentar novo deve entrar em base governada, não em listas ou exceções de código;
+- memória pessoal não é conhecimento global;
+- promoção global segue governança e revisão conforme o ADR;
+- componentes legados permanecem apenas enquanto necessários para compatibilidade e devem ter condição explícita de aposentadoria.
+
+Uma implementação não pode declarar a arquitetura unificada apenas por reutilizar nomes como `semanticContract`, `processMealInput` ou "owner canônico"; a convergência precisa ser comprovada pelos golden flows e gates arquiteturais definidos no ADR.
+
 ## Fronteiras das áreas de experiência
 
 A decisão de produto canônica está em `docs/product-specs/product-experience-model.md`.
