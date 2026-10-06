@@ -212,6 +212,19 @@ describe("FoodObservation v2", () => {
       )
     );
 
+    // Locale explícito fora do recorte não pode cair silenciosamente em pt-BR.
+    expectInvalid(
+      parseFoodObservation(
+        buildFoodObservationFixture({
+          locale: {
+            requested: "en-US",
+            effective: "pt-BR",
+            status: "explicit",
+          },
+        })
+      )
+    );
+
     // Locale não suportado usa effective=null e razão unsupported_locale.
     const unsupportedOk = parseFoodObservation(
       buildFoodObservationFixture({
@@ -728,6 +741,46 @@ describe("FoodResolutionDecision v2", () => {
         })
       )
     );
+  });
+
+  it("rejeita evidência existente quando pertence a outro proprietário", () => {
+    for (const overrides of [
+      { identity: { evidenceIds: ["ev-grams"] } },
+      { quantity: { evidenceIds: ["ev-nutrition"] } },
+      { nutrition: { evidenceIds: ["ev-ident"] } },
+      {
+        classification: {
+          version: "cls-1",
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          confidence: null,
+          provisional: true,
+          evidenceIds: ["ev-ident"],
+        },
+      },
+      {
+        status: "ambiguous",
+        nextAction: "clarify",
+        reasonCodes: ["source_conflict"],
+        alternatives: [
+          buildFoodAlternativeFixture({
+            candidateKey: "a",
+            name: "A",
+            evidenceIds: ["ev-grams"],
+          }),
+          buildFoodAlternativeFixture({
+            candidateKey: "b",
+            name: "B",
+          }),
+        ],
+      },
+    ]) {
+      expectInvalid(
+        parseFoodResolutionDecision(buildFoodResolutionDecisionFixture(overrides))
+      );
+    }
   });
 
   it("mantém contrato de serialização estável (round-trip JSON)", () => {
