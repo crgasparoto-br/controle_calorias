@@ -3187,6 +3187,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: null,
         differentFromStepId: null,
+        requiredKnowledgeReads: [],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-aquisicao",
@@ -3196,6 +3198,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: null,
         differentFromStepId: "step-antes",
+        requiredKnowledgeReads: [],
+        requiredKnowledgeWrites: ["owner-a:alias:cafe-da-firma"],
       },
       {
         stepId: "step-medicao-reservada",
@@ -3205,6 +3209,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: "step-aquisicao",
         differentFromStepId: null,
+        requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-reinicio",
@@ -3214,6 +3220,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: "step-aquisicao",
         differentFromStepId: null,
+        requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-precedencia",
@@ -3223,6 +3231,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: null,
         differentFromStepId: "step-aquisicao",
+        requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-isolamento",
@@ -3232,6 +3242,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: null,
         differentFromStepId: "step-aquisicao",
+        requiredKnowledgeReads: ["owner-b:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-controle-negativo",
@@ -3241,6 +3253,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: [],
         sameResultAsStepId: null,
         differentFromStepId: "step-aquisicao",
+        requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
       {
         stepId: "step-revogacao",
@@ -3250,6 +3264,8 @@ const learningScenarios: GoldenLearningScenario[] = [
         revokeKeys: ["owner-a:alias:cafe-da-firma"],
         sameResultAsStepId: null,
         differentFromStepId: "step-aquisicao",
+        requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+        requiredKnowledgeWrites: [],
       },
     ],
   },

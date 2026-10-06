@@ -57,4 +57,13 @@ export {
   type ProjectedObservation,
   type ProjectedQuantity,
 } from "./projection";
+export {
+  CANONICAL_ADR_PATH,
+  CANONICAL_ADR_SHA256,
+  CANONICAL_REFERENCE_SOURCE,
+  declaredReferenceSections,
+  missingReferenceSections,
+  readCanonicalReference,
+  type CanonicalReference,
+} from "./referenceSource";
 export { renderCorpusReport, renderCorpusReportMarkdown } from "./report";

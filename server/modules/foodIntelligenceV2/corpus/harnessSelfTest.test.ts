@@ -12,6 +12,7 @@ import {
   runGoldenFoodCorpus,
 } from "./harness";
 import {
+  buildDecisionForExpected,
   createAlwaysClarifyResolver,
   createCacheIgnoringRevocationResolver,
   createEmptyResolver,
@@ -1090,5 +1091,90 @@ describe("autoverificação do harness", () => {
     expect(() => {
       (report.gate as { status: string }).status = "passed";
     }).toThrow();
+  });
+  it("detecta quantidade por extenso e não confunde versão com porção", () => {
+    const comQuantidadePorExtenso = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-aprendizado-alias-definido"
+          ? { ...entry, input: { ...entry.input, text: "uma maçã" } }
+          : entry
+      ),
+    });
+    const extenso = inspectCorpusIntegrity(comQuantidadePorExtenso);
+    expect(extenso.status).toBe("invalid");
+    expect(
+      extenso.invalidCases.some(
+        item => item.caseId === "c-aprendizado-alias-definido"
+      )
+    ).toBe(true);
+
+    // Identificador/versão não é quantidade consumida: não pode invalidar um
+    // caso legítimo nem esconder uma porção.
+    const semQuantidade = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-aprendizado-alias-definido"
+          ? { ...entry, input: { ...entry.input, text: "arroz versão 2" } }
+          : entry
+      ),
+    });
+    expect(inspectCorpusIntegrity(semQuantidade).status).toBe("valid");
+  });
+
+  it("trata métrica presente com valor nulo como inválida", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:metrica-nula",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return { ...result, metrics: null as never };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("metrics_invalid");
+    expect(report.overall.latencySamples).toBe(0);
+  });
+
+  it("reprova cenário em que a aquisição não é consultada depois", async () => {
+    // Bypass apontado pela auditoria: escreve uma chave qualquer na aquisição,
+    // nunca lê conhecimento e devolve a expectativa por caseId. As invariantes
+    // same/different continuam satisfeitas — e mesmo assim precisa reprovar.
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:sem-consulta-de-conhecimento",
+        revision: "1",
+        async resolve({ case: entry, allowLearning, knowledge }) {
+          if (allowLearning && knowledge.mode === "acquisition") {
+            await knowledge.write("chave-inutil", "x");
+          }
+          const source = corpus.cases.find(
+            item => item.caseId === entry.caseId
+          )!;
+          return {
+            decisions: source.expected.decisions.map((decision, index) =>
+              buildDecisionForExpected(source, decision, index, {})
+            ),
+            operation: source.expected.operation,
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("scenario_invariant_violated");
+    expect(report.learningScenarios[0].passed).toBe(false);
+    const details = report.learningScenarios[0].steps.flatMap(step =>
+      step.failures.map(failure => failure.detail ?? "")
+    );
+    expect(
+      details.some(detail => detail.includes("deveria consultar a chave"))
+    ).toBe(true);
+    expect(
+      details.some(detail => detail.includes("deveria escrever a chave"))
+    ).toBe(true);
   });
 });

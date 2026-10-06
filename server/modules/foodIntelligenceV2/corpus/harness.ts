@@ -81,34 +81,41 @@ import {
  */
 function validateMetrics(
   caseId: string,
-  metrics: CorpusResolverMetrics | undefined
+  metrics: unknown
 ): CorpusFailure | null {
-  if (metrics === undefined || metrics === null) return null;
-  if (typeof metrics !== "object" || Array.isArray(metrics)) {
+  // Ausência (`undefined`) é permitida; presença com valor inválido — inclusive
+  // `null`, que não é `CorpusResolverMetrics` — é falha declarada.
+  if (metrics === undefined) return null;
+  if (
+    metrics === null ||
+    typeof metrics !== "object" ||
+    Array.isArray(metrics)
+  ) {
     return {
       caseId,
       label: null,
       codes: ["metrics_invalid"],
-      detail: `métricas não são objeto: ${typeof metrics}`,
+      detail: `métricas não são objeto válido: ${metrics === null ? "null" : typeof metrics}`,
     };
   }
+  const sample = metrics as CorpusResolverMetrics;
   const offenders: string[] = [];
-  if (metrics.latencyMs !== undefined) {
+  if (sample.latencyMs !== undefined) {
     if (
-      typeof metrics.latencyMs !== "number" ||
-      !Number.isFinite(metrics.latencyMs) ||
-      metrics.latencyMs < 0
+      typeof sample.latencyMs !== "number" ||
+      !Number.isFinite(sample.latencyMs) ||
+      sample.latencyMs < 0
     ) {
-      offenders.push(`latencyMs=${String(metrics.latencyMs)}`);
+      offenders.push(`latencyMs=${String(sample.latencyMs)}`);
     }
   }
-  if (metrics.costUsd !== undefined) {
+  if (sample.costUsd !== undefined) {
     if (
-      typeof metrics.costUsd !== "number" ||
-      !Number.isFinite(metrics.costUsd) ||
-      metrics.costUsd < 0
+      typeof sample.costUsd !== "number" ||
+      !Number.isFinite(sample.costUsd) ||
+      sample.costUsd < 0
     ) {
-      offenders.push(`costUsd=${String(metrics.costUsd)}`);
+      offenders.push(`costUsd=${String(sample.costUsd)}`);
     }
   }
   if (offenders.length === 0) return null;
@@ -1037,13 +1044,22 @@ export function inspectCorpusIntegrity(
  * declare `unspecified` sobre uma superfície que declara quantidade.
  */
 const QUANTITY_SIGNAL_PATTERN =
-  /(\d)|\b(g|kg|ml|l|gramas?|quilos?|mililitros?|litros?|fatias?|colheres?|copos?|xícaras?|unidades?|porç(ão|ões)|prato|tigela|punhado|tiquinho|pratão|dose)\b/i;
+  /\b(um|uma|uns|umas|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|meia|meio|metade|par|pouco|pouca|pouquinho|pouquinha|alguns|algumas|bastante|por[çc][ãa]o|por[çc][õo]es|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|gramas?|quilos?|mililitros?|litros?|g|kg|ml|l)\b/i;
+
+/** Contextos que usam dígitos sem declarar quantidade consumida. */
+const NON_QUANTITY_DIGIT_PATTERN =
+  /\b(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\d+\b/gi;
 
 function quantitySignalOf(entry: GoldenCorpusCase): string | null {
   // Somente superfícies **declaradas pelo usuário** contam como quantidade
   // consumida. `ocrText` é evidência do produto (por exemplo o peso da
-  // embalagem) e não afirma a porção consumida; datas e horas também não são
-  // quantidade.
+  // embalagem) e não afirma a porção consumida; datas, horas, versões e
+  // identificadores também não são quantidade.
+  //
+  // O detector é deliberadamente **assimétrico**: quantidade por extenso
+  // ("uma maçã", "meia porção") conta tanto quanto dígitos, porque uma
+  // quantidade material escondida atrás de `unspecified` é o risco que a
+  // integridade existe para impedir.
   const surfaces = [
     entry.input.text,
     entry.input.transcription,
@@ -1052,9 +1068,12 @@ function quantitySignalOf(entry: GoldenCorpusCase): string | null {
   for (const surface of surfaces) {
     const cleaned = surface
       .replace(/\d{4}-\d{2}-\d{2}/g, " ")
-      .replace(/\d{1,2}:\d{2}/g, " ");
-    const match = QUANTITY_SIGNAL_PATTERN.exec(cleaned);
-    if (match) return match[0];
+      .replace(/\d{1,2}:\d{2}/g, " ")
+      .replace(NON_QUANTITY_DIGIT_PATTERN, " ");
+    const word = QUANTITY_SIGNAL_PATTERN.exec(cleaned);
+    if (word) return word[0];
+    const digit = /\d/.exec(cleaned);
+    if (digit) return digit[0];
   }
   return null;
 }
@@ -1703,8 +1722,15 @@ export function createKnowledgeStore(): CorpusKnowledgeStore {
       const gate: CorpusKnowledgeGate = {
         mode,
         async read(key: string) {
-          ledger.push({ caseId, split, operation: "read", key });
-          return entries.get(key) ?? null;
+          const value = entries.get(key) ?? null;
+          ledger.push({
+            caseId,
+            split,
+            operation: "read",
+            key,
+            hit: value !== null,
+          });
+          return value;
         },
         async write(key: string, value: string) {
           ledger.push({ caseId, split, operation: "write_attempt", key });
@@ -1917,8 +1943,18 @@ export async function runCorpus(
       projections: evaluated.projections,
       operation: evaluated.operation,
       rawDecisions: evaluated.rawDecisions,
-      latencyMs: metricFailure ? null : (result.metrics?.latencyMs ?? null),
-      costUsd: metricFailure ? null : (result.metrics?.costUsd ?? null),
+      latencyMs:
+        metricFailure ||
+        typeof result.metrics !== "object" ||
+        result.metrics === null
+          ? null
+          : (result.metrics.latencyMs ?? null),
+      costUsd:
+        metricFailure ||
+        typeof result.metrics !== "object" ||
+        result.metrics === null
+          ? null
+          : (result.metrics.costUsd ?? null),
     });
   }
 
@@ -2131,9 +2167,15 @@ export async function runLearningScenarios(
     // O armazenamento vive por cenário: é o que torna persistência após
     // reinício e revogação efeitos observáveis, e não rótulos de caso.
     const knowledge = createKnowledgeStore();
+    // Cadeia causal: chaves escritas na aquisição e chaves adquiridas que foram
+    // efetivamente encontradas em leituras posteriores. Sem essa cadeia, o
+    // cenário não prova aprendizado — prova apenas rótulos por caseId.
+    const acquiredKeys = new Set<string>();
+    const consultedAcquiredKeys = new Set<string>();
 
     for (const step of scenario.steps) {
       const entry = byCaseId.get(step.caseId);
+      const causalFailures: CorpusFailure[] = [];
       if (!entry) {
         stepResults.push({
           stepId: step.stepId,
@@ -2179,11 +2221,66 @@ export async function runLearningScenarios(
           allowLearning: step.writesAllowed,
           knowledge: gate,
         });
-        const recorded = knowledge.ledger
-          .slice(ledgerStart)
+        const stepLedger = knowledge.ledger.slice(ledgerStart);
+        const recorded = stepLedger
           .filter(item => item.operation === "write_attempt")
           .map(item => item.key);
+        const reads = stepLedger.filter(item => item.operation === "read");
         recordedWriteAttempts = recorded.length;
+        for (const key of recorded) {
+          if (step.phase === "acquisition") acquiredKeys.add(key);
+        }
+        for (const key of step.requiredKnowledgeWrites) {
+          if (!recorded.includes(key)) {
+            causalFailures.push({
+              caseId: entry.caseId,
+              label: null,
+              codes: ["scenario_effect_missing"],
+              detail: `passo ${step.stepId} deveria escrever a chave de conhecimento '${key}'`,
+            });
+          }
+        }
+        for (const key of step.requiredKnowledgeReads) {
+          const read = reads.find(item => item.key === key);
+          if (!read) {
+            causalFailures.push({
+              caseId: entry.caseId,
+              label: null,
+              codes: ["scenario_effect_missing"],
+              detail: `passo ${step.stepId} deveria consultar a chave de conhecimento '${key}'`,
+            });
+            continue;
+          }
+          // Depois da revogação, a leitura precisa **não** encontrar o valor:
+          // é o que prova que a revogação foi aplicada, não apenas declarada.
+          if (step.revokeKeys.includes(key) && read.hit === true) {
+            causalFailures.push({
+              caseId: entry.caseId,
+              label: null,
+              codes: ["scenario_effect_missing"],
+              detail: `passo ${step.stepId} leu a chave revogada '${key}' e ainda encontrou valor`,
+            });
+          }
+          if (
+            step.phase !== "revocation" &&
+            step.requiredKnowledgeWrites.length === 0 &&
+            acquiredKeys.size > 0 &&
+            acquiredKeys.has(key) &&
+            read.hit !== true
+          ) {
+            causalFailures.push({
+              caseId: entry.caseId,
+              label: null,
+              codes: ["scenario_effect_missing"],
+              detail: `passo ${step.stepId} não encontrou o conhecimento adquirido na chave '${key}'`,
+            });
+          }
+        }
+        for (const read of reads) {
+          if (acquiredKeys.has(read.key) && read.hit === true) {
+            consultedAcquiredKeys.add(read.key);
+          }
+        }
         if (recorded.length > 0 && !step.writesAllowed) {
           integrity.status = "invalid";
           integrity.holdoutKnowledgeWrites.push({
@@ -2213,6 +2310,7 @@ export async function runLearningScenarios(
       }
 
       const failures = [...evaluated.failures];
+      failures.push(...causalFailures);
       const previous = step.sameResultAsStepId
         ? projectionsByStep.get(step.sameResultAsStepId)
         : undefined;
@@ -2285,6 +2383,19 @@ export async function runLearningScenarios(
       };
       stepResults.push(stepResult);
       scenarioFailures.push(...failures);
+    }
+    // Fechamento da cadeia causal: o conhecimento escrito na aquisição precisa
+    // ter sido encontrado em leitura posterior.
+    if (acquiredKeys.size > 0 && consultedAcquiredKeys.size === 0) {
+      scenarioFailures.push({
+        caseId:
+          scenario.steps.find(step => step.phase === "acquisition")?.caseId ??
+          scenario.steps[0].caseId,
+        label: null,
+        codes: ["scenario_effect_missing"],
+        detail:
+          "cenário não prova aprendizado: nenhuma chave escrita na aquisição foi encontrada em leitura posterior",
+      });
     }
 
     results.push({

@@ -560,6 +560,17 @@ const learningScenarioStepSchema = z.strictObject({
   sameResultAsStepId: opaqueId.nullable(),
   /** Exige resultado diferente de outro passo (isolamento/revogação). */
   differentFromStepId: opaqueId.nullable(),
+  /**
+   * Chaves de conhecimento que precisam ser lidas neste passo. São a prova
+   * causal de que a saída medida depende da aquisição, não de um fixture por
+   * caseId (§16.1).
+   */
+  requiredKnowledgeReads: z.array(nonEmptyText).max(10),
+  /**
+   * Chaves que a aquisição precisa escrever. O harness verifica que ao menos
+   * uma delas é lida pelos passos posteriores do mesmo cenário.
+   */
+  requiredKnowledgeWrites: z.array(nonEmptyText).max(10),
 });
 
 export type CorpusLearningScenarioStep = z.infer<
@@ -626,6 +637,8 @@ export interface CorpusKnowledgeLedgerEntry {
   split: CorpusSplit;
   operation: "read" | "write_attempt";
   key: string;
+  /** Em `read`: `true` quando a chave existia no momento da leitura. */
+  hit?: boolean;
 }
 
 /**

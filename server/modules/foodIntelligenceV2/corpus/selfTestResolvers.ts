@@ -327,14 +327,17 @@ export function createReferenceResolver(
     async resolve({ case: entry, allowLearning, knowledge }) {
       const source = byCaseId.get(entry.caseId);
       if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
-      // A referência independente também **registra** a aquisição quando a fase
-      // permite escrita: §16.1 exige efeito observável, e um passo de aquisição
-      // sem escrita não prova aprendizado nenhum.
+      // §16.1 exige efeito observável: a fase de aquisição registra a chave e
+      // os passos posteriores a **consultam**. Um resolvedor que devolve o
+      // resultado por caseId sem consultar a fachada não prova aprendizado e
+      // reprova na cadeia causal do harness.
       if (allowLearning && knowledge.mode === "acquisition") {
         await knowledge.write(
           `${entry.scenario.ownerRef}:${ALIAS_KEY}`,
           ALIAS_VALUE
         );
+      } else if (knowledge.mode === "read_only") {
+        await knowledge.read(`${entry.scenario.ownerRef}:${ALIAS_KEY}`);
       }
       return resultFor(source);
     },

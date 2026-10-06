@@ -2914,10 +2914,15 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   declarar restrição de origem — declarar valor que não seria comparado
   transformaria a expectativa em aparência de verificação. Identidade só admite
   `expected` ou `forbidden`. Quantidade só admite `unspecified` em item proposto
-  resolvido cuja superfície realmente não declara quantidade (o corpus verifica
-  o sinal de quantidade no texto, descontando datas; `ocrText` é evidência do
-  produto, não porção consumida); nesse estado o resolvedor precisa produzir
-  quantidade utilizável com unidade explícita (`quantity_unusable`). Toda
+  resolvido cuja superfície realmente não declara quantidade; nesse estado o
+  resolvedor precisa produzir quantidade utilizável com unidade explícita
+  (`quantity_unusable`). O sinal de quantidade é verificado sobre as superfícies
+  **declaradas pelo usuário** (texto, transcrição e legenda), cobrindo dígitos e
+  quantidade por extenso ("uma maçã", "meia porção") e desconsiderando datas,
+  horas, versões e identificadores; `ocrText` é evidência do produto — o peso da
+  embalagem não afirma a porção consumida. O detector é deliberadamente
+  assimétrico: esconder quantidade material atrás de `unspecified` é o risco que
+  a integridade existe para impedir. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -2948,14 +2953,20 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   executa os cenários de §16.1 contra a **mesma instância** do resolvedor com
   armazenamento de conhecimento por cenário e produz relatório segmentado.
   Equivalência sem referência declarada tem motivo de bloqueio próprio
-  (`undeclared_equivalence`), e a referência é **governada**: só a fonte
-  canônica (`adr-food-intelligence-resolver-v2`) pode declarar equivalência, e
-  cada declaração aponta a seção que a fundamenta. A operação de refeição
+  (`undeclared_equivalence`), e a referência é **verificada contra a fonte
+  canônica**, não auto-atestada: só a fonte canônica
+  (`adr-food-intelligence-resolver-v2`) pode declarar equivalência, cada
+  declaração aponta a seção que a fundamenta, e cada seção declarada precisa
+  **existir como título** na ADR. A versão da ADR usada na declaração é fixada
+  por hash SHA-256 (`CANONICAL_ADR_SHA256`): alterar a fonte sem reexaminar as
+  equivalências reprova a verificação, de modo que a referência nunca seja
+  herdada em silêncio. A operação de refeição
   devolvida pelo resolvedor é validada contra `foodMealOperationSchema`, que é
   estrito: campo não governado, data não ISO ou tipo errado reprovam com
   `operation_invalid`. Amostra de latência/custo não finita, negativa, de tipo
   errado ou que não seja objeto reprova com `metrics_invalid` e não entra na
-  agregação. O relatório é **congelado** antes de ser devolvido: a evidência de
+  agregação; campo ausente é ausência legítima, mas valor presente e inválido —
+  inclusive `null` — é falha declarada. O relatório é **congelado** antes de ser devolvido: a evidência de
   aceite não pode ser adulterada por quem a consome.
 - `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
 
@@ -3009,9 +3020,18 @@ fases, início no estado anterior à aquisição, aquisição como única fase c
 escrita permitida, `sameResultAsStepId` obrigatório em medição reservada e
 reinício, `differentFromStepId` obrigatório em precedência explícita,
 isolamento e revogação, chaves revogadas declaradas e ao menos um passo que
-prove diferença observável. Em execução, o passo de aquisição precisa registrar
-escrita de conhecimento (`scenario_effect_missing`): sem efeito observável, o
-cenário seria rótulo de caso, não protocolo.
+prove diferença observável.
+
+Em execução, o cenário precisa provar **cadeia causal**, não rótulo: cada passo
+declara as chaves de conhecimento que precisa escrever e consultar, a aquisição
+precisa escrever o que declara, e os passos posteriores precisam **encontrar** o
+que foi adquirido. O harness registra cada leitura com o resultado do acesso
+(`hit`), exige que a chave revogada seja consultada e **não** seja encontrada
+depois da revogação, e reprova o cenário quando nenhuma chave escrita na
+aquisição é encontrada em leitura posterior. Um resolvedor que devolve o
+resultado por `caseId` sem consultar a fachada de conhecimento — mesmo
+satisfazendo todas as invariantes de igualdade e diferença — reprova com
+`scenario_effect_missing`.
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e
