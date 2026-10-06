@@ -1078,6 +1078,169 @@ describe("autoverificação do harness", () => {
     );
     expect(allCodes(report)).toContain("metrics_invalid");
     expect(report.overall.latencySamples).toBe(0);
+    // Métrica inválida não se dilui na média: a medição não é evidência.
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("metrics_invalid");
+  });
+
+  it("fecha o gate quando a escrita em holdout ocorre só dentro do cenário", async () => {
+    // A violação acontece num passo de cenário (caso holdout, fora da
+    // aquisição), depois da checagem estrutural: precisa invalidar a execução
+    // e bloquear independentemente da taxa de pareamento.
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:holdout-dentro-do-cenario",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.scenario.phase === "restart") {
+            try {
+              await request.knowledge.write("alias:furtivo", "x");
+            } catch {
+              // Tentativa registrada no ledger; efeito colateral oculto.
+            }
+          }
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.status).toBe("invalid");
+    expect(report.integrity.holdoutKnowledgeWrites.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("holdout_knowledge_write");
+  });
+
+  it("reprova leitura sem uso: ler todas as chaves e ignorar o valor não prova aprendizado", async () => {
+    // Bypass apontado pela auditoria: satisfaz a cadeia sintática (escreve e lê
+    // exatamente as chaves exigidas, com hit) e devolve a expectativa por
+    // `caseId`. A ablação da aquisição não muda nada — logo não há aprendizado
+    // e o cenário precisa reprovar.
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:leitura-sem-uso",
+        revision: "1",
+        async resolve({ case: entry, allowLearning, knowledge }) {
+          if (allowLearning && knowledge.mode === "acquisition") {
+            await knowledge.write("owner-a:alias:cafe-da-firma", "IGNORED");
+          } else {
+            await knowledge.read("owner-a:alias:cafe-da-firma");
+            await knowledge.read("owner-b:alias:cafe-da-firma");
+          }
+          const source = corpus.cases.find(
+            item => item.caseId === entry.caseId
+          )!;
+          return {
+            decisions: source.expected.decisions.map((decision, index) =>
+              buildDecisionForExpected(source, decision, index, {})
+            ),
+            operation: source.expected.operation,
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.gate.status).toBe("blocked");
+    expect(report.learningScenarios[0].passed).toBe(false);
+    expect(
+      report.learningScenarios[0].failures.some(failure =>
+        (failure.detail ?? "").includes("ablação da aquisição")
+      )
+    ).toBe(true);
+  });
+
+  it("integra a verificação da referência canônica ao gate principal", async () => {
+    const member = corpus.cases.find(
+      item => item.equivalenceReference !== null
+    )!;
+    const forged = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(item =>
+        item.caseId === member.caseId
+          ? {
+              ...item,
+              equivalenceReference: {
+                declaredBy: "adr-food-intelligence-resolver-v2",
+                adrSection: "§999",
+                note: "seção inexistente declarada pelo corpus",
+              },
+            }
+          : item
+      ),
+    });
+    expect(inspectCorpusIntegrity(forged).reference.verified).toBe(false);
+    const report = await runCorpus(
+      forged,
+      createReferenceResolver(forged),
+      pinned
+    );
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("reference_not_verified");
+  });
+
+  it("reconhece quantidade material em frações, numerais e extenso, sem invalidar identificadores", () => {
+    const comSuperficie = (text: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? { ...item, input: { ...item.input, text } }
+            : item
+        ),
+      });
+    const declara = (text: string) =>
+      inspectCorpusIntegrity(comSuperficie(text)).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    for (const material of [
+      "½ maçã",
+      "1/2 maçã",
+      "II maçãs",
+      "vinte maçãs",
+      "meio prato de arroz",
+      "duas colheres de arroz",
+      "2 fatias de pão",
+    ]) {
+      expect(declara(material), material).toBe(true);
+    }
+    for (const naoMaterial of [
+      "arroz versão 2",
+      "sopa a 70°C",
+      "3 vezes ao dia",
+      "café",
+    ]) {
+      expect(declara(naoMaterial), naoMaterial).toBe(false);
+    }
+  });
+
+  it("aceita isenção de token não-material e recusa isenção de porção", () => {
+    const comIsencao = (text: string, token: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? {
+                ...item,
+                input: {
+                  ...item.input,
+                  text,
+                  nonQuantityTokens: [
+                    { token, reason: "número da linha do produto" },
+                  ],
+                },
+              }
+            : item
+        ),
+      });
+    const declara = (
+      corpusComIsencao: ReturnType<typeof goldenCorpusSchema.parse>
+    ) =>
+      inspectCorpusIntegrity(corpusComIsencao).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    expect(declara(comIsencao("Coca-Cola 3", "3"))).toBe(false);
+    // Isenção adjacente a unidade/porção é recusada: `2 fatias` é material.
+    expect(declara(comIsencao("2 fatias de pão", "2"))).toBe(true);
   });
 
   it("congela o relatório para que a evidência não seja adulterada", async () => {

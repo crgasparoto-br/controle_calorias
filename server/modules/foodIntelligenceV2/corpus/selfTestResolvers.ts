@@ -55,6 +55,13 @@ const BASE_VALUES: FoodNutritionValues = {
 };
 
 const ALIAS_KEY = "alias:cafe-da-firma";
+/** Casos que presumem o alias já aprendido: sem ele, a superfície não resolve. */
+const ALIAS_DEPENDENT_CASE_IDS = new Set([
+  "c-aprendizado-alias-reuso",
+  "c-aprendizado-persistencia-restart",
+]);
+/** Estado anterior à aquisição: resultado correto quando não há aprendizado. */
+const BEFORE_ACQUISITION_CASE_ID = "c-aprendizado-alias-antes";
 const ALIAS_VALUE = "cafe|sem-acucar";
 
 function anchor(sourceRef: string) {
@@ -336,8 +343,23 @@ export function createReferenceResolver(
           `${entry.scenario.ownerRef}:${ALIAS_KEY}`,
           ALIAS_VALUE
         );
-      } else if (knowledge.mode === "read_only") {
-        await knowledge.read(`${entry.scenario.ownerRef}:${ALIAS_KEY}`);
+        return resultFor(source);
+      }
+      const learned = await knowledge.read(
+        `${entry.scenario.ownerRef}:${ALIAS_KEY}`
+      );
+      // Contra-factual declarado: dentro de um cenário, quando o alias não
+      // existe na fachada, o resultado correto é o do estado anterior à
+      // aquisição. É isso que torna o aprendizado **causalmente** observável —
+      // e não um rótulo devolvido por `caseId`.
+      const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
+      if (
+        entry.scenario.phase !== null &&
+        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        learned === null &&
+        before
+      ) {
+        return resultFor(source, before);
       }
       return resultFor(source);
     },
@@ -373,11 +395,22 @@ export function createLearningResolver(
 
       const learned = await knowledge.read(key);
       const acquired = byCaseId.get(acquiredCaseId);
+      const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       const appliesToSurface =
         entry.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
         "cafe da firma";
       if (learned !== null && appliesToSurface && acquired) {
         return resultFor(source, acquired);
+      }
+      // Contra-factual: sem o alias na fachada, dentro de um cenário, o
+      // resultado correto é o do estado anterior à aquisição.
+      if (
+        learned === null &&
+        entry.scenario.phase !== null &&
+        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        before
+      ) {
+        return resultFor(source, before);
       }
       return resultFor(source);
     },

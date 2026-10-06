@@ -2917,15 +2917,24 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   resolvido cuja superfície realmente não declara quantidade; nesse estado o
   resolvedor precisa produzir quantidade utilizável com unidade explícita
   (`quantity_unusable`). O sinal de quantidade é verificado sobre as superfícies
-  **declaradas pelo usuário** (texto, transcrição e legenda), cobrindo dígitos e
-  quantidade por extenso ("uma maçã", "meia porção") e desconsiderando datas,
-  horas, versões e identificadores; `ocrText` é evidência do produto — o peso da
-  embalagem não afirma a porção consumida. O detector é deliberadamente
-  assimétrico: esconder quantidade material atrás de `unspecified` é o risco que
-  a integridade existe para impedir. Toda
+  **declaradas pelo usuário** (texto, transcrição e legenda), cobrindo dígitos,
+  frações (Unicode e `1/2`), numerais romanos e quantidade por extenso ("uma
+  maçã", "meia porção", "vinte unidades"), e desconsiderando datas, horas,
+  versões, identificadores, temperaturas e frequências de consumo; `ocrText` é
+  evidência do produto — o peso da embalagem não afirma a porção consumida. O
+  detector é deliberadamente assimétrico: esconder quantidade material atrás de
+  `unspecified` é o risco que a integridade existe para impedir.
+
+  Onde a heurística não distingue (por exemplo o número de uma marca), o caso
+  pode declarar uma **isenção governada** (`input.nonQuantityTokens`) com o
+  token exato e motivo obrigatório. A isenção é recusada mecanicamente quando o
+  token está adjacente a uma unidade ou porção: `2 fatias` nunca pode ser
+  declarado "não é quantidade". A isenção é visível na revisão e não alcança a
+  expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
+
 - `projection.ts` projeta observações e decisões para a comparação semântica de
   §4.1.8, preservando identidade, qualificadores, quantidade/unidade,
   multiplicidade, alternativas e campos não resolvidos, e excluindo
@@ -2960,13 +2969,18 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   **existir como título** na ADR. A versão da ADR usada na declaração é fixada
   por hash SHA-256 (`CANONICAL_ADR_SHA256`): alterar a fonte sem reexaminar as
   equivalências reprova a verificação, de modo que a referência nunca seja
-  herdada em silêncio. A operação de refeição
+  herdada em silêncio. Essa verificação é **fail-closed e integrada ao caminho
+  de aprovação**: fonte ausente, ilegível, com hash divergente ou com seção
+  inexistente bloqueia o gate com `reference_not_verified` — não basta um teste
+  separado. A operação de refeição
   devolvida pelo resolvedor é validada contra `foodMealOperationSchema`, que é
   estrito: campo não governado, data não ISO ou tipo errado reprovam com
   `operation_invalid`. Amostra de latência/custo não finita, negativa, de tipo
   errado ou que não seja objeto reprova com `metrics_invalid` e não entra na
   agregação; campo ausente é ausência legítima, mas valor presente e inválido —
-  inclusive `null` — é falha declarada. O relatório é **congelado** antes de ser devolvido: a evidência de
+  inclusive `null` — é falha declarada e **bloqueia o gate** com
+  `metrics_invalid`: uma medição cujo custo é desconhecido não é evidência de
+  aceite e não se dilui na taxa de pareamento. O relatório é **congelado** antes de ser devolvido: a evidência de
   aceite não pode ser adulterada por quem a consome.
 - `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
 
@@ -3000,6 +3014,13 @@ satisfazer (`sameResultAsStepId` para persistência/idempotência,
 `differentFromStepId` para isolamento/revogação), e um resolvedor que mantém
 cache obsoleto após a revogação reprova o cenário.
 
+O gate é **fail-closed** em três caminhos que não se diluem na taxa de
+pareamento: escrita de conhecimento fora da fase de aquisição — inclusive dentro
+de um cenário e num caso holdout — bloqueia por `holdout_knowledge_write`;
+amostra de latência/custo inválida bloqueia por `metrics_invalid`; e a
+verificação da referência independente contra a fonte canônica bloqueia por
+`reference_not_verified`. Nenhum desses bloqueios depende de a taxa cair abaixo
+da meta, e todos são exercitados por controle negativo nos testes.
 Controles negativos produzem evidência adversarial estruturada: hipótese de
 implementação errada, dimensão discriminante, assinatura da saída do controle e
 do alvo e as revisões do material medido. Um controle que absteve dos dois lados
@@ -3028,10 +3049,19 @@ precisa escrever o que declara, e os passos posteriores precisam **encontrar** o
 que foi adquirido. O harness registra cada leitura com o resultado do acesso
 (`hit`), exige que a chave revogada seja consultada e **não** seja encontrada
 depois da revogação, e reprova o cenário quando nenhuma chave escrita na
-aquisição é encontrada em leitura posterior. Um resolvedor que devolve o
-resultado por `caseId` sem consultar a fachada de conhecimento — mesmo
-satisfazendo todas as invariantes de igualdade e diferença — reprova com
-`scenario_effect_missing`.
+aquisição é encontrada em leitura posterior.
+
+Satisfazer essa cadeia ainda é **sintático**: um resolvedor pode escrever e ler
+exatamente as chaves exigidas, descartar os valores e devolver a expectativa por
+`caseId`. Por isso o cenário é reexecutado com a **aquisição ablacionada** — a
+escrita é registrada e descartada, de modo que nenhum passo posterior encontra o
+que foi aprendido. Ao menos um passo posterior precisa mudar de resultado; se
+nada muda, não há aprendizado observável e o cenário reprova com
+`scenario_effect_missing`. Para que a dependência seja declarada e não inferida,
+a fase do cenário em execução é exposta ao resolvedor (`scenario.phase`), que
+assim distingue contexto observável de oráculo: o contra-factual ("sem o
+aprendizado, este é o resultado correto") fica no duplo de referência, e a
+expectativa permanece fora da entrada.
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e

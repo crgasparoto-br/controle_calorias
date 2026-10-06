@@ -282,6 +282,8 @@ export const CORPUS_GATE_BLOCK_REASONS = [
   "scenario_invariant_violated",
   "corpus_invalid",
   "undeclared_equivalence",
+  "reference_not_verified",
+  "metrics_invalid",
 ] as const;
 export type CorpusGateBlockReason = (typeof CORPUS_GATE_BLOCK_REASONS)[number];
 
@@ -442,6 +444,21 @@ const corpusInputSchema = z.strictObject({
   caption: nullableText(600),
   /** Referência sintética de mídia; nunca mídia real (§19.8). */
   imageRef: nullableText(120),
+  /**
+   * Tokens detectados como possível quantidade que o caso declara **não** serem
+   * porção consumida (por exemplo o número de uma marca). Cada isenção precisa
+   * de motivo e é recusada quando o token está adjacente a uma unidade ou
+   * porção — `2 fatias` nunca pode ser isentado (§8.3, §16).
+   */
+  nonQuantityTokens: z
+    .array(
+      z.strictObject({
+        token: z.string().trim().min(1).max(40),
+        reason: z.string().trim().min(3).max(200),
+      })
+    )
+    .max(5)
+    .default([]),
 });
 
 export type CorpusInput = z.infer<typeof corpusInputSchema>;
@@ -628,6 +645,12 @@ export interface CorpusCaseInput {
   readonly scenario: Readonly<{
     ownerRef: string;
     conversationRef: string;
+    /**
+     * Fase do cenário de §16.1 em execução, ou `null` fora de cenário. É
+     * contexto observável (o resolvedor sabe se está num reinício ou depois de
+     * uma revogação), não oráculo: a expectativa continua fora da entrada.
+     */
+    phase: CorpusLearningPhase | null;
   }>;
 }
 
@@ -710,7 +733,10 @@ export interface CorpusResolverUnderTest {
  * Cria a entrada sanitizada de um caso. Congela a estrutura para que um
  * resolvedor não possa mutar o caso do corpus.
  */
-export function toCorpusCaseInput(entry: GoldenCorpusCase): CorpusCaseInput {
+export function toCorpusCaseInput(
+  entry: GoldenCorpusCase,
+  phase: CorpusLearningPhase | null = null
+): CorpusCaseInput {
   const input: CorpusCaseInput = {
     caseId: entry.caseId,
     modality: entry.modality,
@@ -719,6 +745,7 @@ export function toCorpusCaseInput(entry: GoldenCorpusCase): CorpusCaseInput {
     scenario: Object.freeze({
       ownerRef: entry.scenario.ownerRef,
       conversationRef: entry.scenario.conversationRef,
+      phase,
     }),
   };
   return Object.freeze(input);

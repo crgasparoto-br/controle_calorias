@@ -198,6 +198,7 @@ const input = (
   ocrText: over.ocrText ?? null,
   caption: over.caption ?? null,
   imageRef: over.imageRef ?? null,
+  nonQuantityTokens: over.nonQuantityTokens ?? [],
 });
 
 const operation = (over: Partial<CaseOperation> = {}): CaseOperation => ({

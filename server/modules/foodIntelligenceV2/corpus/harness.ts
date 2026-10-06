@@ -58,6 +58,11 @@ import {
 } from "./contracts";
 import { goldenFoodCorpus } from "./data";
 import {
+  CANONICAL_ADR_SHA256,
+  missingReferenceSections,
+  readCanonicalReference,
+} from "./referenceSource";
+import {
   classifyMeasureKind,
   decisionsSemanticallyEqual,
   materialAttributeKey,
@@ -279,6 +284,29 @@ export interface LearningScenarioResult {
   failures: CorpusFailure[];
 }
 
+/**
+ * Verifica a referência independente de §4.1.8 contra os bytes da ADR
+ * canônica. A verificação é **fail-closed**: fonte ausente, ilegível, com hash
+ * diferente do pino ou com seção declarada inexistente reprova.
+ */
+function verifyCanonicalReference(corpus: GoldenCorpus): {
+  verified: boolean;
+  hash: string | null;
+  missingSections: { ownerId: string; section: string }[];
+} {
+  try {
+    const reference = readCanonicalReference();
+    const missingSections = missingReferenceSections(corpus, reference);
+    return {
+      verified:
+        reference.hash === CANONICAL_ADR_SHA256 && missingSections.length === 0,
+      hash: reference.hash,
+      missingSections,
+    };
+  } catch {
+    return { verified: false, hash: null, missingSections: [] };
+  }
+}
 /** Integridade do corpus antes da medição (§16.1, §16.2, §17). */
 export interface CorpusIntegrityReport {
   status: "valid" | "invalid";
@@ -295,6 +323,15 @@ export interface CorpusIntegrityReport {
   invalidScenarios: { scenarioId: string; message: string }[];
   /** Escritas de conhecimento observadas fora da fase de aquisição. */
   holdoutKnowledgeWrites: { caseId: string; writes: string[] }[];
+  /**
+   * Verificação da referência independente de §4.1.8 contra a fonte canônica:
+   * hash da ADR usada e seções declaradas que não existem no documento.
+   */
+  reference: {
+    verified: boolean;
+    hash: string | null;
+    missingSections: { ownerId: string; section: string }[];
+  };
 }
 
 /** Veredito do gate do corpus. */
@@ -746,10 +783,10 @@ export function inspectCorpusIntegrity(
           });
         }
         const signal = quantitySignalOf(entry);
-        if (signal !== null) {
+        if (signal !== null && !isExemptQuantityToken(entry, signal)) {
           invalidCases.push({
             caseId: entry.caseId,
-            message: `superfície declara quantidade ('${signal}') e por isso a quantidade não pode ficar 'unspecified'`,
+            message: `superfície declara quantidade ('${signal.token}') e por isso a quantidade não pode ficar 'unspecified'`,
           });
         }
       }
@@ -1035,6 +1072,7 @@ export function inspectCorpusIntegrity(
     divergentGroupExpectations,
     invalidScenarios,
     holdoutKnowledgeWrites: [],
+    reference: verifyCanonicalReference(corpus),
   };
 }
 
@@ -1044,22 +1082,35 @@ export function inspectCorpusIntegrity(
  * declare `unspecified` sobre uma superfície que declara quantidade.
  */
 const QUANTITY_SIGNAL_PATTERN =
-  /\b(um|uma|uns|umas|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|meia|meio|metade|par|pouco|pouca|pouquinho|pouquinha|alguns|algumas|bastante|por[çc][ãa]o|por[çc][õo]es|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|gramas?|quilos?|mililitros?|litros?|g|kg|ml|l)\b/i;
+  /\b(um|uma|uns|umas|dois|duas|tr[êe]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|mil|meia|meio|metade|par|pouco|pouca|pouquinho|pouquinha|alguns|algumas|bastante|d[úu]zia|d[úu]zias|dezena|dezenas|por[çc][ãa]o|por[çc][õo]es|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|gramas?|quilos?|mililitros?|litros?|g|kg|ml|l|ii|iii|iv|vi|vii|viii|ix|xi|xii|xiii|xiv|xv|xx)\b/i;
+
+/** Frações: Unicode e forma ASCII (`1/2`, `3 / 4`). */
+const FRACTION_PATTERN = /[½¼¾⅓⅔⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚⅐⅑⅒]|\b\d+\s*\/\s*\d+\b/;
 
 /** Contextos que usam dígitos sem declarar quantidade consumida. */
 const NON_QUANTITY_DIGIT_PATTERN =
-  /\b(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\d+\b/gi;
+  /\b(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\d+\b|\d+\s*°\s*[cf]?\b|\b\d+\s*(vezes|x)\b/gi;
 
-function quantitySignalOf(entry: GoldenCorpusCase): string | null {
+/** Unidade ou porção que torna a quantidade material inegociável. */
+const PORTION_UNIT_PATTERN =
+  /\b(g|kg|ml|l|gramas?|quilos?|mililitros?|litros?|fatias?|colheres?|colher|conchas?|copos?|x[íi]caras?|unidades?|por[çc][ãa]o|por[çc][õo]es|prato|prat[ãa]o|tigela|punhado|tiquinho|dose|doses|d[úu]zias?|dezenas?)\b/i;
+
+interface QuantitySignal {
+  token: string;
+  surface: string;
+  index: number;
+}
+
+function quantitySignalOf(entry: GoldenCorpusCase): QuantitySignal | null {
   // Somente superfícies **declaradas pelo usuário** contam como quantidade
   // consumida. `ocrText` é evidência do produto (por exemplo o peso da
-  // embalagem) e não afirma a porção consumida; datas, horas, versões e
-  // identificadores também não são quantidade.
+  // embalagem) e não afirma a porção consumida; datas, horas, versões,
+  // identificadores, temperaturas e frequências também não são quantidade.
   //
   // O detector é deliberadamente **assimétrico**: quantidade por extenso
-  // ("uma maçã", "meia porção") conta tanto quanto dígitos, porque uma
-  // quantidade material escondida atrás de `unspecified` é o risco que a
-  // integridade existe para impedir.
+  // ("uma maçã", "meia porção"), frações e numerais contam tanto quanto
+  // dígitos, porque uma quantidade material escondida atrás de `unspecified` é
+  // o risco que a integridade existe para impedir.
   const surfaces = [
     entry.input.text,
     entry.input.transcription,
@@ -1067,15 +1118,89 @@ function quantitySignalOf(entry: GoldenCorpusCase): string | null {
   ].filter((value): value is string => value !== null);
   for (const surface of surfaces) {
     const cleaned = surface
-      .replace(/\d{4}-\d{2}-\d{2}/g, " ")
-      .replace(/\d{1,2}:\d{2}/g, " ")
-      .replace(NON_QUANTITY_DIGIT_PATTERN, " ");
+      .replace(/\d{4}-\d{2}-\d{2}/g, m => " ".repeat(m.length))
+      .replace(/\d{1,2}:\d{2}/g, m => " ".repeat(m.length))
+      .replace(NON_QUANTITY_DIGIT_PATTERN, m => " ".repeat(m.length));
+    const fraction = FRACTION_PATTERN.exec(cleaned);
+    if (fraction) {
+      return { token: fraction[0], surface: cleaned, index: fraction.index };
+    }
     const word = QUANTITY_SIGNAL_PATTERN.exec(cleaned);
-    if (word) return word[0];
     const digit = /\d/.exec(cleaned);
-    if (digit) return digit[0];
+    if (word && digit) {
+      return word.index <= digit.index
+        ? { token: word[0], surface: cleaned, index: word.index }
+        : { token: digit[0], surface: cleaned, index: digit.index };
+    }
+    if (word) {
+      return { token: word[0], surface: cleaned, index: word.index };
+    }
+    if (digit) {
+      return { token: digit[0], surface: cleaned, index: digit.index };
+    }
   }
   return null;
+}
+
+/**
+ * A isenção de um token só vale com motivo declarado e **fora** de contexto de
+ * unidade/porção: `2 fatias` não pode ser declarado "não é quantidade".
+ */
+function isExemptQuantityToken(
+  entry: GoldenCorpusCase,
+  signal: QuantitySignal
+): boolean {
+  const exemption = entry.input.nonQuantityTokens.find(
+    item => item.token.toLowerCase() === signal.token.toLowerCase()
+  );
+  if (!exemption) return false;
+  const window = signal.surface.slice(
+    Math.max(0, signal.index - 12),
+    signal.index + signal.token.length + 12
+  );
+  return !PORTION_UNIT_PATTERN.test(window);
+}
+
+/**
+ * Executa os passos do cenário com a **aquisição ablacionada**: as escritas de
+ * conhecimento são registradas e descartadas, de modo que nenhum passo
+ * posterior encontra o que foi aprendido. Serve para provar dependência causal
+ * — se a ablação não muda nenhum resultado observável, o cenário não prova
+ * aprendizado, apenas rótulos por `caseId` (§16.1, §16.2).
+ */
+async function ablatedScenarioProjections(
+  scenario: GoldenLearningScenario,
+  byCaseId: ReadonlyMap<string, GoldenCorpusCase>,
+  resolver: CorpusResolverUnderTest
+): Promise<Map<string, ProjectedDecision[]>> {
+  const knowledge = createKnowledgeStore({ persistWrites: false });
+  const projections = new Map<string, ProjectedDecision[]>();
+  for (const step of scenario.steps) {
+    const entry = byCaseId.get(step.caseId);
+    if (!entry) continue;
+    for (const key of step.revokeKeys) knowledge.revoke(key);
+    const gate = knowledge.gateFor(
+      entry.caseId,
+      entry.split,
+      step.writesAllowed ? "acquisition" : "read_only"
+    );
+    try {
+      const result = await resolver.resolve({
+        case: toCorpusCaseInput(entry, step.phase),
+        allowLearning: step.writesAllowed,
+        knowledge: gate,
+      });
+      projections.set(
+        step.stepId,
+        evaluateResult(entry, result, [], step.writesAllowed).projections
+      );
+    } catch {
+      // Falha no passo ablacionado é, por si, mudança de comportamento; o
+      // cenário normal já registra o erro. Aqui só não há projeção.
+      projections.set(step.stepId, []);
+    }
+  }
+  return projections;
 }
 
 function validateScenario(
@@ -1709,7 +1834,10 @@ export interface CorpusKnowledgeStore {
 }
 
 /** Cria um armazenamento de conhecimento instrumentado e isolado. */
-export function createKnowledgeStore(): CorpusKnowledgeStore {
+export function createKnowledgeStore(
+  options: { persistWrites?: boolean } = {}
+): CorpusKnowledgeStore {
+  const persistWrites = options.persistWrites ?? true;
   const entries = new Map<string, string>();
   const ledger: CorpusKnowledgeLedgerEntry[] = [];
 
@@ -1739,7 +1867,9 @@ export function createKnowledgeStore(): CorpusKnowledgeStore {
               `escrita de conhecimento bloqueada em ${caseId} (§16.1: holdout não alimenta memória)`
             );
           }
-          entries.set(key, value);
+          // Na execução de ablação a escrita é registrada e **descartada**: é
+          // assim que se mede se o resultado depende do conhecimento adquirido.
+          if (persistWrites) entries.set(key, value);
         },
       };
       return gate;
@@ -2026,6 +2156,11 @@ export async function runCorpus(
   const scenarioFailures = learningScenarios.filter(item => !item.passed);
 
   const blockReasons: CorpusGateBlockReason[] = [];
+  // Escrita em holdout bloqueia mesmo que o status prévio seja `valid`: a
+  // integridade é recalculada durante a execução dos cenários.
+  if (integrity.holdoutKnowledgeWrites.length > 0) {
+    blockReasons.push("holdout_knowledge_write");
+  }
   if (integrity.status === "invalid") {
     if (
       integrity.duplicateCaseIds.length > 0 ||
@@ -2034,9 +2169,6 @@ export async function runCorpus(
       blockReasons.push("duplicate_cases");
     }
     if (integrity.splitLeakage.length > 0) blockReasons.push("split_leakage");
-    if (integrity.holdoutKnowledgeWrites.length > 0) {
-      blockReasons.push("holdout_knowledge_write");
-    }
     if (
       integrity.invalidCases.length > 0 ||
       integrity.invalidGroups.length > 0 ||
@@ -2054,6 +2186,16 @@ export async function runCorpus(
   }
   if (wrongConvergence.length > 0 || convergedControls.length > 0) {
     blockReasons.push("negative_control_convergence");
+  }
+  // A referência independente é verificada no próprio caminho de aprovação:
+  // sem fonte canônica íntegra, equivalência de superfície não é prova.
+  if (!integrity.reference.verified) {
+    blockReasons.push("reference_not_verified");
+  }
+  // Amostra de latência/custo inválida é falha declarada de §16.2 e bloqueia:
+  // uma medição cujo custo é desconhecido não é evidência de aceite.
+  if (failures.some(failure => failure.codes.includes("metrics_invalid"))) {
+    blockReasons.push("metrics_invalid");
   }
   // Divergência de macros entre entradas equivalentes bloqueia **sempre**:
   // a tolerância é `OPEN` (§25 item 30) e não existe valor aprovado.
@@ -2217,7 +2359,7 @@ export async function runLearningScenarios(
       let recordedWriteAttempts = 0;
       try {
         const result = await resolver.resolve({
-          case: toCorpusCaseInput(entry),
+          case: toCorpusCaseInput(entry, step.phase),
           allowLearning: step.writesAllowed,
           knowledge: gate,
         });
@@ -2282,6 +2424,9 @@ export async function runLearningScenarios(
           }
         }
         if (recorded.length > 0 && !step.writesAllowed) {
+          integrity.status = "invalid";
+          // Escrita em holdout é violação de §16.1/§16.2 **independentemente**
+          // da taxa de pareamento: não é uma falha que se dilui na média.
           integrity.status = "invalid";
           integrity.holdoutKnowledgeWrites.push({
             caseId: entry.caseId,
@@ -2396,6 +2541,40 @@ export async function runLearningScenarios(
         detail:
           "cenário não prova aprendizado: nenhuma chave escrita na aquisição foi encontrada em leitura posterior",
       });
+    }
+    // Prova causal: com a aquisição ablacionada, ao menos um passo posterior
+    // precisa mudar de resultado. Um resolvedor que devolve a expectativa por
+    // `caseId` — mesmo lendo todas as chaves exigidas — produz o mesmo
+    // resultado com e sem conhecimento e, portanto, não prova aprendizado.
+    const acquisitionIndex = scenario.steps.findIndex(
+      step => step.phase === "acquisition"
+    );
+    const dependentSteps = scenario.steps.filter(
+      (_, index) => acquisitionIndex >= 0 && index > acquisitionIndex
+    );
+    if (dependentSteps.length > 0) {
+      const ablated = await ablatedScenarioProjections(
+        scenario,
+        byCaseId,
+        resolver
+      );
+      const changed = dependentSteps.some(step => {
+        const before = projectionsByStep.get(step.stepId);
+        const after = ablated.get(step.stepId);
+        if (!before || !after) return false;
+        return !projectionMultisetEqual(before, after);
+      });
+      if (!changed) {
+        scenarioFailures.push({
+          caseId:
+            scenario.steps.find(step => step.phase === "acquisition")?.caseId ??
+            scenario.steps[0].caseId,
+          label: null,
+          codes: ["scenario_effect_missing"],
+          detail:
+            "ablação da aquisição não altera nenhum resultado observável: o cenário não prova que a decisão depende do conhecimento adquirido",
+        });
+      }
     }
 
     results.push({
