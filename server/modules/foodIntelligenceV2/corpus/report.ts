@@ -133,6 +133,12 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
   lines.push(
     "- A meta de §1.1 é medida sobre **todos** os casos rotulados como resolvíveis, incluindo abstenções e falhas. Clarificação, rejeição e diferidos são verificados integralmente em segmento próprio e não inflam o numerador; denominador zero é reportado como `amostra ausente`, nunca como 0."
   );
+  lines.push(
+    "- O gate é fail-closed e não se dilui na taxa: `holdout_knowledge_write` (escrita em partição reservada), `knowledge_write_outside_acquisition` (escrita fora da aquisição em qualquer partição, inclusive tentada depois do fim do passo), `metrics_invalid` (amostra de latência/custo inválida) e `reference_not_verified` (fonte canônica divergente ou seção inexistente) bloqueiam por si."
+  );
+  lines.push(
+    "- O aprendizado é provado por ablação contra o **contra-factual declarado** pelo corpus: com a aquisição ablacionada, cada passo posterior precisa produzir o resultado correto do mundo sem conhecimento. Diferença fabricada não passa. Limite declarado: o corpus não define mapeamento valor→resultado, portanto o harness prova dependência de presença do conhecimento, não a interpretação semântica do valor armazenado."
+  );
   lines.push("");
 
   lines.push("## Integridade do corpus");
@@ -180,6 +186,22 @@ export function renderCorpusReportMarkdown(report: CorpusReport): string {
   for (const item of report.integrity.holdoutKnowledgeWrites) {
     lines.push(
       `- \`${item.caseId}\` escreveu conhecimento reservado: ${item.writes.join(", ")}`
+    );
+  }
+  lines.push(
+    `- Escritas fora da fase de aquisição: ${report.integrity.knowledgeWritesOutside.length}`
+  );
+  lines.push(
+    `- Escritas tentadas depois do fim do passo: ${report.integrity.knowledgeWritesAfterStep.length}`
+  );
+  for (const item of report.integrity.knowledgeWritesOutside) {
+    lines.push(
+      `- \`${item.caseId}\` tentou escrever conhecimento fora da aquisição: ${item.writes.join(", ")}`
+    );
+  }
+  for (const item of report.integrity.knowledgeWritesAfterStep) {
+    lines.push(
+      `- \`${item.caseId}\` tentou escrever \`${item.key}\` depois de o passo terminar`
     );
   }
   lines.push("");

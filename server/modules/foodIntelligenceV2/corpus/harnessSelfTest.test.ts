@@ -1178,6 +1178,174 @@ describe("autoverificação do harness", () => {
     expect(report.gate.blockReasons).toContain("reference_not_verified");
   });
 
+  it("reprova ablação fabricada: divergir no modo ablação não substitui o contra-factual declarado", async () => {
+    // Ataque da auditoria: o resolvedor conta as chamadas, reconhece a segunda
+    // passagem (ablação) e devolve uma decisão material diferente só ali. Não
+    // consulta o valor aprendido. A exigência de corresponder ao contra-factual
+    // **declarado** pelo corpus fecha esse caminho.
+    let calls = 0;
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:ablacao-fabricada",
+        revision: "1",
+        async resolve(request) {
+          calls += 1;
+          const ablated = calls > corpus.cases.length;
+          if (!ablated) return reference.resolve(request);
+          const source = corpus.cases.find(
+            item => item.caseId === request.case.caseId
+          )!;
+          const counterfactual = corpus.cases.find(
+            item => item.caseId === "c-aprendizado-alias-antes"
+          )!;
+          return {
+            decisions: counterfactual.expected.decisions.map(
+              (decision, index) =>
+                buildDecisionForExpected(counterfactual, decision, index, {})
+            ),
+            operation: counterfactual.expected.operation,
+            metrics: { latencyMs: 1, costUsd: 0 },
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.gate.status).toBe("blocked");
+    expect(report.learningScenarios[0].passed).toBe(false);
+  });
+
+  it("bloqueia escrita fora da aquisição em qualquer partição", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:escrita-fora-da-aquisicao",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.caseId === "c-panco-pao-forma") {
+            try {
+              await request.knowledge.write("indevido", "x");
+            } catch {
+              // A tentativa é registrada mesmo assim.
+            }
+          }
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.status).toBe("invalid");
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
+  it("registra escrita tardia: timer depois do passo não escapa da janela", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:escrita-tardia",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.scenario.phase === "restart") {
+            const gate = request.knowledge;
+            setTimeout(() => {
+              void gate.write("alias:tardio", "x").catch(() => {});
+            }, 0);
+          }
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.knowledgeWritesAfterStep.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
+  it("colhe a escrita mesmo quando o resolvedor lança depois de tentar escrever", async () => {
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:escrita-e-erro",
+        revision: "1",
+        async resolve(request) {
+          if (request.case.caseId === "c-panco-pao-forma") {
+            try {
+              await request.knowledge.write("indevido", "x");
+            } catch {
+              // ignora
+            }
+            throw new Error("falha depois da tentativa de escrita");
+          }
+          return createReferenceResolver(corpus).resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
+      "knowledge_write_outside_acquisition"
+    );
+  });
+
+  it("não aceita isenção que esconde outra ocorrência material nem isenção decorativa", () => {
+    const comTexto = (text: string, token: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? {
+                ...item,
+                input: {
+                  ...item.input,
+                  text,
+                  nonQuantityTokens: [
+                    { token, reason: "número da linha do produto" },
+                  ],
+                },
+              }
+            : item
+        ),
+      });
+    const invalido = (text: string, token: string) =>
+      inspectCorpusIntegrity(comTexto(text, token)).status === "invalid";
+    // Primeira ocorrência isentada, segunda material: continua inválido.
+    expect(invalido("Marca 2 Café, depois 2 fatias", "2")).toBe(true);
+    // Isenção de token que não ocorre é decorativa e não é aceita.
+    expect(invalido("café", "9")).toBe(true);
+    // Isenção legítima e única continua aceita.
+    expect(invalido("Coca-Cola 3", "3")).toBe(false);
+  });
+
+  it("marca a integridade como inválida quando a referência canônica não é verificada", () => {
+    const member = corpus.cases.find(
+      item => item.equivalenceReference !== null
+    )!;
+    const forged = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(item =>
+        item.caseId === member.caseId
+          ? {
+              ...item,
+              equivalenceReference: {
+                ...item.equivalenceReference!,
+                adrSection: "§999",
+              },
+            }
+          : item
+      ),
+    });
+    const integrity = inspectCorpusIntegrity(forged);
+    expect(integrity.reference.verified).toBe(false);
+    // Quem consome apenas `status` não pode concluir "válido".
+    expect(integrity.status).toBe("invalid");
+  });
+
   it("reconhece quantidade material em frações, numerais e extenso, sem invalidar identificadores", () => {
     const comSuperficie = (text: string) =>
       goldenCorpusSchema.parse({

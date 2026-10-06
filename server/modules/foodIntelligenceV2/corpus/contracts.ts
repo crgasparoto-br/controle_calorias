@@ -284,6 +284,7 @@ export const CORPUS_GATE_BLOCK_REASONS = [
   "undeclared_equivalence",
   "reference_not_verified",
   "metrics_invalid",
+  "knowledge_write_outside_acquisition",
 ] as const;
 export type CorpusGateBlockReason = (typeof CORPUS_GATE_BLOCK_REASONS)[number];
 
@@ -588,6 +589,14 @@ const learningScenarioStepSchema = z.strictObject({
    * uma delas é lida pelos passos posteriores do mesmo cenário.
    */
   requiredKnowledgeWrites: z.array(nonEmptyText).max(10),
+  /**
+   * Caso cujo resultado é o correto quando a aquisição **não** aconteceu: o
+   * contra-factual declarado. O harness reexecuta o cenário com a aquisição
+   * ablacionada e exige que o resultado ablacionado corresponda a este caso,
+   * de modo que a diferença não possa ser fabricada — ela tem de ser o
+   * resultado correto do mundo sem aprendizado (§16.1, §18).
+   */
+  withoutKnowledgeCaseId: opaqueId.nullable(),
 });
 
 export type CorpusLearningScenarioStep = z.infer<

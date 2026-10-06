@@ -324,6 +324,17 @@ export interface CorpusIntegrityReport {
   /** Escritas de conhecimento observadas fora da fase de aquisição. */
   holdoutKnowledgeWrites: { caseId: string; writes: string[] }[];
   /**
+   * Escritas observadas fora da fase de aquisição em **qualquer** partição:
+   * violação dura, não diluível na taxa de pareamento.
+   */
+  knowledgeWritesOutside: { caseId: string; writes: string[] }[];
+  /**
+   * Tentativas de escrita na fachada **depois** de o passo ter terminado (por
+   * exemplo agendadas em timer). A fachada é inutilizada ao fim de cada passo e
+   * a tentativa tardia é registrada como violação.
+   */
+  knowledgeWritesAfterStep: { caseId: string; key: string }[];
+  /**
    * Verificação da referência independente de §4.1.8 contra a fonte canônica:
    * hash da ADR usada e seções declaradas que não existem no documento.
    */
@@ -782,11 +793,39 @@ export function inspectCorpusIntegrity(
             message: `decisão '${expected.label}' (${expected.status}/${expected.nextAction}) não pode deixar a quantidade sem comparação`,
           });
         }
-        const signal = quantitySignalOf(entry);
-        if (signal !== null && !isExemptQuantityToken(entry, signal)) {
+        const signals = quantitySignalsOf(entry);
+        const material = signals.find(
+          signal => !isExemptQuantityToken(entry, signal)
+        );
+        if (material) {
           invalidCases.push({
             caseId: entry.caseId,
-            message: `superfície declara quantidade ('${signal.token}') e por isso a quantidade não pode ficar 'unspecified'`,
+            message: `superfície declara quantidade ('${material.token}') e por isso a quantidade não pode ficar 'unspecified'`,
+          });
+        }
+        // Isenção declarada precisa corresponder a uma ocorrência real e não
+        // pode ser duplicada: isenção decorativa ou repetida é ruído que
+        // esconderia a próxima ocorrência material.
+        for (const exemption of entry.input.nonQuantityTokens) {
+          const matches = signals.filter(
+            signal =>
+              signal.token.toLowerCase() === exemption.token.toLowerCase()
+          );
+          if (matches.length === 0) {
+            invalidCases.push({
+              caseId: entry.caseId,
+              message: `isenção de quantidade declarada para '${exemption.token}' não corresponde a nenhuma ocorrência na superfície`,
+            });
+          }
+        }
+        const exemptionTokens = entry.input.nonQuantityTokens.map(item =>
+          item.token.toLowerCase()
+        );
+        if (new Set(exemptionTokens).size !== exemptionTokens.length) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message:
+              "isenção de quantidade declara o mesmo token mais de uma vez",
           });
         }
       }
@@ -1047,7 +1086,12 @@ export function inspectCorpusIntegrity(
     }
   }
 
+  // A verificação da referência canônica entra no status: um corpus cuja
+  // equivalência aponta seção inexistente (ou cuja fonte não confere com o
+  // pino) não é "válido" para quem consome apenas `status`.
+  const reference = verifyCanonicalReference(corpus);
   const status =
+    reference.verified &&
     duplicateCaseIds.length === 0 &&
     duplicateSurfaces.length === 0 &&
     splitLeakage.length === 0 &&
@@ -1072,7 +1116,9 @@ export function inspectCorpusIntegrity(
     divergentGroupExpectations,
     invalidScenarios,
     holdoutKnowledgeWrites: [],
-    reference: verifyCanonicalReference(corpus),
+    knowledgeWritesOutside: [],
+    knowledgeWritesAfterStep: [],
+    reference,
   };
 }
 
@@ -1101,16 +1147,24 @@ interface QuantitySignal {
   index: number;
 }
 
-function quantitySignalOf(entry: GoldenCorpusCase): QuantitySignal | null {
+/** Cópia global da expressão, exigida por `matchAll` e livre de `lastIndex`. */
+function globalOf(pattern: RegExp): RegExp {
+  return new RegExp(
+    pattern.source,
+    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+  );
+}
+
+function quantitySignalsOf(entry: GoldenCorpusCase): QuantitySignal[] {
   // Somente superfícies **declaradas pelo usuário** contam como quantidade
   // consumida. `ocrText` é evidência do produto (por exemplo o peso da
   // embalagem) e não afirma a porção consumida; datas, horas, versões,
   // identificadores, temperaturas e frequências também não são quantidade.
   //
-  // O detector é deliberadamente **assimétrico**: quantidade por extenso
-  // ("uma maçã", "meia porção"), frações e numerais contam tanto quanto
-  // dígitos, porque uma quantidade material escondida atrás de `unspecified` é
-  // o risco que a integridade existe para impedir.
+  // **Todas** as ocorrências são coletadas, não apenas a primeira: uma isenção
+  // de um token não pode esconder outra ocorrência material da mesma
+  // quantidade no mesmo texto (§8.3, §16).
+  const signals: QuantitySignal[] = [];
   const surfaces = [
     entry.input.text,
     entry.input.transcription,
@@ -1121,31 +1175,27 @@ function quantitySignalOf(entry: GoldenCorpusCase): QuantitySignal | null {
       .replace(/\d{4}-\d{2}-\d{2}/g, m => " ".repeat(m.length))
       .replace(/\d{1,2}:\d{2}/g, m => " ".repeat(m.length))
       .replace(NON_QUANTITY_DIGIT_PATTERN, m => " ".repeat(m.length));
-    const fraction = FRACTION_PATTERN.exec(cleaned);
-    if (fraction) {
-      return { token: fraction[0], surface: cleaned, index: fraction.index };
+    const tokens: { token: string; index: number }[] = [];
+    for (const match of cleaned.matchAll(globalOf(FRACTION_PATTERN))) {
+      tokens.push({ token: match[0], index: match.index ?? 0 });
     }
-    const word = QUANTITY_SIGNAL_PATTERN.exec(cleaned);
-    const digit = /\d/.exec(cleaned);
-    if (word && digit) {
-      return word.index <= digit.index
-        ? { token: word[0], surface: cleaned, index: word.index }
-        : { token: digit[0], surface: cleaned, index: digit.index };
+    for (const match of cleaned.matchAll(globalOf(QUANTITY_SIGNAL_PATTERN))) {
+      tokens.push({ token: match[0], index: match.index ?? 0 });
     }
-    if (word) {
-      return { token: word[0], surface: cleaned, index: word.index };
+    for (const match of cleaned.matchAll(/\d/g)) {
+      tokens.push({ token: match[0], index: match.index ?? 0 });
     }
-    if (digit) {
-      return { token: digit[0], surface: cleaned, index: digit.index };
+    tokens.sort((a, b) => a.index - b.index);
+    for (const token of tokens) {
+      signals.push({
+        token: token.token,
+        surface: cleaned,
+        index: token.index,
+      });
     }
   }
-  return null;
+  return signals;
 }
-
-/**
- * A isenção de um token só vale com motivo declarado e **fora** de contexto de
- * unidade/porção: `2 fatias` não pode ser declarado "não é quantidade".
- */
 function isExemptQuantityToken(
   entry: GoldenCorpusCase,
   signal: QuantitySignal
@@ -1172,9 +1222,9 @@ async function ablatedScenarioProjections(
   scenario: GoldenLearningScenario,
   byCaseId: ReadonlyMap<string, GoldenCorpusCase>,
   resolver: CorpusResolverUnderTest
-): Promise<Map<string, ProjectedDecision[]>> {
+): Promise<Map<string, AblatedStepOutcome>> {
   const knowledge = createKnowledgeStore({ persistWrites: false });
-  const projections = new Map<string, ProjectedDecision[]>();
+  const projections = new Map<string, AblatedStepOutcome>();
   for (const step of scenario.steps) {
     const entry = byCaseId.get(step.caseId);
     if (!entry) continue;
@@ -1190,17 +1240,45 @@ async function ablatedScenarioProjections(
         allowLearning: step.writesAllowed,
         knowledge: gate,
       });
-      projections.set(
-        step.stepId,
-        evaluateResult(entry, result, [], step.writesAllowed).projections
-      );
+      projections.set(step.stepId, {
+        result,
+        projections: evaluateResult(entry, result, [], step.writesAllowed)
+          .projections,
+      });
     } catch {
       // Falha no passo ablacionado é, por si, mudança de comportamento; o
       // cenário normal já registra o erro. Aqui só não há projeção.
-      projections.set(step.stepId, []);
+      projections.set(step.stepId, { result: null, projections: [] });
     }
   }
   return projections;
+}
+
+/** Resultado observado de um passo na execução com a aquisição ablacionada. */
+interface AblatedStepOutcome {
+  result: CorpusResolverResult | null;
+  projections: ProjectedDecision[];
+}
+
+/**
+ * O resultado ablacionado corresponde ao contra-factual **declarado** pelo
+ * corpus? A comparação usa a mesma máquina de `compareExpectedDecision` da
+ * medição normal, para que o critério de aceite seja idêntico ao do corpus.
+ */
+function matchesDeclaredCounterfactual(
+  declared: GoldenCorpusCase,
+  outcome: AblatedStepOutcome
+): boolean {
+  if (!outcome.result) return false;
+  const expected = declared.expected.decisions;
+  if (outcome.result.decisions.length !== expected.length) return false;
+  return expected.every(
+    (decision, index) =>
+      compareExpectedDecision(
+        decision,
+        projectDecision(outcome.result!.decisions[index])
+      ).length === 0
+  );
 }
 
 function validateScenario(
@@ -1215,6 +1293,41 @@ function validateScenario(
       scenarioId: scenario.scenarioId,
       message: "cenário de §16.1 exige passo de aquisição de conhecimento",
     });
+  }
+  const acquisitionIndex = scenario.steps.findIndex(
+    step => step.phase === "acquisition"
+  );
+  if (acquisitionIndex >= 0) {
+    const dependent = scenario.steps.filter(
+      (_, index) => index > acquisitionIndex
+    );
+    for (const step of dependent) {
+      if (step.withoutKnowledgeCaseId === null) {
+        issues.push({
+          scenarioId: scenario.scenarioId,
+          message: `passo ${step.stepId} posterior à aquisição precisa declarar o contra-factual (withoutKnowledgeCaseId)`,
+        });
+        continue;
+      }
+      if (!knownCaseIds.has(step.withoutKnowledgeCaseId)) {
+        issues.push({
+          scenarioId: scenario.scenarioId,
+          message: `passo ${step.stepId} declara contra-factual inexistente ${step.withoutKnowledgeCaseId}`,
+        });
+      }
+    }
+    // Se nenhum passo posterior muda de resultado sem o aprendizado, o cenário
+    // é decorativo: aprova sem provar generalização.
+    const provesLearning = dependent.some(
+      step => step.withoutKnowledgeCaseId !== step.caseId
+    );
+    if (!provesLearning) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message:
+          "cenário não declara nenhum passo posterior cujo resultado dependa do conhecimento adquirido",
+      });
+    }
   }
   const provingPhases: CorpusLearningPhase[] = [
     "restart",
@@ -1830,7 +1943,10 @@ export interface CorpusKnowledgeStore {
   ): CorpusKnowledgeGate;
   /** Revoga uma chave (§16.1: revogação sem reaplicação por cache obsoleto). */
   revoke(key: string): void;
+  /** Inutiliza fachadas abertas e torna escritas tardias observáveis. */
+  closeGates(): void;
   readonly ledger: CorpusKnowledgeLedgerEntry[];
+  readonly writesAfterStep: readonly { caseId: string; key: string }[];
 }
 
 /** Cria um armazenamento de conhecimento instrumentado e isolado. */
@@ -1840,13 +1956,28 @@ export function createKnowledgeStore(
   const persistWrites = options.persistWrites ?? true;
   const entries = new Map<string, string>();
   const ledger: CorpusKnowledgeLedgerEntry[] = [];
-
+  const openGates = new Set<CorpusKnowledgeGate>();
+  const writesAfterStep: { caseId: string; key: string }[] = [];
   return {
     ledger,
+    writesAfterStep,
     revoke(key: string) {
       entries.delete(key);
     },
+    /**
+     * Inutiliza todas as fachadas abertas. Uma tentativa de escrita posterior —
+     * inclusive agendada em timer e disparada depois do `await` do passo — é
+     * registrada como violação tardia e reprovada: efeito colateral fora da
+     * janela observada não pode passar como medição limpa.
+     */
+    closeGates() {
+      for (const gate of openGates) {
+        (gate as CorpusKnowledgeGate & { close?: () => void }).close?.();
+      }
+      openGates.clear();
+    },
     gateFor(caseId, split, mode) {
+      let closed = false;
       const gate: CorpusKnowledgeGate = {
         mode,
         async read(key: string) {
@@ -1862,6 +1993,12 @@ export function createKnowledgeStore(
         },
         async write(key: string, value: string) {
           ledger.push({ caseId, split, operation: "write_attempt", key });
+          if (closed) {
+            writesAfterStep.push({ caseId, key });
+            throw new Error(
+              `escrita de conhecimento após o fim do passo ${caseId} (§16.1: a fachada é inutilizada)`
+            );
+          }
           if (mode !== "acquisition") {
             throw new Error(
               `escrita de conhecimento bloqueada em ${caseId} (§16.1: holdout não alimenta memória)`
@@ -1872,9 +2009,46 @@ export function createKnowledgeStore(
           if (persistWrites) entries.set(key, value);
         },
       };
-      return gate;
+      openGates.add(gate);
+      const registered = gate as CorpusKnowledgeGate & { close: () => void };
+      registered.close = () => {
+        closed = true;
+        openGates.delete(gate);
+      };
+      return registered;
     },
   };
+}
+
+/**
+ * Colhe as tentativas de escrita do trecho do ledger correspondente a um caso e
+ * registra as que ocorreram fora da fase de aquisição. Chamado tanto no caminho
+ * de sucesso quanto no de erro: uma escrita seguida de exceção é violação, não
+ * motivo para descartar o registro.
+ */
+/**
+ * Drena a janela de eventos depois de um passo: uma escrita agendada em timer
+ * pelo resolvedor precisa ter chance de acontecer **antes** de o harness fechar
+ * a medição, senão o efeito escaparia da janela observada.
+ */
+function settleKnowledgeWindow(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function harvestWrites(
+  knowledge: CorpusKnowledgeStore,
+  ledgerStart: number,
+  entry: GoldenCorpusCase,
+  writesOutside: { caseId: string; writes: string[] }[]
+): string[] {
+  const recorded = knowledge.ledger
+    .slice(ledgerStart)
+    .filter(item => item.operation === "write_attempt")
+    .map(item => item.key);
+  if (recorded.length > 0) {
+    writesOutside.push({ caseId: entry.caseId, writes: recorded });
+  }
+  return recorded;
 }
 
 function withinTolerance(
@@ -2007,13 +2181,17 @@ export async function runCorpus(
 
   const outcomes: CaseOutcome[] = [];
   const holdoutKnowledgeWrites: { caseId: string; writes: string[] }[] = [];
+  // Escrita fora da aquisição é violação por si, em qualquer partição: não é
+  // uma falha que se dilui na taxa de pareamento.
+  const knowledgeWritesOutside: { caseId: string; writes: string[] }[] = [];
+  const knowledgeWritesAfterStep: { caseId: string; key: string }[] = [];
   // Um armazenamento por execução: durante a medição de casos isolados o modo
   // é sempre `read_only`, então nenhuma escrita é aceita (§16.1).
   const knowledge = createKnowledgeStore();
   let resolveCalls = 0;
 
-  for (const entry of parsed.cases) {
-    resolveCalls += 1;
+  /** Mede um caso do corpus e registra o resultado. */
+  const measureCase = async (entry: GoldenCorpusCase): Promise<void> => {
     const ledgerStart = knowledge.ledger.length;
     const gate = knowledge.gateFor(entry.caseId, entry.split, "read_only");
     let result: CorpusResolverResult;
@@ -2024,6 +2202,9 @@ export async function runCorpus(
         knowledge: gate,
       });
     } catch (error) {
+      // Mesmo lançando, o resolvedor pode ter tentado escrever: a tentativa é
+      // colhida aqui, não descartada junto com o erro (§16.1).
+      harvestWrites(knowledge, ledgerStart, entry, knowledgeWritesOutside);
       outcomes.push({
         case: entry,
         matched: false,
@@ -2045,13 +2226,15 @@ export async function runCorpus(
         latencyMs: null,
         costUsd: null,
       });
-      continue;
+      return;
     }
 
-    const recordedWrites = knowledge.ledger
-      .slice(ledgerStart)
-      .filter(item => item.operation === "write_attempt")
-      .map(item => item.key);
+    const recordedWrites = harvestWrites(
+      knowledge,
+      ledgerStart,
+      entry,
+      knowledgeWritesOutside
+    );
     if (recordedWrites.length > 0 && entry.split === "holdout") {
       holdoutKnowledgeWrites.push({
         caseId: entry.caseId,
@@ -2086,10 +2269,30 @@ export async function runCorpus(
           ? null
           : (result.metrics.costUsd ?? null),
     });
+  };
+  for (const entry of parsed.cases) {
+    resolveCalls += 1;
+    const afterStepMark = knowledge.writesAfterStep.length;
+    await measureCase(entry);
+    // A fachada é inutilizada ao fim do caso e a janela é drenada: uma
+    // escrita agendada em timer depois do `await` é violação registrada, não
+    // efeito invisível (§16.1).
+    knowledge.closeGates();
+    await settleKnowledgeWindow();
+    knowledgeWritesAfterStep.push(
+      ...knowledge.writesAfterStep.slice(afterStepMark)
+    );
   }
-
   integrity.holdoutKnowledgeWrites = holdoutKnowledgeWrites;
-  if (holdoutKnowledgeWrites.length > 0) integrity.status = "invalid";
+  integrity.knowledgeWritesOutside = knowledgeWritesOutside;
+  integrity.knowledgeWritesAfterStep = knowledgeWritesAfterStep;
+  if (
+    holdoutKnowledgeWrites.length > 0 ||
+    knowledgeWritesOutside.length > 0 ||
+    knowledgeWritesAfterStep.length > 0
+  ) {
+    integrity.status = "invalid";
+  }
 
   const failures = outcomes.flatMap(outcome => outcome.failures);
 
@@ -2160,6 +2363,14 @@ export async function runCorpus(
   // integridade é recalculada durante a execução dos cenários.
   if (integrity.holdoutKnowledgeWrites.length > 0) {
     blockReasons.push("holdout_knowledge_write");
+  }
+  // Escrita fora da aquisição em qualquer partição — e qualquer escrita tardia
+  // na fachada — bloqueia por si, sem depender da taxa de pareamento.
+  if (
+    integrity.knowledgeWritesOutside.length > 0 ||
+    integrity.knowledgeWritesAfterStep.length > 0
+  ) {
+    blockReasons.push("knowledge_write_outside_acquisition");
   }
   if (integrity.status === "invalid") {
     if (
@@ -2349,6 +2560,7 @@ export async function runLearningScenarios(
       for (const key of step.revokeKeys) knowledge.revoke(key);
 
       const ledgerStart = knowledge.ledger.length;
+      const afterStepMark = knowledge.writesAfterStep.length;
       const gate = knowledge.gateFor(
         entry.caseId,
         entry.split,
@@ -2526,6 +2738,25 @@ export async function runLearningScenarios(
         differentFromSatisfied,
         failures,
       };
+      // Fecha a fachada do passo e drena a janela: escrita agendada em timer
+      // depois do `await` é violação registrada, não efeito invisível.
+      knowledge.closeGates();
+      await settleKnowledgeWindow();
+      const lateWrites = knowledge.writesAfterStep.slice(afterStepMark);
+      if (lateWrites.length > 0) {
+        integrity.status = "invalid";
+        integrity.knowledgeWritesAfterStep.push(...lateWrites);
+        for (const late of lateWrites) {
+          failures.push({
+            caseId: late.caseId,
+            label: null,
+            codes: ["scenario_effect_missing"],
+            detail: `passo ${step.stepId} tentou escrever conhecimento '${late.key}' depois de o passo terminar`,
+          });
+        }
+        stepResult.failures = failures;
+        stepResult.matched = false;
+      }
       stepResults.push(stepResult);
       scenarioFailures.push(...failures);
     }
@@ -2558,12 +2789,30 @@ export async function runLearningScenarios(
         byCaseId,
         resolver
       );
-      const changed = dependentSteps.some(step => {
+      let changed = false;
+      for (const step of dependentSteps) {
         const before = projectionsByStep.get(step.stepId);
         const after = ablated.get(step.stepId);
-        if (!before || !after) return false;
-        return !projectionMultisetEqual(before, after);
-      });
+        const declared = step.withoutKnowledgeCaseId
+          ? byCaseId.get(step.withoutKnowledgeCaseId)
+          : null;
+        if (!after || !declared) continue;
+        // O resultado ablacionado não precisa ser apenas *diferente*: precisa
+        // ser o **contra-factual declarado** pelo corpus. Assim uma divergência
+        // fabricada (detectar a ablação e devolver outra coisa qualquer) não
+        // passa — só passa quem produz o resultado correto sem conhecimento.
+        if (!matchesDeclaredCounterfactual(declared, after)) {
+          scenarioFailures.push({
+            caseId: step.caseId,
+            label: null,
+            codes: ["scenario_effect_missing"],
+            detail: `passo ${step.stepId}: com a aquisição ablacionada o resultado não corresponde ao contra-factual declarado '${step.withoutKnowledgeCaseId}'`,
+          });
+        }
+        if (before && !projectionMultisetEqual(before, after.projections)) {
+          changed = true;
+        }
+      }
       if (!changed) {
         scenarioFailures.push({
           caseId:

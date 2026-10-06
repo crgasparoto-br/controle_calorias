@@ -2925,12 +2925,17 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   detector é deliberadamente assimétrico: esconder quantidade material atrás de
   `unspecified` é o risco que a integridade existe para impedir.
 
+  O detector examina **todas** as ocorrências em todas as superfícies
+  declaradas, não apenas a primeira: uma isenção não pode esconder outra
+  ocorrência material da mesma quantidade no mesmo texto.
+
   Onde a heurística não distingue (por exemplo o número de uma marca), o caso
   pode declarar uma **isenção governada** (`input.nonQuantityTokens`) com o
   token exato e motivo obrigatório. A isenção é recusada mecanicamente quando o
-  token está adjacente a uma unidade ou porção: `2 fatias` nunca pode ser
-  declarado "não é quantidade". A isenção é visível na revisão e não alcança a
-  expectativa, apenas o token. Toda
+  token está adjacente a uma unidade ou porção (`2 fatias` nunca pode ser
+  declarado "não é quantidade"), quando o token não ocorre na superfície
+  (isenção decorativa) e quando o mesmo token é declarado duas vezes. A isenção
+  é visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.
@@ -3014,13 +3019,22 @@ satisfazer (`sameResultAsStepId` para persistência/idempotência,
 `differentFromStepId` para isolamento/revogação), e um resolvedor que mantém
 cache obsoleto após a revogação reprova o cenário.
 
-O gate é **fail-closed** em três caminhos que não se diluem na taxa de
-pareamento: escrita de conhecimento fora da fase de aquisição — inclusive dentro
-de um cenário e num caso holdout — bloqueia por `holdout_knowledge_write`;
-amostra de latência/custo inválida bloqueia por `metrics_invalid`; e a
-verificação da referência independente contra a fonte canônica bloqueia por
+O gate é **fail-closed** em caminhos que não se diluem na taxa de pareamento.
+Escrita de conhecimento fora da fase de aquisição bloqueia em **qualquer**
+partição: `holdout_knowledge_write` para a partição reservada e
+`knowledge_write_outside_acquisition` para as demais — inclusive quando o
+resolvedor lança depois de tentar escrever (o registro é colhido antes de
+descartar o caso) e inclusive quando a escrita é agendada em timer e dispara
+depois de o passo terminar (a fachada é inutilizada ao fim de cada passo e a
+janela é drenada; a tentativa tardia é registrada e reprovada). Amostra de
+latência/custo inválida bloqueia por `metrics_invalid`; a verificação da
+referência independente contra a fonte canônica bloqueia por
 `reference_not_verified`. Nenhum desses bloqueios depende de a taxa cair abaixo
 da meta, e todos são exercitados por controle negativo nos testes.
+
+`inspectCorpusIntegrity` também reporta `invalid` quando a referência canônica
+não é verificada: nenhum consumidor pode concluir "válido" olhando apenas o
+status.
 Controles negativos produzem evidência adversarial estruturada: hipótese de
 implementação errada, dimensão discriminante, assinatura da saída do controle e
 do alvo e as revisões do material medido. Um controle que absteve dos dois lados
@@ -3055,13 +3069,27 @@ Satisfazer essa cadeia ainda é **sintático**: um resolvedor pode escrever e le
 exatamente as chaves exigidas, descartar os valores e devolver a expectativa por
 `caseId`. Por isso o cenário é reexecutado com a **aquisição ablacionada** — a
 escrita é registrada e descartada, de modo que nenhum passo posterior encontra o
-que foi aprendido. Ao menos um passo posterior precisa mudar de resultado; se
-nada muda, não há aprendizado observável e o cenário reprova com
-`scenario_effect_missing`. Para que a dependência seja declarada e não inferida,
-a fase do cenário em execução é exposta ao resolvedor (`scenario.phase`), que
-assim distingue contexto observável de oráculo: o contra-factual ("sem o
-aprendizado, este é o resultado correto") fica no duplo de referência, e a
+que foi aprendido — e o resultado ablacionado não precisa ser apenas _diferente_:
+precisa corresponder ao **contra-factual declarado** pelo corpus
+(`withoutKnowledgeCaseId`), comparado pela mesma máquina de aceite da medição
+normal. Cada passo posterior à aquisição declara qual caso é o resultado correto
+do mundo sem aprendizado, e o corpus precisa declarar ao menos um passo cujo
+resultado dependa do conhecimento adquirido. Uma divergência fabricada — por
+exemplo detectar a segunda passagem pela ordem de chamadas e devolver outra
+coisa qualquer — reprova, porque só passa quem produz o resultado correto sem
+conhecimento.
+
+Para que a dependência seja declarada e não inferida, a fase do cenário em
+execução é exposta ao resolvedor (`scenario.phase`), que assim distingue
+contexto observável de oráculo: o contra-factual fica no duplo de referência e a
 expectativa permanece fora da entrada.
+
+**Limite declarado da prova**: o corpus não define mapeamento valor→resultado, e
+o harness não inventa um. A evidência cobre dependência de **presença** do
+conhecimento (com e sem a aquisição, o resultado correto muda para o
+contra-factual declarado) e a leitura efetiva com `hit`; a interpretação
+semântica do valor armazenado é responsabilidade do resolvedor e não é
+verificável por este corpus.
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e
