@@ -192,6 +192,12 @@ export const foodLocaleSchema = z
     "Locale explícito suportado exige effective preenchido."
   )
   .refine(
+    locale =>
+      locale.status !== "explicit" ||
+      locale.requested === DEFAULT_FOOD_LOCALE,
+    "Locale explícito suportado deve ser pt-BR no recorte atual; locale não suportado exige status=unsupported."
+  )
+  .refine(
     locale => locale.status !== "defaulted" || locale.requested === null,
     "Locale com status=defaulted corresponde à ausência de locale explícito."
   )
@@ -651,25 +657,58 @@ export const foodResolutionDecisionSchema = z
     const evidenceById = new Map(
       decision.evidence.map(evidence => [evidence.evidenceId, evidence])
     );
-    const referenceGroups: Array<[string[], (string | number)[]]> = [
-      [identity.evidenceIds, ["identity", "evidenceIds"]],
-      [quantity.evidenceIds, ["quantity", "evidenceIds"]],
-      [nutrition.evidenceIds, ["nutrition", "evidenceIds"]],
-      [
-        decision.classification?.evidenceIds ?? [],
-        ["classification", "evidenceIds"],
-      ],
-      [
-        decision.alternatives.flatMap(alternative => alternative.evidenceIds),
-        ["alternatives"],
-      ],
+    const referenceGroups: Array<{
+      ids: string[];
+      path: (string | number)[];
+      allowedPrefixes: readonly string[];
+      ownerLabel: string;
+    }> = [
+      {
+        ids: identity.evidenceIds,
+        path: ["identity", "evidenceIds"],
+        allowedPrefixes: ["identity.", "variant."],
+        ownerLabel: "identity",
+      },
+      {
+        ids: quantity.evidenceIds,
+        path: ["quantity", "evidenceIds"],
+        allowedPrefixes: ["quantity."],
+        ownerLabel: "quantity",
+      },
+      {
+        ids: nutrition.evidenceIds,
+        path: ["nutrition", "evidenceIds"],
+        allowedPrefixes: ["nutrition."],
+        ownerLabel: "nutrition",
+      },
+      {
+        ids: decision.classification?.evidenceIds ?? [],
+        path: ["classification", "evidenceIds"],
+        allowedPrefixes: ["classification."],
+        ownerLabel: "classification",
+      },
+      {
+        ids: decision.alternatives.flatMap(alternative => alternative.evidenceIds),
+        path: ["alternatives"],
+        allowedPrefixes: ["identity.", "variant."],
+        ownerLabel: "alternative",
+      },
     ];
-    for (const [ids, path] of referenceGroups) {
+    for (const { ids, path, allowedPrefixes, ownerLabel } of referenceGroups) {
       for (const id of ids) {
-        if (!evidenceById.has(id)) {
+        const evidence = evidenceById.get(id);
+        if (!evidence) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: `Referência de evidência não resolve no envelope da decisão: ${id}.`,
+            path,
+          });
+          continue;
+        }
+        if (!allowedPrefixes.some(prefix => evidence.field.startsWith(prefix))) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Evidência ${id} de ${evidence.field} não pertence ao proprietário ${ownerLabel}; referência cruzada entre domínios é inválida.`,
             path,
           });
         }
