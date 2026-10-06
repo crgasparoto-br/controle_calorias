@@ -646,10 +646,20 @@ export type GoldenCorpus = z.infer<typeof goldenCorpusSchema>;
  * `expected`, partição, classe, grupos, controles e referências de equivalência
  * ficam **fora** da entrada, para que nenhum resolvedor possa copiar o oráculo.
  */
+/** Entrada sanitizada com imutabilidade **profunda** (inclui listas aninhadas). */
+export type CorpusFrozenInput = Readonly<
+  Omit<CorpusInput, "nonQuantityTokens"> & {
+    readonly nonQuantityTokens: readonly Readonly<{
+      token: string;
+      reason: string;
+    }>[];
+  }
+>;
+
 export interface CorpusCaseInput {
   readonly caseId: string;
   readonly modality: CorpusModality;
-  readonly input: Readonly<CorpusInput>;
+  readonly input: CorpusFrozenInput;
   readonly mealOperation: Readonly<CorpusMealOperation>;
   readonly scenario: Readonly<{
     ownerRef: string;
@@ -746,10 +756,19 @@ export function toCorpusCaseInput(
   entry: GoldenCorpusCase,
   phase: CorpusLearningPhase | null = null
 ): CorpusCaseInput {
+  // Cópia **profunda** e congelada: uma entrada superficialmente congelada
+  // deixaria `nonQuantityTokens` mutável e compartilhado com o corpus, e o
+  // resolvedor poderia contaminar a estrutura entre casos e cenários (§18).
+  const frozenInput = Object.freeze({
+    ...entry.input,
+    nonQuantityTokens: Object.freeze(
+      entry.input.nonQuantityTokens.map(item => Object.freeze({ ...item }))
+    ),
+  });
   const input: CorpusCaseInput = {
     caseId: entry.caseId,
     modality: entry.modality,
-    input: Object.freeze({ ...entry.input }),
+    input: frozenInput as CorpusFrozenInput,
     mealOperation: Object.freeze({ ...entry.mealOperation }),
     scenario: Object.freeze({
       ownerRef: entry.scenario.ownerRef,

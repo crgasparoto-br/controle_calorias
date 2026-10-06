@@ -2890,7 +2890,10 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   versão de schema desconhecida, campo não governado e caso malformado antes
   de qualquer medição. A entrada entregue ao resolvedor é `CorpusCaseInput`,
   uma projeção **sanitizada** do caso: sem `expected`, sem partição, sem
-  classe, sem grupo e sem controle negativo, e congelada. O resolvedor também
+  classe, sem grupo e sem controle negativo, e congelada **em profundidade** —
+  listas aninhadas, como as isenções de quantidade, e seus elementos são cópias
+  congeladas, de modo que o resolvedor não pode contaminar a estrutura
+  compartilhada entre casos e cenários. O resolvedor também
   não recebe handle de conhecimento: ele recebe uma `CorpusKnowledgeGate`
   instrumentada, cujo modo é uma capacidade — fora da fase de aquisição,
   `write` registra a tentativa e falha.
@@ -2948,7 +2951,10 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
   exclusão de contexto não-material (versão, identificador, telefone, CEP, lote,
   data, hora, temperatura, frequência) usa a mesma classe Unicode, com fronteiras
   por lookaround: `arroz versão ２` não é quantidade consumida, `arroz ２ xícaras`
-  é. A isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
+  é. Número **formatado** de identificação — grupos separados por espaço, hífen,
+  parênteses ou barra, como `telefone (11) 91234-5678` e `cep 22222-222` — é
+  mascarado por inteiro, em qualquer grafia decimal; sem marcador explícito de
+  identificação a mesma forma (`2 2 maçãs`) continua sendo quantidade. A isenção é visível na revisão e não alcança a expectativa, apenas o token. Toda
   decisão que não propõe precisa declarar código de motivo, independentemente
   da flag de explicação de exclusões. A operação esperada é **obrigatória** e a
   data passa por calendário real: `2026-99-99` não é data.

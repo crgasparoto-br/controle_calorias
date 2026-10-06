@@ -1328,6 +1328,87 @@ describe("autoverificação do harness", () => {
     }
   });
 
+  it("entrega a entrada sanitizada congelada em profundidade", async () => {
+    // Ataque da auditoria: mutar a lista aninhada de isenções para contaminar a
+    // estrutura compartilhada entre casos e cenários (§18).
+    const reference = createReferenceResolver(corpus);
+    const observed: {
+      listFrozen: boolean;
+      itemFrozen: boolean;
+      pushFailed: boolean;
+      mutated: boolean;
+    }[] = [];
+    await runGoldenFoodCorpus(
+      {
+        id: "test:entrada-congelada",
+        revision: "1",
+        async resolve(request) {
+          const tokens = request.case.input.nonQuantityTokens as unknown as {
+            token: string;
+            reason: string;
+          }[];
+          const item = tokens[0];
+          const record = {
+            listFrozen: Object.isFrozen(tokens),
+            itemFrozen: item ? Object.isFrozen(item) : true,
+            pushFailed: false,
+            mutated: false,
+          };
+          try {
+            tokens.push({ token: "injetado", reason: "probe" });
+          } catch {
+            record.pushFailed = true;
+          }
+          if (item) {
+            try {
+              item.token = "mutado";
+            } catch {
+              // estrito: lança
+            }
+          }
+          record.mutated =
+            tokens.some(entry => entry.token === "injetado") ||
+            (item !== undefined && item.token === "mutado");
+          observed.push(record);
+          return reference.resolve(request);
+        },
+      },
+      pinned
+    );
+    expect(observed.length).toBeGreaterThan(0);
+    expect(observed.every(entry => entry.listFrozen)).toBe(true);
+    expect(observed.every(entry => entry.itemFrozen)).toBe(true);
+    expect(observed.every(entry => entry.pushFailed)).toBe(true);
+    expect(observed.every(entry => !entry.mutated)).toBe(true);
+  });
+
+  it("mascara número formatado de identificação em qualquer grafia", () => {
+    const comTexto = (text: string) =>
+      goldenCorpusSchema.parse({
+        ...corpus,
+        cases: corpus.cases.map(item =>
+          item.caseId === "c-aprendizado-alias-definido"
+            ? { ...item, input: { ...item.input, text } }
+            : item
+        ),
+      });
+    const material = (text: string) =>
+      inspectCorpusIntegrity(comTexto(text)).invalidCases.some(item =>
+        item.message.includes("não pode ficar")
+      );
+    // Telefone/CEP formatados: o número inteiro é identificação, não porção.
+    expect(material("telefone 22 22222-2222")).toBe(false);
+    expect(material("cep 22222-222")).toBe(false);
+    expect(material("telefone (11) 91234-5678")).toBe(false);
+    expect(material("celular ２２ ２２２２２-２２２２")).toBe(false);
+    expect(material("cep ٢٢٢٢٢-٢٢٢")).toBe(false);
+    expect(material("telefone २२ २२२२२-२२२२")).toBe(false);
+    // Sem marcador de identificação, a mesma forma continua material.
+    expect(material("2 2 maçãs")).toBe(true);
+    // Porção material depois do identificador não é escondida.
+    expect(material("cep 22222-222 e 2 fatias")).toBe(true);
+  });
+
   it("reconhece contexto não-material em dígitos Unicode", () => {
     const comTexto = (text: string) =>
       goldenCorpusSchema.parse({

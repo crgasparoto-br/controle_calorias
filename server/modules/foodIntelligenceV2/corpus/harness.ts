@@ -1140,6 +1140,17 @@ const NON_QUANTITY_DIGIT_PATTERN =
   /(?<![\p{L}\p{N}])(vers[ãa]o|version|v|n[ºo]|n[úu]mero|item|c[óo]digo|id|telefone|cep|cpf|ano|sala|lote|nota)\s*[:.]?\s*\p{Nd}+(?![\p{Nd}])|\p{Nd}+\s*°\s*[cf]?(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])\p{Nd}+\s*(vezes|x)(?![\p{L}\p{N}])/giu;
 
 /**
+ * Número **formatado** de identificação (telefone, CEP, CPF, CNPJ): grupos
+ * separados por espaço, hífen, parênteses, barra ou ponto. A exclusão genérica
+ * consome só a primeira sequência, e o resíduo depois do separador voltaria a
+ * ser lido como quantidade material; por isso o número inteiro é mascarado de
+ * uma vez, sempre **ancorado em marcador explícito** de identificação — sem o
+ * marcador, `2 2` continuaria sendo quantidade declarada.
+ */
+const FORMATTED_IDENTIFIER_PATTERN =
+  /(?<![\p{L}\p{N}])(telefone|tel|fone|celular|whatsapp|cep|cpf|cnpj)\s*[:.]?\s*[+(]?\s*\p{Nd}{1,}(?:[\s().\/-]+\p{Nd}{1,})*/giu;
+
+/**
  * Marcador explícito de que o número identifica algo, não mede consumo. Sem
  * ele, uma isenção declarada pelo corpus não é aceita (§8.3, §16).
  */
@@ -1183,6 +1194,7 @@ function quantitySignalsOf(entry: GoldenCorpusCase): QuantitySignal[] {
     const cleaned = surface
       .replace(/\p{Nd}{4}-\p{Nd}{2}-\p{Nd}{2}/gu, m => " ".repeat(m.length))
       .replace(/\p{Nd}{1,2}:\p{Nd}{2}/gu, m => " ".repeat(m.length))
+      .replace(FORMATTED_IDENTIFIER_PATTERN, m => " ".repeat(m.length))
       .replace(NON_QUANTITY_DIGIT_PATTERN, m => " ".repeat(m.length));
     const tokens: { token: string; index: number }[] = [];
     for (const match of cleaned.matchAll(globalOf(FRACTION_PATTERN))) {
