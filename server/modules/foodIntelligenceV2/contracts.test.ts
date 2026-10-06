@@ -627,7 +627,7 @@ describe("FoodResolutionDecision v2", () => {
         milliliters: null,
         evidenceIds: ["ev-density"],
       },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
       nutrition: { basis: { unit: "ml" } },
       evidence: [
         {
@@ -653,7 +653,7 @@ describe("FoodResolutionDecision v2", () => {
         milliliters: null,
         evidenceIds: ["ev-density"],
       },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
       nutrition: { basis: { unit: "ml" } },
       evidence: [
         {
