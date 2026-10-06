@@ -2,47 +2,66 @@
  * Harness do Golden Food Corpus (issue #1299).
  *
  * Fonte canônica: `docs/design-docs/adr-food-intelligence-resolver-v2.md`
- * §1.1, §4.1.8, §8.12, §16, §16.1, §16.2, §17 e §18.
+ * §1.1, §4.1.8, §8.12, §16, §16.1, §16.2, §17, §18 e §20.
  *
  * O harness:
- * - entrega cada caso ao resolvedor sob teste e recebe a decisão dele; nunca
- *   fabrica a decisão final (§18);
- * - compara a projeção semântica (§4.1.8) com o resultado esperado declarado
- *   de forma independente;
+ * - entrega ao resolvedor sob teste uma entrada **sanitizada** (sem `expected`,
+ *   sem partição, sem rótulos) e recebe a decisão dele; nunca fabrica a decisão
+ *   final (§18) nem permite que o resolvedor copie o oráculo;
+ * - entrega conhecimento apenas por uma fachada instrumentada: fora da fase de
+ *   aquisição, escrita é registrada e bloqueada (§16.1);
+ * - compara a projeção semântica (§4.1.8) com o resultado esperado declarado de
+ *   forma independente, distinguindo campo esperado, proibido e não afirmado;
  * - calcula a meta de §1.1 sobre todos os casos rotulados como resolvíveis,
  *   inclusive abstenções e falhas, e trata denominador zero como amostra
  *   ausente, nunca como zero;
- * - produz relatório por modalidade, classe de decisão, partição e classe de
- *   não-recorrência (§9.3, §16.2), não apenas média global;
- * - verifica equivalência de superfície e controles negativos contra a
- *   referência independente, e reprova quando duas entradas convergem para o
- *   mesmo resultado errado (§4.1.8);
+ * - produz relatório por modalidade, classe de decisão, partição, classe de
+ *   não-recorrência (§9.3), marca, atributo material, medida, continuidade,
+ *   operação e procedência nutricional (§16.2), além das famílias de falha
+ *   (identidade/variante, quantidade/unidade, fonte, operação, clarificação) e
+ *   de latência/custo;
+ * - executa os cenários de §16.1 com fases ordenadas (estado anterior,
+ *   aquisição, medição reservada, reinício, precedência explícita, isolamento e
+ *   revogação) contra a mesma instância do resolvedor;
+ * - verifica equivalência de superfície **contra a referência independente** e
+ *   reprova quando duas entradas convergem para o mesmo resultado errado;
  * - não aprova threshold numérico: a tolerância de arredondamento de macros é
  *   `OPEN` (§25 item 30) e sua ausência bloqueia em vez de ser preenchida.
  */
 import {
   CORPUS_REVISION_KEYS,
   GOLDEN_CORPUS_MIN_MATCH_RATE,
-  GOLDEN_CORPUS_SCHEMA_VERSION,
-  CORPUS_DECLARED_REVISIONS,
+  CORPUS_UNPINNED_REVISIONS,
   goldenCorpusSchema,
+  isUnpinnedRevision,
+  toCorpusCaseInput,
+  type CorpusCaseInput,
+  type CorpusContinuity,
+  type CorpusDecisionClass,
   type CorpusFailureCode,
   type CorpusGateBlockReason,
   type CorpusGateStatus,
+  type CorpusKnowledgeGate,
+  type CorpusKnowledgeLedgerEntry,
+  type CorpusLearningPhase,
   type CorpusRevisions,
+  type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type CorpusSegmentDimension,
   type CorpusSplit,
   type ExpectedDecision,
   type GoldenCorpus,
   type GoldenCorpusCase,
-  type CorpusDecisionClass,
-  type CorpusNonRecurrenceClass,
+  type GoldenLearningScenario,
 } from "./contracts";
 import { goldenFoodCorpus } from "./data";
 import {
+  classifyMeasureKind,
   decisionsSemanticallyEqual,
+  materialAttributeKey,
   projectDecision,
+  projectExpectedDecision,
+  projectionMultisetEqual,
   type ProjectedDecision,
 } from "./projection";
 import {
@@ -68,7 +87,7 @@ export interface CorpusRunOptions {
 export const DEFAULT_CORPUS_RUN_OPTIONS: CorpusRunOptions = {
   roundingTolerance: null,
   minMatchRate: GOLDEN_CORPUS_MIN_MATCH_RATE,
-  revisions: CORPUS_DECLARED_REVISIONS,
+  revisions: CORPUS_UNPINNED_REVISIONS,
 };
 
 /** Falha classificada do harness. */
@@ -78,6 +97,18 @@ export interface CorpusFailure {
   label: string | null;
   codes: CorpusFailureCode[];
   detail: string;
+}
+
+/** Contadores por família de verificação de §16.2. */
+export interface CorpusFamilyCounters {
+  identityFailures: number;
+  variantAttributeFailures: number;
+  quantityFailures: number;
+  unitFailures: number;
+  nutritionFailures: number;
+  operationFailures: number;
+  clarificationFailures: number;
+  unexpectedDecisions: number;
 }
 
 /** Métricas de um segmento do relatório (§16.2). */
@@ -99,11 +130,18 @@ export interface CorpusSegmentMetrics {
   failedCases: number;
   /** Abstenções: o resolvedor não devolveu decisão utilizável. */
   abstentions: number;
-  /** `matchedCases / resolvableLabeled`; `null` quando o denominador é zero. */
+  /** `matchedResolvable / resolvableLabeled`; `null` quando o denominador é zero. */
   matchRate: number | null;
   /** `matchedCases / cases`; verifica também clarificação e rejeição. */
   decisionMatchRate: number | null;
   sampleStatus: "present" | "missing";
+  families: CorpusFamilyCounters;
+  /** Latência agregada; `null` quando o resolvedor não a reporta. */
+  totalLatencyMs: number | null;
+  latencySamples: number;
+  /** Custo agregado; `null` quando o resolvedor não o reporta. */
+  totalCostUsd: number | null;
+  costSamples: number;
 }
 
 /** Resultado de um grupo metamórfico de equivalência de superfície (§17). */
@@ -120,12 +158,23 @@ export interface MetamorphicGroupResult {
   failures: CorpusFailure[];
 }
 
-/** Resultado de um controle negativo. */
-export interface NegativeControlResult {
+/**
+ * Evidência de controle negativo. Não é apenas um booleano: registra a
+ * implementação errada plausível que o controle precisa reprovar, a dimensão
+ * discriminante, o resultado observado e as revisões do material medido.
+ */
+export interface NegativeControlEvidence {
   caseId: string;
   targetCaseId: string;
-  /** O controle convergiu para a mesma saída do caso controlado. */
-  convergedWithTarget: boolean;
+  /** Implementação errada plausível declarada pelo corpus. */
+  hypothesis: string;
+  /** `true` quando o controle não converge para a saída do alvo. */
+  discriminating: boolean;
+  /** Primeira dimensão em que as duas saídas divergem. */
+  discriminatingDimension: string;
+  controlSignature: string;
+  targetSignature: string;
+  revisions: CorpusRevisions;
 }
 
 /** Consistência de macros entre entradas equivalentes (§1.1). */
@@ -133,6 +182,34 @@ export interface MacroConsistencyResult {
   groupId: string;
   consistent: boolean;
   divergences: string[];
+}
+
+/** Resultado de um passo de cenário de aprendizado (§16.1). */
+export interface LearningScenarioStepResult {
+  stepId: string;
+  phase: CorpusLearningPhase;
+  caseId: string;
+  allowLearning: boolean;
+  writesAllowed: boolean;
+  matched: boolean;
+  /** Tentativas de escrita registradas pela fachada de conhecimento. */
+  recordedWriteAttempts: number;
+  sameResultAsStepId: string | null;
+  sameResultSatisfied: boolean | null;
+  differentFromStepId: string | null;
+  differentFromSatisfied: boolean | null;
+  failures: CorpusFailure[];
+}
+
+/** Resultado de um cenário de aprendizado/generalização de §16.1. */
+export interface LearningScenarioResult {
+  scenarioId: string;
+  ownerRefs: string[];
+  conversationRefs: string[];
+  phases: CorpusLearningPhase[];
+  steps: LearningScenarioStepResult[];
+  passed: boolean;
+  failures: CorpusFailure[];
 }
 
 /** Integridade do corpus antes da medição (§16.1, §16.2, §17). */
@@ -145,6 +222,11 @@ export interface CorpusIntegrityReport {
   invalidGroups: { groupId: string; reason: string }[];
   negativeControlConflicts: string[];
   invalidCases: { caseId: string; message: string }[];
+  /** Grupos metamórficos cujos membros declaram resultados diferentes. */
+  divergentGroupExpectations: { groupId: string; caseIds: string[] }[];
+  /** Cenários de §16.1 inválidos (passo ausente, fase insuficiente, etc.). */
+  invalidScenarios: { scenarioId: string; message: string }[];
+  /** Escritas de conhecimento observadas fora da fase de aquisição. */
   holdoutKnowledgeWrites: { caseId: string; writes: string[] }[];
 }
 
@@ -154,6 +236,8 @@ export interface CorpusGate {
   minMatchRate: number;
   matchRate: number | null;
   failureCount: number;
+  /** Falhas fora dos casos resolvíveis: nunca cobertas pela meta de §1.1. */
+  nonResolvableFailureCount: number;
   blockReasons: CorpusGateBlockReason[];
 }
 
@@ -172,10 +256,17 @@ export interface CorpusReport {
   byDecisionClass: CorpusSegmentMetrics[];
   bySplit: CorpusSegmentMetrics[];
   byNonRecurrenceClass: CorpusSegmentMetrics[];
+  byBrand: CorpusSegmentMetrics[];
+  byMaterialAttribute: CorpusSegmentMetrics[];
+  byMeasure: CorpusSegmentMetrics[];
+  byContinuity: CorpusSegmentMetrics[];
+  byOperation: CorpusSegmentMetrics[];
+  byNutritionSource: CorpusSegmentMetrics[];
   failures: CorpusFailure[];
   metamorphic: MetamorphicGroupResult[];
-  negativeControls: NegativeControlResult[];
+  negativeControls: NegativeControlEvidence[];
   macroConsistency: MacroConsistencyResult[];
+  learningScenarios: LearningScenarioResult[];
   gate: CorpusGate;
 }
 
@@ -187,6 +278,8 @@ interface CaseOutcome {
   projections: ProjectedDecision[];
   operation: MealOperation | null;
   rawDecisions: FoodResolutionDecision[];
+  latencyMs: number | null;
+  costUsd: number | null;
 }
 
 const SPLIT_SEPARATOR = "\u0000";
@@ -220,9 +313,149 @@ export function deriveDecisionClass(
   if (decisions.some(item => item.nextAction === "clarify")) {
     return "clarification";
   }
-  if (decisions.every(item => item.nextAction === "propose"))
+  if (decisions.every(item => item.nextAction === "propose")) {
     return "resolvable";
+  }
   return "deferred";
+}
+
+/** Agrupa códigos de falha nas famílias de §16.2. */
+export function familyCounters(
+  failures: readonly CorpusFailure[]
+): CorpusFamilyCounters {
+  const codes = new Set(failures.flatMap(failure => failure.codes));
+  const has = (...candidates: CorpusFailureCode[]) =>
+    candidates.some(candidate => codes.has(candidate));
+  return {
+    identityFailures: has(
+      "identity_mismatch",
+      "brand_mismatch",
+      "barcode_mismatch",
+      "identity_present_unexpected"
+    )
+      ? 1
+      : 0,
+    variantAttributeFailures: has(
+      "variant_mismatch",
+      "preparation_mismatch",
+      "qualifiers_mismatch"
+    )
+      ? 1
+      : 0,
+    quantityFailures: has(
+      "quantity_mismatch",
+      "quantity_present_unexpected",
+      "quantity_became_grams"
+    )
+      ? 1
+      : 0,
+    unitFailures: has("quantity_unit_mismatch", "measure_kind_mismatch")
+      ? 1
+      : 0,
+    nutritionFailures: has(
+      "nutrition_missing",
+      "nutrition_provenance_missing",
+      "nutrition_origin_forbidden",
+      "nutrition_generic_as_verified",
+      "nutrition_present_unexpected",
+      "provisional_declaration_missing"
+    )
+      ? 1
+      : 0,
+    operationFailures: has("operation_missing", "operation_mismatch") ? 1 : 0,
+    clarificationFailures: has(
+      "clarification_mismatch",
+      "unresolved_fields_mismatch",
+      "alternatives_lost",
+      "alternatives_mismatch",
+      "reason_code_missing",
+      "reason_code_forbidden"
+    )
+      ? 1
+      : 0,
+    unexpectedDecisions: codes.has("unexpected_decision") ? 1 : 0,
+  };
+}
+
+function emptyFamilies(): CorpusFamilyCounters {
+  return {
+    identityFailures: 0,
+    variantAttributeFailures: 0,
+    quantityFailures: 0,
+    unitFailures: 0,
+    nutritionFailures: 0,
+    operationFailures: 0,
+    clarificationFailures: 0,
+    unexpectedDecisions: 0,
+  };
+}
+
+function addFamilies(
+  a: CorpusFamilyCounters,
+  b: CorpusFamilyCounters
+): CorpusFamilyCounters {
+  return {
+    identityFailures: a.identityFailures + b.identityFailures,
+    variantAttributeFailures:
+      a.variantAttributeFailures + b.variantAttributeFailures,
+    quantityFailures: a.quantityFailures + b.quantityFailures,
+    unitFailures: a.unitFailures + b.unitFailures,
+    nutritionFailures: a.nutritionFailures + b.nutritionFailures,
+    operationFailures: a.operationFailures + b.operationFailures,
+    clarificationFailures: a.clarificationFailures + b.clarificationFailures,
+    unexpectedDecisions: a.unexpectedDecisions + b.unexpectedDecisions,
+  };
+}
+
+/** Chaves de segmentação derivadas do caso (§16.2). */
+export interface CaseSegmentKeys {
+  modality: string;
+  decisionClass: string;
+  split: string;
+  nonRecurrenceClass: string[];
+  brand: string;
+  materialAttribute: string;
+  measure: string;
+  continuity: CorpusContinuity;
+  operation: string;
+  nutritionSource: string;
+}
+
+/** Deriva as dimensões de segmentação do caso sem olhar a saída do resolvedor. */
+export function segmentKeysOf(entry: GoldenCorpusCase): CaseSegmentKeys {
+  const brands = new Set<string>();
+  const materials = new Set<string>();
+  const measures = new Set<string>();
+  const nutritionSources = new Set<string>();
+
+  for (const expected of entry.expected.decisions) {
+    const projected = projectExpectedDecision(expected);
+    brands.add(projected.identity.brand ?? "none");
+    materials.add(materialAttributeKey(projected.identity));
+    measures.add(classifyMeasureKind(projected.quantity.unit));
+    nutritionSources.add(expected.nutrition.requirement);
+  }
+
+  const nutritionSource = nutritionSources.has("provisional_declared")
+    ? "provisional_declared"
+    : nutritionSources.has("provenance_declared")
+      ? "provenance_declared"
+      : nutritionSources.has("absent")
+        ? "absent"
+        : "unspecified";
+
+  return {
+    modality: entry.modality,
+    decisionClass: entry.decisionClass,
+    split: entry.split,
+    nonRecurrenceClass: [...entry.nonRecurrenceClasses],
+    brand: brands.size === 1 ? [...brands][0] : "mixed",
+    materialAttribute: materials.size === 1 ? [...materials][0] : "mixed",
+    measure: measures.size === 1 ? [...measures][0] : "mixed",
+    continuity: entry.continuity,
+    operation: entry.expected.operation?.action ?? "unknown",
+    nutritionSource,
+  };
 }
 
 /** Verifica a integridade estrutural do corpus antes de medir. */
@@ -238,6 +471,25 @@ export function inspectCorpusIntegrity(
   }
   for (const [caseId, count] of seenCaseIds) {
     if (count > 1) duplicateCaseIds.push(caseId);
+  }
+
+  const scenarioById = new Map(
+    corpus.learningScenarios.map(scenario => [scenario.scenarioId, scenario])
+  );
+  const stepsByCase = new Map<string, { scenarioId: string; stepId: string }>();
+  for (const scenario of corpus.learningScenarios) {
+    for (const step of scenario.steps) {
+      if (stepsByCase.has(step.caseId)) {
+        invalidCases.push({
+          caseId: step.caseId,
+          message: `caso é passo de mais de um cenário (${scenario.scenarioId})`,
+        });
+      }
+      stepsByCase.set(step.caseId, {
+        scenarioId: scenario.scenarioId,
+        stepId: step.stepId,
+      });
+    }
   }
 
   for (const entry of corpus.cases) {
@@ -261,17 +513,147 @@ export function inspectCorpusIntegrity(
         message: "controle negativo não pode apontar para si mesmo",
       });
     }
-    if (
-      entry.expected.operation === null &&
-      entry.expected.decisions.some(
-        item => item.status === "unknown" && item.nextAction === "propose"
-      )
-    ) {
+    if (entry.negativeControlOf && !entry.negativeControlHypothesis) {
       invalidCases.push({
         caseId: entry.caseId,
-        message: "status=unknown nunca produz propose (§5)",
+        message:
+          "controle negativo exige implementação errada plausível declarada (evidência adversarial)",
       });
     }
+
+    // Ausência declarada não pode conviver com valores: "não afirmar" é um
+    // estado explícito, não um escape (§4.1.8).
+    for (const expected of entry.expected.decisions) {
+      const proposes = expected.nextAction === "propose";
+      // Rejeição e superfície desconhecida não podem sustentar identidade nem
+      // inventar quantidade. `partially_resolved` + clarificação é diferente:
+      // a identidade é conhecida e a porção é que está em aberto.
+      const forbidsFields =
+        expected.status === "unknown" || expected.nextAction === "reject";
+      if (expected.identity.presence === "expected") {
+        if (expected.identity.canonicalName === null) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' afirma identidade sem nome canônico`,
+          });
+        }
+      }
+      if (expected.quantity.presence === "expected") {
+        if (expected.quantity.value === null) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' afirma quantidade sem valor`,
+          });
+        }
+        if (
+          expected.quantity.value !== null &&
+          expected.quantity.unit === null
+        ) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' afirma quantidade sem unidade explícita`,
+          });
+        }
+      }
+      if (!proposes) {
+        if (forbidsFields && expected.identity.presence !== "forbidden") {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' (${expected.status}/${expected.nextAction}) exige identidade proibida, não '${expected.identity.presence}'`,
+          });
+        }
+        if (
+          forbidsFields
+            ? expected.quantity.presence !== "forbidden"
+            : expected.quantity.presence === "expected"
+        ) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' (${expected.status}/${expected.nextAction}) não pode afirmar quantidade como 'expected'`,
+          });
+        }
+        if (expected.nutrition.requirement !== "absent") {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' não propõe e por isso exige nutrição ausente, não '${expected.nutrition.requirement}'`,
+          });
+        }
+      } else {
+        if (expected.identity.presence !== "expected") {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão proposta '${expected.label}' exige identidade esperada (§9.2)`,
+          });
+        }
+        if (
+          expected.nutrition.requirement !== "provenance_declared" &&
+          expected.nutrition.requirement !== "provisional_declared"
+        ) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão proposta '${expected.label}' exige procedência nutricional declarada (§9.2)`,
+          });
+        }
+      }
+
+      if (expected.ambiguity.mustPreserveAlternatives) {
+        if (expected.alternatives.length < expected.ambiguity.minAlternatives) {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' exige alternativas declaradas para preservação semântica`,
+          });
+        }
+        if (derived !== "clarification") {
+          invalidCases.push({
+            caseId: entry.caseId,
+            message: `decisão '${expected.label}' preserva alternativas e por isso é de clarificação`,
+          });
+        }
+      } else if (expected.alternatives.length > 0) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message: `decisão '${expected.label}' declara alternativas sem exigir preservação`,
+        });
+      }
+    }
+
+    const expectedStep = stepsByCase.get(entry.caseId);
+    if (entry.learningScenarioId !== null) {
+      const scenario = scenarioById.get(entry.learningScenarioId);
+      if (!scenario) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message: `learningScenarioId=${entry.learningScenarioId} não existe`,
+        });
+      }
+      if (
+        !expectedStep ||
+        expectedStep.scenarioId !== entry.learningScenarioId
+      ) {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message:
+            "caso declara cenário de aprendizado mas não é passo declarado desse cenário",
+        });
+      }
+      if (entry.continuity !== "continues_context") {
+        invalidCases.push({
+          caseId: entry.caseId,
+          message:
+            "caso de cenário de aprendizado exige continuidade 'continues_context'",
+        });
+      }
+    } else if (expectedStep) {
+      invalidCases.push({
+        caseId: entry.caseId,
+        message: `caso é passo do cenário ${expectedStep.scenarioId} mas não o declara`,
+      });
+    }
+  }
+
+  const invalidScenarios: { scenarioId: string; message: string }[] = [];
+  for (const scenario of corpus.learningScenarios) {
+    invalidScenarios.push(...validateScenario(scenario, seenCaseIds));
   }
 
   const bySurface = new Map<string, GoldenCorpusCase[]>();
@@ -285,6 +667,7 @@ export function inspectCorpusIntegrity(
     corpus.cases.map((entry, index) => [entry.caseId, index])
   );
   const groupToken = (entry: GoldenCorpusCase): string =>
+    entry.learningScenarioId ??
     entry.metamorphicGroup ??
     `solo:${indexByCase.get(entry.caseId) ?? entry.caseId}`;
 
@@ -298,9 +681,9 @@ export function inspectCorpusIntegrity(
   for (const [key, entries] of bySurface) {
     if (entries.length < 2) continue;
 
-    // Membros do mesmo grupo metamórfico compartilham a superfície
-    // normalizada por declaração da referência independente (§4.1.8): a
-    // variação de pontuação/acento é intencional e não é duplicata.
+    // Membros do mesmo grupo metamórfico (ou passos do mesmo cenário)
+    // compartilham a superfície normalizada por declaração da referência
+    // independente (§4.1.8): a variação é intencional, não duplicata.
     const distinctGroups = new Set(entries.map(groupToken));
     const isDeclaredVariation = distinctGroups.size === 1;
 
@@ -348,6 +731,8 @@ export function inspectCorpusIntegrity(
   }
 
   const invalidGroups: { groupId: string; reason: string }[] = [];
+  const divergentGroupExpectations: { groupId: string; caseIds: string[] }[] =
+    [];
   const undeclaredEquivalence: string[] = [];
   for (const [groupId, entries] of groups) {
     if (entries.length < 2) {
@@ -367,6 +752,23 @@ export function inspectCorpusIntegrity(
     }
     for (const entry of entries) {
       if (!entry.equivalenceReference) undeclaredEquivalence.push(entry.caseId);
+    }
+
+    // Um grupo metamórfico só é válido se os membros declararem o **mesmo**
+    // resultado esperado. Caso contrário não é equivalência: é conflito.
+    const reference = entries[0];
+    const referenceProjection = reference.expected.decisions.map(
+      projectExpectedDecision
+    );
+    const divergent = entries.filter(entry => {
+      const projection = entry.expected.decisions.map(projectExpectedDecision);
+      return !projectionMultisetEqual(projection, referenceProjection);
+    });
+    if (divergent.length > 0) {
+      divergentGroupExpectations.push({
+        groupId,
+        caseIds: divergent.map(entry => entry.caseId).sort(),
+      });
     }
   }
 
@@ -397,7 +799,9 @@ export function inspectCorpusIntegrity(
     splitLeakage.length === 0 &&
     undeclaredEquivalence.length === 0 &&
     invalidGroups.length === 0 &&
+    divergentGroupExpectations.length === 0 &&
     negativeControlConflicts.length === 0 &&
+    invalidScenarios.length === 0 &&
     invalidCases.length === 0
       ? "valid"
       : "invalid";
@@ -411,8 +815,74 @@ export function inspectCorpusIntegrity(
     invalidGroups,
     negativeControlConflicts,
     invalidCases,
+    divergentGroupExpectations,
+    invalidScenarios,
     holdoutKnowledgeWrites: [],
   };
+}
+
+function validateScenario(
+  scenario: GoldenLearningScenario,
+  knownCaseIds: ReadonlyMap<string, number>
+): { scenarioId: string; message: string }[] {
+  const issues: { scenarioId: string; message: string }[] = [];
+  const phases = new Set(scenario.steps.map(step => step.phase));
+
+  if (!phases.has("acquisition")) {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message: "cenário de §16.1 exige passo de aquisição de conhecimento",
+    });
+  }
+  const provingPhases: CorpusLearningPhase[] = [
+    "restart",
+    "isolation",
+    "revocation",
+    "explicit_override",
+    "reserved_measurement",
+  ];
+  if (!provingPhases.some(phase => phases.has(phase))) {
+    issues.push({
+      scenarioId: scenario.scenarioId,
+      message:
+        "cenário de §16.1 exige passo de medição reservada, reinício, precedência, isolamento ou revogação",
+    });
+  }
+
+  const stepIds = new Set(scenario.steps.map(step => step.stepId));
+  for (const step of scenario.steps) {
+    if (!knownCaseIds.has(step.caseId)) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId} aponta para caso inexistente ${step.caseId}`,
+      });
+    }
+    if (step.writesAllowed !== (step.phase === "acquisition")) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId}: escrita só é permitida na fase de aquisição (§16.1)`,
+      });
+    }
+    if (step.sameResultAsStepId && !stepIds.has(step.sameResultAsStepId)) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId}: sameResultAsStepId desconhecido`,
+      });
+    }
+    if (step.differentFromStepId && !stepIds.has(step.differentFromStepId)) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId}: differentFromStepId desconhecido`,
+      });
+    }
+    if (step.sameResultAsStepId === step.stepId) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId} não pode comparar consigo mesmo`,
+      });
+    }
+  }
+  return issues;
 }
 
 /** Compara a decisão esperada com a projeção observada (§4.1.8). */
@@ -427,67 +897,112 @@ export function compareExpectedDecision(
     codes.push("next_action_mismatch");
   }
 
-  if (expected.identity.asserted) {
-    if (expected.identity.canonicalName !== projected.identity.canonicalName) {
-      codes.push("identity_mismatch");
+  switch (expected.identity.presence) {
+    case "expected": {
+      if (
+        expected.identity.canonicalName !== projected.identity.canonicalName
+      ) {
+        codes.push("identity_mismatch");
+      }
+      if (expected.identity.brand !== projected.identity.brand) {
+        codes.push("brand_mismatch");
+      }
+      if (expected.identity.variant !== projected.identity.variant) {
+        codes.push("variant_mismatch");
+      }
+      if (
+        !sameSet(expected.identity.preparation, projected.identity.preparation)
+      ) {
+        codes.push("preparation_mismatch");
+      }
+      if (
+        !sameSet(
+          expected.identity.qualifiers,
+          projected.identity.qualifierValues
+        )
+      ) {
+        codes.push("qualifiers_mismatch");
+      }
+      if (expected.identity.barcode !== projected.identity.barcode) {
+        codes.push("barcode_mismatch");
+      }
+      break;
     }
-    if (expected.identity.brand !== projected.identity.brand) {
-      codes.push("brand_mismatch");
+    case "forbidden": {
+      // Identidade proibida: uma decisão de rejeição/ambiguidade não pode
+      // inventar identidade, nem por "aproximação".
+      const hasIdentity =
+        projected.identity.canonicalName !== null ||
+        projected.identity.brand !== null ||
+        projected.identity.variant !== null ||
+        projected.identity.barcode !== null ||
+        projected.identity.preparation.length > 0 ||
+        projected.identity.qualifierValues.length > 0;
+      if (hasIdentity) codes.push("identity_present_unexpected");
+      break;
     }
-    if (expected.identity.variant !== projected.identity.variant) {
-      codes.push("variant_mismatch");
-    }
-    if (
-      !sameSet(expected.identity.preparation, projected.identity.preparation)
-    ) {
-      codes.push("preparation_mismatch");
-    }
-    if (
-      !sameSet(expected.identity.qualifiers, projected.identity.qualifierValues)
-    ) {
-      codes.push("qualifiers_mismatch");
-    }
-    if (expected.identity.barcode !== projected.identity.barcode) {
-      codes.push("barcode_mismatch");
-    }
+    case "unspecified":
+      break;
   }
 
-  if (expected.quantity.asserted) {
-    // `value` é estrito: ausência declarada de quantidade não pode virar
-    // número. `unit`, `grams`, `milliliters` e `measureKind` só são comparados
-    // quando o caso os declara, porque são derivações dependentes de porção
-    // (§8.3) e a ausência de tolerância calibrada não autoriza inventá-los.
-    if (expected.quantity.value !== projected.quantity.value) {
-      codes.push("quantity_mismatch");
-    }
-    if (
-      expected.quantity.unit !== null &&
-      expected.quantity.unit !== projected.quantity.unit
-    ) {
-      codes.push("quantity_unit_mismatch");
-    }
-    if (
-      expected.quantity.grams !== null &&
-      expected.quantity.grams !== projected.quantity.grams
-    ) {
-      codes.push("quantity_mismatch");
-    }
-    if (
-      expected.quantity.milliliters !== null &&
-      expected.quantity.milliliters !== projected.quantity.milliliters
-    ) {
-      codes.push("quantity_mismatch");
-    }
-    if (
-      expected.quantity.measureKind !== null &&
-      expected.quantity.measureKind !== projected.quantity.measureKind
-    ) {
-      codes.push("measure_kind_mismatch");
-    }
-    if (expected.quantity.unitMustNotBeConvertedToGrams) {
-      if (projected.quantity.grams !== null || projected.quantity.unitIsMass) {
-        codes.push("quantity_became_grams");
+  switch (expected.quantity.presence) {
+    case "expected": {
+      if (expected.quantity.value !== projected.quantity.value) {
+        codes.push("quantity_mismatch");
       }
+      if (
+        expected.quantity.unit !== null &&
+        expected.quantity.unit !== projected.quantity.unit
+      ) {
+        codes.push("quantity_unit_mismatch");
+      }
+      if (
+        expected.quantity.grams !== null &&
+        expected.quantity.grams !== projected.quantity.grams
+      ) {
+        codes.push("quantity_mismatch");
+      }
+      if (
+        expected.quantity.milliliters !== null &&
+        expected.quantity.milliliters !== projected.quantity.milliliters
+      ) {
+        codes.push("quantity_mismatch");
+      }
+      if (
+        expected.quantity.measureKind !== null &&
+        expected.quantity.measureKind !== projected.quantity.measureKind
+      ) {
+        codes.push("measure_kind_mismatch");
+      }
+      if (expected.quantity.unitMustNotBeConvertedToGrams) {
+        if (
+          projected.quantity.grams !== null ||
+          projected.quantity.unitIsMass
+        ) {
+          codes.push("quantity_became_grams");
+        }
+      }
+      break;
+    }
+    case "forbidden": {
+      const hasQuantity =
+        projected.quantity.value !== null ||
+        projected.quantity.grams !== null ||
+        projected.quantity.milliliters !== null ||
+        projected.quantity.unit !== null;
+      if (hasQuantity) codes.push("quantity_present_unexpected");
+      break;
+    }
+    case "unspecified": {
+      if (expected.quantity.unitMustNotBeConvertedToGrams) {
+        if (
+          projected.quantity.grams !== null ||
+          projected.quantity.unitIsMass
+        ) {
+          codes.push("quantity_became_grams");
+        }
+      }
+      break;
     }
   }
 
@@ -511,15 +1026,41 @@ export function compareExpectedDecision(
     }
   }
 
-  if (
-    expected.ambiguity.mustPreserveAlternatives &&
-    projected.alternativeCount < expected.ambiguity.minAlternatives
-  ) {
-    codes.push("alternatives_lost");
+  // Alternativas: a preservação é semântica (§4.1.8), não apenas cardinal.
+  if (expected.ambiguity.mustPreserveAlternatives) {
+    if (projected.alternativeCount < expected.ambiguity.minAlternatives) {
+      codes.push("alternatives_lost");
+    }
+    const expectedKeys = expected.alternatives
+      .map(alternativeKeyOfExpected)
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const producedKeys = projected.alternatives
+      .map(alternative =>
+        [
+          alternative.name,
+          alternative.brand ?? "",
+          alternative.variant ?? "",
+          [...alternative.preparation].sort().join("|"),
+          [...alternative.qualifierValues].sort().join("|"),
+        ].join("::")
+      )
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    if (
+      expectedKeys.length !== producedKeys.length ||
+      !expectedKeys.every((key, index) => key === producedKeys[index])
+    ) {
+      codes.push("alternatives_mismatch");
+    }
   }
 
   const nutrition = expected.nutrition;
-  if (nutrition.requirement !== "not_asserted") {
+  if (nutrition.requirement === "absent") {
+    // Item que não é proposto não carrega composição: ausência é obrigação,
+    // não omissão tolerada (§9.2: ausência nunca vira zeros nem perfil).
+    if (projected.nutrition.present) {
+      codes.push("nutrition_present_unexpected");
+    }
+  } else if (nutrition.requirement !== "unspecified") {
     if (!projected.nutrition.present) codes.push("nutrition_missing");
     if (projected.nutrition.origins.length === 0) {
       codes.push("nutrition_provenance_missing");
@@ -557,6 +1098,18 @@ export function compareExpectedDecision(
   return [...new Set(codes)];
 }
 
+function alternativeKeyOfExpected(
+  alternative: ExpectedDecision["alternatives"][number]
+): string {
+  return [
+    alternative.name,
+    alternative.brand ?? "",
+    alternative.variant ?? "",
+    [...alternative.preparation].sort().join("|"),
+    [...alternative.qualifiers].sort().join("|"),
+  ].join("::");
+}
+
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const left = [...a].sort((x, y) => x.localeCompare(y, "pt-BR"));
@@ -571,61 +1124,240 @@ function cloneDecision(
 }
 
 /**
- * Casa as decisões esperadas com as decisões produzidas. A correspondência é
- * por rótulo explícito (`label`): o resolvedor declara `decisionId` e o corpus
- * declara `label`, então o casamento usa projeção semântica com busca
- * determinística.
+ * Casa as decisões esperadas com as decisões produzidas por projeção semântica
+ * com busca determinística (a ordem de retorno do resolvedor não é contrato).
  */
 function matchDecisions(
   expected: readonly ExpectedDecision[],
   produced: readonly ProjectedDecision[]
 ): {
-  assignments: { expected: ExpectedDecision; produced: ProjectedDecision }[];
   unmatchedExpected: ExpectedDecision[];
   unmatchedProduced: ProjectedDecision[];
   codesByLabel: Map<string, CorpusFailureCode[]>;
 } {
   const codesByLabel = new Map<string, CorpusFailureCode[]>();
   const used = new Set<number>();
-  const assignments: {
-    expected: ExpectedDecision;
-    produced: ProjectedDecision;
-  }[] = [];
   const unmatchedExpected: ExpectedDecision[] = [];
 
   for (const item of expected) {
-    let bestIndex = -1;
     let bestCodes: CorpusFailureCode[] = [];
     for (let index = 0; index < produced.length; index += 1) {
       if (used.has(index)) continue;
       const codes = compareExpectedDecision(item, produced[index]);
       if (codes.length === 0) {
-        bestIndex = index;
-        bestCodes = codes;
+        used.add(index);
+        bestCodes = [];
         break;
       }
-      if (bestIndex === -1 || codes.length < bestCodes.length) {
-        bestIndex = index;
+      if (bestCodes.length === 0 || codes.length < bestCodes.length) {
         bestCodes = codes;
       }
     }
 
-    if (bestIndex >= 0 && bestCodes.length === 0) {
-      used.add(bestIndex);
-      assignments.push({ expected: item, produced: produced[bestIndex] });
-      continue;
-    }
-
+    if (bestCodes.length === 0) continue;
     unmatchedExpected.push(item);
-    codesByLabel.set(
-      item.label,
-      bestCodes.length > 0 ? bestCodes : ["missing_decision"]
-    );
+    codesByLabel.set(item.label, bestCodes);
   }
 
   const unmatchedProduced = produced.filter((_, index) => !used.has(index));
+  return { unmatchedExpected, unmatchedProduced, codesByLabel };
+}
 
-  return { assignments, unmatchedExpected, unmatchedProduced, codesByLabel };
+/**
+ * Avalia o resultado de um caso contra a referência independente. Usado tanto
+ * pelo corpus quanto pelos cenários de §16.1.
+ */
+function evaluateResult(
+  entry: GoldenCorpusCase,
+  result: CorpusResolverResult,
+  recordedWrites: readonly string[],
+  /**
+   * `true` apenas na fase de aquisição de um cenário de §16.1: ali a escrita é
+   * o efeito esperado, não uma violação.
+   */
+  writesAllowed = false
+): {
+  failures: CorpusFailure[];
+  projections: ProjectedDecision[];
+  operation: MealOperation | null;
+  rawDecisions: FoodResolutionDecision[];
+  abstained: boolean;
+} {
+  const failures: CorpusFailure[] = [];
+  const projections: ProjectedDecision[] = [];
+  const rawDecisions: FoodResolutionDecision[] = [];
+  let operation: MealOperation | null = null;
+  let abstained = false;
+
+  // A evidência primária de efeito é o ledger da fachada de conhecimento; a
+  // lista declarada pelo resolvedor é uma segunda fonte, para que uma escrita
+  // que não passou pela fachada também seja falha (§16.1).
+  const declared = [...(result.knowledgeWrites ?? [])];
+  const writes = [...new Set([...recordedWrites, ...declared])];
+  if (writes.length > 0 && !writesAllowed) {
+    failures.push({
+      caseId: entry.caseId,
+      label: null,
+      codes: ["learning_applied_during_measurement"],
+      detail: `escrita de conhecimento durante a medição: ${writes.join(", ")}`,
+    });
+  }
+
+  if (!Array.isArray(result.decisions) || result.decisions.length === 0) {
+    failures.push({
+      caseId: entry.caseId,
+      label: null,
+      codes: ["missing_decision"],
+      detail: "resolvedor não retornou nenhuma decisão",
+    });
+    abstained = true;
+  }
+
+  for (const raw of result.decisions ?? []) {
+    const validation = foodResolutionDecisionSchema.safeParse(raw);
+    if (!validation.success) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["decision_invalid"],
+        detail: `decisão inválida: ${validation.error.issues
+          .map(issue => `${issue.path.join(".")}: ${issue.message}`)
+          .join("; ")}`,
+      });
+      abstained = true;
+      continue;
+    }
+    const decision = validation.data;
+    rawDecisions.push(cloneDecision(decision));
+    projections.push(projectDecision(decision));
+  }
+
+  if (result.operation) operation = result.operation;
+
+  const { unmatchedExpected, unmatchedProduced, codesByLabel } = matchDecisions(
+    entry.expected.decisions,
+    projections
+  );
+
+  for (const item of unmatchedExpected) {
+    failures.push({
+      caseId: entry.caseId,
+      label: item.label,
+      codes: codesByLabel.get(item.label) ?? ["missing_decision"],
+      detail: `decisão esperada '${item.label}' não correspondeu a nenhuma decisão produzida`,
+    });
+  }
+
+  for (const produced of unmatchedProduced) {
+    failures.push({
+      caseId: entry.caseId,
+      label: null,
+      codes: ["unexpected_decision"],
+      detail:
+        `decisão produzida não esperada: ${produced.identity.canonicalName ?? "(sem identidade)"} / ${produced.quantity.value ?? "?"} ${produced.quantity.unit ?? ""}`.trim(),
+    });
+  }
+
+  if (entry.expected.operation) {
+    if (!operation) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["operation_missing"],
+        detail: "operação esperada não foi resolvida",
+      });
+    } else if (
+      operation.action !== entry.expected.operation.action ||
+      operation.targetMeal !== entry.expected.operation.targetMeal ||
+      operation.date !== entry.expected.operation.date
+    ) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["operation_mismatch"],
+        detail: `operação ${operation.action}/${operation.targetMeal}/${operation.date} divergente do esperado`,
+      });
+    }
+  }
+
+  if (entry.expected.mustExplainExclusions) {
+    for (const produced of projections) {
+      if (
+        produced.nextAction !== "propose" &&
+        produced.reasonCodes.length === 0
+      ) {
+        failures.push({
+          caseId: entry.caseId,
+          label: null,
+          codes: ["exclusion_not_explained"],
+          detail: "item não resolvido sem código de motivo estruturado (§7.2)",
+        });
+      }
+    }
+  }
+
+  return { failures, projections, operation, rawDecisions, abstained };
+}
+
+/**
+ * Armazenamento de conhecimento instrumentado. Ele vive por execução (ou por
+ * cenário) e é a **única** porta de acesso: um resolvedor não recebe outro
+ * handle. Fora do modo `acquisition`, `write` registra a tentativa e falha,
+ * de modo que o isolamento do holdout é uma capacidade e não uma convenção
+ * (§16.1).
+ */
+export interface CorpusKnowledgeStore {
+  gateFor(
+    caseId: string,
+    split: CorpusSplit,
+    mode: "read_only" | "acquisition"
+  ): CorpusKnowledgeGate;
+  /** Revoga uma chave (§16.1: revogação sem reaplicação por cache obsoleto). */
+  revoke(key: string): void;
+  readonly ledger: CorpusKnowledgeLedgerEntry[];
+}
+
+/** Cria um armazenamento de conhecimento instrumentado e isolado. */
+export function createKnowledgeStore(): CorpusKnowledgeStore {
+  const entries = new Map<string, string>();
+  const ledger: CorpusKnowledgeLedgerEntry[] = [];
+
+  return {
+    ledger,
+    revoke(key: string) {
+      entries.delete(key);
+    },
+    gateFor(caseId, split, mode) {
+      const gate: CorpusKnowledgeGate = {
+        mode,
+        async read(key: string) {
+          ledger.push({ caseId, split, operation: "read", key });
+          return entries.get(key) ?? null;
+        },
+        async write(key: string, value: string) {
+          ledger.push({ caseId, split, operation: "write_attempt", key });
+          if (mode !== "acquisition") {
+            throw new Error(
+              `escrita de conhecimento bloqueada em ${caseId} (§16.1: holdout não alimenta memória)`
+            );
+          }
+          entries.set(key, value);
+        },
+      };
+      return gate;
+    },
+  };
+}
+
+function withinTolerance(
+  a: number | null,
+  b: number | null,
+  tolerance: number | null
+): boolean {
+  if (a === null || b === null) return a === b;
+  if (a === b) return true;
+  if (tolerance === null) return false;
+  return Math.abs(a - b) <= tolerance;
 }
 
 function extractMacros(
@@ -643,17 +1375,6 @@ function extractMacros(
     { key: "grams", value: decision.quantity.grams },
     { key: "milliliters", value: decision.quantity.milliliters },
   ];
-}
-
-function withinTolerance(
-  a: number | null,
-  b: number | null,
-  tolerance: number | null
-): boolean {
-  if (a === null || b === null) return a === b;
-  if (a === b) return true;
-  if (tolerance === null) return false;
-  return Math.abs(a - b) <= tolerance;
 }
 
 function buildSegment(
@@ -682,6 +1403,16 @@ function buildSegment(
     outcome => outcome.matched && outcome.case.decisionClass === "resolvable"
   ).length;
   const abstentions = outcomes.filter(outcome => outcome.abstained).length;
+  const families = outcomes
+    .map(outcome => familyCounters(outcome.failures))
+    .reduce(addFamilies, emptyFamilies());
+
+  const latencies = outcomes
+    .map(outcome => outcome.latencyMs)
+    .filter((value): value is number => value !== null);
+  const costs = outcomes
+    .map(outcome => outcome.costUsd)
+    .filter((value): value is number => value !== null);
 
   return {
     dimension,
@@ -698,6 +1429,15 @@ function buildSegment(
       resolvableLabeled === 0 ? null : matchedResolvable / resolvableLabeled,
     decisionMatchRate: cases === 0 ? null : matchedCases / cases,
     sampleStatus: resolvableLabeled === 0 ? "missing" : "present",
+    families,
+    totalLatencyMs:
+      latencies.length === 0
+        ? null
+        : latencies.reduce((sum, value) => sum + value, 0),
+    latencySamples: latencies.length,
+    totalCostUsd:
+      costs.length === 0 ? null : costs.reduce((sum, value) => sum + value, 0),
+    costSamples: costs.length,
   };
 }
 
@@ -711,6 +1451,16 @@ function groupBy<T>(items: readonly T[], key: (item: T) => string[]) {
     }
   }
   return map;
+}
+
+function segmentList(
+  dimension: CorpusSegmentDimension,
+  outcomes: readonly CaseOutcome[],
+  keyOf: (entry: GoldenCorpusCase) => string[]
+): CorpusSegmentMetrics[] {
+  return [...groupBy(outcomes, outcome => keyOf(outcome.case))]
+    .map(([segment, list]) => buildSegment(dimension, segment, list))
+    .sort((a, b) => a.segment.localeCompare(b.segment, "pt-BR"));
 }
 
 /** Executa o corpus contra o resolvedor sob teste e produz o relatório. */
@@ -729,160 +1479,70 @@ export async function runCorpus(
 
   const outcomes: CaseOutcome[] = [];
   const holdoutKnowledgeWrites: { caseId: string; writes: string[] }[] = [];
+  // Um armazenamento por execução: durante a medição de casos isolados o modo
+  // é sempre `read_only`, então nenhuma escrita é aceita (§16.1).
+  const knowledge = createKnowledgeStore();
   let resolveCalls = 0;
 
   for (const entry of parsed.cases) {
     resolveCalls += 1;
-    const failures: CorpusFailure[] = [];
-    const projections: ProjectedDecision[] = [];
-    const rawDecisions: FoodResolutionDecision[] = [];
-    let operation: MealOperation | null = null;
-    let abstained = false;
-
-    let result: Awaited<ReturnType<CorpusResolverUnderTest["resolve"]>>;
+    const ledgerStart = knowledge.ledger.length;
+    const gate = knowledge.gateFor(entry.caseId, entry.split, "read_only");
+    let result: CorpusResolverResult;
     try {
-      result = await resolver.resolve({ case: entry, allowLearning: false });
-    } catch (error) {
-      failures.push({
-        caseId: entry.caseId,
-        label: null,
-        codes: ["resolver_error"],
-        detail:
-          error instanceof Error
-            ? `resolvedor lançou: ${error.message}`
-            : "resolvedor lançou erro não identificado",
+      result = await resolver.resolve({
+        case: toCorpusCaseInput(entry),
+        allowLearning: false,
+        knowledge: gate,
       });
+    } catch (error) {
       outcomes.push({
         case: entry,
         matched: false,
         abstained: true,
-        failures,
-        projections,
-        operation,
-        rawDecisions,
+        failures: [
+          {
+            caseId: entry.caseId,
+            label: null,
+            codes: ["resolver_error"],
+            detail:
+              error instanceof Error
+                ? `resolvedor lançou: ${error.message}`
+                : "resolvedor lançou erro não identificado",
+          },
+        ],
+        projections: [],
+        operation: null,
+        rawDecisions: [],
+        latencyMs: null,
+        costUsd: null,
       });
       continue;
     }
 
-    const writes = [...(result.knowledgeWrites ?? [])];
-    if (writes.length > 0) {
-      failures.push({
+    const recordedWrites = knowledge.ledger
+      .slice(ledgerStart)
+      .filter(item => item.operation === "write_attempt")
+      .map(item => item.key);
+    if (recordedWrites.length > 0 && entry.split === "holdout") {
+      holdoutKnowledgeWrites.push({
         caseId: entry.caseId,
-        label: null,
-        codes: ["learning_applied_during_measurement"],
-        detail: `escritas de conhecimento durante a medição: ${writes.join(", ")}`,
-      });
-      if (entry.split === "holdout") {
-        holdoutKnowledgeWrites.push({
-          caseId: entry.caseId,
-          writes,
-        });
-      }
-    }
-
-    if (!Array.isArray(result.decisions) || result.decisions.length === 0) {
-      failures.push({
-        caseId: entry.caseId,
-        label: null,
-        codes: ["missing_decision"],
-        detail: "resolvedor não retornou nenhuma decisão",
-      });
-      abstained = true;
-    }
-
-    for (const raw of result.decisions ?? []) {
-      const validation = foodResolutionDecisionSchema.safeParse(raw);
-      if (!validation.success) {
-        failures.push({
-          caseId: entry.caseId,
-          label: null,
-          codes: ["decision_invalid"],
-          detail: `decisão inválida: ${validation.error.issues
-            .map(issue => `${issue.path.join(".")}: ${issue.message}`)
-            .join("; ")}`,
-        });
-        abstained = true;
-        continue;
-      }
-      const decision = validation.data;
-      rawDecisions.push(cloneDecision(decision));
-      projections.push(projectDecision(decision));
-    }
-
-    if (result.operation) {
-      operation = result.operation;
-    }
-
-    const expectedView = entry.expected.decisions;
-    const { unmatchedExpected, unmatchedProduced, codesByLabel } =
-      matchDecisions(expectedView, projections);
-
-    for (const item of unmatchedExpected) {
-      failures.push({
-        caseId: entry.caseId,
-        label: item.label,
-        codes: codesByLabel.get(item.label) ?? ["missing_decision"],
-        detail: `decisão esperada '${item.label}' não correspondeu a nenhuma decisão produzida`,
+        writes: recordedWrites,
       });
     }
 
-    for (const produced of unmatchedProduced) {
-      failures.push({
-        caseId: entry.caseId,
-        label: null,
-        codes: ["unexpected_decision"],
-        detail:
-          `decisão produzida não esperada: ${produced.identity.canonicalName ?? "(sem identidade)"} / ${produced.quantity.value ?? "?"} ${produced.quantity.unit ?? ""}`.trim(),
-      });
-    }
-
-    if (entry.expected.operation) {
-      if (!operation) {
-        failures.push({
-          caseId: entry.caseId,
-          label: null,
-          codes: ["operation_missing"],
-          detail: "operação esperada não foi resolvida",
-        });
-      } else if (
-        operation.action !== entry.expected.operation.action ||
-        operation.targetMeal !== entry.expected.operation.targetMeal ||
-        operation.date !== entry.expected.operation.date
-      ) {
-        failures.push({
-          caseId: entry.caseId,
-          label: null,
-          codes: ["operation_mismatch"],
-          detail: `operação ${operation.action}/${operation.targetMeal}/${operation.date} divergente do esperado`,
-        });
-      }
-    }
-
-    if (entry.expected.mustExplainExclusions) {
-      for (const produced of projections) {
-        if (
-          produced.nextAction !== "propose" &&
-          produced.reasonCodes.length === 0
-        ) {
-          failures.push({
-            caseId: entry.caseId,
-            label: null,
-            codes: ["exclusion_not_explained"],
-            detail:
-              "item não resolvido sem código de motivo estruturado (§7.2)",
-          });
-        }
-      }
-    }
+    const evaluated = evaluateResult(entry, result, recordedWrites);
 
     outcomes.push({
       case: entry,
-      matched: failures.length === 0,
-      abstained,
-      failures,
-      projections,
-      operation,
-      rawDecisions,
+      matched: evaluated.failures.length === 0,
+      abstained: evaluated.abstained,
+      failures: evaluated.failures,
+      projections: evaluated.projections,
+      operation: evaluated.operation,
+      rawDecisions: evaluated.rawDecisions,
+      latencyMs: result.metrics?.latencyMs ?? null,
+      costUsd: result.metrics?.costUsd ?? null,
     });
   }
 
@@ -891,31 +1551,38 @@ export async function runCorpus(
 
   const failures = outcomes.flatMap(outcome => outcome.failures);
 
-  const byModality = [...groupBy(outcomes, outcome => [outcome.case.modality])]
-    .map(([segment, list]) => buildSegment("modality", segment, list))
-    .sort((a, b) => a.segment.localeCompare(b.segment, "pt-BR"));
-
-  const byDecisionClass = [
-    ...groupBy(outcomes, outcome => [outcome.case.decisionClass]),
-  ]
-    .map(([segment, list]) => buildSegment("decisionClass", segment, list))
-    .sort((a, b) => a.segment.localeCompare(b.segment, "pt-BR"));
-
-  const bySplit = [...groupBy(outcomes, outcome => [outcome.case.split])]
-    .map(([segment, list]) => buildSegment("split", segment, list))
-    .sort((a, b) => a.segment.localeCompare(b.segment, "pt-BR"));
-
-  const byNonRecurrenceClass = [
-    ...groupBy(outcomes, outcome => [...outcome.case.nonRecurrenceClasses]),
-  ]
-    .map(([segment, list]) =>
-      buildSegment(
-        "nonRecurrenceClass",
-        segment as CorpusNonRecurrenceClass,
-        list
-      )
-    )
-    .sort((a, b) => a.segment.localeCompare(b.segment, "pt-BR"));
+  const byModality = segmentList("modality", outcomes, entry => [
+    entry.modality,
+  ]);
+  const byDecisionClass = segmentList("decisionClass", outcomes, entry => [
+    entry.decisionClass,
+  ]);
+  const bySplit = segmentList("split", outcomes, entry => [entry.split]);
+  const byNonRecurrenceClass = segmentList(
+    "nonRecurrenceClass",
+    outcomes,
+    entry => [...entry.nonRecurrenceClasses]
+  );
+  const byBrand = segmentList("brand", outcomes, entry => [
+    segmentKeysOf(entry).brand,
+  ]);
+  const byMaterialAttribute = segmentList(
+    "materialAttribute",
+    outcomes,
+    entry => [segmentKeysOf(entry).materialAttribute]
+  );
+  const byMeasure = segmentList("measure", outcomes, entry => [
+    segmentKeysOf(entry).measure,
+  ]);
+  const byContinuity = segmentList("continuity", outcomes, entry => [
+    entry.continuity,
+  ]);
+  const byOperation = segmentList("operation", outcomes, entry => [
+    segmentKeysOf(entry).operation,
+  ]);
+  const byNutritionSource = segmentList("nutritionSource", outcomes, entry => [
+    segmentKeysOf(entry).nutritionSource,
+  ]);
 
   const overall = buildSegment("modality", "corpus", outcomes);
 
@@ -924,17 +1591,27 @@ export async function runCorpus(
   );
 
   const metamorphic = buildMetamorphicResults(parsed, outcomeByCaseId);
-  const negativeControls = buildNegativeControlResults(parsed, outcomeByCaseId);
+  const negativeControls = buildNegativeControlEvidence(
+    parsed,
+    outcomeByCaseId,
+    resolvedOptions.revisions
+  );
   const macroConsistency = buildMacroConsistency(
     parsed,
     outcomeByCaseId,
     resolvedOptions.roundingTolerance
   );
+  const learningScenarios = await runLearningScenarios(
+    parsed,
+    resolver,
+    integrity
+  );
 
   const wrongConvergence = metamorphic.filter(item => item.wrongConvergence);
   const convergedControls = negativeControls.filter(
-    item => item.convergedWithTarget
+    item => !item.discriminating
   );
+  const scenarioFailures = learningScenarios.filter(item => !item.passed);
 
   const blockReasons: CorpusGateBlockReason[] = [];
   if (integrity.status === "invalid") {
@@ -951,7 +1628,9 @@ export async function runCorpus(
     if (
       integrity.invalidCases.length > 0 ||
       integrity.invalidGroups.length > 0 ||
-      integrity.negativeControlConflicts.length > 0
+      integrity.negativeControlConflicts.length > 0 ||
+      integrity.divergentGroupExpectations.length > 0 ||
+      integrity.invalidScenarios.length > 0
     ) {
       blockReasons.push("corpus_invalid");
     }
@@ -965,10 +1644,25 @@ export async function runCorpus(
   ) {
     blockReasons.push("rounding_tolerance_not_calibrated");
   }
+  if (
+    CORPUS_REVISION_KEYS.some(key =>
+      isUnpinnedRevision(resolvedOptions.revisions[key])
+    )
+  ) {
+    blockReasons.push("revisions_not_pinned");
+  }
+  if (scenarioFailures.length > 0) {
+    blockReasons.push("scenario_invariant_violated");
+  }
+
+  const nonResolvableFailureCount = outcomes.filter(
+    outcome => !outcome.matched && outcome.case.decisionClass !== "resolvable"
+  ).length;
 
   const gate = buildGate(
     overall,
     failures.length,
+    nonResolvableFailureCount,
     blockReasons,
     resolvedOptions.minMatchRate
   );
@@ -986,10 +1680,17 @@ export async function runCorpus(
     byDecisionClass,
     bySplit,
     byNonRecurrenceClass,
+    byBrand,
+    byMaterialAttribute,
+    byMeasure,
+    byContinuity,
+    byOperation,
+    byNutritionSource,
     failures,
     metamorphic,
     negativeControls,
     macroConsistency,
+    learningScenarios,
     gate,
   };
 }
@@ -1002,9 +1703,194 @@ export async function runGoldenFoodCorpus(
   return runCorpus(goldenFoodCorpus, resolver, options);
 }
 
+/**
+ * Executa os cenários de §16.1 com passos ordenados contra a **mesma**
+ * instância do resolvedor, de modo que persistência, isolamento, precedência e
+ * revogação sejam efeitos observáveis e não rótulos de caso.
+ */
+export async function runLearningScenarios(
+  corpus: GoldenCorpus,
+  resolver: CorpusResolverUnderTest,
+  integrity: CorpusIntegrityReport
+): Promise<LearningScenarioResult[]> {
+  const byCaseId = new Map(corpus.cases.map(entry => [entry.caseId, entry]));
+  const results: LearningScenarioResult[] = [];
+
+  for (const scenario of corpus.learningScenarios) {
+    const stepResults: LearningScenarioStepResult[] = [];
+    const projectionsByStep = new Map<string, ProjectedDecision[]>();
+    const scenarioFailures: CorpusFailure[] = [];
+    const ownerRefs = new Set<string>();
+    const conversationRefs = new Set<string>();
+    // O armazenamento vive por cenário: é o que torna persistência após
+    // reinício e revogação efeitos observáveis, e não rótulos de caso.
+    const knowledge = createKnowledgeStore();
+
+    for (const step of scenario.steps) {
+      const entry = byCaseId.get(step.caseId);
+      if (!entry) {
+        stepResults.push({
+          stepId: step.stepId,
+          phase: step.phase,
+          caseId: step.caseId,
+          allowLearning: step.writesAllowed,
+          writesAllowed: step.writesAllowed,
+          matched: false,
+          recordedWriteAttempts: 0,
+          sameResultAsStepId: step.sameResultAsStepId,
+          sameResultSatisfied: null,
+          differentFromStepId: step.differentFromStepId,
+          differentFromSatisfied: null,
+          failures: [
+            {
+              caseId: step.caseId,
+              label: null,
+              codes: ["scenario_step_mismatch"],
+              detail: `passo ${step.stepId} aponta para caso inexistente`,
+            },
+          ],
+        });
+        continue;
+      }
+
+      ownerRefs.add(entry.scenario.ownerRef);
+      conversationRefs.add(entry.scenario.conversationRef);
+
+      for (const key of step.revokeKeys) knowledge.revoke(key);
+
+      const ledgerStart = knowledge.ledger.length;
+      const gate = knowledge.gateFor(
+        entry.caseId,
+        entry.split,
+        step.writesAllowed ? "acquisition" : "read_only"
+      );
+
+      let evaluated: ReturnType<typeof evaluateResult>;
+      let recordedWriteAttempts = 0;
+      try {
+        const result = await resolver.resolve({
+          case: toCorpusCaseInput(entry),
+          allowLearning: step.writesAllowed,
+          knowledge: gate,
+        });
+        const recorded = knowledge.ledger
+          .slice(ledgerStart)
+          .filter(item => item.operation === "write_attempt")
+          .map(item => item.key);
+        recordedWriteAttempts = recorded.length;
+        if (recorded.length > 0 && !step.writesAllowed) {
+          integrity.status = "invalid";
+          integrity.holdoutKnowledgeWrites.push({
+            caseId: entry.caseId,
+            writes: recorded,
+          });
+        }
+        evaluated = evaluateResult(entry, result, recorded, step.writesAllowed);
+      } catch (error) {
+        evaluated = {
+          failures: [
+            {
+              caseId: entry.caseId,
+              label: null,
+              codes: ["resolver_error"],
+              detail:
+                error instanceof Error
+                  ? `cenário ${scenario.scenarioId}, passo ${step.stepId}: ${error.message}`
+                  : `cenário ${scenario.scenarioId}, passo ${step.stepId}: erro não identificado`,
+            },
+          ],
+          projections: [],
+          operation: null,
+          rawDecisions: [],
+          abstained: true,
+        };
+      }
+
+      const failures = [...evaluated.failures];
+      const previous = step.sameResultAsStepId
+        ? projectionsByStep.get(step.sameResultAsStepId)
+        : undefined;
+      const different = step.differentFromStepId
+        ? projectionsByStep.get(step.differentFromStepId)
+        : undefined;
+
+      const sameResultSatisfied = step.sameResultAsStepId
+        ? previous !== undefined &&
+          projectionMultisetEqual(evaluated.projections, previous)
+        : null;
+      const differentFromSatisfied = step.differentFromStepId
+        ? different !== undefined &&
+          !projectionMultisetEqual(evaluated.projections, different)
+        : null;
+
+      if (sameResultSatisfied === false) {
+        failures.push({
+          caseId: entry.caseId,
+          label: null,
+          codes: ["scenario_invariant_violated"],
+          detail: `passo ${step.stepId} deveria reproduzir o resultado de ${step.sameResultAsStepId} (persistência/idempotência)`,
+        });
+      }
+      if (differentFromSatisfied === false) {
+        failures.push({
+          caseId: entry.caseId,
+          label: null,
+          codes: ["scenario_invariant_violated"],
+          detail: `passo ${step.stepId} não pode reproduzir o resultado de ${step.differentFromStepId} (isolamento/revogação)`,
+        });
+      }
+      if (!step.writesAllowed && recordedWriteAttempts > 0) {
+        failures.push({
+          caseId: entry.caseId,
+          label: null,
+          codes: ["learning_applied_during_measurement"],
+          detail: `passo ${step.stepId} tentou escrever conhecimento fora da fase de aquisição`,
+        });
+      }
+
+      projectionsByStep.set(step.stepId, evaluated.projections);
+      const stepResult: LearningScenarioStepResult = {
+        stepId: step.stepId,
+        phase: step.phase,
+        caseId: step.caseId,
+        allowLearning: step.writesAllowed,
+        writesAllowed: step.writesAllowed,
+        matched:
+          evaluated.failures.filter(
+            failure =>
+              !failure.codes.includes("learning_applied_during_measurement")
+          ).length === 0,
+        recordedWriteAttempts,
+        sameResultAsStepId: step.sameResultAsStepId,
+        sameResultSatisfied,
+        differentFromStepId: step.differentFromStepId,
+        differentFromSatisfied,
+        failures,
+      };
+      stepResults.push(stepResult);
+      scenarioFailures.push(...failures);
+    }
+
+    results.push({
+      scenarioId: scenario.scenarioId,
+      ownerRefs: [...ownerRefs].sort(),
+      conversationRefs: [...conversationRefs].sort(),
+      phases: [...new Set(scenario.steps.map(step => step.phase))].sort(),
+      steps: stepResults,
+      passed: scenarioFailures.length === 0,
+      failures: scenarioFailures,
+    });
+  }
+
+  return results.sort((a, b) =>
+    a.scenarioId.localeCompare(b.scenarioId, "pt-BR")
+  );
+}
+
 function buildGate(
   overall: CorpusSegmentMetrics,
   failureCount: number,
+  nonResolvableFailureCount: number,
   blockReasons: readonly CorpusGateBlockReason[],
   minMatchRate: number
 ): CorpusGate {
@@ -1012,6 +1898,7 @@ function buildGate(
     minMatchRate,
     matchRate: overall.matchRate,
     failureCount,
+    nonResolvableFailureCount,
     blockReasons: [...blockReasons],
   };
 
@@ -1021,10 +1908,12 @@ function buildGate(
   if (overall.resolvableLabeled === 0) {
     return { ...base, status: "sample_missing" };
   }
-  if (failureCount > 0) {
+  // Falhas fora dos casos resolvíveis não são cobertas pela meta de §1.1:
+  // clarificação e rejeição esperadas precisam estar corretas integralmente.
+  if (nonResolvableFailureCount > 0) {
     return { ...base, status: "failed" };
   }
-  if (overall.matchRate !== null && overall.matchRate < minMatchRate) {
+  if (overall.matchRate === null || overall.matchRate < minMatchRate) {
     return { ...base, status: "failed" };
   }
   return { ...base, status: "passed" };
@@ -1032,7 +1921,7 @@ function buildGate(
 
 function buildMetamorphicResults(
   corpus: GoldenCorpus,
-  outcomeByCaseId: Map<string, CaseOutcome>
+  outcomeByCaseId: ReadonlyMap<string, CaseOutcome>
 ): MetamorphicGroupResult[] {
   const groups = new Map<string, GoldenCorpusCase[]>();
   for (const entry of corpus.cases) {
@@ -1051,7 +1940,7 @@ function buildMetamorphicResults(
     const allMatchReference = caseOutcomes.every(outcome => outcome.matched);
     const referenceProjection = caseOutcomes[0]?.projections ?? [];
     const converged = caseOutcomes.every(outcome =>
-      projectionsEqual(outcome.projections, referenceProjection)
+      projectionMultisetEqual(outcome.projections, referenceProjection)
     );
 
     results.push({
@@ -1068,40 +1957,103 @@ function buildMetamorphicResults(
   return results.sort((a, b) => a.groupId.localeCompare(b.groupId, "pt-BR"));
 }
 
-function projectionsEqual(
-  a: readonly ProjectedDecision[],
-  b: readonly ProjectedDecision[]
-): boolean {
-  if (a.length === 0 || b.length === 0) return false;
-  if (a.length !== b.length) return false;
-  const remaining = [...b];
-  for (const decision of a) {
-    const index = remaining.findIndex(candidate =>
-      decisionsSemanticallyEqual(decision, candidate)
-    );
-    if (index === -1) return false;
-    remaining.splice(index, 1);
-  }
-  return remaining.length === 0;
+function projectionSignature(
+  projections: readonly ProjectedDecision[]
+): string {
+  return projections
+    .map(decision =>
+      [
+        decision.status,
+        decision.nextAction,
+        decision.identity.canonicalName ?? "",
+        decision.identity.brand ?? "",
+        decision.identity.variant ?? "",
+        [...decision.identity.preparation].sort().join("|"),
+        [...decision.identity.qualifierValues].sort().join("|"),
+        String(decision.quantity.value ?? ""),
+        decision.quantity.unit ?? "",
+      ].join("::")
+    )
+    .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    .join(" || ");
 }
 
-function buildNegativeControlResults(
+const DISCRIMINATING_DIMENSIONS: {
+  dimension: string;
+  value: (decision: ProjectedDecision) => string;
+}[] = [
+  { dimension: "status", value: decision => decision.status },
+  { dimension: "nextAction", value: decision => decision.nextAction },
+  {
+    dimension: "identity",
+    value: decision => decision.identity.canonicalName ?? "",
+  },
+  { dimension: "brand", value: decision => decision.identity.brand ?? "" },
+  { dimension: "variant", value: decision => decision.identity.variant ?? "" },
+  {
+    dimension: "materialAttribute",
+    value: decision => materialAttributeKey(decision.identity),
+  },
+  {
+    dimension: "quantity",
+    value: decision =>
+      `${String(decision.quantity.value ?? "")} ${decision.quantity.unit ?? ""}`,
+  },
+  {
+    dimension: "measure",
+    value: decision => decision.quantity.measureKind ?? "",
+  },
+  {
+    dimension: "unresolvedFields",
+    value: decision => [...decision.unresolvedFields].sort().join("|"),
+  },
+  {
+    dimension: "reasonCodes",
+    value: decision => [...decision.reasonCodes].sort().join("|"),
+  },
+];
+
+function discriminatingDimensionOf(
+  control: readonly ProjectedDecision[],
+  target: readonly ProjectedDecision[]
+): string {
+  if (control.length !== target.length) return "multiplicity";
+  for (let index = 0; index < control.length; index += 1) {
+    for (const candidate of DISCRIMINATING_DIMENSIONS) {
+      if (candidate.value(control[index]) !== candidate.value(target[index])) {
+        return candidate.dimension;
+      }
+    }
+  }
+  return "none";
+}
+
+function buildNegativeControlEvidence(
   corpus: GoldenCorpus,
-  outcomeByCaseId: Map<string, CaseOutcome>
-): NegativeControlResult[] {
-  const results: NegativeControlResult[] = [];
+  outcomeByCaseId: ReadonlyMap<string, CaseOutcome>,
+  revisions: CorpusRevisions
+): NegativeControlEvidence[] {
+  const results: NegativeControlEvidence[] = [];
   for (const entry of corpus.cases) {
     if (!entry.negativeControlOf) continue;
     const control = outcomeByCaseId.get(entry.caseId);
     const target = outcomeByCaseId.get(entry.negativeControlOf);
     if (!control || !target) continue;
+    const converged = projectionMultisetEqual(
+      control.projections,
+      target.projections
+    );
     results.push({
       caseId: entry.caseId,
       targetCaseId: entry.negativeControlOf,
-      convergedWithTarget: projectionsEqual(
-        control.projections,
-        target.projections
-      ),
+      hypothesis: entry.negativeControlHypothesis ?? "(não declarada)",
+      discriminating: !converged,
+      discriminatingDimension: converged
+        ? "none"
+        : discriminatingDimensionOf(control.projections, target.projections),
+      controlSignature: projectionSignature(control.projections),
+      targetSignature: projectionSignature(target.projections),
+      revisions,
     });
   }
   return results.sort((a, b) => a.caseId.localeCompare(b.caseId, "pt-BR"));
@@ -1109,7 +2061,7 @@ function buildNegativeControlResults(
 
 function buildMacroConsistency(
   corpus: GoldenCorpus,
-  outcomeByCaseId: Map<string, CaseOutcome>,
+  outcomeByCaseId: ReadonlyMap<string, CaseOutcome>,
   tolerance: number | null
 ): MacroConsistencyResult[] {
   const groups = new Map<string, GoldenCorpusCase[]>();
@@ -1161,5 +2113,5 @@ export function reportRevisions(report: CorpusReport): CorpusRevisions {
   return revisions as CorpusRevisions;
 }
 
-/** Versão de schema corrente do corpus. */
-export const CURRENT_CORPUS_SCHEMA_VERSION = GOLDEN_CORPUS_SCHEMA_VERSION;
+/** Tipo reexportado para uso dos testes e do relatório. */
+export type { CorpusCaseInput };

@@ -11,17 +11,20 @@
  * integram a igualdade literal: sua validade e rastreabilidade são verificadas
  * separadamente (§4.1.8).
  */
-import { isMassUnit } from "../contracts";
+import {
+  FOOD_OBSERVATION_SCHEMA_VERSION,
+  FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
+  isMassUnit,
+  isVolumeUnit,
+} from "../contracts";
 import type {
-  FoodDecisionStatus,
   FoodDecisionNextAction,
+  FoodDecisionStatus,
   FoodEvidenceOrigin,
   FoodField,
 } from "../contracts";
-import type { FoodResolutionDecision } from "../schemas";
-import { FOOD_OBSERVATION_SCHEMA_VERSION } from "../contracts";
-import type { FoodObservation } from "../schemas";
-import { FOOD_RESOLUTION_DECISION_SCHEMA_VERSION } from "../contracts";
+import type { FoodObservation, FoodResolutionDecision } from "../schemas";
+import type { ExpectedDecision } from "./contracts";
 
 /** Identidade projetada de um item (§4.1.8). */
 export interface ProjectedIdentity {
@@ -64,6 +67,14 @@ export interface ProjectedNutrition {
   verifiedBySpecificEvidence: boolean;
 }
 
+export interface ProjectedAlternative {
+  name: string;
+  brand: string | null;
+  variant: string | null;
+  preparation: readonly string[];
+  qualifierValues: readonly string[];
+}
+
 /** Decisão projetada: unidade comparável de §4.1.8. */
 export interface ProjectedDecision {
   label: string | null;
@@ -76,14 +87,6 @@ export interface ProjectedDecision {
   nutrition: ProjectedNutrition;
   alternatives: readonly ProjectedAlternative[];
   alternativeCount: number;
-}
-
-export interface ProjectedAlternative {
-  name: string;
-  brand: string | null;
-  variant: string | null;
-  preparation: readonly string[];
-  qualifierValues: readonly string[];
 }
 
 /** Observação projetada: identidade/quantidade observadas, sem normalização. */
@@ -106,6 +109,30 @@ export interface ProjectedObservation {
   unresolvedReason: string | null;
 }
 
+/** Classe de medida usada na segmentação de §16.2. */
+export const CORPUS_MEASURE_KINDS = [
+  "none",
+  "mass",
+  "volume",
+  "count",
+  "household",
+  "other",
+] as const;
+export type CorpusMeasureKind = (typeof CORPUS_MEASURE_KINDS)[number];
+
+const COUNT_UNITS = [
+  "unidade",
+  "fatia",
+  "porção",
+  "pote",
+  "copo",
+  "garrafa",
+  "lata",
+  "pacote",
+  "colher de sopa",
+  "colher de chá",
+];
+
 const NUTRITION_FIELD_PREFIX = "nutrition.";
 const IDENTITY_FIELD_PREFIX = "identity.";
 
@@ -117,6 +144,30 @@ const SPECIFIC_NUTRITION_ORIGINS: readonly FoodEvidenceOrigin[] = [
 /** Ordena mantendo estabilidade e sem depender da ordem de execução. */
 function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+/** Classifica a unidade observada/esperada para a segmentação de §16.2. */
+export function classifyMeasureKind(unit: string | null): CorpusMeasureKind {
+  if (unit === null) return "none";
+  if (isMassUnit(unit)) return "mass";
+  if (isVolumeUnit(unit)) return "volume";
+  if (COUNT_UNITS.some(candidate => candidate === unit.trim().toLowerCase())) {
+    return unit.trim().toLowerCase().startsWith("colher")
+      ? "household"
+      : "count";
+  }
+  return "other";
+}
+
+/** Chave material de identidade: variante, preparo e qualificadores (§16.2). */
+export function materialAttributeKey(identity: ProjectedIdentity): string {
+  const parts = [
+    ...identity.preparation,
+    ...identity.qualifierValues,
+    ...(identity.variant === null ? [] : [identity.variant]),
+  ];
+  const normalized = sortedUnique(parts);
+  return normalized.length === 0 ? "none" : normalized.join("+");
 }
 
 /** Projeta uma decisão estruturada para comparação semântica (§4.1.8). */
@@ -195,6 +246,63 @@ export function projectDecision(
   };
 }
 
+/**
+ * Projeta a **expectativa declarada** no mesmo espaço da projeção observada.
+ *
+ * É o que permite validar, antes da medição, que todos os membros de um grupo
+ * metamórfico realmente declaram o mesmo resultado esperado: um grupo com
+ * expectativas divergentes é inválido, não uma equivalência.
+ */
+export function projectExpectedDecision(
+  expected: ExpectedDecision
+): ProjectedDecision {
+  const identityExpected = expected.identity.presence === "expected";
+  const quantityExpected = expected.quantity.presence === "expected";
+
+  return {
+    label: expected.label,
+    status: expected.status,
+    nextAction: expected.nextAction,
+    identity: {
+      canonicalName: identityExpected ? expected.identity.canonicalName : null,
+      brand: identityExpected ? expected.identity.brand : null,
+      variant: identityExpected ? expected.identity.variant : null,
+      preparation: identityExpected ? [...expected.identity.preparation] : [],
+      qualifierValues: identityExpected
+        ? [...expected.identity.qualifiers]
+        : [],
+      barcode: identityExpected ? expected.identity.barcode : null,
+      sustained: identityExpected && expected.identity.canonicalName !== null,
+    },
+    quantity: {
+      value: quantityExpected ? expected.quantity.value : null,
+      unit: quantityExpected ? expected.quantity.unit : null,
+      grams: quantityExpected ? expected.quantity.grams : null,
+      milliliters: quantityExpected ? expected.quantity.milliliters : null,
+      measureKind: quantityExpected ? expected.quantity.measureKind : null,
+      unitIsMass: quantityExpected && isMassUnit(expected.quantity.unit),
+    },
+    unresolvedFields: sortedUnique(expected.unresolvedFields) as FoodField[],
+    reasonCodes: sortedUnique(expected.reasonCodes),
+    nutrition: {
+      present: expected.nutrition.requirement !== "absent",
+      verified: false,
+      provisional: expected.nutrition.provisionalRequired,
+      origins: [],
+      identityOrigins: [],
+      verifiedBySpecificEvidence: false,
+    },
+    alternatives: expected.alternatives.map(alternative => ({
+      name: alternative.name,
+      brand: alternative.brand,
+      variant: alternative.variant,
+      preparation: [...alternative.preparation],
+      qualifierValues: [...alternative.qualifiers],
+    })),
+    alternativeCount: expected.alternatives.length,
+  };
+}
+
 /** Projeta uma observação pré-resolução para comparação de superfície. */
 export function projectObservation(
   observation: FoodObservation
@@ -249,6 +357,24 @@ export function decisionsSemanticallyEqual(
   );
 }
 
+/** Compara duas listas de projeções como multiconjunto determinístico. */
+export function projectionMultisetEqual(
+  a: readonly ProjectedDecision[],
+  b: readonly ProjectedDecision[]
+): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  if (a.length !== b.length) return false;
+  const remaining = [...b];
+  for (const decision of a) {
+    const index = remaining.findIndex(candidate =>
+      decisionsSemanticallyEqual(decision, candidate)
+    );
+    if (index === -1) return false;
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
+
 function alternativeKey(alternative: ProjectedAlternative): string {
   return [
     alternative.name,
@@ -266,11 +392,7 @@ function sameMultiset(a: readonly string[], b: readonly string[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
 
-/**
- * `true` quando a decisão declara explicitamente que a observação pertence ao
- * contrato V2 corrente. Versão diferente é rejeitada, nunca interpretada
- * silenciosamente (§5.1).
- */
+/** `true` quando a decisão pertence ao contrato V2 corrente (§5). */
 export function isCurrentDecisionSchemaVersion(
   decision: FoodResolutionDecision
 ): boolean {

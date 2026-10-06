@@ -2886,38 +2886,84 @@ e §17, **sem** servir decisões produtivas e **sem** aprovar threshold algum.
 
 - `contracts.ts` define o vocabulário do corpus (partições `acquisition`,
   `calibration` e `holdout`; classes de decisão; classes de não-recorrência
-  §9.3) e o schema que rejeita versão de schema desconhecida, campo não
-  governado e caso malformado antes de qualquer medição.
-- `data.ts` versiona o corpus (`golden-2026-10-06.1`) com os incidentes
+  §9.3; presença tri-estado de campo; fases de §16.1) e o schema que rejeita
+  versão de schema desconhecida, campo não governado e caso malformado antes
+  de qualquer medição. A entrada entregue ao resolvedor é `CorpusCaseInput`,
+  uma projeção **sanitizada** do caso: sem `expected`, sem partição, sem
+  classe, sem grupo e sem controle negativo, e congelada. O resolvedor também
+  não recebe handle de conhecimento: ele recebe uma `CorpusKnowledgeGate`
+  instrumentada, cujo modo é uma capacidade — fora da fase de aquisição,
+  `write` registra a tentativa e falha.
+- `data.ts` versiona o corpus (`golden-2026-10-06.2`) com os incidentes
   históricos obrigatórios de §16, os casos adicionais de linguagem, lote e
   negativos, os casos de materialidade de §8.3, os cenários de aprendizado e
   generalização de §16.1 e o conjunto reservado. O resultado esperado de cada
   caso é declarado por referência independente (§4.1.8), nunca derivado da
-  saída do resolvedor.
+  saída do resolvedor. Presença de campo é explícita: `expected` compara,
+  `forbidden` exige ausência (uma decisão que não propõe não pode inventar
+  identidade nem quantidade) e `unspecified` só existe onde produzir o campo é
+  legítimo. Alternativas concorrentes são declaradas, para que a preservação
+  seja verificada semanticamente e não por cardinalidade. Cada controle
+  negativo declara a implementação errada plausível que precisa reprovar. Os
+  cenários de §16.1 declaram passos ordenados com fases (`before_acquisition`,
+  `acquisition`, `reserved_measurement`, `restart`, `explicit_override`,
+  `isolation`, `revocation`), chaves revogadas e as invariantes de reprodução e
+  de diferença entre passos.
 - `projection.ts` projeta observações e decisões para a comparação semântica de
   §4.1.8, preservando identidade, qualificadores, quantidade/unidade,
   multiplicidade, alternativas e campos não resolvidos, e excluindo
   identificadores de execução, `rawInput`, `normalizedInput`, spans,
-  modalidade, trilhas de normalização e confiança.
+  modalidade, trilhas de normalização e confiança. A mesma projeção é aplicada
+  à **expectativa declarada**, o que permite validar antes da medição que os
+  membros de um grupo metamórfico realmente declaram o mesmo resultado: um
+  grupo com expectativas divergentes é inválido, não uma equivalência.
 - `harness.ts` entrega cada caso ao resolvedor sob teste (nunca fabrica a
   decisão), verifica integridade (duplicatas, vazamento para o holdout,
-  equivalência sem referência declarada, grupos inválidos, conflitos de
-  controle negativo), calcula a meta de §1.1 sobre todos os casos rotulados
-  como resolvíveis e produz relatório por modalidade, classe de decisão,
-  partição e classe de §9.3.
+  equivalência sem referência declarada, grupos inválidos, expectativa
+  divergente em grupo, cenários inválidos, conflitos de controle negativo),
+  calcula a meta de §1.1 sobre todos os casos rotulados como resolvíveis,
+  executa os cenários de §16.1 contra a **mesma instância** do resolvedor com
+  armazenamento de conhecimento por cenário e produz relatório segmentado.
 - `report.ts` renderiza o relatório reproduzível consumível por §19.0.4.
 
 Denominador zero significa **amostra ausente** (`sample_missing`), nunca zero.
 Abstenções, falhas e decisões inválidas entram no cálculo: a acurácia não é
-medida apenas sobre os itens que o resolvedor declarou `resolved`. Grupos
-metamórficos são verificados **contra a referência independente**; duas
+medida apenas sobre os itens que o resolvedor declarou `resolved`. A meta é
+medida sobre todos os casos resolvíveis rotulados; falhas fora desse conjunto
+(clarificação, rejeição, diferidos) reprovam integralmente, porque a meta de
+§1.1 não as cobre.
+
+Segmentação (§16.2): modalidade, classe de decisão, partição, classe de §9.3,
+marca, atributo material, medida, continuidade, operação e procedência
+nutricional, cada uma com contadores por família de falha (identidade,
+variante/atributo, quantidade, unidade, nutrição, operação, clarificação) e
+latência/custo agregados quando o resolvedor os reporta. A média global nunca
+substitui o segmento.
+
+Grupos metamórficos são verificados **contra a referência independente**; duas
 entradas que convergem para o mesmo resultado errado reprovam
 (`negative_control_convergence`). A divergência de macros entre entradas
 equivalentes **bloqueia** enquanto a tolerância de arredondamento permanecer
-`OPEN` (§25, item 30): o harness não preenche tolerância arbitrária.
+`OPEN` (§25, item 30): o harness não preenche tolerância arbitrária. Medição
+com revisão não fixada bloqueia (`revisions_not_pinned`), porque evidência sem
+revisão amarrada não é reproduzível.
+
+Cenários de §16.1 são executados com efeitos observáveis: estado anterior à
+aquisição, aquisição (única fase com escrita permitida), medição reservada,
+reinício com a mesma chave, precedência explícita, isolamento entre
+proprietários e revogação. Cada passo declara as invariantes que precisa
+satisfazer (`sameResultAsStepId` para persistência/idempotência,
+`differentFromStepId` para isolamento/revogação), e um resolvedor que mantém
+cache obsoleto após a revogação reprova o cenário.
+
+Controles negativos produzem evidência adversarial estruturada: hipótese de
+implementação errada, dimensão discriminante, assinatura da saída do controle e
+do alvo e as revisões do material medido.
 
 Ficam fora desta entrega, e continuam `OPEN`: tolerâncias de arredondamento e
 demais thresholds numéricos (§25, itens 2, 7, 8, 10, 17, 19, 22, 23, 28, 29 e
 30), ligação do corpus ao resolvedor V2 ainda não implementado (Fase C),
 shadow mode, cutover e console administrativa. Nenhum item de §25 foi fechado
-por esta entrega.
+por esta entrega. Métricas de interpretação (modelo/LLM) não são medidas aqui:
+o corpus mede o resolvedor, e a camada de interpretação é avaliada na Fase C
+com o mesmo harness.

@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { goldenCorpusSchema, type GoldenCorpus } from "./contracts";
+import {
+  goldenCorpusSchema,
+  type CorpusRevisions,
+  type GoldenCorpus,
+} from "./contracts";
 import { goldenFoodCorpus } from "./data";
-import { runCorpus } from "./harness";
+import {
+  inspectCorpusIntegrity,
+  runCorpus,
+  runGoldenFoodCorpus,
+} from "./harness";
 import {
   createAlwaysClarifyResolver,
+  createCacheIgnoringRevocationResolver,
   createEmptyResolver,
-  createHoldoutWritingResolver,
+  createHiddenHoldoutWriterResolver,
+  createHoldoutDeclaringWriterResolver,
+  createInventedAlternativesResolver,
+  createInventedIdentityResolver,
+  createLearningResolver,
+  createNutritionOriginDriftResolver,
+  createOracleLeakProbeResolver,
   createReferenceResolver,
   createShiftedResolver,
   createThrowingResolver,
@@ -13,24 +28,88 @@ import {
   createWrongConvergenceResolver,
 } from "./selfTestResolvers";
 
+const PINNED_REVISIONS: CorpusRevisions = {
+  code: "sha:test-self",
+  knowledge: "kn-1",
+  lexicon: "lex-1",
+  model: "model-1",
+  policy: "pol-1",
+  resolver: "v2.0.0-test",
+};
+
+const pinned = { revisions: PINNED_REVISIONS };
+const corpus = goldenFoodCorpus;
+
 /**
- * Testes do próprio harness: casos propositalmente errados, denominador zero,
- * duplicatas, controles negativos e versões diferentes (issue #1299).
+ * Testes do próprio harness (issue #1299): casos propositalmente errados,
+ * denominador zero, duplicatas, controles negativos, versões diferentes e
+ * remediações exigidas pela auditoria independente do PR.
  */
 function subCorpus(caseIds: readonly string[]): GoldenCorpus {
+  // Recorte sintético: remove metadados que só fazem sentido no corpus inteiro
+  // (grupo metamórfico, controle negativo, cenário) para isolar o que se mede.
   return goldenCorpusSchema.parse({
     ...goldenFoodCorpus,
-    cases: goldenFoodCorpus.cases.filter(entry =>
-      caseIds.includes(entry.caseId)
-    ),
+    cases: goldenFoodCorpus.cases
+      .filter(entry => caseIds.includes(entry.caseId))
+      .map(entry => ({
+        ...entry,
+        metamorphicGroup: null,
+        negativeControlOf: null,
+        negativeControlHypothesis: null,
+        learningScenarioId: null,
+        equivalenceReference: null,
+      })),
+    learningScenarios: [],
   });
 }
 
+function allCodes(report: Awaited<ReturnType<typeof runGoldenFoodCorpus>>) {
+  return report.failures.flatMap(failure => failure.codes);
+}
+
 describe("autoverificação do harness", () => {
+  it("mantém a linha de base: a referência independente aprova", async () => {
+    const report = await runGoldenFoodCorpus(
+      createReferenceResolver(corpus),
+      pinned
+    );
+    expect(report.gate.status).toBe("passed");
+    expect(report.failures).toStrictEqual([]);
+  });
+
+  it("não expõe o oráculo: a entrada é sanitizada e congelada", async () => {
+    const report = await runGoldenFoodCorpus(
+      createOracleLeakProbeResolver(corpus),
+      pinned
+    );
+    // A sonda lança se `expected` existir na entrada ou se ela não estiver
+    // congelada; passar significa que o resolvedor não pode copiar o oráculo.
+    expect(report.gate.status).toBe("passed");
+    expect(allCodes(report)).not.toContain("resolver_error");
+  });
+
+  it("bloqueia mutação da entrada do corpus pelo resolvedor", async () => {
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:muta-entrada",
+        revision: "1",
+        resolve: request => {
+          const target = request.case.input as { text: string };
+          target.text = "superfície adulterada";
+          return { decisions: [] };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("resolver_error");
+    expect(report.failures[0].detail).toMatch(/read only|readonly|não/i);
+  });
+
   it("reprova um resolvedor que desloca o resultado entre casos", async () => {
-    const report = await runCorpus(
-      goldenFoodCorpus,
-      createShiftedResolver(goldenFoodCorpus)
+    const report = await runGoldenFoodCorpus(
+      createShiftedResolver(corpus),
+      pinned
     );
     expect(report.failures.length).toBeGreaterThan(0);
     expect(report.gate.status).not.toBe("passed");
@@ -39,9 +118,9 @@ describe("autoverificação do harness", () => {
 
   it("reprova convergência entre saídas contra a referência independente (§4.1.8)", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
-    const report = await runCorpus(
-      goldenFoodCorpus,
-      createWrongConvergenceResolver(goldenFoodCorpus, groupId)
+    const report = await runGoldenFoodCorpus(
+      createWrongConvergenceResolver(corpus, groupId),
+      pinned
     );
     const group = report.metamorphic.find(item => item.groupId === groupId);
     expect(group).toBeDefined();
@@ -53,62 +132,142 @@ describe("autoverificação do harness", () => {
   });
 
   it("registra ausência de decisão como falha, não como sucesso", async () => {
-    const report = await runCorpus(goldenFoodCorpus, createEmptyResolver());
-    expect(
-      report.failures.some(failure =>
-        failure.codes.includes("missing_decision")
-      )
-    ).toBe(true);
+    const report = await runGoldenFoodCorpus(createEmptyResolver(), pinned);
+    expect(report.overall.matchedCases).toBe(0);
     expect(report.overall.abstentions).toBe(report.caseCount);
-    expect(report.gate.status).toBe("failed");
+    expect(allCodes(report)).toContain("missing_decision");
+    expect(report.gate.status).toBe("blocked");
   });
 
   it("registra erro do resolvedor como falha explícita", async () => {
-    const report = await runCorpus(goldenFoodCorpus, createThrowingResolver());
-    expect(
-      report.failures.every(failure => failure.codes.includes("resolver_error"))
-    ).toBe(true);
+    const report = await runGoldenFoodCorpus(createThrowingResolver(), pinned);
+    expect(allCodes(report)).toContain("resolver_error");
     expect(report.overall.abstentions).toBe(report.caseCount);
-    expect(report.gate.status).toBe("failed");
+    expect(report.gate.status).toBe("blocked");
   });
 
   it("reprova versão de decisão não governada", async () => {
-    const report = await runCorpus(
-      goldenFoodCorpus,
-      createVersionMismatchResolver(goldenFoodCorpus)
+    const report = await runGoldenFoodCorpus(
+      createVersionMismatchResolver(corpus),
+      pinned
     );
-    expect(
-      report.failures.some(failure =>
-        failure.codes.includes("decision_invalid")
-      )
-    ).toBe(true);
-    expect(report.gate.status).toBe("failed");
+    expect(allCodes(report)).toContain("decision_invalid");
+    expect(report.gate.status).toBe("blocked");
   });
 
-  it("bloqueia quando o resolvedor escreve conhecimento em caso reservado", async () => {
-    const report = await runCorpus(
-      goldenFoodCorpus,
-      createHoldoutWritingResolver(goldenFoodCorpus)
+  it("reprova identidade e quantidade inventadas em decisão que não propõe", async () => {
+    const report = await runGoldenFoodCorpus(
+      createInventedIdentityResolver(corpus),
+      pinned
+    );
+    const codes = allCodes(report);
+    expect(codes).toContain("identity_present_unexpected");
+    expect(codes).toContain("quantity_present_unexpected");
+    expect(report.gate.nonResolvableFailureCount).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("reprova alternativas inventadas mesmo com a cardinalidade correta", async () => {
+    const report = await runGoldenFoodCorpus(
+      createInventedAlternativesResolver(corpus),
+      pinned
+    );
+    expect(allCodes(report)).toContain("alternatives_mismatch");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("reprova procedência nutricional não sustentada", async () => {
+    const report = await runGoldenFoodCorpus(
+      createNutritionOriginDriftResolver(corpus),
+      pinned
+    );
+    expect(allCodes(report)).toContain("nutrition_origin_forbidden");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("reprova item proposto sem procedência nutricional declarada", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:sem-procedencia",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              evidence: decision.evidence.filter(
+                evidence => !evidence.field.startsWith("nutrition.")
+              ),
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(allCodes(report)).toContain("nutrition_provenance_missing");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("bloqueia escrita oculta em caso reservado sem declaração de efeito", async () => {
+    const report = await runGoldenFoodCorpus(
+      createHiddenHoldoutWriterResolver(corpus),
+      pinned
     );
     expect(report.integrity.holdoutKnowledgeWrites.length).toBeGreaterThan(0);
-    expect(report.integrity.status).toBe("invalid");
-    expect(report.gate.status).toBe("blocked");
     expect(report.gate.blockReasons).toContain("holdout_knowledge_write");
-    expect(
-      report.failures.some(failure =>
-        failure.codes.includes("learning_applied_during_measurement")
-      )
-    ).toBe(true);
+    expect(allCodes(report)).toContain("learning_applied_during_measurement");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("reprova escritas declaradas em casos reservados", async () => {
+    const report = await runGoldenFoodCorpus(
+      createHoldoutDeclaringWriterResolver(corpus),
+      pinned
+    );
+    expect(allCodes(report)).toContain("learning_applied_during_measurement");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("mantém o ledger de conhecimento como evidência primária de efeito", async () => {
+    const rejected: string[] = [];
+    await runCorpus(
+      corpus,
+      {
+        id: "test:ledger",
+        revision: "1",
+        resolve: async request => {
+          try {
+            await request.knowledge.write("alias:x", "y");
+          } catch {
+            rejected.push(request.case.caseId);
+          }
+          return { decisions: [] };
+        },
+      },
+      pinned
+    );
+    // Toda tentativa fora da aquisição é rejeitada pela fachada, e o resolvedor
+    // não tem outro caminho para escrever conhecimento.
+    const rejectedIds = new Set(rejected);
+    for (const entry of corpus.cases) {
+      expect(rejectedIds.has(entry.caseId)).toBe(true);
+    }
   });
 
   it("trata denominador zero como amostra ausente, nunca como zero", async () => {
-    const corpus = subCorpus([
+    const onlyClarification = subCorpus([
       "c-erro-transcricao",
       "c-banco-ambiguo-pao",
       "c-neg-pasta-de-dente",
       "c-neg-imagem-ilegivel",
     ]);
-    const report = await runCorpus(corpus, createReferenceResolver(corpus));
+    const report = await runCorpus(
+      onlyClarification,
+      createReferenceResolver(onlyClarification),
+      pinned
+    );
     expect(report.overall.resolvableLabeled).toBe(0);
     expect(report.overall.matchRate).toBeNull();
     expect(report.overall.sampleStatus).toBe("missing");
@@ -120,12 +279,22 @@ describe("autoverificação do harness", () => {
       entry => entry.caseId === "c-panco-pao-forma"
     );
     expect(panco).toBeDefined();
-    const clone = { ...panco!, caseId: "c-panco-clone" };
-    const corpus = goldenCorpusSchema.parse({
+    const clone = {
+      ...panco!,
+      caseId: "c-panco-clone",
+      metamorphicGroup: null,
+      learningScenarioId: null,
+    };
+    const corpusWithDuplicate = goldenCorpusSchema.parse({
       ...goldenFoodCorpus,
       cases: [panco!, clone],
+      learningScenarios: [],
     });
-    const report = await runCorpus(corpus, createReferenceResolver(corpus));
+    const report = await runCorpus(
+      corpusWithDuplicate,
+      createReferenceResolver(corpusWithDuplicate),
+      pinned
+    );
     expect(report.integrity.duplicateSurfaces).toHaveLength(1);
     expect(report.integrity.status).toBe("invalid");
     expect(report.gate.status).toBe("blocked");
@@ -141,12 +310,19 @@ describe("autoverificação do harness", () => {
       ...panco!,
       caseId: "c-panco-holdout",
       split: "holdout" as const,
+      metamorphicGroup: null,
+      learningScenarioId: null,
     };
-    const corpus = goldenCorpusSchema.parse({
+    const leakedCorpus = goldenCorpusSchema.parse({
       ...goldenFoodCorpus,
       cases: [panco!, leak],
+      learningScenarios: [],
     });
-    const report = await runCorpus(corpus, createReferenceResolver(corpus));
+    const report = await runCorpus(
+      leakedCorpus,
+      createReferenceResolver(leakedCorpus),
+      pinned
+    );
     expect(report.integrity.splitLeakage).toHaveLength(1);
     expect(report.gate.status).toBe("blocked");
     expect(report.gate.blockReasons).toContain("split_leakage");
@@ -160,13 +336,20 @@ describe("autoverificação do harness", () => {
     const mislabeled = {
       ...clarification!,
       decisionClass: "resolvable" as const,
+      metamorphicGroup: null,
+      learningScenarioId: null,
     };
-    const corpus = goldenCorpusSchema.parse({
+    const mislabeledCorpus = goldenCorpusSchema.parse({
       ...goldenFoodCorpus,
       cases: [mislabeled],
+      learningScenarios: [],
     });
-    const report = await runCorpus(corpus, createReferenceResolver(corpus));
-    expect(report.integrity.invalidCases).toHaveLength(1);
+    const report = await runCorpus(
+      mislabeledCorpus,
+      createReferenceResolver(mislabeledCorpus),
+      pinned
+    );
+    expect(report.integrity.invalidCases.length).toBeGreaterThan(0);
     expect(report.integrity.status).toBe("invalid");
     expect(report.gate.blockReasons).toContain("corpus_invalid");
   });
@@ -179,41 +362,38 @@ describe("autoverificação do harness", () => {
     expect(result.success).toBe(false);
   });
 
-  it("bloqueia divergência de macros sem tolerância calibrada", async () => {
-    const groupId = "g-mortadela-fatia-e-meia";
-    const target = "c-mortadela-1-5-ponto";
-    const reference = createReferenceResolver(goldenFoodCorpus);
-    const report = await runCorpus(goldenFoodCorpus, {
-      id: "test:macro-divergente",
-      revision: "1",
-      async resolve(request) {
-        const result = await reference.resolve(request);
-        if (request.case.caseId !== target) return result;
-        return {
-          ...result,
-          decisions: result.decisions.map(decision => ({
-            ...decision,
-            nutrition: {
-              ...decision.nutrition,
-              consumed: decision.nutrition.consumed
-                ? { ...decision.nutrition.consumed, calories: 999 }
-                : null,
-            },
-          })),
-        };
-      },
+  it("rejeita caso que afirma identidade sem nome canônico", () => {
+    const incoherent = goldenCorpusSchema.parse({
+      ...goldenFoodCorpus,
+      cases: goldenFoodCorpus.cases.map(entry =>
+        entry.caseId === "c-ovo-frito"
+          ? {
+              ...entry,
+              expected: {
+                ...entry.expected,
+                decisions: entry.expected.decisions.map(decision => ({
+                  ...decision,
+                  identity: { ...decision.identity, canonicalName: null },
+                })),
+              },
+            }
+          : entry
+      ),
+      learningScenarios: [],
     });
-    const group = report.macroConsistency.find(
-      item => item.groupId === groupId
-    );
-    expect(group?.consistent).toBe(false);
-    expect(report.gate.status).toBe("blocked");
-    expect(report.gate.blockReasons).toContain(
-      "rounding_tolerance_not_calibrated"
-    );
+    // O schema aceita a forma, mas a integridade do corpus reprova a coerência:
+    // afirmar identidade exige nome canônico.
+    const integrity = inspectCorpusIntegrity(incoherent);
+    expect(integrity.status).toBe("invalid");
+    expect(
+      integrity.invalidCases.some(item =>
+        item.message.includes("afirma identidade sem nome canônico")
+      )
+    ).toBe(true);
   });
 
-  it("aceita a divergência apenas quando existe tolerância calibrada declarada", async () => {
+  it("bloqueia divergência de macros sem tolerância calibrada", async () => {
+    const groupId = "g-mortadela-fatia-e-meia";
     const target = "c-mortadela-1-5-ponto";
     const reference = createReferenceResolver(goldenFoodCorpus);
     const report = await runCorpus(
@@ -231,31 +411,74 @@ describe("autoverificação do harness", () => {
               nutrition: {
                 ...decision.nutrition,
                 consumed: decision.nutrition.consumed
-                  ? { ...decision.nutrition.consumed, calories: 120.5 }
+                  ? { ...decision.nutrition.consumed, calories: 999 }
                   : null,
               },
             })),
           };
         },
       },
-      { roundingTolerance: 1 }
+      pinned
     );
-    expect(report.gate.blockReasons).not.toContain(
+    const group = report.macroConsistency.find(
+      item => item.groupId === groupId
+    );
+    expect(group?.consistent).toBe(false);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain(
       "rounding_tolerance_not_calibrated"
     );
-    expect(report.gate.status).toBe("passed");
   });
 
   it("não promove abstenção total a aprovação", async () => {
-    const report = await runCorpus(
-      goldenFoodCorpus,
-      createAlwaysClarifyResolver()
+    const report = await runGoldenFoodCorpus(
+      createAlwaysClarifyResolver(corpus),
+      pinned
     );
     expect(report.overall.matchedCases).toBe(0);
     expect(report.gate.status).not.toBe("passed");
-    expect(
-      report.byDecisionClass.find(item => item.segment === "resolvable")
-        ?.matchRate
-    ).toBe(0);
+    expect(report.gate.matchRate).toBe(0);
+  });
+
+  it("executa o protocolo de §16.1 com efeitos reais de persistência e revogação", async () => {
+    const report = await runGoldenFoodCorpus(
+      createLearningResolver(corpus),
+      pinned
+    );
+    const scenario = report.learningScenarios[0];
+    expect(scenario.passed).toBe(true);
+
+    const byStep = new Map(scenario.steps.map(step => [step.stepId, step]));
+    // Estado anterior difere do estado pós-aquisição.
+    expect(byStep.get("step-aquisicao")?.differentFromSatisfied).toBe(true);
+    // Reinício com a mesma chave reproduz o resultado (persistência).
+    expect(byStep.get("step-reinicio")?.sameResultSatisfied).toBe(true);
+    expect(byStep.get("step-medicao-reservada")?.sameResultSatisfied).toBe(
+      true
+    );
+    // Isolamento entre proprietários e revogação mudam o resultado.
+    expect(byStep.get("step-isolamento")?.differentFromSatisfied).toBe(true);
+    expect(byStep.get("step-revogacao")?.differentFromSatisfied).toBe(true);
+    // A escrita só ocorre na fase de aquisição.
+    expect(byStep.get("step-aquisicao")?.recordedWriteAttempts).toBeGreaterThan(
+      0
+    );
+    expect(byStep.get("step-reinicio")?.recordedWriteAttempts).toBe(0);
+    expect(byStep.get("step-revogacao")?.recordedWriteAttempts).toBe(0);
+  });
+
+  it("reprova cache obsoleto que ignora a revogação", async () => {
+    const report = await runGoldenFoodCorpus(
+      createCacheIgnoringRevocationResolver(corpus),
+      pinned
+    );
+    const scenario = report.learningScenarios[0];
+    expect(scenario.passed).toBe(false);
+    const revocation = scenario.steps.find(
+      step => step.stepId === "step-revogacao"
+    );
+    expect(revocation?.differentFromSatisfied).toBe(false);
+    expect(report.gate.blockReasons).toContain("scenario_invariant_violated");
+    expect(report.gate.status).toBe("blocked");
   });
 });

@@ -18,6 +18,7 @@ import {
   type ExpectedDecision,
   type GoldenCorpus,
   type GoldenCorpusCase,
+  type GoldenLearningScenario,
 } from "./contracts";
 
 type Identity = ExpectedDecision["identity"];
@@ -35,9 +36,19 @@ type Scenario = GoldenCorpusCase["scenario"];
  * padrão de um único proprietário/conversa quando não for material para o
  * caso (§16.1 usa escopo explícito apenas em isolamento e persistência).
  */
-type CaseDraft = Omit<GoldenCorpusCase, "scenario" | "notes"> & {
+type CaseDraft = Omit<
+  GoldenCorpusCase,
+  | "scenario"
+  | "notes"
+  | "continuity"
+  | "learningScenarioId"
+  | "negativeControlHypothesis"
+> & {
   scenario?: Partial<Scenario>;
   notes?: string | null;
+  continuity?: GoldenCorpusCase["continuity"];
+  learningScenarioId?: string | null;
+  negativeControlHypothesis?: string | null;
 };
 
 const DEFAULT_SCENARIO: Scenario = {
@@ -50,10 +61,13 @@ const toCase = (draft: CaseDraft): GoldenCorpusCase => ({
   ...draft,
   scenario: { ...DEFAULT_SCENARIO, ...draft.scenario },
   notes: draft.notes ?? null,
+  continuity: draft.continuity ?? "standalone",
+  learningScenarioId: draft.learningScenarioId ?? null,
+  negativeControlHypothesis: draft.negativeControlHypothesis ?? null,
 });
 
 const identity = (over: Partial<Identity> = {}): Identity => ({
-  asserted: true,
+  presence: "expected",
   canonicalName: null,
   brand: null,
   variant: null,
@@ -63,10 +77,10 @@ const identity = (over: Partial<Identity> = {}): Identity => ({
   ...over,
 });
 
-const noIdentity = (): Identity => identity({ asserted: false });
+const noIdentity = (): Identity => identity({ presence: "forbidden" });
 
 const quantity = (over: Partial<Quantity> = {}): Quantity => ({
-  asserted: true,
+  presence: "expected",
   value: null,
   unit: null,
   grams: null,
@@ -76,7 +90,19 @@ const quantity = (over: Partial<Quantity> = {}): Quantity => ({
   ...over,
 });
 
-const noQuantity = (): Quantity => quantity({ asserted: false });
+/**
+ * Quantidade proibida: item rejeitado/ambíguo não inventa quantidade. É o
+ * padrão de toda decisão que não propõe, para que "não observado" nunca vire
+ * permissão de inventar.
+ */
+const noQuantity = (): Quantity => quantity({ presence: "forbidden" });
+
+/**
+ * Quantidade não observada em item **proposto**: o resolvedor pode produzir a
+ * porção usual, e o corpus não compara esse campo (§8.3).
+ */
+const unspecifiedQuantity = (over: Partial<Quantity> = {}): Quantity =>
+  quantity({ presence: "unspecified", ...over });
 
 const nutrition = (over: Partial<Nutrition> = {}): Nutrition => ({
   requirement: "provenance_declared",
@@ -87,11 +113,29 @@ const nutrition = (over: Partial<Nutrition> = {}): Nutrition => ({
   ...over,
 });
 
-const noNutrition = (): Nutrition => nutrition({ requirement: "not_asserted" });
+/** Nutrição proibida: item que não é proposto não carrega composição. */
+const noNutrition = (): Nutrition => nutrition({ requirement: "absent" });
 
 const ambiguity = (over: Partial<Ambiguity> = {}): Ambiguity => ({
   mustPreserveAlternatives: false,
   minAlternatives: 0,
+  ...over,
+});
+
+/**
+ * Alternativa materialmente concorrente esperada. Declarar as alternativas é o
+ * que permite verificar **preservação semântica** (§4.1.8) em vez de apenas
+ * contar candidatos.
+ */
+const alternative = (
+  name: string,
+  over: Partial<Decision["alternatives"][number]> = {}
+): Decision["alternatives"][number] => ({
+  name,
+  brand: null,
+  variant: null,
+  preparation: [],
+  qualifiers: [],
   ...over,
 });
 
@@ -103,19 +147,29 @@ const clarification = (
 
 const decision = (
   over: Partial<Decision> & Pick<Decision, "label">
-): Decision => ({
-  status: "resolved",
-  nextAction: "propose",
-  identity: identity(),
-  quantity: quantity(),
-  nutrition: noNutrition(),
-  ambiguity: ambiguity(),
-  clarification: clarification(),
-  unresolvedFields: [],
-  reasonCodes: [],
-  forbiddenReasonCodes: [],
-  ...over,
-});
+): Decision => {
+  const status = over.status ?? "resolved";
+  const nextAction = over.nextAction ?? "propose";
+  const proposes = nextAction === "propose";
+  return {
+    status,
+    nextAction,
+    // Decisão que não propõe não pode sustentar identidade, inventar
+    // quantidade nem carregar composição: o schema de §5 exige ausência, e
+    // "não afirmar" nunca pode ser usado como escape.
+    identity: over.identity ?? (proposes ? identity() : noIdentity()),
+    quantity:
+      over.quantity ?? (proposes ? unspecifiedQuantity() : noQuantity()),
+    nutrition: over.nutrition ?? (proposes ? nutrition() : noNutrition()),
+    ambiguity: ambiguity(),
+    alternatives: [],
+    clarification: clarification(),
+    unresolvedFields: [],
+    reasonCodes: [],
+    forbiddenReasonCodes: [],
+    ...over,
+  };
+};
 
 const input = (
   over: Partial<CaseInput> & Pick<CaseInput, "text">
@@ -222,6 +276,8 @@ const historicalIncidentCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-panco-pao-forma",
+    negativeControlHypothesis:
+      "aproximação por prefixo aceitaria 'pão de forma Panco' como o pão de forma genérico",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
@@ -285,7 +341,7 @@ const historicalIncidentCases: CaseDraft[] = [
             preparation: ["torrado"],
             qualifiers: ["salgado"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
           nutrition: nutrition({
             requirement: "provenance_declared",
             allowedOrigins: ["nutrition_label", "vision", "ocr"],
@@ -442,6 +498,8 @@ const historicalIncidentCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-pera-packham",
+    negativeControlHypothesis:
+      "variedade ignorada: 'pêra williams' aceita como a variedade mais frequente",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
@@ -863,6 +921,8 @@ const historicalIncidentCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-cerveja-imagem",
+    negativeControlHypothesis:
+      "imagem sem leitura de rótulo usada para inferir marca por heurística de cor",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
@@ -925,7 +985,7 @@ const historicalIncidentCases: CaseDraft[] = [
             canonicalName: "café",
             qualifiers: ["sem açúcar"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
           nutrition: nutrition({ allowedOrigins: ["memory", "catalog"] }),
         }),
       ],
@@ -960,12 +1020,12 @@ const historicalIncidentCases: CaseDraft[] = [
         decision({
           label: "arroz preservado",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "feijão preservado",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "item ambíguo",
@@ -975,8 +1035,9 @@ const historicalIncidentCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [alternative("bacon"), alternative("banana")],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -1013,7 +1074,7 @@ const historicalIncidentCases: CaseDraft[] = [
         decision({
           label: "arroz",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: { action: "add", targetMeal: "almoço", date: "2026-10-05" },
@@ -1048,7 +1109,7 @@ const historicalIncidentCases: CaseDraft[] = [
         decision({
           label: "arroz",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: { action: "add", targetMeal: "almoço", date: "2026-10-05" },
@@ -1120,8 +1181,12 @@ const historicalIncidentCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [
+            alternative("presunto", { variant: "defumado" }),
+            alternative("presunto", { variant: "cozido" }),
+          ],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -1438,7 +1503,9 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "bolo de chocolate" }),
-          quantity: quantity({ unitMustNotBeConvertedToGrams: true }),
+          quantity: unspecifiedQuantity({
+            unitMustNotBeConvertedToGrams: true,
+          }),
           ambiguity: ambiguity({
             mustPreserveAlternatives: false,
             minAlternatives: 0,
@@ -1477,7 +1544,9 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "castanha de caju" }),
-          quantity: quantity({ unitMustNotBeConvertedToGrams: true }),
+          quantity: unspecifiedQuantity({
+            unitMustNotBeConvertedToGrams: true,
+          }),
           clarification: clarification("quantity"),
           unresolvedFields: ["quantity"],
           reasonCodes: ["quantity_missing"],
@@ -1511,7 +1580,9 @@ const languageAndBatchCases: CaseDraft[] = [
           status: "partially_resolved",
           nextAction: "clarify",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: quantity({ unitMustNotBeConvertedToGrams: true }),
+          quantity: unspecifiedQuantity({
+            unitMustNotBeConvertedToGrams: true,
+          }),
           clarification: clarification("quantity"),
           unresolvedFields: ["quantity"],
           reasonCodes: ["quantity_missing"],
@@ -1551,8 +1622,12 @@ const languageAndBatchCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [
+            alternative("pão", { variant: "integral" }),
+            alternative("banana"),
+          ],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -1589,12 +1664,12 @@ const languageAndBatchCases: CaseDraft[] = [
         decision({
           label: "arroz preservado",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "feijão preservado",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "óleo de motor rejeitado",
@@ -1637,7 +1712,7 @@ const languageAndBatchCases: CaseDraft[] = [
         decision({
           label: "feijão no lugar do arroz",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: {
@@ -1671,17 +1746,17 @@ const languageAndBatchCases: CaseDraft[] = [
         decision({
           label: "arroz",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "feijão",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "bife",
           identity: identity({ canonicalName: "bife" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: { action: "add", targetMeal: "almoço", date: "2026-10-06" },
@@ -1712,17 +1787,17 @@ const languageAndBatchCases: CaseDraft[] = [
         decision({
           label: "arroz",
           identity: identity({ canonicalName: "arroz" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "feijão",
           identity: identity({ canonicalName: "feijão" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
         decision({
           label: "bife",
           identity: identity({ canonicalName: "bife" }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: { action: "add", targetMeal: "almoço", date: "2026-10-06" },
@@ -2304,6 +2379,8 @@ const materialityCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-leite-integral",
+    negativeControlHypothesis:
+      "leite desnatado aceito como integral por semelhança de nome",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes: "Controle negativo de materialidade: integral ≠ desnatado.",
@@ -2406,6 +2483,8 @@ const materialityCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-iogurte-morango",
+    negativeControlHypothesis:
+      "sabor morango atribuído a iogurte natural por proximidade léxica",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes: "Controle negativo de sabor material.",
@@ -2474,6 +2553,8 @@ const materialityCases: CaseDraft[] = [
       mustExplainExclusions: false,
     },
     negativeControlOf: "c-refrigerante-zero",
+    negativeControlHypothesis:
+      "versão zero tratada como versão regular da mesma marca",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes: "Controle negativo do atributo material de açúcar.",
@@ -2589,7 +2670,59 @@ const materialityCases: CaseDraft[] = [
  */
 const learningScenarioCases: CaseDraft[] = [
   {
+    caseId: "c-aprendizado-alias-antes",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
+    title: "Estado anterior à aquisição: a superfície ainda é desconhecida",
+    split: "acquisition",
+    modality: "text",
+    decisionClass: "clarification",
+    nonRecurrenceClasses: ["H", "A"],
+    knownRegression: true,
+    incidentRefs: ["#403", "#1051"],
+    adrSections: ["§16.1", "§15"],
+    input: input({ text: "café da firma" }),
+    mealOperation: operation({
+      targetMeal: "café da manhã",
+      date: "2026-10-05",
+    }),
+    scenario: { intentionalSurfaceReuse: true },
+    expected: {
+      decisions: [
+        decision({
+          label: "superfície ainda não aprendida",
+          status: "ambiguous",
+          nextAction: "clarify",
+          identity: noIdentity(),
+          quantity: noQuantity(),
+          ambiguity: ambiguity({
+            mustPreserveAlternatives: true,
+            minAlternatives: 2,
+          }),
+          alternatives: [alternative("café"), alternative("cappuccino")],
+          clarification: clarification("identity"),
+          unresolvedFields: ["identity"],
+          reasonCodes: ["unknown_surface"],
+        }),
+      ],
+      operation: {
+        action: "add",
+        targetMeal: "café da manhã",
+        date: "2026-10-05",
+      },
+      mustPreserveAllResolvedItems: false,
+      mustExplainExclusions: true,
+    },
+    negativeControlOf: null,
+    metamorphicGroup: null,
+    equivalenceReference: null,
+    notes:
+      "Estado anterior à aquisição: prova que o resultado posterior vem da aquisição, não de coincidência.",
+  },
+  {
     caseId: "c-aprendizado-alias-definido",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Conhecimento pessoal adquirido é reutilizado",
     split: "acquisition",
     modality: "text",
@@ -2611,7 +2744,7 @@ const learningScenarioCases: CaseDraft[] = [
             canonicalName: "café",
             qualifiers: ["sem açúcar"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
           nutrition: nutrition({ allowedOrigins: ["memory", "catalog"] }),
         }),
       ],
@@ -2632,6 +2765,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-alias-reuso",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Reutilização em formulação equivalente reservada",
     split: "holdout",
     modality: "text",
@@ -2654,7 +2789,7 @@ const learningScenarioCases: CaseDraft[] = [
             canonicalName: "café",
             qualifiers: ["sem açúcar"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
           nutrition: nutrition({ allowedOrigins: ["memory", "catalog"] }),
         }),
       ],
@@ -2705,6 +2840,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-persistencia-restart",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Persistência após reinício com a mesma chave",
     split: "holdout",
     modality: "text",
@@ -2727,7 +2864,7 @@ const learningScenarioCases: CaseDraft[] = [
             canonicalName: "café",
             qualifiers: ["sem açúcar"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
           nutrition: nutrition({ allowedOrigins: ["memory", "catalog"] }),
         }),
       ],
@@ -2747,6 +2884,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-isolamento-outro-usuario",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Aprendizado pessoal não vaza para outro usuário",
     split: "holdout",
     modality: "text",
@@ -2771,8 +2910,9 @@ const learningScenarioCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [alternative("café"), alternative("cappuccino")],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -2794,6 +2934,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-precedencia-explicita",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Informação explícita atual prevalece sobre memória incompatível",
     split: "holdout",
     modality: "text",
@@ -2816,7 +2958,7 @@ const learningScenarioCases: CaseDraft[] = [
             canonicalName: "café",
             qualifiers: ["com açúcar"],
           }),
-          quantity: noQuantity(),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: {
@@ -2834,6 +2976,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-revogacao",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Revogação do alias sem reaplicação por cache obsoleto",
     split: "holdout",
     modality: "text",
@@ -2858,8 +3002,9 @@ const learningScenarioCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [alternative("café"), alternative("cappuccino")],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -2881,6 +3026,8 @@ const learningScenarioCases: CaseDraft[] = [
   },
   {
     caseId: "c-aprendizado-controle-negativo-alias",
+    learningScenarioId: "s-aprendizado-cafe-firma",
+    continuity: "continues_context",
     title: "Alias parecido não é confundido com o aprendido",
     split: "holdout",
     modality: "text",
@@ -2905,8 +3052,9 @@ const learningScenarioCases: CaseDraft[] = [
           quantity: noQuantity(),
           ambiguity: ambiguity({
             mustPreserveAlternatives: true,
-            minAlternatives: 1,
+            minAlternatives: 2,
           }),
+          alternatives: [alternative("café"), alternative("cappuccino")],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
@@ -2921,6 +3069,8 @@ const learningScenarioCases: CaseDraft[] = [
       mustExplainExclusions: true,
     },
     negativeControlOf: "c-aprendizado-alias-definido",
+    negativeControlHypothesis:
+      "superfície parecida ('café da loja') confundida com o alias aprendido",
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
@@ -2933,6 +3083,93 @@ const learningScenarioCases: CaseDraft[] = [
  * versão desconhecida, campo não governado ou caso malformado não entra em
  * medição (§16, §16.2).
  */
+const learningScenarios: GoldenLearningScenario[] = [
+  {
+    scenarioId: "s-aprendizado-cafe-firma",
+    title:
+      "Aquisição, persistência, precedência explícita, isolamento e revogação do alias pessoal",
+    adrSections: ["§16.1", "§16.2"],
+    reference: {
+      declaredBy: REFERENCE,
+      note: "Protocolo de §16.1 declarado por referência independente: cada fase tem efeito observável, não rótulo de caso.",
+    },
+    steps: [
+      {
+        stepId: "step-antes",
+        phase: "before_acquisition",
+        caseId: "c-aprendizado-alias-antes",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: null,
+      },
+      {
+        stepId: "step-aquisicao",
+        phase: "acquisition",
+        caseId: "c-aprendizado-alias-definido",
+        writesAllowed: true,
+        revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: "step-antes",
+      },
+      {
+        stepId: "step-medicao-reservada",
+        phase: "reserved_measurement",
+        caseId: "c-aprendizado-alias-reuso",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: "step-aquisicao",
+        differentFromStepId: null,
+      },
+      {
+        stepId: "step-reinicio",
+        phase: "restart",
+        caseId: "c-aprendizado-persistencia-restart",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: "step-aquisicao",
+        differentFromStepId: null,
+      },
+      {
+        stepId: "step-precedencia",
+        phase: "explicit_override",
+        caseId: "c-aprendizado-precedencia-explicita",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: null,
+      },
+      {
+        stepId: "step-isolamento",
+        phase: "isolation",
+        caseId: "c-aprendizado-isolamento-outro-usuario",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: "step-aquisicao",
+      },
+      {
+        stepId: "step-revogacao",
+        phase: "revocation",
+        caseId: "c-aprendizado-revogacao",
+        writesAllowed: false,
+        revokeKeys: ["owner-a:alias:cafe-da-firma"],
+        sameResultAsStepId: null,
+        differentFromStepId: "step-aquisicao",
+      },
+      {
+        stepId: "step-controle-negativo",
+        phase: "isolation",
+        caseId: "c-aprendizado-controle-negativo-alias",
+        writesAllowed: false,
+        revokeKeys: [],
+        sameResultAsStepId: null,
+        differentFromStepId: "step-aquisicao",
+      },
+    ],
+  },
+];
+
 export const goldenFoodCorpus: GoldenCorpus = goldenCorpusSchema.parse({
   schemaVersion: GOLDEN_CORPUS_SCHEMA_VERSION,
   corpusVersion: GOLDEN_CORPUS_VERSION,
@@ -2946,6 +3183,7 @@ export const goldenFoodCorpus: GoldenCorpus = goldenCorpusSchema.parse({
     ...materialityCases,
     ...learningScenarioCases,
   ].map(toCase),
+  learningScenarios,
 });
 
 export const goldenFoodCorpusCases: readonly GoldenCorpusCase[] =

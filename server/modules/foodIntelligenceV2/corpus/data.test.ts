@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CORPUS_LEARNING_PHASES,
   GOLDEN_CORPUS_SCHEMA_VERSION,
   GOLDEN_CORPUS_VERSION,
   CORPUS_SPLITS,
@@ -73,6 +74,7 @@ const REQUIRED_MATERIALITY = [
 
 /** Cenários de aprendizado/generalização e conjunto reservado (§16.1). */
 const REQUIRED_LEARNING = [
+  "c-aprendizado-alias-antes",
   "c-aprendizado-alias-definido",
   "c-aprendizado-alias-reuso",
   "c-aprendizado-sem-intervencao-desnecessaria",
@@ -164,9 +166,113 @@ describe("Golden Food Corpus", () => {
     expect(integrity.splitLeakage).toStrictEqual([]);
     expect(integrity.undeclaredEquivalence).toStrictEqual([]);
     expect(integrity.invalidGroups).toStrictEqual([]);
+    expect(integrity.divergentGroupExpectations).toStrictEqual([]);
+    expect(integrity.invalidScenarios).toStrictEqual([]);
     expect(integrity.negativeControlConflicts).toStrictEqual([]);
     expect(integrity.invalidCases).toStrictEqual([]);
     expect(integrity.status).toBe("valid");
+  });
+
+  it("declara pelo menos um cenário de §16.1 e cobre todas as fases", () => {
+    expect(goldenFoodCorpus.learningScenarios.length).toBeGreaterThanOrEqual(1);
+    for (const scenario of goldenFoodCorpus.learningScenarios) {
+      const phases = new Set(scenario.steps.map(step => step.phase));
+      for (const phase of CORPUS_LEARNING_PHASES) {
+        expect(phases.has(phase)).toBe(true);
+      }
+      expect(scenario.reference.declaredBy).toBe(
+        "referencia-independente:adr-food-intelligence-resolver-v2"
+      );
+    }
+  });
+
+  it("permite escrita apenas na fase de aquisição", () => {
+    for (const scenario of goldenFoodCorpus.learningScenarios) {
+      for (const step of scenario.steps) {
+        expect(step.writesAllowed).toBe(step.phase === "acquisition");
+      }
+    }
+  });
+
+  it("declara continuidade nos casos de cenário de aprendizado", () => {
+    const offenders = goldenFoodCorpus.cases
+      .filter(entry => entry.learningScenarioId !== null)
+      .filter(entry => entry.continuity !== "continues_context")
+      .map(entry => entry.caseId);
+    expect(offenders).toStrictEqual([]);
+  });
+
+  it("declara a implementação errada plausível de cada controle negativo", () => {
+    const controls = goldenFoodCorpus.cases.filter(
+      entry => entry.negativeControlOf !== null
+    );
+    expect(controls.length).toBeGreaterThanOrEqual(6);
+    for (const control of controls) {
+      expect(control.negativeControlHypothesis).not.toBeNull();
+      expect((control.negativeControlHypothesis ?? "").length).toBeGreaterThan(
+        10
+      );
+    }
+  });
+
+  it("declara alternativas esperadas sempre que exige preservação", () => {
+    for (const entry of goldenFoodCorpus.cases) {
+      for (const expected of entry.expected.decisions) {
+        if (expected.ambiguity.mustPreserveAlternatives) {
+          expect(expected.alternatives.length).toBeGreaterThanOrEqual(2);
+          expect(expected.alternatives.length).toBeGreaterThanOrEqual(
+            expected.ambiguity.minAlternatives
+          );
+        } else {
+          expect(expected.alternatives).toStrictEqual([]);
+        }
+      }
+    }
+  });
+
+  it("usa presença explícita: decisão que não propõe proíbe identidade e quantidade", () => {
+    for (const entry of goldenFoodCorpus.cases) {
+      for (const expected of entry.expected.decisions) {
+        if (expected.nextAction === "propose") {
+          expect(expected.identity.presence).toBe("expected");
+          expect(
+            ["provenance_declared", "provisional_declared"].includes(
+              expected.nutrition.requirement
+            )
+          ).toBe(true);
+          continue;
+        }
+        if (expected.status === "unknown" || expected.nextAction === "reject") {
+          expect(expected.identity.presence).toBe("forbidden");
+          expect(expected.quantity.presence).toBe("forbidden");
+        } else {
+          expect(expected.quantity.presence).not.toBe("expected");
+        }
+        expect(expected.nutrition.requirement).toBe("absent");
+      }
+    }
+  });
+
+  it("declara restrição de origem nutricional onde a procedência é material", () => {
+    // Onde a origem muda a decisão (memória pessoal, versão zero, produto de
+    // marca sem rótulo legível), o caso precisa declarar a restrição — do
+    // contrário o harness não teria como reprovar procedência indevida.
+    for (const caseId of [
+      "c-cafe-sem-acucar-memoria",
+      "c-refrigerante-zero",
+      "c-produto-marca-sem-nutricao",
+    ]) {
+      const entry = goldenFoodCorpus.cases.find(item => item.caseId === caseId);
+      expect(entry).toBeDefined();
+      const declared = (entry?.expected.decisions ?? []).some(
+        expected =>
+          expected.nutrition.allowedOrigins.length > 0 ||
+          expected.nutrition.forbiddenOrigins.length > 0 ||
+          expected.nutrition.provisionalRequired ||
+          expected.nutrition.genericProfileMustNotBeVerified
+      );
+      expect(declared).toBe(true);
+    }
   });
 
   it("possui denominador rotulado de casos resolvíveis para a meta de §1.1", () => {
