@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "control_id": "CODE-GROWTH-001",
+  "status": "passed",
+  "subject_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603",
+  "policy": {
+    "new_file_soft_limit": 300,
+    "new_file_hard_limit": 500,
+    "legacy_growth_allowance": 20,
+    "exempt_path_markers": [
+      "/vendor/",
+      "/node_modules/",
+      "/third_party/",
+      "/migrations/"
+    ],
+    "source": "default"
+  },
+  "files": [
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/contracts.ts",
+      "lines_before": null,
+      "lines_after": 7
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/data.ts",
+      "lines_before": null,
+      "lines_after": 2
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/harness.ts",
+      "lines_before": null,
+      "lines_after": 2
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/index.ts",
+      "lines_before": null,
+      "lines_after": 69
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/projection.ts",
+      "lines_before": null,
+      "lines_after": 2
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/referenceSource.ts",
+      "lines_before": null,
+      "lines_after": 118
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/report.ts",
+      "lines_before": null,
+      "lines_after": 2
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.ts",
+      "lines_before": null,
+      "lines_after": 2
+    }
+  ],
+  "blocking_files": []
+}

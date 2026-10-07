@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
   "families": [
     {
       "family": "authorization",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -13,7 +13,7 @@
     {
       "family": "tenant-isolation",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -21,7 +21,7 @@
     {
       "family": "public-boundary",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -29,34 +29,23 @@
     {
       "family": "reference-liveness",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "temporal-consistency",
-      "applicable": true,
-      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
-      "control_ids": [
-        "NC-R-1276-009-03"
-      ],
-      "dimensions": [
-        {
-          "surface": "exact-head-freshness",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-009-03"
-          ]
-        }
-      ],
-      "status": "passed"
+      "applicable": false,
+      "reason": "Nenhum requisito corrente exige esta família.",
+      "control_ids": [],
+      "dimensions": [],
+      "status": "not-applicable"
     },
     {
       "family": "temporal-destination",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -64,7 +53,7 @@
     {
       "family": "concurrency-atomicity",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -72,7 +61,7 @@
     {
       "family": "idempotency",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
@@ -80,114 +69,69 @@
     {
       "family": "rollback",
       "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
+      "reason": "Nenhum requisito corrente exige esta família.",
       "control_ids": [],
       "dimensions": [],
       "status": "not-applicable"
     },
     {
       "family": "historical-immutability",
-      "applicable": false,
-      "reason": "Nenhum requisito corrente exige esta família de risco.",
-      "control_ids": [],
-      "dimensions": [],
-      "status": "not-applicable"
+      "applicable": true,
+      "reason": "Família derivada da entrega e coberta por controle exact-head.",
+      "control_ids": [
+        "NC-R-1299-006-01"
+      ],
+      "dimensions": [
+        {
+          "surface": "historical-corpus-representation",
+          "status": "passed",
+          "reason": "Controle discriminante executado.",
+          "control_ids": [
+            "NC-R-1299-006-01"
+          ]
+        }
+      ],
+      "status": "passed"
     },
     {
       "family": "structural-contract",
       "applicable": true,
-      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
+      "reason": "Família derivada da entrega e coberta por controle exact-head.",
       "control_ids": [
-        "NC-R-1276-001-01",
-        "NC-R-1276-002-01",
-        "NC-R-1276-003-01",
-        "NC-R-1276-004-01",
-        "NC-R-1276-005-01",
-        "NC-R-1276-006-01",
-        "NC-R-1276-007-01",
-        "NC-R-1276-008-01",
-        "NC-R-1276-008-02",
-        "NC-R-1276-009-01"
+        "NC-R-1299-001-01",
+        "NC-R-1299-002-01",
+        "NC-R-1299-003-01",
+        "NC-R-1299-004-01",
+        "NC-R-1299-005-01",
+        "NC-R-1299-007-01",
+        "NC-R-1299-008-01",
+        "NC-R-1299-009-01",
+        "NC-R-1299-010-01",
+        "NC-R-1299-011-01",
+        "NC-R-1299-012-01",
+        "NC-R-1299-013-01",
+        "NC-R-1299-014-01",
+        "NC-R-1299-015-01",
+        "NC-R-1299-016-01",
+        "NC-R-1299-017-01",
+        "NC-R-1299-018-01",
+        "NC-R-1299-019-01"
       ],
       "dimensions": [
         {
-          "surface": "canonical-source-consistency",
+          "surface": "golden-corpus-contract",
           "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
+          "reason": "Controle discriminante executado.",
           "control_ids": [
-            "NC-R-1276-008-01"
-          ]
-        },
-        {
-          "surface": "complete-command-vs-pending",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-001-01"
-          ]
-        },
-        {
-          "surface": "configured-label-and-date",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-003-01"
-          ]
-        },
-        {
-          "surface": "curated-reference-vs-placeholder",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-006-01"
-          ]
-        },
-        {
-          "surface": "decimal-slice-materialization",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-004-01"
-          ]
-        },
-        {
-          "surface": "focused-regression-matrix",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-007-01"
-          ]
-        },
-        {
-          "surface": "incomplete-command-keeps-pending",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-002-01"
-          ]
-        },
-        {
-          "surface": "relational-semantic-integrity",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-008-02"
+            "NC-R-1299-019-01"
           ]
         },
         {
           "surface": "specified-test-matrix",
           "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
+          "reason": "Controle discriminante executado.",
           "control_ids": [
-            "NC-R-1276-009-01"
-          ]
-        },
-        {
-          "surface": "unit-to-grams-resolution",
-          "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
-          "control_ids": [
-            "NC-R-1276-005-01"
+            "NC-R-1299-016-01"
           ]
         }
       ],
@@ -196,17 +140,17 @@
     {
       "family": "documentation",
       "applicable": true,
-      "reason": "A família foi derivada da especificação e possui controle adversarial exact-head.",
+      "reason": "Família derivada da entrega e coberta por controle exact-head.",
       "control_ids": [
-        "NC-R-1276-009-02"
+        "NC-R-1299-001-01"
       ],
       "dimensions": [
         {
           "surface": "documentation-consistency",
           "status": "passed",
-          "reason": "A superfície possui controle discriminante exact-head.",
+          "reason": "Controle discriminante executado.",
           "control_ids": [
-            "NC-R-1276-009-02"
+            "NC-R-1299-001-01"
           ]
         }
       ],

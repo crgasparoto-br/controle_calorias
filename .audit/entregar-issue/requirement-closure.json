@@ -1,252 +1,474 @@
 {
-  "schema_version": 1,
-  "contract_version": "2026-08-20.3",
-  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "schema_version": 3,
   "specification_snapshot": {
     "path": "specification-snapshot.json",
-    "sha256": "6ac1c7dec65c4d28ebfba86ab4a1efeaa677f8062d263db3ef6a268a0488ab17"
+    "sha256": "5362a2a9444fe2bf1015c9766f00a050033861003854f8cd3504054cbd4710f5"
   },
+  "primary_issue_source_id": "SRC-ISSUE-1299",
   "obligations": [
     {
-      "candidate_key": "101cec0eab8431b2279bff742e82de9cfd56d2bc4e8c9d6c6f9c8d51a94000a7",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 3,
-      "source_text": "Esta entrega corrige o fluxo de adição de alimentos pelo WhatsApp quando há uma pendência anterior e quando a adição usa uma refeição configurada ou uma data explícita. O mesmo fluxo deve resolver porções contáveis curadas para os casos de mortadela e linguiça de frango assada.",
-      "flags": [
-        "semantic-effect"
-      ],
-      "id": "O-1276-001",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-001"
-      ]
-    },
-    {
-      "candidate_key": "6946debcc121e1eb30b8dca66259e34c432b092c1c6f27ace7cb8685bca2b548",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 7,
-      "source_text": "O sistema deve reconhecer comandos explícitos completos de adição alimentar e encaminhá-los pelo parser e handler canônicos, mesmo quando existe uma pendência alimentar anterior.",
-      "flags": [
-        "semantic-effect"
-      ],
-      "id": "O-1276-002",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-002"
-      ]
-    },
-    {
-      "candidate_key": "44b025465da7a18dbda65798af0d7b2b7265dd3248ef2c9c7d175e164a709905",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 8,
-      "source_text": "O sistema não pode substituir ou consumir a pendência quando o comando estiver incompleto, quando faltar quantidade de um alimento ou quando a mensagem for água sem quantidade.",
-      "flags": [
-        "negative",
-        "semantic-effect"
-      ],
-      "id": "O-1276-003",
-      "disposition": "covered",
-      "requirement_ids": [
-        "R-1276-003"
-      ]
-    },
-    {
-      "candidate_key": "0db151abb5f3ad89cbda7f075a663dedd93d4d58b5fc0d0bf19c462971c6b174",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 9,
-      "source_text": "O sistema deve encaminhar adições datadas para a refeição configurada correspondente, incluindo o rótulo configurado `lanche da tarde`, o horário e a data solicitada, preservando atualização de registro existente.",
+      "candidate_key": "cfa3d6d1cef58a4cef09579aa5828c1302b49245ae5d21a160935cb4788f53eb",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 4,
+      "source_text": "Criar o corpus versionado e o harness reproduzível que será a referência independente para regressão, equivalência e calibração do Food Intelligence V2.",
       "flags": [],
-      "id": "O-1276-004",
+      "id": "OBL-001",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-004"
-      ]
+        "R-1299-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     },
     {
-      "candidate_key": "5233743b880ca9f214ceb98ce3764674f16fc93a456d92d1ab90deee8491110c",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "candidate_key": "23e04fc1958147b1e08af36ea072aba75cc99c611213078d462f0e24220b96f0",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
       "source_line": 10,
-      "source_text": "O sistema deve reconhecer `1,5 fatias de mortadela` como quantidade decimal contável e materializar a massa canônica sem abrir pendência.",
-      "flags": [
-        "negative",
-        "atomicity"
-      ],
-      "id": "O-1276-005",
+      "source_text": "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.",
+      "flags": [],
+      "id": "OBL-002",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-005"
-      ]
+        "R-1299-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     },
     {
-      "candidate_key": "af5e64e70f2c0aac787c5b517ffed8974e3506dc9b3d2bcf5ed2d87fa6270723",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
+      "candidate_key": "55ccf8bdc16de4f24199e97f0a9eb77c681410cdd4b0f57e081c5a2744d8d26a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
       "source_line": 11,
-      "source_text": "O sistema deve reconhecer `1 linguiça de frango assado` e `2 linguiças de frango assadas` por unidade, materializando respectivamente 100 g e 200 g sem abrir pendência.",
-      "flags": [
-        "negative",
-        "review-surface"
-      ],
-      "id": "O-1276-006",
+      "source_text": "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.",
+      "flags": [],
+      "id": "OBL-003",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-006"
-      ]
+        "R-1299-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     },
     {
-      "candidate_key": "31bcc248c71e08987d311a1b0c1f3f530c6a86cc14c0e1e2ddb39b3a80000624",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 12,
-      "source_text": "A resolução da linguiça de frango assada deve usar uma referência nutricional curada de uma unidade de 100 g, com 243.66 kcal, 18.19 g de proteína, 0 g de carboidratos e 18.4 g de gordura, e não pode usar o placeholder genérico.",
-      "flags": [
-        "negative",
-        "review-surface"
-      ],
-      "id": "O-1276-007",
+      "candidate_key": "368d8d9fddc2b1f9f73f64d608fc4eb20ecc6b7d2689b2c993847b07810951d7",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 14,
+      "source_text": "Modelar casos positivos, negativos, ambiguidades, clarificações e rejeições.",
+      "flags": [],
+      "id": "OBL-004",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-007"
-      ]
+        "R-1299-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     },
     {
-      "candidate_key": "a9c6214e8d00eaa00e0bc5bc5110e828cf95d4fddc9dba6c1c23835245dd8223",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 13,
-      "source_text": "A entrega deve preservar a identidade textual do alimento, reutilizar a fonte canônica de resolução de quantidade e possuir testes focados para caminho positivo, casos incompletos, água sem quantidade, pendência anterior, refeição configurada e porções unitárias.",
+      "candidate_key": "4407b40c6fa74d89d07baba9dbeb95a3a6707961bb87016be3a755d485ac8440",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 15,
+      "source_text": "Cobrir texto, áudio/transcrição, imagem/OCR e variações equivalentes quando houver evidência comparável.",
+      "flags": [
+        "exhaustive"
+      ],
+      "id": "OBL-005",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "446dcb8a7ce22fc5b3c03d1aab38e258874bcb48db01ff8e8630fc41caf426e9",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 16,
+      "source_text": "Importar incidentes históricos representativos como casos de domínio, não como arquivos por issue.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-006",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "c777637b21dff24912d47e25038b43be23641a0b9ae7ccc6a4cd28ea2c399d4a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 17,
+      "source_text": "Separar aquisição/calibração/holdout.",
+      "flags": [],
+      "id": "OBL-007",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "7bf638e68fc6f7d4478cb9f4df24cbe2f33d89ef295f8ea103f6ffd1c89ab91f",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 18,
+      "source_text": "Registrar revisões de código, conhecimento, léxico, modelo e política.",
+      "flags": [],
+      "id": "OBL-008",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "2ca6f9ffe5b1a32506f0c7d706386ffc2837a260a9eb581ad2517b15dbd12549",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 21,
+      "source_text": "Resultado esperado é independente da saída do resolvedor.",
+      "flags": [],
+      "id": "OBL-009",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "1caa19c1214c030b64cb9e1c33a5369e0aeba83b32816952e6eb720ff6c6ecae",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 22,
+      "source_text": "Duas entradas que convergem para o mesmo resultado errado reprovam.",
+      "flags": [],
+      "id": "OBL-010",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "3b716515ac8a885a67208529b6e17d1822432aec3ba470ea4ba1fb6b3630546c",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 23,
+      "source_text": "Holdout não alimenta aliases/prompts/promoção durante medição.",
       "flags": [
         "negative",
-        "atomicity",
-        "structural",
         "semantic-effect"
       ],
-      "id": "O-1276-008",
+      "id": "OBL-011",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-008"
-      ]
+        "R-1299-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     },
     {
-      "candidate_key": "9b8beeed322329868278eb4dae25fc6f8cf3d491d42252649dbe968664adadd6",
-      "source_id": "SRC-ISSUE-1276",
-      "source_sha256": "a9887c892218d6ce73f93052b1a09807d2d8ea31003ed2286bb122ce644bb6fd",
-      "source_line": 17,
-      "source_text": "Os testes focados e a suíte completa devem passar no material exact-SHA; arquitetura, documentação e build devem permanecer válidos; a árvore de trabalho deve permanecer limpa antes do handoff.",
+      "candidate_key": "10c332a2d33702f2b31cbcd6282dc8e3b4f827b5115a992b74c80a7f8b071cc8",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 24,
+      "source_text": "Mocks não substituem o resolvedor sob teste.",
       "flags": [
-        "temporal",
-        "structural"
+        "negative"
       ],
-      "id": "O-1276-009",
+      "id": "OBL-012",
       "disposition": "covered",
       "requirement_ids": [
-        "R-1276-009"
-      ]
+        "R-1299-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "9b12c0823c129b3be16613111920bfac5029275f89b2451e25044bb9dd4e71a8",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 27,
+      "source_text": "[ ] Corpus possui referência esperada versionada e controles negativos.",
+      "flags": [],
+      "id": "OBL-013",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "c761bd1d416e30201df52628480b2e00e1328333ea3b992f430dba3fa7e32c5e",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 28,
+      "source_text": "[ ] Meta ≥95% é calculável sobre todos os casos resolvíveis rotulados.",
+      "flags": [
+        "exhaustive"
+      ],
+      "id": "OBL-014",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "f1d2c97ad643b4398195655df54cda1ea3403dadc48e1f37441a4906b80db50d",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 29,
+      "source_text": "[ ] Clarificação/rejeição esperadas são verificáveis.",
+      "flags": [],
+      "id": "OBL-015",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "9b32331d9f167c06aa18c429643e413ceea85ee29b2fdaea6faaf3e93009677e",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 30,
+      "source_text": "[ ] Testes metamórficos cobrem equivalência de superfície.",
+      "flags": [],
+      "id": "OBL-016",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "e972e25b2200c33c7185d279390b80095df79497622009045b4177be14c499d3",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 31,
+      "source_text": "[ ] Harness produz relatório por modalidade/classe, não apenas média global.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-017",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "b800ea8188ada7bfb4df2a149bcd5ae0237ce81ece65677aa5d9da5147b8f01a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 37,
+      "source_text": "Sem dependência funcional prévia além da ADR vigente e da `develop` atual.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-018",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "f34fd7debc61364780f64d56ff3508ce3ec61f5117c6ae880d52f5ef766de2a2",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 44,
+      "source_text": "Atualizar a ADR e demais fontes canônicas somente quando a entrega fechar uma decisão material ou alterar contrato/runtime documentado. Não duplicar a ADR na issue.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-019",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
     }
   ],
   "source_coverage": [
     {
-      "source_id": "SRC-ISSUE-1276",
-      "candidate_count": 9,
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "candidate_count": 19,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019"
+      ],
       "unmapped_candidate_keys": []
     }
   ],
-  "structural_invariant_closures": {
-    "status": "passed",
-    "applicability_reason": "A especificação exige fonte única de resolução, precedência do parser/handler canônico e verificação da forma estrutural dos testes e dos gates.",
-    "entries": [
-      {
-        "id": "SIC-1276-001",
-        "kind": "structural",
-        "requirement_ids": [
-          "R-1276-008"
-        ],
-        "obligation_ids": [
-          "O-1276-008"
-        ],
-        "plausible_wrong_implementation": "Criar um mapa paralelo de porções de linguiça ou reescrever o texto no WhatsApp sem atravessar o resolvedor de quantidade compartilhado.",
-        "canonical_path": "server/foodItemResolution.ts:findCountableCatalogReference",
-        "competing_paths": [
-          "server/modules/whatsapp/mealCommandParser.ts",
-          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
-        ],
-        "evidence_ids": [
-          "server/countableFoodQuantity.issue1097.test.ts"
-        ],
-        "scenario_ids": [
-          "R-1276-008"
-        ],
-        "negative_control_evidence": [
-          "Executar o gate real com linguiça singular/plural, mortadela decimal e comando incompleto; comparar referência canônica, texto materializado e pendências.",
-          "O resultado esperado preserva a identidade textual e usa o mesmo resolvedor de porções no fluxo local e no WhatsApp.",
-          "server/countableFoodQuantity.issue1097.test.ts"
-        ]
-      },
-      {
-        "id": "SIC-1276-002",
-        "kind": "structural",
-        "requirement_ids": [
-          "R-1276-009"
-        ],
-        "obligation_ids": [
-          "O-1276-009"
-        ],
-        "plausible_wrong_implementation": "Atualizar somente a documentação ou aceitar build verde enquanto a regra de adição configurada permanece em um caminho concorrente sem teste exact-SHA.",
-        "canonical_path": "server/whatsappIntentWebhook.ts:handleWhatsappIntentWebhook",
-        "competing_paths": [
-          "server/modules/whatsapp/messageRouter.ts",
-          "server/modules/whatsapp/datedFoodAdditionIntent.ts"
-        ],
-        "evidence_ids": [
-          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
-        ],
-        "scenario_ids": [
-          "R-1276-009"
-        ],
-        "negative_control_evidence": [
-          "Executar arquitetura, documentação, build e suíte completa no SHA material; conferir a árvore limpa e o conjunto de testes do fluxo configurado.",
-          "Os gates estruturais passam e os testes discriminam caminho completo, incompleto, água sem quantidade, pendência e refeição configurada.",
-          "server/whatsappIntentWebhook.issue1037.additional.test.ts"
-        ]
-      }
-    ],
-    "unresolved_invariants": []
-  },
-  "documentation_consistency": {
-    "status": "passed",
-    "applicability_reason": "A documentação e os contratos existentes permanecem consistentes; docs:check passou no material exact-SHA."
-  },
-  "scope_reduction_review": {
-    "status": "passed",
-    "reviewed": true,
-    "finding_count": 0
-  },
-  "pass_c": {
-    "status": "passed",
-    "reviewed_all_specification_sources": true,
-    "obligation_ids": [
-      "O-1276-001",
-      "O-1276-002",
-      "O-1276-003",
-      "O-1276-004",
-      "O-1276-005",
-      "O-1276-006",
-      "O-1276-007",
-      "O-1276-008",
-      "O-1276-009"
-    ]
-  },
+  "domain_inventories": [],
+  "observable_assertions": [],
   "read_model_closures": {
     "status": "not-applicable",
-    "applicability_reason": "A entrega não altera read models, histórico, paginação, autoria ou versionamento persistido."
+    "applicability_reason": "Infraestrutura de teste/calibração sem read model produtivo.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
   },
   "canonical_source_consistency": {
     "status": "passed",
-    "applicability_reason": "A entrega reutiliza a fonte canônica existente de resolução de quantidade; a matriz estrutural cobre a ausência de mapa paralelo."
+    "applicability_reason": "ADR e corpus versionado permanecem fontes explícitas e verificadas.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "ADR atualizada na mesma PR e gate documental verde.",
+    "old_contract_terms": [],
+    "new_contract_terms": [
+      "Golden Food Corpus",
+      "harness de calibração",
+      "holdout"
+    ],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "Agent-first gate 37610028267: success"
+    ]
+  },
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Oráculo independente, holdout sem aprendizado e ausência de consumidor produtivo.",
+    "entries": [],
+    "unresolved_invariants": []
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "R-1299-001",
+      "R-1299-002",
+      "R-1299-003",
+      "R-1299-004",
+      "R-1299-005",
+      "R-1299-006",
+      "R-1299-007",
+      "R-1299-008",
+      "R-1299-009",
+      "R-1299-010",
+      "R-1299-011",
+      "R-1299-012",
+      "R-1299-013",
+      "R-1299-014",
+      "R-1299-015",
+      "R-1299-016",
+      "R-1299-017",
+      "R-1299-018",
+      "R-1299-019"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019"
+    ],
+    "evidence": [
+      "PR #1316 material head exact-SHA",
+      "Agent-first gate 37610028267"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
   }
 }

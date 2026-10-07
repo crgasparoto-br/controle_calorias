@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "subject_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603",
+  "creations": [
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/contracts.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus contracts.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/data.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus data.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/harness.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus harness.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/index.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus index.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/projection.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus projection.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/referenceSource.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus referenceSource.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/report.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus report.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "Food Intelligence corpus selfTestResolvers.ts"
+        ],
+        "scope": "base SHA e módulo existente",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
+    }
+  ],
+  "references": [],
+  "replacements": []
+}

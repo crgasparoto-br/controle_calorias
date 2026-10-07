@@ -28,7 +28,7 @@
       "detection_change": {
         "evidence": "Terminal verification compares certificate subject and result-only parent/path allowlist."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff",
@@ -40,7 +40,7 @@
       "literal_case": {
         "procedure": "Compare inherited certificate subject to current PR target before publication.",
         "expected": "Foreign issue 1259 / PR 1260 package is rejected and replaced.",
-        "observed": "O controle de subject estrangeiro foi revalidado como padrão cumulativo no pacote current-target; o novo finding da PR 1276 possui entrada própria.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
         "status": "passed"
       },
       "required_risk_families": [
@@ -101,7 +101,7 @@
       "detection_change": {
         "evidence": "O preflight compara certificado atual com a base imutável e rejeita subject estrangeiro antes da auditoria funcional."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:1276-handoff-readiness-001",
@@ -113,7 +113,7 @@
       "literal_case": {
         "procedure": "Comparar o subject do certificado com a PR atual antes de publicar o filho result-only.",
         "expected": "O certificado 1257/1258 herdado é descartado e substituído por um pacote ligado à PR 1276.",
-        "observed": "O pacote current-target anterior foi revalidado e o novo material corrente agora está congelado em 17a8668a1b811b0713680206b6e3fe4762af5b83.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
         "status": "passed"
       }
     },
@@ -158,7 +158,7 @@
       "detection_change": {
         "evidence": "Regressões exact-head exercitam água sem quantidade, alimento sem quantidade, adição completa e multi-action no gate de pendências."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
@@ -170,7 +170,61 @@
       "literal_case": {
         "procedure": "Avaliar isCompleteWhatsappCommand e atravessar o gate com pending ativo para água sem quantidade e alimento sem quantidade.",
         "expected": "Ambos permanecem incompletos e a pendência continua ativa; uma adição com quantidade atravessa o pipeline.",
-        "observed": "No material 17a8668a1b811b0713680206b6e3fe4762af5b83, os contraexemplos retornam false, o comando completo retorna true e o teste de multi-action permanece verde.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
+        "status": "passed"
+      }
+    },
+    {
+      "escape_id": "A-001-1299",
+      "status": "passed",
+      "remediation_mode": "targeted-remediation",
+      "escape_class": "delivery-readiness/inherited-base-artifact",
+      "plausible_wrong_implementation": "Aceitar handoff herdado da base com subject de outra issue/PR.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-001-1299-S1",
+          "status": "passed",
+          "surface": "target-binding",
+          "dimension": "foreign-subject",
+          "evidence": "Subject #1276 rejeitado."
+        },
+        {
+          "id": "A-001-1299-S2",
+          "status": "passed",
+          "surface": "result-only-publication",
+          "dimension": "direct-parent",
+          "evidence": "Novo pacote preparado para filho direto do material head."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Subject e scope reconstruídos para #1299/#1316."
+      },
+      "detection_change": {
+        "evidence": "Certificado vincula repository/issue/PR/base/head."
+      },
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
+        "audit_report_sha256": "717ca6b4d21720fb96b3baf3dd6837094ba4162ed935a5ca2aa1089f33960685",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "literal_case": {
+        "procedure": "Comparar subject herdado com o target corrente.",
+        "expected": "Pacote estrangeiro é rejeitado e substituído.",
+        "observed": "Pacote current-target preparado para #1299/#1316.",
         "status": "passed"
       }
     }

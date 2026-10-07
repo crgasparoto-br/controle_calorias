@@ -1,29 +1,28 @@
 {
   "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "mode": "independent",
   "status": "rejected",
-  "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
-  "head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
+  "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
+  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
-    "pull_request": 1276,
-    "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
-    "material_head_sha": "21c9fd6eaedd6b60a91553db933aeb65a0648510",
-    "published_head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e",
-    "head_sha": "5f95e3e42fcdca58c32db0c0cefde83e61ffc19e"
+    "issue_number": 1299,
+    "pull_request_number": 1316,
+    "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+    "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603"
   },
   "findings": [
     {
-      "id": "A-1276-002",
-      "severity": "blocking",
+      "id": "A-001",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
-      "audit_escape": true,
       "remediation_mode": "targeted-remediation",
-      "class": "functional-contract",
-      "title": "Comando de adição incompleto substitui pendência ativa",
-      "evidence": "isCompleteWhatsappCommand aceitou \"adicionar água ontem\" e \"adicionar ao jantar, banana\" como completos no material 21c9fd6e/publicado 5f95e3e4; o gate de pending então podia substituir a pendência sem quantidade/unidade."
+      "severity": "blocking",
+      "reason": "handoff-not-produced",
+      "recovery_scope": "handoff-only",
+      "requires_refreeze": false
     }
-  ],
-  "recommendations": []
+  ]
 }

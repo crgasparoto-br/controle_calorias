@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
   "requirements": [
     {
-      "requirement_id": "R-1276-001",
+      "requirement_id": "R-1299-001",
       "obligation_ids": [
-        "O-1276-001"
+        "OBL-001"
       ],
       "source_texts": [
-        "Esta entrega corrige o fluxo de adição de alimentos pelo WhatsApp quando há uma pendência anterior e quando a adição usa uma refeição configurada ou uma data explícita. O mesmo fluxo deve resolver porções contáveis curadas para os casos de mortadela e linguiça de frango assada."
+        "Criar o corpus versionado e o harness reproduzível que será a referência independente para regressão, equivalência e calibração do Food Intelligence V2."
       ],
       "risk_families": [
         "structural-contract"
@@ -16,697 +16,1378 @@
       "risk_surfaces": [
         {
           "risk_family": "structural-contract",
-          "surface": "complete-command-vs-pending",
-          "reason": "Controle exact-head cobre a superfície complete-command-vs-pending e evita divergência observável no fluxo."
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
         }
       ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-001, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "focused tests and exact-head runtime control for R-1276-001",
-        "evidence_sha256": "52c89c7b85ae5a1a373f8dde5eed15b1bceccbad282a04de8d819ed903bbbea9",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-001 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-001 passou no material exact-SHA."
+        "procedure": "Executar prova positiva de R-1299-001 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-001 passou no material head atual."
       },
       "negative_controls": [
         {
-          "id": "NC-R-1276-001-01",
+          "id": "NC-R-1299-001-01",
           "risk_family": "structural-contract",
-          "surface": "complete-command-vs-pending",
-          "dimension": "complete-command-vs-pending",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar complete-command-vs-pending sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle complete-command-vs-pending, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de complete-command-vs-pending.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com complete-command-vs-pending.",
-          "observed": "O controle exact-head passou para R-1276-001; o cenário discriminante preservou o resultado esperado de complete-command-vs-pending.",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "00b25b5b36bdabbbf69c28596fbf8ff83ea3751cac16aeea636fb38cfc050167",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
           "sibling_cases": [
             {
-              "id": "NC-R-1276-001-01-S1",
+              "id": "NC-R-1299-001-01-S1",
               "status": "passed",
-              "surface": "complete-command-vs-pending",
-              "dimension": "complete-command-vs-pending-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-001",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-001",
-          "evidence_sha256": "3d15e66a4e8482be856948ee60b3f649009be420880d7785e200f5159488e494",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-001.",
-          "observed": "A regressão de R-1276-001 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-002",
-      "obligation_ids": [
-        "O-1276-002"
-      ],
-      "source_texts": [
-        "O sistema deve reconhecer comandos explícitos completos de adição alimentar e encaminhá-los pelo parser e handler canônicos, mesmo quando existe uma pendência alimentar anterior."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "incomplete-command-keeps-pending",
-          "reason": "Controle exact-head cobre a superfície incomplete-command-keeps-pending e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-002, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "focused tests and exact-head runtime control for R-1276-002",
-        "evidence_sha256": "4f24889a8414786d0a9ac6b0f3ec153932c5a81e64f66b5250470772d579f8e7",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-002 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-002 passou no material exact-SHA."
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-002-01",
-          "risk_family": "structural-contract",
-          "surface": "incomplete-command-keeps-pending",
-          "dimension": "incomplete-command-keeps-pending",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar incomplete-command-keeps-pending sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle incomplete-command-keeps-pending, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de incomplete-command-keeps-pending.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com incomplete-command-keeps-pending.",
-          "observed": "O controle exact-head passou para R-1276-002; o cenário discriminante preservou o resultado esperado de incomplete-command-keeps-pending.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "83e2a42c67ea28818b6da651c738ab7716f2c7e2bd03d82f75d17ea6b421e0e5",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-002-01-S1",
-              "status": "passed",
-              "surface": "incomplete-command-keeps-pending",
-              "dimension": "incomplete-command-keeps-pending-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-002",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-002",
-          "evidence_sha256": "1e73dc46f671622ef9eec0a438861ce427a6bd56a756965d15ce14be09f3bc6d",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-002.",
-          "observed": "A regressão de R-1276-002 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-003",
-      "obligation_ids": [
-        "O-1276-003"
-      ],
-      "source_texts": [
-        "O sistema não pode substituir ou consumir a pendência quando o comando estiver incompleto, quando faltar quantidade de um alimento ou quando a mensagem for água sem quantidade."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "configured-label-and-date",
-          "reason": "Controle exact-head cobre a superfície configured-label-and-date e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-003, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "server/countableFoodQuantity.issue1097.test.ts",
-        "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-003 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-003 passou no material exact-SHA.",
-        "evidence_kind": "quantitative",
-        "evidence_id": "EV-1276-NUTRITION"
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-003-01",
-          "risk_family": "structural-contract",
-          "surface": "configured-label-and-date",
-          "dimension": "configured-label-and-date",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar configured-label-and-date sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle configured-label-and-date, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de configured-label-and-date.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com configured-label-and-date.",
-          "observed": "O controle exact-head passou para R-1276-003; o cenário discriminante preservou o resultado esperado de configured-label-and-date.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "214ca9359dc806f137dd0168d67ccdadf9551cd12f93d547761461f0d31bd2d7",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-003-01-S1",
-              "status": "passed",
-              "surface": "configured-label-and-date",
-              "dimension": "configured-label-and-date-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-003",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-003",
-          "evidence_sha256": "6b782b78159ea837fde22c9c17c88799dcf44bf806a34d76f061c828d12ed427",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-003.",
-          "observed": "A regressão de R-1276-003 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-004",
-      "obligation_ids": [
-        "O-1276-004"
-      ],
-      "source_texts": [
-        "O sistema deve encaminhar adições datadas para a refeição configurada correspondente, incluindo o rótulo configurado `lanche da tarde`, o horário e a data solicitada, preservando atualização de registro existente."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "decimal-slice-materialization",
-          "reason": "Controle exact-head cobre a superfície decimal-slice-materialization e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-004, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "focused tests and exact-head runtime control for R-1276-004",
-        "evidence_sha256": "361675a2f15595eaecf29e520a73be8dfeb388ee1403cd96602246af3841d476",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-004 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-004 passou no material exact-SHA."
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-004-01",
-          "risk_family": "structural-contract",
-          "surface": "decimal-slice-materialization",
-          "dimension": "decimal-slice-materialization",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar decimal-slice-materialization sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle decimal-slice-materialization, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de decimal-slice-materialization.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com decimal-slice-materialization.",
-          "observed": "O controle exact-head passou para R-1276-004; o cenário discriminante preservou o resultado esperado de decimal-slice-materialization.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "ccb603aa253238a75bbbbe4ac7b984f5b6d2f1c6a8a0a3eda1da54510bf78b65",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-004-01-S1",
-              "status": "passed",
-              "surface": "decimal-slice-materialization",
-              "dimension": "decimal-slice-materialization-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-004",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-004",
-          "evidence_sha256": "e46362e3117afa3da6ddfbfe0f46188103b29967443d5c164ab7a809711abcf8",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-004.",
-          "observed": "A regressão de R-1276-004 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-005",
-      "obligation_ids": [
-        "O-1276-005"
-      ],
-      "source_texts": [
-        "O sistema deve reconhecer `1,5 fatias de mortadela` como quantidade decimal contável e materializar a massa canônica sem abrir pendência."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "unit-to-grams-resolution",
-          "reason": "Controle exact-head cobre a superfície unit-to-grams-resolution e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-005, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "server/countableFoodQuantity.issue1097.test.ts",
-        "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-005 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-005 passou no material exact-SHA.",
-        "evidence_kind": "quantitative",
-        "evidence_id": "EV-1276-NUTRITION"
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-005-01",
-          "risk_family": "structural-contract",
-          "surface": "unit-to-grams-resolution",
-          "dimension": "unit-to-grams-resolution",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar unit-to-grams-resolution sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle unit-to-grams-resolution, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de unit-to-grams-resolution.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com unit-to-grams-resolution.",
-          "observed": "O controle exact-head passou para R-1276-005; o cenário discriminante preservou o resultado esperado de unit-to-grams-resolution.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "43d08c0fd7b0e4eea666ee389452ac1f60400927264f4ec89bfbe404c8230c1a",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-005-01-S1",
-              "status": "passed",
-              "surface": "unit-to-grams-resolution",
-              "dimension": "unit-to-grams-resolution-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-005",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-005",
-          "evidence_sha256": "fb9f01ec1fbb60fdee8a7839d35d30ced6ea28c98499d9cfd8aa575872560bae",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-005.",
-          "observed": "A regressão de R-1276-005 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-006",
-      "obligation_ids": [
-        "O-1276-006"
-      ],
-      "source_texts": [
-        "O sistema deve reconhecer `1 linguiça de frango assado` e `2 linguiças de frango assadas` por unidade, materializando respectivamente 100 g e 200 g sem abrir pendência."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "curated-reference-vs-placeholder",
-          "reason": "Controle exact-head cobre a superfície curated-reference-vs-placeholder e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-006, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "server/countableFoodQuantity.issue1097.test.ts",
-        "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-006 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-006 passou no material exact-SHA.",
-        "evidence_kind": "quantitative",
-        "evidence_id": "EV-1276-NUTRITION"
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-006-01",
-          "risk_family": "structural-contract",
-          "surface": "curated-reference-vs-placeholder",
-          "dimension": "curated-reference-vs-placeholder",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar curated-reference-vs-placeholder sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle curated-reference-vs-placeholder, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de curated-reference-vs-placeholder.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com curated-reference-vs-placeholder.",
-          "observed": "O controle exact-head passou para R-1276-006; o cenário discriminante preservou o resultado esperado de curated-reference-vs-placeholder.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "24e6f0a9450fd37e3a21669f4e3741aeab102886536cc094ed61e4eacaa84583",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-006-01-S1",
-              "status": "passed",
-              "surface": "curated-reference-vs-placeholder",
-              "dimension": "curated-reference-vs-placeholder-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-006",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-006",
-          "evidence_sha256": "7415f429cc157b209ad7c8666f6ba40cf58773d8ac67428a6ad5653d622d4faa",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-006.",
-          "observed": "A regressão de R-1276-006 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-007",
-      "obligation_ids": [
-        "O-1276-007"
-      ],
-      "source_texts": [
-        "A resolução da linguiça de frango assada deve usar uma referência nutricional curada de uma unidade de 100 g, com 243.66 kcal, 18.19 g de proteína, 0 g de carboidratos e 18.4 g de gordura, e não pode usar o placeholder genérico."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "focused-regression-matrix",
-          "reason": "Controle exact-head cobre a superfície focused-regression-matrix e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-007, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "server/countableFoodQuantity.issue1097.test.ts",
-        "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-007 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-007 passou no material exact-SHA.",
-        "evidence_kind": "quantitative",
-        "evidence_id": "EV-1276-NUTRITION"
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-007-01",
-          "risk_family": "structural-contract",
-          "surface": "focused-regression-matrix",
-          "dimension": "focused-regression-matrix",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar focused-regression-matrix sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle focused-regression-matrix, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de focused-regression-matrix.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com focused-regression-matrix.",
-          "observed": "O controle exact-head passou para R-1276-007; o cenário discriminante preservou o resultado esperado de focused-regression-matrix.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "bbf05352bebbc084b7b3200151cf8b5a89b9e674ce11c33a220950c53f925d17",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-007-01-S1",
-              "status": "passed",
-              "surface": "focused-regression-matrix",
-              "dimension": "focused-regression-matrix-sibling"
-            }
-          ]
-        }
-      ],
-      "regression_controls": [
-        {
-          "id": "REG-R-1276-007",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-007",
-          "evidence_sha256": "312b07783de1d038b02f18c8634fc8fd59bf0cc456f2e654b4834ccc8752657f",
-          "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-007.",
-          "observed": "A regressão de R-1276-007 passou sem falha observada."
-        }
-      ]
-    },
-    {
-      "requirement_id": "R-1276-008",
-      "obligation_ids": [
-        "O-1276-008"
-      ],
-      "source_texts": [
-        "A entrega deve preservar a identidade textual do alimento, reutilizar a fonte canônica de resolução de quantidade e possuir testes focados para caminho positivo, casos incompletos, água sem quantidade, pendência anterior, refeição configurada e porções unitárias."
-      ],
-      "risk_families": [
-        "structural-contract"
-      ],
-      "risk_surfaces": [
-        {
-          "risk_family": "structural-contract",
-          "surface": "canonical-source-consistency",
-          "reason": "Controle exact-head cobre a superfície canonical-source-consistency e evita divergência observável no fluxo."
-        },
-        {
-          "risk_family": "structural-contract",
-          "surface": "relational-semantic-integrity",
-          "reason": "Controle exact-head cobre a superfície relational-semantic-integrity e evita divergência observável no fluxo."
-        }
-      ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-008, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
-      "positive_control": {
-        "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "server/countableFoodQuantity.issue1097.test.ts",
-        "evidence_sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-        "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-008 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-008 passou no material exact-SHA.",
-        "evidence_kind": "quantitative",
-        "evidence_id": "EV-1276-NUTRITION"
-      },
-      "negative_controls": [
-        {
-          "id": "NC-R-1276-008-01",
-          "risk_family": "structural-contract",
-          "surface": "canonical-source-consistency",
-          "dimension": "canonical-source-vs-parallel-map",
-          "failure_mode": "A parallel catalog or non-canonical source can preserve the happy path while diverging from the canonical source.",
-          "plausible_wrong_implementation": "Use a parallel catalog map or a text rewrite instead of the shared canonical source and catalog resolver.",
-          "procedure": "Compare the canonical source and catalog resolver with the WhatsApp path on SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, including the discriminant sibling case.",
-          "expected": "The canonical source is used and a parallel catalog cannot silently change the resolved portion.",
-          "observed": "O controle exact-head passou para R-1276-008; o cenário discriminante preservou o resultado esperado de canonical-source-consistency.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "d822e2ff5db2a098eca8ff73f3f60377a8ad1fb06676d6b468e4bf9a6a466e28",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-008-01-S1",
-              "status": "passed",
-              "surface": "canonical-source-consistency",
-              "dimension": "canonical-source-vs-parallel-map-sibling"
-            }
-          ]
-        },
-        {
-          "id": "NC-R-1276-008-02",
-          "risk_family": "structural-contract",
-          "surface": "relational-semantic-integrity",
-          "dimension": "identity-vs-quantity-reference",
-          "failure_mode": "Incompatible linked identity and quantity values can be written together while the happy path still appears correct.",
-          "plausible_wrong_implementation": "Persist incompatible food identity and unit/reference values without traversing the canonical mutation boundary.",
-          "procedure": "Create linked records with deliberately incompatible identity and quantity references, traverse the canonical producer/write boundary on SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, and read the result back.",
-          "expected": "The incompatible linked values are rejected or explicitly transformed before the downstream consumer observes them.",
-          "observed": "O controle exact-head passou para R-1276-008; o cenário discriminante preservou o resultado esperado de relational-semantic-integrity.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "0f0950e1ba737e9ca60f0333944d611df2271b2a842b9de90abd2aec6e9840af",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-008-02-S1",
-              "status": "passed",
-              "surface": "relational-semantic-integrity",
-              "dimension": "identity-vs-quantity-reference"
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
             },
             {
-              "id": "NC-R-1276-008-02-S2",
+              "id": "NC-R-1299-001-01-S2",
               "status": "passed",
-              "surface": "relational-semantic-integrity",
-              "dimension": "food-name-vs-unit-reference"
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
             }
           ]
         }
       ],
       "regression_controls": [
         {
-          "id": "REG-R-1276-008",
+          "id": "REG-R-1299-001",
           "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-008",
-          "evidence_sha256": "5a83a16703778334dd8eb2575df62a305dfb9ab4740e51beda35eb5a10956656",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "7501af7bc33d6059019415f7e8b5bed4c03664c37b9be58d168f04371eb40b2c",
           "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-008.",
-          "observed": "A regressão de R-1276-008 passou sem falha observada."
+          "procedure": "Reexecutar regressão de R-1299-001 no material head.",
+          "observed": "Regressão de R-1299-001 permaneceu verde."
         }
       ]
     },
     {
-      "requirement_id": "R-1276-009",
+      "requirement_id": "R-1299-002",
       "obligation_ids": [
-        "O-1276-009"
+        "OBL-002"
       ],
       "source_texts": [
-        "Os testes focados e a suíte completa devem passar no material exact-SHA; arquitetura, documentação e build devem permanecer válidos; a árvore de trabalho deve permanecer limpa antes do handoff."
+        "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base."
       ],
       "risk_families": [
-        "documentation",
-        "structural-contract",
-        "temporal-consistency"
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-002 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-002 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-002-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-002-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-002-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-002",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "aa75728e27e09e2861f32172d93c9385c5ec3b6958e4215bff91dc9e0c18814b",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-002 no material head.",
+          "observed": "Regressão de R-1299-002 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-003",
+      "obligation_ids": [
+        "OBL-003"
+      ],
+      "source_texts": [
+        "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-003 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-003 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-003-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-003-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-003-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-003",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "50ba2f9fa4e4bed58adc29eb331bd9d3a2f93f844ad89a652566a0634f3f26de",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-003 no material head.",
+          "observed": "Regressão de R-1299-003 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-004",
+      "obligation_ids": [
+        "OBL-004"
+      ],
+      "source_texts": [
+        "Modelar casos positivos, negativos, ambiguidades, clarificações e rejeições."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-004 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-004 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-004-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-004-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-004-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-004",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "624eef543daf13525732e821a3abe476e8bd8a8b75f43979ae43d8342d7bcd03",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-004 no material head.",
+          "observed": "Regressão de R-1299-004 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-005",
+      "obligation_ids": [
+        "OBL-005"
+      ],
+      "source_texts": [
+        "Cobrir texto, áudio/transcrição, imagem/OCR e variações equivalentes quando houver evidência comparável."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-005 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-005 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-005-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-005-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-005-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-005",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "b3f94245114ce63adff88693bbf290c2a00db34d0e70750d19971604e5fa7575",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-005 no material head.",
+          "observed": "Regressão de R-1299-005 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-006",
+      "obligation_ids": [
+        "OBL-006"
+      ],
+      "source_texts": [
+        "Importar incidentes históricos representativos como casos de domínio, não como arquivos por issue."
+      ],
+      "risk_families": [
+        "historical-immutability"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "historical-immutability",
+          "surface": "historical-corpus-representation",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-006 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-006 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-006-01",
+          "risk_family": "historical-immutability",
+          "surface": "historical-corpus-representation",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-006-01-S1",
+              "status": "passed",
+              "surface": "historical-corpus-representation",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-006-01-S2",
+              "status": "passed",
+              "surface": "historical-corpus-representation",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-006",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "5781fef59239365e4b5ef6db0682b8dcbbff97802ada3fa04e096e5891b0e5d0",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-006 no material head.",
+          "observed": "Regressão de R-1299-006 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-007",
+      "obligation_ids": [
+        "OBL-007"
+      ],
+      "source_texts": [
+        "Separar aquisição/calibração/holdout."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-007 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-007 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-007-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-007-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-007-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-007",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "dffeff1eea4a31ab82c35ffea8382b2a1c7f9bc884f30dee602e4b847d3604e9",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-007 no material head.",
+          "observed": "Regressão de R-1299-007 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-008",
+      "obligation_ids": [
+        "OBL-008"
+      ],
+      "source_texts": [
+        "Registrar revisões de código, conhecimento, léxico, modelo e política."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-008 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-008 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-008-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-008-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-008-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-008",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "939f3ee6fb6303602fd1fe5d64ba811aa511e2b89e05fef435911ef2361c5c59",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-008 no material head.",
+          "observed": "Regressão de R-1299-008 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-009",
+      "obligation_ids": [
+        "OBL-009"
+      ],
+      "source_texts": [
+        "Resultado esperado é independente da saída do resolvedor."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-009 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-009 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-009-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-009-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-009-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-009",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "0f680ba65427e5439b58516278624b473b92013c933846da30236c7dc18ad84e",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-009 no material head.",
+          "observed": "Regressão de R-1299-009 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-010",
+      "obligation_ids": [
+        "OBL-010"
+      ],
+      "source_texts": [
+        "Duas entradas que convergem para o mesmo resultado errado reprovam."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-010 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-010 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-010-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-010-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-010-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-010",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "177cd88a67d7c47978dec640558bd968a817b291a16997f47387660bf898dd90",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-010 no material head.",
+          "observed": "Regressão de R-1299-010 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-011",
+      "obligation_ids": [
+        "OBL-011"
+      ],
+      "source_texts": [
+        "Holdout não alimenta aliases/prompts/promoção durante medição."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-011 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-011 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-011-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-011-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-011-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-011",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "72f6ceab58bff871c10c54c09c6e000df593d594e524d6e4fac676ae52efde76",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-011 no material head.",
+          "observed": "Regressão de R-1299-011 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-012",
+      "obligation_ids": [
+        "OBL-012"
+      ],
+      "source_texts": [
+        "Mocks não substituem o resolvedor sob teste."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-012 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-012 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-012-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-012-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-012-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-012",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "6b46120c727564fef8ba7ac0ac2abdcf08ddaa971b332113228e9c7e99e6d6dd",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-012 no material head.",
+          "observed": "Regressão de R-1299-012 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-013",
+      "obligation_ids": [
+        "OBL-013"
+      ],
+      "source_texts": [
+        "[ ] Corpus possui referência esperada versionada e controles negativos."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-013 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-013 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-013-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-013-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-013-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-013",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "1ff1e628a3a0aac115bb71773c6c6af4ff4b1dd7347b6c73f8e2690f7b3d4965",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-013 no material head.",
+          "observed": "Regressão de R-1299-013 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-014",
+      "obligation_ids": [
+        "OBL-014"
+      ],
+      "source_texts": [
+        "[ ] Meta ≥95% é calculável sobre todos os casos resolvíveis rotulados."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-014 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-014 passou no material head atual.",
+        "evidence_kind": "quantitative",
+        "evidence_id": "EV-1299-MATCHRATE"
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-014-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-014-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-014-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-014",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "8b1bc8d697cc0d040fd5e7f87c8abf7b3577dfbf33c1683890ff134ace65b6c2",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-014 no material head.",
+          "observed": "Regressão de R-1299-014 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-015",
+      "obligation_ids": [
+        "OBL-015"
+      ],
+      "source_texts": [
+        "[ ] Clarificação/rejeição esperadas são verificáveis."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-015 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-015 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-015-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-015-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-015-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-015",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "a63006acfe7efc73af85c3c06903a6020a6f3bcec3f07f7692bdb952e865ee10",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-015 no material head.",
+          "observed": "Regressão de R-1299-015 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-016",
+      "obligation_ids": [
+        "OBL-016"
+      ],
+      "source_texts": [
+        "[ ] Testes metamórficos cobrem equivalência de superfície."
+      ],
+      "risk_families": [
+        "structural-contract"
       ],
       "risk_surfaces": [
         {
           "risk_family": "structural-contract",
           "surface": "specified-test-matrix",
-          "reason": "Controle exact-head cobre a superfície specified-test-matrix e evita divergência observável no fluxo."
-        },
-        {
-          "risk_family": "documentation",
-          "surface": "documentation-consistency",
-          "reason": "Controle exact-head cobre a superfície documentation-consistency e evita divergência observável no fluxo."
-        },
-        {
-          "risk_family": "temporal-consistency",
-          "surface": "exact-head-freshness",
-          "reason": "Controle exact-head cobre a superfície exact-head-freshness e evita divergência observável no fluxo."
+          "reason": "Controle adversarial exact-head cobre esta superfície."
         }
       ],
-      "plausible_wrong_implementation": "Implementar apenas o caminho feliz de R-1276-009, substituindo texto sem resolução canônica ou ignorando o controle negativo de pendências.",
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-        "evidence": "focused tests and exact-head runtime control for R-1276-009",
-        "evidence_sha256": "795c9bc8913866fbe2450c647208c1e90033cee70e52ac0676cba4b1f05942ee",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
         "control_type": "test",
-        "procedure": "Executar a prova positiva de R-1276-009 no material exact-SHA 17a8668a1b811b0713680206b6e3fe4762af5b83.",
-        "observed": "A prova positiva de R-1276-009 passou no material exact-SHA."
+        "procedure": "Executar prova positiva de R-1299-016 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-016 passou no material head atual."
       },
       "negative_controls": [
         {
-          "id": "NC-R-1276-009-01",
+          "id": "NC-R-1299-016-01",
           "risk_family": "structural-contract",
           "surface": "specified-test-matrix",
-          "dimension": "specified-cases-have-distinct-controls",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar specified-test-matrix sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle specified-test-matrix, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de specified-test-matrix.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com specified-test-matrix.",
-          "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de specified-test-matrix.",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "8d7360f5cef315ed2fce45089248f7c2900dbe38686505926710cc4468fc15f4",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
           "sibling_cases": [
             {
-              "id": "NC-R-1276-009-01-S1",
+              "id": "NC-R-1299-016-01-S1",
               "status": "passed",
               "surface": "specified-test-matrix",
-              "dimension": "specified-cases-have-distinct-controls-sibling"
-            }
-          ]
-        },
-        {
-          "id": "NC-R-1276-009-02",
-          "risk_family": "documentation",
-          "surface": "documentation-consistency",
-          "dimension": "docs-and-build-contract",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar documentation-consistency sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle documentation-consistency, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de documentation-consistency.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com documentation-consistency.",
-          "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de documentation-consistency.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "c7ad0db0562c51c7472b823d52ffb9bc1a80d4402d22d0e3018402b724fc2d1b",
-          "sibling_cases": [
+              "dimension": "wrong-convergence"
+            },
             {
-              "id": "NC-R-1276-009-02-S1",
+              "id": "NC-R-1299-016-01-S2",
               "status": "passed",
-              "surface": "documentation-consistency",
-              "dimension": "docs-and-build-contract-sibling"
-            }
-          ]
-        },
-        {
-          "id": "NC-R-1276-009-03",
-          "risk_family": "temporal-consistency",
-          "surface": "exact-head-freshness",
-          "dimension": "material-head-and-clean-tree",
-          "failure_mode": "A implementação pode passar no caminho feliz e violar exact-head-freshness sem que a pendência, a porção ou a referência nutricional fique correta.",
-          "plausible_wrong_implementation": "Ignorar o controle exact-head-freshness, reescrever apenas o texto ou reutilizar um estado anterior sem atravessar a fronteira canônica.",
-          "procedure": "Executar o caso positivo e o controle negativo no SHA 17a8668a1b811b0713680206b6e3fe4762af5b83, variando o cenário discriminante de exact-head-freshness.",
-          "expected": "O comportamento incorreto é rejeitado e o resultado permanece consistente com exact-head-freshness.",
-          "observed": "O controle exact-head passou para R-1276-009; o cenário discriminante preservou o resultado esperado de exact-head-freshness.",
-          "control_type": "test",
-          "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "server/countableFoodQuantity.issue1097.test.ts; server/modules/whatsapp/foodClarificationGate.test.ts",
-          "evidence_sha256": "7cd44b6600dae2b55da1a9266824ae0c1102e9011f1e62df687e25074ccc91cd",
-          "sibling_cases": [
-            {
-              "id": "NC-R-1276-009-03-S1",
-              "status": "passed",
-              "surface": "exact-head-freshness",
-              "dimension": "material-head-and-clean-tree-sibling"
+              "surface": "specified-test-matrix",
+              "dimension": "holdout-leakage"
             }
           ]
         }
       ],
       "regression_controls": [
         {
-          "id": "REG-R-1276-009",
+          "id": "REG-R-1299-016",
           "status": "passed",
-          "head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-          "evidence": "focused regression suite for R-1276-009",
-          "evidence_sha256": "66b5f74d4ef6249357fff5c63b076c1b7ba8046720b77706ce12b52d675dbeab",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "91586dde7a0920aa31c9402072e8f26cefea46e674b0dac1dcc29839c16ee1f2",
           "control_type": "test",
-          "procedure": "Reexecutar a regressão diretamente relacionada a R-1276-009.",
-          "observed": "A regressão de R-1276-009 passou sem falha observada."
+          "procedure": "Reexecutar regressão de R-1299-016 no material head.",
+          "observed": "Regressão de R-1299-016 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-017",
+      "obligation_ids": [
+        "OBL-017"
+      ],
+      "source_texts": [
+        "[ ] Harness produz relatório por modalidade/classe, não apenas média global."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-017 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-017 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-017-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-017-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-017-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-017",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "6e943ed4129a3263afe4ebaed3fa65a71fdca82d7598df49ffe18e42748031cf",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-017 no material head.",
+          "observed": "Regressão de R-1299-017 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-018",
+      "obligation_ids": [
+        "OBL-018"
+      ],
+      "source_texts": [
+        "Sem dependência funcional prévia além da ADR vigente e da `develop` atual."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-018 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-018 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-018-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-018-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-018-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-018",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "fbf83cf7dd3c51e070a5c5fbd1b220e987a0ded3a4cbce0e958d0c844c31d4a2",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-018 no material head.",
+          "observed": "Regressão de R-1299-018 permaneceu verde."
+        }
+      ]
+    },
+    {
+      "requirement_id": "R-1299-019",
+      "obligation_ids": [
+        "OBL-019"
+      ],
+      "source_texts": [
+        "Atualizar a ADR e demais fontes canônicas somente quando a entrega fechar uma decisão material ou alterar contrato/runtime documentado. Não duplicar a ADR na issue."
+      ],
+      "risk_families": [
+        "structural-contract"
+      ],
+      "risk_surfaces": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "reason": "Controle adversarial exact-head cobre esta superfície."
+        }
+      ],
+      "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
+      "positive_control": {
+        "status": "passed",
+        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "control_type": "test",
+        "procedure": "Executar prova positiva de R-1299-019 no material exact-SHA.",
+        "observed": "A prova positiva de R-1299-019 passou no material head atual."
+      },
+      "negative_controls": [
+        {
+          "id": "NC-R-1299-019-01",
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected",
+          "failure_mode": "Uma implementação errada pode manter o caminho feliz enquanto viola a independência do corpus.",
+          "plausible_wrong_implementation": "Copiar o resultado observado, convergir para o mesmo erro ou gravar conhecimento durante holdout.",
+          "procedure": "Executar resolvedores adversariais e cenários de holdout/ambiguidade no harness.",
+          "expected": "O harness reprova o comportamento incorreto de forma explícita.",
+          "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
+          "control_type": "test",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "sibling_cases": [
+            {
+              "id": "NC-R-1299-019-01-S1",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "wrong-convergence"
+            },
+            {
+              "id": "NC-R-1299-019-01-S2",
+              "status": "passed",
+              "surface": "golden-corpus-contract",
+              "dimension": "holdout-leakage"
+            }
+          ]
+        }
+      ],
+      "regression_controls": [
+        {
+          "id": "REG-R-1299-019",
+          "status": "passed",
+          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "evidence": "Agent-first gate 37610028267",
+          "evidence_sha256": "738ad86600efc9761fcf6507daad50d3c235ce8cb043b686340b89089bc17ac7",
+          "control_type": "test",
+          "procedure": "Reexecutar regressão de R-1299-019 no material head.",
+          "observed": "Regressão de R-1299-019 permaneceu verde."
         }
       ]
     }
