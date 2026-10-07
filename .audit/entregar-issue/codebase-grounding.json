@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "subject_sha": "950803c5fab4310fce6688e778a14f19c3a48d2b",
+  "base_sha": "5fdd877f02f0c778cb0d6564013d62c40f49cf6a",
+  "creations": [
+    {
+      "path": "server/modules/foodIntelligenceV2/adapters.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "FoodResolutionDecision",
+          "MealSemanticContract adapter",
+          "V1 V2"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/contracts.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "FoodObservation",
+          "FoodResolutionDecision",
+          "food contract"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/decisionSchemas.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "FoodResolutionDecision",
+          "decision schema",
+          "foodDecision"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/fixtures.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "buildFoodObservationFixture",
+          "FoodObservation fixture",
+          "food fixture"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/observationSchemas.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "FoodObservation",
+          "observation schema",
+          "foodObservation"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/pendingOperation.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "pendingOperation",
+          "PendingOperation",
+          "resolverVersion"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/schemaShared.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "foodAnchorSchema",
+          "foodEvidenceSchema",
+          "shared food schema"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/schemas.ts",
+      "kind": "file",
+      "search": {
+        "queries": [
+          "parseFoodObservation",
+          "parseFoodResolutionDecision",
+          "schemaVersion"
+        ],
+        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "candidates": []
+      },
+      "decision": "create",
+      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+    }
+  ],
+  "references": [],
+  "replacements": []
+}
