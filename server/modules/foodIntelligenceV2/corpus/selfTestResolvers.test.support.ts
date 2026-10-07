@@ -168,6 +168,35 @@ export function buildDecisionForExpected(
     });
   }
 
+  // O contrato da Fase A1 (#1298) exige grounding explícito para qualquer
+  // classificação não provisória. O oráculo da Fase A2 (#1299) não pode
+  // contornar essa regra: ele publica uma evidência governada/verificada do
+  // domínio classification e a referencia na decisão.
+  const classificationProvisional =
+    expected.classification.provisionalRequired;
+  const classificationEvidenceId = `ev-class-${suffix}`;
+  const needsClassificationEvidence =
+    expected.nextAction === "propose" && !classificationProvisional;
+  if (needsClassificationEvidence) {
+    const classificationValue =
+      expected.classification.processingLevel ??
+      expected.classification.isFruit ??
+      expected.classification.isVegetable ??
+      expected.classification.isUltraProcessed ??
+      "classification-reference";
+    evidence.push({
+      evidenceId: classificationEvidenceId,
+      field: "classification.processingLevel",
+      origin: "catalog",
+      value: classificationValue,
+      unit: null,
+      confidence: 0.9,
+      verified: true,
+      anchor: anchor(`turn:${suffix}`),
+      sourceId: null,
+    });
+  }
+
   const alternatives: FoodResolutionDecision["alternatives"] = [];
   expected.alternatives.forEach((alternative, alternativeIndex) => {
     const alternativeEvidenceId = `ev-alt-${suffix}-${alternativeIndex}`;
@@ -283,8 +312,10 @@ export function buildDecisionForExpected(
               ? expected.classification.isUltraProcessed
               : null,
             confidence: 0.9,
-            provisional: expected.classification.provisionalRequired,
-            evidenceIds: [],
+            provisional: classificationProvisional,
+            evidenceIds: needsClassificationEvidence
+              ? [classificationEvidenceId]
+              : [],
           }
         : null,
     unresolvedFields: [...expected.unresolvedFields] as FoodField[],
