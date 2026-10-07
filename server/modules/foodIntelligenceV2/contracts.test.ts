@@ -212,6 +212,19 @@ describe("FoodObservation v2", () => {
       )
     );
 
+    // Locale explícito fora do recorte não pode cair silenciosamente em pt-BR.
+    expectInvalid(
+      parseFoodObservation(
+        buildFoodObservationFixture({
+          locale: {
+            requested: "en-US",
+            effective: "pt-BR",
+            status: "explicit",
+          },
+        })
+      )
+    );
+
     // Locale não suportado usa effective=null e razão unsupported_locale.
     const unsupportedOk = parseFoodObservation(
       buildFoodObservationFixture({
@@ -614,7 +627,7 @@ describe("FoodResolutionDecision v2", () => {
         milliliters: null,
         evidenceIds: ["ev-density"],
       },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
       nutrition: { basis: { unit: "ml" } },
       evidence: [
         {
@@ -640,7 +653,7 @@ describe("FoodResolutionDecision v2", () => {
         milliliters: null,
         evidenceIds: ["ev-density"],
       },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
       nutrition: { basis: { unit: "ml" } },
       evidence: [
         {
@@ -730,6 +743,96 @@ describe("FoodResolutionDecision v2", () => {
     );
   });
 
+  it("rejeita evidência existente quando pertence a outro proprietário", () => {
+    for (const overrides of [
+      { identity: { evidenceIds: ["ev-grams"] } },
+      { quantity: { evidenceIds: ["ev-nutrition"] } },
+      { nutrition: { evidenceIds: ["ev-ident"] } },
+      {
+        classification: {
+          version: "cls-1",
+          processingLevel: null,
+          isFruit: null,
+          isVegetable: null,
+          isUltraProcessed: null,
+          confidence: null,
+          provisional: true,
+          evidenceIds: ["ev-ident"],
+        },
+      },
+      {
+        status: "ambiguous",
+        nextAction: "clarify",
+        reasonCodes: ["source_conflict"],
+        alternatives: [
+          buildFoodAlternativeFixture({
+            candidateKey: "a",
+            name: "A",
+            evidenceIds: ["ev-grams"],
+          }),
+          buildFoodAlternativeFixture({
+            candidateKey: "b",
+            name: "B",
+          }),
+        ],
+      },
+    ]) {
+      expectInvalid(
+        parseFoodResolutionDecision(buildFoodResolutionDecisionFixture(overrides))
+      );
+    }
+  });
+
+  it("exige grounding verificável para classificação não provisória", () => {
+    const semEvidencia = parseFoodResolutionDecision(
+      buildFoodResolutionDecisionFixture({
+        classification: {
+          version: "cls-1",
+          processingLevel: "processed",
+          isFruit: false,
+          isVegetable: false,
+          isUltraProcessed: false,
+          confidence: 0.9,
+          provisional: false,
+          evidenceIds: [],
+        },
+      })
+    );
+    expectInvalid(semEvidencia);
+
+    const comEvidencia = parseFoodResolutionDecision(
+      buildFoodResolutionDecisionFixture({
+        classification: {
+          version: "cls-1",
+          processingLevel: "processed",
+          isFruit: false,
+          isVegetable: false,
+          isUltraProcessed: false,
+          confidence: 0.9,
+          provisional: false,
+          evidenceIds: ["ev-classification"],
+        },
+        evidence: [
+          {},
+          {},
+          {},
+          {
+            evidenceId: "ev-classification",
+            field: "classification.processingLevel",
+            origin: "catalog",
+            value: "processed",
+            unit: null,
+            confidence: 0.9,
+            verified: true,
+            anchor: buildFoodAnchorFixture(),
+            sourceId: 12,
+          },
+        ],
+      })
+    );
+    expect(comEvidencia.ok).toBe(true);
+  });
+
   it("mantém contrato de serialização estável (round-trip JSON)", () => {
     const decision = buildFoodResolutionDecisionFixture();
     const observation = buildFoodObservationFixture();
@@ -758,6 +861,52 @@ describe("envelope interno da operação", () => {
       buildFoodOperationEnvelopeFixture()
     );
     expect(result.ok).toBe(true);
+  });
+
+  it("rejeita versão desconhecida do envelope sem mutar a entrada", () => {
+    const input = buildFoodOperationEnvelopeFixture({ schemaVersion: 3 });
+    const snapshot = structuredClone(input);
+
+    const result = parseFoodOperationEnvelope(input);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("esperado rejeição");
+    expect(result.code).toBe("unsupported-schema-version");
+    expect(input).toStrictEqual(snapshot);
+  });
+
+  it("exige previousMessage, preferences e recentHistory explicitamente", () => {
+    const sources = [
+      "previousMessage",
+      "preferences",
+      "recentHistory",
+    ] as const;
+
+    for (const source of sources) {
+      const envelope = structuredClone(buildFoodOperationEnvelopeFixture());
+      const contextSources = envelope.contextSources as Partial<
+        typeof envelope.contextSources
+      >;
+      delete contextSources[source];
+
+      expect(parseFoodOperationEnvelope(envelope).ok).toBe(false);
+    }
+  });
+
+  it("exige sourceRef quando o contexto está disponível", () => {
+    expect(
+      parseFoodOperationEnvelope(
+        buildFoodOperationEnvelopeFixture({
+          contextSources: {
+            previousMessage: {
+              status: "available",
+              reason: null,
+              sourceRef: null,
+            },
+          },
+        })
+      ).ok
+    ).toBe(false);
   });
 
   it("exige motivo estruturado quando o contexto não está disponível", () => {

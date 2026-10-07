@@ -283,6 +283,7 @@ export function buildMealOperationFixture(overrides: unknown = {}) {
 
 export function buildFoodOperationEnvelopeFixture(overrides: unknown = {}) {
   const base = {
+    schemaVersion: 2,
     traceId: "trace-1",
     idempotencyKey: "op-1",
     ownerUserId: 7,
@@ -299,6 +300,11 @@ export function buildFoodOperationEnvelopeFixture(overrides: unknown = {}) {
       preferences: {
         status: "absent",
         reason: "sem_preferencia_registrada",
+        sourceRef: null,
+      },
+      recentHistory: {
+        status: "absent",
+        reason: "sem_historico_recente",
         sourceRef: null,
       },
     },

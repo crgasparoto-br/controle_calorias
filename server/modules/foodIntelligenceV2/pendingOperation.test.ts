@@ -134,6 +134,11 @@ describe("classificação de proprietário", () => {
     });
     expect(classifyPendingOperationOwner(legacyV1)).toBe("legacy-v1");
 
+    const future = buildOperation({
+      versionTag: { ...VERSIONS, contractVersion: 3 },
+    });
+    expect(classifyPendingOperationOwner(future)).toBe("unknown-version");
+
     // Pendência antiga criada "agora" continua legada: data não é critério.
     const legadaRecente = buildOperation({
       versionTag: null,
@@ -190,6 +195,20 @@ describe("retomada da pendência", () => {
     expect(result.resumed).toBe(false);
     if (result.resumed) throw new Error("esperado falha");
     expect(result.reason).toBe("legacy-handler-required");
+  });
+
+  it("rejeita versão persistida desconhecida sem despachar para V1", () => {
+    const result = resumePendingOperation(
+      buildOperation({
+        versionTag: { ...VERSIONS, contractVersion: 3 },
+      }),
+      buildRequest()
+    );
+
+    expect(result.resumed).toBe(false);
+    if (result.resumed) throw new Error("esperado falha");
+    expect(result.reason).toBe("unsupported-schema-version");
+    expect(result.detail).toContain("nunca é tratada como V1");
   });
 });
 
