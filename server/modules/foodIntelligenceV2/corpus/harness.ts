@@ -1828,23 +1828,26 @@ function matchDecisions(
   const unmatchedExpected: ExpectedDecision[] = [];
 
   for (const item of expected) {
-    let bestCodes: CorpusFailureCode[] = [];
+    let matched = false;
+    let bestCodes: CorpusFailureCode[] | null = null;
+
     for (let index = 0; index < produced.length; index += 1) {
       if (used.has(index)) continue;
       const codes = compareExpectedDecision(item, produced[index]);
       if (codes.length === 0) {
         used.add(index);
-        bestCodes = [];
+        matched = true;
         break;
       }
-      if (bestCodes.length === 0 || codes.length < bestCodes.length) {
+      if (bestCodes === null || codes.length < bestCodes.length) {
         bestCodes = codes;
       }
     }
 
-    if (bestCodes.length === 0) continue;
+    if (matched) continue;
+
     unmatchedExpected.push(item);
-    codesByLabel.set(item.label, bestCodes);
+    codesByLabel.set(item.label, bestCodes ?? ["missing_decision"]);
   }
 
   const unmatchedProduced = produced.filter((_, index) => !used.has(index));

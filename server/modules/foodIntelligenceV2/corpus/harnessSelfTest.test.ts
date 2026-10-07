@@ -141,6 +141,33 @@ describe("autoverificação do harness", () => {
     expect(report.gate.status).toBe("blocked");
   });
 
+  it("reprova resultado parcial que omite decisões esperadas depois de um match válido", async () => {
+    const partialCorpus = subCorpus(["c-multiplos-um-ambiguo"]);
+    const reference = createReferenceResolver(partialCorpus);
+
+    const report = await runCorpus(
+      partialCorpus,
+      {
+        id: "test:resultado-parcial",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.slice(0, 1),
+          };
+        },
+      },
+      pinned
+    );
+
+    const codes = report.failures.flatMap(failure => failure.codes);
+    expect(codes).toContain("missing_decision");
+    expect(report.overall.matchedCases).toBe(0);
+    expect(report.gate.nonResolvableFailureCount).toBe(1);
+    expect(report.gate.status).not.toBe("passed");
+  });
+
   it("registra erro do resolvedor como falha explícita", async () => {
     const report = await runGoldenFoodCorpus(createThrowingResolver(), pinned);
     expect(allCodes(report)).toContain("resolver_error");
