@@ -20,6 +20,9 @@ export const FOOD_OBSERVATION_SCHEMA_VERSION = 2;
 /** `schemaVersion` aceito por `FoodResolutionDecision` (§5). */
 export const FOOD_RESOLUTION_DECISION_SCHEMA_VERSION = 2;
 
+/** `schemaVersion` do envelope interno versionado de execução (§4/§21.1). */
+export const FOOD_OPERATION_ENVELOPE_SCHEMA_VERSION = 2;
+
 /** Locale do primeiro recorte (§4.2, item 14). */
 export const DEFAULT_FOOD_LOCALE = "pt-BR" as const;
 
@@ -284,7 +287,7 @@ export const FOOD_QUANTITY_EPSILON = 1e-6;
 
 /** Caminho de campo de evidência validado pelo contrato (§4). */
 export const FOOD_EVIDENCE_FIELD_PATTERN =
-  /^(identity|variant|quantity|nutrition)\.[A-Za-z][A-Za-z0-9_]*$/;
+  /^(identity|variant|quantity|nutrition|classification)\.[A-Za-z][A-Za-z0-9_]*$/;
 
 export function isEvidenceFieldPath(value: string): boolean {
   return FOOD_EVIDENCE_FIELD_PATTERN.test(value);
@@ -317,6 +320,10 @@ export const FOOD_EVIDENCE_FIELDS = [
   "nutrition.profileId",
   "nutrition.sourceId",
   "nutrition.basis",
+  "classification.processingLevel",
+  "classification.isFruit",
+  "classification.isVegetable",
+  "classification.isUltraProcessed",
 ] as const;
 
 const EVIDENCE_FIELD_SET = new Set<string>(FOOD_EVIDENCE_FIELDS);

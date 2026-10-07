@@ -1,0 +1,48 @@
+Parent: #1297
+
+## Objetivo
+Implementar os schemas e validações de `FoodObservation` e `FoodResolutionDecision`, além dos adapters V1↔V2 definidos na ADR, sem servir decisões V2 em produção.
+
+## Fonte canônica
+- `docs/design-docs/adr-food-intelligence-resolver-v2.md`
+- Seções principais: §4, §5, §7.1.1, §21.1, §22, §25 itens 1/12/14/16/18
+- Base obrigatória: `develop`
+- Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.
+- Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.
+
+## Escopo
+- Criar tipos/schemas runtime para os contratos V2.
+- Validar `null`/coleções vazias, IDs, confiança, anchors, locale e bases físicas.
+- Implementar adapters explícitos para consumidores V1 compatíveis.
+- Preservar snapshots históricos sem reinferência.
+- Fixar versão do resolver/contrato em operações pendentes.
+
+## Invariantes
+- `MealSemanticContract` V1 não vira observação pré-resolução.
+- `ml` não vira gramas sem relação comprovada.
+- Ausência nunca vira zero/`verified` por conveniência.
+- Retry/continuação não troca de resolver no meio da operação.
+
+## Critérios de aceite
+- [ ] Schemas V2 rejeitam versões/campos inválidos sem mutação.
+- [ ] Texto/transcrição equivalentes preservam origem distinta.
+- [ ] Snapshot V1 é lido sem reinferência ou recalcular macros.
+- [ ] Pendência versionada sobrevive a restart/retry sem efeito duplicado.
+- [ ] Nenhum entrypoint produtivo é migrado nesta issue.
+
+## Testes e validação
+Testes unitários/contrato de serialização, precedência, monotonicidade, versão desconhecida, `ml` sem densidade e retry/restart.
+
+## Dependências
+- Sem dependência funcional prévia além da ADR vigente e da `develop` atual.
+
+## Fora de escopo
+- Cutover de entrypoints.
+- Thresholds ainda `OPEN`.
+- Promoção global automática.
+
+## Impacto documental
+Atualizar a ADR e demais fontes canônicas somente quando a entrega fechar uma decisão material ou alterar contrato/runtime documentado. Não duplicar a ADR na issue.
+
+## Prontidão
+**Pronta.** É a primeira entrega autorizável pela §21.1.

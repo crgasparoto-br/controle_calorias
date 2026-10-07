@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "control_id": "CODE-GROWTH-001",
+  "status": "passed",
+  "subject_sha": "950803c5fab4310fce6688e778a14f19c3a48d2b",
+  "base_sha": "5fdd877f02f0c778cb0d6564013d62c40f49cf6a",
+  "policy": {
+    "new_file_soft_limit": 300,
+    "new_file_hard_limit": 500,
+    "legacy_growth_allowance": 20,
+    "exempt_path_markers": [
+      "/vendor/",
+      "/node_modules/",
+      "/third_party/",
+      "/migrations/"
+    ],
+    "source": "default"
+  },
+  "files": [
+    {
+      "path": "server/modules/foodIntelligenceV2/adapters.ts",
+      "lines_before": null,
+      "lines_after": 468,
+      "justification": "Adapter V1/V2 concentrado no recorte inicial; permanece abaixo do hard limit e será reduzido em futuras fases de cutover se adquirir novas responsabilidades."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/contracts.ts",
+      "lines_before": null,
+      "lines_after": 350,
+      "justification": "Vocabulário e constantes canônicas do contrato V2 mantidos juntos para impedir divergência de enums e invariantes."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/decisionSchemas.ts",
+      "lines_before": null,
+      "lines_after": 473,
+      "justification": "Schemas de decisão e refinamentos cruzados permanecem coesos e abaixo do hard limit após a divisão do antigo schemas.ts."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/fixtures.ts",
+      "lines_before": null,
+      "lines_after": 368,
+      "justification": "Fixtures sintéticas compartilhadas pelos testes de contrato/adapters; centralizadas para evitar duplicação de payloads extensos."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/observationSchemas.ts",
+      "lines_before": null,
+      "lines_after": 220
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/pendingOperation.ts",
+      "lines_before": null,
+      "lines_after": 400,
+      "justification": "Contrato e store serializável da pendência versionada pertencem ao mesmo recorte de continuidade e permanecem abaixo do hard limit."
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/schemaShared.ts",
+      "lines_before": null,
+      "lines_after": 117
+    },
+    {
+      "path": "server/modules/foodIntelligenceV2/schemas.ts",
+      "lines_before": null,
+      "lines_after": 176
+    }
+  ],
+  "blocking_files": []
+}

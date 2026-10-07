@@ -135,7 +135,7 @@ describe("projeção V2 → DTO V1", () => {
         evidenceIds: [],
       },
       nutrition: { basis: { unit: "ml" } },
-      identity: { evidenceIds: ["ev-nutrition"] },
+      identity: { evidenceIds: [] },
     });
 
     expect(blockerCodes(projection)).toContain(
@@ -188,7 +188,7 @@ describe("projeção V2 → DTO V1", () => {
         isVegetable: false,
         isUltraProcessed: true,
         confidence: 0.7,
-        provisional: false,
+        provisional: true,
         evidenceIds: [],
       },
     });
