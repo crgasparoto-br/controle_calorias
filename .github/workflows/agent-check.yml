@@ -135,6 +135,9 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.VERIFICATION_HEAD_SHA }}
 
+      - name: GitHub-native audit contract self-test
+        run: node scripts/check-github-native-audit-contract.mjs
+
       - name: CI classifier self-test
         run: node --test scripts/ci-classifier.test.mjs
 
