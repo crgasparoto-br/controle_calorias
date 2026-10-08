@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   classify:
-    name: Delivery V2 risk
+    name: CI risk classification
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -43,20 +43,20 @@ jobs:
               per_page: 100,
             });
             require('node:fs').writeFileSync(
-              '/tmp/delivery-v2-changed-paths.json',
+              '/tmp/ci-changed-paths.json',
               JSON.stringify(files.map((file) => file.filename))
             );
 
       - name: Classify PR deterministically
         id: risk
         env:
-          DELIVERY_V2_REQUESTED_RISK: ${{ vars.DELIVERY_V2_RISK_PROFILE || 'auto' }}
-        run: node scripts/delivery-v2-ci-classifier.mjs --paths-file /tmp/delivery-v2-changed-paths.json
+          CI_REQUESTED_RISK: ${{ vars.CI_RISK_PROFILE || vars.DELIVERY_V2_RISK_PROFILE || 'auto' }}
+        run: node scripts/ci-classifier.mjs --paths-file /tmp/ci-changed-paths.json
 
       - name: Publish classification summary
         run: |
           {
-            echo "## Delivery V2 risk"
+            echo "## CI risk classification"
             echo ""
             echo "- Requested: \`${{ steps.risk.outputs.requested_risk }}\`"
             echo "- Effective: \`${{ steps.risk.outputs.risk_profile }}\`"
@@ -103,7 +103,7 @@ jobs:
       - name: Merge preview scope
         run: |
           echo "Merge preview intentionally validates integration/type compatibility only."
-          echo "Vitest executes once on the exact PR head according to Delivery V2 risk."
+          echo "Vitest executes once on the exact PR head according to CI risk classification."
 
   agent-check:
     name: Agent-first gate
@@ -114,13 +114,13 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=4096
       PROFESSIONAL_ACCESS_RECEIPT_STORAGE: memory
       VERIFICATION_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      DELIVERY_V2_RISK_PROFILE: ${{ github.event_name == 'pull_request' && needs.classify.outputs.risk_profile || 'critical' }}
+      CI_RISK_PROFILE: ${{ github.event_name == 'pull_request' && needs.classify.outputs.risk_profile || 'critical' }}
 
     steps:
-      - name: Require Delivery V2 classification
+      - name: Require CI classification
         if: github.event_name == 'pull_request' && needs.classify.result != 'success'
         run: |
-          echo "Delivery V2 classification did not succeed: ${{ needs.classify.result }}"
+          echo "CI classification did not succeed: ${{ needs.classify.result }}"
           exit 1
 
       - name: Require merge-preview integration
@@ -135,8 +135,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ env.VERIFICATION_HEAD_SHA }}
 
-      - name: Delivery V2 classifier self-test
-        run: node --test scripts/delivery-v2-ci-classifier.test.mjs
+      - name: CI classifier self-test
+        run: node --test scripts/ci-classifier.test.mjs
 
       - name: Setup pnpm
         if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile != 'fast'
@@ -298,7 +298,7 @@ jobs:
             "workflow": "${GITHUB_WORKFLOW}",
             "event": "${GITHUB_EVENT_NAME}",
             "ref": "${GITHUB_REF}",
-            "riskProfile": "${DELIVERY_V2_RISK_PROFILE}",
+            "riskProfile": "${CI_RISK_PROFILE}",
             "verifiedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           MANIFEST
@@ -318,10 +318,10 @@ jobs:
           mkdir -p /tmp/agent-first-repository
           git fetch --no-tags origin "${VERIFICATION_HEAD_SHA}"
           git fetch --no-tags origin "${{ github.event.pull_request.base.ref || github.ref_name }}"
-          git update-ref refs/orchestrator/head "${VERIFICATION_HEAD_SHA}"
-          git update-ref refs/orchestrator/base "origin/${{ github.event.pull_request.base.ref || github.ref_name }}"
+          git update-ref refs/ci-verification/head "${VERIFICATION_HEAD_SHA}"
+          git update-ref refs/ci-verification/base "origin/${{ github.event.pull_request.base.ref || github.ref_name }}"
           git bundle create /tmp/agent-first-repository/repository.bundle \
-            refs/orchestrator/head refs/orchestrator/base
+            refs/ci-verification/head refs/ci-verification/base
           git bundle verify /tmp/agent-first-repository/repository.bundle
           cat > /tmp/agent-first-repository/manifest.json <<BUNDLE
           {
@@ -329,7 +329,7 @@ jobs:
             "repository": "${GITHUB_REPOSITORY}",
             "headSha": "${VERIFICATION_HEAD_SHA}",
             "baseRef": "${{ github.event.pull_request.base.ref || github.ref_name }}",
-            "baseSha": "$(git rev-parse refs/orchestrator/base)",
+            "baseSha": "$(git rev-parse refs/ci-verification/base)",
             "runId": "${GITHUB_RUN_ID}",
             "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
@@ -435,7 +435,7 @@ jobs:
             echo "## Agent-first gate"
             echo ""
             echo "Required status check: Agent-first gate"
-            echo "Delivery V2 risk profile: ${DELIVERY_V2_RISK_PROFILE}"
+            echo "CI risk classification profile: ${CI_RISK_PROFILE}"
             echo ""
             echo "PR policy: FAST uses pnpm check + Vitest related + affected build/docs; STANDARD uses pnpm check + pnpm test equivalent once + architecture + build; CRITICAL and pushes use the complete gate."
             echo "Vercel preview/deploy checks are complementary and do not replace this gate."
