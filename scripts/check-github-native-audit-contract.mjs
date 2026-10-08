@@ -21,7 +21,7 @@ function validateContract(value) {
 // Verify the actual job/step structure, not incidental strings elsewhere in YAML.
 // Both the checkout and self-test must be unconditional within the required job.
 function validateWorkflow(source) {
-  const jobMatch = source.match(/^  agent-check:\s*\n([\s\S]*?)(?=^  [\w-]+:\s*$|\s*$)/m);
+  const jobMatch = source.match(/^  agent-check:\s*\n([\s\S]*?)(?=^  [\w-]+:\s*$|(?![\s\S]))/m);
   assert.ok(jobMatch, "agent-check job must exist");
   const job = jobMatch[1];
   assert.match(job, /^    name: Agent-first gate\s*$/m);
