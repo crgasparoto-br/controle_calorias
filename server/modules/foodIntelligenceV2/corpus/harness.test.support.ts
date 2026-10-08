@@ -252,7 +252,8 @@ export interface NegativeControlEvidence {
 /** Consistência de macros entre entradas equivalentes (§1.1). */
 export interface MacroConsistencyResult {
   groupId: string;
-  consistent: boolean;
+  consistent: boolean | null;
+  /** null indica que não houve duas decisões para comparar. */
   divergences: string[];
 }
 
@@ -2647,7 +2648,10 @@ export async function runCorpus(
   }
   // Divergência de macros entre entradas equivalentes bloqueia **sempre**:
   // a tolerância é `OPEN` (§25 item 30) e não existe valor aprovado.
-  if (macroConsistency.some(item => !item.consistent)) {
+  if (macroConsistency.some(item => item.consistent === null)) {
+    blockReasons.push("macro_sample_insufficient");
+  }
+  if (macroConsistency.some(item => item.consistent === false)) {
     blockReasons.push("rounding_tolerance_not_calibrated");
   }
   if (
@@ -3390,7 +3394,7 @@ function buildMacroConsistency(
       entry => outcomeByCaseId.get(entry.caseId)?.rawDecisions ?? []
     );
     if (decisions.length < 2) {
-      results.push({ groupId, consistent: true, divergences: [] });
+      results.push({ groupId, consistent: null, divergences: [] });
       continue;
     }
 
