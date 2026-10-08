@@ -274,6 +274,7 @@ export type CorpusGateStatus = (typeof CORPUS_GATE_STATUSES)[number];
  */
 export const CORPUS_GATE_BLOCK_REASONS = [
   "rounding_tolerance_not_calibrated",
+  "macro_sample_insufficient",
   "revisions_not_pinned",
   "duplicate_cases",
   "split_leakage",
