@@ -3,24 +3,24 @@
   "contract_version": "2026-08-20.3",
   "mode": "independent",
   "status": "rejected",
-  "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
-  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+  "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
   "identity": {
     "repository": "crgasparoto-br/controle_calorias",
     "issue_number": 1299,
     "pull_request_number": 1316,
-    "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-    "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603"
+    "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+    "base_sha": "145288bb88a73d1d55db2be31341e289473d344f"
   },
   "findings": [
     {
-      "id": "A-001",
+      "id": "A-1316-003",
       "disposition": "blocking",
       "status": "open",
       "actionable": true,
       "remediation_mode": "targeted-remediation",
       "severity": "blocking",
-      "reason": "handoff-not-produced",
+      "reason": "quantitative-evidence-path-hash-mismatch",
       "recovery_scope": "handoff-only",
       "requires_refreeze": false
     }

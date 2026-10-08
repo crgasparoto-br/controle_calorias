@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
   "controls": [
     {
       "id": "INH-1299-TARGET-BINDING",
       "status": "passed",
-      "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-      "subject_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+      "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+      "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
       "evidence": "O handoff herdado #1276 foi detectado por comparação de subject/blob e não foi reutilizado.",
-      "evidence_sha256": "4087928c912155a03841f9a044f4b46319dcfc7c94619422213e6f3ecc8c28f1",
+      "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
       "control_type": "procedure",
       "procedure": "Comparar certificate subject e base/head antes de aceitar reuse.",
       "expected": "Somente pacote ligado ao target corrente é aceito.",
@@ -24,9 +24,9 @@
       "id": "INH-DELIVERY-TARGET-001",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+      "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
       "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
-      "evidence_sha256": "eab266745ba6758ebbcd917c1d84be6a3b06b378ac569a87fe6f2acb5e38ef90",
+      "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "Retirement histórico preservado explicitamente no material head atual."
@@ -35,9 +35,9 @@
       "id": "IC-1237-ATOMIC-MOVE",
       "disposition": "not-applicable",
       "reason": "This control belongs to the prior issue-specific delivery lineage and its risk surface is not required by the current issue #1246 presentation contract.",
-      "subject_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+      "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
       "evidence": "Revalidado no pacote current-target da PR 1276; o controle histórico permanece explicitamente retired e não é reutilizado como produto.",
-      "evidence_sha256": "da286db220c4ab5b63454282ef3c513a53d46ce1141a3056572621ce179bf2dc",
+      "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
       "procedure": "Compare the prior control risk binding against the current requirement closure and current-target package identity.",
       "expected": "Foreign issue-specific controls are explicitly retired rather than silently reused.",
       "observed": "Retirement histórico preservado explicitamente no material head atual."

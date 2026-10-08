@@ -3,27 +3,33 @@
   "contract_version": "2026-08-20.3",
   "resolution_policy": "all-actionable-items",
   "source": {
-    "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
-    "audit_report_sha256": "717ca6b4d21720fb96b3baf3dd6837094ba4162ed935a5ca2aa1089f33960685",
-    "audited_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655"
+    "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+    "audit_report_sha256": "54b9904fb8dc4840243e81608a58726d52d41f20017647cc92a4fe41ea8740c0",
+    "audited_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163"
   },
-  "candidate_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "candidate_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
   "remediation_mode": "targeted-remediation",
   "items": [
     {
       "source_kind": "finding",
-      "source_id": "A-001",
+      "source_id": "A-1316-003",
       "remediation_mode": "targeted-remediation",
       "status": "fixed",
-      "closure_kind": "behavioral-fix",
+      "closure_kind": "evidence-path-hash-alignment",
       "changed_files": [
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
         ".audit/entregar-issue/handoff-ready.json"
       ],
       "evidence": [
-        "Certificado herdado da #1276 substituído por pacote current-target para #1299/#1316."
+        "EV-1299-MATCHRATE path/hash aligned to server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts @ f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850.",
+        "Material head remains unchanged and Agent-first gate 37680089191 is completed/success."
       ],
       "validations": [
-        "Material head preservado e CI exact-SHA verde."
+        "Quantitative control now uses the same evidence_id, path, SHA-256, subject_sha and freshness policy certified by evidence-provenance.json."
       ]
     }
   ],

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+  "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
   "requirements": [
     {
       "requirement_id": "R-1299-001",
@@ -23,9 +23,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-001 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-001 passou no material head atual."
@@ -43,9 +43,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-001-01-S1",
@@ -66,9 +66,9 @@
         {
           "id": "REG-R-1299-001",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "7501af7bc33d6059019415f7e8b5bed4c03664c37b9be58d168f04371eb40b2c",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-001 no material head.",
           "observed": "Regressão de R-1299-001 permaneceu verde."
@@ -96,9 +96,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-002 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-002 passou no material head atual."
@@ -116,9 +116,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-002-01-S1",
@@ -139,9 +139,9 @@
         {
           "id": "REG-R-1299-002",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "aa75728e27e09e2861f32172d93c9385c5ec3b6958e4215bff91dc9e0c18814b",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-002 no material head.",
           "observed": "Regressão de R-1299-002 permaneceu verde."
@@ -169,9 +169,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-003 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-003 passou no material head atual."
@@ -189,9 +189,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-003-01-S1",
@@ -212,9 +212,9 @@
         {
           "id": "REG-R-1299-003",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "50ba2f9fa4e4bed58adc29eb331bd9d3a2f93f844ad89a652566a0634f3f26de",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-003 no material head.",
           "observed": "Regressão de R-1299-003 permaneceu verde."
@@ -242,9 +242,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-004 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-004 passou no material head atual."
@@ -262,9 +262,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-004-01-S1",
@@ -285,9 +285,9 @@
         {
           "id": "REG-R-1299-004",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "624eef543daf13525732e821a3abe476e8bd8a8b75f43979ae43d8342d7bcd03",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-004 no material head.",
           "observed": "Regressão de R-1299-004 permaneceu verde."
@@ -315,9 +315,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-005 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-005 passou no material head atual."
@@ -335,9 +335,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-005-01-S1",
@@ -358,9 +358,9 @@
         {
           "id": "REG-R-1299-005",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "b3f94245114ce63adff88693bbf290c2a00db34d0e70750d19971604e5fa7575",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-005 no material head.",
           "observed": "Regressão de R-1299-005 permaneceu verde."
@@ -388,9 +388,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-006 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-006 passou no material head atual."
@@ -408,9 +408,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-006-01-S1",
@@ -431,9 +431,9 @@
         {
           "id": "REG-R-1299-006",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "5781fef59239365e4b5ef6db0682b8dcbbff97802ada3fa04e096e5891b0e5d0",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-006 no material head.",
           "observed": "Regressão de R-1299-006 permaneceu verde."
@@ -461,9 +461,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-007 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-007 passou no material head atual."
@@ -481,9 +481,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-007-01-S1",
@@ -504,9 +504,9 @@
         {
           "id": "REG-R-1299-007",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "dffeff1eea4a31ab82c35ffea8382b2a1c7f9bc884f30dee602e4b847d3604e9",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-007 no material head.",
           "observed": "Regressão de R-1299-007 permaneceu verde."
@@ -534,9 +534,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-008 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-008 passou no material head atual."
@@ -554,9 +554,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-008-01-S1",
@@ -577,9 +577,9 @@
         {
           "id": "REG-R-1299-008",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "939f3ee6fb6303602fd1fe5d64ba811aa511e2b89e05fef435911ef2361c5c59",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-008 no material head.",
           "observed": "Regressão de R-1299-008 permaneceu verde."
@@ -607,9 +607,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-009 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-009 passou no material head atual."
@@ -627,9 +627,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-009-01-S1",
@@ -650,9 +650,9 @@
         {
           "id": "REG-R-1299-009",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "0f680ba65427e5439b58516278624b473b92013c933846da30236c7dc18ad84e",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-009 no material head.",
           "observed": "Regressão de R-1299-009 permaneceu verde."
@@ -680,9 +680,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-010 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-010 passou no material head atual."
@@ -700,9 +700,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-010-01-S1",
@@ -723,9 +723,9 @@
         {
           "id": "REG-R-1299-010",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "177cd88a67d7c47978dec640558bd968a817b291a16997f47387660bf898dd90",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-010 no material head.",
           "observed": "Regressão de R-1299-010 permaneceu verde."
@@ -753,9 +753,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-011 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-011 passou no material head atual."
@@ -773,9 +773,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-011-01-S1",
@@ -796,9 +796,9 @@
         {
           "id": "REG-R-1299-011",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "72f6ceab58bff871c10c54c09c6e000df593d594e524d6e4fac676ae52efde76",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-011 no material head.",
           "observed": "Regressão de R-1299-011 permaneceu verde."
@@ -826,9 +826,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-012 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-012 passou no material head atual."
@@ -846,9 +846,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-012-01-S1",
@@ -869,9 +869,9 @@
         {
           "id": "REG-R-1299-012",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "6b46120c727564fef8ba7ac0ac2abdcf08ddaa971b332113228e9c7e99e6d6dd",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-012 no material head.",
           "observed": "Regressão de R-1299-012 permaneceu verde."
@@ -899,9 +899,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-013 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-013 passou no material head atual."
@@ -919,9 +919,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-013-01-S1",
@@ -942,9 +942,9 @@
         {
           "id": "REG-R-1299-013",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "1ff1e628a3a0aac115bb71773c6c6af4ff4b1dd7347b6c73f8e2690f7b3d4965",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-013 no material head.",
           "observed": "Regressão de R-1299-013 permaneceu verde."
@@ -972,12 +972,12 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
         "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-014 no material exact-SHA.",
-        "observed": "A prova positiva de R-1299-014 passou no material head atual.",
+        "observed": "A evidência quantitativa usa o mesmo path/hash certificado na provenance e permanece vinculada ao material head exact-SHA.",
         "evidence_kind": "quantitative",
         "evidence_id": "EV-1299-MATCHRATE"
       },
@@ -994,9 +994,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-014-01-S1",
@@ -1017,9 +1017,9 @@
         {
           "id": "REG-R-1299-014",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "8b1bc8d697cc0d040fd5e7f87c8abf7b3577dfbf33c1683890ff134ace65b6c2",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-014 no material head.",
           "observed": "Regressão de R-1299-014 permaneceu verde."
@@ -1047,9 +1047,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-015 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-015 passou no material head atual."
@@ -1067,9 +1067,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-015-01-S1",
@@ -1090,9 +1090,9 @@
         {
           "id": "REG-R-1299-015",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "a63006acfe7efc73af85c3c06903a6020a6f3bcec3f07f7692bdb952e865ee10",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-015 no material head.",
           "observed": "Regressão de R-1299-015 permaneceu verde."
@@ -1120,9 +1120,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-016 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-016 passou no material head atual."
@@ -1140,9 +1140,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-016-01-S1",
@@ -1163,9 +1163,9 @@
         {
           "id": "REG-R-1299-016",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "91586dde7a0920aa31c9402072e8f26cefea46e674b0dac1dcc29839c16ee1f2",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-016 no material head.",
           "observed": "Regressão de R-1299-016 permaneceu verde."
@@ -1193,9 +1193,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-017 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-017 passou no material head atual."
@@ -1213,9 +1213,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-017-01-S1",
@@ -1236,9 +1236,9 @@
         {
           "id": "REG-R-1299-017",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "6e943ed4129a3263afe4ebaed3fa65a71fdca82d7598df49ffe18e42748031cf",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-017 no material head.",
           "observed": "Regressão de R-1299-017 permaneceu verde."
@@ -1266,9 +1266,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-018 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-018 passou no material head atual."
@@ -1286,9 +1286,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-018-01-S1",
@@ -1309,9 +1309,9 @@
         {
           "id": "REG-R-1299-018",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "fbf83cf7dd3c51e070a5c5fbd1b220e987a0ded3a4cbce0e958d0c844c31d4a2",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-018 no material head.",
           "observed": "Regressão de R-1299-018 permaneceu verde."
@@ -1339,9 +1339,9 @@
       "plausible_wrong_implementation": "Usar a saída do resolvedor como oráculo, omitir caso negativo ou deixar holdout influenciar medição.",
       "positive_control": {
         "status": "passed",
-        "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37610028267",
-        "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+        "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+        "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts + Agent-first gate 37680089191",
+        "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
         "control_type": "test",
         "procedure": "Executar prova positiva de R-1299-019 no material exact-SHA.",
         "observed": "A prova positiva de R-1299-019 passou no material head atual."
@@ -1359,9 +1359,9 @@
           "observed": "Os self-tests adversariais rejeitaram convergência errada e escrita indevida.",
           "control_type": "test",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
           "evidence": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
-          "evidence_sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "sibling_cases": [
             {
               "id": "NC-R-1299-019-01-S1",
@@ -1382,9 +1382,9 @@
         {
           "id": "REG-R-1299-019",
           "status": "passed",
-          "head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
-          "evidence": "Agent-first gate 37610028267",
-          "evidence_sha256": "738ad86600efc9761fcf6507daad50d3c235ce8cb043b686340b89089bc17ac7",
+          "head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+          "evidence": "Agent-first gate 37680089191",
+          "evidence_sha256": "9ad15cd8dc8206231f7c18a73ee7b470bd42fde06c9843b964a8c5646313d2d2",
           "control_type": "test",
           "procedure": "Reexecutar regressão de R-1299-019 no material head.",
           "observed": "Regressão de R-1299-019 permaneceu verde."

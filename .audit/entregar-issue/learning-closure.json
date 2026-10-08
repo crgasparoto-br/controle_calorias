@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
-    "audit_report_sha256": "717ca6b4d21720fb96b3baf3dd6837094ba4162ed935a5ca2aa1089f33960685",
+    "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+    "audit_report_sha256": "54b9904fb8dc4840243e81608a58726d52d41f20017647cc92a4fe41ea8740c0",
     "finding_ids": [
-      "A-001"
+      "A-1316-003"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "Correção targeted de readiness/handoff; nenhuma regra global adicional é necessária."
+    "reason": "Correção targeted de coerência path/hash da evidência quantitativa; sem mudança funcional ou regra global nova."
   },
   "skill_changes": []
 }
