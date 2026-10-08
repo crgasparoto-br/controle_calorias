@@ -250,6 +250,32 @@ describe("harness do Golden Food Corpus", () => {
     }
   });
 
+  it("bloqueia consistência de macros sem duas decisões comparáveis", async () => {
+    const groupId = "g-acento-pao-frances";
+    const members = goldenFoodCorpus.cases
+      .filter(entry => entry.metamorphicGroup === groupId)
+      .map(entry => entry.caseId);
+    expect(members.length).toBeGreaterThanOrEqual(2);
+    const delegate = reference();
+    const report = await runCorpus(
+      goldenFoodCorpus,
+      {
+        id: "test:macro-insufficient",
+        revision: "1",
+        resolve: request =>
+          members.includes(request.case.caseId) &&
+          request.case.caseId !== members[0]
+            ? { decisions: [] }
+            : delegate.resolve(request),
+      },
+      pinned
+    );
+    const result = report.macroConsistency.find(item => item.groupId === groupId);
+    expect(result?.consistent).toBeNull();
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("macro_sample_insufficient");
+  });
+
   it("bloqueia divergência de macros enquanto a tolerância estiver OPEN", async () => {
     const corpus = corpusWith(corpusValue => ({
       ...corpusValue,
