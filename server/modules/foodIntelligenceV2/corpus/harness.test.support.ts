@@ -993,15 +993,23 @@ export function inspectCorpusIntegrity(
     // aprendizado efetivamente declarado. Uma flag isolada jamais pode
     // remover ocorrências da verificação de vazamento.
     const scenarioId = entries[0].learningScenarioId;
+    const declaredReuse = entries.filter(
+      entry => entry.scenario.intentionalSurfaceReuse
+    );
     const authorizedReuse =
       scenarioId !== null &&
       scenarioById.has(scenarioId) &&
+      // Uma flag isolada não pode liberar uma colisão entre partições.
+      declaredReuse.length >= 2 &&
       entries.every(
         entry =>
-          entry.scenario.intentionalSurfaceReuse &&
           entry.learningScenarioId === scenarioId &&
           stepsByCase.get(entry.caseId)?.scenarioId === scenarioId
-      );
+      ) &&
+      // A repetição autorizada é a sequência de estado anterior e
+      // persistência/restart declarada pelo mesmo cenário de aprendizado.
+      declaredReuse.some(entry => entry.split === "acquisition") &&
+      declaredReuse.some(entry => entry.split === "holdout");
     if (allSplits.length > 1 && !authorizedReuse) {
       splitLeakage.push({
         key,
