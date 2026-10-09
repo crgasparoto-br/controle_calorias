@@ -357,6 +357,63 @@ describe("autoverificação do harness", () => {
     expect(report.gate.blockReasons).toContain("split_leakage");
   });
 
+  it("bloqueia vazamento quando apenas uma ocorrência declara reutilização", () => {
+    const original = goldenFoodCorpus.cases.find(
+      entry => entry.caseId === "c-panco-pao-forma"
+    )!;
+    const leak = goldenCorpusSchema.parse({
+      ...goldenFoodCorpus,
+      cases: [
+        { ...original, metamorphicGroup: null, learningScenarioId: null },
+        {
+          ...original,
+          caseId: "c-panco-holdout-partial-reuse",
+          split: "holdout",
+          metamorphicGroup: null,
+          learningScenarioId: null,
+          scenario: { ...original.scenario, intentionalSurfaceReuse: true },
+        },
+      ],
+      learningScenarios: [],
+    });
+    const integrity = inspectCorpusIntegrity(leak);
+    expect(integrity.splitLeakage).toHaveLength(1);
+    expect(integrity.splitLeakage[0].caseIds).toEqual([
+      "c-panco-holdout-partial-reuse",
+      "c-panco-pao-forma",
+    ]);
+    expect(integrity.status).toBe("invalid");
+  });
+
+  it("não aceita flags de reutilização sem cenário de aprendizado autorizado", () => {
+    const original = goldenFoodCorpus.cases.find(
+      entry => entry.caseId === "c-panco-pao-forma"
+    )!;
+    const leak = goldenCorpusSchema.parse({
+      ...goldenFoodCorpus,
+      cases: [
+        {
+          ...original,
+          metamorphicGroup: null,
+          learningScenarioId: null,
+          scenario: { ...original.scenario, intentionalSurfaceReuse: true },
+        },
+        {
+          ...original,
+          caseId: "c-panco-holdout-fake-reuse",
+          split: "holdout",
+          metamorphicGroup: null,
+          learningScenarioId: null,
+          scenario: { ...original.scenario, intentionalSurfaceReuse: true },
+        },
+      ],
+      learningScenarios: [],
+    });
+    const integrity = inspectCorpusIntegrity(leak);
+    expect(integrity.splitLeakage).toHaveLength(1);
+    expect(integrity.status).toBe("invalid");
+  });
+
   it("detecta classe de decisão declarada divergente da derivada", async () => {
     const clarification = goldenFoodCorpus.cases.find(
       entry => entry.caseId === "c-erro-transcricao"
