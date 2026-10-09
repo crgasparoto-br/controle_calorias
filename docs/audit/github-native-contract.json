@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "canonical": true,
+  "audit_mode": "native-github",
+  "legacy_handoff_policy": "not-required",
+  "github_native_identity": true,
+  "exact_sha_evidence": true,
+  "independent_review": true,
+  "remote_ci_evidence": true,
+  "required_check": "Agent-first gate",
+  "trusted_anchor": "pull_request.base.sha",
+  "audit_contract_version": "2026-10-08.1"
+}

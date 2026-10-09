@@ -20,7 +20,7 @@
 
 Status check obrigatório:
 
-- [ ] `Delivery V2 risk` classificou a PR e `Agent-first gate` passou no `head_sha` exato contra `main` ou `develop`
+- [ ] `CI risk classification` classificou a PR e `Agent-first gate` passou no `head_sha` exato contra `main` ou `develop`
 - Perfil efetivo: <!-- FAST / STANDARD / CRITICAL -->
 - Promoção de risco: <!-- sim / não / não aplicável -->
 
@@ -44,7 +44,7 @@ Banco e integridade:
 Vercel:
 
 - Preview/deploy: <!-- passou / falhou por código / falhou por limite externo / não aplicável -->
-- Observação: Vercel não substitui `Agent-first gate` nem os comandos exigidos pelo perfil Delivery V2.
+- Observação: Vercel não substitui `Agent-first gate` nem os comandos exigidos pelo perfil CI local.
 
 ## Riscos e pendências
 

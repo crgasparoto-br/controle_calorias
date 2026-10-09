@@ -26,16 +26,16 @@ Este projeto usa um gate de validação antes de merge para reduzir regressões 
 
 ## Gate obrigatório de `main` e validação automática de `develop`
 
-PRs contra `main` e `develop` devem aguardar o status check obrigatório `Agent-first gate`. Esse continua sendo o único nome que precisa permanecer configurado em branch protection ou ruleset. Internamente, o workflow usa a classificação determinística **Delivery V2** para escolher o menor gate seguro para o diff.
+PRs contra `main` e `develop` devem aguardar o status check obrigatório `Agent-first gate`. Esse continua sendo o único nome que precisa permanecer configurado em branch protection ou ruleset. Internamente, o workflow usa a classificação determinística **CI local** para escolher o menor gate seguro para o diff.
 
 Em PRs, a cadeia é:
 
-1. `Delivery V2 risk` lê somente a lista de arquivos alterados e classifica a mudança sem IA;
+1. `CI risk classification` lê somente a lista de arquivos alterados e classifica a mudança sem IA;
 2. `Merge preview integration` valida compatibilidade TypeScript do merge preview quando há código, mas **não repete a suíte Vitest**;
 3. `Agent-first gate` faz checkout explícito do `head_sha` da PR e executa o perfil efetivo;
 4. o manifesto e o bundle de evidência continuam vinculados ao `head_sha` exato.
 
-### Perfis Delivery V2
+### Perfis de risco do CI
 
 | Perfil | Quando | Gate da PR |
 |---|---|---|
@@ -43,7 +43,7 @@ Em PRs, a cadeia é:
 | **STANDARD** | backend ou comportamento não sensível | `pnpm check`, suíte equivalente a `pnpm test` uma vez, `pnpm architecture:check`, `pnpm build` e docs quando aplicável |
 | **CRITICAL** | workflow, auth, segurança, banco/migration, WhatsApp, IA, billing, nutrição/refeições, shared, lockfiles ou caminho desconhecido | gate completo atual no `head_sha`: suíte completa uma vez, arquitetura, docs, build, `pnpm agent:check` e banco quando disponível |
 
-A classificação é fail-closed. Um perfil solicitado por configuração pode aumentar o rigor, mas nunca reduzir o risco observado. Caminhos desconhecidos viram `CRITICAL`. A variável opcional de repositório `DELIVERY_V2_RISK_PROFILE` pode solicitar `auto`, `fast`, `standard` ou `critical`; `auto` é o comportamento padrão.
+A classificação é fail-closed. Um perfil solicitado por configuração pode aumentar o rigor, mas nunca reduzir o risco observado. Caminhos desconhecidos viram `CRITICAL`. A variável opcional de repositório `CI_RISK_PROFILE` pode solicitar `auto`, `fast`, `standard` ou `critical`; `auto` é o comportamento padrão.
 
 O ganho de performance do piloto vem principalmente de duas regras: a suíte completa não roda mais no merge preview e no exact head da mesma PR; e um `FAST` usa somente regressão relacionada. Este piloto ainda mantém os 24 shards sequenciais para a suíte completa, evitando misturar otimização de cobertura com paralelização na mesma mudança.
 
@@ -55,13 +55,13 @@ Push direto para `develop` deve continuar sendo exceção operacional. Quando ac
 
 Para áreas sensíveis, a PR deve registrar:
 
-- classificação Delivery V2 e status do check `Agent-first gate`;
+- classificação CI local e status do check `Agent-first gate`;
 - comandos relevantes executados pelo workflow ou localmente;
 - se `pnpm db:check-integrity` foi executado ou pulado;
 - validação alternativa ou risco residual quando `DATABASE_URL` não estiver disponível;
 - status do preview/deploy Vercel, quando existir.
 
-Vercel preview/deploy é evidência complementar. Ele não substitui o `Agent-first gate`. Os comandos obrigatórios são determinados pelo perfil Delivery V2 e pela tabela de gate mínimo acima; áreas sensíveis continuam exigindo o gate completo.
+Vercel preview/deploy é evidência complementar. Ele não substitui o `Agent-first gate`. Os comandos obrigatórios são determinados pelo perfil CI local e pela tabela de gate mínimo acima; áreas sensíveis continuam exigindo o gate completo.
 
 ## O que cada comando cobre
 
@@ -90,7 +90,7 @@ A validação local deve ser registrada na PR com os comandos executados e o res
 
 Além dos comandos automatizados, use smoke tests manuais quando a mudança tocar fluxos de usuário ou integrações externas. Exemplos: login/logout para autenticação, envio e recebimento de webhook para WhatsApp, OAuth/callback para Strava, inferência de refeição para OpenAI ou cálculo de metas/refeições para o fluxo nutricional.
 
-O CI executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Em PRs, `Delivery V2 risk` determina `FAST`, `STANDARD` ou `CRITICAL`; `Merge preview integration` verifica compatibilidade do merge preview sem executar Vitest; e o required status `Agent-first gate` valida o `head_sha` exato com o conjunto correspondente ao risco. O manifesto registra `checkoutSha`, `headSha` e `riskProfile` e falha se o checkout divergir do head. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` permanece obrigatória para o caminho CRITICAL quando `DATABASE_URL` estiver disponível; quando o CI pular esse passo, a PR deve informar validação alternativa ou risco residual quando aplicável.
+O CI executa o workflow `Agent-first gate` em PRs, em push para `main` e em push para `develop`. Em PRs, `CI risk classification` determina `FAST`, `STANDARD` ou `CRITICAL`; `Merge preview integration` verifica compatibilidade do merge preview sem executar Vitest; e o required status `Agent-first gate` valida o `head_sha` exato com o conjunto correspondente ao risco. O manifesto registra `checkoutSha`, `headSha` e `riskProfile` e falha se o checkout divergir do head. O projeto também usa Vercel para preview/deploy check. A validação `pnpm db:check-integrity` permanece obrigatória para o caminho CRITICAL quando `DATABASE_URL` estiver disponível; quando o CI pular esse passo, a PR deve informar validação alternativa ou risco residual quando aplicável.
 
 Em push para `develop/main`, a regressão completa permanece obrigatória. Portanto, reduzir o custo de uma PR FAST não elimina a verificação integral do branch integrado.
 
@@ -99,7 +99,15 @@ Se algum gate crítico deixar de existir no CI ou não cobrir um comando obrigat
 ## Antes de abrir ou aprovar PR
 
 1. Confirme se a mudança toca alguma área sensível.
-2. Confira a classificação Delivery V2 e rode localmente o gate correspondente à tabela acima.
+2. Confira a classificação CI local e rode localmente o gate correspondente à tabela acima.
 3. Atualize documentação gerada/manualizada quando alterar schema, router, contratos ou comportamento operacional.
 4. Registre na PR os comandos executados, checks de CI observados, smoke tests manuais e limitações.
 5. Não faça merge com comando obrigatório falhando sem explicitar causa, impacto e plano de correção.
+
+## Independência do CI (#1317)
+
+A classificação FAST/STANDARD/CRITICAL reside em `.ci/policy.json`, `.ci/risk-profile.mjs` e `scripts/ci-classifier.mjs`. É determinística, local e não consulta nem executa delivery-orchestrator, skills ou IA. `CI_RISK_PROFILE` aceita `auto|fast|standard|critical`; o nome legado `DELIVERY_V2_RISK_PROFILE` é aceito apenas como fallback temporário de configuração, sem reduzir o risco observado. Migre a variável do repositório para `CI_RISK_PROFILE` antes de remover o alias.
+
+O nome do required status `Agent-first gate` permanece inalterado para preservar o ruleset atual. A renomeação do status, se desejada, exige atualização coordenada de branch protection sem janela sem proteção. O merge preview verifica compatibilidade de tipos; o gate final verifica o head exato e conserva Vitest em 24 shards, docs, arquitetura, build, validação TiDB e artefatos. O bundle de repositório é retido temporariamente até confirmação de consumidores e decisão de descontinuação. Os arquivos históricos `.delivery-v2/` não participam mais do CI e só devem ser removidos após conferência dos consumidores.
+
+Execute localmente: `node --test scripts/ci-classifier.test.mjs` e `pnpm exec tsx scripts/check-ci-gate-docs.ts` antes de enviar mudanças operacionais.

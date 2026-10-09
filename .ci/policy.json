@@ -1,0 +1,54 @@
+{
+  "repository": "crgasparoto-br/controle_calorias",
+  "riskPolicy": {
+    "criticalPathFragments": [
+      "whatsapp",
+      "webhook",
+      "nutrition",
+      "nutritional",
+      "meal",
+      "refeicao",
+      "food",
+      "subscription",
+      "asaas",
+      "strava",
+      "health",
+      "openai",
+      "gemini",
+      "ai-provider",
+      "aiprovider"
+    ],
+    "criticalPaths": [
+      "agents.md",
+      "contributing.md",
+      ".github/pull_request_template.md",
+      ".github/branch-protection-main.md",
+      "scripts/ci-classifier.mjs",
+      "scripts/ci-classifier.test.mjs",
+      ".ci/policy.json",
+      ".ci/risk-profile.mjs",
+      ".ci/repository-risk-policy.mjs",
+      "scripts/check-ci-gate-docs.ts"
+    ],
+    "criticalRoots": [
+      "drizzle",
+      "shared",
+      "patches",
+      "server/_core/ai",
+      "server/modules/billing"
+    ],
+    "fastSafeRoots": [
+      "client/src/components",
+      "client/src/pages",
+      "client/src/styles",
+      "client/src/assets",
+      "client/public",
+      "docs"
+    ],
+    "standardRoots": [
+      "client/src",
+      "server"
+    ]
+  },
+  "schemaVersion": 1
+}
