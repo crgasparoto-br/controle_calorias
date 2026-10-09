@@ -459,6 +459,141 @@ describe("autoverificação do harness", () => {
     );
   });
 
+  it.each(["identity", "nutrition-origin"])(
+    "bloqueia falha metamórfica de %s mesmo acima da meta global",
+    async mutation => {
+      const reference = createReferenceResolver(corpus);
+      const report = await runCorpus(
+        corpus,
+        {
+          id: `test:metamorphic-${mutation}`,
+          revision: "1",
+          async resolve(request) {
+            const result = structuredClone(await reference.resolve(request));
+            if (request.case.caseId === "c-acento-ausente") {
+              const decision = result.decisions[0];
+              if (mutation === "identity") {
+                decision.identity.canonicalName = "pão integral";
+              } else {
+                for (const evidence of decision.evidence) {
+                  if (evidence.field.startsWith("nutrition."))
+                    evidence.origin = "barcode";
+                }
+              }
+            }
+            return result;
+          },
+        },
+        pinned
+      );
+      expect(report.overall.matchRate).toBeGreaterThan(
+        GOLDEN_CORPUS_MIN_MATCH_RATE
+      );
+      expect(
+        report.metamorphic.find(
+          group => group.groupId === "g-acento-pao-frances"
+        )?.converged
+      ).toBe(false);
+      expect(report.gate.status).toBe("blocked");
+      expect(report.gate.blockReasons).toContain("metamorphic_failure");
+      if (mutation === "nutrition-origin")
+        expect(report.failures).toStrictEqual([]);
+      else expect(allCodes(report)).toContain("identity_mismatch");
+    }
+  );
+
+  it.each([false, true])(
+    "compara macros por alimento em lotes equivalentes (divergência: %s)",
+    async drift => {
+      const reference = createReferenceResolver(corpus);
+      const report = await runCorpus(
+        corpus,
+        {
+          id: "test:batch-macros",
+          revision: "1",
+          async resolve(request) {
+            const result = structuredClone(await reference.resolve(request));
+            if (
+              ["c-pontuacao-com-virgula", "c-pontuacao-sem-virgula"].includes(
+                request.case.caseId
+              )
+            ) {
+              for (const decision of result.decisions) {
+                if (
+                  decision.identity.canonicalName === "feijão" &&
+                  decision.nutrition.consumed
+                ) {
+                  decision.nutrition.consumed.calories =
+                    drift && request.case.caseId === "c-pontuacao-sem-virgula"
+                      ? 201
+                      : 200;
+                }
+              }
+              if (request.case.caseId === "c-pontuacao-sem-virgula")
+                result.decisions.reverse();
+            }
+            return result;
+          },
+        },
+        pinned
+      );
+      expect(report.failures).toStrictEqual([]);
+      expect(
+        report.metamorphic.find(group => group.groupId === "g-pontuacao-lista")
+          ?.converged
+      ).toBe(true);
+      const macros = report.macroConsistency.find(
+        group => group.groupId === "g-pontuacao-lista"
+      );
+      expect(macros?.consistent).toBe(!drift);
+      expect(report.gate.status).toBe(drift ? "blocked" : "passed");
+      if (drift)
+        expect(report.gate.blockReasons).toContain(
+          "rounding_tolerance_not_calibrated"
+        );
+    }
+  );
+
+  it("preserva multiplicidade no pareamento de macros de itens repetidos", async () => {
+    const repeated = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases
+        .filter(entry => entry.metamorphicGroup === "g-pontuacao-lista")
+        .map(entry => ({
+          ...entry,
+          expected: {
+            ...entry.expected,
+            decisions: [0, 1, 2].map(index => ({
+              ...entry.expected.decisions[0],
+              label: `arroz-${index}`,
+            })),
+          },
+        })),
+      learningScenarios: [],
+    });
+    const reference = createReferenceResolver(repeated);
+    const report = await runCorpus(
+      repeated,
+      {
+        id: "test:repeated-batch-macros",
+        revision: "1",
+        async resolve(request) {
+          const result = structuredClone(await reference.resolve(request));
+          result.decisions.forEach((decision, index) => {
+            if (decision.nutrition.consumed)
+              decision.nutrition.consumed.calories = 100 + index;
+          });
+          if (request.case.caseId === "c-pontuacao-sem-virgula")
+            result.decisions.reverse();
+          return result;
+        },
+      },
+      pinned
+    );
+    expect(report.gate.status).toBe("passed");
+    expect(report.macroConsistency[0].consistent).toBe(true);
+  });
+
   it("não promove abstenção total a aprovação", async () => {
     const report = await runGoldenFoodCorpus(
       createAlwaysClarifyResolver(corpus),

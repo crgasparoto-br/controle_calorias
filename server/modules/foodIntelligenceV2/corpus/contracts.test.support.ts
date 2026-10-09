@@ -279,6 +279,7 @@ export const CORPUS_GATE_BLOCK_REASONS = [
   "duplicate_cases",
   "split_leakage",
   "negative_control_convergence",
+  "metamorphic_failure",
   "holdout_knowledge_write",
   "scenario_invariant_violated",
   "corpus_invalid",

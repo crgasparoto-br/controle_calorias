@@ -3027,7 +3027,12 @@ substitui o segmento.
 
 Grupos metamórficos são verificados **contra a referência independente**; duas
 entradas que convergem para o mesmo resultado errado reprovam
-(`negative_control_convergence`). A divergência de macros entre entradas
+(`negative_control_convergence`). Qualquer grupo sem convergência ou com
+membro divergente da referência bloqueia com `metamorphic_failure`, mesmo
+quando a taxa global supera 95%. A comparação de macros associa itens
+semanticamente correspondentes entre entradas, preservando multiplicidade e
+independência da ordem; alimentos distintos do mesmo lote não precisam ter
+macros iguais. A divergência de macros entre entradas
 equivalentes **bloqueia** enquanto a tolerância de arredondamento permanecer
 `OPEN` (§25, item 30): o harness não preenche tolerância arbitrária. Medição
 com revisão não fixada bloqueia (`revisions_not_pinned`), porque evidência sem

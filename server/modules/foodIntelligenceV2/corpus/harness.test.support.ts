@@ -2633,6 +2633,9 @@ export async function runCorpus(
       blockReasons.push("undeclared_equivalence");
     }
   }
+  if (metamorphic.some(item => !item.converged || !item.allMatchReference)) {
+    blockReasons.push("metamorphic_failure");
+  }
   if (wrongConvergence.length > 0 || convergedControls.length > 0) {
     blockReasons.push("negative_control_convergence");
   }
@@ -3390,29 +3393,61 @@ function buildMacroConsistency(
 
   const results: MacroConsistencyResult[] = [];
   for (const [groupId, entries] of groups) {
-    const decisions = entries.flatMap(
-      entry => outcomeByCaseId.get(entry.caseId)?.rawDecisions ?? []
-    );
-    if (decisions.length < 2) {
-      results.push({ groupId, consistent: null, divergences: [] });
-      continue;
-    }
-
-    const baseline = extractMacros(decisions[0]);
+    // Compare alimentos correspondentes entre entradas, nunca alimentos
+    // distintos do mesmo lote. O pareamento é um multiconjunto: ordem não é
+    // contrato e ocorrências repetidas não podem reutilizar a mesma decisão.
+    const baseline = outcomeByCaseId.get(entries[0].caseId)?.rawDecisions ?? [];
+    let sampleMissing = baseline.length === 0;
     const divergences: string[] = [];
-    for (const decision of decisions.slice(1)) {
-      const current = extractMacros(decision);
-      for (let index = 0; index < baseline.length; index += 1) {
-        const a = baseline[index];
-        const b = current[index];
-        if (!withinTolerance(a.value, b.value, tolerance)) {
-          divergences.push(`${a.key}: ${String(a.value)} ≠ ${String(b.value)}`);
+    for (const entry of entries.slice(1)) {
+      const remaining = [
+        ...(outcomeByCaseId.get(entry.caseId)?.rawDecisions ?? []),
+      ];
+      if (remaining.length !== baseline.length) sampleMissing = true;
+      for (const decision of baseline) {
+        const pairingProjection = (item: FoodResolutionDecision) => {
+          const projected = projectDecision(item);
+          // Gramatura e volume são resultados da conversão nutricional:
+          // pertencem à comparação abaixo, não à seleção do par.
+          return {
+            ...projected,
+            quantity: { ...projected.quantity, grams: null, milliliters: null },
+          };
+        };
+        const projected = pairingProjection(decision);
+        const candidates = remaining
+          .map((candidate, index) => ({ candidate, index }))
+          .filter(({ candidate }) =>
+            decisionsSemanticallyEqual(projected, pairingProjection(candidate))
+          );
+        const differences = (candidate: FoodResolutionDecision): string[] => {
+          const current = extractMacros(candidate);
+          return extractMacros(decision).flatMap((a, index) => {
+            const b = current[index];
+            return withinTolerance(a.value, b.value, tolerance)
+              ? []
+              : [
+                  `${decision.identity.canonicalName ?? "item"} / ${a.key}: ${String(a.value)} ≠ ${String(b.value)}`,
+                ];
+          });
+        };
+        // Procure primeiro um par completo; isso preserva duplicatas com
+        // macros diferentes quando o resolvedor muda apenas a ordem.
+        const exact = candidates.find(
+          ({ candidate }) => differences(candidate).length === 0
+        );
+        const match = exact ?? candidates[0];
+        if (!match) {
+          sampleMissing = true;
+          continue;
         }
+        divergences.push(...differences(match.candidate));
+        remaining.splice(match.index, 1);
       }
     }
     results.push({
       groupId,
-      consistent: divergences.length === 0,
+      consistent: sampleMissing ? null : divergences.length === 0,
       divergences: [...new Set(divergences)].sort(),
     });
   }

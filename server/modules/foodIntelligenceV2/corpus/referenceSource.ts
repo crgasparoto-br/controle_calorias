@@ -30,7 +30,7 @@ export const CANONICAL_ADR_PATH =
  * a referência precisa ser reexaminada, não herdada.
  */
 export const CANONICAL_ADR_SHA256 =
-  "9961f90f09e76465a892757f498dbcbcf616a6a6c97ab13706e55df6824c1671";
+  "e78ba7049297ea320dbe699e7cdf51df4d7091d2c923857b7df84a66fa54885b";
 
 export interface CanonicalReference {
   readonly path: string;
