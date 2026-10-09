@@ -988,18 +988,25 @@ export function inspectCorpusIntegrity(
     // Repetição intencional da mesma superfície/chave é exigida por §16.1
     // (persistência/restart e revogação). Fora dela, a mesma superfície em
     // partições diferentes vaza a resposta para o holdout (§16.2).
-    const undeclared = entries.filter(
-      entry => !entry.scenario.intentionalSurfaceReuse
-    );
-    const undeclaredSplits = [...new Set(undeclared.map(entry => entry.split))];
-    if (
-      undeclaredSplits.length > 1 &&
-      new Set(undeclared.map(groupToken)).size > 1
-    ) {
+    const allSplits = [...new Set(entries.map(entry => entry.split))];
+    // A exceção é coletiva e só vale para passos do mesmo cenário de
+    // aprendizado efetivamente declarado. Uma flag isolada jamais pode
+    // remover ocorrências da verificação de vazamento.
+    const scenarioId = entries[0].learningScenarioId;
+    const authorizedReuse =
+      scenarioId !== null &&
+      scenarioById.has(scenarioId) &&
+      entries.every(
+        entry =>
+          entry.scenario.intentionalSurfaceReuse &&
+          entry.learningScenarioId === scenarioId &&
+          stepsByCase.get(entry.caseId)?.scenarioId === scenarioId
+      );
+    if (allSplits.length > 1 && !authorizedReuse) {
       splitLeakage.push({
         key,
-        caseIds: undeclared.map(entry => entry.caseId).sort(),
-        splits: undeclaredSplits.sort(),
+        caseIds: entries.map(entry => entry.caseId).sort(),
+        splits: allSplits.sort(),
       });
     }
   }
