@@ -15,8 +15,8 @@
  *   `resolve()` (§18);
  * - nenhum limiar numérico novo é aprovado aqui (§25 permanece `OPEN` fora da
  *   meta de §1.1);
- * - o módulo não é servido por produção (Fase A); a fronteira é travada por
- *   `noProductionConsumer.test.ts`.
+ * - o módulo não é servido por produção (Fase A); a fronteira é verificada por
+ *   `../noProductionConsumer.test.ts` (diretório pai `foodIntelligenceV2/`).
  */
 import { z } from "zod";
 import {
