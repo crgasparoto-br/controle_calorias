@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "material_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
-  "base_sha": "3ddb8e68b648c6da3de9a7732fffb3438783cd9c",
+  "material_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+  "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603",
   "evidence": [
     {
-      "evidence_id": "EV-1276-NUTRITION",
+      "evidence_id": "EV-1299-MATCHRATE",
       "kind": "quantitative",
-      "path": "server/countableFoodQuantity.issue1097.test.ts",
-      "sha256": "b6575b066b0af1bd2892cbb6136562b01f8144554aed57b9868f9fae2765f2f1",
-      "subject_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "path": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+      "sha256": "f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850",
+      "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
       "freshness_policy": "exact-material-head",
-      "producer": "focused exact-head regression execution",
+      "producer": "Agent-first gate 37680089191 exact-head (Full tests reached/passed) + unchanged corpus self-test blob",
       "status": "passed"
     }
   ]

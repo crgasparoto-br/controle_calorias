@@ -1,0 +1,47 @@
+Parent: #1297
+
+## Objetivo
+Criar o corpus versionado e o harness reproduzível que será a referência independente para regressão, equivalência e calibração do Food Intelligence V2.
+
+## Fonte canônica
+- `docs/design-docs/adr-food-intelligence-resolver-v2.md`
+- Seções principais: §1.1, §4.1.8, §8.12, §16, §16.1, §16.2, §17, §18
+- Base obrigatória: `develop`
+- Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.
+- Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.
+
+## Escopo
+- Modelar casos positivos, negativos, ambiguidades, clarificações e rejeições.
+- Cobrir texto, áudio/transcrição, imagem/OCR e variações equivalentes quando houver evidência comparável.
+- Importar incidentes históricos representativos como casos de domínio, não como arquivos por issue.
+- Separar aquisição/calibração/holdout.
+- Registrar revisões de código, conhecimento, léxico, modelo e política.
+
+## Invariantes
+- Resultado esperado é independente da saída do resolvedor.
+- Duas entradas que convergem para o mesmo resultado errado reprovam.
+- Holdout não alimenta aliases/prompts/promoção durante medição.
+- Mocks não substituem o resolvedor sob teste.
+
+## Critérios de aceite
+- [ ] Corpus possui referência esperada versionada e controles negativos.
+- [ ] Meta ≥95% é calculável sobre todos os casos resolvíveis rotulados.
+- [ ] Clarificação/rejeição esperadas são verificáveis.
+- [ ] Testes metamórficos cobrem equivalência de superfície.
+- [ ] Harness produz relatório por modalidade/classe, não apenas média global.
+
+## Testes e validação
+Testar o próprio harness com casos propositalmente errados, denominador zero, duplicatas, controles negativos e versões diferentes.
+
+## Dependências
+- Sem dependência funcional prévia além da ADR vigente e da `develop` atual.
+
+## Fora de escopo
+- Aprovar thresholds numéricos.
+- Servir resultado V2 em produção.
+
+## Impacto documental
+Atualizar a ADR e demais fontes canônicas somente quando a entrega fechar uma decisão material ou alterar contrato/runtime documentado. Não duplicar a ADR na issue.
+
+## Prontidão
+**Pronta.** Base para calibrações e gates posteriores.

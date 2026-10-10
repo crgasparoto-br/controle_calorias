@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "material_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+  "workflow_run": {
+    "id": 37680089191,
+    "name": "Agent-first gate",
+    "status": "completed",
+    "conclusion": "success",
+    "full_tests": {
+      "reached": true,
+      "passed": true
+    },
+    "typescript": {
+      "reached": true,
+      "passed": true
+    },
+    "architecture": {
+      "reached": true,
+      "passed": true
+    },
+    "documentation": {
+      "reached": true,
+      "passed": true
+    },
+    "build": {
+      "reached": true,
+      "passed": true
+    },
+    "database_integrity": {
+      "reached": true,
+      "passed": true
+    }
+  },
+  "quantitative_evidence": {
+    "id": "EV-1299-MATCHRATE",
+    "path": "server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts",
+    "git_blob_sha": "c47620644157e5cb11e5df648971fe0438f38df8",
+    "unchanged_from_prior_material": true,
+    "observation": "Full tests reached and passed on the exact material head; the corpus self-test blob is unchanged from the previously measured material."
+  }
+}

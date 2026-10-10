@@ -28,7 +28,7 @@
       "detection_change": {
         "evidence": "Terminal verification compares certificate subject and result-only parent/path allowlist."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:a09af757-9151-491c-991e-6c7cf82923ff",
@@ -40,7 +40,7 @@
       "literal_case": {
         "procedure": "Compare inherited certificate subject to current PR target before publication.",
         "expected": "Foreign issue 1259 / PR 1260 package is rejected and replaced.",
-        "observed": "O controle de subject estrangeiro foi revalidado como padrão cumulativo no pacote current-target; o novo finding da PR 1276 possui entrada própria.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
         "status": "passed"
       },
       "required_risk_families": [
@@ -101,7 +101,7 @@
       "detection_change": {
         "evidence": "O preflight compara certificado atual com a base imutável e rejeita subject estrangeiro antes da auditoria funcional."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:1276-handoff-readiness-001",
@@ -113,7 +113,7 @@
       "literal_case": {
         "procedure": "Comparar o subject do certificado com a PR atual antes de publicar o filho result-only.",
         "expected": "O certificado 1257/1258 herdado é descartado e substituído por um pacote ligado à PR 1276.",
-        "observed": "O pacote current-target anterior foi revalidado e o novo material corrente agora está congelado em 17a8668a1b811b0713680206b6e3fe4762af5b83.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
         "status": "passed"
       }
     },
@@ -158,7 +158,7 @@
       "detection_change": {
         "evidence": "Regressões exact-head exercitam água sem quantidade, alimento sem quantidade, adição completa e multi-action no gate de pendências."
       },
-      "revalidated_head_sha": "17a8668a1b811b0713680206b6e3fe4762af5b83",
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
       "source_audit": {
         "kind": "independent-rejection",
         "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
@@ -170,7 +170,169 @@
       "literal_case": {
         "procedure": "Avaliar isCompleteWhatsappCommand e atravessar o gate com pending ativo para água sem quantidade e alimento sem quantidade.",
         "expected": "Ambos permanecem incompletos e a pendência continua ativa; uma adição com quantidade atravessa o pipeline.",
-        "observed": "No material 17a8668a1b811b0713680206b6e3fe4762af5b83, os contraexemplos retornam false, o comando completo retorna true e o teste de multi-action permanece verde.",
+        "observed": "Controle cumulativo histórico preservado; não usado como subject da entrega corrente.",
+        "status": "passed"
+      }
+    },
+    {
+      "escape_id": "A-001-1299",
+      "status": "passed",
+      "remediation_mode": "targeted-remediation",
+      "escape_class": "delivery-readiness/inherited-base-artifact",
+      "plausible_wrong_implementation": "Aceitar handoff herdado da base com subject de outra issue/PR.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "wrong-implementation-rejected"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-001-1299-S1",
+          "status": "passed",
+          "surface": "target-binding",
+          "dimension": "foreign-subject",
+          "evidence": "Subject #1276 rejeitado."
+        },
+        {
+          "id": "A-001-1299-S2",
+          "status": "passed",
+          "surface": "result-only-publication",
+          "dimension": "direct-parent",
+          "evidence": "Novo pacote preparado para filho direto do material head."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "Subject e scope reconstruídos para #1299/#1316."
+      },
+      "detection_change": {
+        "evidence": "Certificado vincula repository/issue/PR/base/head."
+      },
+      "revalidated_head_sha": "5a5f61ca3045690d9cad3de30024604bf02b5655",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:ea83ef47-49ea-454b-b147-5c8a24af75a6",
+        "audit_report_sha256": "717ca6b4d21720fb96b3baf3dd6837094ba4162ed935a5ca2aa1089f33960685",
+        "finding_ids": [
+          "A-001"
+        ]
+      },
+      "literal_case": {
+        "procedure": "Comparar subject herdado com o target corrente.",
+        "expected": "Pacote estrangeiro é rejeitado e substituído.",
+        "observed": "Pacote current-target preparado para #1299/#1316.",
+        "status": "passed"
+      }
+    },
+    {
+      "escape_id": "A-1316-002",
+      "status": "passed",
+      "remediation_mode": "targeted-remediation",
+      "escape_class": "delivery-readiness/stale-exact-sha-evidence",
+      "plausible_wrong_implementation": "Publish a current-target handoff while critical evidence remains bound to an ancestor material SHA.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "exact-sha-evidence-freshness"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-1316-002-S1",
+          "status": "passed",
+          "surface": "quantitative-provenance",
+          "dimension": "exact-material-head",
+          "evidence": "EV-1299-MATCHRATE bound to d0da06cb4f4a8f3785d940f94141ef4c72736163 and CI run 37680089191."
+        },
+        {
+          "id": "A-1316-002-S2",
+          "status": "passed",
+          "surface": "critical-package",
+          "dimension": "critical-artifact-head-coherence",
+          "evidence": "Attack matrix, saturation, inherited controls, code growth and codebase grounding use the same material head."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "The critical package is regenerated as a coherent unit before publishing the replacement result-only child."
+      },
+      "detection_change": {
+        "evidence": "Exact-head raw evidence is versioned and the certificate hashes the refreshed artifacts."
+      },
+      "revalidated_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:d489684f-1253-4994-b618-1522b5cdc3ba",
+        "audit_report_sha256": "7ba3c6f5bfab4a28779427894686376af2648dc95f7660284876eda68c1f0c37",
+        "finding_ids": [
+          "A-1316-002"
+        ]
+      },
+      "literal_case": {
+        "procedure": "Compare all exact-SHA critical artifacts with identity.material_head_sha.",
+        "expected": "No critical evidence remains bound to an ancestor material SHA.",
+        "observed": "Critical evidence recertified for d0da06cb4f4a8f3785d940f94141ef4c72736163; CI 37680089191 is green.",
+        "status": "passed"
+      }
+    },
+    {
+      "escape_id": "A-1316-003",
+      "status": "passed",
+      "remediation_mode": "targeted-remediation",
+      "escape_class": "delivery-readiness/quantitative-evidence-path-hash-mismatch",
+      "plausible_wrong_implementation": "Declarar um path de evidência quantitativa usando o SHA-256 de outro artefato, aparentando freshness exact-SHA sem identidade de bytes.",
+      "required_risk_families": [
+        "structural-contract"
+      ],
+      "required_attack_dimensions": [
+        {
+          "risk_family": "structural-contract",
+          "surface": "golden-corpus-contract",
+          "dimension": "quantitative-evidence-path-hash-coherence"
+        }
+      ],
+      "sibling_cases": [
+        {
+          "id": "A-1316-003-S1",
+          "status": "passed",
+          "surface": "quantitative-provenance",
+          "dimension": "path-hash-coherence",
+          "evidence": "R-1299-014 usa server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts e SHA-256 f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850, idênticos à provenance."
+        },
+        {
+          "id": "A-1316-003-S2",
+          "status": "passed",
+          "surface": "quantitative-provenance",
+          "dimension": "exact-material-head",
+          "evidence": "EV-1299-MATCHRATE permanece subject_sha=d0da06cb4f4a8f3785d940f94141ef4c72736163 com freshness_policy=exact-material-head."
+        }
+      ],
+      "prevention_change": {
+        "evidence": "O controle quantitativo passa a derivar path/hash da mesma entrada EV-1299-MATCHRATE certificada em evidence-provenance.json."
+      },
+      "detection_change": {
+        "evidence": "A auditoria pode comparar evidence_id, path, SHA-256, subject_sha e freshness_policy 1:1 entre matriz e provenance."
+      },
+      "revalidated_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+      "source_audit": {
+        "kind": "independent-rejection",
+        "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+        "audit_report_sha256": "54b9904fb8dc4840243e81608a58726d52d41f20017647cc92a4fe41ea8740c0",
+        "finding_ids": [
+          "A-1316-003"
+        ]
+      },
+      "literal_case": {
+        "procedure": "Comparar o positive_control quantitativo de R-1299-014 com EV-1299-MATCHRATE em evidence-provenance.json.",
+        "expected": "evidence_id, path, SHA-256 e material head são idênticos.",
+        "observed": "Alinhado para server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts @ f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850; material d0da06cb4f4a8f3785d940f94141ef4c72736163.",
         "status": "passed"
       }
     }
