@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { spawn } from "node:child_process";
 import { runShards, formatShardLog, TERMINATION_GRACE_MS } from "./run-vitest-shards.mjs";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -107,4 +108,30 @@ test("abort escalates TERM to KILL when child does not terminate", async () => {
   const result = await runShards({ total: 1, launch: () => child, signal: controller.signal });
   assert.equal(result.success, false);
   assert.deepEqual(signals.slice(-2), ["SIGTERM", "SIGKILL"]);
+});
+
+test("real child process ignores TERM, escalates to KILL and is reaped", { timeout: 8000 }, async () => {
+  const controller = new AbortController();
+  let pid;
+  const resultPromise = runShards({
+    total: 1,
+    signal: controller.signal,
+    launch: () => {
+      const proc = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], {
+        stdio: "ignore", detached: true,
+      });
+      pid = proc.pid;
+      return {
+        done: new Promise(resolve => proc.once("close", (code, signal) => resolve({ exitCode: signal ? 1 : code }))),
+        kill: signal => { try { process.kill(-pid, signal); } catch (e) { if (e.code !== "ESRCH") throw e; } },
+      };
+    },
+  });
+  // Give the child enough time to register its SIGTERM handler.
+  await delay(250);
+  controller.abort();
+  const result = await resultPromise;
+  assert.equal(result.interrupted, true);
+  assert.equal(result.success, false);
+  assert.equal(result.results.length, 1);
 });
