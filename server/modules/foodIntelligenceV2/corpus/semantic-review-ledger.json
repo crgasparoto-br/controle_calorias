@@ -55,23 +55,23 @@
     },
     {
       "caseId": "c-mortadela-1-5-virgula",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-mortadela-1-5-ponto",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-mortadela-uma-fatia-e-meia",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-mortadela-ordem-invertida",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-mortadela-audio",
@@ -235,23 +235,23 @@
     },
     {
       "caseId": "c-neg-pasta-de-dente",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-neg-agua-sanitaria",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-neg-cosmetico",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-neg-oleo-de-motor",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-neg-rotulo-nao-alimentar",
