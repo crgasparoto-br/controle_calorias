@@ -1,0 +1,221 @@
+#!/usr/bin/env node
+import { spawn, execFileSync } from "node:child_process";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const now = () => Date.now();
+export const TERMINATION_GRACE_MS = 2000;
+export const TERMINATION_LIMIT_MS = 5000;
+
+function processTreeRssKb(rootPid) {
+  try {
+    const rows = execFileSync("ps", ["-e", "-o", "pid=,ppid=,rss="], { encoding: "utf8" })
+      .trim().split("\n").map(line => line.trim().split(/\s+/).map(Number))
+      .filter(parts => parts.length === 3 && parts.every(Number.isFinite));
+    const children = new Map();
+    for (const [pid, parent, rss] of rows) {
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push([pid, rss]);
+    }
+    let sum = 0;
+    const pending = [rootPid];
+    const seen = new Set();
+    while (pending.length) {
+      const pid = pending.pop();
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      const entry = rows.find(item => item[0] === pid);
+      if (entry) sum += entry[2];
+      for (const child of children.get(pid) || []) pending.push(child[0]);
+    }
+    return seen.size > 0 && rows.some(item => item[0] === rootPid) ? sum : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Starts each shard once with a strict concurrency limit. A failed shard does
+ * not prevent queued shards from running; all active children are settled.
+ * launch(number, onOutput) returns { pid, done, kill }.
+ */
+export async function runShards({
+  total = 24,
+  concurrency = 2,
+  launch,
+  onComplete = () => {},
+  onProgress = () => {},
+  signal,
+}) {
+  if (!Number.isInteger(total) || total < 1 || !Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error("Invalid shard scheduler configuration");
+  }
+  const results = new Array(total);
+  const running = new Set();
+  let next = 1;
+  let interrupted = false;
+  let runningCount = 0;
+  let maximumConcurrency = 0;
+  const abort = () => {
+    if (interrupted) return;
+    interrupted = true;
+    // Per-child abort handlers deliver TERM and handle bounded escalation.
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+
+  async function worker() {
+    while (!interrupted && next <= total) {
+      const shard = next++;
+      let child;
+      const started = now();
+      try {
+        child = launch(shard, text => onProgress(shard, text));
+        running.add(child);
+        runningCount++;
+        maximumConcurrency = Math.max(maximumConcurrency, runningCount);
+        // A child that ignores TERM must never block the required gate forever.
+        const result = await new Promise((resolve, reject) => {
+          let settled = false;
+          let escalate;
+          let deadline;
+          const clear = () => { clearTimeout(escalate); clearTimeout(deadline); };
+          const finish = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            clear();
+            fn(value);
+          };
+          const onAbort = () => {
+            child.kill?.("SIGTERM");
+            escalate = setTimeout(() => child.kill?.("SIGKILL"), TERMINATION_GRACE_MS);
+            deadline = setTimeout(() => finish(reject, new Error("Shard did not exit after SIGKILL")), TERMINATION_LIMIT_MS);
+          };
+          // Remove listener when the process exits; abort may happen later.
+          if (signal?.aborted) onAbort();
+          else signal?.addEventListener("abort", onAbort, { once: true });
+          Promise.resolve(child.done).then(
+            value => finish(resolve, value),
+            error => finish(reject, error),
+          ).finally(() => signal?.removeEventListener("abort", onAbort));
+        });
+        results[shard - 1] = {
+          shard, exitCode: Number.isInteger(result.exitCode) ? result.exitCode : 1,
+          durationMs: now() - started, peakRssKb: result.peakRssKb ?? null,
+        };
+      } catch (error) {
+        results[shard - 1] = {
+          shard, exitCode: 1, durationMs: now() - started, peakRssKb: null,
+          error: String(error),
+        };
+      } finally {
+        if (child) {
+          running.delete(child);
+          runningCount--;
+        }
+        onComplete(results[shard - 1]);
+      }
+    }
+  }
+  try {
+    await Promise.all(Array.from({ length: Math.min(total, concurrency) }, () => worker()));
+  } finally {
+    signal?.removeEventListener("abort", abort);
+  }
+  return { results: results.filter(Boolean), interrupted, maximumConcurrency,
+    success: !interrupted && results.every(result => result?.exitCode === 0) };
+}
+
+export function spawnVitestShard(number, output) {
+  const child = spawn("pnpm", [
+    "exec", "vitest", "run", `--shard=${number}/24`, "--maxWorkers=1", "--minWorkers=1",
+  ], { env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+  const feed = chunk => output(chunk.toString());
+  child.stdout.on("data", feed);
+  child.stderr.on("data", feed);
+  let peakRssKb = null;
+  const sample = () => {
+    const rss = processTreeRssKb(child.pid);
+    if (rss !== null) peakRssKb = Math.max(peakRssKb ?? 0, rss);
+  };
+  const timer = setInterval(sample, 250);
+  const done = new Promise(resolve => {
+    child.on("error", error => { output(String(error) + "\n"); });
+    child.on("close", (code, terminatedBy) => {
+      clearInterval(timer);
+      resolve({ exitCode: terminatedBy ? 1 : code ?? 1, peakRssKb });
+    });
+  });
+  return { pid: child.pid, done, kill: sig => {
+    if (!child.pid) return;
+    try { process.kill(-child.pid, sig); } catch (error) {
+      if (error.code !== "ESRCH") child.kill(sig);
+    }
+  } };
+}
+
+export function formatShardLog(item, output = "") {
+  const duration = (item.durationMs / 1000).toFixed(1);
+  const msg = `${item.exitCode === 0 ? "PASS" : "FAIL"}: Vitest shard ${item.shard}/24 (${duration}s; peak RSS sample: ${item.peakRssKb ?? "unknown"} KiB)\n`;
+  return `--- Vitest shard ${item.shard}/24 ---\n${output}\n${msg}`;
+}
+
+async function main() {
+  const logPath = process.env.VITEST_LOG_PATH || "/tmp/vitest.log";
+  const start = now();
+  mkdirSync(dirname(logPath), { recursive: true });
+  writeFileSync(logPath, "");
+  const abortController = new AbortController();
+  const stop = () => abortController.abort();
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  const buffers = new Map();
+  const result = await runShards({
+    signal: abortController.signal,
+    launch: (shard, output) => {
+      buffers.set(shard, "");
+      return spawnVitestShard(shard, output);
+    },
+    onProgress: (shard, chunk) => {
+      buffers.set(shard, (buffers.get(shard) || "") + chunk);
+    },
+    onComplete: item => {
+      const shard = item.shard;
+      const entry = formatShardLog(item, buffers.get(shard) || "");
+      appendFileSync(logPath, entry);
+      console.log(entry.split("\n").find(line => line.startsWith("PASS:") || line.startsWith("FAIL:")));
+      buffers.delete(shard);
+    },
+  });
+  process.off("SIGINT", stop);
+  process.off("SIGTERM", stop);
+  const durationSec = ((now() - start) / 1000).toFixed(1);
+  const summary = [
+    "## Vitest shard telemetry",
+    "",
+    `- Exact HEAD: \`${process.env.VERIFICATION_HEAD_SHA || "unknown"}\``,
+    `- Risk profile: \`${process.env.CI_RISK_PROFILE || "unknown"}\``,
+    `- Total duration: ${durationSec}s`,
+    `- Shards completed: ${result.results.length}/24`,
+    `- Maximum simultaneous shards: ${result.maximumConcurrency}`,
+    `- Result: ${result.success ? "PASS" : "FAIL"}`,
+    `- Memory values: sampled peak descendant RSS (250ms sampling, not cgroup peak; unknown if unavailable)`,
+    "",
+    "| Shard | Status | Duration (s) | Peak sampled RSS (KiB) |",
+    "| --- | --- | ---: | ---: |",
+    ...[...result.results].sort((a, b) => a.shard - b.shard).map(item =>
+      `| ${item.shard}/24 | ${item.exitCode === 0 ? "PASS" : "FAIL"} | ${(item.durationMs / 1000).toFixed(1)} | ${item.peakRssKb ?? "unknown"} |`),
+    "",
+  ].join("\n");
+  console.log(summary);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+  if (!result.success) {
+    console.error(readFileSync(logPath, "utf8").split("\n").slice(-250).join("\n"));
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}
