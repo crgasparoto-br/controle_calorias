@@ -255,23 +255,23 @@
     },
     {
       "caseId": "c-neg-rotulo-nao-alimentar",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-rotulo-nao-alimentar.json"
     },
     {
       "caseId": "c-neg-ingredientes-rotulo",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-ingredientes-rotulo.json"
     },
     {
       "caseId": "c-neg-ocr-instrucao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-ocr-instrucao.json"
     },
     {
       "caseId": "c-neg-imagem-ilegivel",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-imagem-ilegivel.json"
     },
     {
       "caseId": "c-leite-generico",
