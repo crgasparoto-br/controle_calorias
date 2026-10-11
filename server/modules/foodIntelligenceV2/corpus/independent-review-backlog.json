@@ -239,34 +239,6 @@
       "decision": null
     },
     {
-      "caseId": "c-abreviacao-col",
-      "title": "Abreviação de colher de sopa",
-      "modality": "text",
-      "incidentRefs": [
-        "#332"
-      ],
-      "adrSections": [
-        "§17"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-abreviacao-colher",
-      "title": "Colher de sopa por extenso",
-      "modality": "text",
-      "incidentRefs": [
-        "#332"
-      ],
-      "adrSections": [
-        "§17"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-regionalismo-bergamota",
       "title": "Regionalismo tolerado sem perder a identidade",
       "modality": "text",
@@ -340,34 +312,6 @@
       "adrSections": [
         "§7.1",
         "§7.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-pontuacao-com-virgula",
-      "title": "Lista com pontuação variável (com vírgula)",
-      "modality": "text",
-      "incidentRefs": [
-        "#1177"
-      ],
-      "adrSections": [
-        "§17"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-pontuacao-sem-virgula",
-      "title": "Lista sem pontuação",
-      "modality": "text",
-      "incidentRefs": [
-        "#1177"
-      ],
-      "adrSections": [
-        "§17"
       ],
       "verification": "pending",
       "independentEvidence": [],
