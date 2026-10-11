@@ -1199,7 +1199,7 @@ const historicalIncidentCases: CaseDraft[] = [
   },
   {
     caseId: "c-erro-transcricao",
-    title: "Erro de transcrição produz alternativas, sem correção silenciosa",
+    title: "Erro de transcrição exige clarificação sem alternativas inventadas",
     split: "calibration",
     modality: "audio_transcript",
     decisionClass: "clarification",
@@ -1215,19 +1215,16 @@ const historicalIncidentCases: CaseDraft[] = [
     expected: {
       decisions: [
         decision({
-          label: "transcrição ambígua",
-          status: "ambiguous",
+          label: "transcrição não confirmada",
+          status: "unknown",
           nextAction: "clarify",
           identity: noIdentity(),
           quantity: noQuantity(),
           ambiguity: ambiguity({
-            mustPreserveAlternatives: true,
-            minAlternatives: 2,
+            mustPreserveAlternatives: false,
+            minAlternatives: 0,
           }),
-          alternatives: [
-            alternative("presunto", { variant: "defumado" }),
-            alternative("presunto", { variant: "cozido" }),
-          ],
+          alternatives: [],
           clarification: clarification("identity"),
           unresolvedFields: ["identity"],
           reasonCodes: ["unknown_surface"],
