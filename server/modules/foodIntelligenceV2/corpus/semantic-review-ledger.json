@@ -300,13 +300,13 @@
     },
     {
       "caseId": "c-iogurte-morango",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-iogurte-morango.json"
     },
     {
       "caseId": "c-iogurte-natural",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-iogurte-natural.json"
     },
     {
       "caseId": "c-refrigerante-zero",
@@ -320,13 +320,13 @@
     },
     {
       "caseId": "c-arroz-simples",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-arroz-simples.json"
     },
     {
       "caseId": "c-arroz-embalagem",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-arroz-embalagem.json"
     },
     {
       "caseId": "c-superficie-nova-mesma-familia",
