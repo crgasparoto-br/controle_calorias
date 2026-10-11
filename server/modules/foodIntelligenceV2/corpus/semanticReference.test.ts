@@ -161,6 +161,18 @@ describe("independent semantic reference controls", () => {
     expect(ordinary.negativeControlOf).toBe(zero.caseId);
   });
 
+  it("AUD-1316-007: clarifies uncertain transcription without unrelated alternatives", () => {
+    const item = findCase("c-erro-transcricao");
+    expect(adr).toContain("erros de transcrição");
+    expect(item.input.transcription).toBe("mordadela");
+    expect(item.decisionClass).toBe("clarification");
+    const [decision] = item.expected.decisions;
+    expect(decision.identity.presence).toBe("forbidden");
+    expect(decision.nextAction).toBe("clarify");
+    expect(decision.unresolvedFields).toContain("identity");
+    expect(decision.alternatives.every(candidate => candidate.name.toLowerCase() === "mortadela")).toBe(true);
+  });
+
   it("keeps the independent evidence backlog exact and fail-closed", () => {
     const pending = semanticReviewLedger.cases
       .filter(item => item.status === "pending-independent-review")
