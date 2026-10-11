@@ -115,3 +115,7 @@ A classificação FAST/STANDARD/CRITICAL reside em `.ci/policy.json`, `.ci/risk-
 O nome do required status `Agent-first gate` permanece inalterado para preservar o ruleset atual. A renomeação do status, se desejada, exige atualização coordenada de branch protection sem janela sem proteção. O merge preview verifica compatibilidade de tipos; o gate final verifica o head exato e conserva 24 shards Vitest (2 simultâneos, 1 worker por shard), docs, arquitetura, build, validação TiDB e artefatos. O bundle de repositório é retido temporariamente até confirmação de consumidores e decisão de descontinuação. Os arquivos históricos `.delivery-v2/` não participam mais do CI e só devem ser removidos após conferência dos consumidores.
 
 Execute localmente: `node --test scripts/ci-classifier.test.mjs` e `pnpm exec tsx scripts/check-ci-gate-docs.ts` antes de enviar mudanças operacionais.
+
+### Homologação do scheduler (#1322)
+
+O scheduler encerra grupos com SIGTERM e escalona para SIGKILL após 2000 ms; se o filho continuar sem fechar, o gate falha explicitamente. Para comprovar performance, executar três full gates equivalentes com o scheduler anterior e três com o scheduler novo, na mesma classe de runner, dependências e perfil CRITICAL. Registrar SHA, run ID, duração, mediana, RSS amostrado, falhas e OOM. Runs de um único cenário não demonstram melhoria. A comparação 3x/3x permanece pendente até haver seis execuções mensuradas; não tratar esta documentação como evidência de ganho.
