@@ -1,0 +1,22 @@
+{
+  "caseId": "c-iogurte-morango",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed semantic review, 2026-10-11",
+  "independentSources": [
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Input '1 pote de iogurte de morango' identifies iogurte, explicit flavor variant 'morango', and one pot (package content/grams not proven). ADR §16 states strawberry and natural yogurt flavors are materially different; they cannot share verified nutrient facts without compatible product evidence. Propose the distinct identified item at snack with original one-pot unit; no grams, macro values, or brand-specific nutritional profile are established by these sources. This is a normative label review, not a resolver benchmark."
+}
