@@ -79,6 +79,47 @@ describe("independent semantic reference controls", () => {
     }
   });
 
+
+  it("independently rejects four explicitly non-food inputs", () => {
+    const controls = [
+      ["c-neg-pasta-de-dente", "pasta de dente"],
+      ["c-neg-agua-sanitaria", "água sanitária"],
+      ["c-neg-cosmetico", "hidratante corporal"],
+      ["c-neg-oleo-de-motor", "óleo de motor 5w30"],
+    ] as const;
+    for (const [caseId, inputText] of controls) {
+      const item = findCase(caseId);
+      expect(item.input.text).toBe(inputText);
+      expect(item.decisionClass).toBe("rejection");
+      expect(item.expected.decisions).toHaveLength(1);
+      const actual = item.expected.decisions[0];
+      expect(actual.nextAction).toBe("reject");
+      expect(actual.identity.presence).toBe("forbidden");
+      expect(actual.quantity.presence).toBe("forbidden");
+      expect(actual.nutrition.requirement).toBe("absent");
+      expect(actual.reasonCodes).toContain("non_food");
+    }
+  });
+
+  it("independently checks Portuguese decimal and verbal slice quantities", () => {
+    const controls = [
+      ["c-mortadela-1-5-virgula", "1,5 fatias de mortadela"],
+      ["c-mortadela-1-5-ponto", "1.5 fatias de mortadela"],
+      ["c-mortadela-uma-fatia-e-meia", "uma fatia e meia de mortadela"],
+      ["c-mortadela-ordem-invertida", "adicionar mortadela, uma fatia e meia"],
+    ] as const;
+    for (const [caseId, inputText] of controls) {
+      const item = findCase(caseId);
+      expect(item.input.text).toBe(inputText);
+      expect(item.expected.decisions).toHaveLength(1);
+      const actual = item.expected.decisions[0];
+      expect(actual.nextAction).toBe("propose");
+      expect(actual.identity.canonicalName).toBe("mortadela");
+      expect(actual.quantity).toMatchObject({ presence: "expected", value: 1.5, unit: "fatia" });
+      expect(actual.quantity.grams).toBeNull();
+    }
+  });
+
   it("tracks every case without treating unreviewed labels as independently certified", () => {
     const expectedIds = goldenFoodCorpus.cases.map(item => item.caseId).sort();
     const trackedIds = semanticReviewLedger.cases.map(item => item.caseId).sort();
@@ -89,13 +130,21 @@ describe("independent semantic reference controls", () => {
       "c-panco-pao-forma",
       "c-wickbold-pao-forma",
       "c-amendoim-rotulo",
+      "c-neg-pasta-de-dente",
+      "c-neg-agua-sanitaria",
+      "c-neg-cosmetico",
+      "c-neg-oleo-de-motor",
+      "c-mortadela-1-5-virgula",
+      "c-mortadela-1-5-ponto",
+      "c-mortadela-uma-fatia-e-meia",
+      "c-mortadela-ordem-invertida",
     ]);
     for (const review of semanticReviewLedger.cases) {
       expect(["pending-independent-review", "independent-control-tested"]).toContain(review.status);
       if (review.status === "independent-control-tested") {
         expect(typeof review.evidence).toBe("string");
         expect(review.evidence?.trim().length).toBeGreaterThan(0);
-        // These three guards are still the only *currently certified* controls.
+        // These guards cover only narrowly verified literal semantic obligations.
         if (controlledIds.has(review.caseId)) {
           expect(review.evidence).toBe("semanticReference.test.ts");
         } else {
