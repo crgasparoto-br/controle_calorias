@@ -3,20 +3,6 @@
   "note": "Source pointers are leads only, not independent semantic certification. Never use expected output as evidence.",
   "cases": [
     {
-      "caseId": "c-pao-marca-numero-fatias",
-      "title": "Pão integral de marca com número de fatias",
-      "modality": "text",
-      "incidentRefs": [
-        "#1072"
-      ],
-      "adrSections": [
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-cerveja-imagem",
       "title": "Cerveja identificada por imagem",
       "modality": "image",
