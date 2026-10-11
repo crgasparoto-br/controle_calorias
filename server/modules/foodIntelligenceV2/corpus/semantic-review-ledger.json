@@ -35,23 +35,23 @@
     },
     {
       "caseId": "c-pera-packham",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-pera-williams",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-pera-sem-acento",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-maca-fuji",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-mortadela-1-5-virgula",
@@ -85,13 +85,13 @@
     },
     {
       "caseId": "c-ovo-frito",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-ovo-singular",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-melao-cultivar",
@@ -150,13 +150,13 @@
     },
     {
       "caseId": "c-acento-ausente",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-acento-presente",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-abreviacao-col",
@@ -310,13 +310,13 @@
     },
     {
       "caseId": "c-refrigerante-zero",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-refrigerante-comum",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
     },
     {
       "caseId": "c-arroz-simples",
