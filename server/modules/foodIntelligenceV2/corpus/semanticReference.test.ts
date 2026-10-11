@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { goldenFoodCorpus } from "./data";
+import semanticReviewLedger from "./semantic-review-ledger.json";
 import { CANONICAL_ADR_PATH, readCanonicalReference } from "./referenceSource";
 
 /**
@@ -73,6 +74,29 @@ describe("independent semantic reference controls", () => {
       expect(item.expected.decisions.length, `missing expected decisions: ${item.caseId}`).toBeGreaterThan(0);
       for (const decision of item.expected.decisions) {
         expect(decision.label.trim().length, `missing expected label: ${item.caseId}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("tracks every case without treating unreviewed labels as independently certified", () => {
+    const expectedIds = goldenFoodCorpus.cases.map(item => item.caseId).sort();
+    const trackedIds = semanticReviewLedger.cases.map(item => item.caseId).sort();
+    expect(trackedIds).toEqual(expectedIds);
+    expect(new Set(trackedIds).size).toBe(trackedIds.length);
+    expect(semanticReviewLedger.independentReviewRequired).toBe(true);
+    const controlledIds = new Set([
+      "c-panco-pao-forma",
+      "c-wickbold-pao-forma",
+      "c-amendoim-rotulo",
+    ]);
+    for (const review of semanticReviewLedger.cases) {
+      expect(["pending-independent-review", "independent-control-tested"]).toContain(review.status);
+      if (controlledIds.has(review.caseId)) {
+        expect(review.status).toBe("independent-control-tested");
+        expect(review.evidence).toBe("semanticReference.test.ts");
+      } else {
+        expect(review.status).toBe("pending-independent-review");
+        expect(review.evidence).toBeNull();
       }
     }
   });
