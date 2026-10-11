@@ -17,7 +17,7 @@ This review ledger belongs to issue #1299 and PR #1316. Its purpose is to separa
 
 ## Current boundary
 
-The ledger contains 75 cases. Eleven cases now have narrowly scoped, literal semantic controls: Panco, Wickbold, peanut-label association, four non-food rejections (#437), and four Portuguese fractional-slice statements (#1037). The remaining 64 are explicitly pending. These controls do not verify external nutritional values. Structural checks across 75 cases, the 95% harness measurement, and green CI **do not** establish that 75 independently curated labels are correct.
+The ledger contains 75 cases. Twenty-one cases now have narrowly scoped literal semantic controls: the original three, four non-food rejections (#437), four Portuguese fractional-slice statements (#1037), and ten orthography, quantity, cultivar, preparation or product-qualification controls. The remaining 54 are explicitly pending. These controls do not verify external nutritional values. Structural checks across 75 cases, the 95% harness measurement, and green CI **do not** establish that 75 independently curated labels are correct.
 
 Until every case has source-grounded evidence and independent review, do not mark AUD-1316-003 as closed and do not describe the corpus as semantically certified.
 
