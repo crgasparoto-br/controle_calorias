@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, relative, isAbsolute } from "node:path";
 import { goldenFoodCorpus } from "./data";
 import semanticReviewLedger from "./semantic-review-ledger.json";
+import independentReviewBacklog from "./independent-review-backlog.json";
 import { CANONICAL_ADR_PATH, readCanonicalReference } from "./referenceSource";
 
 /**
@@ -158,6 +159,25 @@ describe("independent semantic reference controls", () => {
     expect(zero.expected.decisions[0].identity.qualifiers).toContain("zero");
     expect(ordinary.expected.decisions[0].identity.qualifiers).not.toContain("zero");
     expect(ordinary.negativeControlOf).toBe(zero.caseId);
+  });
+
+  it("keeps the independent evidence backlog exact and fail-closed", () => {
+    const pending = semanticReviewLedger.cases
+      .filter(item => item.status === "pending-independent-review")
+      .map(item => item.caseId).sort();
+    const listed = independentReviewBacklog.cases.map(item => item.caseId).sort();
+    expect(listed).toEqual(pending);
+    expect(new Set(listed).size).toBe(listed.length);
+    for (const item of independentReviewBacklog.cases) {
+      const corpusCase = findCase(item.caseId);
+      expect(item.title).toBe(corpusCase.title);
+      expect(item.modality).toBe(corpusCase.modality);
+      expect(item.incidentRefs).toEqual(corpusCase.incidentRefs);
+      expect(item.adrSections).toEqual(corpusCase.adrSections);
+      expect(item.verification).toBe("pending");
+      expect(item.independentEvidence).toEqual([]);
+      expect(item.decision).toBeNull();
+    }
   });
 
   it("tracks every case without treating unreviewed labels as independently certified", () => {
