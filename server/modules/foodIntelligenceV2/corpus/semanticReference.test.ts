@@ -177,7 +177,7 @@ describe("independent semantic reference controls", () => {
       canonicalName: "cerveja", brand: "Original",
     });
     expect(beer.expected.decisions[0].quantity).toMatchObject({ presence: "unspecified", value: null, grams: null, milliliters: null });
-    expect(beer.input.text).not.toMatch(/\\b(?:bebi|tomei|consumi)\\b/i);
+    expect(beer.input.text).not.toMatch(/\b(?:bebi|tomei|consumi)\b/i);
     const peanut = findCase("c-amendoim-rotulo");
     expect(peanut.input.ocrText).toContain("400 g");
     expect(peanut.expected.decisions[0].quantity.presence).toBe("unspecified");
