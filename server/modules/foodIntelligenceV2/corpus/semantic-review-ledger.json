@@ -15,8 +15,8 @@
     },
     {
       "caseId": "c-pao-marca-numero-fatias",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pao-marca-numero-fatias.json"
     },
     {
       "caseId": "c-amendoim-rotulo",
