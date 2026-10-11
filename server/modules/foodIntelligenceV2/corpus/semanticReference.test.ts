@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, relative, isAbsolute } from "node:path";
 import { goldenFoodCorpus } from "./data";
 import semanticReviewLedger from "./semantic-review-ledger.json";
 import { CANONICAL_ADR_PATH, readCanonicalReference } from "./referenceSource";
@@ -102,6 +103,29 @@ describe("independent semantic reference controls", () => {
           // reuse the generic structural coverage test as semantic evidence.
           expect(review.evidence).not.toBe("semanticCoverage.test.ts");
           expect(review.evidence).not.toBe("semanticReference.test.ts");
+          const evidencePath = review.evidence!;
+          expect(evidencePath).toMatch(/^server\/modules\/foodIntelligenceV2\/corpus\/reviews\/[a-z0-9-]+\.json$/);
+          const root = resolve(process.cwd());
+          const resolved = resolve(root, evidencePath);
+          expect(isAbsolute(evidencePath)).toBe(false);
+          expect(relative(root, resolved).startsWith("..")).toBe(false);
+          expect(existsSync(resolved), "missing independent review artifact: " + evidencePath).toBe(true);
+          const artifact: unknown = JSON.parse(readFileSync(resolved, "utf8"));
+          expect(artifact).toMatchObject({ caseId: review.caseId, verdict: "approved" });
+          const record = artifact as { reviewer?: unknown; independentSources?: unknown; rationale?: unknown; dimensions?: unknown };
+          expect(typeof record.reviewer).toBe("string");
+          expect((record.reviewer as string).trim().length).toBeGreaterThan(0);
+          expect(Array.isArray(record.independentSources)).toBe(true);
+          expect((record.independentSources as unknown[]).length).toBeGreaterThan(0);
+          for (const source of record.independentSources as unknown[]) {
+            expect(source).toMatchObject({ id: expect.any(String), locator: expect.any(String) });
+            const item = source as { id: string; locator: string };
+            expect(item.id.trim().length).toBeGreaterThan(0);
+            expect(item.locator.trim().length).toBeGreaterThan(0);
+          }
+          expect(typeof record.rationale).toBe("string");
+          expect((record.rationale as string).trim().length).toBeGreaterThan(0);
+          expect(record.dimensions).toEqual(expect.arrayContaining(["identity", "quantity", "action", "nutritionProvenance"]));
         }
       } else {
         expect(review.evidence).toBeNull();
