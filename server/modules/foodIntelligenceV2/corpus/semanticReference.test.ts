@@ -59,4 +59,22 @@ describe("independent semantic reference controls", () => {
     expect(expected.quantity.presence).toBe("unspecified");
     expect(expected.nutrition.allowedOrigins).toContain("nutrition_label");
   });
+  it("checks source traceability and case identity throughout the corpus", () => {
+    // Structural guard only: independent semantic sign-off remains separate.
+    expect(goldenFoodCorpus.cases).toHaveLength(75);
+    const ids = new Set<string>();
+    for (const item of goldenFoodCorpus.cases) {
+      expect(ids.has(item.caseId), `duplicate case ID: ${item.caseId}`).toBe(false);
+      ids.add(item.caseId);
+      expect(item.adrSections.length, `missing ADR link: ${item.caseId}`).toBeGreaterThan(0);
+      for (const section of item.adrSections) {
+        expect(section, `invalid ADR link: ${item.caseId}`).toMatch(/^§[0-9]+/);
+      }
+      expect(item.expected.decisions.length, `missing expected decisions: ${item.caseId}`).toBeGreaterThan(0);
+      for (const decision of item.expected.decisions) {
+        expect(decision.label.trim().length, `missing expected label: ${item.caseId}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
 });
