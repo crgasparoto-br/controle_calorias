@@ -1,0 +1,22 @@
+{
+  "caseId": "c-abreviacao-col",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-based independent semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "issue-332",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/332"
+    },
+    {
+      "id": "adr-17",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#17"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The explicit text \"2 col sopa de arroz\" means two tablespoons of rice. Issue #332 requires general safe unit normalization; the ADR lists abbreviations as equivalent linguistic surfaces. Preserve the source unit and value 2 without inventing grams or nutritional values; the intended action is to add rice to lunch. The nutrition reference remains provenance-declared, not numeric evidence."
+}
