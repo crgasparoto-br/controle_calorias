@@ -105,7 +105,7 @@ export async function runShards({
 export function spawnVitestShard(number, output) {
   const child = spawn("pnpm", [
     "exec", "vitest", "run", `--shard=${number}/24`, "--maxWorkers=1", "--minWorkers=1",
-  ], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+  ], { env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: true });
   const feed = chunk => output(chunk.toString());
   child.stdout.on("data", feed);
   child.stderr.on("data", feed);
@@ -122,7 +122,12 @@ export function spawnVitestShard(number, output) {
       resolve({ exitCode: terminatedBy ? 1 : code ?? 1, peakRssKb });
     });
   });
-  return { pid: child.pid, done, kill: sig => child.kill(sig) };
+  return { pid: child.pid, done, kill: sig => {
+    if (!child.pid) return;
+    try { process.kill(-child.pid, sig); } catch (error) {
+      if (error.code !== "ESRCH") child.kill(sig);
+    }
+  } };
 }
 
 async function main() {
