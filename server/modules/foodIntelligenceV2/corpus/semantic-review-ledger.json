@@ -275,13 +275,13 @@
     },
     {
       "caseId": "c-leite-generico",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-generico.json"
     },
     {
       "caseId": "c-leite-uht-generico",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-uht-generico.json"
     },
     {
       "caseId": "c-leite-integral",
