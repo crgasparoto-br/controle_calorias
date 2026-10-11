@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runShards } from "./run-vitest-shards.mjs";
+import { runShards, formatShardLog, TERMINATION_GRACE_MS } from "./run-vitest-shards.mjs";
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -83,4 +83,28 @@ test("launch exception is reported and later shards still run", async () => {
   assert.equal(result.success, false);
   assert.equal(result.results.length, 4);
   assert.match(result.results[2].error, /spawn failed/);
+});
+
+test("consolidated diagnostics retain failure output and unknown RSS", () => {
+  const entry = formatShardLog({ shard: 9, exitCode: 1, durationMs: 1500, peakRssKb: null }, "AssertionError: expected 3");
+  assert.match(entry, /Vitest shard 9\/24/);
+  assert.match(entry, /AssertionError: expected 3/);
+  assert.match(entry, /FAIL:/);
+  assert.match(entry, /unknown KiB/);
+});
+
+test("abort escalates TERM to KILL when child does not terminate", async () => {
+  const controller = new AbortController();
+  const signals = [];
+  const child = { done: new Promise(resolve => {
+    childResolve = resolve;
+  }), kill: sig => {
+    signals.push(sig);
+    if (sig === "SIGKILL") childResolve({ exitCode: 1 });
+  } };
+  let childResolve;
+  setTimeout(() => controller.abort(), 5);
+  const result = await runShards({ total: 1, launch: () => child, signal: controller.signal });
+  assert.equal(result.success, false);
+  assert.deepEqual(signals.slice(-2), ["SIGTERM", "SIGKILL"]);
 });
