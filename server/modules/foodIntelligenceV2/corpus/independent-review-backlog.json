@@ -191,7 +191,7 @@
     },
     {
       "caseId": "c-erro-transcricao",
-      "title": "Erro de transcrição produz alternativas, sem correção silenciosa",
+      "title": "Erro de transcrição exige clarificação sem alternativas inventadas",
       "modality": "audio_transcript",
       "incidentRefs": [
         "#120",
