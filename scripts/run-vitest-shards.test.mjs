@@ -113,6 +113,7 @@ test("abort escalates TERM to KILL when child does not terminate", async () => {
 test("real child process ignores TERM, escalates to KILL and is reaped", { timeout: 8000 }, async () => {
   const controller = new AbortController();
   let pid;
+  const delivered = [];
   const resultPromise = runShards({
     total: 1,
     signal: controller.signal,
@@ -123,7 +124,7 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
       pid = proc.pid;
       return {
         done: new Promise(resolve => proc.once("close", (code, signal) => resolve({ exitCode: signal ? 1 : code }))),
-        kill: signal => { try { process.kill(-pid, signal); } catch (e) { if (e.code !== "ESRCH") throw e; } },
+        kill: signal => { delivered.push(signal); try { process.kill(-pid, signal); } catch (e) { if (e.code !== "ESRCH") throw e; } },
       };
     },
   });
@@ -134,4 +135,5 @@ test("real child process ignores TERM, escalates to KILL and is reaped", { timeo
   assert.equal(result.interrupted, true);
   assert.equal(result.success, false);
   assert.equal(result.results.length, 1);
+  assert.deepEqual(delivered, ["SIGTERM", "SIGKILL"]);
 });
