@@ -218,16 +218,42 @@ jobs:
           DATABASE_URL: ""
         run: |
           : > /tmp/vitest.log
-          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
-          for shard_number in $(seq 1 24); do
-            shard="${shard_number}/24"
-            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
-            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
-              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
+          # Two concurrent single-worker shards reduce elapsed time while bounding peak memory.
+          # Keep the complete 24-shard suite and aggregate every exit code (fail closed).
+          started_at="$(date +%s)"
+          failed=0
+          for batch_start in $(seq 1 2 24); do
+            pids=()
+            shard_numbers=()
+            for shard_number in "$batch_start" "$((batch_start + 1))"; do
+              (
+                shard="${shard_number}/24"
+                start="$(date +%s)"
+                echo "Running Vitest shard ${shard}"
+                pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1
+                result=$?
+                echo "Vitest shard ${shard} finished in $(( $(date +%s) - start )) seconds (exit=${result})"
+                exit "${result}"
+              ) > "/tmp/vitest-shard-${shard_number}.log" 2>&1 &
+              pids+=("$!")
+              shard_numbers+=("$shard_number")
+            done
+            for i in "${!pids[@]}"; do
+              if wait "${pids[$i]}"; then
+                echo "PASS: Vitest shard ${shard_numbers[$i]}/24"
+              else
+                echo "FAIL: Vitest shard ${shard_numbers[$i]}/24"
+                failed=1
+              fi
+              cat "/tmp/vitest-shard-${shard_numbers[$i]}.log" >> /tmp/vitest.log
+            done
+            if [ "$failed" -ne 0 ]; then
+              echo "Vitest batch failed; showing last 250 log lines:"
               tail -n 250 /tmp/vitest.log
               exit 1
             fi
           done
+          echo "All 24 Vitest shards completed in $(( $(date +%s) - started_at )) seconds."
           tail -n 120 /tmp/vitest.log
 
       - name: Upload Vitest diagnostics
