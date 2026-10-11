@@ -101,4 +101,50 @@ describe("independent semantic reference controls", () => {
     }
   });
 
+  it("preserves cultivar distinctions and orthographic equivalence", () => {
+    const packham = findCase("c-pera-packham");
+    const unaccented = findCase("c-pera-sem-acento");
+    const williams = findCase("c-pera-williams");
+    const fuji = findCase("c-maca-fuji");
+    expect(packham.input.text).toBe("1 pêra packham");
+    expect(unaccented.input.text).toBe("1 pera packham");
+    expect(williams.input.text).toBe("1 pêra williams");
+    expect(packham.expected.decisions[0].identity).toMatchObject({ canonicalName: "pêra", variant: "packham" });
+    expect(unaccented.expected.decisions[0].identity).toMatchObject({ canonicalName: "pêra", variant: "packham" });
+    expect(williams.expected.decisions[0].identity).toMatchObject({ canonicalName: "pêra", variant: "williams" });
+    expect(williams.negativeControlOf).toBe(packham.caseId);
+    expect(fuji.input.text).toBe("1 maçã fuji");
+    expect(fuji.expected.decisions[0].identity).toMatchObject({ canonicalName: "maçã", variant: "fuji" });
+    for (const item of [packham, unaccented, williams, fuji]) {
+      expect(item.expected.decisions[0].quantity).toMatchObject({ value: 1, unit: "unidade" });
+    }
+  });
+
+  it("preserves decimal slice quantities across Portuguese surfaces", () => {
+    const surfaces: Array<[string, string]> = [
+      ["c-mortadela-1-5-virgula", "1,5 fatias de mortadela"],
+      ["c-mortadela-1-5-ponto", "1.5 fatias de mortadela"],
+      ["c-mortadela-uma-fatia-e-meia", "uma fatia e meia de mortadela"],
+    ];
+    for (const [id, surface] of surfaces) {
+      const item = findCase(id);
+      expect(item.input.text).toBe(surface);
+      const expected = item.expected.decisions[0];
+      expect(expected.identity.canonicalName).toBe("mortadela");
+      expect(expected.quantity).toMatchObject({ value: 1.5, unit: "fatia" });
+    }
+  });
+
+  it("does not confuse package size with consumed amount on image input", () => {
+    const beer = findCase("c-cerveja-imagem");
+    expect(beer.input.ocrText).toBe("CERVEJA ORIGINAL 355 ml");
+    expect(beer.expected.decisions[0].identity).toMatchObject({
+      canonicalName: "cerveja", brand: "Original",
+    });
+    expect(beer.expected.decisions[0].quantity).toMatchObject({ value: 355, unit: "ml" });
+    const peanut = findCase("c-amendoim-rotulo");
+    expect(peanut.input.ocrText).toContain("400 g");
+    expect(peanut.expected.decisions[0].quantity.presence).toBe("unspecified");
+  });
+
 });
