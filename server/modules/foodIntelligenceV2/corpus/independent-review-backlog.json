@@ -1,0 +1,840 @@
+{
+  "schemaVersion": 1,
+  "note": "Source pointers are leads only, not independent semantic certification. Never use expected output as evidence.",
+  "cases": [
+    {
+      "caseId": "c-pao-marca-numero-fatias",
+      "title": "Pão integral de marca com número de fatias",
+      "modality": "text",
+      "incidentRefs": [
+        "#1072"
+      ],
+      "adrSections": [
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-cerveja-imagem",
+      "title": "Cerveja identificada por imagem",
+      "modality": "image",
+      "incidentRefs": [
+        "#346",
+        "#375"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.1.6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-uht-integral",
+      "title": "Leite UHT integral de marca",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088",
+        "#903"
+      ],
+      "adrSections": [
+        "§16",
+        "§8.3"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-mortadela-audio",
+      "title": "Mortadela por áudio/transcrição equivalente",
+      "modality": "audio_transcript",
+      "incidentRefs": [
+        "#1037"
+      ],
+      "adrSections": [
+        "§17",
+        "§4.1.5"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-mortadela-imagem-legenda",
+      "title": "Mortadela por imagem com legenda equivalente",
+      "modality": "multimodal",
+      "incidentRefs": [
+        "#1037"
+      ],
+      "adrSections": [
+        "§17",
+        "§4.1.6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-melao-cultivar",
+      "title": "Melão com cultivar",
+      "modality": "text",
+      "incidentRefs": [
+        "#1251"
+      ],
+      "adrSections": [
+        "§16",
+        "§8.3"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-coca-cola-lata",
+      "title": "Coca-Cola em lata",
+      "modality": "text",
+      "incidentRefs": [
+        "#401",
+        "#1158"
+      ],
+      "adrSections": [
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-cerveja-original-garrafa",
+      "title": "Cerveja Original em garrafa (texto)",
+      "modality": "text",
+      "incidentRefs": [
+        "#346"
+      ],
+      "adrSections": [
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-cafe-sem-acucar-memoria",
+      "title": "Café sem açúcar como memória pessoal",
+      "modality": "text",
+      "incidentRefs": [
+        "#403",
+        "#1051"
+      ],
+      "adrSections": [
+        "§16",
+        "§15",
+        "§16.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-multiplos-um-ambiguo",
+      "title": "Múltiplos alimentos com apenas um ambíguo",
+      "modality": "text",
+      "incidentRefs": [
+        "#247",
+        "#1177"
+      ],
+      "adrSections": [
+        "§16",
+        "§7.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-destino-refeicao-leading",
+      "title": "Destino da refeição em posição inicial",
+      "modality": "text",
+      "incidentRefs": [
+        "#899",
+        "#1278"
+      ],
+      "adrSections": [
+        "§16",
+        "§7.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-destino-refeicao-trailing",
+      "title": "Destino da refeição em posição final",
+      "modality": "text",
+      "incidentRefs": [
+        "#899",
+        "#1278"
+      ],
+      "adrSections": [
+        "§16",
+        "§7.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-operacao-data-refeicao-destino",
+      "title": "Data explícita, refeição configurada e destino embutido",
+      "modality": "text",
+      "incidentRefs": [
+        "#1271",
+        "#1291"
+      ],
+      "adrSections": [
+        "§16",
+        "§7.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-erro-transcricao",
+      "title": "Erro de transcrição produz alternativas, sem correção silenciosa",
+      "modality": "audio_transcript",
+      "incidentRefs": [
+        "#120",
+        "#1224"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-produto-marca-sem-nutricao",
+      "title": "Produto comercial de marca sem perfil comprovado",
+      "modality": "text",
+      "incidentRefs": [
+        "#903",
+        "#1158"
+      ],
+      "adrSections": [
+        "§16",
+        "§9.2",
+        "§10.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-provider-indisponivel",
+      "title": "Indisponibilidade de provider externo",
+      "modality": "text",
+      "incidentRefs": [
+        "#873",
+        "#1257"
+      ],
+      "adrSections": [
+        "§16",
+        "§19.6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-abreviacao-col",
+      "title": "Abreviação de colher de sopa",
+      "modality": "text",
+      "incidentRefs": [
+        "#332"
+      ],
+      "adrSections": [
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-abreviacao-colher",
+      "title": "Colher de sopa por extenso",
+      "modality": "text",
+      "incidentRefs": [
+        "#332"
+      ],
+      "adrSections": [
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-regionalismo-bergamota",
+      "title": "Regionalismo tolerado sem perder a identidade",
+      "modality": "text",
+      "incidentRefs": [
+        "#332"
+      ],
+      "adrSections": [
+        "§17",
+        "§4.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-erro-digitacao-recorrente",
+      "title": "Erro de digitação recorrente tolerado pelo léxico",
+      "modality": "text",
+      "incidentRefs": [
+        "#120",
+        "#1224"
+      ],
+      "adrSections": [
+        "§17",
+        "§4.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-porcao-tiquinho",
+      "title": "Termo incerto de porção: tiquinho exige quantidade",
+      "modality": "text",
+      "incidentRefs": [
+        "#1037",
+        "#1097"
+      ],
+      "adrSections": [
+        "§16",
+        "§10"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-porcao-punhado",
+      "title": "Termo incerto de porção: punhado exige quantidade",
+      "modality": "text",
+      "incidentRefs": [
+        "#1037",
+        "#1097"
+      ],
+      "adrSections": [
+        "§16",
+        "§10"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-porcao-pratao",
+      "title": "Termo incerto de porção: pratão exige quantidade",
+      "modality": "text",
+      "incidentRefs": [
+        "#1037",
+        "#1097"
+      ],
+      "adrSections": [
+        "§16",
+        "§10"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-banco-ambiguo-pao",
+      "title": "Identidade ambígua por erro de digitação no contexto de pão",
+      "modality": "text",
+      "incidentRefs": [
+        "#120",
+        "#168"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-lote-valido-e-nao-alimento",
+      "title": "Lote com itens válidos e um não alimento",
+      "modality": "text",
+      "incidentRefs": [
+        "#1177",
+        "#247"
+      ],
+      "adrSections": [
+        "§16",
+        "§7.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-lote-multi-acao",
+      "title": "Lote com substituição de alimento no almoço",
+      "modality": "text",
+      "incidentRefs": [
+        "#1271",
+        "#899"
+      ],
+      "adrSections": [
+        "§7.1",
+        "§7.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-pontuacao-com-virgula",
+      "title": "Lista com pontuação variável (com vírgula)",
+      "modality": "text",
+      "incidentRefs": [
+        "#1177"
+      ],
+      "adrSections": [
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-pontuacao-sem-virgula",
+      "title": "Lista sem pontuação",
+      "modality": "text",
+      "incidentRefs": [
+        "#1177"
+      ],
+      "adrSections": [
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-qualificador-antes-marca",
+      "title": "Qualificador antes da marca",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§17",
+        "§8.3"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-qualificador-depois-marca",
+      "title": "Qualificador depois da marca",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§17",
+        "§8.3"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-cerveja-original-transcricao",
+      "title": "Cerveja Original por transcrição equivalente",
+      "modality": "audio_transcript",
+      "incidentRefs": [
+        "#346"
+      ],
+      "adrSections": [
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-neg-rotulo-nao-alimentar",
+      "title": "Rótulo não alimentar por imagem",
+      "modality": "image",
+      "incidentRefs": [
+        "#874",
+        "#1210"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.1.6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-neg-ingredientes-rotulo",
+      "title": "Ingredientes de rótulo não viram itens",
+      "modality": "image",
+      "incidentRefs": [
+        "#1210",
+        "#1235"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.1.6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-neg-ocr-instrucao",
+      "title": "OCR contendo instrução não é obedecido",
+      "modality": "image",
+      "incidentRefs": [
+        "#1191",
+        "#1210"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.1.6",
+        "§19.8"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-neg-imagem-ilegivel",
+      "title": "Imagem ilegível pede evidência melhor",
+      "modality": "image",
+      "incidentRefs": [
+        "#874",
+        "#986"
+      ],
+      "adrSections": [
+        "§16",
+        "§4.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-generico",
+      "title": "Leite sem qualificador material",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-uht-generico",
+      "title": "UHT é atributo informacional para a família",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-integral",
+      "title": "Leite integral: atributo material",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-desnatado",
+      "title": "Leite desnatado: variante material distinta",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§4.1.8"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-leite-marca-informacional",
+      "title": "Leite de marca com atributo informacional",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-iogurte-morango",
+      "title": "Iogurte de morango: sabor material",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-iogurte-natural",
+      "title": "Iogurte natural: variante distinta",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§4.1.8"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-arroz-simples",
+      "title": "Arroz sem descritor de embalagem",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-arroz-embalagem",
+      "title": "Arroz com descritor de embalagem: informacional, sem clarificação",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-superficie-nova-mesma-familia",
+      "title": "Superfície nova da mesma família mapeia para variante existente",
+      "modality": "text",
+      "incidentRefs": [
+        "#1088",
+        "#1243"
+      ],
+      "adrSections": [
+        "§8.3",
+        "§16"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-antes",
+      "title": "Estado anterior à aquisição: a superfície ainda é desconhecida",
+      "modality": "text",
+      "incidentRefs": [
+        "#403",
+        "#1051"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§15"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-definido",
+      "title": "Conhecimento pessoal adquirido é reutilizado",
+      "modality": "text",
+      "incidentRefs": [
+        "#403",
+        "#1051"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§15"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-reuso",
+      "title": "Reutilização em formulação equivalente reservada",
+      "modality": "text",
+      "incidentRefs": [
+        "#403",
+        "#1051"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§17"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
+      "title": "Sem intervenção desnecessária quando a evidência é suficiente",
+      "modality": "text",
+      "incidentRefs": [
+        "#332",
+        "#997"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§9.2"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-persistencia-restart",
+      "title": "Persistência após reinício com a mesma chave",
+      "modality": "text",
+      "incidentRefs": [
+        "#1051",
+        "#1225"
+      ],
+      "adrSections": [
+        "§16.1"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-isolamento-outro-usuario",
+      "title": "Aprendizado pessoal não vaza para outro usuário",
+      "modality": "text",
+      "incidentRefs": [
+        "#1051",
+        "#1090"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§15"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-precedencia-explicita",
+      "title": "Informação explícita atual prevalece sobre memória incompatível",
+      "modality": "text",
+      "incidentRefs": [
+        "#1225"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§6"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-revogacao",
+      "title": "Revogação do alias sem reaplicação por cache obsoleto",
+      "modality": "text",
+      "incidentRefs": [
+        "#524",
+        "#1153"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§15"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    },
+    {
+      "caseId": "c-aprendizado-controle-negativo-alias",
+      "title": "Alias parecido não é confundido com o aprendido",
+      "modality": "text",
+      "incidentRefs": [
+        "#524"
+      ],
+      "adrSections": [
+        "§16.1",
+        "§4.1.8"
+      ],
+      "verification": "pending",
+      "independentEvidence": [],
+      "decision": null
+    }
+  ]
+}
