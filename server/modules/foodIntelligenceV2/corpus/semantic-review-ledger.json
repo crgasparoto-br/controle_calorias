@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "independentReviewRequired": true,
+  "reviewPolicy": "Independent domain evidence is required for each case. Structural checks or comparisons against the same corpus do not count as an independent semantic review.",
+  "cases": [
+    {
+      "caseId": "c-panco-pao-forma",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-wickbold-pao-forma",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-pao-marca-numero-fatias",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-amendoim-rotulo",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-cerveja-imagem",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-uht-integral",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-pera-packham",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-pera-williams",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-pera-sem-acento",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-maca-fuji",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-1-5-virgula",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-1-5-ponto",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-uma-fatia-e-meia",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-ordem-invertida",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-audio",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-mortadela-imagem-legenda",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-ovo-frito",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-ovo-singular",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-melao-cultivar",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-coca-cola-lata",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-cerveja-original-garrafa",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-cafe-sem-acucar-memoria",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-multiplos-um-ambiguo",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-destino-refeicao-leading",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-destino-refeicao-trailing",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-operacao-data-refeicao-destino",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-erro-transcricao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-produto-marca-sem-nutricao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-provider-indisponivel",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-acento-ausente",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-acento-presente",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-abreviacao-col",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-abreviacao-colher",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-regionalismo-bergamota",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-erro-digitacao-recorrente",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-porcao-tiquinho",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-porcao-punhado",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-porcao-pratao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-banco-ambiguo-pao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-lote-valido-e-nao-alimento",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-lote-multi-acao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-pontuacao-com-virgula",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-pontuacao-sem-virgula",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-qualificador-antes-marca",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-qualificador-depois-marca",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-cerveja-original-transcricao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-pasta-de-dente",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-agua-sanitaria",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-cosmetico",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-oleo-de-motor",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-rotulo-nao-alimentar",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-ingredientes-rotulo",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-ocr-instrucao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-neg-imagem-ilegivel",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-generico",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-uht-generico",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-integral",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-desnatado",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-leite-marca-informacional",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-iogurte-morango",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-iogurte-natural",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-refrigerante-zero",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-refrigerante-comum",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-arroz-simples",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-arroz-embalagem",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-superficie-nova-mesma-familia",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-antes",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-definido",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-alias-reuso",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-persistencia-restart",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-isolamento-outro-usuario",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-precedencia-explicita",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-revogacao",
+      "status": "pending-independent-review",
+      "evidence": null
+    },
+    {
+      "caseId": "c-aprendizado-controle-negativo-alias",
+      "status": "pending-independent-review",
+      "evidence": null
+    }
+  ]
+}
