@@ -91,13 +91,24 @@ describe("independent semantic reference controls", () => {
     ]);
     for (const review of semanticReviewLedger.cases) {
       expect(["pending-independent-review", "independent-control-tested"]).toContain(review.status);
-      if (controlledIds.has(review.caseId)) {
-        expect(review.status).toBe("independent-control-tested");
-        expect(review.evidence).toBe("semanticReference.test.ts");
+      if (review.status === "independent-control-tested") {
+        expect(typeof review.evidence).toBe("string");
+        expect(review.evidence?.trim().length).toBeGreaterThan(0);
+        // These three guards are still the only *currently certified* controls.
+        if (controlledIds.has(review.caseId)) {
+          expect(review.evidence).toBe("semanticReference.test.ts");
+        } else {
+          // Future reviews must supply a distinct source-backed artifact, not
+          // reuse the generic structural coverage test as semantic evidence.
+          expect(review.evidence).not.toBe("semanticCoverage.test.ts");
+          expect(review.evidence).not.toBe("semanticReference.test.ts");
+        }
       } else {
-        expect(review.status).toBe("pending-independent-review");
         expect(review.evidence).toBeNull();
       }
+    }
+    for (const id of controlledIds) {
+      expect(semanticReviewLedger.cases.find(item => item.caseId === id)?.status).toBe("independent-control-tested");
     }
   });
 
