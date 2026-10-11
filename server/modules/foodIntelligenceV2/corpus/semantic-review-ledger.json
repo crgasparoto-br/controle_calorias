@@ -220,13 +220,13 @@
     },
     {
       "caseId": "c-qualificador-antes-marca",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-qualificador-antes-marca.json"
     },
     {
       "caseId": "c-qualificador-depois-marca",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-qualificador-depois-marca.json"
     },
     {
       "caseId": "c-cerveja-original-transcricao",
@@ -285,18 +285,18 @@
     },
     {
       "caseId": "c-leite-integral",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-integral.json"
     },
     {
       "caseId": "c-leite-desnatado",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-desnatado.json"
     },
     {
       "caseId": "c-leite-marca-informacional",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-marca-informacional.json"
     },
     {
       "caseId": "c-iogurte-morango",
