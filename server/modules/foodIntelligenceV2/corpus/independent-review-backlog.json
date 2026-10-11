@@ -318,36 +318,6 @@
       "decision": null
     },
     {
-      "caseId": "c-qualificador-antes-marca",
-      "title": "Qualificador antes da marca",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§17",
-        "§8.3"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-qualificador-depois-marca",
-      "title": "Qualificador depois da marca",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§17",
-        "§8.3"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-cerveja-original-transcricao",
       "title": "Cerveja Original por transcrição equivalente",
       "modality": "audio_transcript",
@@ -421,51 +391,6 @@
       "adrSections": [
         "§16",
         "§4.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-leite-integral",
-      "title": "Leite integral: atributo material",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-leite-desnatado",
-      "title": "Leite desnatado: variante material distinta",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§4.1.8"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-leite-marca-informacional",
-      "title": "Leite de marca com atributo informacional",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
       ],
       "verification": "pending",
       "independentEvidence": [],
