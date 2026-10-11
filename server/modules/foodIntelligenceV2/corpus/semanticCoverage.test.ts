@@ -3,9 +3,9 @@ import { goldenFoodCorpus } from "./data";
 import { readCanonicalReference } from "./referenceSource";
 
 /**
- * Independent domain assertions for high-risk historical regressions.
- * Deliberately not derived from expected decisions or the reference resolver.
- * These controls detect incorrect labels even when a harness matches its oracle.
+ * Domain invariants for high-risk historical regressions.
+ * Literal assertions about selected expected decisions; independent evidence is NOT established by this test.
+ * These guards detect selected label drift, but are not independent semantic sign-off.
  * This file does not claim external nutritional composition verification.
  */
 describe("historical domain semantic controls", () => {
@@ -28,7 +28,7 @@ describe("historical domain semantic controls", () => {
     ["c-maca-fuji", "maçã", null, "fuji", 1, "unidade"],
     ["c-leite-desnatado", "leite", null, "desnatado", 200, "ml"],
   ] as const)(
-    "preserves externally specified material identity for %s",
+    "preserves domain-invariant identity for %s",
     (id, name, brand, variant, value, unit) => {
       const decision = first(id);
       expect(decision.identity.canonicalName).toBe(name);
