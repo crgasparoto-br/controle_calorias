@@ -427,36 +427,6 @@
       "decision": null
     },
     {
-      "caseId": "c-leite-generico",
-      "title": "Leite sem qualificador material",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-leite-uht-generico",
-      "title": "UHT é atributo informacional para a família",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-leite-integral",
       "title": "Leite integral: atributo material",
       "modality": "text",
