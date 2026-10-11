@@ -142,54 +142,6 @@
       "decision": null
     },
     {
-      "caseId": "c-destino-refeicao-leading",
-      "title": "Destino da refeição em posição inicial",
-      "modality": "text",
-      "incidentRefs": [
-        "#899",
-        "#1278"
-      ],
-      "adrSections": [
-        "§16",
-        "§7.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-destino-refeicao-trailing",
-      "title": "Destino da refeição em posição final",
-      "modality": "text",
-      "incidentRefs": [
-        "#899",
-        "#1278"
-      ],
-      "adrSections": [
-        "§16",
-        "§7.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-operacao-data-refeicao-destino",
-      "title": "Data explícita, refeição configurada e destino embutido",
-      "modality": "text",
-      "incidentRefs": [
-        "#1271",
-        "#1291"
-      ],
-      "adrSections": [
-        "§16",
-        "§7.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-erro-transcricao",
       "title": "Erro de transcrição exige clarificação sem alternativas inventadas",
       "modality": "audio_transcript",
