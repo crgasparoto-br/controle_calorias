@@ -120,6 +120,46 @@ describe("independent semantic reference controls", () => {
     }
   });
 
+
+  it("checks cultivar, accent and singular/plural semantics against literal inputs", () => {
+    const reference = [
+      ["c-pera-packham", "1 pêra packham", "pêra", "packham", 1, "unidade"],
+      ["c-pera-williams", "1 pêra williams", "pêra", "williams", 1, "unidade"],
+      ["c-pera-sem-acento", "1 pera packham", "pêra", "packham", 1, "unidade"],
+      ["c-maca-fuji", "1 maçã fuji", "maçã", "fuji", 1, "unidade"],
+      ["c-ovo-frito", "2 ovos fritos", "ovo", null, 2, "unidade"],
+      ["c-ovo-singular", "2 ovo frito", "ovo", null, 2, "unidade"],
+      ["c-acento-ausente", "1 pao frances", "pão francês", null, 1, "unidade"],
+      ["c-acento-presente", "1 pão francês", "pão francês", null, 1, "unidade"],
+    ] as const;
+    for (const [caseId, surface, name, variant, value, unit] of reference) {
+      const item = findCase(caseId);
+      expect(item.input.text).toBe(surface);
+      expect(item.expected.decisions).toHaveLength(1);
+      const actual = item.expected.decisions[0];
+      expect(actual.nextAction).toBe("propose");
+      expect(actual.identity).toMatchObject({ canonicalName: name, variant });
+      expect(actual.quantity).toMatchObject({ value, unit });
+      if (caseId.startsWith("c-ovo-")) expect(actual.identity.preparation).toContain("frito");
+    }
+  });
+
+  it("keeps zero-sugar soda distinct from unqualified soda", () => {
+    const zero = findCase("c-refrigerante-zero");
+    const ordinary = findCase("c-refrigerante-comum");
+    expect(zero.input.text).toBe("1 copo de refrigerante zero");
+    expect(ordinary.input.text).toBe("1 copo de refrigerante");
+    for (const item of [zero, ordinary]) {
+      const actual = item.expected.decisions[0];
+      expect(actual.nextAction).toBe("propose");
+      expect(actual.identity.canonicalName).toBe("refrigerante");
+      expect(actual.quantity).toMatchObject({ value: 1, unit: "copo" });
+    }
+    expect(zero.expected.decisions[0].identity.qualifiers).toContain("zero");
+    expect(ordinary.expected.decisions[0].identity.qualifiers).not.toContain("zero");
+    expect(ordinary.negativeControlOf).toBe(zero.caseId);
+  });
+
   it("tracks every case without treating unreviewed labels as independently certified", () => {
     const expectedIds = goldenFoodCorpus.cases.map(item => item.caseId).sort();
     const trackedIds = semanticReviewLedger.cases.map(item => item.caseId).sort();
@@ -138,6 +178,16 @@ describe("independent semantic reference controls", () => {
       "c-mortadela-1-5-ponto",
       "c-mortadela-uma-fatia-e-meia",
       "c-mortadela-ordem-invertida",
+      "c-pera-packham",
+      "c-pera-williams",
+      "c-pera-sem-acento",
+      "c-maca-fuji",
+      "c-ovo-frito",
+      "c-ovo-singular",
+      "c-acento-ausente",
+      "c-acento-presente",
+      "c-refrigerante-zero",
+      "c-refrigerante-comum",
     ]);
     for (const review of semanticReviewLedger.cases) {
       expect(["pending-independent-review", "independent-control-tested"]).toContain(review.status);
