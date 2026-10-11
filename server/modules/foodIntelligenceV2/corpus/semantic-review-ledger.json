@@ -180,18 +180,18 @@
     },
     {
       "caseId": "c-porcao-tiquinho",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-tiquinho.json"
     },
     {
       "caseId": "c-porcao-punhado",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-punhado.json"
     },
     {
       "caseId": "c-porcao-pratao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-pratao.json"
     },
     {
       "caseId": "c-banco-ambiguo-pao",
