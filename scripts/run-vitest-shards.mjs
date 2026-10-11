@@ -60,7 +60,7 @@ export async function runShards({
   const abort = () => {
     if (interrupted) return;
     interrupted = true;
-    for (const child of running) child.kill?.("SIGTERM");
+    // Per-child abort handlers deliver TERM and handle bounded escalation.
   };
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted) abort();
