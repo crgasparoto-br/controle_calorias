@@ -401,7 +401,7 @@ const historicalIncidentCases: CaseDraft[] = [
             canonicalName: "cerveja",
             brand: "Original",
           }),
-          quantity: quantity({ value: 355, unit: "ml" }),
+          quantity: unspecifiedQuantity(),
         }),
       ],
       operation: { action: "add", targetMeal: "jantar", date: "2026-10-06" },
@@ -412,7 +412,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
-      "Volume visível no rótulo é quantidade; ml nunca vira gramas sem prova.",
+      "355 ml identifica o volume nominal da embalagem, mas não prova a quantidade consumida; não converter ml em gramas.",
   },
   {
     caseId: "c-leite-uht-integral",
