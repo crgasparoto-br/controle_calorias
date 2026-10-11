@@ -5,7 +5,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const now = () => Date.now();
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+export const TERMINATION_GRACE_MS = 2000;
+export const TERMINATION_LIMIT_MS = 5000;
 
 function processTreeRssKb(rootPid) {
   try {
@@ -57,6 +58,7 @@ export async function runShards({
   let runningCount = 0;
   let maximumConcurrency = 0;
   const abort = () => {
+    if (interrupted) return;
     interrupted = true;
     for (const child of running) child.kill?.("SIGTERM");
   };
@@ -73,7 +75,31 @@ export async function runShards({
         running.add(child);
         runningCount++;
         maximumConcurrency = Math.max(maximumConcurrency, runningCount);
-        const result = await child.done;
+        // A child that ignores TERM must never block the required gate forever.
+        const result = await new Promise((resolve, reject) => {
+          let settled = false;
+          let escalate;
+          let deadline;
+          const clear = () => { clearTimeout(escalate); clearTimeout(deadline); };
+          const finish = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            clear();
+            fn(value);
+          };
+          const onAbort = () => {
+            child.kill?.("SIGTERM");
+            escalate = setTimeout(() => child.kill?.("SIGKILL"), TERMINATION_GRACE_MS);
+            deadline = setTimeout(() => finish(reject, new Error("Shard did not exit after SIGKILL")), TERMINATION_LIMIT_MS);
+          };
+          // Remove listener when the process exits; abort may happen later.
+          if (signal?.aborted) onAbort();
+          else signal?.addEventListener("abort", onAbort, { once: true });
+          Promise.resolve(child.done).then(
+            value => finish(resolve, value),
+            error => finish(reject, error),
+          ).finally(() => signal?.removeEventListener("abort", onAbort));
+        });
         results[shard - 1] = {
           shard, exitCode: Number.isInteger(result.exitCode) ? result.exitCode : 1,
           durationMs: now() - started, peakRssKb: result.peakRssKb ?? null,
@@ -96,7 +122,6 @@ export async function runShards({
     await Promise.all(Array.from({ length: Math.min(total, concurrency) }, () => worker()));
   } finally {
     signal?.removeEventListener("abort", abort);
-    if (interrupted) for (const child of running) child.kill?.("SIGKILL");
   }
   return { results: results.filter(Boolean), interrupted, maximumConcurrency,
     success: !interrupted && results.every(result => result?.exitCode === 0) };
@@ -130,6 +155,12 @@ export function spawnVitestShard(number, output) {
   } };
 }
 
+export function formatShardLog(item, output = "") {
+  const duration = (item.durationMs / 1000).toFixed(1);
+  const msg = `${item.exitCode === 0 ? "PASS" : "FAIL"}: Vitest shard ${item.shard}/24 (${duration}s; peak RSS sample: ${item.peakRssKb ?? "unknown"} KiB)\n`;
+  return `--- Vitest shard ${item.shard}/24 ---\n${output}\n${msg}`;
+}
+
 async function main() {
   const logPath = process.env.VITEST_LOG_PATH || "/tmp/vitest.log";
   const start = now();
@@ -151,10 +182,9 @@ async function main() {
     },
     onComplete: item => {
       const shard = item.shard;
-      const duration = (item.durationMs / 1000).toFixed(1);
-      const msg = `${item.exitCode === 0 ? "PASS" : "FAIL"}: Vitest shard ${shard}/24 (${duration}s; peak RSS sample: ${item.peakRssKb ?? "unknown"} KiB)\n`;
-      appendFileSync(logPath, `--- Vitest shard ${shard}/24 ---\n${buffers.get(shard) || ""}\n${msg}`);
-      console.log(msg.trim());
+      const entry = formatShardLog(item, buffers.get(shard) || "");
+      appendFileSync(logPath, entry);
+      console.log(entry.split("\n").find(line => line.startsWith("PASS:") || line.startsWith("FAIL:")));
       buffers.delete(shard);
     },
   });
