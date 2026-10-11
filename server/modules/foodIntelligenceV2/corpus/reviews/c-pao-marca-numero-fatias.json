@@ -1,0 +1,22 @@
+{
+  "caseId": "c-pao-marca-numero-fatias",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — independent review of source issue #1072 and canonical ADR §16 (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "issue-1072",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1072"
+    },
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The input explicitly names Wickbold as brand, integral bread as the food, and three slices as the quantity. ADR §16 requires preserving brand plus slice count, and issue #1072 documents commercial brand identity and countable serving as distinct decisions. The action is adding the item to the explicitly scoped meal; the expected record does not claim numeric calories or a verified generic nutritional profile. Any commercial nutrient values must be grounded in matching brand/variant and declared provenance, not invented from the corpus output. Review compares the label with independent normative text; it does not attest runtime accuracy or nutrition facts."
+}
