@@ -1,0 +1,22 @@
+{
+  "caseId": "c-pontuacao-sem-virgula",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-based independent semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "issue-1177",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1177"
+    },
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The explicit text \"arroz feijão e bife\" enumerates three separate foods: rice, beans and steak. The ADR §16 requires punctuation-equivalent lists and preservation of individual items; issue #1177 independently requires retaining all individually identified meal components rather than losing them through a global failure. The action is to propose three items in the meal, with quantity unspecified and no fabricated grams or nutritional provenance. This review checks the label against domain rules, not accuracy of the production resolver."
+}
