@@ -160,13 +160,13 @@
     },
     {
       "caseId": "c-abreviacao-col",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-abreviacao-col.json"
     },
     {
       "caseId": "c-abreviacao-colher",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-abreviacao-colher.json"
     },
     {
       "caseId": "c-regionalismo-bergamota",
@@ -210,13 +210,13 @@
     },
     {
       "caseId": "c-pontuacao-com-virgula",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pontuacao-com-virgula.json"
     },
     {
       "caseId": "c-pontuacao-sem-virgula",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pontuacao-sem-virgula.json"
     },
     {
       "caseId": "c-qualificador-antes-marca",
