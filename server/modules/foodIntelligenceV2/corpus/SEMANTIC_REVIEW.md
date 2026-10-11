@@ -20,3 +20,32 @@ This review ledger belongs to issue #1299 and PR #1316. Its purpose is to separa
 The ledger contains 75 cases. Three historical cases (Panco, Wickbold, and peanut-label association) have narrowly scoped independent semantic assertions. The remaining 72 are explicitly pending. Structural checks across 75 cases, the 95% harness measurement, and green CI **do not** establish that 75 independently curated labels are correct.
 
 Until every case has externally grounded evidence and independent review, do not mark AUD-1316-003 as closed and do not describe the corpus as semantically certified.
+
+## Required evidence artifact for a new independent sign-off
+
+For every newly approved case, add a distinct JSON file at
+`server/modules/foodIntelligenceV2/corpus/reviews/<case-id>.json` and set
+`semantic-review-ledger.json` entry `evidence` to that repository-relative path.
+The test checks that this file exists and names the exact case, an explicit
+`approved` verdict, a nonempty reviewer, a reasoned decision, source IDs and
+locators, and material review dimensions. For example:
+
+```json
+{
+  "caseId": "c-example",
+  "verdict": "approved",
+  "reviewer": "independent-reviewer",
+  "independentSources": [
+    { "id": "incident-or-label-id", "locator": "stable-source-location" }
+  ],
+  "rationale": "Why the source independently supports the expected decision.",
+  "dimensions": ["identity", "quantity", "action", "nutritionProvenance"]
+}
+```
+
+The example is a schema illustration **not an approved review**. Every real
+source must be verified independently of the corpus output; merely creating
+the JSON file does not establish semantic truth. Existing Panco, Wickbold and
+peanut controls are grandfathered by the narrow existing test. Pending entries
+remain pending until independent review actually occurs. Run tests and CI on
+the new HEAD and request an independent auditor decision before merging.
