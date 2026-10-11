@@ -96,13 +96,13 @@ test("consolidated diagnostics retain failure output and unknown RSS", () => {
 test("abort escalates TERM to KILL when child does not terminate", async () => {
   const controller = new AbortController();
   const signals = [];
+  let childResolve;
   const child = { done: new Promise(resolve => {
     childResolve = resolve;
   }), kill: sig => {
     signals.push(sig);
     if (sig === "SIGKILL") childResolve({ exitCode: 1 });
   } };
-  let childResolve;
   setTimeout(() => controller.abort(), 5);
   const result = await runShards({ total: 1, launch: () => child, signal: controller.signal });
   assert.equal(result.success, false);
