@@ -120,18 +120,18 @@
     },
     {
       "caseId": "c-destino-refeicao-leading",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-destino-refeicao-leading.json"
     },
     {
       "caseId": "c-destino-refeicao-trailing",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-destino-refeicao-trailing.json"
     },
     {
       "caseId": "c-operacao-data-refeicao-destino",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-operacao-data-refeicao-destino.json"
     },
     {
       "caseId": "c-erro-transcricao",
