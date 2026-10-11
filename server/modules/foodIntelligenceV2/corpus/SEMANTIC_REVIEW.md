@@ -11,6 +11,10 @@ This review ledger belongs to issue #1299 and PR #1316. Its purpose is to separa
 5. Change that case's ledger state only after a review artifact exists and the test validates the expected result against the independent source.
 6. Run the focused corpus tests and the repository's required CI on the exact new HEAD. Obtain a new independent auditor decision.
 
+## Audit reconciliation (AUD-1316-004 / AUD-1316-005)
+
+`semanticCoverage.test.ts` enforces selected domain invariants and MUST NOT be counted as independent semantic certification. Only entries with independent source evidence and a case-specific review artifact may advance in the ledger. The 355 ml on `c-cerveja-imagem` is packaging OCR, not proof of 355 ml consumed; the expected consumed quantity is therefore unspecified. A future case with an explicit user-confirmed serving may assert 355 ml, but must not reuse packaging OCR as consumption proof.
+
 ## Current boundary
 
 The ledger contains 75 cases. Three historical cases (Panco, Wickbold, and peanut-label association) have narrowly scoped independent semantic assertions. The remaining 72 are explicitly pending. Structural checks across 75 cases, the 95% harness measurement, and green CI **do not** establish that 75 independently curated labels are correct.
