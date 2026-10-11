@@ -472,66 +472,6 @@
       "decision": null
     },
     {
-      "caseId": "c-iogurte-morango",
-      "title": "Iogurte de morango: sabor material",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-iogurte-natural",
-      "title": "Iogurte natural: variante distinta",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§4.1.8"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-arroz-simples",
-      "title": "Arroz sem descritor de embalagem",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-arroz-embalagem",
-      "title": "Arroz com descritor de embalagem: informacional, sem clarificação",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-superficie-nova-mesma-familia",
       "title": "Superfície nova da mesma família mapeia para variante existente",
       "modality": "text",
