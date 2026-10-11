@@ -1,0 +1,22 @@
+{
+  "caseId": "c-neg-imagem-ilegivel",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — independent normative semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "canonical-adr-media",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 4.1.6 and 16)"
+    },
+    {
+      "id": "related-image-issue",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1210"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Independent evaluation of input 'foto sem detalhe legível'. Request better evidence/clarification for an unreadable image, rather than assert that the input is a non-food or invent a meal identity. ADR §16 explicitly defines negative image/label controls; do not infer nutritional provenance, gram amount or a consumed food from an untrusted document. This verifies the semantic oracle's rejection or clarification contract, not any production vision runtime."
+}
