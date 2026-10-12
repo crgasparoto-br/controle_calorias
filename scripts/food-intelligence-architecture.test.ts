@@ -39,6 +39,8 @@ describe("food intelligence architecture wave 1", () => {
         "const BUILT_IN_REPLACEMENTS = [{raw: 'refri', normalized: 'refrigerante'}];" },
       { path: "server/modules/whatsapp/imageAdapter.ts", content:
         "import type { X } from '../../nutritionEngine';" },
+      { path: "server/modules/whatsapp/anotherImageAdapter.ts", content:
+        "import { type X } from '../../nutritionEngine';" },
     ]);
     expect(findings.some(f => f.ruleId === "5" && f.file.endsWith("foodCatalogReference.ts"))).toBe(true);
     expect(findings.some(f => f.ruleId === "11" && f.file.endsWith("informalLanguageNormalizer.ts"))).toBe(true);
@@ -68,6 +70,9 @@ describe("food intelligence architecture wave 1", () => {
     const c = findFoodStaticCandidates([{ ...input, content: "const FOOD_ALIASES = ['pão'];" }])[0];
     expect(a.fingerprint).toBe(b.fingerprint);
     expect(a.fingerprint).not.toBe(c.fingerprint);
+    const d = findFoodStaticCandidates([{ ...input, content: "const FOOD_ALIASES = ['ovo  ao forno'];" }])[0];
+    const e = findFoodStaticCandidates([{ ...input, content: "const FOOD_ALIASES = ['ovo ao forno'];" }])[0];
+    expect(d.fingerprint).not.toBe(e.fingerprint);
   });
 
   it("distinguishes new hardcodes from existing debt and resolved legacy by fingerprint", () => {
