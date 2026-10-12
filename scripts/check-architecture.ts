@@ -181,7 +181,7 @@ if (!existsSync(path.join(root, debtPath))) {
       }
       for (const warning of result.warnings) console.warn("[food-architecture] " + warning);
       console.log(
-        "[food-architecture] wave-one preview: " + FOOD_WAVE_ONE_RULES.length +
+        "[food-architecture] wave-one preview: " + new Set(FOOD_WAVE_ONE_RULES.map(rule => rule.id)).size +
         " rules, " + foodFindings.length + " findings, " + result.uncovered.length +
         " uncovered; blocking promotion awaits ADR §25 items 25/26",
       );
