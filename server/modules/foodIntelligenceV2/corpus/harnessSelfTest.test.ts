@@ -1052,7 +1052,7 @@ describe("autoverificação do harness", () => {
       expect(allCodes(valid)).not.toContain("nutrition_calculation_mismatch");
 
       const invalid = await measured(true);
-      expect(invalid.overall.matchRate).toBe(1);
+      expect(invalid.overall.matchRate).toBe(0);
       expect(allCodes(invalid)).toContain("nutrition_calculation_mismatch");
       expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
       expect(invalid.gate.status).toBe("blocked");
