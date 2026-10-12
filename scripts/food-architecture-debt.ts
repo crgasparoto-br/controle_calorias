@@ -43,7 +43,7 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
     const match = current.get(key);
     if (!match || match.ruleId !== debt.ruleId || match.file !== debt.file) {
       errors.push("Orphan/repaid food architecture debt: " + key);
-    } else if (validDates) {
+    } else if (validDates && expiry.getTime() >= Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())) {
       const age = Math.max(0, Math.floor((today.getTime() - created.getTime()) / 86400000));
       warnings.push("Active architecture debt: " + key + " age=" + age + "d expires=" + debt.expiresAt);
     }
@@ -51,4 +51,23 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
   const uncovered = findings.filter(f => !known.has(f.fingerprint));
   for (const f of uncovered) errors.push("Uncovered architecture violation: " + f.fingerprint);
   return { errors, warnings, uncovered, active: findings.length - uncovered.length };
+}
+
+
+/**
+ * Existing exceptions cannot be extended by changing their creation/expiry
+ * dates or substituting their owner issue. CI compares against the base ref.
+ */
+export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[]) {
+  const errors: string[] = [];
+  const indexed = new Map(current.map(item => [item.fingerprint, item]));
+  for (const old of previous) {
+    const next = indexed.get(old.fingerprint);
+    if (!next) continue; // repayment is allowed and required
+    if (next.createdAt !== old.createdAt || next.expiresAt !== old.expiresAt ||
+        next.issue !== old.issue || next.owner !== old.owner) {
+      errors.push("Architecture debt renewal or owner reassignment denied: " + old.fingerprint);
+    }
+  }
+  return errors;
 }
