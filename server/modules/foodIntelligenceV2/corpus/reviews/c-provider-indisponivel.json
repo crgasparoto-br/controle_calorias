@@ -1,0 +1,30 @@
+{
+  "caseId": "c-provider-indisponivel",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed independent semantic expectation review (2026-10-12); NOT third-party PR audit",
+  "independentSources": [
+    {
+      "id": "issue-1072-provider-classification",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1072"
+    },
+    {
+      "id": "issue-917-retry-fallback",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/917"
+    },
+    {
+      "id": "issue-1282-failure-handling",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1282"
+    },
+    {
+      "id": "adr-19.6",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 19.6)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #1072 explicitly distinguishes unavailable provider/configuration before a call, external execution failure, genuine found=false, and invalid evidence. Issue #917 constrains timeout/retry/fallback and prohibits implicit cross-provider fallback. Issue #1282 requires controlled response on nutrition-engine unavailability. With scenario.providerAvailability=unavailable supplied to the resolver via the sanitized input, the correct expectation is unknown/retry with reason provider_unavailable and no invented identity, consumed quantity or verified macro profile. The harness integrity gate rejects a provider_unavailable expectation without explicit unavailable state, and the per-case semanticReference test checks the fail-closed outcome. This is independent normative semantic labeling; it DOES NOT execute a real provider outage or certify provider runtime reliability."
+}
