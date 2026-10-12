@@ -140,3 +140,8 @@ export function findCompetingOwnerInventory(files: FoodArchitectureFile[]) {
     status: "requires-review" as const,
   }));
 }
+
+/** The non-lexicon, non-materiality wave-one detectors. */
+export function findFoodIntelligenceViolations(files: FoodArchitectureFile[]) {
+  return findFoodStaticCandidates(files).filter(finding => finding.ruleId !== "11" && finding.ruleId !== "18");
+}
