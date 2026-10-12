@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory } from "./food-intelligence-architecture";
 import { assessFoodDebt, type FoodDebt } from "./food-architecture-debt";
+import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const root = process.cwd();
 function walk(dir: string): string[] {
@@ -32,10 +33,7 @@ if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt l
 const debt = assessFoodDebt(findings, ledger.entries, new Date());
 const report = {
   sourceSha: sha(),
-  rules: [
-    { id: "17", layer: 1, mode: "preview", matrixClasses: ["A", "C", "I"] },
-    { id: "18", layer: 1, mode: "preview", matrixClasses: ["B"] },
-  ],
+  rules: FOOD_WAVE_ONE_RULES,
   scopeDecision: "ADR 25(25) OPEN - no automatic block",
   promotionDecision: "ADR 25(26) OPEN - no automatic promotion",
   summary: { findings: findings.length, activeDebt: debt.active, uncovered: debt.uncovered.length,
