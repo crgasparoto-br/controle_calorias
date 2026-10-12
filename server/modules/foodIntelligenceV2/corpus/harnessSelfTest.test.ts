@@ -631,7 +631,7 @@ describe("autoverificação do harness", () => {
   });
 
   it("usa matching global sem ordem para o contrafactual de um lote e preserva multiplicidade", async () => {
-    const entry = corpus.cases.find(item => item.caseId === "c-lote-multi-acao");
+    const entry = corpus.cases.find(item => item.caseId === "c-lote-valido-e-nao-alimento");
     expect(entry).toBeDefined();
     if (!entry) throw new Error("ausência do lote de referência");
     const store = createKnowledgeStore({ refusedWrites: [] });
