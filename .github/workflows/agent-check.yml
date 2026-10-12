@@ -236,7 +236,7 @@ jobs:
       - name: Food architecture inventory (ADR wave one)
         if: github.event_name == 'pull_request' && needs.classify.outputs.risk_profile == 'critical'
         run: |
-          pnpm food-architecture:report --require-baseline > /tmp/food-architecture-report.json
+          pnpm exec tsx scripts/food-architecture-report.ts --require-baseline > /tmp/food-architecture-report.json
           node -e 'const r = require("/tmp/food-architecture-report.json"); if (r.sourceSha !== process.env.VERIFICATION_HEAD_SHA || r.baselineStatus !== "compared") process.exit(1)'
 
       - name: Upload food architecture inventory
