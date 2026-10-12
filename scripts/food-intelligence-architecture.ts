@@ -23,8 +23,8 @@ const CHANNEL = /(?:whatsapp|inbound|image|audio|ocr|transcri|handler|router)/i;
 export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
   return p.startsWith("server/") &&
-    /\\.[cm]?tsx?$/.test(p) &&
-    !/\\.d\\.ts$|\\.(?:test|spec)\\.[cm]?tsx?$|(?:^|\\/)(?:__tests__|__fixtures__|fixtures|generated)(?:\\/|$)/i.test(p);
+    /\.[cm]?tsx?$/.test(p) &&
+    !/\.d\.ts$|\.(?:test|spec)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|fixtures|generated)(?:\/|$)/i.test(p);
 }
 
 function category(name: string, ruleId: "17" | "18"): FoodFinding["failureClass"] {
