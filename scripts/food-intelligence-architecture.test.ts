@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates, isProductionFoodSource } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
+import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
 
 const today = new Date("2026-10-12T12:00:00Z");
 const legacy = { path: "server/foodCatalogReference.ts", content: "const FOOD_ALIASES = ['pao', 'pão'];" };
@@ -67,6 +68,21 @@ describe("food intelligence architecture wave 1", () => {
     const c = findFoodStaticCandidates([{ ...input, content: "const FOOD_ALIASES = ['pão'];" }])[0];
     expect(a.fingerprint).toBe(b.fingerprint);
     expect(a.fingerprint).not.toBe(c.fingerprint);
+  });
+
+  it("distinguishes new hardcodes from existing debt and resolved legacy by fingerprint", () => {
+    const current = findFoodStaticCandidates([legacy, {
+      path: "server/newFood.ts",
+      content: "const FOOD_PORTIONS = [{ name: 'pão', grams: 25 }];",
+    }]);
+    const baseline = findFoodStaticCandidates([legacy, {
+      path: "server/oldFood.ts",
+      content: "const FOOD_ALIASES = ['old'];",
+    }]);
+    const delta = compareFoodArchitectureFindings(current, baseline);
+    expect(delta.added.some(f => f.file === "server/newFood.ts")).toBe(true);
+    expect(delta.retained.some(f => f.fingerprint === finding.fingerprint)).toBe(true);
+    expect(delta.removed.some(f => f.file === "server/oldFood.ts")).toBe(true);
   });
 
   it("fails uncovered and orphaned debt", () => {
