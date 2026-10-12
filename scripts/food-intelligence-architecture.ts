@@ -77,7 +77,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
   }
   if (rule.kind === "import" && ts.isImportDeclaration(node) &&
-    ts.isStringLiteral(node.moduleSpecifier)) {
+    !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
     const symbol = node.moduleSpecifier.text;
     if (matches(rule.symbolPattern, symbol)) return { symbol, subject: symbol };
   }
