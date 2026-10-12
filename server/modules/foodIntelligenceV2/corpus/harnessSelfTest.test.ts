@@ -7,9 +7,11 @@ import {
 } from "./contracts";
 import { goldenFoodCorpus } from "./data";
 import {
+  createKnowledgeStore,
   inspectCorpusIntegrity,
   runCorpus,
   runGoldenFoodCorpus,
+  type CorpusRefusedWrite,
 } from "./harness";
 import {
   buildDecisionForExpected,
@@ -545,6 +547,36 @@ describe("autoverificação do harness", () => {
     expect(allCodes(wrong)).toContain("nutrition_origin_forbidden");
   });
 
+  it("bloqueia proposta isolada sem macros mesmo quando a taxa global supera 95%", async () => {
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:isolated-macros-missing",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          if (request.case.caseId !== "c-panco-pao-forma") return result;
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              nutrition: { ...decision.nutrition, consumed: null },
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.overall.matchRate).toBeGreaterThanOrEqual(
+      GOLDEN_CORPUS_MIN_MATCH_RATE
+    );
+    expect(allCodes(report)).toContain("nutrition_missing");
+    expect(report.gate.blockReasons).toContain("macro_sample_insufficient");
+    expect(report.gate.status).toBe("blocked");
+    expect(corpus.cases.find(item => item.caseId === "c-panco-pao-forma")?.metamorphicGroup)
+      .toBeNull();
+  });
+
   it("bloqueia igualdade artificial quando todos os macros consumidos estão ausentes", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const members = new Set(
@@ -787,6 +819,36 @@ describe("autoverificação do harness", () => {
     );
     expect(byStep.get("step-reinicio")?.recordedWriteAttempts).toBe(0);
     expect(byStep.get("step-revogacao")?.recordedWriteAttempts).toBe(0);
+  });
+
+  it("marca passo como não correspondente quando falha a leitura causal obrigatória", async () => {
+    const altered = goldenCorpusSchema.parse({
+      ...corpus,
+      learningScenarios: corpus.learningScenarios.map(scenario => ({
+        ...scenario,
+        steps: scenario.steps.map(step =>
+          step.stepId === "step-medicao-reservada"
+            ? {
+                ...step,
+                requiredKnowledgeReads: [
+                  ...step.requiredKnowledgeReads,
+                  "owner-a:alias:inexistente",
+                ],
+              }
+            : step
+        ),
+      })),
+    });
+    const report = await runCorpus(altered, createLearningResolver(altered), pinned);
+    const step = report.learningScenarios[0].steps.find(
+      item => item.stepId === "step-medicao-reservada"
+    );
+    expect(step?.failures.some(failure =>
+      failure.codes.includes("scenario_effect_missing")
+    )).toBe(true);
+    expect(step?.matched).toBe(false);
+    expect(report.learningScenarios[0].passed).toBe(false);
+    expect(report.gate.status).toBe("blocked");
   });
 
   it("reprova cache obsoleto que ignora a revogação", async () => {
@@ -1401,6 +1463,39 @@ describe("autoverificação do harness", () => {
     // Métrica inválida não se dilui na média: a medição não é evidência.
     expect(report.gate.status).toBe("blocked");
     expect(report.gate.blockReasons).toContain("metrics_invalid");
+  });
+
+  it("recusa escrita direta em holdout mesmo com modo acquisition", async () => {
+    const refusedWrites: CorpusRefusedWrite[] = [];
+    const knowledge = createKnowledgeStore({ refusedWrites });
+    await expect(
+      knowledge.gateFor("case-reservado", "holdout", "acquisition")
+        .write("alias:indevido", "persistido")
+    ).rejects.toThrow(/holdout/);
+    expect(knowledge.snapshot()).toStrictEqual([]);
+    expect(refusedWrites).toMatchObject([{
+      caseId: "case-reservado",
+      split: "holdout",
+      key: "alias:indevido",
+      reason: "outside_acquisition",
+    }]);
+  });
+
+  it("invalida aquisição em caso rotulado como holdout, sem persistir", async () => {
+    const invalid = goldenCorpusSchema.parse({
+      ...corpus,
+      cases: corpus.cases.map(entry =>
+        entry.caseId === "c-aprendizado-alias-definido"
+          ? { ...entry, split: "holdout" }
+          : entry
+      ),
+    });
+    const report = await runCorpus(invalid, createLearningResolver(invalid), pinned);
+    expect(report.integrity.invalidScenarios.some(item =>
+      item.message.includes("aquisição exige split=acquisition")
+    )).toBe(true);
+    expect(report.integrity.holdoutKnowledgeWrites.length).toBeGreaterThan(0);
+    expect(report.gate.status).toBe("blocked");
   });
 
   it("fecha o gate quando a escrita em holdout ocorre só dentro do cenário", async () => {
