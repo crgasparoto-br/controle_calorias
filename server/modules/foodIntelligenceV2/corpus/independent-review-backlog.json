@@ -68,22 +68,6 @@
       "decision": null
     },
     {
-      "caseId": "c-lote-multi-acao",
-      "title": "Lote com substituição de alimento no almoço",
-      "modality": "text",
-      "incidentRefs": [
-        "#422",
-        "#168"
-      ],
-      "adrSections": [
-        "§7.1",
-        "§7.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-aprendizado-alias-antes",
       "title": "Estado anterior à aquisição: a superfície ainda é desconhecida",
       "modality": "text",
