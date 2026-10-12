@@ -1684,7 +1684,7 @@ const languageAndBatchCases: CaseDraft[] = [
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
-      "Produz alternativas sem corrigir silenciosamente para 'pão integral'.",
+      "A hipótese de erro em 'pão banco' admite 'pão branco' ou marca Panco, mas nenhuma delas pode ser selecionada silenciosamente; requer clarificação (#1051).",
   },
   {
     caseId: "c-lote-valido-e-nao-alimento",
