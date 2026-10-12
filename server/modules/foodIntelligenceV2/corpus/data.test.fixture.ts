@@ -2821,7 +2821,10 @@ const learningScenarioCases: CaseDraft[] = [
     knownRegression: true,
     incidentRefs: ["#403", "#1051"],
     adrSections: ["§16.1", "§15"],
-    input: input({ text: "café da firma" }),
+    input: input({
+      text: "café da firma",
+      priorUserMessages: [{ text: "quando digo café da firma, quero dizer café sem açúcar" }],
+    }),
     mealOperation: operation({
       targetMeal: "café da manhã",
       date: "2026-10-06",
