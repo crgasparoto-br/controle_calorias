@@ -1,24 +1,21 @@
 /**
- * Food Intelligence V2, ADR §19: static discovery for gates 17 and 18.
- * Detection is conservative: this reports candidates for review, never
- * authorizes a debt entry or silently expands the blocking scope (ADR §25).
+ * Static, AST-backed Food Intelligence V2 architecture discovery (ADR §19).
+ * Do not confuse a candidate with a proven behavioral violation: the wave-one
+ * registry remains preview until ADR §25 item 25 defines the final scope.
  */
 import ts from "typescript";
+import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRuleId, type FoodWaveOneRule } from "./food-architecture-rules";
 
 export type FoodArchitectureFile = { path: string; content: string };
 export type FoodFinding = {
-  ruleId: "17" | "18";
+  ruleId: FoodWaveOneRuleId;
   file: string;
   line: number;
   symbol: string;
-  failureClass: "A" | "B" | "C" | "I";
+  failureClass: FoodWaveOneRule["failureClass"];
   fingerprint: string;
+  description: string;
 };
-
-const FOOD_DECLARATION = /(?:food|alimento|nutrition|nutrient|macro|portion|porcao|porção|classification|processingLevel|alias|synonym|lexicon|vocab|ingredient|catalog|serving)/i;
-const MATERIALITY = /(?:materiality|materialidade|nutritionallyNeutral|neutralPackaging|commercialCategory|attributeMaterial|materialAttribute)/i;
-const MATERIALITY_DECISION = /(?:token|term|word|keyword|lexical|lexic|descriptor|qualifier)/i;
-const CHANNEL = /(?:whatsapp|inbound|image|audio|ocr|transcri|handler|router)/i;
 
 export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
@@ -27,58 +24,119 @@ export function isProductionFoodSource(file: string): boolean {
     !/\.d\.ts$|\.(?:test|spec)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|fixtures|generated)(?:\/|$)/i.test(p);
 }
 
-function category(name: string, ruleId: "17" | "18"): FoodFinding["failureClass"] {
-  if (ruleId === "18") return "B";
-  if (/portion|porc|serving|macro|nutrition|nutrient/i.test(name)) return "C";
-  if (/alias|lexic|synonym|vocab|term/i.test(name)) return "A";
+function matches(pattern: string | undefined, value: string): boolean {
+  return !pattern || new RegExp(pattern, "i").test(value);
+}
+
+function unwrap(source: ts.Expression): ts.Expression {
+  if (ts.isAsExpression(source) || ts.isSatisfiesExpression(source) || ts.isParenthesizedExpression(source)) {
+    return unwrap(source.expression);
+  }
+  if (ts.isCallExpression(source) && source.expression.getText() === "Object.freeze" &&
+    source.arguments.length === 1) return unwrap(source.arguments[0]);
+  return source;
+}
+
+function isLiteralCollection(expr: ts.Expression): boolean {
+  const value = unwrap(expr);
+  if (ts.isArrayLiteralExpression(value) || ts.isObjectLiteralExpression(value)) return true;
+  if (ts.isNewExpression(value) &&
+    (value.expression.getText() === "Set" || value.expression.getText() === "Map") &&
+    value.arguments?.length === 1) {
+    return ts.isArrayLiteralExpression(unwrap(value.arguments[0]));
+  }
+  return false;
+}
+
+function stableHash(value: string): string {
+  // FNV-1a over the AST subtree; whitespace-only changes are not debt changes.
+  let h = 2166136261;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  for (let i = 0; i < normalized.length; i++) {
+    h ^= normalized.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+function failureClass(rule: FoodWaveOneRule, symbol: string): FoodFinding["failureClass"] {
+  if (rule.id !== "17") return rule.failureClass;
+  if (/portion|porc|serving|macro|nutrition|nutrient/i.test(symbol)) return "C";
+  if (/alias|lexic|synonym|vocab|term/i.test(symbol)) return "A";
   return "I";
 }
 
+function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
+  symbol: string; subject: string;
+} | null {
+  if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
+    node.initializer && isLiteralCollection(node.initializer)) {
+    const symbol = node.name.getText(source);
+    if (matches(rule.symbolPattern, symbol) && matches(rule.evidencePattern, symbol)) {
+      return { symbol, subject: node.initializer.getText(source) };
+    }
+  }
+  if (rule.kind === "import" && ts.isImportDeclaration(node) &&
+    ts.isStringLiteral(node.moduleSpecifier)) {
+    const symbol = node.moduleSpecifier.text;
+    if (matches(rule.symbolPattern, symbol)) return { symbol, subject: symbol };
+  }
+  if (rule.kind === "function") {
+    const symbol = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
+      ? node.name?.getText(source)
+      : ts.isVariableDeclaration(node) && node.initializer &&
+        (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+          ? node.name.getText(source) : undefined;
+    if (symbol && matches(rule.symbolPattern, symbol)) {
+      return { symbol, subject: node.getText(source) };
+    }
+  }
+  if (rule.kind === "call" && ts.isCallExpression(node)) {
+    const symbol = node.expression.getText(source);
+    const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
+    if (matches(rule.symbolPattern, symbol) && matches(rule.evidencePattern, argumentsText)) {
+      return { symbol, subject: node.getText(source) };
+    }
+  }
+  return null;
+}
+
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
-  const out: FoodFinding[] = [];
+  const results: FoodFinding[] = [];
+  const observed = new Set<string>();
   for (const file of files) {
     if (!isProductionFoodSource(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node): void {
-      if (ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) {
-        const name = node.name.getText(source);
-        const initializer = node.initializer;
-        if (initializer) {
-          const array = ts.isArrayLiteralExpression(initializer);
-          const set = ts.isNewExpression(initializer) &&
-            initializer.expression.getText(source) === "Set" &&
-            !!initializer.arguments?.some(ts.isArrayLiteralExpression);
-          const literalMap = ts.isObjectLiteralExpression(initializer);
-          const location = source.getLineAndCharacterOfPosition(node.getStart(source));
-          const ruleId: "17" | "18" | null =
-            (MATERIALITY.test(name) && MATERIALITY_DECISION.test(name) && (array || set || literalMap))
-              ? "18"
-              : FOOD_DECLARATION.test(name) && (array || set || literalMap)
-                ? "17" : null;
-          if (ruleId) {
-            const symbol = name.replace(/^["']|["']$/g, "");
-            // fingerprint is stable across line movement; cannot mask other symbols in same file.
-            out.push({
-              ruleId, file: file.path, line: location.line + 1, symbol,
-              failureClass: category(symbol, ruleId),
-              fingerprint: ruleId + ":" + file.path + ":" + symbol,
-            });
-          }
-        }
+      for (const rule of FOOD_WAVE_ONE_RULES) {
+        if (!matches(rule.pathPattern, file.path)) continue;
+        const finding = ruleEvidence(node, source, rule);
+        if (!finding) continue;
+        const fingerprint = rule.id + ":" + file.path + ":" + finding.symbol + ":" + stableHash(finding.subject);
+        if (observed.has(fingerprint)) continue;
+        observed.add(fingerprint);
+        results.push({
+          ruleId: rule.id,
+          file: file.path,
+          line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+          symbol: finding.symbol,
+          fingerprint,
+          failureClass: failureClass(rule, finding.symbol),
+          description: rule.description,
+        });
       }
       ts.forEachChild(node, visit);
     }
     visit(source);
   }
-  return out.sort((a, b) =>
+  return results.sort((a, b) =>
     a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId));
 }
 
-/** Channel-owned declarations are discovery signals, not proof of competing decisions. */
 export function findCompetingOwnerInventory(files: FoodArchitectureFile[]) {
   return findFoodStaticCandidates(files).map(finding => ({
     ...finding,
-    suspectedChannelOwner: CHANNEL.test(finding.file),
+    suspectedChannelOwner: /whatsapp|image|audio|ocr|vision|handler|router/i.test(finding.file),
     status: "requires-review" as const,
   }));
 }
