@@ -145,8 +145,8 @@
     },
     {
       "caseId": "c-provider-indisponivel",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-provider-indisponivel.json"
     },
     {
       "caseId": "c-acento-ausente",
@@ -355,8 +355,8 @@
     },
     {
       "caseId": "c-aprendizado-persistencia-restart",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-persistencia-restart.json"
     },
     {
       "caseId": "c-aprendizado-isolamento-outro-usuario",
