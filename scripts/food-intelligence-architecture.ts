@@ -72,7 +72,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
     node.initializer && isLiteralCollection(node.initializer)) {
     const symbol = node.name.getText(source);
-    if (matches(rule.symbolPattern, symbol) && matches(rule.evidencePattern, symbol)) {
+    if ((matches(rule.symbolPattern, symbol) ||
+        (rule.contentPattern && matches(rule.contentPattern, node.initializer.getText(source)))) &&
+        matches(rule.evidencePattern, symbol)) {
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
