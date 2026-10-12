@@ -93,6 +93,27 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol, subject: node.getText(source) };
     }
   }
+  if (rule.kind === "literal-branch" && ts.isBinaryExpression(node) &&
+    [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
+      .includes(node.operatorToken.kind) &&
+    (ts.isStringLiteral(node.left) || ts.isStringLiteral(node.right))) {
+    let functionName = "";
+    for (let parent = node.parent; parent; parent = parent.parent) {
+      if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
+        functionName = parent.name?.getText(source) ?? "";
+        break;
+      }
+      if ((ts.isArrowFunction(parent) || ts.isFunctionExpression(parent)) &&
+        parent.parent && ts.isVariableDeclaration(parent.parent)) {
+        functionName = parent.parent.name.getText(source);
+        break;
+      }
+    }
+    if (functionName && matches(rule.symbolPattern, functionName)) {
+      return { symbol: functionName + ":lexical-branch", subject: node.getText(source) };
+    }
+  }
   if (rule.kind === "call" && ts.isCallExpression(node)) {
     const symbol = node.expression.getText(source);
     const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
