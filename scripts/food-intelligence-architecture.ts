@@ -49,11 +49,17 @@ function isLiteralCollection(expr: ts.Expression): boolean {
 }
 
 function stableHash(value: string): string {
-  // FNV-1a over the AST subtree; whitespace-only changes are not debt changes.
+  // FNV-1a over lexer tokens, not raw source. Formatting is ignored, but
+  // whitespace INSIDE string literals remains significant for new hardcodes.
   let h = 2166136261;
-  const normalized = value.replace(/\s+/g, " ").trim();
-  for (let i = 0; i < normalized.length; i++) {
-    h ^= normalized.charCodeAt(i);
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, value);
+  for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
+    const token = scanner.getTokenText();
+    for (let i = 0; i < token.length; i++) {
+      h ^= token.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    h ^= 0x1f;
     h = Math.imul(h, 16777619);
   }
   return (h >>> 0).toString(16).padStart(8, "0");
