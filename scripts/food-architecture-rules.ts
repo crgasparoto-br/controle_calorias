@@ -4,7 +4,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "import" | "function" | "call";
+export type FoodRuleKind = "collection" | "import" | "function" | "call" | "literal-branch";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -33,6 +33,13 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     symbolPattern: "materiality|materialidade|nutritionally[_-]?neutral|neutral[_-]?packaging|commercial[_-]?category|attribute[_-]?material|material[_-]?attribute|broad[_-]?commercial|identity[_-]?stop[_-]?words",
     evidencePattern: "token|term|word|keyword|lexical|lexic|descriptor|qualifier|packag|neutral|material|categor|stop",
     description: "Materialidade/identidade comercial decidida por léxico estático",
+  },
+  {
+    id: "18", layer: 1, mode: "preview", scope: "server-production",
+    failureClass: "B", kind: "literal-branch",
+    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier",
+    description: "Comparação literal potencialmente definindo materialidade de atributo",
   },
   {
     id: "5", layer: 1, mode: "preview", scope: "server-production",
