@@ -70,8 +70,8 @@ describe("independent semantic reference controls", () => {
     expect(decision.nextAction).toBe("clarify");
     expect(decision.identity.presence).toBe("forbidden");
     expect(decision.alternatives).toEqual(expect.arrayContaining([
-      expect.objectContaining({ canonicalName: "pão", variant: "branco" }),
-      expect.objectContaining({ canonicalName: "pão de forma", brand: "Panco" }),
+      expect.objectContaining({ name: "pão", variant: "branco" }),
+      expect.objectContaining({ name: "pão de forma", brand: "Panco" }),
     ]));
     expect(decision.alternatives).toHaveLength(2);
   });
