@@ -1,38 +1,5 @@
 {
   "schemaVersion": 1,
   "note": "Source pointers are leads only, not independent semantic certification. Never use expected output as evidence.",
-  "cases": [
-    {
-      "caseId": "c-provider-indisponivel",
-      "title": "Indisponibilidade de provider externo",
-      "modality": "text",
-      "incidentRefs": [
-        "#1072",
-        "#917",
-        "#1282"
-      ],
-      "adrSections": [
-        "§16",
-        "§19.6"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-persistencia-restart",
-      "title": "Persistência após reinício com a mesma chave",
-      "modality": "text",
-      "incidentRefs": [
-        "#1051",
-        "#1225"
-      ],
-      "adrSections": [
-        "§16.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    }
-  ]
+  "cases": []
 }
