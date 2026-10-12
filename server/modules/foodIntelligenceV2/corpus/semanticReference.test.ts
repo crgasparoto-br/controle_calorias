@@ -199,6 +199,43 @@ describe("independent semantic reference controls", () => {
     });
   });
 
+  it("only defers on a declared external provider outage, never on non-food", () => {
+    // Issues #1072 and #917 distinguish unavailable provider, search misses
+    // and operational fallback; the input must carry the outage condition.
+    const item = findCase("c-provider-indisponivel");
+    expect(item.incidentRefs).toContain("#1072");
+    expect(item.scenario.providerAvailability).toBe("unavailable");
+    expect(item.decisionClass).toBe("deferred");
+    expect(item.expected.decisions).toHaveLength(1);
+    const decision = item.expected.decisions[0];
+    expect(decision.status).toBe("unknown");
+    expect(decision.nextAction).toBe("retry");
+    expect(decision.reasonCodes).toContain("provider_unavailable");
+    expect(decision.forbiddenReasonCodes).toContain("non_food");
+    expect(decision.identity.presence).toBe("forbidden");
+    expect(decision.quantity.presence).toBe("forbidden");
+  });
+
+  it("requires a read-only restored alias after restart, not a second acquisition", () => {
+    // Issue #1153 requires persisted personal memory to survive restart.
+    const item = findCase("c-aprendizado-persistencia-restart");
+    expect(item.input.text).toBe("café da firma");
+    expect(item.scenario.ownerRef).toBe("owner-a");
+    expect(item.expected.decisions[0].identity.qualifiers).toContain("sem açúcar");
+    const scenario = goldenFoodCorpus.learningScenarios.find(
+      x => x.scenarioId === "s-aprendizado-cafe-firma"
+    );
+    const step = scenario?.steps.find(x => x.caseId === item.caseId);
+    expect(step).toMatchObject({
+      phase: "restart",
+      writesAllowed: false,
+      sameResultAsStepId: "step-aquisicao",
+      requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+      requiredKnowledgeWrites: [],
+      withoutKnowledgeCaseId: "c-aprendizado-alias-antes",
+    });
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
