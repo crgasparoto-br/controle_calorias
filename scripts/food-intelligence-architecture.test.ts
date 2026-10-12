@@ -25,6 +25,9 @@ describe("food intelligence architecture wave 1", () => {
     const legacy = findFoodStaticCandidates([{ path: "server/foodItemResolution.ts", content:
       "const NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS = new Set(['longa vida']);" }]);
     expect(legacy.some(f => f.ruleId === "18")).toBe(true);
+    const inline = findFoodStaticCandidates([{ path: "server/foodMateriality.ts", content:
+      "function isMaterialAttribute(variant: string) { return variant === 'integral'; }" }]);
+    expect(inline.some(f => f.ruleId === "18" && f.symbol.includes("lexical-branch"))).toBe(true);
   });
 
   it("detects typed production catalogs and channel lexicons, not type-only imports", () => {
