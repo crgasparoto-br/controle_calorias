@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "baseRef": "develop",
+  "baseSha": "0040adffc989d0b4d47e7cdc640ab9878e82c993",
+  "method": "Targeted inventory of ADR §8.5 legacy owners at the exact develop SHA; use scripts/food-architecture-report.ts for exhaustive source-tree discovery.",
+  "completeness": "targeted-seed-not-full-source-tree",
+  "observations": [
+    {
+      "file": "server/foodCatalogReference.ts",
+      "sourceBlobSha": "72496cae8eaa68231b17b15cc0adf2f5669ee74a",
+      "symbol": "FOOD_CATALOG_REFERENCE",
+      "concern": "legacy static catalog of food identities/macros",
+      "class": "I",
+      "rules": [
+        "17",
+        "5"
+      ]
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "CURATED_COMMON_COUNTABLE_PORTIONS",
+      "concern": "curated per-food countable portions in code",
+      "class": "C",
+      "rules": [
+        "17",
+        "5"
+      ]
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "BROAD_COMMERCIAL_CATEGORY_TOKENS",
+      "concern": "lexical commercial identity categories",
+      "class": "B",
+      "rules": [
+        "18"
+      ]
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS",
+      "concern": "hardcoded nutritional materiality of packaging descriptors",
+      "class": "B",
+      "rules": [
+        "18"
+      ]
+    },
+    {
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "sourceBlobSha": "d6dedf3d9db08bee4e5cf236df56be33b04328a4",
+      "symbol": "BUILT_IN_REPLACEMENTS",
+      "concern": "WhatsApp-only lexical normalizations",
+      "class": "A",
+      "rules": [
+        "11"
+      ]
+    },
+    {
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "sourceBlobSha": "d6dedf3d9db08bee4e5cf236df56be33b04328a4",
+      "symbol": "UNCERTAIN_PORTION_PATTERNS",
+      "concern": "WhatsApp-specific uncertain portion lexicon",
+      "class": "A",
+      "rules": [
+        "11"
+      ]
+    },
+    {
+      "file": "server/mealTextParsing.ts",
+      "sourceBlobSha": "82c0cfb5388d315c97f80d1f7a297d159ef3ca00",
+      "symbol": "FOOD_NAME_LOWERCASE_CONNECTORS",
+      "concern": "text normalizer lexical set; requires review to distinguish S1 grammar from governed S2 lexicon",
+      "class": "A",
+      "rules": [
+        "17"
+      ]
+    }
+  ]
+}
