@@ -84,8 +84,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
+  const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined;
+  const onlyNamedTypes = bindings && ts.isNamedImports(bindings) &&
+    bindings.elements.length > 0 && bindings.elements.every(specifier => specifier.isTypeOnly) &&
+    !node.importClause?.name;
   if (rule.kind === "import" && ts.isImportDeclaration(node) &&
-    !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
+    !node.importClause?.isTypeOnly && !onlyNamedTypes && ts.isStringLiteral(node.moduleSpecifier)) {
     const symbol = node.moduleSpecifier.text;
     if (matches(rule.symbolPattern, symbol)) return { symbol, subject: symbol };
   }
