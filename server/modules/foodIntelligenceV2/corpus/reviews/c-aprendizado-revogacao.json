@@ -1,0 +1,26 @@
+{
+  "caseId": "c-aprendizado-revogacao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed expectation review (2026-10-12), not an independent third-party auditor",
+  "independentSources": [
+    {
+      "id": "issue-1051-personal-learning",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-16.1",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 16.1)"
+    },
+    {
+      "id": "issue-1153-revocation",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1153"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #1153 explicitly requires aliases to be revocable/redefinable without retaining stale competing state. The synthetic revocation phase declares revokeKeys=['owner-a:alias:cafe-da-firma']; after deletion of that owner's key, the expected result for unconfirmed 'café da firma' must return clarification rather than silently reapplying a stale cached alias. The reference test pins the revocation key, phase, and expected clarify. This supports normative semantics only, not a production cache invalidation test. Nutritional values, production resolver accuracy and restart durability are not attested."
+}
