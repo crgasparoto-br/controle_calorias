@@ -30,8 +30,8 @@
     },
     {
       "caseId": "c-leite-uht-integral",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-uht-integral.json"
     },
     {
       "caseId": "c-pera-packham",
@@ -105,8 +105,8 @@
     },
     {
       "caseId": "c-cerveja-original-garrafa",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cerveja-original-garrafa.json"
     },
     {
       "caseId": "c-cafe-sem-acucar-memoria",
@@ -170,8 +170,8 @@
     },
     {
       "caseId": "c-regionalismo-bergamota",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-regionalismo-bergamota.json"
     },
     {
       "caseId": "c-erro-digitacao-recorrente",

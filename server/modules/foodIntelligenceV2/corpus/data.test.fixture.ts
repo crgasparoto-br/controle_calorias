@@ -440,7 +440,7 @@ const historicalIncidentCases: CaseDraft[] = [
           }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,
@@ -1878,7 +1878,7 @@ const languageAndBatchCases: CaseDraft[] = [
           }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,
@@ -1932,7 +1932,7 @@ const languageAndBatchCases: CaseDraft[] = [
           }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,
@@ -2315,7 +2315,7 @@ const materialityCases: CaseDraft[] = [
           identity: identity({ canonicalName: "leite" }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,
@@ -2361,7 +2361,7 @@ const materialityCases: CaseDraft[] = [
           identity: identity({ canonicalName: "leite" }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,
@@ -2407,7 +2407,7 @@ const materialityCases: CaseDraft[] = [
           identity: identity({ canonicalName: "leite", variant: "integral" }),
           classification: classification({
             measured: true,
-            processingLevel: "processed",
+            processingLevel: "natural_or_minimally_processed",
             isFruit: false,
             isVegetable: false,
             isUltraProcessed: false,

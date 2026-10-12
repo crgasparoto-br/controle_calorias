@@ -19,36 +19,6 @@
       "decision": null
     },
     {
-      "caseId": "c-leite-uht-integral",
-      "title": "Leite UHT integral de marca",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088",
-        "#903"
-      ],
-      "adrSections": [
-        "§16",
-        "§8.3"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-cerveja-original-garrafa",
-      "title": "Cerveja Original em garrafa (texto)",
-      "modality": "text",
-      "incidentRefs": [
-        "#987"
-      ],
-      "adrSections": [
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-cafe-sem-acucar-memoria",
       "title": "Café sem açúcar como memória pessoal",
       "modality": "text",
@@ -76,21 +46,6 @@
       "adrSections": [
         "§16",
         "§19.6"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-regionalismo-bergamota",
-      "title": "Regionalismo tolerado sem perder a identidade",
-      "modality": "text",
-      "incidentRefs": [
-        "#332"
-      ],
-      "adrSections": [
-        "§17",
-        "§4.1"
       ],
       "verification": "pending",
       "independentEvidence": [],

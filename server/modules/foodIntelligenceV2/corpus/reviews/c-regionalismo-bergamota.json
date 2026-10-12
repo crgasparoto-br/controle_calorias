@@ -1,0 +1,23 @@
+{
+  "caseId": "c-regionalismo-bergamota",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative source-backed oracle review (2026-10-12), not final independent PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §16 and §17"
+    },
+    {
+      "id": "regional name reference",
+      "locator": "https://redeglobo.globo.com/rpc/move-parana/noticia/ponkan-tangerina-mexerica-ou-bergamota-entenda-a-diferenca.ghtml"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "In Southern Brazilian Portuguese bergamota is a regional word for tangerina, independently documented by the news source. The literal '1 bergamota' contains one piece of fruit. ADR §16/§17 requires regionalism normalized without introducing another unrelated food. No cultivar or grams are inferred.",
+  "limitations": "Only source-backed expected semantic decision, not measured runtime/vision nor independent final PR audit."
+}
