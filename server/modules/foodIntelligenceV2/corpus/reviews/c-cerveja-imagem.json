@@ -1,0 +1,23 @@
+{
+  "caseId": "c-cerveja-imagem",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — revisão semântica de oráculo contra evidência histórica de domínio (2026-10-12); não é auditoria final da PR",
+  "independentSources": [
+    {
+      "id": "incident-987",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/987"
+    },
+    {
+      "id": "adr-4.1.6-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§4.1.6, 16"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #987 registra cerveja Antarctica Original entre embalagens identificáveis por rótulo e exige preservar a identidade comercial em vez de reduzir cervejas à categoria genérica. Dada a observação OCR sintética 'CERVEJA ORIGINAL 355 ml', a decisão semântica limitada conserva cerveja/Original. O volume nominal impresso pertence à embalagem, não prova 355 ml consumidos: a quantidade consumida permanece unspecified. A ação é add em jantar fornecido no contexto operacional; nenhum macro nem fonte nutricional específicos são afirmados.",
+  "limitations": "Revisão da referência/expectativa, não demonstra que uma imagem real ou o OCR seriam reconhecidos corretamente, nem avalia valores nutricionais, provedor ou fluxo de produção; auditoria independente do PR continua necessária."
+}
