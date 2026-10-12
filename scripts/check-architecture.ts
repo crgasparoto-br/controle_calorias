@@ -153,7 +153,7 @@ if (!existsSync(path.join(root, debtPath))) {
       fail("Invalid food architecture debt ledger: entries array required");
     } else {
       const result = assessFoodDebt(foodFindings, (ledger as { entries: FoodDebt[] }).entries, new Date());
-      const baseRef = process.env.GITHUB_BASE_REF || "develop";
+      const baseRef = process.env.GITHUB_BASE_REF || (process.env.GITHUB_REF_NAME === "main" ? "main" : "develop");
       if (/^[a-zA-Z0-9._/-]+$/.test(baseRef)) {
         try {
           execFileSync("git", ["rev-parse", "--verify", "origin/" + baseRef], { stdio: "ignore" });
