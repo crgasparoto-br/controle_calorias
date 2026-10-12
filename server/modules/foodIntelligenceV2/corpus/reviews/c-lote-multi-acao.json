@@ -1,0 +1,26 @@
+{
+  "caseId": "c-lote-multi-acao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed normative semantic review (2026-10-12); not independent third-party auditor",
+  "independentSources": [
+    {
+      "id": "issue-422",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/422"
+    },
+    {
+      "id": "issue-168",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/168"
+    },
+    {
+      "id": "adr-7",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 7.1 and 7.2)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Against issue #422 (ordered multi-action decomposition including replacement) and issue #168 (replace_item must be recognized before mutation), the message 'troquei o arroz por feijão no almoço' is a replace-item operation with old target arroz and new identity feijão, destination almoço. The source text does not state a serving quantity; no weight or nutritional composition may be invented. The food resolver must not treat 'no almoço' as part of the new food name or silently convert replacement into addition. A separate semanticReference.test.ts regression asserts these obligations. This is independent normative review of the case expectation relative to source specifications, not production execution or third-party audit."
+}
