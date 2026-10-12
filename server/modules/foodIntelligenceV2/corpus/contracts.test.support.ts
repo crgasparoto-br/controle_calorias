@@ -669,6 +669,8 @@ export interface CorpusCaseInput {
   readonly scenario: Readonly<{
     ownerRef: string;
     conversationRef: string;
+    /** Falha ambiental explícita do provider, não derivada do alimento nem do oráculo. */
+    providerAvailability: "available" | "unavailable";
     /**
      * Fase do cenário de §16.1 em execução, ou `null` fora de cenário. É
      * contexto observável (o resolvedor sabe se está num reinício ou depois de
@@ -778,6 +780,7 @@ export function toCorpusCaseInput(
     scenario: Object.freeze({
       ownerRef: entry.scenario.ownerRef,
       conversationRef: entry.scenario.conversationRef,
+      providerAvailability: entry.scenario.providerAvailability,
       phase,
     }),
   };
