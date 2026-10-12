@@ -34,15 +34,18 @@ if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt l
 const debt = assessFoodDebt(findings, ledger.entries, new Date());
 const baselineRef = process.env.GITHUB_BASE_REF ? "origin/" + process.env.GITHUB_BASE_REF : "origin/develop";
 let baselineComparison: ReturnType<typeof findFoodBaselineDelta> | null = null;
+let baselineSha: string | null = null;
 let baselineError: string | null = null;
 try {
-  baselineComparison = findFoodBaselineDelta(files, baselineRef, root);
+  baselineSha = execFileSync("git", ["rev-parse", "--verify", baselineRef], { cwd: root, encoding: "utf8" }).trim();
+  baselineComparison = findFoodBaselineDelta(files, baselineSha, root);
 } catch (error) {
   baselineError = String(error);
 }
 const report = {
   sourceSha: sha(),
   baselineRef,
+  baselineSha,
   baselineStatus: baselineError ? "unavailable" : "compared",
   baselineError,
   baseline: baselineComparison ? {
