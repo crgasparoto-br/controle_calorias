@@ -82,6 +82,7 @@ describe("harness do Golden Food Corpus", () => {
   it("entrega entrada sanitizada, sem o resultado esperado nem partição", async () => {
     const seen: string[] = [];
     const providerSignals = new Map<string, string>();
+    const priorMessagesSeen = new Map<string, readonly string[]>();
     await runCorpus(
       goldenFoodCorpus,
       {
@@ -91,6 +92,8 @@ describe("harness do Golden Food Corpus", () => {
           const keys = Object.keys(request.case as object).sort();
           seen.push(keys.join(","));
           providerSignals.set(request.case.caseId, request.case.scenario.providerAvailability);
+          priorMessagesSeen.set(request.case.caseId, request.case.input.priorUserMessages.map(item => item.text));
+          expect(Object.isFrozen(request.case.input.priorUserMessages)).toBe(true);
           expect(Object.isFrozen(request.case.scenario)).toBe(true);
           expect(keys).toStrictEqual([
             "caseId",
@@ -116,6 +119,8 @@ describe("harness do Golden Food Corpus", () => {
     expect(seen.length).toBeGreaterThanOrEqual(goldenFoodCorpus.cases.length);
     expect(providerSignals.get("c-provider-indisponivel")).toBe("unavailable");
     expect(providerSignals.get("c-erro-digitacao-recorrente")).toBe("available");
+    expect(priorMessagesSeen.get("c-cafe-sem-acucar-memoria")).toEqual(["normalmente tomo café sem açúcar"]);
+    expect(priorMessagesSeen.get("c-leite-integral")).toEqual([]);
   });
 
   it("bloqueia quando as revisões não estão fixadas", async () => {
