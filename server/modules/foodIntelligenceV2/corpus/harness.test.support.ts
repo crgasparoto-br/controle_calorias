@@ -624,6 +624,23 @@ export function inspectCorpusIntegrity(
   }
 
   for (const entry of corpus.cases) {
+    // A falha de provider é uma condição ambiental injetada, jamais
+    // deduzida da superfície lexical do alimento.
+    const providerExpected = entry.expected.decisions.some(
+      decision => decision.reasonCodes.includes("provider_unavailable")
+    );
+    if (providerExpected && entry.scenario.providerAvailability !== "unavailable") {
+      invalidCases.push({
+        caseId: entry.caseId,
+        message: "provider_unavailable exige providerAvailability=unavailable declarado",
+      });
+    }
+    if (entry.scenario.providerAvailability === "unavailable" && !providerExpected) {
+      invalidCases.push({
+        caseId: entry.caseId,
+        message: "cenário de provider indisponível exige razão provider_unavailable",
+      });
+    }
     const derived = deriveDecisionClass(entry.expected.decisions);
     if (derived !== entry.decisionClass) {
       invalidCases.push({
