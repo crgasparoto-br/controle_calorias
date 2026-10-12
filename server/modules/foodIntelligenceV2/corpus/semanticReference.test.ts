@@ -105,6 +105,23 @@ describe("independent semantic reference controls", () => {
     expect(entry.expected.mustExplainExclusions).toBe(true);
   });
 
+  it("normalizes arros to arroz without guessing a spoon size", () => {
+    // "arroz" is the attested food spelling (Dicionário Priberam).
+    // The exact unit "colher de sopa" must be present in the input itself.
+    const item = findCase("c-erro-digitacao-recorrente");
+    expect(item.input.text).toBe("2 colheres de sopa de arros");
+    expect(item.decisionClass).toBe("resolvable");
+    expect(item.expected.decisions).toHaveLength(1);
+    const decision = item.expected.decisions[0];
+    expect(decision.identity.canonicalName).toBe("arroz");
+    expect(decision.quantity).toMatchObject({
+      presence: "expected",
+      value: 2,
+      unit: "colher de sopa",
+    });
+    expect(item.expected.operation.action).toBe("add");
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
