@@ -13,13 +13,15 @@ This review ledger belongs to issue #1299 and PR #1316. Its purpose is to separa
 
 ## Audit reconciliation (AUD-1316-004 / AUD-1316-005)
 
-`semanticCoverage.test.ts` enforces selected domain invariants and MUST NOT be counted as independent semantic certification. Only entries with independent source evidence and a case-specific review artifact may advance in the ledger. The 355 ml on `c-cerveja-imagem` is packaging OCR, not proof of 355 ml consumed; the expected consumed quantity is therefore unspecified. A future case with an explicit user-confirmed serving may assert 355 ml, but must not reuse packaging OCR as consumption proof.
+`semanticCoverage.test.ts` enforces selected domain invariants and MUST NOT be counted as independent semantic certification. Only entries with independent source evidence and a case-specific review artifact may advance in the ledger. The 300 ml on `c-cerveja-imagem` is packaging OCR for Antarctica Original, not proof of 300 ml consumed; the expected consumed quantity is therefore unspecified. A future case with an explicit user-confirmed serving may assert 300 ml, but must not reuse packaging OCR as consumption proof.
 
-## Current boundary
+## Current boundary (2026-10-12)
 
-The ledger contains 75 cases. Twenty-one cases now have narrowly scoped literal semantic controls: the original three, four non-food rejections (#437), four Portuguese fractional-slice statements (#1037), and ten orthography, quantity, cultivar, preparation or product-qualification controls. The remaining 54 are explicitly pending. These controls do not verify external nutritional values. Structural checks across 75 cases, the 95% harness measurement, and green CI **do not** establish that 75 independently curated labels are correct.
+The versioned ledger tracks **75/75 cases** as `independent-control-tested` and the independent-review backlog contains **0 pending case labels**. Existing narrow literal controls are accompanied by case-specific reviewed JSON records for the remaining cases. This reflects documented, source-referenced **semantic expectations**, not a runtime/third-party certification of the resolver, provider, OCR, food-label numbers, or persisted user memory.
 
-Until every case has source-grounded evidence and independent review, do not mark AUD-1316-003 as closed and do not describe the corpus as semantically certified.
+The harness is a test/calibration tool: its 95% match-rate calculation, metamorphic controls, structural validation, and green CI do not measure production accuracy by themselves. The reference resolver used in self-tests is deliberately synthetic. Integration with the productive Food Intelligence V2 resolver is outside issue #1299; real external-provider failure injection and a PostgreSQL restart are also not certified by this corpus.
+
+A new external audit must still verify that the individual evidence records actually substantiate the labels, and separately check the changed harness implementation on the current exact HEAD. An empty review backlog is not an automatic auditor approval. Do not claim end-to-end accuracy or authorize merge from these counts alone.
 
 ## Required evidence artifact for a new independent sign-off
 
@@ -46,6 +48,6 @@ locators, and material review dimensions. For example:
 The example is a schema illustration **not an approved review**. Every real
 source must be verified independently of the corpus output; merely creating
 the JSON file does not establish semantic truth. Existing Panco, Wickbold and
-peanut controls are grandfathered by the narrow existing test. Pending entries
-remain pending until independent review actually occurs. Run tests and CI on
-the new HEAD and request an independent auditor decision before merging.
+peanut controls are grandfathered by the narrow existing test. New or changed entries must be source-reviewed before being counted; the current
+75-case ledger has no pending entries. Run tests and CI on the exact current HEAD
+and request an independent auditor decision before merging.
