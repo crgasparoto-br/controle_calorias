@@ -122,6 +122,24 @@ describe("independent semantic reference controls", () => {
     expect(item.expected.operation.action).toBe("add");
   });
 
+  it("preserves Antarctica brand and Original variant from image OCR without inventing consumption", () => {
+    // Issue #987 documents an Antarctica Original bottle labelled 300 ml;
+    // container capacity is not proof of the portion consumed.
+    const item = findCase("c-cerveja-imagem");
+    expect(item.modality).toBe("image");
+    expect(item.input.ocrText).toBe("CERVEJA ANTARCTICA ORIGINAL 300 ml");
+    expect(item.input.imageRef).toBe("synthetic-cerveja-original");
+    const [decision] = item.expected.decisions;
+    expect(decision.identity).toMatchObject({
+      canonicalName: "cerveja",
+      brand: "Antarctica",
+      variant: "Original",
+    });
+    expect(decision.quantity.presence).toBe("unspecified");
+    expect(decision.quantity.value).toBeNull();
+    expect(item.expected.operation.action).toBe("add");
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
