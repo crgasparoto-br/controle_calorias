@@ -478,6 +478,107 @@ describe("autoverificação do harness", () => {
     ).toBe(true);
   });
 
+  it("faz pareamento global quando expectativas específicas e genéricas competem", async () => {
+    const sample = subCorpus(["c-leite-uht-integral"]);
+    const source = sample.cases[0];
+    const original = source.expected.decisions[0];
+    // Duas decisões de mesma identidade e porção: uma aceita catálogo ou
+    // rótulo; a outra exige rótulo. A escolha gulosa roubaria a única decisão
+    // específica se ela viesse primeiro na saída.
+    const broad = {
+      ...original,
+      label: "leite com origem ampla",
+      nutrition: {
+        ...original.nutrition,
+        allowedOrigins: ["nutrition_label", "catalog"] as const,
+        genericProfileMustNotBeVerified: false,
+      },
+    };
+    const strict = {
+      ...original,
+      label: "leite que exige rótulo",
+      nutrition: {
+        ...original.nutrition,
+        allowedOrigins: ["nutrition_label"] as const,
+        genericProfileMustNotBeVerified: false,
+      },
+    };
+    const ambiguous = goldenCorpusSchema.parse({
+      ...sample,
+      cases: [{
+        ...source,
+        expected: { ...source.expected, decisions: [broad, strict] },
+      }],
+    });
+    const reference = createReferenceResolver(ambiguous);
+    const execute = (mode: "reordered" | "normal" | "missing-specific") =>
+      runCorpus(
+        ambiguous,
+        {
+          id: `test:matching-${mode}`,
+          revision: "1",
+          async resolve(request) {
+            const result = await reference.resolve(request);
+            const decisions = result.decisions.map((decision, index) => ({
+              ...decision,
+              evidence: decision.evidence.map(evidence =>
+                evidence.field.startsWith("nutrition.") &&
+                (index === 0 || mode === "missing-specific")
+                  ? { ...evidence, origin: "catalog" as const }
+                  : evidence
+              ),
+            }));
+            if (mode === "reordered") decisions.reverse();
+            return { ...result, decisions };
+          },
+        },
+        pinned
+      );
+
+    for (const mode of ["normal", "reordered"] as const) {
+      const report = await execute(mode);
+      expect(report.failures, mode).toStrictEqual([]);
+      expect(report.gate.status, mode).toBe("passed");
+    }
+    const wrong = await execute("missing-specific");
+    expect(wrong.gate.status).not.toBe("passed");
+    expect(allCodes(wrong)).toContain("nutrition_origin_forbidden");
+  });
+
+  it("bloqueia igualdade artificial quando todos os macros consumidos estão ausentes", async () => {
+    const groupId = "g-mortadela-fatia-e-meia";
+    const members = new Set(
+      corpus.cases
+        .filter(entry => entry.metamorphicGroup === groupId)
+        .map(entry => entry.caseId)
+    );
+    expect(members.size).toBeGreaterThanOrEqual(2);
+    const reference = createReferenceResolver(corpus);
+    const report = await runCorpus(
+      corpus,
+      {
+        id: "test:missing-macros-on-both-sides",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          if (!members.has(request.case.caseId)) return result;
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              nutrition: { ...decision.nutrition, consumed: null },
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent)
+      .toBeNull();
+    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.blockReasons).toContain("macro_sample_insufficient");
+  });
+
   it("bloqueia divergência de macros sem tolerância calibrada", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const target = "c-mortadela-1-5-ponto";
