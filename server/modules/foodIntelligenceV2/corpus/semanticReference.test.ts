@@ -11,8 +11,9 @@ import { CANONICAL_ADR_PATH, readCanonicalReference } from "./referenceSource";
  * and the expected decisions. This is deliberately distinct from testing a
  * resolver against expectations supplied by that same corpus.
  *
- * Scope: three material historical controls. Other cases still require
- * independent semantic review; this is not a certification of all 75 labels.
+ * Scope: literal regression guards and source-backed review-artifact checks
+ * for all 75 currently documented corpus cases. This does not certify
+ * production resolver behavior, OCR accuracy, or numeric nutrition values.
  */
 describe("independent semantic reference controls", () => {
   const reference = readCanonicalReference();
