@@ -22,6 +22,45 @@ describe("food intelligence architecture wave 1", () => {
     expect(matches).toMatchObject([{ ruleId: "18", failureClass: "B" }]);
   });
 
+  it("detects typed production catalogs and channel lexicons, not type-only imports", () => {
+    const findings = findFoodStaticCandidates([
+      { path: "server/foodCatalogReference.ts", content:
+        "export const FOOD_CATALOG_REFERENCE: CatalogFoodReference[] = [{ name: 'ovo', calories: 78 }];" },
+      { path: "server/modules/whatsapp/informalLanguageNormalizer.ts", content:
+        "const BUILT_IN_REPLACEMENTS = [{raw: 'refri', normalized: 'refrigerante'}];" },
+      { path: "server/modules/whatsapp/imageAdapter.ts", content:
+        "import type { X } from '../../nutritionEngine';" },
+    ]);
+    expect(findings.some(f => f.ruleId === "5" && f.file.endsWith("foodCatalogReference.ts"))).toBe(true);
+    expect(findings.some(f => f.ruleId === "11" && f.file.endsWith("informalLanguageNormalizer.ts"))).toBe(true);
+    expect(findings.some(f => f.ruleId === "10")).toBe(false);
+  });
+
+  it("detects candidate owner, adapter bypass and round-trip without treating them as proven runtime failures", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/intent/foodAdapter.ts",
+      content: [
+        "import { foo } from '../../../nutritionEngine';",
+        "function resolveNutrition(input: string) { return input; }",
+        "const nutrition = findLocalNutritionReference(item);",
+        "const roundTrip = parseFoodText(decision.normalizedText);",
+      ].join("\n"),
+    }]);
+    for (const id of ["1", "2", "3", "4", "10"]) {
+      expect(findings.some(f => f.ruleId === id), "missing gate " + id).toBe(true);
+    }
+    expect(findings.every(f => f.fingerprint.includes(f.file))).toBe(true);
+  });
+
+  it("keeps fingerprints stable for whitespace changes but changes on rule material changes", () => {
+    const input = { path: "server/food.ts", content: "const FOOD_ALIASES = ['ovo'];" };
+    const a = findFoodStaticCandidates([input])[0];
+    const b = findFoodStaticCandidates([{ ...input, content: "\n  const FOOD_ALIASES = ['ovo'];" }])[0];
+    const c = findFoodStaticCandidates([{ ...input, content: "const FOOD_ALIASES = ['pão'];" }])[0];
+    expect(a.fingerprint).toBe(b.fingerprint);
+    expect(a.fingerprint).not.toBe(c.fingerprint);
+  });
+
   it("fails uncovered and orphaned debt", () => {
     expect(assessFoodDebt([finding], [], today).errors).toContain(
       "Uncovered architecture violation: " + finding.fingerprint);
