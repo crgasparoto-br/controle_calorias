@@ -23,7 +23,7 @@ function sha(): string {
   try { return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(); }
   catch { return "unavailable"; }
 }
-const files = walk("server").filter(p => /\\.[cm]?tsx?$/.test(p))
+const files = walk("server").filter(p => /\.[cm]?tsx?$/.test(p))
   .map(p => ({ path: p, content: readFileSync(path.join(root, p), "utf8") }));
 const findings = findFoodStaticCandidates(files);
 const inventory = findCompetingOwnerInventory(files);
