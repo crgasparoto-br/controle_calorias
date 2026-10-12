@@ -22,6 +22,7 @@
     "issue-1097:validate": "tsx scripts/issue-1097-final-validation.ts",
     "smoke:issue-1097:post-deploy": "tsx scripts/issue-1097-post-deploy-smoke.ts",
     "architecture:check": "tsx scripts/check-architecture.ts",
+    "food-architecture:report": "tsx scripts/food-architecture-report.ts",
     "docs:generate:db": "tsx scripts/generate-db-schema-doc.ts",
     "docs:generate:trpc": "tsx scripts/generate-trpc-routes-doc.ts",
     "docs:check": "tsx scripts/generate-db-schema-doc.ts --check && tsx scripts/generate-trpc-routes-doc.ts --check && tsx scripts/check-docs-freshness.ts",
