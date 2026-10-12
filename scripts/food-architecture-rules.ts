@@ -15,6 +15,7 @@ export type FoodWaveOneRule = {
   symbolPattern: string;
   pathPattern?: string;
   evidencePattern?: string;
+  contentPattern?: string;
   description: string;
 };
 
@@ -22,7 +23,8 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
   {
     id: "17", layer: 1, mode: "preview", scope: "server-production",
     failureClass: "I", kind: "collection",
-    symbolPattern: "food|alimento|nutrition|nutrient|macro|portion|porcao|porção|classification|processingLevel|alias|synonym|lexicon|vocab|ingredient|catalog|serving",
+    symbolPattern: "food|alimento|brand|marca|variant|nutrition|nutrient|macro|portion|porcao|porção|classification|processingLevel|alias|synonym|lexicon|vocab|ingredient|catalog|serving",
+    contentPattern: "(?=[\\s\\S]*\\bname\\s*:)(?=[\\s\\S]*\\b(?:calories|protein|carbs|fat|portion|grams)\\s*:)",
     description: "Coleção literal de conhecimento alimentar em produção",
   },
   {
