@@ -9,6 +9,7 @@ import { goldenFoodCorpus } from "./data";
 import {
   CORPUS_ROUNDING_TOLERANCE,
   inspectCorpusIntegrity,
+  createKnowledgeStore,
   runCorpus,
   runGoldenFoodCorpus,
 } from "./harness";
@@ -60,6 +61,31 @@ describe("harness do Golden Food Corpus", () => {
         }),
       ])
     );
+  });
+
+  it("recria a fachada após restart sem compartilhar Map com a instância anterior", async () => {
+    const refusedWrites: Array<{
+      caseId: string;
+      split: "acquisition" | "calibration" | "holdout";
+      key: string;
+      reason: "outside_acquisition" | "after_step";
+    }> = [];
+    const initial = createKnowledgeStore({ refusedWrites });
+    const key = "owner-a:alias:cafe-da-firma";
+    await initial.gateFor("seed", "acquisition", "acquisition").write(key, "cafe|sem-acucar");
+    initial.closeGates();
+    const serialized = JSON.stringify(initial.snapshot());
+    const restored = createKnowledgeStore({
+      refusedWrites,
+      initialEntries: JSON.parse(serialized) as [string, string][],
+    });
+    const read = restored.gateFor("restart", "holdout", "read_only");
+    expect(await read.read(key)).toBe("cafe|sem-acucar");
+    initial.revoke(key);
+    // Revoke on the previous instance must not touch the reconstructed store.
+    expect(await read.read(key)).toBe("cafe|sem-acucar");
+    restored.revoke(key);
+    expect(await read.read(key)).toBeNull();
   });
 
   it("aprova o corpus quando o resolvedor corresponde à referência independente", async () => {
