@@ -9,6 +9,7 @@ import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory } from "./food-intelligence-architecture";
 import { assessFoodDebt, type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
+import { findFoodBaselineDelta } from "./food-architecture-baseline";
 
 const root = process.cwd();
 function walk(dir: string): string[] {
@@ -31,8 +32,26 @@ const inventory = findCompetingOwnerInventory(files);
 const ledger = JSON.parse(readFileSync(path.join(root, "architecture-debt.json"), "utf8")) as { entries: FoodDebt[] };
 if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt ledger: entries array required");
 const debt = assessFoodDebt(findings, ledger.entries, new Date());
+const baselineRef = process.env.GITHUB_BASE_REF ? "origin/" + process.env.GITHUB_BASE_REF : "origin/develop";
+let baselineComparison: ReturnType<typeof findFoodBaselineDelta> | null = null;
+let baselineError: string | null = null;
+try {
+  baselineComparison = findFoodBaselineDelta(files, baselineRef, root);
+} catch (error) {
+  baselineError = String(error);
+}
 const report = {
   sourceSha: sha(),
+  baselineRef,
+  baselineStatus: baselineError ? "unavailable" : "compared",
+  baselineError,
+  baseline: baselineComparison ? {
+    newFindings: baselineComparison.added.length,
+    retainedFindings: baselineComparison.retained.length,
+    removedFindings: baselineComparison.removed.length,
+    added: baselineComparison.added,
+    removed: baselineComparison.removed,
+  } : null,
   rules: FOOD_WAVE_ONE_RULES,
   scopeDecision: "ADR 25(25) OPEN - no automatic block",
   promotionDecision: "ADR 25(26) OPEN - no automatic promotion",
@@ -43,3 +62,6 @@ const report = {
 };
 console.log(JSON.stringify(report, null, 2));
 if (process.argv.includes("--enforce") && debt.errors.length > 0) process.exitCode = 1;
+// Explicit diagnostic switches, not CI-enforced until ADR §25 makes scope and promotion decisions.
+if (process.argv.includes("--fail-new") && (!baselineComparison || baselineComparison.added.length > 0)) process.exitCode = 1;
+if (process.argv.includes("--require-baseline") && !baselineComparison) process.exitCode = 1;
