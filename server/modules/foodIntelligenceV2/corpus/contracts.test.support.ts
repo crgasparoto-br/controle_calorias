@@ -449,6 +449,13 @@ const corpusInputSchema = z.strictObject({
   /** Referência sintética de mídia; nunca mídia real (§19.8). */
   imageRef: nullableText(120),
   /**
+   * Mensagens anteriores confirmadas, separadas da solicitação atual.
+   * Apenas contexto observável: nunca armazenar expectativa/oráculo aqui.
+   */
+  priorUserMessages: z.array(z.strictObject({
+    text: z.string().trim().min(1).max(600),
+  })).max(10).default([]),
+  /**
    * Tokens detectados como possível quantidade que o caso declara **não** serem
    * porção consumida (por exemplo o número de uma marca). Cada isenção precisa
    * de motivo e é recusada quando o token está adjacente a uma unidade ou
@@ -653,7 +660,8 @@ export type GoldenCorpus = z.infer<typeof goldenCorpusSchema>;
  */
 /** Entrada sanitizada com imutabilidade **profunda** (inclui listas aninhadas). */
 export type CorpusFrozenInput = Readonly<
-  Omit<CorpusInput, "nonQuantityTokens"> & {
+  Omit<CorpusInput, "nonQuantityTokens" | "priorUserMessages"> & {
+    readonly priorUserMessages: readonly Readonly<{ text: string }>[];
     readonly nonQuantityTokens: readonly Readonly<{
       token: string;
       reason: string;
@@ -768,6 +776,9 @@ export function toCorpusCaseInput(
   // resolvedor poderia contaminar a estrutura entre casos e cenários (§18).
   const frozenInput = Object.freeze({
     ...entry.input,
+    priorUserMessages: Object.freeze(
+      entry.input.priorUserMessages.map(item => Object.freeze({ ...item }))
+    ),
     nonQuantityTokens: Object.freeze(
       entry.input.nonQuantityTokens.map(item => Object.freeze({ ...item }))
     ),
