@@ -159,6 +159,46 @@ describe("independent semantic reference controls", () => {
     expect(item.expected.operation.action).toBe("add");
   });
 
+  it("requires confirmation for personal alias acquisition and denies unlearned reuse", () => {
+    // ADR §16.1 and issue #1051 require confirmation, persisted personal scope,
+    // and explicit revocation rather than learning from one guess.
+    const before = findCase("c-aprendizado-alias-antes");
+    const acquired = findCase("c-aprendizado-alias-definido");
+    const reused = findCase("c-aprendizado-alias-reuso");
+    const revoked = findCase("c-aprendizado-revogacao");
+    expect(before.input.text).toBe("café da firma");
+    expect(before.input.priorUserMessages).toEqual([]);
+    expect(before.expected.decisions[0].nextAction).toBe("clarify");
+    expect(acquired.input.priorUserMessages).toEqual([
+      { text: "quando digo café da firma, quero dizer café sem açúcar" },
+    ]);
+    expect(acquired.expected.decisions[0].identity).toMatchObject({
+      canonicalName: "café",
+      qualifiers: ["sem açúcar"],
+    });
+    expect(reused.input.priorUserMessages).toEqual([]);
+    expect(reused.expected.decisions[0].identity.qualifiers).toContain("sem açúcar");
+    expect(reused.scenario.ownerRef).toBe(acquired.scenario.ownerRef);
+    expect(revoked.expected.decisions[0].nextAction).toBe("clarify");
+    const scenario = goldenFoodCorpus.learningScenarios.find(
+      value => value.scenarioId === "s-aprendizado-cafe-firma"
+    );
+    expect(scenario).toBeDefined();
+    expect(scenario!.steps.find(step => step.caseId === acquired.caseId)).toMatchObject({
+      phase: "acquisition",
+      writesAllowed: true,
+    });
+    expect(scenario!.steps.find(step => step.caseId === reused.caseId)).toMatchObject({
+      phase: "reserved_measurement",
+      writesAllowed: false,
+      requiredKnowledgeReads: ["owner-a:alias:cafe-da-firma"],
+    });
+    expect(scenario!.steps.find(step => step.caseId === revoked.caseId)).toMatchObject({
+      phase: "revocation",
+      revokeKeys: ["owner-a:alias:cafe-da-firma"],
+    });
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
