@@ -209,26 +209,16 @@ jobs:
             echo "No JavaScript/TypeScript files require focused Vitest execution."
           fi
 
+      - name: Vitest scheduler self-tests
+        if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
+        run: node --test scripts/run-vitest-shards.test.mjs
+
       - name: Full tests
         if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
         env:
           NODE_ENV: test
-          # Unit/in-memory suites must not connect to the external validation DB.
-          # DATABASE_URL is reserved for the explicit integrity gate below.
           DATABASE_URL: ""
-        run: |
-          : > /tmp/vitest.log
-          # Equivalent to pnpm test, split into sequential single-worker shards to bound memory.
-          for shard_number in $(seq 1 24); do
-            shard="${shard_number}/24"
-            echo "Running Vitest shard ${shard}" | tee -a /tmp/vitest.log
-            if ! pnpm exec vitest run --shard="${shard}" --maxWorkers=1 --minWorkers=1 >> /tmp/vitest.log 2>&1; then
-              echo "Vitest shard ${shard} failed. Showing the final 250 log lines:"
-              tail -n 250 /tmp/vitest.log
-              exit 1
-            fi
-          done
-          tail -n 120 /tmp/vitest.log
+        run: node scripts/run-vitest-shards.mjs
 
       - name: Upload Vitest diagnostics
         if: failure()
