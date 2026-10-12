@@ -233,6 +233,21 @@ jobs:
         if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'
         run: pnpm architecture:check
 
+      - name: Food architecture inventory (ADR wave one)
+        if: github.event_name == 'pull_request' && needs.classify.outputs.risk_profile == 'critical'
+        run: |
+          pnpm food-architecture:report --require-baseline > /tmp/food-architecture-report.json
+          node -e 'const r = require("/tmp/food-architecture-report.json"); if (r.sourceSha !== process.env.VERIFICATION_HEAD_SHA || r.baselineStatus !== "compared") process.exit(1)'
+
+      - name: Upload food architecture inventory
+        if: github.event_name == 'pull_request' && needs.classify.outputs.risk_profile == 'critical'
+        uses: actions/upload-artifact@v4
+        with:
+          name: food-architecture-inventory-${{ github.event.pull_request.head.sha }}
+          path: /tmp/food-architecture-report.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Documentation check
         if: github.event_name != 'pull_request' || needs.classify.outputs.docs_required == 'true' || needs.classify.outputs.risk_profile == 'critical'
         run: |
