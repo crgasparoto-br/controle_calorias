@@ -21,8 +21,8 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
     const key = debt.fingerprint;
     const created = new Date(debt.createdAt + "T00:00:00Z");
     const expiry = new Date(debt.expiresAt + "T00:00:00Z");
-    const validDates = /^\\d{4}-\\d{2}-\\d{2}$/.test(debt.createdAt) &&
-      /^\\d{4}-\\d{2}-\\d{2}$/.test(debt.expiresAt) &&
+    const validDates = /^\d{4}-\d{2}-\d{2}$/.test(debt.createdAt) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(debt.expiresAt) &&
       Number.isFinite(created.getTime()) && Number.isFinite(expiry.getTime()) &&
       created.toISOString().slice(0, 10) === debt.createdAt &&
       expiry.toISOString().slice(0, 10) === debt.expiresAt;
