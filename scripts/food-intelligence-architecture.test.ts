@@ -20,6 +20,9 @@ describe("food intelligence architecture wave 1", () => {
       content: "const ATTRIBUTE_MATERIALITY_TOKENS = new Set(['integral', 'light']);",
     }]);
     expect(matches).toMatchObject([{ ruleId: "18", failureClass: "B" }]);
+    const legacy = findFoodStaticCandidates([{ path: "server/foodItemResolution.ts", content:
+      "const NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS = new Set(['longa vida']);" }]);
+    expect(legacy.some(f => f.ruleId === "18")).toBe(true);
   });
 
   it("detects typed production catalogs and channel lexicons, not type-only imports", () => {
