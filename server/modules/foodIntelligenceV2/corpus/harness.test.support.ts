@@ -1372,12 +1372,30 @@ export function matchesDeclaredCounterfactual(
 ): boolean {
   if (!outcome.result) return false;
   const expected = declared.expected.decisions;
-  if (outcome.result.decisions.length !== expected.length) return false;
+  if (
+    !Array.isArray(outcome.result.decisions) ||
+    outcome.result.decisions.length !== expected.length
+  ) {
+    return false;
+  }
+  // A comparação semântica só é válida depois de aceitar o contrato estrutural
+  // das decisões. Uma decisão malformada pode ter a mesma projeção visível do
+  // contrafactual e ainda assim violar a versão ou os invariantes de §5.
+  const validatedDecisions: FoodResolutionDecision[] = [];
+  for (const rawDecision of outcome.result.decisions) {
+    const parsed = foodResolutionDecisionSchema.safeParse(rawDecision);
+    if (!parsed.success) return false;
+    validatedDecisions.push(parsed.data);
+  }
+  const validatedOperation = foodMealOperationSchema.safeParse(
+    outcome.result.operation
+  );
+  if (!validatedOperation.success) return false;
   // Mesmo critério de multiconjunto do gate principal: a ordem das decisões
   // não é contrato, mas nenhuma ocorrência pode ser reutilizada.
   const matching = matchDecisions(
     expected,
-    outcome.result.decisions.map(projectDecision)
+    validatedDecisions.map(projectDecision)
   );
   if (
     matching.unmatchedExpected.length > 0 ||
@@ -1388,8 +1406,7 @@ export function matchesDeclaredCounterfactual(
   // A operação (`MealOperation`) tem o mesmo peso da decisão alimentar (§7.1,
   // §9.2): comparar só as decisões permitiria devolver data, refeição ou comando
   // errados na ablação e ainda aprovar.
-  const produced = outcome.result.operation;
-  if (!produced) return false;
+  const produced = validatedOperation.data;
   return (
     produced.action === declared.expected.operation.action &&
     produced.targetMeal === declared.expected.operation.targetMeal &&
