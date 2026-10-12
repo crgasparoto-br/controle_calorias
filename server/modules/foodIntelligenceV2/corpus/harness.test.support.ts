@@ -1857,33 +1857,46 @@ function matchDecisions(
   codesByLabel: Map<string, CorpusFailureCode[]>;
 } {
   const codesByLabel = new Map<string, CorpusFailureCode[]>();
-  const used = new Set<number>();
-  const unmatchedExpected: ExpectedDecision[] = [];
-
-  for (const item of expected) {
-    let matched = false;
-    let bestCodes: CorpusFailureCode[] | null = null;
-
-    for (let index = 0; index < produced.length; index += 1) {
-      if (used.has(index)) continue;
-      const codes = compareExpectedDecision(item, produced[index]);
-      if (codes.length === 0) {
-        used.add(index);
-        matched = true;
-        break;
-      }
-      if (bestCodes === null || codes.length < bestCodes.length) {
-        bestCodes = codes;
+  // A primeira correspondência local não é necessariamente a melhor escolha:
+  // uma expectativa genérica pode consumir a única decisão que satisfaz outra
+  // expectativa mais restrita. Resolver o multiconjunto por matching bipartido
+  // preserva duplicatas e torna o resultado independente da ordem do lote.
+  const compatible = expected.map(item =>
+    produced.flatMap((candidate, index) =>
+      compareExpectedDecision(item, candidate).length === 0 ? [index] : []
+    )
+  );
+  const expectedByProduced = new Array<number>(produced.length).fill(-1);
+  const augment = (expectedIndex: number, visited: Set<number>): boolean => {
+    for (const producedIndex of compatible[expectedIndex]) {
+      if (visited.has(producedIndex)) continue;
+      visited.add(producedIndex);
+      const previous = expectedByProduced[producedIndex];
+      if (previous === -1 || augment(previous, visited)) {
+        expectedByProduced[producedIndex] = expectedIndex;
+        return true;
       }
     }
-
-    if (matched) continue;
-
-    unmatchedExpected.push(item);
-    codesByLabel.set(item.label, bestCodes ?? ["missing_decision"]);
+    return false;
+  };
+  for (let index = 0; index < expected.length; index += 1) {
+    augment(index, new Set<number>());
   }
 
-  const unmatchedProduced = produced.filter((_, index) => !used.has(index));
+  const matchedExpected = new Set(
+    expectedByProduced.filter(index => index !== -1)
+  );
+  const unmatchedExpected = expected.filter((item, index) => {
+    if (matchedExpected.has(index)) return false;
+    const bestCodes = produced
+      .map(candidate => compareExpectedDecision(item, candidate))
+      .sort((a, b) => a.length - b.length)[0];
+    codesByLabel.set(item.label, bestCodes ?? ["missing_decision"]);
+    return true;
+  });
+  const unmatchedProduced = produced.filter(
+    (_, index) => expectedByProduced[index] === -1
+  );
   return { unmatchedExpected, unmatchedProduced, codesByLabel };
 }
 
@@ -3445,18 +3458,29 @@ function buildMacroConsistency(
   }
 
   const results: MacroConsistencyResult[] = [];
+  const lacksRequiredMacros = (decision: FoodResolutionDecision): boolean =>
+    decision.nextAction === "propose" && decision.nutrition.consumed === null;
   for (const [groupId, entries] of groups) {
     // Compare alimentos correspondentes entre entradas, nunca alimentos
     // distintos do mesmo lote. O pareamento é um multiconjunto: ordem não é
     // contrato e ocorrências repetidas não podem reutilizar a mesma decisão.
     const baseline = outcomeByCaseId.get(entries[0].caseId)?.rawDecisions ?? [];
-    let sampleMissing = baseline.length === 0;
+    // Dois valores nutricionais ausentes não são duas medições iguais.
+    // Clarificações/rejeições legitimamente sem nutrição continuam fora desse
+    // requisito: somente decisões propostas precisam de macros consumidos.
+    let sampleMissing =
+      baseline.length === 0 || baseline.some(lacksRequiredMacros);
     const divergences: string[] = [];
     for (const entry of entries.slice(1)) {
       const remaining = [
         ...(outcomeByCaseId.get(entry.caseId)?.rawDecisions ?? []),
       ];
-      if (remaining.length !== baseline.length) sampleMissing = true;
+      if (
+        remaining.length !== baseline.length ||
+        remaining.some(lacksRequiredMacros)
+      ) {
+        sampleMissing = true;
+      }
       for (const decision of baseline) {
         const pairingProjection = (item: FoodResolutionDecision) => {
           const projected = projectDecision(item);
