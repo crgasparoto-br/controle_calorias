@@ -1,0 +1,26 @@
+{
+  "caseId": "c-cafe-sem-acucar-memoria",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed review of expected contextual semantics (2026-10-12); not an independent third-party PR audit",
+  "independentSources": [
+    {
+      "id": "issue-1059-coffee-personal-preference",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1059"
+    },
+    {
+      "id": "issue-1051-user-memory",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-memory-context",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 15 and 16.1)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #1059 explicitly describes a previously confirmed user statement equivalent to 'normalmente tomo café sem açúcar' and requires later generic 'café' entries to apply the user's preference without asking about sugar again, while preserving explicit quantities. This case now carries that earlier confirmation in priorUserMessages as observable user context; expected identity is café qualified sem açúcar, with unspecified quantity because the current surface does not state one. The harness passes the prior message via a deep-frozen context field, and semanticReference.test.ts verifies the rule. This is a source-backed semantic review for a contextual preference, NOT proof of persisted memory across sessions/restarts nor an independent review of resolver behavior. Persistence and isolation belong to separate cases still pending."
+}
