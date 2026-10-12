@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
-import { assessFoodDebt, type FoodDebt } from "./food-architecture-debt";
+import { assessFoodDebt, assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const root = process.cwd();
@@ -152,6 +153,29 @@ if (!existsSync(path.join(root, debtPath))) {
       fail("Invalid food architecture debt ledger: entries array required");
     } else {
       const result = assessFoodDebt(foodFindings, (ledger as { entries: FoodDebt[] }).entries, new Date());
+      const baseRef = process.env.GITHUB_BASE_REF || "develop";
+      if (/^[a-zA-Z0-9._/-]+$/.test(baseRef)) {
+        try {
+          execFileSync("git", ["rev-parse", "--verify", "origin/" + baseRef], { stdio: "ignore" });
+          let previous: { entries: FoodDebt[] } = { entries: [] };
+          try {
+            previous = JSON.parse(execFileSync("git", ["show", "origin/" + baseRef + ":architecture-debt.json"], {
+              encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+            }));
+          } catch {
+            // No architecture debt book in the baseline: introducing a book is allowed.
+          }
+          if (!Array.isArray(previous.entries)) fail("Invalid baseline architecture debt book");
+          else for (const renewal of assessFoodDebtRenewal(previous.entries, (ledger as { entries: FoodDebt[] }).entries)) {
+            fail("Food architecture debt: " + renewal);
+          }
+        } catch {
+          if (process.env.GITHUB_ACTIONS === "true") fail("Cannot verify architecture debt renewal against origin/" + baseRef);
+          else console.warn("[food-architecture] base unavailable; debt immutability comparison not run");
+        }
+      } else {
+        fail("Invalid base ref for food architecture debt comparison");
+      }
       for (const error of result.errors.filter(item => !item.startsWith("Uncovered architecture violation: "))) {
         fail("Food architecture debt: " + error);
       }
