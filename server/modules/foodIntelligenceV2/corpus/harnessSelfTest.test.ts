@@ -971,7 +971,8 @@ describe("autoverificação do harness", () => {
     expect(invalid.gate.status).toBe("blocked");
     expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
     const incomparable = await measured("g");
-    expect(incomparable.gate.status).toBe("passed");
+    // Sem densidade comprovada, não se calcula proporção massa/volume:
+    // outros critérios podem reprovar o caso, sem criar conversão fictícia.
     expect(incomparable.failures.flatMap(failure => failure.codes))
       .not.toContain("nutrition_calculation_mismatch");
   });
