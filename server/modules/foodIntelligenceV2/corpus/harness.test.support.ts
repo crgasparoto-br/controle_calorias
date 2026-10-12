@@ -951,8 +951,9 @@ export function inspectCorpusIntegrity(
   }
 
   const invalidScenarios: { scenarioId: string; message: string }[] = [];
+  const casesById = new Map(corpus.cases.map(entry => [entry.caseId, entry]));
   for (const scenario of corpus.learningScenarios) {
-    invalidScenarios.push(...validateScenario(scenario, seenCaseIds));
+    invalidScenarios.push(...validateScenario(scenario, seenCaseIds, casesById));
   }
 
   const bySurface = new Map<string, GoldenCorpusCase[]>();
@@ -1394,7 +1395,8 @@ function matchesDeclaredCounterfactual(
 
 function validateScenario(
   scenario: GoldenLearningScenario,
-  knownCaseIds: ReadonlyMap<string, number>
+  knownCaseIds: ReadonlyMap<string, number>,
+  casesById: ReadonlyMap<string, GoldenCorpusCase>
 ): { scenarioId: string; message: string }[] {
   const issues: { scenarioId: string; message: string }[] = [];
   const phases = new Set(scenario.steps.map(step => step.phase));
@@ -1467,6 +1469,18 @@ function validateScenario(
       issues.push({
         scenarioId: scenario.scenarioId,
         message: `passo ${step.stepId}: escrita só é permitida na fase de aquisição (§16.1)`,
+      });
+    }
+    // A fase não autoriza escrita em um caso reservado: o split é uma
+    // fronteira independente e precisa concordar com o modo de aquisição.
+    if (
+      step.phase === "acquisition" &&
+      casesById.get(step.caseId)?.split !== undefined &&
+      casesById.get(step.caseId)?.split !== "acquisition"
+    ) {
+      issues.push({
+        scenarioId: scenario.scenarioId,
+        message: `passo ${step.stepId}: aquisição exige split=acquisition; holdout é somente leitura`,
       });
     }
     if (step.sameResultAsStepId && !stepIds.has(step.sameResultAsStepId)) {
@@ -1991,6 +2005,17 @@ function evaluateResult(
     const decision = validation.data;
     rawDecisions.push(cloneDecision(decision));
     projections.push(projectDecision(decision));
+    // Base nutricional sem valores consumidos não é uma medição utilizável:
+    // o schema admite basis sem consumed em outros estados, mas não se pode
+    // aprovar uma proposta como se calorias e macros tivessem sido calculados.
+    if (decision.nextAction === "propose" && decision.nutrition.consumed === null) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["nutrition_missing"],
+        detail: "item proposto sem nutrição consumida utilizável",
+      });
+    }
   }
 
   // A operação de refeição faz parte do contrato público (§9.2) e é validada
@@ -2181,7 +2206,7 @@ export function createKnowledgeStore(options: {
               `escrita de conhecimento após o fim do passo ${caseId} (§16.1: a fachada é inutilizada)`
             );
           }
-          if (mode !== "acquisition") {
+          if (mode !== "acquisition" || split === "holdout") {
             refusedWrites.push({
               caseId,
               split,
@@ -2189,7 +2214,7 @@ export function createKnowledgeStore(options: {
               reason: "outside_acquisition",
             });
             throw new Error(
-              `escrita de conhecimento bloqueada em ${caseId} (§16.1: holdout não alimenta memória)`
+              `escrita de conhecimento bloqueada em ${caseId} (§16.1: holdout é sempre somente leitura)`
             );
           }
           // Na execução de ablação a escrita é registrada e **descartada**: é
@@ -2731,7 +2756,12 @@ export async function runCorpus(
   }
   // Divergência de macros entre entradas equivalentes bloqueia **sempre**:
   // a tolerância é `OPEN` (§25 item 30) e não existe valor aprovado.
-  if (macroConsistency.some(item => item.consistent === null)) {
+  // Mesmo um caso isolado (sem grupo metamórfico) precisa entregar macros
+  // consumidos. A meta agregada de 95% não pode esconder essa omissão.
+  if (
+    failures.some(failure => failure.codes.includes("nutrition_missing")) ||
+    macroConsistency.some(item => item.consistent === null)
+  ) {
     blockReasons.push("macro_sample_insufficient");
   }
   if (macroConsistency.some(item => item.consistent === false)) {
@@ -3123,11 +3153,9 @@ export async function runLearningScenarios(
         caseId: step.caseId,
         allowLearning: step.writesAllowed,
         writesAllowed: step.writesAllowed,
-        matched:
-          evaluated.failures.filter(
-            failure =>
-              !failure.codes.includes("learning_applied_during_measurement")
-          ).length === 0,
+        // Não apresentar matched=true se uma leitura obrigatória, invariância
+        // de cenário ou tentativa de escrita foi registrada como falha.
+        matched: failures.length === 0,
         recordedWriteAttempts,
         sameResultAsStepId: step.sameResultAsStepId,
         sameResultSatisfied,
