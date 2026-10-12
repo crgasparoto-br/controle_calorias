@@ -56,6 +56,7 @@ const DEFAULT_SCENARIO: Scenario = {
   ownerRef: "owner-a",
   conversationRef: "conv-a",
   intentionalSurfaceReuse: false,
+  providerAvailability: "available",
 };
 
 const toCase = (draft: CaseDraft): GoldenCorpusCase => ({
@@ -1296,6 +1297,7 @@ const historicalIncidentCases: CaseDraft[] = [
     knownRegression: true,
     incidentRefs: ["#873", "#1257"],
     adrSections: ["§16", "§19.6"],
+    scenario: { providerAvailability: "unavailable" },
     input: input({ text: "1 porção de alimento importado xyzabc" }),
     mealOperation: operation({ targetMeal: "jantar", date: "2026-10-06" }),
     expected: {
