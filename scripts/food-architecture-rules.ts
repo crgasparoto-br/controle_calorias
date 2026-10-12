@@ -28,7 +28,7 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
   {
     id: "18", layer: 1, mode: "preview", scope: "server-production",
     failureClass: "B", kind: "collection",
-    symbolPattern: "materiality|materialidade|nutritionallyNeutral|neutralPackaging|commercialCategory|attributeMaterial|materialAttribute|broadCommercial|identityStopWords",
+    symbolPattern: "materiality|materialidade|nutritionally[_-]?neutral|neutral[_-]?packaging|commercial[_-]?category|attribute[_-]?material|material[_-]?attribute|broad[_-]?commercial|identity[_-]?stop[_-]?words",
     evidencePattern: "token|term|word|keyword|lexical|lexic|descriptor|qualifier|packag|neutral|material|categor|stop",
     description: "Materialidade/identidade comercial decidida por léxico estático",
   },
