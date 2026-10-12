@@ -1300,7 +1300,7 @@ const historicalIncidentCases: CaseDraft[] = [
     decisionClass: "deferred",
     nonRecurrenceClasses: ["K"],
     knownRegression: true,
-    incidentRefs: ["#873", "#1257"],
+    incidentRefs: ["#1072", "#917", "#1282"],
     adrSections: ["§16", "§19.6"],
     scenario: { providerAvailability: "unavailable" },
     input: input({ text: "1 porção de alimento importado xyzabc" }),
