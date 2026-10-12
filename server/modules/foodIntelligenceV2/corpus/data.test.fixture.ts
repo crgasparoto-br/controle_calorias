@@ -1509,7 +1509,7 @@ const languageAndBatchCases: CaseDraft[] = [
     knownRegression: true,
     incidentRefs: ["#120", "#1224"],
     adrSections: ["§17", "§4.1"],
-    input: input({ text: "2 colheres de arros" }),
+    input: input({ text: "2 colheres de sopa de arros" }),
     mealOperation: operation({ targetMeal: "almoço", date: "2026-10-06" }),
     expected: {
       decisions: [
@@ -1737,7 +1737,7 @@ const languageAndBatchCases: CaseDraft[] = [
     decisionClass: "resolvable",
     nonRecurrenceClasses: ["F", "G"],
     knownRegression: true,
-    incidentRefs: ["#1271", "#899"],
+    incidentRefs: ["#422", "#168"],
     adrSections: ["§7.1", "§7.2"],
     input: input({ text: "troquei o arroz por feijão no almoço" }),
     mealOperation: operation({
