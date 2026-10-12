@@ -110,8 +110,8 @@
     },
     {
       "caseId": "c-cafe-sem-acucar-memoria",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cafe-sem-acucar-memoria.json"
     },
     {
       "caseId": "c-multiplos-um-ambiguo",
