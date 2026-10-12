@@ -12,6 +12,8 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([{ ...legacy, path: "server/foodCatalogReference.test.ts" }])).toEqual([]);
     expect(isProductionFoodSource("docs/example.ts")).toBe(false);
     expect(findFoodStaticCandidates([{ path: "server/quantities.ts", content: "const units = [1, 2];" }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/importer.ts", content:
+      "const records = [{ name: 'pao', calories: 75, protein: 2 }];" }]).some(f => f.ruleId === "17")).toBe(true);
   });
 
   it("detects hardcoded attribute materiality token sets", () => {
