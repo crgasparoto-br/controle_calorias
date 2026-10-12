@@ -695,6 +695,88 @@ describe("autoverificação do harness", () => {
       .toBe(false);
   });
 
+  it("rejeita contrafactual válido no schema mas incompleto ou com escrita oculta", async () => {
+    const entry = corpus.cases.find(item => item.caseId === "c-panco-pao-forma");
+    expect(entry).toBeDefined();
+    if (!entry) throw new Error("ausência do caso Panco");
+    const store = createKnowledgeStore({ refusedWrites: [] });
+    const result = await createReferenceResolver(corpus).resolve({
+      case: toCorpusCaseInput(entry),
+      allowLearning: false,
+      knowledge: store.gateFor(entry.caseId, entry.split, "read_only"),
+    });
+    expect(matchesDeclaredCounterfactual(entry, { result, projections: [] })).toBe(true);
+
+    // A decisão continua estruturalmente válida, mas não há macros consumidos.
+    const withoutConsumed = {
+      ...result,
+      decisions: result.decisions.map(decision => ({
+        ...decision,
+        nutrition: { ...decision.nutrition, consumed: null },
+      })),
+    };
+    expect(matchesDeclaredCounterfactual(entry, { result: withoutConsumed, projections: [] }))
+      .toBe(false);
+
+    // Verificar tanto os efeitos declarados quanto os observados pela fachada.
+    const withDeclaredWrite = {
+      ...result,
+      knowledgeWrites: ["owner-a:alias:cafe-da-firma"],
+    };
+    expect(matchesDeclaredCounterfactual(entry, { result: withDeclaredWrite, projections: [] }))
+      .toBe(false);
+    expect(matchesDeclaredCounterfactual(entry, {
+      result,
+      projections: [],
+      recordedWrites: ["owner-a:alias:cafe-da-firma"],
+    })).toBe(false);
+  });
+
+  it.each(["missing_consumed", "declared_write"] as const)(
+    "bloqueia ablação com falha semântica apenas no contrafactual: %s",
+    async failureKind => {
+      const reference = createLearningResolver(corpus);
+      let overrideCalls = 0;
+      const report = await runGoldenFoodCorpus(
+        {
+          id: `test:ablated-${failureKind}`,
+          revision: reference.revision,
+          async resolve(request) {
+            const result = await reference.resolve(request);
+            if (
+              request.case.caseId !== "c-aprendizado-precedencia-explicita" ||
+              request.case.scenario.phase !== "explicit_override"
+            ) {
+              return result;
+            }
+            overrideCalls += 1;
+            if (overrideCalls !== 2) return result;
+            return failureKind === "missing_consumed"
+              ? {
+                  ...result,
+                  decisions: result.decisions.map(decision => ({
+                    ...decision,
+                    nutrition: { ...decision.nutrition, consumed: null },
+                  })),
+                }
+              : {
+                  ...result,
+                  knowledgeWrites: ["owner-a:alias:cafe-da-firma"],
+                };
+          },
+        },
+        pinned
+      );
+      expect(overrideCalls).toBe(2);
+      expect(report.learningScenarios[0].passed).toBe(false);
+      expect(report.learningScenarios[0].failures.some(failure =>
+        (failure.detail ?? "").includes("contra-factual declarado")
+      )).toBe(true);
+      expect(report.gate.blockReasons).toContain("scenario_invariant_violated");
+      expect(report.gate.status).toBe("blocked");
+    }
+  );
+
   it("bloqueia ablação que devolve decisão inválida só no contrafactual", async () => {
     const reference = createLearningResolver(corpus);
     let reservedCalls = 0;
