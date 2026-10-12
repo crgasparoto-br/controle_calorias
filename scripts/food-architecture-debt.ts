@@ -35,6 +35,9 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
       expiry.getTime() - created.getTime() > 90 * 86400000) {
       errors.push("Invalid 90-day debt period: " + String(key));
     }
+    if (validDates && created.getTime() > Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())) {
+      errors.push("Future-dated food architecture debt: " + key);
+    }
     if (validDates && expiry.getTime() < Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate())) {
       errors.push("Expired food architecture debt: " + key);
     }
@@ -63,7 +66,14 @@ export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[])
   const indexed = new Map(current.map(item => [item.fingerprint, item]));
   for (const old of previous) {
     const next = indexed.get(old.fingerprint);
-    if (!next) continue; // repayment is allowed and required
+    if (!next) {
+      const base = old.ruleId + ":" + old.file + ":";
+      const oldSymbol = old.fingerprint.slice(base.length).split(":")[0];
+      const reissued = current.find(item => item.ruleId === old.ruleId && item.file === old.file &&
+        item.fingerprint.startsWith(base + oldSymbol + ":"));
+      if (reissued) errors.push("Architecture debt cannot be reissued under a new fingerprint: " + old.fingerprint);
+      continue; // actual repayment is allowed
+    }
     if (next.createdAt !== old.createdAt || next.expiresAt !== old.expiresAt ||
         next.issue !== old.issue || next.owner !== old.owner) {
       errors.push("Architecture debt renewal or owner reassignment denied: " + old.fingerprint);
