@@ -1889,16 +1889,29 @@ function matchDecisions(
   const unmatchedProduced = produced.filter(
     (_, index) => expectedByProduced[index] === -1
   );
-  const unmatchedExpected = expected.filter((item, index) => {
-    if (matchedExpected.has(index)) return false;
-    // Diagnóstico só considera decisões que sobraram após o matching global:
-    // uma decisão já consumida não transforma uma omissão em mismatch.
-    const bestCodes = unmatchedProduced
-      .map(candidate => compareExpectedDecision(item, candidate))
-      .sort((a, b) => a.length - b.length)[0];
-    codesByLabel.set(item.label, bestCodes ?? ["missing_decision"]);
-    return true;
-  });
+  const unmatchedExpected = expected.filter(
+    (_, index) => !matchedExpected.has(index)
+  );
+  // Uma saída incompatível não pode explicar várias decisões ausentes:
+  // após o matching global, cada candidato entra no diagnóstico uma vez.
+  const remainingProduced = [...unmatchedProduced];
+  for (const item of unmatchedExpected) {
+    if (remainingProduced.length === 0) {
+      codesByLabel.set(item.label, ["missing_decision"]);
+      continue;
+    }
+    let bestIndex = 0;
+    let bestCodes = compareExpectedDecision(item, remainingProduced[0]);
+    for (let index = 1; index < remainingProduced.length; index += 1) {
+      const codes = compareExpectedDecision(item, remainingProduced[index]);
+      if (codes.length < bestCodes.length) {
+        bestCodes = codes;
+        bestIndex = index;
+      }
+    }
+    codesByLabel.set(item.label, bestCodes);
+    remainingProduced.splice(bestIndex, 1);
+  }
   return { unmatchedExpected, unmatchedProduced, codesByLabel };
 }
 
