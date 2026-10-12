@@ -62,6 +62,20 @@ describe("independent semantic reference controls", () => {
     expect(expected.quantity.presence).toBe("unspecified");
     expect(expected.nutrition.allowedOrigins).toContain("nutrition_label");
   });
+  it("requires clarification between branco and Panco for an ambiguous pão transcription", () => {
+    const item = findCase("c-banco-ambiguo-pao");
+    expect(item.input.text).toBe("pão banco");
+    expect(item.decisionClass).toBe("clarification");
+    const decision = item.expected.decisions[0];
+    expect(decision.nextAction).toBe("clarify");
+    expect(decision.identity.presence).toBe("forbidden");
+    expect(decision.alternatives).toEqual(expect.arrayContaining([
+      expect.objectContaining({ canonicalName: "pão", variant: "branco" }),
+      expect.objectContaining({ canonicalName: "pão de forma", brand: "Panco" }),
+    ]));
+    expect(decision.alternatives).toHaveLength(2);
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
