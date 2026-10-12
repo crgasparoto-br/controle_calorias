@@ -2,6 +2,9 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
+import { findFoodStaticCandidates } from "./food-intelligence-architecture";
+import { assessFoodDebt, type FoodDebt } from "./food-architecture-debt";
+import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const root = process.cwd();
 const failures: string[] = [];
@@ -126,6 +129,42 @@ const timeZoneArchitectureFiles = ["client/src", "server", "shared"]
   .map(file => ({ path: file, content: read(file) }));
 for (const violation of findTimeZoneArchitectureViolations(timeZoneArchitectureFiles)) {
   fail(violation);
+}
+
+
+/**
+ * ADR Food Intelligence V2 §19: report wave-one candidates without silently
+ * promoting OPEN scope decisions (§25 items 25 and 26) to a blocking gate.
+ * Ledger violations are independently blocking (expired, orphaned, malformed).
+ */
+const foodArchitectureFiles = walk("server")
+  .filter(file => /\.[cm]?tsx?$/.test(file))
+  .map(file => ({ path: file, content: read(file) }));
+const foodFindings = findFoodStaticCandidates(foodArchitectureFiles);
+const debtPath = "architecture-debt.json";
+if (!existsSync(path.join(root, debtPath))) {
+  fail("Food architecture debt ledger missing: " + debtPath);
+} else {
+  try {
+    const ledger: unknown = JSON.parse(read(debtPath));
+    if (!ledger || typeof ledger !== "object" || !("entries" in ledger) ||
+        !Array.isArray((ledger as { entries: unknown }).entries)) {
+      fail("Invalid food architecture debt ledger: entries array required");
+    } else {
+      const result = assessFoodDebt(foodFindings, (ledger as { entries: FoodDebt[] }).entries, new Date());
+      for (const error of result.errors.filter(item => !item.startsWith("Uncovered architecture violation: "))) {
+        fail("Food architecture debt: " + error);
+      }
+      for (const warning of result.warnings) console.warn("[food-architecture] " + warning);
+      console.log(
+        "[food-architecture] wave-one preview: " + FOOD_WAVE_ONE_RULES.length +
+        " rules, " + foodFindings.length + " findings, " + result.uncovered.length +
+        " uncovered; blocking promotion awaits ADR §25 items 25/26",
+      );
+    }
+  } catch (error) {
+    fail("Food architecture ledger unreadable: " + String(error));
+  }
 }
 
 const routerPath = "server/nutritionRouter.ts";
