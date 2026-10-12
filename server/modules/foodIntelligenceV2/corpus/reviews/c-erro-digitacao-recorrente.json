@@ -1,0 +1,26 @@
+{
+  "caseId": "c-erro-digitacao-recorrente",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-grounded normative semantic review (2026-10-12); not an independent third-party PR audit",
+  "independentSources": [
+    {
+      "id": "priberam-arroz",
+      "locator": "https://dicionario.priberam.org/arroz"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-17",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 4.1 and 17)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The Dicionário Priberam independently attests 'arroz' as the Portuguese name of the cereal/food. The synthetic input '2 colheres de sopa de arros' replaces only its final letter, and the source issue #1051 requires governed handling of likely typing errors without an ad hoc silent override of commercial or ambiguous identities. The text itself explicitly supplies 2 colheres de sopa; no spoon size is inferred. The expected decision keeps identity arroz, quantity two tablespoons, and add action. No gram weight, calories, macronutrients, or production learning correctness is asserted. A dedicated semanticReference.test.ts regression guards both food identity and surface-grounded unit. This is normative reference review separate from resolver output, not a third-party runtime audit."
+}
