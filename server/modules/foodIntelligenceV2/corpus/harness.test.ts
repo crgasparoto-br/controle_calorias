@@ -27,7 +27,7 @@ const PINNED_REVISIONS: CorpusRevisions = {
   lexicon: "lex-1",
   model: "model-1",
   policy: "pol-1",
-  resolver: "v2.0.0-test",
+  resolver: "self-test-2",
 };
 
 const reference = () =>

@@ -276,6 +276,7 @@ export const CORPUS_GATE_BLOCK_REASONS = [
   "rounding_tolerance_not_calibrated",
   "macro_sample_insufficient",
   "revisions_not_pinned",
+  "resolver_revision_mismatch",
   "duplicate_cases",
   "split_leakage",
   "negative_control_convergence",

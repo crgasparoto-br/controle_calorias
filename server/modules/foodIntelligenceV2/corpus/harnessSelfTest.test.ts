@@ -3,16 +3,20 @@ import {
   GOLDEN_CORPUS_MIN_MATCH_RATE,
   goldenCorpusSchema,
   type CorpusRevisions,
+  type CorpusResolverUnderTest,
+  type CorpusRunOptions,
   type GoldenCorpus,
+  toCorpusCaseInput,
 } from "./contracts";
 import { goldenFoodCorpus } from "./data";
 import {
   createKnowledgeStore,
   inspectCorpusIntegrity,
-  runCorpus,
-  runGoldenFoodCorpus,
+  runCorpus as executeCorpus,
+  runGoldenFoodCorpus as executeGoldenFoodCorpus,
   type CorpusRefusedWrite,
 } from "./harness";
+import { matchesDeclaredCounterfactual } from "./harness.test.support";
 import {
   buildDecisionForExpected,
   createAlwaysClarifyResolver,
@@ -38,11 +42,42 @@ const PINNED_REVISIONS: CorpusRevisions = {
   lexicon: "lex-1",
   model: "model-1",
   policy: "pol-1",
-  resolver: "v2.0.0-test",
+  resolver: "self-test-2",
 };
 
 const pinned = { revisions: PINNED_REVISIONS };
 const corpus = goldenFoodCorpus;
+
+// Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
+// fixa explicitamente a versão do SUT realmente exercitado. O teste adversarial
+// abaixo invoca executeCorpus diretamente para provar a recusa de pino falso.
+function optionsFor(
+  resolver: CorpusResolverUnderTest,
+  options: Partial<CorpusRunOptions>
+): Partial<CorpusRunOptions> {
+  return {
+    ...options,
+    revisions: {
+      ...(options.revisions ?? PINNED_REVISIONS),
+      resolver: resolver.revision,
+    },
+  };
+}
+
+function runCorpus(
+  corpusUnderTest: GoldenCorpus,
+  resolver: CorpusResolverUnderTest,
+  options: Partial<CorpusRunOptions> = {}
+) {
+  return executeCorpus(corpusUnderTest, resolver, optionsFor(resolver, options));
+}
+
+function runGoldenFoodCorpus(
+  resolver: CorpusResolverUnderTest,
+  options: Partial<CorpusRunOptions> = {}
+) {
+  return executeGoldenFoodCorpus(resolver, optionsFor(resolver, options));
+}
 
 /**
  * Testes do próprio harness (issue #1299): casos propositalmente errados,
@@ -545,6 +580,71 @@ describe("autoverificação do harness", () => {
     const wrong = await execute("missing-specific");
     expect(wrong.gate.status).not.toBe("passed");
     expect(allCodes(wrong)).toContain("nutrition_origin_forbidden");
+  });
+
+  it("reprova regressão obrigatória mesmo quando 54/55 casos resolvíveis estão corretos", async () => {
+    const target = "c-pao-marca-numero-fatias";
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:one-known-regression",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          if (request.case.caseId !== target) return result;
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              identity: { ...decision.identity, canonicalName: "pão diferente" },
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(corpus.cases.find(entry => entry.caseId === target)?.knownRegression).toBe(true);
+    expect(report.overall.resolvableLabeled).toBe(55);
+    expect(report.overall.matchRate).toBeCloseTo(54 / 55, 8);
+    expect(report.overall.matchRate).toBeGreaterThanOrEqual(GOLDEN_CORPUS_MIN_MATCH_RATE);
+    expect(report.failures.some(item =>
+      item.caseId === target && item.codes.includes("identity_mismatch")
+    )).toBe(true);
+    expect(report.gate.blockReasons).toStrictEqual([]);
+    expect(report.gate.status).toBe("failed");
+  });
+
+  it("bloqueia revisão fixada divergente da implementação realmente testada", async () => {
+    const fixture = subCorpus(["c-panco-pao-forma"]);
+    const resolver = createReferenceResolver(fixture);
+    const report = await executeCorpus(fixture, resolver, {
+      revisions: {
+        ...PINNED_REVISIONS,
+        resolver: "sha256:outro-resolvedor-executavel",
+      },
+    });
+    expect(report.overall.matchRate).toBe(1);
+    expect(report.resolver.revision).toBe(resolver.revision);
+    expect(report.revisions.resolver).not.toBe(resolver.revision);
+    expect(report.gate.blockReasons).toContain("resolver_revision_mismatch");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("usa matching global sem ordem para o contrafactual de um lote e preserva multiplicidade", async () => {
+    const entry = corpus.cases.find(item => item.caseId === "c-lote-multi-acao");
+    expect(entry).toBeDefined();
+    if (!entry) throw new Error("ausência do lote de referência");
+    const store = createKnowledgeStore({ refusedWrites: [] });
+    const result = await createReferenceResolver(corpus).resolve({
+      case: toCorpusCaseInput(entry),
+      allowLearning: false,
+      knowledge: store.gateFor(entry.caseId, entry.split, "read_only"),
+    });
+    expect(result.decisions.length).toBeGreaterThan(1);
+    const reordered = { ...result, decisions: [...result.decisions].reverse() };
+    expect(matchesDeclaredCounterfactual(entry, { result: reordered, projections: [] })).toBe(true);
+    const omitted = { ...reordered, decisions: reordered.decisions.slice(1) };
+    expect(matchesDeclaredCounterfactual(entry, { result: omitted, projections: [] })).toBe(false);
   });
 
   it("bloqueia proposta isolada sem macros mesmo quando a taxa global supera 95%", async () => {

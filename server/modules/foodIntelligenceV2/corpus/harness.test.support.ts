@@ -1366,21 +1366,25 @@ interface AblatedStepOutcome {
  * corpus? A comparação usa a mesma máquina de `compareExpectedDecision` da
  * medição normal, para que o critério de aceite seja idêntico ao do corpus.
  */
-function matchesDeclaredCounterfactual(
+export function matchesDeclaredCounterfactual(
   declared: GoldenCorpusCase,
   outcome: AblatedStepOutcome
 ): boolean {
   if (!outcome.result) return false;
   const expected = declared.expected.decisions;
   if (outcome.result.decisions.length !== expected.length) return false;
-  const decisionsMatch = expected.every(
-    (decision, index) =>
-      compareExpectedDecision(
-        decision,
-        projectDecision(outcome.result!.decisions[index])
-      ).length === 0
+  // Mesmo critério de multiconjunto do gate principal: a ordem das decisões
+  // não é contrato, mas nenhuma ocorrência pode ser reutilizada.
+  const matching = matchDecisions(
+    expected,
+    outcome.result.decisions.map(projectDecision)
   );
-  if (!decisionsMatch) return false;
+  if (
+    matching.unmatchedExpected.length > 0 ||
+    matching.unmatchedProduced.length > 0
+  ) {
+    return false;
+  }
   // A operação (`MealOperation`) tem o mesmo peso da decisão alimentar (§7.1,
   // §9.2): comparar só as decisões permitiria devolver data, refeição ou comando
   // errados na ablação e ainda aprovar.
@@ -2774,6 +2778,10 @@ export async function runCorpus(
   ) {
     blockReasons.push("revisions_not_pinned");
   }
+  // Declarar revisão fixada de outro resolvedor não certifica o SUT medido.
+  if (resolvedOptions.revisions.resolver !== resolver.revision) {
+    blockReasons.push("resolver_revision_mismatch");
+  }
   if (scenarioFailures.length > 0) {
     blockReasons.push("scenario_invariant_violated");
   }
@@ -3324,7 +3332,9 @@ function buildGate(
     if (overall.resolvableLabeled === 0) return "sample_missing";
     // Falhas fora dos casos resolvíveis não são cobertas pela meta de §1.1:
     // clarificação e rejeição esperadas precisam estar corretas integralmente.
-    if (nonResolvableFailureCount > 0) return "failed";
+    // A meta >=95% permanece no relatório, mas não libera regressão em
+    // nenhum caso do Golden Food Corpus inicial (§1.1 e §8.12 da ADR).
+    if (failureCount > 0) return "failed";
     if (overall.matchRate === null || overall.matchRate < minMatchRate) {
       return "failed";
     }
