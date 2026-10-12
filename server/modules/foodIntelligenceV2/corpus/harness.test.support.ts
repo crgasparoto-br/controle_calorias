@@ -2654,6 +2654,10 @@ export async function runCorpus(
   if (wrongConvergence.length > 0 || convergedControls.length > 0) {
     blockReasons.push("negative_control_convergence");
   }
+  // Reject invented clarification choices without relying on aggregate match rate.
+  if (failures.some(failure => failure.codes.includes("alternatives_mismatch"))) {
+    blockReasons.push("alternatives_mismatch");
+  }
   // A referência independente é verificada no próprio caminho de aprovação:
   // sem fonte canônica íntegra, equivalência de superfície não é prova.
   if (!integrity.reference.verified) {
