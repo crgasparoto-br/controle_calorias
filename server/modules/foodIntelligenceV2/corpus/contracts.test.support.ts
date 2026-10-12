@@ -522,6 +522,8 @@ const scenarioSchema = z.strictObject({
    * vazamento para o holdout (§16.2).
    */
   intentionalSurfaceReuse: z.boolean(),
+  /** Estado sintético do provider, injetado explicitamente pelo harness; não inferido do nome do alimento. */
+  providerAvailability: z.enum(["available", "unavailable"]).default("available"),
 });
 
 export type CorpusScenario = z.infer<typeof scenarioSchema>;
