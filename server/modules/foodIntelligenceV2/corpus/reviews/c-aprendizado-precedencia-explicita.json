@@ -1,0 +1,27 @@
+{
+  "caseId": "c-aprendizado-precedencia-explicita",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-1225",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1225"
+    },
+    {
+      "id": "issue-903",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/903"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "In the specified scenario, the user previously mapped café da firma to unsweetened coffee. The current text 'café da firma com açúcar' explicitly contradicts that preference. ADR §6 and §15 and issue #1225 require the explicit current preference to override memory. Therefore the identity must include com açúcar, without guessing its grams or macros. This does not test the live memory implementation.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

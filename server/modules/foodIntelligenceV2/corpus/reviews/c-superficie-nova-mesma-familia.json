@@ -1,0 +1,27 @@
+{
+  "caseId": "c-superficie-nova-mesma-familia",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    },
+    {
+      "id": "issue-1243",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1243"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The utterance '200 ml de leite sem lactose Piracanjuba' explicitly includes identity, brand, sem lactose material variant and 200 ml. ADR §16 requires mapping a surface to an existing governed family/variant, not inventing an ad-hoc variant; issue #1088 guards branded nutrition identity. No exact matching catalog entry or nutritional values are independently confirmed.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

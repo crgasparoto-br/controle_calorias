@@ -1,0 +1,23 @@
+{
+  "caseId": "c-cerveja-original-garrafa",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative source-backed oracle review (2026-10-12), not final independent PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §16 and §17"
+    },
+    {
+      "id": "issue 987",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/987"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The text explicitly states '1 garrafa de cerveja Original', identifying one bottle of beer by product label. Issue #987 documents the commercially distinctive Original beer and requires retaining brand rather than collapsing to generic beer. Count is one garrafa; no milliliter content or nutritional composition is evidenced by the utterance.",
+  "limitations": "Only source-backed expected semantic decision, not measured runtime/vision nor independent final PR audit."
+}

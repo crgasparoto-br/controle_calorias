@@ -1,0 +1,26 @@
+{
+  "caseId": "c-aprendizado-persistencia-restart",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed independent semantic expectation review (2026-10-12); NOT third-party PR audit",
+  "independentSources": [
+    {
+      "id": "issue-1153-persist-alias",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1153"
+    },
+    {
+      "id": "issue-1051-memory-learning",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-16.1",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 16.1)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #1153 requires a previously confirmed personal alias to survive restart and remain isolated by user; local process Map must not masquerade as durable production storage. In the synthetic corpus protocol, the acquisition phase writes owner-a:alias:cafe-da-firma. The restart phase is read-only, must consult that same key and reproduce coffee qualified sem açúcar, and must fail its counterfactual without learned knowledge. The test harness now serializes the acquired store and reconstructs a separate facade/Map before the restart step, and a regression checks that the original and reconstructed stores are independent, readable and revocable. This supports the independently sourced expected semantics and a simulated restart test only; it does NOT verify real Postgres persistence, deployment restart or production backend durability."
+}

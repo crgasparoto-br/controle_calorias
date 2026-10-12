@@ -1,0 +1,27 @@
+{
+  "caseId": "c-multiplos-um-ambiguo",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative label cross-check (2026-10-12), not final PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §16"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "issue-1177",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1177"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The literal contains arroz, feijao and one unresolved bread expression. Canonical ADR section 16 and Issue 1051 require keeping unambiguous foods and clarifying the ambiguous phrase (branco or Panco) without silently choosing. Quantity is not given.",
+  "limitations": "Only expected semantics, no production runtime or nutritional benchmark."
+}

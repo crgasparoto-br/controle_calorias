@@ -1,0 +1,22 @@
+{
+  "caseId": "c-aprendizado-alias-reuso",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed expectation review (2026-10-12), not an independent third-party auditor",
+  "independentSources": [
+    {
+      "id": "issue-1051-personal-learning",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-16.1",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 16.1)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "After the acquisition step, the reserved-measurement phase reuses 'o café da firma' with the same ownerRef and reads owner-a:alias:cafe-da-firma, while writesAllowed=false and no prior message repeats the confirmation. Issue #1051 requires safely reusing personal learned aliases. The test pins same-owner read-only reuse and expected coffee sem açúcar; this does not prove an actual production memory backend. Nutritional values, production resolver accuracy and restart durability are not attested."
+}

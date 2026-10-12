@@ -1,0 +1,23 @@
+{
+  "caseId": "c-coca-cola-lata",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — semantic oracle cross-check against independent domain sources (2026-10-12); not final PR auditor",
+  "independentSources": [
+    {
+      "id": "normative-adr",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6, 16, 17, as applicable"
+    },
+    {
+      "id": "issue-401",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/401"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The utterance '1 lata de Coca-Cola' explicitly supplies product category, brand and one can. Issue #401 mandates retaining brand and commercial packaging details. No can volume or brand-specific macros are supported by this evidence.",
+  "limitations": "Normative oracle review only. Runtime, OCR, ASR, specific macros and an independently conducted PR audit are not certified."
+}

@@ -1,0 +1,27 @@
+{
+  "caseId": "c-cerveja-original-transcricao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-987",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/987"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The transcribed utterance 'uma garrafa de cerveja Original' denotes exactly the same branded beverage and one-bottle quantity as text '1 garrafa de cerveja Original'. Issue #987 documents the separate branded Original beer, while ADR §17 requires modality equivalence. No package volume or calories are inferred.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

@@ -1,0 +1,27 @@
+{
+  "caseId": "c-leite-uht-integral",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative source-backed oracle review (2026-10-12), not final independent PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §8.3 and §16"
+    },
+    {
+      "id": "Ministry of Health",
+      "locator": "https://linhasdecuidado.saude.gov.br/portal/obesidade-no-adulto/sou-paciente/processamento-alimentos-profissional/"
+    },
+    {
+      "id": "issue 1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Input '200 ml de leite UHT integral Piracanjuba' explicitly specifies 200 ml, milk, brand and integral variant. The ADR independently categorizes UHT as an informational attribute (not a new variant) while integral fat level is material. The Brazilian Ministry of Health classifies plain milk among in natura/minimally processed foods; therefore processingLevel must be natural_or_minimally_processed, not processed. This normative classification requires plain milk without unobserved additives; no brand-specific numerical nutrition is proven.",
+  "limitations": "Only source-backed expected semantic decision, not measured runtime/vision nor independent final PR audit."
+}

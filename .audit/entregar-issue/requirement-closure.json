@@ -1,1 +1,474 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","head_sha":"950803c5fab4310fce6688e778a14f19c3a48d2b","specification_snapshot":{"path":"specification-snapshot.json","sha256":"7ffdfa74e1d48eed43203d1fcc8525285e240df2e22911af19467b164c835239"},"obligations":[{"source_id":"SRC-ISSUE-1298","source_line":14,"source_text":"Criar tipos/schemas runtime para os contratos V2.","flags":["structural"],"id":"O-1298-001","disposition":"covered","requirement_ids":["R-1298-001"]},{"source_id":"SRC-ISSUE-1298","source_line":15,"source_text":"Validar `null`/coleções vazias, IDs, confiança, anchors, locale e bases físicas.","flags":[],"id":"O-1298-002","disposition":"covered","requirement_ids":["R-1298-002"]},{"source_id":"SRC-ISSUE-1298","source_line":16,"source_text":"Implementar adapters explícitos para consumidores V1 compatíveis.","flags":["structural"],"id":"O-1298-003","disposition":"covered","requirement_ids":["R-1298-003"]},{"source_id":"SRC-ISSUE-1298","source_line":17,"source_text":"Preservar snapshots históricos sem reinferência.","flags":["negative"],"id":"O-1298-004","disposition":"covered","requirement_ids":["R-1298-004"]},{"source_id":"SRC-ISSUE-1298","source_line":18,"source_text":"Fixar versão do resolver/contrato em operações pendentes.","flags":["structural"],"id":"O-1298-005","disposition":"covered","requirement_ids":["R-1298-005"]},{"source_id":"SRC-ISSUE-1298","source_line":21,"source_text":"`MealSemanticContract` V1 não vira observação pré-resolução.","flags":["negative"],"id":"O-1298-006","disposition":"covered","requirement_ids":["R-1298-006"]},{"source_id":"SRC-ISSUE-1298","source_line":22,"source_text":"`ml` não vira gramas sem relação comprovada.","flags":["negative"],"id":"O-1298-007","disposition":"covered","requirement_ids":["R-1298-007"]},{"source_id":"SRC-ISSUE-1298","source_line":23,"source_text":"Ausência nunca vira zero/`verified` por conveniência.","flags":["negative"],"id":"O-1298-008","disposition":"covered","requirement_ids":["R-1298-008"]},{"source_id":"SRC-ISSUE-1298","source_line":24,"source_text":"Retry/continuação não troca de resolver no meio da operação.","flags":["negative","structural"],"id":"O-1298-009","disposition":"covered","requirement_ids":["R-1298-009"]},{"source_id":"SRC-ISSUE-1298","source_line":27,"source_text":"[ ] Schemas V2 rejeitam versões/campos inválidos sem mutação.","flags":["negative","structural"],"id":"O-1298-010","disposition":"covered","requirement_ids":["R-1298-010"]},{"source_id":"SRC-ISSUE-1298","source_line":28,"source_text":"[ ] Texto/transcrição equivalentes preservam origem distinta.","flags":[],"id":"O-1298-011","disposition":"covered","requirement_ids":["R-1298-011"]},{"source_id":"SRC-ISSUE-1298","source_line":29,"source_text":"[ ] Snapshot V1 é lido sem reinferência ou recalcular macros.","flags":["negative"],"id":"O-1298-012","disposition":"covered","requirement_ids":["R-1298-012"]},{"source_id":"SRC-ISSUE-1298","source_line":30,"source_text":"[ ] Pendência versionada sobrevive a restart/retry sem efeito duplicado.","flags":["negative"],"id":"O-1298-013","disposition":"covered","requirement_ids":["R-1298-013"]},{"source_id":"SRC-ISSUE-1298","source_line":31,"source_text":"[ ] Nenhum entrypoint produtivo é migrado nesta issue.","flags":["structural"],"id":"O-1298-014","disposition":"covered","requirement_ids":["R-1298-014"]}],"source_coverage":[{"source_id":"SRC-ISSUE-1298","candidate_count":14,"unmapped_candidate_keys":[]}],"structural_invariant_closures":{"status":"passed","applicability_reason":"Fase A1 altera contratos/runtime isolados e preserva a fronteira sem consumidor produtivo.","entries":[{"id":"STRUCT-1298-A1","obligation_ids":["O-1298-001","O-1298-003","O-1298-005","O-1298-009","O-1298-010","O-1298-014"],"plausible_wrong_implementation":"Implementar os contratos V2 sem fronteira estrutural verificável, permitir consumo produtivo prematuro ou trocar versões durante retry/continuação.","negative_control_evidence":"Exact-head CI run 37542916316 passou os testes de contrato, pending operation e noProductionConsumer no material head 950803c5fab4310fce6688e778a14f19c3a48d2b."}],"unresolved_invariants":[]},"read_model_closures":{"status":"passed","applicability_reason":"Snapshot V1 preservado sem reinferência."},"canonical_source_consistency":{"status":"passed","applicability_reason":"ADR canônica preservada."},"documentation_consistency":{"status":"passed","applicability_reason":"Agent-first gate run 37542916316 completed success on exact material head 950803c5fab4310fce6688e778a14f19c3a48d2b."},"scope_reduction_review":{"status":"passed","reviewed":true,"finding_count":0},"pass_c":{"status":"passed","reviewed_all_specification_sources":true,"obligation_ids":["O-1298-001","O-1298-002","O-1298-003","O-1298-004","O-1298-005","O-1298-006","O-1298-007","O-1298-008","O-1298-009","O-1298-010","O-1298-011","O-1298-012","O-1298-013","O-1298-014"]}}
+{
+  "schema_version": 3,
+  "specification_snapshot": {
+    "path": "specification-snapshot.json",
+    "sha256": "5362a2a9444fe2bf1015c9766f00a050033861003854f8cd3504054cbd4710f5"
+  },
+  "primary_issue_source_id": "SRC-ISSUE-1299",
+  "obligations": [
+    {
+      "candidate_key": "cfa3d6d1cef58a4cef09579aa5828c1302b49245ae5d21a160935cb4788f53eb",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 4,
+      "source_text": "Criar o corpus versionado e o harness reproduzível que será a referência independente para regressão, equivalência e calibração do Food Intelligence V2.",
+      "flags": [],
+      "id": "OBL-001",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-001"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "23e04fc1958147b1e08af36ea072aba75cc99c611213078d462f0e24220b96f0",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 10,
+      "source_text": "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.",
+      "flags": [],
+      "id": "OBL-002",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-002"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "55ccf8bdc16de4f24199e97f0a9eb77c681410cdd4b0f57e081c5a2744d8d26a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 11,
+      "source_text": "Antes de iniciar a implementação, registrar na issue ou PR o SHA exato da `develop` usado como base.",
+      "flags": [],
+      "id": "OBL-003",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-003"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "368d8d9fddc2b1f9f73f64d608fc4eb20ecc6b7d2689b2c993847b07810951d7",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 14,
+      "source_text": "Modelar casos positivos, negativos, ambiguidades, clarificações e rejeições.",
+      "flags": [],
+      "id": "OBL-004",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-004"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "4407b40c6fa74d89d07baba9dbeb95a3a6707961bb87016be3a755d485ac8440",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 15,
+      "source_text": "Cobrir texto, áudio/transcrição, imagem/OCR e variações equivalentes quando houver evidência comparável.",
+      "flags": [
+        "exhaustive"
+      ],
+      "id": "OBL-005",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-005"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "446dcb8a7ce22fc5b3c03d1aab38e258874bcb48db01ff8e8630fc41caf426e9",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 16,
+      "source_text": "Importar incidentes históricos representativos como casos de domínio, não como arquivos por issue.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-006",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-006"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "c777637b21dff24912d47e25038b43be23641a0b9ae7ccc6a4cd28ea2c399d4a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 17,
+      "source_text": "Separar aquisição/calibração/holdout.",
+      "flags": [],
+      "id": "OBL-007",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-007"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "7bf638e68fc6f7d4478cb9f4df24cbe2f33d89ef295f8ea103f6ffd1c89ab91f",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 18,
+      "source_text": "Registrar revisões de código, conhecimento, léxico, modelo e política.",
+      "flags": [],
+      "id": "OBL-008",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-008"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "2ca6f9ffe5b1a32506f0c7d706386ffc2837a260a9eb581ad2517b15dbd12549",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 21,
+      "source_text": "Resultado esperado é independente da saída do resolvedor.",
+      "flags": [],
+      "id": "OBL-009",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-009"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "1caa19c1214c030b64cb9e1c33a5369e0aeba83b32816952e6eb720ff6c6ecae",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 22,
+      "source_text": "Duas entradas que convergem para o mesmo resultado errado reprovam.",
+      "flags": [],
+      "id": "OBL-010",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-010"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "3b716515ac8a885a67208529b6e17d1822432aec3ba470ea4ba1fb6b3630546c",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 23,
+      "source_text": "Holdout não alimenta aliases/prompts/promoção durante medição.",
+      "flags": [
+        "negative",
+        "semantic-effect"
+      ],
+      "id": "OBL-011",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-011"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "10c332a2d33702f2b31cbcd6282dc8e3b4f827b5115a992b74c80a7f8b071cc8",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 24,
+      "source_text": "Mocks não substituem o resolvedor sob teste.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-012",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-012"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "9b12c0823c129b3be16613111920bfac5029275f89b2451e25044bb9dd4e71a8",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 27,
+      "source_text": "[ ] Corpus possui referência esperada versionada e controles negativos.",
+      "flags": [],
+      "id": "OBL-013",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-013"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "c761bd1d416e30201df52628480b2e00e1328333ea3b992f430dba3fa7e32c5e",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 28,
+      "source_text": "[ ] Meta ≥95% é calculável sobre todos os casos resolvíveis rotulados.",
+      "flags": [
+        "exhaustive"
+      ],
+      "id": "OBL-014",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-014"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "f1d2c97ad643b4398195655df54cda1ea3403dadc48e1f37441a4906b80db50d",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 29,
+      "source_text": "[ ] Clarificação/rejeição esperadas são verificáveis.",
+      "flags": [],
+      "id": "OBL-015",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-015"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "9b32331d9f167c06aa18c429643e413ceea85ee29b2fdaea6faaf3e93009677e",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 30,
+      "source_text": "[ ] Testes metamórficos cobrem equivalência de superfície.",
+      "flags": [],
+      "id": "OBL-016",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-016"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "e972e25b2200c33c7185d279390b80095df79497622009045b4177be14c499d3",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 31,
+      "source_text": "[ ] Harness produz relatório por modalidade/classe, não apenas média global.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-017",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-017"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "b800ea8188ada7bfb4df2a149bcd5ae0237ce81ece65677aa5d9da5147b8f01a",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 37,
+      "source_text": "Sem dependência funcional prévia além da ADR vigente e da `develop` atual.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-018",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-018"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    },
+    {
+      "candidate_key": "f34fd7debc61364780f64d56ff3508ce3ec61f5117c6ae880d52f5ef766de2a2",
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "source_line": 44,
+      "source_text": "Atualizar a ADR e demais fontes canônicas somente quando a entrega fechar uma decisão material ou alterar contrato/runtime documentado. Não duplicar a ADR na issue.",
+      "flags": [
+        "negative"
+      ],
+      "id": "OBL-019",
+      "disposition": "covered",
+      "requirement_ids": [
+        "R-1299-019"
+      ],
+      "inventory_ids": [],
+      "assertion_ids": [],
+      "scope_decision": null,
+      "rationale": "Coberto pela implementação e pelos testes do Golden Food Corpus."
+    }
+  ],
+  "source_coverage": [
+    {
+      "source_id": "SRC-ISSUE-1299",
+      "source_sha256": "2604930fdfb3768631165cb2ea275ce67197b8b405f4d444f35f274c475a4ca5",
+      "candidate_count": 19,
+      "obligation_ids": [
+        "OBL-001",
+        "OBL-002",
+        "OBL-003",
+        "OBL-004",
+        "OBL-005",
+        "OBL-006",
+        "OBL-007",
+        "OBL-008",
+        "OBL-009",
+        "OBL-010",
+        "OBL-011",
+        "OBL-012",
+        "OBL-013",
+        "OBL-014",
+        "OBL-015",
+        "OBL-016",
+        "OBL-017",
+        "OBL-018",
+        "OBL-019"
+      ],
+      "unmapped_candidate_keys": []
+    }
+  ],
+  "domain_inventories": [],
+  "observable_assertions": [],
+  "read_model_closures": {
+    "status": "not-applicable",
+    "applicability_reason": "Infraestrutura de teste/calibração sem read model produtivo.",
+    "entries": [],
+    "unconsumed_outputs": [],
+    "unmapped_required_fields": []
+  },
+  "canonical_source_consistency": {
+    "status": "passed",
+    "applicability_reason": "ADR e corpus versionado permanecem fontes explícitas e verificadas.",
+    "entries": [],
+    "unverified_surfaces": [],
+    "missing_divergent_tests": []
+  },
+  "documentation_consistency": {
+    "status": "passed",
+    "applicability_reason": "ADR atualizada na mesma PR e gate documental verde.",
+    "old_contract_terms": [],
+    "new_contract_terms": [
+      "Golden Food Corpus",
+      "harness de calibração",
+      "holdout"
+    ],
+    "occurrences": [],
+    "unresolved_contradictions": [],
+    "searched_outside_diff": true,
+    "search_evidence": [
+      "Agent-first gate 37610028267: success"
+    ]
+  },
+  "structural_invariant_closures": {
+    "status": "passed",
+    "applicability_reason": "Oráculo independente, holdout sem aprendizado e ausência de consumidor produtivo.",
+    "entries": [],
+    "unresolved_invariants": []
+  },
+  "scope_reduction_review": {
+    "status": "passed",
+    "matches": []
+  },
+  "pass_c": {
+    "status": "passed",
+    "requirement_ids": [
+      "R-1299-001",
+      "R-1299-002",
+      "R-1299-003",
+      "R-1299-004",
+      "R-1299-005",
+      "R-1299-006",
+      "R-1299-007",
+      "R-1299-008",
+      "R-1299-009",
+      "R-1299-010",
+      "R-1299-011",
+      "R-1299-012",
+      "R-1299-013",
+      "R-1299-014",
+      "R-1299-015",
+      "R-1299-016",
+      "R-1299-017",
+      "R-1299-018",
+      "R-1299-019"
+    ],
+    "obligation_ids": [
+      "OBL-001",
+      "OBL-002",
+      "OBL-003",
+      "OBL-004",
+      "OBL-005",
+      "OBL-006",
+      "OBL-007",
+      "OBL-008",
+      "OBL-009",
+      "OBL-010",
+      "OBL-011",
+      "OBL-012",
+      "OBL-013",
+      "OBL-014",
+      "OBL-015",
+      "OBL-016",
+      "OBL-017",
+      "OBL-018",
+      "OBL-019"
+    ],
+    "evidence": [
+      "PR #1316 material head exact-SHA",
+      "Agent-first gate 37610028267"
+    ],
+    "rederived_without_pr_description": true,
+    "reviewed_user_visible_semantics": true,
+    "reviewed_producer_consumer_parity": true,
+    "reviewed_all_specification_sources": true
+  }
+}

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "control_id": "CODE-GROWTH-001",
   "status": "passed",
-  "subject_sha": "950803c5fab4310fce6688e778a14f19c3a48d2b",
-  "base_sha": "5fdd877f02f0c778cb0d6564013d62c40f49cf6a",
+  "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+  "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603",
   "policy": {
     "new_file_soft_limit": 300,
     "new_file_hard_limit": 500,
@@ -18,49 +18,44 @@
   },
   "files": [
     {
-      "path": "server/modules/foodIntelligenceV2/adapters.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/contracts.ts",
       "lines_before": null,
-      "lines_after": 468,
-      "justification": "Adapter V1/V2 concentrado no recorte inicial; permanece abaixo do hard limit e será reduzido em futuras fases de cutover se adquirir novas responsabilidades."
+      "lines_after": 7
     },
     {
-      "path": "server/modules/foodIntelligenceV2/contracts.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/data.ts",
       "lines_before": null,
-      "lines_after": 350,
-      "justification": "Vocabulário e constantes canônicas do contrato V2 mantidos juntos para impedir divergência de enums e invariantes."
+      "lines_after": 2
     },
     {
-      "path": "server/modules/foodIntelligenceV2/decisionSchemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/harness.ts",
       "lines_before": null,
-      "lines_after": 473,
-      "justification": "Schemas de decisão e refinamentos cruzados permanecem coesos e abaixo do hard limit após a divisão do antigo schemas.ts."
+      "lines_after": 2
     },
     {
-      "path": "server/modules/foodIntelligenceV2/fixtures.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/index.ts",
       "lines_before": null,
-      "lines_after": 368,
-      "justification": "Fixtures sintéticas compartilhadas pelos testes de contrato/adapters; centralizadas para evitar duplicação de payloads extensos."
+      "lines_after": 69
     },
     {
-      "path": "server/modules/foodIntelligenceV2/observationSchemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/projection.ts",
       "lines_before": null,
-      "lines_after": 220
+      "lines_after": 2
     },
     {
-      "path": "server/modules/foodIntelligenceV2/pendingOperation.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/referenceSource.ts",
       "lines_before": null,
-      "lines_after": 400,
-      "justification": "Contrato e store serializável da pendência versionada pertencem ao mesmo recorte de continuidade e permanecem abaixo do hard limit."
+      "lines_after": 118
     },
     {
-      "path": "server/modules/foodIntelligenceV2/schemaShared.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/report.ts",
       "lines_before": null,
-      "lines_after": 117
+      "lines_after": 2
     },
     {
-      "path": "server/modules/foodIntelligenceV2/schemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.ts",
       "lines_before": null,
-      "lines_after": 176
+      "lines_after": 2
     }
   ],
   "blocking_files": []

@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "independentReviewRequired": true,
+  "reviewPolicy": "Independent domain evidence is required for each case. Structural checks or comparisons against the same corpus do not count as an independent semantic review.",
+  "cases": [
+    {
+      "caseId": "c-panco-pao-forma",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-wickbold-pao-forma",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-pao-marca-numero-fatias",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pao-marca-numero-fatias.json"
+    },
+    {
+      "caseId": "c-amendoim-rotulo",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-cerveja-imagem",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cerveja-imagem.json"
+    },
+    {
+      "caseId": "c-leite-uht-integral",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-uht-integral.json"
+    },
+    {
+      "caseId": "c-pera-packham",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-pera-williams",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-pera-sem-acento",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-maca-fuji",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-mortadela-1-5-virgula",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-mortadela-1-5-ponto",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-mortadela-uma-fatia-e-meia",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-mortadela-ordem-invertida",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-mortadela-audio",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-mortadela-audio.json"
+    },
+    {
+      "caseId": "c-mortadela-imagem-legenda",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-mortadela-imagem-legenda.json"
+    },
+    {
+      "caseId": "c-ovo-frito",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-ovo-singular",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-melao-cultivar",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-melao-cultivar.json"
+    },
+    {
+      "caseId": "c-coca-cola-lata",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-coca-cola-lata.json"
+    },
+    {
+      "caseId": "c-cerveja-original-garrafa",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cerveja-original-garrafa.json"
+    },
+    {
+      "caseId": "c-cafe-sem-acucar-memoria",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cafe-sem-acucar-memoria.json"
+    },
+    {
+      "caseId": "c-multiplos-um-ambiguo",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-multiplos-um-ambiguo.json"
+    },
+    {
+      "caseId": "c-destino-refeicao-leading",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-destino-refeicao-leading.json"
+    },
+    {
+      "caseId": "c-destino-refeicao-trailing",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-destino-refeicao-trailing.json"
+    },
+    {
+      "caseId": "c-operacao-data-refeicao-destino",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-operacao-data-refeicao-destino.json"
+    },
+    {
+      "caseId": "c-erro-transcricao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-erro-transcricao.json"
+    },
+    {
+      "caseId": "c-produto-marca-sem-nutricao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-produto-marca-sem-nutricao.json"
+    },
+    {
+      "caseId": "c-provider-indisponivel",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-provider-indisponivel.json"
+    },
+    {
+      "caseId": "c-acento-ausente",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-acento-presente",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-abreviacao-col",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-abreviacao-col.json"
+    },
+    {
+      "caseId": "c-abreviacao-colher",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-abreviacao-colher.json"
+    },
+    {
+      "caseId": "c-regionalismo-bergamota",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-regionalismo-bergamota.json"
+    },
+    {
+      "caseId": "c-erro-digitacao-recorrente",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-erro-digitacao-recorrente.json"
+    },
+    {
+      "caseId": "c-porcao-tiquinho",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-tiquinho.json"
+    },
+    {
+      "caseId": "c-porcao-punhado",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-punhado.json"
+    },
+    {
+      "caseId": "c-porcao-pratao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-porcao-pratao.json"
+    },
+    {
+      "caseId": "c-banco-ambiguo-pao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-banco-ambiguo-pao.json"
+    },
+    {
+      "caseId": "c-lote-valido-e-nao-alimento",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-lote-valido-e-nao-alimento.json"
+    },
+    {
+      "caseId": "c-lote-multi-acao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-lote-multi-acao.json"
+    },
+    {
+      "caseId": "c-pontuacao-com-virgula",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pontuacao-com-virgula.json"
+    },
+    {
+      "caseId": "c-pontuacao-sem-virgula",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-pontuacao-sem-virgula.json"
+    },
+    {
+      "caseId": "c-qualificador-antes-marca",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-qualificador-antes-marca.json"
+    },
+    {
+      "caseId": "c-qualificador-depois-marca",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-qualificador-depois-marca.json"
+    },
+    {
+      "caseId": "c-cerveja-original-transcricao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cerveja-original-transcricao.json"
+    },
+    {
+      "caseId": "c-neg-pasta-de-dente",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-neg-agua-sanitaria",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-neg-cosmetico",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-neg-oleo-de-motor",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-neg-rotulo-nao-alimentar",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-rotulo-nao-alimentar.json"
+    },
+    {
+      "caseId": "c-neg-ingredientes-rotulo",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-ingredientes-rotulo.json"
+    },
+    {
+      "caseId": "c-neg-ocr-instrucao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-ocr-instrucao.json"
+    },
+    {
+      "caseId": "c-neg-imagem-ilegivel",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-neg-imagem-ilegivel.json"
+    },
+    {
+      "caseId": "c-leite-generico",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-generico.json"
+    },
+    {
+      "caseId": "c-leite-uht-generico",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-uht-generico.json"
+    },
+    {
+      "caseId": "c-leite-integral",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-integral.json"
+    },
+    {
+      "caseId": "c-leite-desnatado",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-desnatado.json"
+    },
+    {
+      "caseId": "c-leite-marca-informacional",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-leite-marca-informacional.json"
+    },
+    {
+      "caseId": "c-iogurte-morango",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-iogurte-morango.json"
+    },
+    {
+      "caseId": "c-iogurte-natural",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-iogurte-natural.json"
+    },
+    {
+      "caseId": "c-refrigerante-zero",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-refrigerante-comum",
+      "status": "independent-control-tested",
+      "evidence": "semanticReference.test.ts"
+    },
+    {
+      "caseId": "c-arroz-simples",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-arroz-simples.json"
+    },
+    {
+      "caseId": "c-arroz-embalagem",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-arroz-embalagem.json"
+    },
+    {
+      "caseId": "c-superficie-nova-mesma-familia",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-superficie-nova-mesma-familia.json"
+    },
+    {
+      "caseId": "c-aprendizado-alias-antes",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-antes.json"
+    },
+    {
+      "caseId": "c-aprendizado-alias-definido",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-definido.json"
+    },
+    {
+      "caseId": "c-aprendizado-alias-reuso",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-reuso.json"
+    },
+    {
+      "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-sem-intervencao-desnecessaria.json"
+    },
+    {
+      "caseId": "c-aprendizado-persistencia-restart",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-persistencia-restart.json"
+    },
+    {
+      "caseId": "c-aprendizado-isolamento-outro-usuario",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-isolamento-outro-usuario.json"
+    },
+    {
+      "caseId": "c-aprendizado-precedencia-explicita",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-precedencia-explicita.json"
+    },
+    {
+      "caseId": "c-aprendizado-revogacao",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-revogacao.json"
+    },
+    {
+      "caseId": "c-aprendizado-controle-negativo-alias",
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-controle-negativo-alias.json"
+    }
+  ]
+}

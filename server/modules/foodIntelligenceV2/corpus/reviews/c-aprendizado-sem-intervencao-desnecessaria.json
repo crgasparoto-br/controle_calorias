@@ -1,0 +1,27 @@
+{
+  "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-997",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/997"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The literal '1 unidade de maçã gala' specifies food, cultivar and count without conflicting qualifiers. ADR §16.1 disallows unnecessary clarification when evidence is sufficient; issue #997 discusses errors from treating countable units as fixed arbitrary weights. Preserve one unit and no invented grams or nutrition.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

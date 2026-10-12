@@ -1,0 +1,26 @@
+{
+  "caseId": "c-aprendizado-alias-definido",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed expectation review (2026-10-12), not an independent third-party auditor",
+  "independentSources": [
+    {
+      "id": "issue-1051-personal-learning",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-16.1",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 16.1)"
+    },
+    {
+      "id": "issue-1059-coffee",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1059"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The acquisition step is conditioned on prior user confirmation 'quando digo café da firma, quero dizer café sem açúcar' and has writesAllowed=true only for that phase. Issue #1051 permits individual alias acquisition after explicit confirmation, and issue #1059 grounds no-sugar coffee preferences. The expected identity coffee qualified sem açúcar follows the witnessed confirmation rather than a guessed interpretation. The reference test pins the prior message and permitted write phase. Nutritional values, production resolver accuracy and restart durability are not attested."
+}

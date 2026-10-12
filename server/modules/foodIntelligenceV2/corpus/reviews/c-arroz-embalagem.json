@@ -1,0 +1,22 @@
+{
+  "caseId": "c-arroz-embalagem",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed semantic review, 2026-10-11",
+  "independentSources": [
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Input '1 porção de arroz tipo 1, pacote de 5 kg' identifies rice with an explicit consumed serving of one portion. ADR §16 states rice packaging descriptors must not become new food identities or cause clarification; the package mass 5 kg, when present, does not establish the consumed amount. Propose one portion of rice at lunch, preserve original unit and do not treat packaging weight as consumed grams. No numeric nutrition or verified provenance is asserted; this is normative case-label evidence, not a runtime accuracy claim."
+}

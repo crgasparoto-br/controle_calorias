@@ -1,0 +1,23 @@
+{
+  "caseId": "c-melao-cultivar",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative label cross-check (2026-10-12), not final PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §16"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The input explicitly says one slice of yellow melon. ADR section 16 calls for a melon cultivar test; maintain melão and qualifier amarelo and one fatia. No nutritional mass is measured.",
+  "limitations": "Only expected semantics, no production runtime or nutritional benchmark."
+}

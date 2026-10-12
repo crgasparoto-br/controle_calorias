@@ -1,0 +1,22 @@
+{
+  "caseId": "c-porcao-tiquinho",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — independent normative-source semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    },
+    {
+      "id": "issue-332",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/332"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The literal input \"um tiquinho de bolo de chocolate\" names bolo de chocolate but does not provide a numerically grounded serving size. ADR §16 explicitly lists tiquinho, punhado and pratão as uncertain portions requiring clarification and forbids conversion into grams; issue #332 independently prohibits silent conversion without a trustworthy factor. Retain the food identity, request quantity clarification (nextAction clarify; quantity forbidden until known), and do not fabricate gram weight or nutrient values. This checks the reference label's semantics against normative input, not the resolver's runtime accuracy."
+}

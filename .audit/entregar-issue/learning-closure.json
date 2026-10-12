@@ -3,15 +3,15 @@
   "classification": "implementation-only",
   "source_event": {
     "kind": "independent-rejection",
-    "rejection_id": "audit-rejection:1276-incomplete-command-bypass-001",
-    "audit_report_sha256": "6cd479ae19bc7800d9486ae5049fbcdb5a7b611f1d984a58c1ea54b386ba39f1",
+    "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+    "audit_report_sha256": "54b9904fb8dc4840243e81608a58726d52d41f20017647cc92a4fe41ea8740c0",
     "finding_ids": [
-      "A-1276-002"
+      "A-1316-003"
     ]
   },
   "generalized_learning": {
     "promotion_status": "not-required",
-    "reason": "A remediação é targeted para a fronteira do parser/pending; não altera uma regra global da Skill."
+    "reason": "Correção targeted de coerência path/hash da evidência quantitativa; sem mudança funcional ou regra global nova."
   },
   "skill_changes": []
 }

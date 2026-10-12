@@ -1,0 +1,22 @@
+{
+  "caseId": "c-cerveja-imagem",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — independent source-backed semantic expectation review (2026-10-12); not independent third-party runtime audit",
+  "independentSources": [
+    {
+      "id": "issue-987-product-photo",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/987"
+    },
+    {
+      "id": "adr-media-boundary",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 4.1.6 and 16)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #987 explicitly reports an Antarctica Original beer bottle labelled 300 ml and requires preserving the commercial identity, brand and version when visually evidenced rather than replacing it with generic beer. The synthetic OCR text now declares 'CERVEJA ANTARCTICA ORIGINAL 300 ml'; expected identity is cerveja, brand Antarctica, variant Original. The 300 ml value is labelled container capacity, NOT observed consumed volume; quantity remains unspecified and no kcal/macros are asserted. A separate semanticReference.test.ts regression asserts these obligations. This review supports reference-label semantics only. Actual image recognition and nutrition-source verification still require integration/production evidence; no third-party audit approval is implied."
+}

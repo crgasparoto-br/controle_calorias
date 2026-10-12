@@ -1,1 +1,37 @@
-{"schema_version":1,"contract_version":"2026-08-20.3","resolution_policy":"all-actionable-items","status":"closed","candidate_head_sha":"950803c5fab4310fce6688e778a14f19c3a48d2b","remediation_mode":"targeted-remediation","source":{"rejection_id":"audit-rejection:22955594-c2a6-4c30-8144-a17c64c3023a","audited_head_sha":"3469ce0b863bbd38f6cb2371e747a20e532d277b","audit_report_sha256":"e66af4056cb16a60c0c03c64368209363c79d392b27e1c5a1a3b20cacd0b992d"},"items":[{"source_kind":"finding","source_id":"A-1315-007","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"behavioral-fix","changed_files":[".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/audit-source-result.json",".audit/entregar-issue/handoff-ready.json"],"evidence":["The replacement handoff explicitly sets previous_independent_rejection=true and certifies audit_remediation plus audit_source_result on material head 950803c5fab4310fce6688e778a14f19c3a48d2b.","The remediation source records the latest independent rejection audit-rejection:22955594-c2a6-4c30-8144-a17c64c3023a and preserves the immediately preceding rejection audit-rejection:1315-handoff-stale-27a8a58f as lineage evidence."],"validations":["Material CI run 37542916316 is completed/success on exact material head 950803c5fab4310fce6688e778a14f19c3a48d2b.","The new result-only child is constructed as a direct child of material head 950803c5fab4310fce6688e778a14f19c3a48d2b and changes only certified .audit/entregar-issue paths."]},{"source_kind":"finding","source_id":"A-1315-006","remediation_mode":"targeted-remediation","status":"fixed","closure_kind":"behavioral-fix","changed_files":[".audit/entregar-issue/audit-remediation.json",".audit/entregar-issue/handoff-ready.json"],"evidence":["The earlier stale-handoff rejection audit-rejection:1315-handoff-stale-27a8a58f is retained explicitly in the current remediation lineage rather than being discarded when the material head advanced to 950803c5fab4310fce6688e778a14f19c3a48d2b."],"validations":["Current material head 950803c5fab4310fce6688e778a14f19c3a48d2b has exact-head CI success in run 37542916316.","Current handoff certificate is rebound to material head 950803c5fab4310fce6688e778a14f19c3a48d2b and marks previous_independent_rejection=true."]}]}
+{
+  "schema_version": 1,
+  "contract_version": "2026-08-20.3",
+  "resolution_policy": "all-actionable-items",
+  "source": {
+    "rejection_id": "audit-rejection:0510c2c0-a9b0-47c0-8787-cf54929f4b64",
+    "audit_report_sha256": "54b9904fb8dc4840243e81608a58726d52d41f20017647cc92a4fe41ea8740c0",
+    "audited_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163"
+  },
+  "candidate_head_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+  "remediation_mode": "targeted-remediation",
+  "items": [
+    {
+      "source_kind": "finding",
+      "source_id": "A-1316-003",
+      "remediation_mode": "targeted-remediation",
+      "status": "fixed",
+      "closure_kind": "evidence-path-hash-alignment",
+      "changed_files": [
+        ".audit/entregar-issue/requirement-attack-matrix.json",
+        ".audit/entregar-issue/audit-source-result.json",
+        ".audit/entregar-issue/audit-remediation.json",
+        ".audit/entregar-issue/audit-escape-closure.json",
+        ".audit/entregar-issue/learning-closure.json",
+        ".audit/entregar-issue/handoff-ready.json"
+      ],
+      "evidence": [
+        "EV-1299-MATCHRATE path/hash aligned to server/modules/foodIntelligenceV2/corpus/harnessSelfTest.test.ts @ f68e523bab305505b7f47aa86046fa58073605d295617254ca63440fabb49850.",
+        "Material head remains unchanged and Agent-first gate 37680089191 is completed/success."
+      ],
+      "validations": [
+        "Quantitative control now uses the same evidence_id, path, SHA-256, subject_sha and freshness policy certified by evidence-provenance.json."
+      ]
+    }
+  ],
+  "status": "closed"
+}

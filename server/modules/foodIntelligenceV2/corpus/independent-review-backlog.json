@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "note": "Source pointers are leads only, not independent semantic certification. Never use expected output as evidence.",
+  "cases": []
+}

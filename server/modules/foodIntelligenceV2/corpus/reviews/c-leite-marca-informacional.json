@@ -1,0 +1,22 @@
+{
+  "caseId": "c-leite-marca-informacional",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed semantic label review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "adr-food-v2-8-3-and-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Independent comparison of observed input \"200 ml de leite Piracanjuba\" with ADR §8.3/§16 and issue #1088. The item is milk; preserve explicitly observed 200 ml and add to breakfast. Piracanjuba is explicit commercial identity; no generic nutrition may be certified as brand-specific. The nutrition field declares provenance policy only; no numeric macros or food-specific measured processing classification are verified by this record. The record does not benchmark resolver accuracy."
+}

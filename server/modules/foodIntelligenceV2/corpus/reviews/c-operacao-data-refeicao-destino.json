@@ -1,0 +1,26 @@
+{
+  "caseId": "c-operacao-data-refeicao-destino",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — documentary semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "adr-operation",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 7.1 and 16)"
+    },
+    {
+      "id": "issue-1278",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1278"
+    },
+    {
+      "id": "issue-1271",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1271"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The literal message \"registrar 1 pão francês no jantar de 2026-10-04\" explicitly describes food consumption/addition in a dated named meal. Its destination is expressed in embedded position. ADR §7.1 requires operation, target meal, and date to remain separated from the food identity; issue #1278 independently documents the production bug in which the meal destination is parsed into the food item, and issue #1271 verifies dated target-meal semantics. Preserve the explicit destination/date and food identity without turning the meal label into food; add operation applies only once. Do not invent nutritional values or provenance, and do not claim resolver or webhook runtime behavior was executed. This is reference-semantic review."
+}

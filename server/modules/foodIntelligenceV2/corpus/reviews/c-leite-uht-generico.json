@@ -1,0 +1,26 @@
+{
+  "caseId": "c-leite-uht-generico",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — documentary semantic review (2026-10-11)",
+  "independentSources": [
+    {
+      "id": "adr-8-3",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#83"
+    },
+    {
+      "id": "adr-16",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md#16-golden-food-corpus"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The literal entry \"200 ml de leite UHT\" identifies the generic milk family and explicit 200 ml amount, with no commercial brand or fat-content variant. Canonical ADR §16 describes UHT as an informational descriptor for the milk family and prohibits inventing a new nutritional variant/clarification solely from this descriptor. Issue #1088 separately confines the restriction on generic nutritional fallback to commercial identity while allowing transparent generic estimates for genuinely unbranded foods. Review covers only semantic identity/quantity/action/provenance policy; it does not independently verify a specific processing-level nutrition classification or caloric values, nor claim production accuracy."
+}

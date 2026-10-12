@@ -1,127 +1,111 @@
 {
   "schema_version": 1,
-  "subject_sha": "950803c5fab4310fce6688e778a14f19c3a48d2b",
-  "base_sha": "5fdd877f02f0c778cb0d6564013d62c40f49cf6a",
+  "subject_sha": "d0da06cb4f4a8f3785d940f94141ef4c72736163",
+  "base_sha": "98ab3eb0022c224ae9484985e1a63ebfc9025603",
   "creations": [
     {
-      "path": "server/modules/foodIntelligenceV2/adapters.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/contracts.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "FoodResolutionDecision",
-          "MealSemanticContract adapter",
-          "V1 V2"
+          "Food Intelligence corpus contracts.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/contracts.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/data.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "FoodObservation",
-          "FoodResolutionDecision",
-          "food contract"
+          "Food Intelligence corpus data.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/decisionSchemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/harness.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "FoodResolutionDecision",
-          "decision schema",
-          "foodDecision"
+          "Food Intelligence corpus harness.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/fixtures.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/index.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "buildFoodObservationFixture",
-          "FoodObservation fixture",
-          "food fixture"
+          "Food Intelligence corpus index.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/observationSchemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/projection.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "FoodObservation",
-          "observation schema",
-          "foodObservation"
+          "Food Intelligence corpus projection.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/pendingOperation.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/referenceSource.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "pendingOperation",
-          "PendingOperation",
-          "resolverVersion"
+          "Food Intelligence corpus referenceSource.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/schemaShared.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/report.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "foodAnchorSchema",
-          "foodEvidenceSchema",
-          "shared food schema"
+          "Food Intelligence corpus report.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     },
     {
-      "path": "server/modules/foodIntelligenceV2/schemas.ts",
+      "path": "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.ts",
       "kind": "file",
       "search": {
         "queries": [
-          "parseFoodObservation",
-          "parseFoodResolutionDecision",
-          "schemaVersion"
+          "Food Intelligence corpus selfTestResolvers.ts"
         ],
-        "scope": "git grep against work-item base 5fdd877f02f0c778cb0d6564013d62c40f49cf6a across repository source/docs; no equivalent runtime file in server/modules/foodIntelligenceV2 existed at base",
+        "scope": "base SHA e módulo existente",
         "candidates": []
       },
       "decision": "create",
-      "justification": "Issue #1298 introduces the first bounded Food Intelligence V2 runtime contract module; base search found specification text and legacy concepts but no equivalent runtime implementation to reuse."
+      "justification": "Arquivo novo da Fase A; nenhum equivalente reutilizável foi identificado no base."
     }
   ],
   "references": [],
