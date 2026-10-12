@@ -1897,7 +1897,16 @@ function matchDecisions(
   const remainingProduced = [...unmatchedProduced];
   for (const item of unmatchedExpected) {
     if (remainingProduced.length === 0) {
-      codesByLabel.set(item.label, ["missing_decision"]);
+      // Sem candidato livre, a decisão está omitida. Conservar também os
+      // motivos de campo do candidato mais próximo (mesmo já atribuído) para
+      // que violações de quantidade/procedência continuem diagnosticáveis.
+      const nearest = produced
+        .map(candidate => compareExpectedDecision(item, candidate))
+        .sort((a, b) => a.length - b.length)[0];
+      codesByLabel.set(item.label, [
+        "missing_decision",
+        ...(nearest ?? []),
+      ]);
       continue;
     }
     let bestIndex = 0;
