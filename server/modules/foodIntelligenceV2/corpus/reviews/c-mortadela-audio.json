@@ -1,0 +1,27 @@
+{
+  "caseId": "c-mortadela-audio",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — semantic oracle cross-check against independent domain sources (2026-10-12); not final PR auditor",
+  "independentSources": [
+    {
+      "id": "normative-adr",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6, 16, 17, as applicable"
+    },
+    {
+      "id": "issue-1037",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1037"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The audio transcription explicitly says '1,5 fatias de mortadela'; ADR §17 requires convergence with the text equivalent. Preserve mortadela and 1.5 fatias, no inferred grams. The label 'usual_average' is a method classification only; neither numerical mass nor real ASR performance is certified.",
+  "limitations": "Normative oracle review only. Runtime, OCR, ASR, specific macros and an independently conducted PR audit are not certified."
+}

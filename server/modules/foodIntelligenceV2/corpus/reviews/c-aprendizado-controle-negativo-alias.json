@@ -1,0 +1,23 @@
+{
+  "caseId": "c-aprendizado-controle-negativo-alias",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The input café da loja is different from the learned café da firma alias. ADR §16.1 explicitly demands negative controls against overgeneralization by context and similar surfaces. A similar string cannot prove the same personal preparation; clarify instead of carrying the private memory result.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

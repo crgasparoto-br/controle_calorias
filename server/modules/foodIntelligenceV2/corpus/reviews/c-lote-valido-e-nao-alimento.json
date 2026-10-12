@@ -1,0 +1,23 @@
+{
+  "caseId": "c-lote-valido-e-nao-alimento",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — semantic oracle cross-check against independent domain sources (2026-10-12); not final PR auditor",
+  "independentSources": [
+    {
+      "id": "normative-adr",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6, 16, 17, as applicable"
+    },
+    {
+      "id": "issue-1177",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1177"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The mixed batch 'arroz, feijão e óleo de motor' contains two valid foods and an explicitly non-food item. ADR §16 includes engine oil as a non-food negative and requires preserving valid members with explained exclusion. Do not guess food quantities.",
+  "limitations": "Normative oracle review only. Runtime, OCR, ASR, specific macros and an independently conducted PR audit are not certified."
+}

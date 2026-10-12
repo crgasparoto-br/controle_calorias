@@ -1,0 +1,27 @@
+{
+  "caseId": "c-produto-marca-sem-nutricao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — semantic oracle cross-check against independent domain sources (2026-10-12); not final PR auditor",
+  "independentSources": [
+    {
+      "id": "normative-adr",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6, 16, 17, as applicable"
+    },
+    {
+      "id": "issue-1158",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1158"
+    },
+    {
+      "id": "issue-1088",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1088"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The text identifies a single Aurora coconut-flavored biscuit without matching verified nutrition evidence. Issue #1158 permits a clearly provisional record for commercially identified food, while #1088 prohibits presenting generic macros as verified brand nutrition. Preserve one unit and provisional status without inventing numbers.",
+  "limitations": "Normative oracle review only. Runtime, OCR, ASR, specific macros and an independently conducted PR audit are not certified."
+}

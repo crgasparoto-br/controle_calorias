@@ -75,13 +75,13 @@
     },
     {
       "caseId": "c-mortadela-audio",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-mortadela-audio.json"
     },
     {
       "caseId": "c-mortadela-imagem-legenda",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-mortadela-imagem-legenda.json"
     },
     {
       "caseId": "c-ovo-frito",
@@ -95,13 +95,13 @@
     },
     {
       "caseId": "c-melao-cultivar",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-melao-cultivar.json"
     },
     {
       "caseId": "c-coca-cola-lata",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-coca-cola-lata.json"
     },
     {
       "caseId": "c-cerveja-original-garrafa",
@@ -115,8 +115,8 @@
     },
     {
       "caseId": "c-multiplos-um-ambiguo",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-multiplos-um-ambiguo.json"
     },
     {
       "caseId": "c-destino-refeicao-leading",
@@ -135,13 +135,13 @@
     },
     {
       "caseId": "c-erro-transcricao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-erro-transcricao.json"
     },
     {
       "caseId": "c-produto-marca-sem-nutricao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-produto-marca-sem-nutricao.json"
     },
     {
       "caseId": "c-provider-indisponivel",
@@ -195,13 +195,13 @@
     },
     {
       "caseId": "c-banco-ambiguo-pao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-banco-ambiguo-pao.json"
     },
     {
       "caseId": "c-lote-valido-e-nao-alimento",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-lote-valido-e-nao-alimento.json"
     },
     {
       "caseId": "c-lote-multi-acao",
@@ -230,8 +230,8 @@
     },
     {
       "caseId": "c-cerveja-original-transcricao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-cerveja-original-transcricao.json"
     },
     {
       "caseId": "c-neg-pasta-de-dente",
@@ -330,8 +330,8 @@
     },
     {
       "caseId": "c-superficie-nova-mesma-familia",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-superficie-nova-mesma-familia.json"
     },
     {
       "caseId": "c-aprendizado-alias-antes",
@@ -350,8 +350,8 @@
     },
     {
       "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-sem-intervencao-desnecessaria.json"
     },
     {
       "caseId": "c-aprendizado-persistencia-restart",
@@ -360,13 +360,13 @@
     },
     {
       "caseId": "c-aprendizado-isolamento-outro-usuario",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-isolamento-outro-usuario.json"
     },
     {
       "caseId": "c-aprendizado-precedencia-explicita",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-precedencia-explicita.json"
     },
     {
       "caseId": "c-aprendizado-revogacao",
@@ -375,8 +375,8 @@
     },
     {
       "caseId": "c-aprendizado-controle-negativo-alias",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-controle-negativo-alias.json"
     }
   ]
 }

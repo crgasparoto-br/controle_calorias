@@ -1,0 +1,27 @@
+{
+  "caseId": "c-mortadela-imagem-legenda",
+  "verdict": "approved",
+  "reviewer": "ChatGPT source-backed normative semantic review 2026-10-12, not independent PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§15,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-1037",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1037"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The supplied text and readable caption both explicitly describe mortadela and one-and-a-half slices. ADR §17 requires semantic convergence of equivalent image-caption and written text. Preserve identity and 1.5 fatias. This record neither proves OCR/vision performance nor assigns gram weight.",
+  "limitations": "Does not certify deployed behavior or measured nutritional accuracy."
+}

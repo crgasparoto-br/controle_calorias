@@ -1,0 +1,23 @@
+{
+  "caseId": "c-banco-ambiguo-pao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — semantic oracle cross-check against independent domain sources (2026-10-12); not final PR auditor",
+  "independentSources": [
+    {
+      "id": "normative-adr",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6, 16, 17, as applicable"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "Issue #1051 specifically documents 'pão banco' as ambiguous between pão branco and Panco and prohibits silent correction. The input has no numerical serving quantity; keep both alternatives, ask for identity clarification and do not invent nutritional content.",
+  "limitations": "Normative oracle review only. Runtime, OCR, ASR, specific macros and an independently conducted PR audit are not certified."
+}

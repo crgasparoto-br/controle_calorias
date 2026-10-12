@@ -35,66 +35,6 @@
       "decision": null
     },
     {
-      "caseId": "c-mortadela-audio",
-      "title": "Mortadela por áudio/transcrição equivalente",
-      "modality": "audio_transcript",
-      "incidentRefs": [
-        "#1037"
-      ],
-      "adrSections": [
-        "§17",
-        "§4.1.5"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-mortadela-imagem-legenda",
-      "title": "Mortadela por imagem com legenda equivalente",
-      "modality": "multimodal",
-      "incidentRefs": [
-        "#1037"
-      ],
-      "adrSections": [
-        "§17",
-        "§4.1.6"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-melao-cultivar",
-      "title": "Melão com cultivar",
-      "modality": "text",
-      "incidentRefs": [
-        "#1051"
-      ],
-      "adrSections": [
-        "§16",
-        "§8.3"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-coca-cola-lata",
-      "title": "Coca-Cola em lata",
-      "modality": "text",
-      "incidentRefs": [
-        "#401",
-        "#1158"
-      ],
-      "adrSections": [
-        "§16"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-cerveja-original-garrafa",
       "title": "Cerveja Original em garrafa (texto)",
       "modality": "text",
@@ -120,55 +60,6 @@
         "§16",
         "§15",
         "§16.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-multiplos-um-ambiguo",
-      "title": "Múltiplos alimentos com apenas um ambíguo",
-      "modality": "text",
-      "incidentRefs": [
-        "#1051",
-        "#1177"
-      ],
-      "adrSections": [
-        "§16",
-        "§7.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-erro-transcricao",
-      "title": "Erro de transcrição exige clarificação sem alternativas inventadas",
-      "modality": "audio_transcript",
-      "incidentRefs": [
-        "#120",
-        "#1224"
-      ],
-      "adrSections": [
-        "§16",
-        "§4.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-produto-marca-sem-nutricao",
-      "title": "Produto comercial de marca sem perfil comprovado",
-      "modality": "text",
-      "incidentRefs": [
-        "#903",
-        "#1158"
-      ],
-      "adrSections": [
-        "§16",
-        "§9.2",
-        "§10.1"
       ],
       "verification": "pending",
       "independentEvidence": [],
@@ -222,37 +113,6 @@
       "decision": null
     },
     {
-      "caseId": "c-banco-ambiguo-pao",
-      "title": "Identidade ambígua por erro de digitação no contexto de pão",
-      "modality": "text",
-      "incidentRefs": [
-        "#1051"
-      ],
-      "adrSections": [
-        "§16",
-        "§4.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-lote-valido-e-nao-alimento",
-      "title": "Lote com itens válidos e um não alimento",
-      "modality": "text",
-      "incidentRefs": [
-        "#1177",
-        "#247"
-      ],
-      "adrSections": [
-        "§16",
-        "§7.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-lote-multi-acao",
       "title": "Lote com substituição de alimento no almoço",
       "modality": "text",
@@ -263,37 +123,6 @@
       "adrSections": [
         "§7.1",
         "§7.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-cerveja-original-transcricao",
-      "title": "Cerveja Original por transcrição equivalente",
-      "modality": "audio_transcript",
-      "incidentRefs": [
-        "#987",
-        "#1051"
-      ],
-      "adrSections": [
-        "§17"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-superficie-nova-mesma-familia",
-      "title": "Superfície nova da mesma família mapeia para variante existente",
-      "modality": "text",
-      "incidentRefs": [
-        "#1088",
-        "#1243"
-      ],
-      "adrSections": [
-        "§8.3",
-        "§16"
       ],
       "verification": "pending",
       "independentEvidence": [],
@@ -348,22 +177,6 @@
       "decision": null
     },
     {
-      "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
-      "title": "Sem intervenção desnecessária quando a evidência é suficiente",
-      "modality": "text",
-      "incidentRefs": [
-        "#332",
-        "#997"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§9.2"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-aprendizado-persistencia-restart",
       "title": "Persistência após reinício com a mesma chave",
       "modality": "text",
@@ -373,37 +186,6 @@
       ],
       "adrSections": [
         "§16.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-isolamento-outro-usuario",
-      "title": "Aprendizado pessoal não vaza para outro usuário",
-      "modality": "text",
-      "incidentRefs": [
-        "#1051",
-        "#1090"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§15"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-precedencia-explicita",
-      "title": "Informação explícita atual prevalece sobre memória incompatível",
-      "modality": "text",
-      "incidentRefs": [
-        "#1225"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§6"
       ],
       "verification": "pending",
       "independentEvidence": [],
@@ -420,21 +202,6 @@
       "adrSections": [
         "§16.1",
         "§15"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-controle-negativo-alias",
-      "title": "Alias parecido não é confundido com o aprendido",
-      "modality": "text",
-      "incidentRefs": [
-        "#524"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§4.1.8"
       ],
       "verification": "pending",
       "independentEvidence": [],

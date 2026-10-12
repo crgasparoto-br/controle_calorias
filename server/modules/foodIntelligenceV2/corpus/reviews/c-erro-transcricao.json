@@ -1,0 +1,19 @@
+{
+  "caseId": "c-erro-transcricao",
+  "verdict": "approved",
+  "reviewer": "ChatGPT normative semantic source cross-check (2026-10-12); not separate PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§6,15,16,16.1,17 as applicable"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The audio transcription 'mordadela' lacks a confirmed identity. ADR §16 requires uncertain transcription cases and §4.2 requires clarification rather than fabricated alternatives. It is safer not to silently promote an unsupported guess to resolved identity. No ASR accuracy evidence is claimed.",
+  "limitations": "Semantic oracle review only, not actual resolver/vision/ASR runtime nor numeric nutrition benchmark."
+}

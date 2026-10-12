@@ -1,0 +1,27 @@
+{
+  "caseId": "c-aprendizado-isolamento-outro-usuario",
+  "verdict": "approved",
+  "reviewer": "ChatGPT source-backed normative semantic review 2026-10-12, not independent PR auditor",
+  "independentSources": [
+    {
+      "id": "ADR",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§15,16.1,17 as applicable"
+    },
+    {
+      "id": "issue-1051",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "issue-1153",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1153"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The scenario uses a different owner for an alias previously taught by another person. ADR §15 and §16.1 and issue #1153 require isolation of personal memory, hence no copied no-sugar preference and a clarification request. This is documentary semantic review, not actual backend tenant-isolation testing.",
+  "limitations": "Does not certify deployed behavior or measured nutritional accuracy."
+}
