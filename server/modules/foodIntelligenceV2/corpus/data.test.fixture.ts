@@ -199,6 +199,7 @@ const input = (
   ocrText: over.ocrText ?? null,
   caption: over.caption ?? null,
   imageRef: over.imageRef ?? null,
+  priorUserMessages: over.priorUserMessages ?? [],
   nonQuantityTokens: over.nonQuantityTokens ?? [],
 });
 
@@ -1011,9 +1012,12 @@ const historicalIncidentCases: CaseDraft[] = [
     decisionClass: "resolvable",
     nonRecurrenceClasses: ["H"],
     knownRegression: true,
-    incidentRefs: ["#403", "#1051"],
+    incidentRefs: ["#1059", "#1051"],
     adrSections: ["§16", "§15", "§16.1"],
-    input: input({ text: "café" }),
+    input: input({
+      text: "café",
+      priorUserMessages: [{ text: "normalmente tomo café sem açúcar" }],
+    }),
     mealOperation: operation({
       targetMeal: "café da manhã",
       date: "2026-10-06",
@@ -1042,7 +1046,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
-      "Preferência pessoal confirmada; cenário de aquisição de conhecimento (§16.1).",
+      "A preferência pessoal está expressa na mensagem anterior (#1059); o caso verifica contexto observado, não persistência após reinício.",
   },
   {
     caseId: "c-multiplos-um-ambiguo",
