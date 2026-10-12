@@ -2063,6 +2063,8 @@ export interface CorpusKnowledgeStore {
     split: CorpusSplit,
     mode: "read_only" | "acquisition"
   ): CorpusKnowledgeGate;
+  /** Exporta dados (não o ledger/fachadas) para simular restauração após restart. */
+  snapshot(): readonly (readonly [string, string])[];
   /** Revoga uma chave (§16.1: revogação sem reaplicação por cache obsoleto). */
   revoke(key: string): void;
   /** Inutiliza fachadas abertas e torna escritas tardias observáveis. */
@@ -2079,6 +2081,8 @@ export interface CorpusKnowledgeStore {
 /** Cria um armazenamento de conhecimento instrumentado e isolado. */
 export function createKnowledgeStore(options: {
   persistWrites?: boolean;
+  /** Estado serializado do armazenamento anterior, somente do harness. */
+  initialEntries?: readonly (readonly [string, string])[];
   /**
    * Coletor autoritativo compartilhado. O armazenamento **nunca** cria o
    * próprio: medição, cenários e ablação escrevem no mesmo registro, de modo
@@ -2087,7 +2091,7 @@ export function createKnowledgeStore(options: {
   refusedWrites: CorpusRefusedWrite[];
 }): CorpusKnowledgeStore {
   const persistWrites = options.persistWrites ?? true;
-  const entries = new Map<string, string>();
+  const entries = new Map<string, string>(options.initialEntries ?? []);
   const ledger: CorpusKnowledgeLedgerEntry[] = [];
   // Registro privado dos fechamentos: a fachada entregue é imutável e não
   // carrega estado mutável alcançável pelo resolvedor.
@@ -2096,6 +2100,9 @@ export function createKnowledgeStore(options: {
   return {
     ledger,
     refusedWrites,
+    snapshot() {
+      return [...entries.entries()].map(([key, value]) => [key, value] as const);
+    },
     revoke(key: string) {
       entries.delete(key);
     },
@@ -2853,7 +2860,7 @@ export async function runLearningScenarios(
     const conversationRefs = new Set<string>();
     // O armazenamento vive por cenário: é o que torna persistência após
     // reinício e revogação efeitos observáveis, e não rótulos de caso.
-    const knowledge = createKnowledgeStore({ refusedWrites });
+    let knowledge = createKnowledgeStore({ refusedWrites });
     // Cadeia causal: chaves escritas na aquisição e chaves adquiridas que foram
     // efetivamente encontradas em leituras posteriores. Sem essa cadeia, o
     // cenário não prova aprendizado — prova apenas rótulos por caseId.
@@ -2890,6 +2897,16 @@ export async function runLearningScenarios(
 
       ownerRefs.add(entry.scenario.ownerRef);
       conversationRefs.add(entry.scenario.conversationRef);
+
+      // Simular reinício de instância: reconstruir a fachada a partir de
+      // bytes serializados, sem reaproveitar o mesmo Map nem gates antigos.
+      // Isto NÃO valida durabilidade em Postgres/produção.
+      if (step.phase === "restart") {
+        knowledge.closeGates();
+        const restored = JSON.parse(JSON.stringify(knowledge.snapshot())) as
+          [string, string][];
+        knowledge = createKnowledgeStore({ refusedWrites, initialEntries: restored });
+      }
 
       for (const key of step.revokeKeys) knowledge.revoke(key);
 
