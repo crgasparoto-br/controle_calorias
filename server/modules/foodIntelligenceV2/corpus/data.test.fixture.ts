@@ -390,17 +390,18 @@ const historicalIncidentCases: CaseDraft[] = [
     adrSections: ["§16", "§4.1.6"],
     input: input({
       text: "bebida registrada por foto",
-      ocrText: "CERVEJA ORIGINAL 355 ml",
+      ocrText: "CERVEJA ANTARCTICA ORIGINAL 300 ml",
       imageRef: "synthetic-cerveja-original",
     }),
     mealOperation: operation({ targetMeal: "jantar", date: "2026-10-06" }),
     expected: {
       decisions: [
         decision({
-          label: "cerveja Original",
+          label: "cerveja Antarctica Original",
           identity: identity({
             canonicalName: "cerveja",
-            brand: "Original",
+            brand: "Antarctica",
+            variant: "Original",
           }),
           quantity: unspecifiedQuantity(),
         }),
@@ -413,7 +414,7 @@ const historicalIncidentCases: CaseDraft[] = [
     metamorphicGroup: null,
     equivalenceReference: null,
     notes:
-      "355 ml identifica o volume nominal da embalagem, mas não prova a quantidade consumida; não converter ml em gramas.",
+      "Rótulo Antarctica Original, 300 ml segundo issue #987. O volume nominal da embalagem não informa quanto foi consumido; não converter ml em gramas.",
   },
   {
     caseId: "c-leite-uht-integral",
