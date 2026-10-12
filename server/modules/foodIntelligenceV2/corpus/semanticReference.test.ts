@@ -89,6 +89,22 @@ describe("independent semantic reference controls", () => {
     expect(decision.quantity.presence).toBe("forbidden");
   });
 
+  it("treats trocar arroz por feijão as replacement, not a new addition", () => {
+    // Independently grounded in the command contract of issues #422 and #168.
+    const entry = findCase("c-lote-multi-acao");
+    expect(entry.input.text).toBe("troquei o arroz por feijão no almoço");
+    expect(entry.mealOperation.action).toBe("replace");
+    expect(entry.expected.operation).toMatchObject({
+      action: "replace",
+      targetMeal: "almoço",
+      date: "2026-10-06",
+    });
+    expect(entry.expected.decisions).toHaveLength(1);
+    expect(entry.expected.decisions[0].identity.canonicalName).toBe("feijão");
+    expect(entry.expected.decisions[0].quantity.presence).toBe("unspecified");
+    expect(entry.expected.mustExplainExclusions).toBe(true);
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
