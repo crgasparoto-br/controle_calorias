@@ -42,7 +42,7 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     id: "11", layer: 1, mode: "preview", scope: "server-production",
     failureClass: "A", kind: "collection",
     pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
-    symbolPattern: "alias|synonym|lexicon|vocab|informal|slang|language|abbrev|typo",
+    symbolPattern: "alias|synonym|lexicon|vocab|informal|slang|language|abbrev|typo|replacements|uncertain.*portion|stop.*words",
     description: "Léxico ou normalização de domínio codificada no canal",
   },
   {
