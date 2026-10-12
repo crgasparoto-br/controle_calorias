@@ -205,8 +205,8 @@
     },
     {
       "caseId": "c-lote-multi-acao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-lote-multi-acao.json"
     },
     {
       "caseId": "c-pontuacao-com-virgula",
