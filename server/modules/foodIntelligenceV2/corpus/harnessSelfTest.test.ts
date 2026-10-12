@@ -647,6 +647,92 @@ describe("autoverificação do harness", () => {
     expect(matchesDeclaredCounterfactual(entry, { result: omitted, projections: [] })).toBe(false);
   });
 
+  it("rejeita contrafactual estruturalmente inválido mesmo com projeção igual", async () => {
+    const entry = corpus.cases.find(item => item.caseId === "c-lote-valido-e-nao-alimento");
+    expect(entry).toBeDefined();
+    if (!entry) throw new Error("ausência do lote de referência");
+    const store = createKnowledgeStore({ refusedWrites: [] });
+    const result = await createReferenceResolver(corpus).resolve({
+      case: toCorpusCaseInput(entry),
+      allowLearning: false,
+      knowledge: store.gateFor(entry.caseId, entry.split, "read_only"),
+    });
+    expect(matchesDeclaredCounterfactual(entry, { result, projections: [] })).toBe(true);
+    // A versão é inválida, mas a projeção semântica seria idêntica.
+    const badVersion = {
+      ...result,
+      decisions: result.decisions.map((decision, index) =>
+        index === 0
+          ? { ...decision, schemaVersion: 99 as unknown as typeof decision.schemaVersion }
+          : decision
+      ),
+    };
+    expect(matchesDeclaredCounterfactual(entry, { result: badVersion, projections: [] }))
+      .toBe(false);
+    // Macros negativas violam o schema, mesmo sem afetar o matching de identidade.
+    const badMacros = {
+      ...result,
+      decisions: result.decisions.map((decision, index) =>
+        index === 0 && decision.nutrition.consumed !== null
+          ? {
+              ...decision,
+              nutrition: {
+                ...decision.nutrition,
+                consumed: { ...decision.nutrition.consumed, calories: -1 },
+              },
+            }
+          : decision
+      ),
+    };
+    expect(matchesDeclaredCounterfactual(entry, { result: badMacros, projections: [] }))
+      .toBe(false);
+    // A operação precisa ser validada, não apenas ter campos comparáveis.
+    const badOperation = {
+      ...result,
+      operation: { ...result.operation!, unexpectedField: "not-in-schema" },
+    };
+    expect(matchesDeclaredCounterfactual(entry, { result: badOperation, projections: [] }))
+      .toBe(false);
+  });
+
+  it("bloqueia ablação que devolve decisão inválida só no contrafactual", async () => {
+    const reference = createLearningResolver(corpus);
+    let reservedCalls = 0;
+    const report = await runGoldenFoodCorpus(
+      {
+        id: "test:malformed-ablated-counterfactual",
+        revision: reference.revision,
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          if (
+            request.case.caseId !== "c-aprendizado-alias-reuso" ||
+            request.case.scenario.phase !== "reserved_measurement"
+          ) {
+            return result;
+          }
+          reservedCalls += 1;
+          if (reservedCalls !== 2) return result;
+          // A ablação parece semanticamente correta, mas viola o schema.
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              schemaVersion: 99 as unknown as typeof decision.schemaVersion,
+            })),
+          };
+        },
+      },
+      pinned
+    );
+    expect(reservedCalls).toBe(2);
+    expect(report.learningScenarios[0].passed).toBe(false);
+    expect(report.learningScenarios[0].failures.some(failure =>
+      (failure.detail ?? "").includes("contra-factual declarado")
+    )).toBe(true);
+    expect(report.gate.blockReasons).toContain("scenario_invariant_violated");
+    expect(report.gate.status).toBe("blocked");
+  });
+
   it("bloqueia proposta isolada sem macros mesmo quando a taxa global supera 95%", async () => {
     const reference = createReferenceResolver(corpus);
     const report = await runGoldenFoodCorpus(
