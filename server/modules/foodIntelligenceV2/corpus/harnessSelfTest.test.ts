@@ -977,6 +977,88 @@ describe("autoverificação do harness", () => {
       .not.toContain("nutrition_calculation_mismatch");
   });
 
+  it.each([
+    { unit: "g", value: 200, physicalField: "grams" },
+    { unit: "kg", value: 0.2, physicalField: "grams" },
+    { unit: "ml", value: 200, physicalField: "milliliters" },
+    { unit: "l", value: 0.2, physicalField: "milliliters" },
+  ] as const)(
+    "AUD-1316-019: rejeita quantidade fisica contraditoria em $unit",
+    async ({ unit, value, physicalField }) => {
+      const selected = subCorpus(["c-leite-integral"]);
+      // Referencia sintetica so para exercitar as quatro unidades.
+      const tailored = goldenCorpusSchema.parse({
+        ...selected,
+        cases: selected.cases.map(entry => ({
+          ...entry,
+          input: {
+            ...entry.input,
+            text: `${String(value).replace(".", ",")} ${unit} de leite integral`,
+          },
+          expected: {
+            ...entry.expected,
+            decisions: entry.expected.decisions.map(decision => ({
+              ...decision,
+              quantity: { ...decision.quantity, value, unit },
+            })),
+          },
+        })),
+      });
+      const reference = createReferenceResolver(tailored);
+      const measured = async (wrongPhysical: boolean) =>
+        runCorpus(tailored, {
+          id: "test:physical-quantity-invariant",
+          revision: "1",
+          async resolve(request) {
+            const result = await reference.resolve(request);
+            return {
+              ...result,
+              decisions: result.decisions.map(decision => ({
+                ...decision,
+                quantity: {
+                  ...decision.quantity,
+                  grams: physicalField === "grams"
+                    ? (wrongPhysical ? 100 : 200) : null,
+                  milliliters: physicalField === "milliliters"
+                    ? (wrongPhysical ? 100 : 200) : null,
+                },
+                nutrition: {
+                  ...decision.nutrition,
+                  basis: {
+                    quantity: 100,
+                    unit: physicalField === "grams" ? "g" as const : "ml" as const,
+                    values: {
+                      calories: 100, protein: 5, carbs: 10, fat: 4,
+                      fiber: 1, sugar: 2, sodiumMg: 20,
+                    },
+                  },
+                  // A nutricao segue o campo fisico adulterado, nao a entrada.
+                  consumed: {
+                    calories: wrongPhysical ? 100 : 200,
+                    protein: wrongPhysical ? 5 : 10,
+                    carbs: wrongPhysical ? 10 : 20,
+                    fat: wrongPhysical ? 4 : 8,
+                    fiber: wrongPhysical ? 1 : 2,
+                    sugar: wrongPhysical ? 2 : 4,
+                    sodiumMg: wrongPhysical ? 20 : 40,
+                  },
+                },
+              })),
+            };
+          },
+        }, pinned);
+      const valid = await measured(false);
+      expect(valid.gate.status).toBe("passed");
+      expect(allCodes(valid)).not.toContain("nutrition_calculation_mismatch");
+
+      const invalid = await measured(true);
+      expect(invalid.overall.matchRate).toBe(1);
+      expect(allCodes(invalid)).toContain("nutrition_calculation_mismatch");
+      expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+      expect(invalid.gate.status).toBe("blocked");
+    }
+  );
+
   it("bloqueia igualdade artificial quando todos os macros consumidos estão ausentes", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const members = new Set(
