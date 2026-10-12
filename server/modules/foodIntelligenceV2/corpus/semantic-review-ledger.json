@@ -175,8 +175,8 @@
     },
     {
       "caseId": "c-erro-digitacao-recorrente",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-erro-digitacao-recorrente.json"
     },
     {
       "caseId": "c-porcao-tiquinho",
