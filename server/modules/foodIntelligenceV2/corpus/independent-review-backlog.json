@@ -7,8 +7,8 @@
       "title": "Cerveja identificada por imagem",
       "modality": "image",
       "incidentRefs": [
-        "#346",
-        "#375"
+        "#987",
+        "#1210"
       ],
       "adrSections": [
         "§16",
@@ -69,7 +69,7 @@
       "title": "Melão com cultivar",
       "modality": "text",
       "incidentRefs": [
-        "#1251"
+        "#1051"
       ],
       "adrSections": [
         "§16",
@@ -99,7 +99,7 @@
       "title": "Cerveja Original em garrafa (texto)",
       "modality": "text",
       "incidentRefs": [
-        "#346"
+        "#987"
       ],
       "adrSections": [
         "§16"
@@ -130,7 +130,7 @@
       "title": "Múltiplos alimentos com apenas um ambíguo",
       "modality": "text",
       "incidentRefs": [
-        "#247",
+        "#1051",
         "#1177"
       ],
       "adrSections": [
@@ -226,8 +226,7 @@
       "title": "Identidade ambígua por erro de digitação no contexto de pão",
       "modality": "text",
       "incidentRefs": [
-        "#120",
-        "#168"
+        "#1051"
       ],
       "adrSections": [
         "§16",
@@ -274,7 +273,8 @@
       "title": "Cerveja Original por transcrição equivalente",
       "modality": "audio_transcript",
       "incidentRefs": [
-        "#346"
+        "#987",
+        "#1051"
       ],
       "adrSections": [
         "§17"

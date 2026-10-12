@@ -314,4 +314,40 @@ describe("independent semantic reference controls", () => {
     expect(peanut.expected.decisions[0].quantity.presence).toBe("unspecified");
   });
 
+
+  it("guards the incident sources and branco/Panco uncertainty", () => {
+    expect(findCase("c-cerveja-imagem").incidentRefs).toEqual(["#987", "#1210"]);
+    expect(findCase("c-melao-cultivar").incidentRefs).toEqual(["#1051"]);
+    for (const id of ["c-banco-ambiguo-pao", "c-multiplos-um-ambiguo"]) {
+      const item = findCase(id);
+      expect(item.input.text).toContain("pão banco");
+      const d = item.expected.decisions.at(-1)!;
+      expect(d.nextAction).toBe("clarify");
+      expect(d.alternatives).toMatchObject([
+        { name: "pão", variant: "branco" },
+        { name: "pão de forma", brand: "Panco" },
+      ]);
+      expect(d.alternatives.every(a => !["banana", "bacon"].includes(a.name))).toBe(true);
+    }
+    const batch = findCase("c-multiplos-um-ambiguo");
+    expect(batch.expected.decisions.slice(0, 2).map(d => d.identity.canonicalName)).toEqual(["arroz", "feijão"]);
+  });
+
+  it("tests explicit precedence on the learned alias and rejects unsupported guesses", () => {
+    const actual = findCase("c-aprendizado-precedencia-explicita");
+    expect(actual.input.text).toBe("café da firma com açúcar");
+    expect(actual.expected.decisions[0].identity.qualifiers).toContain("com açúcar");
+    const steps = goldenFoodCorpus.learningScenarios.find(s => s.scenarioId === "s-aprendizado-cafe-firma")!.steps;
+    expect(steps.find(s => s.caseId === actual.caseId)!.requiredKnowledgeReads).toContain("owner-a:alias:cafe-da-firma");
+    for (const id of ["c-aprendizado-alias-antes", "c-aprendizado-isolamento-outro-usuario",
+      "c-aprendizado-revogacao", "c-aprendizado-controle-negativo-alias"]) {
+      const d = findCase(id).expected.decisions[0];
+      expect(d.status).toBe("unknown");
+      expect(d.nextAction).toBe("clarify");
+      expect(d.alternatives).toEqual([]);
+      expect(d.ambiguity.minAlternatives).toBe(0);
+      expect(d.ambiguity.mustPreserveAlternatives).toBe(false);
+    }
+  });
+
 });
