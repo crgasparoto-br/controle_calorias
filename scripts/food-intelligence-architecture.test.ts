@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates, isProductionFoodSource } from "./food-intelligence-architecture";
-import { assessFoodDebt } from "./food-architecture-debt";
+import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
 
 const today = new Date("2026-10-12T12:00:00Z");
 const legacy = { path: "server/foodCatalogReference.ts", content: "const FOOD_ALIASES = ['pao', 'pão'];" };
@@ -72,6 +72,19 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessFoodDebt([], [debt], today).errors.some(s => s.includes("Orphan"))).toBe(true);
     expect(assessFoodDebt([finding], [debt], today).errors).toEqual([]);
     expect(assessFoodDebt([finding], [debt], today).warnings).toHaveLength(1);
+  });
+
+  it("denies renewal and owner reassignment but permits repayment", () => {
+    const old = {
+      ruleId: finding.ruleId, file: finding.file, fingerprint: finding.fingerprint,
+      reason: "migration", owner: "food-team", issue: 1300,
+      createdAt: "2026-10-01", expiresAt: "2026-12-01",
+    };
+    expect(assessFoodDebtRenewal([old], [{ ...old, expiresAt: "2027-01-01" }])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, createdAt: "2026-10-10" }])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, owner: "different" }])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [])).toEqual([]);
+    expect(assessFoodDebtRenewal([old], [old])).toEqual([]);
   });
 
   it("fails expired, over-90-day and unowned debt", () => {
