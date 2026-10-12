@@ -1997,24 +1997,53 @@ function nutritionCalculationDifferences(
   const quantity = decision.quantity;
   const unit = normalizeUnitToken(quantity.unit);
   const stated = quantity.value;
-  const grams =
-    quantity.grams ??
-    (stated === null
+  const statedGrams =
+    stated === null
       ? null
       : ["g", "grama", "gramas", "gram", "grams"].includes(unit)
         ? stated
         : ["kg", "quilo", "quilos", "kilogram", "kilograms"].includes(unit)
           ? stated * 1000
-          : null);
-  const milliliters =
-    quantity.milliliters ??
-    (stated === null
+          : null;
+  const statedMilliliters =
+    stated === null
       ? null
       : ["ml", "mililitro", "mililitros", "milliliter", "milliliters"].includes(unit)
         ? stated
         : ["l", "litro", "litros", "liter", "liters"].includes(unit)
           ? stated * 1000
-          : null);
+          : null;
+
+  // Campos fisicos derivados nao substituem a quantidade declarada.
+  // A mesma dimensao deve ser coerente antes de calcular macros: 200 ml
+  // nao podem ser apresentados como 100 ml. Nao inventar densidade.
+  const physicalDifferences: string[] = [];
+  const differs = (declared: number, physical: number) =>
+    Math.abs(declared - physical) >
+    FOOD_QUANTITY_EPSILON * Math.max(1, Math.abs(declared));
+  if (
+    statedGrams !== null &&
+    quantity.grams !== null &&
+    differs(statedGrams, quantity.grams)
+  ) {
+    physicalDifferences.push(
+      `quantity.grams=${quantity.grams}, declarado=${statedGrams} g`
+    );
+  }
+  if (
+    statedMilliliters !== null &&
+    quantity.milliliters !== null &&
+    differs(statedMilliliters, quantity.milliliters)
+  ) {
+    physicalDifferences.push(
+      `quantity.milliliters=${quantity.milliliters}, declarado=${statedMilliliters} ml`
+    );
+  }
+  // Rejeita calculo internamente coerente com um campo fisico adulterado.
+  if (physicalDifferences.length > 0) return physicalDifferences;
+
+  const grams = quantity.grams ?? statedGrams;
+  const milliliters = quantity.milliliters ?? statedMilliliters;
   const servings =
     stated !== null && ["porção", "porcao", "serving", "servings"].includes(unit)
       ? stated
