@@ -3,23 +3,6 @@
   "note": "Source pointers are leads only, not independent semantic certification. Never use expected output as evidence.",
   "cases": [
     {
-      "caseId": "c-cafe-sem-acucar-memoria",
-      "title": "Café sem açúcar como memória pessoal",
-      "modality": "text",
-      "incidentRefs": [
-        "#403",
-        "#1051"
-      ],
-      "adrSections": [
-        "§16",
-        "§15",
-        "§16.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-provider-indisponivel",
       "title": "Indisponibilidade de provider externo",
       "modality": "text",
