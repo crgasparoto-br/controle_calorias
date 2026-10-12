@@ -43,6 +43,25 @@ function corpusWith(
 }
 
 describe("harness do Golden Food Corpus", () => {
+  it("reprova oracle de indisponibilidade sem falha explicitamente injetada", () => {
+    const broken = corpusWith(corpus => {
+      const item = corpus.cases.find(c => c.caseId === "c-provider-indisponivel");
+      if (!item) throw new Error("missing provider case");
+      item.scenario.providerAvailability = "available";
+      return corpus;
+    });
+    const report = inspectCorpusIntegrity(broken);
+    expect(report.status).toBe("invalid");
+    expect(report.invalidCases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          caseId: "c-provider-indisponivel",
+          message: expect.stringContaining("providerAvailability=unavailable"),
+        }),
+      ])
+    );
+  });
+
   it("aprova o corpus quando o resolvedor corresponde à referência independente", async () => {
     const report = await runGoldenFoodCorpus(reference(), pinned);
     expect(report.integrity.status).toBe("valid");
