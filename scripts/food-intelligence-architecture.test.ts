@@ -88,6 +88,7 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessFoodDebtRenewal([old], [{ ...old, expiresAt: "2027-01-01" }])).toHaveLength(1);
     expect(assessFoodDebtRenewal([old], [{ ...old, createdAt: "2026-10-10" }])).toHaveLength(1);
     expect(assessFoodDebtRenewal([old], [{ ...old, owner: "different" }])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, fingerprint: old.fingerprint.replace(/:[^:]+$/, ":newhash") }])).toHaveLength(1);
     expect(assessFoodDebtRenewal([old], [])).toEqual([]);
     expect(assessFoodDebtRenewal([old], [old])).toEqual([]);
   });
@@ -103,5 +104,7 @@ describe("food intelligence architecture wave 1", () => {
       .errors.some(s => s.includes("90-day"))).toBe(true);
     expect(assessFoodDebt([finding], [{ ...debt, owner: "", issue: 0 }], today)
       .errors.some(s => s.includes("ownership"))).toBe(true);
+    expect(assessFoodDebt([finding], [{ ...debt, createdAt: "2027-01-01", expiresAt: "2027-02-01" }], today)
+      .errors.some(s => s.includes("Future-dated"))).toBe(true);
   });
 });
