@@ -77,6 +77,7 @@ import {
   type FoodResolutionDecision,
   type MealOperation,
 } from "../schemas";
+import { FOOD_QUANTITY_EPSILON, normalizeUnitToken } from "../contracts";
 
 /**
  * Valida a amostra de latência/custo reportada pelo resolvedor (§16.2).
@@ -470,6 +471,7 @@ export function familyCounters(
       : 0,
     nutritionFailures: has(
       "nutrition_missing",
+      "nutrition_calculation_mismatch",
       "nutrition_provenance_missing",
       "nutrition_origin_forbidden",
       "nutrition_generic_as_verified",
@@ -1976,6 +1978,83 @@ function matchDecisions(
   return { unmatchedExpected, unmatchedProduced, codesByLabel };
 }
 
+
+/**
+ * Confere que a composição consumida respeita a base nutricional e a porção
+ * física declarada (§5), inclusive em casos isolados e em grupos cujo erro
+ * afetaria todos os membros da mesma forma. Não presume densidade para
+ * converter volume em massa, nem peso de fatia/embalagem sem evidência.
+ *
+ * FOOD_QUANTITY_EPSILON absorve apenas erro de ponto flutuante na multiplicação:
+ * não define a tolerância de arredondamento nutricional, ainda OPEN na ADR §25.
+ */
+function nutritionCalculationDifferences(
+  decision: FoodResolutionDecision
+): string[] {
+  const { basis, consumed } = decision.nutrition;
+  if (basis === null || consumed === null) return [];
+
+  const quantity = decision.quantity;
+  const unit = normalizeUnitToken(quantity.unit);
+  const stated = quantity.value;
+  const grams =
+    quantity.grams ??
+    (stated === null
+      ? null
+      : ["g", "grama", "gramas", "gram", "grams"].includes(unit)
+        ? stated
+        : ["kg", "quilo", "quilos", "kilogram", "kilograms"].includes(unit)
+          ? stated * 1000
+          : null);
+  const milliliters =
+    quantity.milliliters ??
+    (stated === null
+      ? null
+      : ["ml", "mililitro", "mililitros", "milliliter", "milliliters"].includes(unit)
+        ? stated
+        : ["l", "litro", "litros", "liter", "liters"].includes(unit)
+          ? stated * 1000
+          : null);
+  const servings =
+    stated !== null && ["porção", "porcao", "serving", "servings"].includes(unit)
+      ? stated
+      : null;
+  const consumedQuantity =
+    basis.unit === "g"
+      ? grams
+      : basis.unit === "ml"
+        ? milliliters
+        : servings;
+
+  // Unidade doméstica/fatia sem peso comprovado não tem fator físico
+  // verificável. A ausência desse fator nunca autoriza inventar densidade.
+  if (consumedQuantity === null) return [];
+  const factor = consumedQuantity / basis.quantity;
+  const keys = [
+    "calories", "protein", "carbs", "fat", "fiber", "sugar", "sodiumMg",
+  ] as const;
+  const differences: string[] = [];
+  for (const key of keys) {
+    const baseValue = basis.values[key];
+    const observed = consumed[key];
+    if (baseValue === null && observed === null) continue;
+    const expected = baseValue === null ? null : baseValue * factor;
+    const precision =
+      expected === null
+        ? 0
+        : FOOD_QUANTITY_EPSILON * Math.max(1, Math.abs(expected));
+    if (
+      expected === null ||
+      observed === null ||
+      !Number.isFinite(expected) ||
+      Math.abs(observed - expected) > precision
+    ) {
+      differences.push(`${key}: consumido=${String(observed)}, esperado=${String(expected)}`);
+    }
+  }
+  return differences;
+}
+
 /**
  * Avalia o resultado de um caso contra a referência independente. Usado tanto
  * pelo corpus quanto pelos cenários de §16.1.
@@ -2052,6 +2131,15 @@ function evaluateResult(
         label: null,
         codes: ["nutrition_missing"],
         detail: "item proposto sem nutrição consumida utilizável",
+      });
+    }
+    const calculationDifferences = nutritionCalculationDifferences(decision);
+    if (calculationDifferences.length > 0) {
+      failures.push({
+        caseId: entry.caseId,
+        label: null,
+        codes: ["nutrition_calculation_mismatch"],
+        detail: `nutrição consumida incompatível com base e quantidade física: ${calculationDifferences.join("; ")}`,
       });
     }
   }
@@ -2785,6 +2873,13 @@ export async function runCorpus(
     macroConsistency.some(item => item.consistent === null)
   ) {
     blockReasons.push("macro_sample_insufficient");
+  }
+  if (
+    failures.some(failure =>
+      failure.codes.includes("nutrition_calculation_mismatch")
+    )
+  ) {
+    blockReasons.push("nutrition_calculation_mismatch");
   }
   if (macroConsistency.some(item => item.consistent === false)) {
     blockReasons.push("rounding_tolerance_not_calibrated");

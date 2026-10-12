@@ -235,6 +235,7 @@ export const CORPUS_FAILURE_CODES = [
   "alternatives_mismatch",
   "clarification_mismatch",
   "nutrition_missing",
+  "nutrition_calculation_mismatch",
   "nutrition_provenance_missing",
   "nutrition_origin_forbidden",
   "nutrition_generic_as_verified",
@@ -275,6 +276,7 @@ export type CorpusGateStatus = (typeof CORPUS_GATE_STATUSES)[number];
 export const CORPUS_GATE_BLOCK_REASONS = [
   "rounding_tolerance_not_calibrated",
   "macro_sample_insufficient",
+  "nutrition_calculation_mismatch",
   "revisions_not_pinned",
   "resolver_revision_mismatch",
   "duplicate_cases",

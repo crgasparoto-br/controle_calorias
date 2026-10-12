@@ -845,6 +845,137 @@ describe("autoverificação do harness", () => {
       .toBeNull();
   });
 
+
+  it("AUD-1316-018: valida a proporcionalidade de um item isolado e bloqueia calorias falsas", async () => {
+    const selected = subCorpus(["c-panco-pao-forma"]);
+    const reference = createReferenceResolver(corpus);
+    const calculated = async (wrong: boolean) =>
+      runCorpus(selected, {
+        id: "test:physical-nutrition",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              quantity: { ...decision.quantity, grams: 50 },
+              nutrition: {
+                ...decision.nutrition,
+                basis: {
+                  quantity: 100,
+                  unit: "g" as const,
+                  values: {
+                    calories: 200, protein: 10, carbs: 20, fat: 8,
+                    fiber: 2, sugar: 4, sodiumMg: 80,
+                  },
+                },
+                consumed: {
+                  calories: wrong ? 200 : 100,
+                  protein: 5, carbs: 10, fat: 4,
+                  fiber: 1, sugar: 2, sodiumMg: 40,
+                },
+              },
+            })),
+          };
+        },
+      }, pinned);
+    const valid = await calculated(false);
+    expect(valid.gate.status).toBe("passed");
+    expect(valid.overall.matchRate).toBe(1);
+    const invalid = await calculated(true);
+    expect(invalid.failures.flatMap(failure => failure.codes))
+      .toContain("nutrition_calculation_mismatch");
+    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    expect(invalid.gate.status).toBe("blocked");
+    expect(invalid.overall.families.nutritionFailures).toBe(1);
+    expect(selected.cases[0].metamorphicGroup).toBeNull();
+  });
+
+  it("AUD-1316-018: bloqueia erro nutricional idêntico em todos os membros de um grupo", async () => {
+    const groupId = "g-mortadela-fatia-e-meia";
+    const members = new Set(corpus.cases
+      .filter(entry => entry.metamorphicGroup === groupId)
+      .map(entry => entry.caseId));
+    const reference = createReferenceResolver(corpus);
+    const report = await runGoldenFoodCorpus({
+      id: "test:same-wrong-macros",
+      revision: "1",
+      async resolve(request) {
+        const result = await reference.resolve(request);
+        if (!members.has(request.case.caseId)) return result;
+        return {
+          ...result,
+          decisions: result.decisions.map(decision => ({
+            ...decision,
+            quantity: { ...decision.quantity, grams: 50 },
+            nutrition: {
+              ...decision.nutrition,
+              basis: {
+                quantity: 100, unit: "g" as const,
+                values: {
+                  calories: 200, protein: 10, carbs: 20, fat: 8,
+                  fiber: 2, sugar: 4, sodiumMg: 80,
+                },
+              },
+              consumed: {
+                calories: 200, protein: 5, carbs: 10, fat: 4,
+                fiber: 1, sugar: 2, sodiumMg: 40,
+              },
+            },
+          })),
+        };
+      },
+    }, pinned);
+    expect(members.size).toBeGreaterThanOrEqual(2);
+    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBe(true);
+    expect(report.failures.flatMap(failure => failure.codes))
+      .toContain("nutrition_calculation_mismatch");
+    expect(report.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    expect(report.gate.status).toBe("blocked");
+  });
+
+  it("AUD-1316-018: compara mililitros diretamente, sem inventar densidade para gramas", async () => {
+    const selected = subCorpus(["c-panco-pao-forma"]);
+    const reference = createReferenceResolver(corpus);
+    const measured = async (basisUnit: "ml" | "g") =>
+      runCorpus(selected, {
+        id: "test:dimension-safety",
+        revision: "1",
+        async resolve(request) {
+          const result = await reference.resolve(request);
+          return {
+            ...result,
+            decisions: result.decisions.map(decision => ({
+              ...decision,
+              quantity: { ...decision.quantity, grams: null, milliliters: 200 },
+              nutrition: {
+                ...decision.nutrition,
+                basis: {
+                  quantity: 100, unit: basisUnit,
+                  values: {
+                    calories: 100, protein: 2, carbs: 10, fat: 4,
+                    fiber: null, sugar: 2, sodiumMg: 20,
+                  },
+                },
+                consumed: {
+                  calories: 100, protein: 2, carbs: 10, fat: 4,
+                  fiber: null, sugar: 2, sodiumMg: 20,
+                },
+              },
+            })),
+          };
+        },
+      }, pinned);
+    const invalid = await measured("ml");
+    expect(invalid.gate.status).toBe("blocked");
+    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    const incomparable = await measured("g");
+    expect(incomparable.gate.status).toBe("passed");
+    expect(incomparable.failures.flatMap(failure => failure.codes))
+      .not.toContain("nutrition_calculation_mismatch");
+  });
+
   it("bloqueia igualdade artificial quando todos os macros consumidos estão ausentes", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const members = new Set(
