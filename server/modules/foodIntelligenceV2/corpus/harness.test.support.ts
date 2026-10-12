@@ -1886,17 +1886,19 @@ function matchDecisions(
   const matchedExpected = new Set(
     expectedByProduced.filter(index => index !== -1)
   );
+  const unmatchedProduced = produced.filter(
+    (_, index) => expectedByProduced[index] === -1
+  );
   const unmatchedExpected = expected.filter((item, index) => {
     if (matchedExpected.has(index)) return false;
-    const bestCodes = produced
+    // Diagnóstico só considera decisões que sobraram após o matching global:
+    // uma decisão já consumida não transforma uma omissão em mismatch.
+    const bestCodes = unmatchedProduced
       .map(candidate => compareExpectedDecision(item, candidate))
       .sort((a, b) => a.length - b.length)[0];
     codesByLabel.set(item.label, bestCodes ?? ["missing_decision"]);
     return true;
   });
-  const unmatchedProduced = produced.filter(
-    (_, index) => expectedByProduced[index] === -1
-  );
   return { unmatchedExpected, unmatchedProduced, codesByLabel };
 }
 
