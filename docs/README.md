@@ -43,6 +43,7 @@ Exemplos principais:
 - `design-docs/nutrition-engine.md`
 - `design-docs/adr-food-intelligence-resolver-v2.md` — ADR em evolução para a arquitetura alvo de resolução alimentar multimodal, governança e aprendizado.
   - Para implementação atual, leia também `design-docs/nutrition-engine.md`; o ADR define a arquitetura alvo e não reescreve retroativamente o baseline produtivo.
+  - Gates da onda 1 (#1300): `pnpm food-architecture:report` gera inventário completo com SHA e classes da matriz (§9.3). O inventário inicial de owners conhecidos está em `design-docs/food-architecture-owners-1300.json` (levantamento direcionado, não exaustivo). `architecture-debt.json` é o livro de dívida; entradas vencidas, órfãs ou renovadas falham `architecture:check`. Detectores estáticos permanecem em *preview* até as decisões explícitas dos itens 25 e 26 do §25 da ADR. Não interpretar avisos como proteção bloqueante.
 - `design-docs/database-persistence.md`
 - `design-docs/timezone.md`
 - `design-docs/timezone-backend-reports.md`
