@@ -335,18 +335,18 @@
     },
     {
       "caseId": "c-aprendizado-alias-antes",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-antes.json"
     },
     {
       "caseId": "c-aprendizado-alias-definido",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-definido.json"
     },
     {
       "caseId": "c-aprendizado-alias-reuso",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-alias-reuso.json"
     },
     {
       "caseId": "c-aprendizado-sem-intervencao-desnecessaria",
@@ -370,8 +370,8 @@
     },
     {
       "caseId": "c-aprendizado-revogacao",
-      "status": "pending-independent-review",
-      "evidence": null
+      "status": "independent-control-tested",
+      "evidence": "server/modules/foodIntelligenceV2/corpus/reviews/c-aprendizado-revogacao.json"
     },
     {
       "caseId": "c-aprendizado-controle-negativo-alias",
