@@ -1310,6 +1310,12 @@ async function ablatedScenarioProjections(
     if (!entry) continue;
     for (const key of step.revokeKeys) knowledge.revoke(key);
     const ledgerStart = knowledge.ledger.length;
+    const harvester = createWriteHarvester(
+      knowledge,
+      ledgerStart,
+      entry,
+      step.writesAllowed ? [] : writesOutside
+    );
     const gate = knowledge.gateFor(
       entry.caseId,
       entry.split,
@@ -1323,31 +1329,30 @@ async function ablatedScenarioProjections(
       });
       // A ablação aplica a **mesma** política de efeitos: escrita fora da
       // aquisição é violação observada aqui como em qualquer passo.
-      const harvested = harvestWrites(
-        knowledge,
-        ledgerStart,
+      harvester.harvest();
+      const evaluated = evaluateResult(
         entry,
-        step.writesAllowed ? [] : writesOutside
+        result,
+        harvester.all(),
+        step.writesAllowed
       );
+      // Getters também podem escrever durante a avaliação. Preserve todas as
+      // tentativas para comparar o contrafactual sem perder efeitos colaterais.
+      harvester.harvest();
       projections.set(step.stepId, {
         result,
-        projections: evaluateResult(
-          entry,
-          result,
-          harvested,
-          step.writesAllowed
-        ).projections,
+        projections: evaluated.projections,
+        recordedWrites: harvester.all(),
       });
     } catch {
-      harvestWrites(
-        knowledge,
-        ledgerStart,
-        entry,
-        step.writesAllowed ? [] : writesOutside
-      );
+      harvester.harvest();
       // Falha no passo ablacionado é, por si, mudança de comportamento; o
       // cenário normal já registra o erro. Aqui só não há projeção.
-      projections.set(step.stepId, { result: null, projections: [] });
+      projections.set(step.stepId, {
+        result: null,
+        projections: [],
+        recordedWrites: harvester.all(),
+      });
     }
     knowledge.closeGates();
     await drainKnowledgeWindow();
@@ -1359,6 +1364,8 @@ async function ablatedScenarioProjections(
 interface AblatedStepOutcome {
   result: CorpusResolverResult | null;
   projections: ProjectedDecision[];
+  /** Tentativas de escrita observadas no ledger; opcionais nos testes diretos. */
+  recordedWrites?: readonly string[];
 }
 
 /**
@@ -1391,6 +1398,16 @@ export function matchesDeclaredCounterfactual(
     outcome.result.operation
   );
   if (!validatedOperation.success) return false;
+  // Um schema válido não comprova nutrição consumida, procedência ou ausência
+  // de aprendizado durante a medição ablacionada. Reaplique todas as regras do
+  // caminho normal contra o oracle contrafactual declarado, inclusive escritas.
+  const evaluated = evaluateResult(
+    declared,
+    outcome.result,
+    outcome.recordedWrites ?? [],
+    false
+  );
+  if (evaluated.failures.length > 0) return false;
   // Mesmo critério de multiconjunto do gate principal: a ordem das decisões
   // não é contrato, mas nenhuma ocorrência pode ser reutilizada.
   const matching = matchDecisions(
@@ -2307,22 +2324,6 @@ async function drainKnowledgeWindow(long = false): Promise<void> {
 }
 
 /** Colhe pontual das escritas de um passo (usada na execução ablacionada). */
-function harvestWrites(
-  knowledge: CorpusKnowledgeStore,
-  ledgerStart: number,
-  entry: GoldenCorpusCase,
-  writesOutside: { caseId: string; writes: string[] }[]
-): string[] {
-  const recorded = knowledge.ledger
-    .slice(ledgerStart)
-    .filter(item => item.operation === "write_attempt")
-    .map(item => item.key);
-  if (recorded.length > 0) {
-    writesOutside.push({ caseId: entry.caseId, writes: recorded });
-  }
-  return recorded;
-}
-
 interface WriteHarvester {
   /** Chaves escritas desde a última colheita. */
   harvest(): string[];
