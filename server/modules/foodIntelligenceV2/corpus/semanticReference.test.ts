@@ -140,6 +140,25 @@ describe("independent semantic reference controls", () => {
     expect(item.expected.operation.action).toBe("add");
   });
 
+  it("uses a confirmed earlier user preference before resolving generic coffee", () => {
+    // Issue #1059: a personal preference may fill missing sugar preparation,
+    // but it must be previously supplied, not guessed or globalized.
+    const item = findCase("c-cafe-sem-acucar-memoria");
+    expect(item.input.text).toBe("café");
+    expect(item.input.priorUserMessages).toEqual([
+      { text: "normalmente tomo café sem açúcar" },
+    ]);
+    expect(item.incidentRefs).toContain("#1059");
+    expect(item.expected.decisions).toHaveLength(1);
+    const decision = item.expected.decisions[0];
+    expect(decision.identity).toMatchObject({
+      canonicalName: "café",
+      qualifiers: ["sem açúcar"],
+    });
+    expect(decision.quantity.presence).toBe("unspecified");
+    expect(item.expected.operation.action).toBe("add");
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
