@@ -477,9 +477,9 @@ describe("independent semantic reference controls", () => {
 
   it("does not confuse package size with consumed amount on image input", () => {
     const beer = findCase("c-cerveja-imagem");
-    expect(beer.input.ocrText).toBe("CERVEJA ORIGINAL 355 ml");
+    expect(beer.input.ocrText).toBe("CERVEJA ANTARCTICA ORIGINAL 300 ml");
     expect(beer.expected.decisions[0].identity).toMatchObject({
-      canonicalName: "cerveja", brand: "Original",
+      canonicalName: "cerveja", brand: "Antarctica", variant: "Original",
     });
     expect(beer.expected.decisions[0].quantity).toMatchObject({ presence: "unspecified", value: null, grams: null, milliliters: null });
     expect(beer.input.text).not.toMatch(/\b(?:bebi|tomei|consumi)\b/i);
