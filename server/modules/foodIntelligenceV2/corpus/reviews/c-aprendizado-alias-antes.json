@@ -1,0 +1,22 @@
+{
+  "caseId": "c-aprendizado-alias-antes",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — source-backed expectation review (2026-10-12), not an independent third-party auditor",
+  "independentSources": [
+    {
+      "id": "issue-1051-personal-learning",
+      "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/1051"
+    },
+    {
+      "id": "adr-16.1",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (section 16.1)"
+    }
+  ],
+  "dimensions": [
+    "identity",
+    "quantity",
+    "action",
+    "nutritionProvenance"
+  ],
+  "rationale": "The synthetic surface 'café da firma' has no prior confirmation or learned key in the before-acquisition phase. The canonical issue #1051 requires explicit confirmation before learning private aliases. Unknown identity must therefore trigger clarification and never silently become coffee without sugar. The reference test verifies zero prior messages, unknown status and clarify. This supports only the reference-label semantics. Nutritional values, production resolver accuracy and restart durability are not attested."
+}
