@@ -19,54 +19,6 @@
       "decision": null
     },
     {
-      "caseId": "c-aprendizado-alias-antes",
-      "title": "Estado anterior à aquisição: a superfície ainda é desconhecida",
-      "modality": "text",
-      "incidentRefs": [
-        "#403",
-        "#1051"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§15"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-alias-definido",
-      "title": "Conhecimento pessoal adquirido é reutilizado",
-      "modality": "text",
-      "incidentRefs": [
-        "#403",
-        "#1051"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§15"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-alias-reuso",
-      "title": "Reutilização em formulação equivalente reservada",
-      "modality": "text",
-      "incidentRefs": [
-        "#403",
-        "#1051"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§17"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
       "caseId": "c-aprendizado-persistencia-restart",
       "title": "Persistência após reinício com a mesma chave",
       "modality": "text",
@@ -76,22 +28,6 @@
       ],
       "adrSections": [
         "§16.1"
-      ],
-      "verification": "pending",
-      "independentEvidence": [],
-      "decision": null
-    },
-    {
-      "caseId": "c-aprendizado-revogacao",
-      "title": "Revogação do alias sem reaplicação por cache obsoleto",
-      "modality": "text",
-      "incidentRefs": [
-        "#524",
-        "#1153"
-      ],
-      "adrSections": [
-        "§16.1",
-        "§15"
       ],
       "verification": "pending",
       "independentEvidence": [],
