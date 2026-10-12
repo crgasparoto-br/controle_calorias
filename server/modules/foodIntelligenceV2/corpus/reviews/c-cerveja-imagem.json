@@ -1,15 +1,15 @@
 {
   "caseId": "c-cerveja-imagem",
-  "verdict": "pending",
-  "reviewer": "ChatGPT — revisão semântica de oráculo contra evidência histórica de domínio (2026-10-12); não é auditoria final da PR",
+  "verdict": "approved",
+  "reviewer": "ChatGPT — independent source-backed semantic expectation review (2026-10-12); not independent third-party runtime audit",
   "independentSources": [
     {
-      "id": "incident-987",
+      "id": "issue-987-product-photo",
       "locator": "https://github.com/crgasparoto-br/controle_calorias/issues/987"
     },
     {
-      "id": "adr-4.1.6-16",
-      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md §§4.1.6, 16"
+      "id": "adr-media-boundary",
+      "locator": "docs/design-docs/adr-food-intelligence-resolver-v2.md (sections 4.1.6 and 16)"
     }
   ],
   "dimensions": [
@@ -18,6 +18,5 @@
     "action",
     "nutritionProvenance"
   ],
-  "rationale": "Issue #987 registra cerveja Antarctica Original entre embalagens identificáveis por rótulo e exige preservar a identidade comercial em vez de reduzir cervejas à categoria genérica. Dada a observação OCR sintética 'CERVEJA ORIGINAL 355 ml', a decisão semântica limitada conserva cerveja/Original. O volume nominal impresso pertence à embalagem, não prova 355 ml consumidos: a quantidade consumida permanece unspecified. A ação é add em jantar fornecido no contexto operacional; nenhum macro nem fonte nutricional específicos são afirmados.",
-  "limitations": "Revisão da referência/expectativa, não demonstra que uma imagem real ou o OCR seriam reconhecidos corretamente, nem avalia valores nutricionais, provedor ou fluxo de produção; auditoria independente do PR continua necessária. Registro ainda pendente: teste independente não publicado e ledger permanece pending-independent-review."
+  "rationale": "Issue #987 explicitly reports an Antarctica Original beer bottle labelled 300 ml and requires preserving the commercial identity, brand and version when visually evidenced rather than replacing it with generic beer. The synthetic OCR text now declares 'CERVEJA ANTARCTICA ORIGINAL 300 ml'; expected identity is cerveja, brand Antarctica, variant Original. The 300 ml value is labelled container capacity, NOT observed consumed volume; quantity remains unspecified and no kcal/macros are asserted. A separate semanticReference.test.ts regression asserts these obligations. This review supports reference-label semantics only. Actual image recognition and nutrition-source verification still require integration/production evidence; no third-party audit approval is implied."
 }
