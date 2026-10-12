@@ -76,6 +76,19 @@ describe("independent semantic reference controls", () => {
     expect(decision.alternatives).toHaveLength(2);
   });
 
+  it("requires an explicit outage before expecting provider_unavailable retry", () => {
+    const deferred = findCase("c-provider-indisponivel");
+    expect(deferred.scenario.providerAvailability).toBe("unavailable");
+    expect(deferred.decisionClass).toBe("deferred");
+    expect(deferred.expected.decisions).toHaveLength(1);
+    const decision = deferred.expected.decisions[0];
+    expect(decision.status).toBe("unknown");
+    expect(decision.nextAction).toBe("retry");
+    expect(decision.reasonCodes).toContain("provider_unavailable");
+    expect(decision.identity.presence).toBe("forbidden");
+    expect(decision.quantity.presence).toBe("forbidden");
+  });
+
   it("checks source traceability and case identity throughout the corpus", () => {
     // Structural guard only: independent semantic sign-off remains separate.
     expect(goldenFoodCorpus.cases).toHaveLength(75);
