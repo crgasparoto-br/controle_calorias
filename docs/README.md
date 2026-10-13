@@ -122,3 +122,13 @@ Os controles da onda estática detectam também decisões `switch/case` por iden
 A revisão nominal de owners agora possui `behavioralReview` por fonte legada no inventário congelado, contendo responsabilidade, trecho verificável (`sourceAnchor`), conclusão e limite de evidência. `food-architecture:report` confere os anchors no SHA imutável e publica `ownerInventory.reviewedLegacyResponsibilities` e `reviewTotals`. **Rastreio estático de responsabilidades não certifica equivalência de comportamento em runtime entre owners concorrentes**: essa comparação depende de evidência específica e permanece `requires-behavioral-review`, sem aprovação implícita.
 
 A auditoria de owners da Issue #1300 em `pnpm food-architecture:report` publica também `ownerInventory.byDecisionFunction`: candidatos agrupados por função de domínio, superfície (`channel`, `client`, `shared`, `server-domain`) e ocorrência. Os grupos e os pares `suspectedCompetingPairs` são heurísticos, reproduzíveis pelo `sourceSha`, e exigem revisão de comportamento antes de certificar owners concorrentes. Léxicos JSON produtivos são abrangidos; dados ambíguos de exercícios não são presumidos conhecimento alimentar somente por conter `name` e `calories`.
+
+
+### Gates alimentares — detecção adversarial (Issue #1300)
+
+Os gates estáticos da onda 1 analisam também retornos nutricionais sem identidade explícita,
+mapas numéricos JSON consumidos pelo resolvedor alimentar, decisões com templates literais,
+dicionários lexicais anônimos e imports indiretos de resolvedores alternativos.
+Listas de filtro exclusivamente visuais em componentes JSX/TSX não são regras alimentares;
+se usadas para decidir domínio, seguem bloqueantes. A análise de owners concorrentes
+continua conservadora: o relatório diferencia candidatos estáticos de provas de comportamento.
