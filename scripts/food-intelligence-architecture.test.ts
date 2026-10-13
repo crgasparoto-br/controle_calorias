@@ -734,4 +734,91 @@ describe("food intelligence architecture wave 1", () => {
     expect(channel?.normalizedText).not.toBe(general);
   });
 
+
+  it("A1300-13 blocks anonymous nutritional returns but not activity summaries", () => {
+    const positive = { path: "server/foodItemResolution.ts",
+      content: "function resolveFood() { return { calories: 120, protein: 2, carbs: 27 }; }" };
+    const findings = findFoodStaticCandidates([positive]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge")).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const negative = { path: "server/exerciseService.ts",
+      content: "function exerciseSummary() { return { calories: 120, protein: 2, carbs: 27 }; }" };
+    expect(findFoodStaticCandidates([negative])).toEqual([]);
+  });
+
+  it("A1300-14 treats numeric JSON maps as food when imported by a food decision module", () => {
+    const json = { path: "server/portions.json", content: '{"pao":50,"arroz":90}' };
+    expect(findFoodStaticCandidates([json])).toEqual([]);
+    const importer = { path: "server/foodItemResolution.ts",
+      content: "import portions from './portions.json'; export const lookup = portions;" };
+    const active = findFoodStaticCandidates([json, importer]);
+    expect(active.some(f => f.file === json.path && f.ruleId === "17")).toBe(true);
+    const nonFood = { path: "server/retries.json", content: '{"retry":3,"timeout":8}' };
+    expect(findFoodStaticCandidates([nonFood, importer])).toEqual([]);
+  });
+
+  it("A1300-15 treats static backtick strings like quoted strings in decisions", () => {
+    const positives = [
+      { path: "server/foodItemResolution.ts",
+        content: "function foodPortion(foodName: string) { return foodName === `pao` ? 50 : 0; }" },
+      { path: "server/foodItemResolution.ts",
+        content: "function foodPortion(foodName: string) { switch(foodName) { case `pao`: return 50; default: return 0; } }" },
+      { path: "server/materiality.ts",
+        content: "function decideMateriality(attribute: string) { return attribute === `integral`; }" },
+    ];
+    for (const source of positives) {
+      expect(findFoodStaticCandidates([source]).some(f =>
+        f.ruleId === (source.path.includes("materiality") ? "18" : "17")), source.content).toBe(true);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/account.ts",
+      content: "function status(value: string) { return value === `active`; }" }])).toEqual([]);
+  });
+
+  it("A1300-16 blocks anonymous lexical dictionaries at consumption, not account/status dictionaries", () => {
+    const sources = [
+      { path: "server/foodItemResolution.ts",
+        content: "function resolveFood(input: string) { const dict = {pao:'pão'}; return dict[input]; }" },
+      { path: "server/modules/whatsapp/handler.ts",
+        content: "function normalizeInput(input: string) { const dict = {pao:'pão'}; return dict[input]; }" },
+    ];
+    for (const source of sources) {
+      expect(findFoodStaticCandidates([source]).some(f =>
+        f.symbol.includes("lexical-dictionary")), source.path).toBe(true);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
+      content: "function showStatus(status: string) { const statusMap = {active:'Ativo'}; return statusMap[status]; }" }])
+      .some(f => f.symbol.includes("lexical-dictionary"))).toBe(false);
+  });
+
+  it("A1300-17 follows transitive imports to detect alternative channel resolvers", () => {
+    const sources = [
+      { path: "server/modules/whatsapp/service.ts",
+        content: "import { lookup } from './bridge'; export { lookup };" },
+      { path: "server/modules/whatsapp/bridge.ts",
+        content: "export { lookup } from '../../foodItemResolution';" },
+      { path: "server/foodItemResolution.ts", content: "export function lookup() { return null; }" },
+    ];
+    const found = findFoodStaticCandidates(sources);
+    expect(found.some(f => f.ruleId === "10" &&
+      f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol.includes("transitive-import:server/foodItemResolution.ts"))).toBe(true);
+    expect(findFoodStaticCandidates([
+      { path: "server/modules/whatsapp/service.ts", content: "import type { Lookup } from './bridge';" },
+      { path: "server/modules/whatsapp/bridge.ts", content: "export type { Lookup } from '../../foodItemResolution';" },
+      { path: "server/foodItemResolution.ts", content: "export type Lookup = string;" },
+    ]).some(f => f.ruleId === "10")).toBe(false);
+  });
+
+  it("A1300-18 exempts pure visual filters but still catches server-side food rule lists", () => {
+    const ui = { path: "client/src/FoodsPage.tsx",
+      content: "const FOOD_FILTERS = ['Todas', 'Favoritas']; export const Page = () => FOOD_FILTERS.map(label => label);" };
+    expect(findFoodStaticCandidates([ui])).toEqual([]);
+    const productive = { path: "server/foodRules.ts",
+      content: "const FOOD_FILTERS = ['pao','arroz']; export const allowed = FOOD_FILTERS;" };
+    expect(findFoodStaticCandidates([productive]).some(f => f.ruleId === "17")).toBe(true);
+    const uiDecision = { path: "client/src/FoodsPage.tsx",
+      content: "const FOOD_FILTERS = ['pao']; export const allowed = (foodName: string) => FOOD_FILTERS.includes(foodName);" };
+    expect(findFoodStaticCandidates([uiDecision]).some(f => f.ruleId === "17")).toBe(true);
+  });
+
 });
