@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { normalizeWhatsappInformalLanguage } from "../server/modules/whatsapp/informalLanguageNormalizer";
+import { normalizeText } from "../server/mealTextParsing";
 import { findFoodStaticCandidates, isProductionFoodSource, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
 import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
@@ -716,6 +718,20 @@ describe("food intelligence architecture wave 1", () => {
     expect(dispositions.has("channel-decision-owner")).toBe(true);
     expect(dispositions.has("data-source")).toBe(true);
     expect(dispositions.has("grammar-only")).toBe(true);
+  });
+
+
+  it("R1300-03 contrasts channel lexical ownership with general text normalization at runtime", () => {
+    const phrase = "refri zero";
+    const channel = normalizeWhatsappInformalLanguage(phrase);
+    const general = normalizeText(phrase);
+    expect(general).toBe("refri zero");
+    expect(channel?.normalizedText).toBe("refrigerante zero");
+    expect(channel?.replacements.some(item => item.source === "built_in" &&
+      item.kind === "food")).toBe(true);
+    // Different outputs demonstrate a channel-owned semantic replacement;
+    // do not claim equivalent resolution or authorize an automatic exception.
+    expect(channel?.normalizedText).not.toBe(general);
   });
 
 });
