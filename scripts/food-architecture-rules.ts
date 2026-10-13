@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "import" | "function" | "call" | "literal-branch";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -28,6 +28,18 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     symbolPattern: "food|alimento|brand|marca|variant|nutrition|nutrient|macro|portion|porcao|porção|classification|processingLevel|alias|synonym|lexicon|vocab|ingredient|catalog|serving",
     contentPattern: "(?=[\\s\\S]*\\bname\\s*:)(?=[\\s\\S]*\\b(?:calories|protein|carbs|fat|portion|grams)\\s*:)",
     description: "Coleção literal de conhecimento alimentar em produção",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "I", kind: "scalar",
+    symbolPattern: "food|alimento|portion|porcao|porção|nutrition|nutrient|macro|classification|alias|synonym|brand|marca|lexicon|vocab",
+    description: "Valor alimentar individual codificado em constante produtiva",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "I", kind: "literal-branch",
+    symbolPattern: "foodName|foodLabel|foodType|alimento|productName|portion|porcao|porção|brandName|macroType|processingLevel|classification|alias|synonym",
+    description: "Comparação literal de alimento ou porção em código produtivo",
   },
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
