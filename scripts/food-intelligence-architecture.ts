@@ -341,7 +341,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const unrelated = /status|account|user|profile|role|permission|featureflag|config|setting/i.test(context);
     const relevant = rule.id === "11"
       ? /normaliz|language|lexic|food|aliment|word|term|input|text|token/i.test(context)
-      : isFoodDomainSource(source.fileName) || matches(rule.symbolPattern, context);
+      : rule.id === "18"
+        ? matches(rule.symbolPattern, context + " " + source.fileName)
+        : isFoodDomainSource(source.fileName) || matches(rule.symbolPattern, context);
     if (!unrelated && relevant) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-dictionary",
         subject: node.getText(source) + " " + node.expression.getText(source) };
