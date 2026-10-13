@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-membership";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -56,6 +56,13 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     description: "Comparação literal potencialmente definindo materialidade de atributo",
   },
   {
+    id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "B", kind: "literal-membership",
+    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|variant",
+    description: "Materialidade alimentar decidida por consulta a coleção lexical inline",
+  },
+  {
     id: "5", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "C", kind: "collection",
     symbolPattern: "FOOD_CATALOG_REFERENCE|CURATED.*PORTION|COMMON.*FOOD|STATIC.*FOOD|FOOD.*DEFAULT",
@@ -67,6 +74,13 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
     symbolPattern: "alias|synonym|lexicon|vocab|informal|slang|language|abbrev|typo|replacements|uncertain.*portion|stop.*words",
     description: "Léxico ou normalização de domínio codificada no canal",
+  },
+  {
+    id: "11", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "literal-membership",
+    pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
+    symbolPattern: "alias|synonym|lexic|vocab|informal|slang|language|abbrev|typo|normaliz|food|alimento",
+    description: "Canal decidindo vocabulário alimentar por coleção lexical inline",
   },
   {
     id: "3", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
