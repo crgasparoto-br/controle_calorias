@@ -49,6 +49,69 @@ function isLiteralCollection(expr: ts.Expression): boolean {
   return false;
 }
 
+
+/** A literal nutrition row is a rule even when returned without a named table. */
+function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
+  const fields = new Map<string, ts.Expression>();
+  for (const property of node.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const key = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
+    fields.set(key, unwrap(property.initializer));
+  }
+  const hasIdentity = ["name", "foodname", "alimento", "productname"].some(key =>
+    fields.has(key) && ts.isStringLiteral(fields.get(key)!));
+  const hasLiteralNutrition = ["calories", "kcal", "protein", "carbs", "fat", "grams",
+    "portiongrams", "servinggrams"].some(key => {
+      const value = fields.get(key);
+      return value !== undefined && (ts.isNumericLiteral(value) ||
+        (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
+    });
+  return hasIdentity && hasLiteralNutrition;
+}
+
+function enclosingDeclaration(node: ts.Node): string {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
+      return parent.name?.getText() ?? "";
+    }
+    if ((ts.isArrowFunction(parent) || ts.isFunctionExpression(parent)) &&
+      parent.parent && ts.isVariableDeclaration(parent.parent)) {
+      return parent.parent.name.getText();
+    }
+  }
+  return "";
+}
+
+function isLexicalMap(expr: ts.Expression): boolean {
+  const value = unwrap(expr);
+  if (ts.isObjectLiteralExpression(value)) {
+    const entries = value.properties.filter(ts.isPropertyAssignment);
+    return entries.length > 0 && entries.every(property =>
+      ts.isStringLiteral(unwrap(property.initializer)) &&
+      (ts.isStringLiteral(property.name) || ts.isIdentifier(property.name)));
+  }
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.some(element => {
+      const entry = unwrap(element);
+      if (!ts.isObjectLiteralExpression(entry)) return false;
+      const keys = entry.properties.filter(ts.isPropertyAssignment).map(p =>
+        p.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase());
+      return keys.includes("raw") && keys.includes("normalized");
+    });
+  }
+  return false;
+}
+
+function hasLiteralWords(expr: ts.Expression): boolean {
+  const value = unwrap(expr);
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.length > 0 && value.elements.every(element =>
+      ts.isStringLiteral(unwrap(element)));
+  }
+  return ts.isNewExpression(value) && value.expression.getText() === "Set" &&
+    value.arguments?.length === 1 && hasLiteralWords(value.arguments[0]) || false;
+}
+
 function stableHash(value: string): string {
   // FNV-1a over lexer tokens, not raw source. Formatting is ignored, but
   // whitespace INSIDE string literals remains significant for new hardcodes.
@@ -79,15 +142,40 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
     node.initializer && isLiteralCollection(node.initializer)) {
     const symbol = node.name.getText(source);
-    if ((matches(rule.symbolPattern, symbol) ||
+    const mappedLexicon = rule.id === "11" && isLexicalMap(node.initializer) &&
+      /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
+        symbol + " " + enclosingDeclaration(node) + " " + source.fileName);
+    if ((matches(rule.symbolPattern, symbol) || mappedLexicon ||
         (rule.contentPattern && matches(rule.contentPattern, node.initializer.getText(source)))) &&
         matches(rule.evidencePattern, symbol)) {
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
-  if (rule.kind === "scalar" && ts.isVariableDeclaration(node) && node.initializer &&
-      ts.isStringLiteral(unwrap(node.initializer)) && matches(rule.symbolPattern, node.name.getText(source))) {
-    return { symbol: node.name.getText(source), subject: node.initializer.getText(source) };
+  if (rule.kind === "collection" && rule.id === "17" &&
+      ts.isObjectLiteralExpression(node) && isInlineFoodKnowledge(node)) {
+    return { symbol: "inline-food-knowledge", subject: node.getText(source) };
+  }
+  if (rule.kind === "scalar" && ts.isVariableDeclaration(node) && node.initializer) {
+    const symbol = node.name.getText(source);
+    const value = unwrap(node.initializer);
+    const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
+    if (matches(rule.symbolPattern, symbol) &&
+        (ts.isStringLiteral(value) || (numericFoodField &&
+          (ts.isNumericLiteral(value) ||
+            (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)))))) {
+      return { symbol, subject: node.initializer.getText(source) };
+    }
+  }
+  if (rule.kind === "literal-membership" && ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
+      node.arguments.length > 0 &&
+      hasLiteralWords(node.expression.expression)) {
+    const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
+    if (matches(rule.symbolPattern, context)) {
+      return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
+        subject: node.getText(source) };
+    }
   }
   const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined;
   const onlyNamedTypes = bindings && ts.isNamedImports(bindings) &&
@@ -145,7 +233,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
 
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
   const results: FoodFinding[] = [];
-  const observed = new Set<string>();
+  // Preserve multiplicity: adding an identical rule in another scope is still new.
   // A fixture or generated TS module imported by production must not escape
   // the gate solely because it lives under a normally excluded folder.
   const indexed = new Map(files.map(file => [file.path.replace(/\\/g, "/"), file]));
@@ -156,24 +244,54 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const file = indexed.get(queue[i]);
     if (!file) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
-    source.forEachChild(node => {
-      if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) ||
-          node.importClause?.isTypeOnly ||
-          (node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings) &&
-            node.importClause.namedBindings.elements.length > 0 &&
-            node.importClause.namedBindings.elements.every(element => element.isTypeOnly) &&
-            !node.importClause.name)) return;
-      const specifier = node.moduleSpecifier.text;
-      if (!specifier.startsWith(".")) return;
-      const base = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier));
-      for (const candidate of [base, base + ".ts", base + ".tsx", base + ".mts",
-        base + ".cts", base + "/index.ts", base + "/index.tsx"]) {
+    const addDependency = (specifier: string): void => {
+      let base: string;
+      if (specifier.startsWith(".")) {
+        base = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier));
+      } else if (specifier.startsWith("@/")) {
+        base = "client/src/" + specifier.slice(2);
+      } else if (specifier.startsWith("@shared/")) {
+        base = "shared/" + specifier.slice("@shared/".length);
+      } else if (/^(?:server|shared|client\/src)\//.test(specifier)) {
+        base = specifier;
+      } else {
+        return;
+      }
+      const candidates = [base, base + ".ts", base + ".tsx", base + ".mts",
+        base + ".cts", base + "/index.ts", base + "/index.tsx",
+        base + "/index.mts", base + "/index.cts"];
+      for (const candidate of candidates) {
         if (indexed.has(candidate) && !runtime.has(candidate)) {
           runtime.add(candidate);
           queue.push(candidate);
         }
       }
-    });
+    };
+    const follow = (node: ts.Node): void => {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
+          !node.importClause?.isTypeOnly) {
+        const bindings = node.importClause?.namedBindings;
+        const namedTypesOnly = bindings && ts.isNamedImports(bindings) &&
+          bindings.elements.length > 0 && bindings.elements.every(e => e.isTypeOnly) &&
+          !node.importClause?.name;
+        if (!namedTypesOnly) addDependency(node.moduleSpecifier.text);
+      }
+      if (ts.isExportDeclaration(node) && node.moduleSpecifier &&
+          ts.isStringLiteral(node.moduleSpecifier) && !node.isTypeOnly) {
+        const clause = node.exportClause;
+        const typesOnly = clause && ts.isNamedExports(clause) &&
+          clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
+        if (!typesOnly) addDependency(node.moduleSpecifier.text);
+      }
+      if (ts.isCallExpression(node) && node.arguments.length > 0 &&
+          ts.isStringLiteral(node.arguments[0]) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+        addDependency(node.arguments[0].text);
+      }
+      ts.forEachChild(node, follow);
+    };
+    ts.forEachChild(source, follow);
   }
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
@@ -184,8 +302,6 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const finding = ruleEvidence(node, source, rule);
         if (!finding) continue;
         const fingerprint = rule.id + ":" + file.path + ":" + finding.symbol + ":" + stableHash(finding.subject);
-        if (observed.has(fingerprint)) continue;
-        observed.add(fingerprint);
         results.push({
           ruleId: rule.id,
           file: file.path,
