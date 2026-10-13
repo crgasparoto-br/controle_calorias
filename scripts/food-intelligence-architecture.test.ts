@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { findFoodStaticCandidates, isProductionFoodSource } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
 import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
@@ -310,6 +311,50 @@ describe("food intelligence architecture wave 1", () => {
       path: "server/modules/whatsapp/foodAdapter.ts",
       content: "export type { Resolver } from '../../../nutritionEngine';",
     }]).some(f => f.ruleId === "10")).toBe(false);
+  });
+
+  it("F05 runs architectural enforcement even on fast-profile changes", () => {
+    const workflow = readFileSync(".github/workflows/agent-check.yml", "utf8");
+    expect(workflow).toContain("if: github.event_name != 'pull_request' || needs.classify.outputs.code_changed == 'true'");
+    expect(workflow).not.toContain("if: github.event_name != 'pull_request' || needs.classify.outputs.risk_profile != 'fast'\n        run: pnpm architecture:check");
+  });
+
+  it("F06 blocks label/kcal inline rows in TypeScript and JavaScript", () => {
+    for (const path of ["server/recipes.ts", "server/recipes.js"]) {
+      const findings = findFoodStaticCandidates([{ path,
+        content: "const rows = [{label: 'arroz', kcal: 130, protein: 3}];" }]);
+      expect(findings.some(f => f.ruleId === "17"), path).toBe(true);
+    }
+  });
+
+  it("F06 detects inline and locally declared materiality regex tests", () => {
+    for (const content of [
+      "function isMaterialAttribute(v: string) { return /integral|light/.test(v); }",
+      "const matcher = /integral|light/; function isMaterialAttribute(v: string) { return matcher.test(v); }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/foodMateriality.ts", content }]
+        ).some(f => f.ruleId === "18"), content).toBe(true);
+    }
+  });
+
+  it("F07 excludes UI presentation lists without hiding real food aliases", () => {
+    expect(findFoodStaticCandidates([{ path: "client/src/components/Widget.tsx",
+      content: "const FOOD_TABS = ['Resumo', 'Histórico'];" }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/foodInfo.ts",
+      content: "const FOOD_ALIASES = ['pão', 'bread'];" }])
+      .some(f => f.ruleId === "17")).toBe(true);
+  });
+
+  it("F08 refuses to drop a live debt without fixing its code first", () => {
+    const legacyFinding = findFoodStaticCandidates([{ path: "server/foodInfo.ts",
+      content: "const FOOD_ALIASES = ['pão', 'bread'];" }])[0];
+    const debt = { ruleId: legacyFinding.ruleId, file: legacyFinding.file,
+      fingerprint: legacyFinding.fingerprint, reason: "migration", owner: "crgasparoto-br",
+      issue: 1300, createdAt: "2026-10-13", expiresAt: "2027-01-11" };
+    expect(assessFoodDebtRenewal([debt], [], [legacyFinding])
+      .some(message => message.includes("removed while violation remains"))).toBe(true);
+    expect(assessFoodDebtRenewal([debt], [], [])).toEqual([]);
+    expect(compareFoodArchitectureFindings([legacyFinding], []).added).toHaveLength(1);
   });
 
 });

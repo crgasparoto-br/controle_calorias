@@ -28,13 +28,35 @@ const files = ["server", "shared", "client/src"].flatMap(walk)
   .filter(p => /\.[cm]?[jt]sx?$/.test(p))
   .map(p => ({ path: p, content: readFileSync(path.join(root, p), "utf8") }));
 const findings = findFoodStaticCandidates(files);
-const inventory = findCompetingOwnerInventory(files);
+const provisionalInventory = findCompetingOwnerInventory(files);
 const ledger = JSON.parse(readFileSync(path.join(root, "architecture-debt.json"), "utf8")) as { entries: FoodDebt[] };
 if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt ledger: entries array required");
-const pinned = JSON.parse(readFileSync(path.join(root, "docs/design-docs/food-architecture-owners-1300.json"), "utf8")) as { baseSha: string };
+const pinned = JSON.parse(readFileSync(path.join(root, "docs/design-docs/food-architecture-owners-1300.json"), "utf8")) as {
+  baseSha: string;
+  observations: Array<{ file: string; symbol: string; rules: string[]; review?: { classification: string; basis: string } }>;
+};
 if (pinned.baseSha !== "0040adffc989d0b4d47e7cdc640ab9878e82c993") {
   throw new Error("Unapproved architecture baseline SHA");
 }
+// Every finding has a disposition. Only individually reviewed legacy owners
+// are confirmed; all other AST matches remain candidates, never auto-debt.
+const inventory = provisionalInventory.map(finding => {
+  const seed = pinned.observations.find(entry =>
+    entry.file === finding.file && entry.symbol === finding.symbol &&
+    entry.rules.includes(finding.ruleId));
+  const confirmed = seed?.review?.classification === "confirmed-legacy-violation";
+  const activeDebt = ledger.entries.find(debt => debt.fingerprint === finding.fingerprint);
+  return {
+    ...finding,
+    review: {
+      classification: confirmed ? "confirmed-legacy-violation" : "heuristic-candidate",
+      basis: confirmed ? seed!.review!.basis : "AST candidate: no validated source-specific behavioral decision",
+      debt: activeDebt ? "timeboxed" : "none",
+      ...(activeDebt ? { owner: activeDebt.owner, issue: activeDebt.issue,
+        expiresAt: activeDebt.expiresAt } : {}),
+    },
+  };
+});
 const enforced = evaluateFoodArchitectureGate(
   findings, findFoodStaticCandidates(readFoodFilesAtGitRef(pinned.baseSha, root)),
   ledger.entries, new Date(),
@@ -75,6 +97,8 @@ const report = {
     activeDebt: enforced.assessment.active,
     blockingErrors: enforced.errors.length,
     warnings: enforced.warnings.length,
+    confirmedLegacyFindings: inventory.filter(item => item.review.classification === "confirmed-legacy-violation").length,
+    heuristicCandidates: inventory.filter(item => item.review.classification === "heuristic-candidate").length,
   },
   inventory,
   enforcement: {

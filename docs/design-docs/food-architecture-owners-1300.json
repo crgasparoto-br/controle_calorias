@@ -15,7 +15,14 @@
       "rules": [
         "17",
         "5"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "legacy static catalog of food identities/macros",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/foodItemResolution.ts",
@@ -26,7 +33,14 @@
       "rules": [
         "17",
         "5"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "curated per-food countable portions in code",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/foodItemResolution.ts",
@@ -36,7 +50,14 @@
       "class": "B",
       "rules": [
         "18"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "lexical commercial identity categories",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/foodItemResolution.ts",
@@ -46,7 +67,14 @@
       "class": "B",
       "rules": [
         "18"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "hardcoded nutritional materiality of packaging descriptors",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
@@ -56,7 +84,14 @@
       "class": "A",
       "rules": [
         "11"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "WhatsApp-only lexical normalizations",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
@@ -66,7 +101,14 @@
       "class": "A",
       "rules": [
         "11"
-      ]
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "WhatsApp-specific uncertain portion lexicon",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     },
     {
       "file": "server/mealTextParsing.ts",
@@ -76,7 +118,14 @@
       "class": "A",
       "rules": [
         "17"
-      ]
+      ],
+      "review": {
+        "classification": "heuristic-candidate",
+        "basis": "Possível gramática S1; não comprova léxico decisório S2 sem validação semântica"
+      }
     }
-  ]
+  ],
+  "reviewedAt": "2026-10-13",
+  "reviewMethod": "Inspeção independente dos trechos legados no SHA base; demais findings do inventário completo permanecem candidatos heurísticos até evidência discriminante.",
+  "totalFindingsSource": "CI food-architecture-inventory-092c9cfe2dbd44791593d26308304a277e950858 (468 findings antes desta correção); relatórios subsequentes classificam por ocorrência no HEAD."
 }

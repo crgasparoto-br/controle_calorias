@@ -1,4 +1,105 @@
 {
   "$schema": "./docs/design-docs/food-architecture-debt.schema.json",
-  "entries": []
+  "entries": [
+    {
+      "ruleId": "17",
+      "file": "server/foodCatalogReference.ts",
+      "fingerprint": "17:server/foodCatalogReference.ts:FOOD_CATALOG_REFERENCE:1596dda8",
+      "reason": "Catálogo estático de identidades, porções e macronutrientes no runtime",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "5",
+      "file": "server/foodCatalogReference.ts",
+      "fingerprint": "5:server/foodCatalogReference.ts:FOOD_CATALOG_REFERENCE:1596dda8",
+      "reason": "Catálogo estático de identidades, porções e macronutrientes no runtime",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "17",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "17:server/foodItemResolution.ts:CURATED_COMMON_COUNTABLE_PORTIONS:8be6e8b6",
+      "reason": "Porções por alimento declaradas em código produtivo",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "5",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "5:server/foodItemResolution.ts:CURATED_COMMON_COUNTABLE_PORTIONS:8be6e8b6",
+      "reason": "Porções por alimento declaradas em código produtivo",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "18",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "18:server/foodItemResolution.ts:BROAD_COMMERCIAL_CATEGORY_TOKENS:14b7b989",
+      "reason": "Regras lexicais estáticas de categoria comercial",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "17",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "17:server/foodItemResolution.ts:NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS:1d192cc1",
+      "reason": "Materialidade nutricional fixada por tokens de embalagem",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "18",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "18:server/foodItemResolution.ts:NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS:1d192cc1",
+      "reason": "Materialidade nutricional fixada por tokens de embalagem",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "11:server/modules/whatsapp/informalLanguageNormalizer.ts:BUILT_IN_REPLACEMENTS:57072000",
+      "reason": "Normalizações de vocabulário alimentar codificadas no canal WhatsApp",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "11:server/modules/whatsapp/informalLanguageNormalizer.ts:UNCERTAIN_PORTION_PATTERNS:cee8c11b",
+      "reason": "Léxico de porções incertas específico do canal",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "17",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "17:server/modules/whatsapp/informalLanguageNormalizer.ts:UNCERTAIN_PORTION_PATTERNS:cee8c11b",
+      "reason": "Léxico de porções incertas específico do canal",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    }
+  ]
 }
