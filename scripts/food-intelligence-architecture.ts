@@ -54,6 +54,12 @@ function isLiteralCollection(expr: ts.Expression): boolean {
 function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   const fields = new Map<string, ts.Expression>();
   for (const property of node.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      // Shorthand identities like { foodId, calories: 100 } must not
+      // bypass the static food knowledge gate.
+      fields.set(property.name.text.toLowerCase(), property.name);
+      continue;
+    }
     if (!ts.isPropertyAssignment(property)) continue;
     const key = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
     fields.set(key, unwrap(property.initializer));
