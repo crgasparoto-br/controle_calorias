@@ -123,6 +123,20 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
 function isLiteralNumericMap(value: ts.Expression): boolean {
   const object = unwrap(value);
+  if (ts.isNewExpression(object) && ts.isIdentifier(object.expression) &&
+      object.expression.text === "Map" && object.arguments?.length === 1) {
+    const entries = unwrap(object.arguments[0]);
+    return ts.isArrayLiteralExpression(entries) && entries.elements.length > 0 &&
+      entries.elements.every(entry => {
+        const pair = unwrap(entry);
+        if (!ts.isArrayLiteralExpression(pair) || pair.elements.length !== 2) return false;
+        const key = unwrap(pair.elements[0]);
+        const number = unwrap(pair.elements[1]);
+        return (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) &&
+          (ts.isNumericLiteral(number) ||
+            (ts.isPrefixUnaryExpression(number) && ts.isNumericLiteral(number.operand)));
+      });
+  }
   return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
     object.properties.every(property => {
       if (!ts.isPropertyAssignment(property)) return false;
@@ -173,6 +187,14 @@ function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile
         ts.isIdentifier(candidate.expression) && candidate.expression.text === symbol &&
         candidate.argumentExpression &&
         foodIndexContext(candidate.argumentExpression, candidate, source)) {
+      consumed = true;
+      return;
+    }
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        candidate.expression.name.text === "get" &&
+        ts.isIdentifier(candidate.expression.expression) &&
+        candidate.expression.expression.text === symbol &&
+        candidate.arguments[0] && foodIndexContext(candidate.arguments[0], candidate, source)) {
       consumed = true;
       return;
     }
@@ -359,6 +381,32 @@ function failureClass(rule: FoodWaveOneRule, symbol: string): FoodFinding["failu
   return "I";
 }
 
+function localDecisionEvidence(value: ts.Expression, node: ts.Node, source: ts.SourceFile,
+  depth = 0, visited = new Set<string>()): string {
+  if (depth > 5) return "";
+  const current = unwrap(value);
+  if (ts.isCallExpression(current)) {
+    return current.arguments.map(arg => localDecisionEvidence(arg, node, source, depth + 1, new Set(visited))).join(" ");
+  }
+  if (!ts.isIdentifier(current)) return current.getText(source);
+  if (visited.has(current.text)) return "";
+  visited.add(current.text);
+  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === current.text &&
+            declaration.initializer && declaration.getStart(source) < node.getStart(source)) {
+          return declaration.initializer.getText(source) + " " +
+            localDecisionEvidence(declaration.initializer, node, source, depth + 1, visited);
+        }
+      }
+    }
+  }
+  return "";
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -371,6 +419,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     if (ts.isElementAccessExpression(node) && node.argumentExpression &&
         isLiteralNumericMap(node.expression) &&
         foodIndexContext(node.argumentExpression, node, source)) {
+      return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "get" && node.arguments[0] &&
+        isLiteralNumericMap(node.expression.expression) &&
+        foodIndexContext(node.arguments[0], node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
     }
   }
@@ -537,7 +591,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "call" && ts.isCallExpression(node)) {
     const symbol = node.expression.getText(source);
     const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
-    if (matches(rule.symbolPattern, symbol) && matches(rule.evidencePattern, argumentsText)) {
+    const provenance = rule.id === "3" ?
+      node.arguments.map(arg => localDecisionEvidence(arg, node, source)).join(" ") : "";
+    if (matches(rule.symbolPattern, symbol) &&
+        matches(rule.evidencePattern, argumentsText + " " + provenance)) {
       return { symbol, subject: node.getText(source) };
     }
   }

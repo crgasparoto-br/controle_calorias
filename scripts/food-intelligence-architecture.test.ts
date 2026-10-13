@@ -883,4 +883,61 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("A1300-21 blocks Map-based numeric food portions, including inline consumption", () => {
+    const positives = [
+      "function resolvePortion(foodName: string) { const table = new Map([['pão', 50], ['arroz', 90]]); return table.get(foodName); }",
+      "function resolvePortion(foodName: string) { return new Map([['pão', 50]]).get(foodName); }",
+      "function resolvePortion(foodName: string) { const table = new Map<string, number>([['pão', 50]]); return table.get(foodName); }",
+    ];
+    for (const content of positives) {
+      const findings = findFoodStaticCandidates([{ path: "server/portionRules.ts", content }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("numeric-food-map")), content).toBe(true);
+      expect(findings.some(f => f.ruleId === "5" && f.symbol.includes("numeric-food-map")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function resolveRole(name: string) { const table = new Map([['admin', 1]]); return table.get(name); }",
+      "function exerciseSummary(foodName: string) { const table = new Map([['walking', 120]]); return table.get(foodName); }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/account.ts", content }]
+        ).filter(f => f.symbol.includes("numeric-food-map"))).toEqual([]);
+    }
+  });
+
+  it("A1300-22 detects competing food owners on web and API channel entrypoints", () => {
+    for (const file of [
+      "server/modules/web/handler.ts", "server/routes/food.ts", "server/modules/api/food.ts",
+    ]) {
+      const content = "export function resolveFood(input: string) { return { input }; }";
+      const findings = findFoodStaticCandidates([{ path: file, content }]);
+      expect(findings.some(f => f.ruleId === "1"), file).toBe(true);
+      expect(findings.some(f => f.ruleId === "2"), file).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
+      content: "export function resolveFood(input: string) { return input; }" }]
+    ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/modules/web/handler.ts",
+      content: "export function resolveAccount(input: string) { return input; }" }]
+    ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+  });
+
+  it("A1300-23 blocks textual reinference through local decision aliases", () => {
+    for (const content of [
+      "function rerun(decision: ResolvedFoodDecision) { const raw = decision.normalizedText; return parseFoodText(raw); }",
+      "function rerun(decision: ResolvedFoodDecision) { const raw = decision.normalizedText; const alias = raw; return parseFoodText(alias); }",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodReparser.ts", content }]);
+      expect(findings.some(f => f.ruleId === "3"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function parseUserText(req: { body: string }) { const raw = req.body; return parseFoodText(raw); }",
+      "function parseUserText(input: string) { return parseFoodText(input); }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/inputParsing.ts", content }]
+        ).filter(f => f.ruleId === "3")).toEqual([]);
+    }
+  });
+
 });
