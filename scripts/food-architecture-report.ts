@@ -25,7 +25,7 @@ function sha(): string {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 }
 const files = ["server", "shared", "client/src"].flatMap(walk)
-  .filter(p => /\.[cm]?[jt]sx?$/.test(p))
+  .filter(p => /\.(?:[cm]?[jt]sx?|json)$/.test(p))
   .map(p => ({ path: p, content: readFileSync(path.join(root, p), "utf8") }));
 const findings = findFoodStaticCandidates(files);
 const provisionalInventory = findCompetingOwnerInventory(files);
