@@ -18,6 +18,17 @@ describe("food intelligence architecture wave 1", () => {
       "const records = [{ name: 'pao', calories: 75, protein: 2 }];" }]).some(f => f.ruleId === "17")).toBe(true);
   });
 
+  it("detects a scalar food hardcode or food-specific if/branch in production", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/foodRules.ts",
+      content: "const DEFAULT_FOOD_NAME = 'pão'; function resolve(input: { foodName: string }) { return input.foodName === 'ovo'; }",
+    }]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol === "DEFAULT_FOOD_NAME")).toBe(true);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("lexical-branch"))).toBe(true);
+    expect(findFoodStaticCandidates([{ path: "server/utils.ts",
+      content: "function ordinary(mode: string) { return mode === 'auto'; }" }])).toEqual([]);
+  });
+
   it("detects hardcoded attribute materiality token sets", () => {
     const matches = findFoodStaticCandidates([{
       path: "server/materiality.ts",
