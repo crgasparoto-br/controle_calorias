@@ -788,6 +788,11 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
       content: "function showStatus(status: string) { const statusMap = {active:'Ativo'}; return statusMap[status]; }" }])
       .some(f => f.symbol.includes("lexical-dictionary"))).toBe(false);
+    const lexicalOnly = findFoodStaticCandidates([sources[0]]);
+    expect(lexicalOnly.some(f => f.ruleId === "18" && f.symbol.includes("lexical-dictionary"))).toBe(false);
+    const materiality = findFoodStaticCandidates([{ path: "server/foodMateriality.ts",
+      content: "function decide(input: string) { const dict = {integral:'material', light:'neutral'}; return dict[input]; }" }]);
+    expect(materiality.some(f => f.ruleId === "18" && f.symbol.includes("lexical-dictionary"))).toBe(true);
   });
 
   it("A1300-17 follows transitive imports to detect alternative channel resolvers", () => {
