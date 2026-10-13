@@ -112,6 +112,26 @@ function hasLiteralWords(expr: ts.Expression): boolean {
     value.arguments?.length === 1 && hasLiteralWords(value.arguments[0]) || false;
 }
 
+
+function referencesLiteralWords(target: ts.Expression, node: ts.Node): boolean {
+  if (hasLiteralWords(target)) return true;
+  if (!ts.isIdentifier(target)) return false;
+  // Resolve a lexical declaration in the closest enclosing scope. Unknown
+  // external/generated values are not assumed to be literal vocabulary.
+  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === target.text) {
+          return !!declaration.initializer && hasLiteralWords(declaration.initializer);
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function stableHash(value: string): string {
   // FNV-1a over lexer tokens, not raw source. Formatting is ignored, but
   // whitespace INSIDE string literals remains significant for new hardcodes.
@@ -170,7 +190,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ts.isPropertyAccessExpression(node.expression) &&
       ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
       node.arguments.length > 0 &&
-      hasLiteralWords(node.expression.expression)) {
+      referencesLiteralWords(node.expression.expression, node)) {
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
     if (matches(rule.symbolPattern, context)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
@@ -181,10 +201,26 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   const onlyNamedTypes = bindings && ts.isNamedImports(bindings) &&
     bindings.elements.length > 0 && bindings.elements.every(specifier => specifier.isTypeOnly) &&
     !node.importClause?.name;
-  if (rule.kind === "import" && ts.isImportDeclaration(node) &&
-    !node.importClause?.isTypeOnly && !onlyNamedTypes && ts.isStringLiteral(node.moduleSpecifier)) {
-    const symbol = node.moduleSpecifier.text;
-    if (matches(rule.symbolPattern, symbol)) return { symbol, subject: symbol };
+  if (rule.kind === "import") {
+    let moduleSpecifier: string | undefined;
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
+        !node.importClause?.isTypeOnly && !onlyNamedTypes) {
+      moduleSpecifier = node.moduleSpecifier.text;
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier) && !node.isTypeOnly) {
+      const clause = node.exportClause;
+      const typesOnly = clause && ts.isNamedExports(clause) &&
+        clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
+      if (!typesOnly) moduleSpecifier = node.moduleSpecifier.text;
+    } else if (ts.isCallExpression(node) && node.arguments.length > 0 &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+      moduleSpecifier = node.arguments[0].text;
+    }
+    if (moduleSpecifier && matches(rule.symbolPattern, moduleSpecifier)) {
+      return { symbol: moduleSpecifier, subject: node.getText(source) };
+    }
   }
   if (rule.kind === "function") {
     const symbol = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
