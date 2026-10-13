@@ -125,6 +125,9 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([generated, {
       path: "server/liveService.ts", content: "import type { FoodData } from './generated/foodData';",
     }])).toEqual([]);
+    expect(isProductionFoodSource("server/food.generated.ts")).toBe(false);
+    expect(isProductionFoodSource("server/food.fixture.ts")).toBe(false);
+    expect(findFoodStaticCandidates([{ path: "server/food.generated.ts", content: example }])).toEqual([]);
     expect(isProductionFoodSource("server/x.spec.ts")).toBe(false);
     expect(isProductionFoodSource("docs/recipe.ts")).toBe(false);
   });
