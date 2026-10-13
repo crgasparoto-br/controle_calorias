@@ -70,7 +70,6 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     if (!value) return false;
     // A food identity may be selected at runtime while its macro data remain
     // hardcoded. Do not require the food name itself to be a string literal.
-    if (ts.isStringLiteral(value)) return true;
     const nameIsFoodSpecific = key !== "name" && key !== "label" && key !== "nome";
     const foodContext = /food|alimento|meal|ingredient|nutrition|nutrient|macro|portion|porc|product/i.test(
       value.getText() + " " + enclosingDeclaration(node) + " " + node.getSourceFile().fileName);
@@ -80,6 +79,14 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
         return nutrientValue && (ts.isNumericLiteral(nutrientValue) ||
           (ts.isPrefixUnaryExpression(nutrientValue) && ts.isNumericLiteral(nutrientValue.operand)));
       }).length;
+    const domainEvidence = ["kcal", "protein", "carbs", "fat", "energykcal",
+      "portiongrams", "portion_grams", "servinggrams", "serving_grams",
+      "aliases", "synonyms", "classification", "processinglevel"]
+      .some(field => fields.has(field));
+    // A literal "name" + one calorie count could be an exercise/activity.
+    if (ts.isStringLiteral(value)) {
+      return nameIsFoodSpecific || foodContext || domainEvidence;
+    }
     return nameIsFoodSpecific || foodContext || numericNutrientCount >= 2;
   });
   // A stable food identifier may be a runtime variable while its nutrition
@@ -396,7 +403,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
  * additions and edits visible without flooding the debt ledger with every row.
  * Non-food JSON does not produce a finding.
  */
-function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
+function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""): FoodFinding[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(file.content);
@@ -409,6 +416,10 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
   // must independently establish the domain before the static gate blocks.
   const foodSource = /food|aliment|nutrition|nutrient|meal|ingredient|portion|serving|recipe/i.test(file.path);
   const channelSource = /whatsapp|inbound|transcri|image|audio|ocr/i.test(file.path);
+  // An otherwise anonymous aliases.json becomes a food lexicon when loaded
+  // by a food decision module. Generic account/status aliases remain exempt.
+  const lexicalDomain = /food|aliment|nutrition|nutrient|meal|ingredient|portion|serving|recipe/i.test(
+    file.path + " " + consumerEvidence);
   let foodRows = 0;
   let lexicalRows = 0;
   function walk(value: unknown, context: string): void {
@@ -425,8 +436,8 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
     if (entries.length > 0 &&
         entries.every(([key, entry]) => key.trim().length > 0 &&
           typeof entry === "string" && entry.trim().length > 0) &&
-        /alias|synonym|sinonim|lexicon|vocab|normaliz|replacement/i.test(context) &&
-        (/food|aliment|nutrition|ingredient|meal|portion|serving/i.test(context) || channelSource)) {
+        /alias|synonym|sinonim|lexicon|vocab|normaliz|replacement/i.test(context + " " + consumerEvidence) &&
+        lexicalDomain) {
       lexicalRows++;
     }
 
@@ -489,6 +500,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   const indexed = new Map(files.map(file => [file.path.replace(/\\/g, "/"), file]));
   const runtime = new Set(files.filter(file => isProductionFoodSource(file.path))
     .map(file => file.path.replace(/\\/g, "/")));
+  const importerContext = new Map<string, Set<string>>();
   const queue = [...runtime];
   for (let i = 0; i < queue.length; i++) {
     const file = indexed.get(queue[i]);
@@ -515,7 +527,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         ...extensions.map(extension => base + "/index" + extension),
       ];
       for (const candidate of candidates) {
-        if (indexed.has(candidate) && !runtime.has(candidate)) {
+        if (!indexed.has(candidate)) continue;
+        const contexts = importerContext.get(candidate) ?? new Set<string>();
+        contexts.add(file.path + " " + [...(importerContext.get(file.path) ?? [])].join(" "));
+        importerContext.set(candidate, contexts);
+        if (!runtime.has(candidate)) {
           runtime.add(candidate);
           queue.push(candidate);
         }
@@ -550,7 +566,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     if (/\.json$/i.test(file.path)) {
-      results.push(...findJsonFoodCatalog(file));
+      results.push(...findJsonFoodCatalog(file,
+        [...(importerContext.get(file.path) ?? [])].join(" ")));
       continue;
     }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
@@ -629,6 +646,11 @@ export function groupCompetingFoodOwners(inventory: ReturnType<typeof findCompet
         observedSurfaces: surfaces, candidateOwners: owners,
         candidateCount: owners.length,
         crossSurfaceCandidates: surfaces.length > 1,
+        // Pair evidence is derived from distinct source files, not duplicated
+        // AST findings in the same owner. Pairs remain suspects until reviewed.
+        suspectedCompetingPairs: [...new Set(findings.map(item => item.file))].sort()
+          .flatMap((left, index, locations) => locations.slice(index + 1)
+            .map(right => ({ left, right, status: "requires-behavioral-review" as const }))),
         status: "requires-behavioral-review" as const,
       };
     });

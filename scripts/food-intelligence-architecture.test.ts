@@ -556,12 +556,36 @@ describe("food intelligence architecture wave 1", () => {
       content: '{"status":{"pending":"aguardando","saved":"salvo"}}' }])).toEqual([]);
   });
 
+  it("A1300-07 catches the exact anonymous picker from the rejected audit", () => {
+    const source = { path: "server/portionRules.ts",
+      content: "function pick(item: { name: string }) { return item.name === 'pão' ? 50 : 0; }" };
+    const findings = findFoodStaticCandidates([source]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("lexical-branch"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+  });
+
+  it("A1300-08 resolves a generic aliases.json through its food-runtime importer", () => {
+    const source = { path: "server/aliases.json", content: '{"pao":"pão","bread":"pão"}' };
+    const importer = { path: "server/foodItemResolution.ts",
+      content: "import aliases from './aliases.json'; export const result = aliases;" };
+    expect(findFoodStaticCandidates([source])).toEqual([]);
+    const findings = findFoodStaticCandidates([source, importer]);
+    expect(findings.some(f => f.file === source.path && f.ruleId === "17")).toBe(true);
+    const generic = findFoodStaticCandidates([source, {
+      path: "server/accountAliases.ts",
+      content: "import aliases from './aliases.json'; export const result = aliases;",
+    }]);
+    expect(generic).toEqual([]);
+  });
+
   it("A1300-09 excludes ambiguous activity calories while preserving food catalogs", () => {
     const exercise = [
       { path: "server/exerciseCatalog.json", content: '[{"name":"caminhada","calories":120}]' },
       { path: "server/activityLog.json", content: '[{"name":"corrida","calories":320}]' },
     ];
     for (const sample of exercise) expect(findFoodStaticCandidates([sample])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/exerciseCatalog.ts",
+      content: "const exercises = [{ name: 'caminhada', calories: 120 }];" }])).toEqual([]);
     const food = findFoodStaticCandidates([{ path: "server/foodCatalog.json",
       content: '[{"name":"pão","calories":120}]' }]);
     expect(food.map(f => f.ruleId)).toEqual(["17", "5"]);
@@ -580,6 +604,11 @@ describe("food intelligence architecture wave 1", () => {
     expect(lexical?.candidateCount).toBe(2);
     expect(lexical?.observedSurfaces).toEqual(["channel", "server-domain"]);
     expect(lexical?.crossSurfaceCandidates).toBe(true);
+    expect(lexical?.suspectedCompetingPairs).toEqual([{
+      left: "server/foodAliases.ts",
+      right: "server/modules/whatsapp/foodNormalizer.ts",
+      status: "requires-behavioral-review",
+    }]);
     expect(lexical?.status).toBe("requires-behavioral-review");
     expect(inventory.every(f => f.candidateOwner.includes(f.file))).toBe(true);
   });
