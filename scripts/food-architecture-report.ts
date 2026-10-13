@@ -38,13 +38,25 @@ const pinned = JSON.parse(readFileSync(path.join(root, "docs/design-docs/food-ar
 if (pinned.baseSha !== "0040adffc989d0b4d47e7cdc640ab9878e82c993") {
   throw new Error("Unapproved architecture baseline SHA");
 }
-// Every finding has a disposition. Only individually reviewed legacy owners
-// are confirmed; all other AST matches remain candidates, never auto-debt.
+// Only individual occurrences present in the immutable reviewed baseline can
+// inherit a confirmation. A modified or repeated symbol is not automatically approved.
+const frozenFindings = findFoodStaticCandidates(readFoodFilesAtGitRef(pinned.baseSha, root));
+const confirmedBudget = new Map<string, number>();
+for (const finding of frozenFindings) {
+  const review = pinned.observations.find(item =>
+    item.file === finding.file && item.symbol === finding.symbol &&
+    item.rules.includes(finding.ruleId));
+  if (review?.review?.classification === "confirmed-legacy-violation") {
+    confirmedBudget.set(finding.fingerprint, (confirmedBudget.get(finding.fingerprint) ?? 0) + 1);
+  }
+}
 const inventory = provisionalInventory.map(finding => {
   const seed = pinned.observations.find(entry =>
     entry.file === finding.file && entry.symbol === finding.symbol &&
     entry.rules.includes(finding.ruleId));
-  const confirmed = seed?.review?.classification === "confirmed-legacy-violation";
+  const confirmed = seed?.review?.classification === "confirmed-legacy-violation" &&
+    (confirmedBudget.get(finding.fingerprint) ?? 0) > 0;
+  if (confirmed) confirmedBudget.set(finding.fingerprint, confirmedBudget.get(finding.fingerprint)! - 1);
   const activeDebt = ledger.entries.find(debt => debt.fingerprint === finding.fingerprint);
   return {
     ...finding,
@@ -64,7 +76,7 @@ if (inconsistentDebt.length) {
     inconsistentDebt.map(item => item.fingerprint).join(", "));
 }
 const enforced = evaluateFoodArchitectureGate(
-  findings, findFoodStaticCandidates(readFoodFilesAtGitRef(pinned.baseSha, root)),
+  findings, frozenFindings,
   ledger.entries, new Date(),
 );
 const baselineRef = process.env.GITHUB_BASE_REF ? "origin/" + process.env.GITHUB_BASE_REF : "origin/develop";
@@ -77,6 +89,13 @@ try {
 } catch (error) {
   baselineError = String(error);
 }
+const legacyFingerprints = new Set(enforced.delta.retained.map(item => item.fingerprint));
+const triageQueue = inventory.filter(item =>
+  item.review.classification === "heuristic-candidate" &&
+  legacyFingerprints.has(item.fingerprint)).map(item => ({
+    fingerprint: item.fingerprint, ruleId: item.ruleId, failureClass: item.failureClass,
+    file: item.file, line: item.line, status: "pending-evidence",
+  }));
 const report = {
   sourceSha: sha(),
   enforcementBaselineSha: pinned.baseSha,
@@ -99,7 +118,7 @@ const report = {
     newViolations: enforced.delta.added.length,
     retainedLegacyCandidates: enforced.delta.retained.length,
     removedLegacyCandidates: enforced.delta.removed.length,
-    pendingLegacyTriage: enforced.legacyUncovered.length,
+    pendingLegacyTriage: triageQueue.length,
     activeDebt: enforced.assessment.active,
     blockingErrors: enforced.errors.length,
     warnings: enforced.warnings.length,
@@ -107,6 +126,11 @@ const report = {
     heuristicCandidates: inventory.filter(item => item.review.classification === "heuristic-candidate").length,
   },
   inventory,
+  triage: {
+    sourceBaselineSha: pinned.baseSha,
+    policy: "Review each candidate against source and runtime behavior before nominal debt approval; never auto-exempt.",
+    pending: triageQueue,
+  },
   enforcement: {
     errors: enforced.errors, activeDebtWarnings: enforced.assessment.warnings,
     newViolations: enforced.delta.added,

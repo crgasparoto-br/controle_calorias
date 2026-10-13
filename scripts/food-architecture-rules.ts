@@ -51,22 +51,22 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "B", kind: "literal-branch",
-    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
-    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier",
+    // Semantic food/materiality context, regardless of source filename.
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
     description: "Comparação literal potencialmente definindo materialidade de atributo",
   },
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "B", kind: "literal-membership",
-    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
-    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|variant",
+    // Semantic food/materiality context, regardless of source filename.
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
     description: "Materialidade alimentar decidida por consulta a coleção lexical inline",
   },
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "B", kind: "literal-regex-test",
-    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
-    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|variant",
+    // Semantic food/materiality context, regardless of source filename.
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
     description: "Materialidade lexical codificada em expressão regular",
   },
   {

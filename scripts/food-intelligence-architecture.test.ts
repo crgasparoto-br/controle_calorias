@@ -370,4 +370,64 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("A1300-01 rejects anonymous nutrition rows keyed by foodId without false positives", () => {
+    for (const content of [
+      "const rows = [{ foodId: 'arroz', portionGrams: 75, calories: 98 }];",
+      "function make(foodId: string) { return { foodId, portionGrams: 50, calories: 100 }; }",
+      "const rows = [{ food_id: 'ovo', serving_grams: 50, kcal: 78 }];",
+    ]) {
+      const violations = findFoodStaticCandidates([{ path: "server/metrics.ts", content }]);
+      expect(violations.some(v => v.ruleId === "17" && v.symbol === "inline-food-knowledge"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(violations, [], [], today).errors
+        .some(message => message.includes("New food architecture violation")), content).toBe(true);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/metrics.ts",
+      content: "const rows = [{ foodId: 'x', displayCalories: '98' }];" }])).toEqual([]);
+  });
+
+  it("A1300-02 detects materiality membership, regex and branches in generic channel handler paths", () => {
+    const samples = [
+      { path: "server/modules/whatsapp/handler.ts",
+        content: "function isMaterialAttribute(variant: string) { const tokens = ['integral', 'light']; return tokens.includes(variant); }" },
+      { path: "server/modules/whatsapp/handler2.ts",
+        content: "function hasMateriality(variant: string) { return /integral|light/.test(variant); }" },
+      { path: "server/modules/whatsapp/handler3.ts",
+        content: "function isMaterialAttribute(variant: string) { return variant === 'integral'; }" },
+    ];
+    const violations = findFoodStaticCandidates(samples);
+    for (const sample of samples) {
+      expect(violations.some(v => v.file === sample.path && v.ruleId === "18"), sample.path).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(violations, [], [], today).errors).not.toEqual([]);
+    expect(findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/handler.ts",
+      content: "function acceptsStatus(status: string) { return ['pending', 'saved'].includes(status); }",
+    }]).filter(v => v.ruleId === "18")).toEqual([]);
+  });
+
+  it("A1300-03 includes imported JS generated and fixture modules in runtime enforcement", () => {
+    const samples = [
+      { target: "server/generated/foodData.js", importText: "const x = require('./generated/foodData');" },
+      { target: "server/generated/foodData.mjs", importText: "async function get() { return import('./generated/foodData.mjs'); }" },
+      { target: "server/generated/foodData.jsx", importText: "import { FOOD_ALIASES } from './generated/foodData.jsx';" },
+      { target: "server/generated/foodData.cjs", importText: "const x = require('./generated/foodData.cjs');" },
+      { target: "server/fixtures/foodData/index.js", importText: "export * from './fixtures/foodData';" },
+    ];
+    for (const sample of samples) {
+      const generated = { path: sample.target, content: "const FOOD_ALIASES = ['ovo', 'eggs'];" };
+      expect(findFoodStaticCandidates([generated])).toEqual([]);
+      const violations = findFoodStaticCandidates([generated, {
+        path: "server/liveAdapter.ts", content: sample.importText,
+      }]);
+      expect(violations.some(v => v.file === sample.target && v.ruleId === "17"), sample.target).toBe(true);
+      expect(evaluateFoodArchitectureGate(violations, [], [], today).errors
+        .some(message => message.includes("New food architecture violation")), sample.target).toBe(true);
+    }
+    expect(findFoodStaticCandidates([{
+      path: "server/generated/foodData.js", content: "const FOOD_ALIASES = ['ovo', 'eggs'];",
+    }, {
+      path: "server/liveAdapter.ts", content: "import type { FoodData } from './generated/foodData.js';",
+    }])).toEqual([]);
+  });
+
 });

@@ -58,15 +58,19 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     const key = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
     fields.set(key, unwrap(property.initializer));
   }
-  const hasIdentity = ["name", "foodname", "alimento", "productname", "label", "nome", "productlabel"].some(key =>
+  const hasNamedFood = ["name", "foodname", "alimento", "productname", "label", "nome", "productlabel"].some(key =>
     fields.has(key) && ts.isStringLiteral(fields.get(key)!));
+  // A stable food identifier may be a runtime variable while its nutrition
+  // numbers are hardcoded in a nameless collection.
+  const hasFoodIdentifier = ["foodid", "food_id", "alimentoid", "alimento_id", "productfoodid"].some(key =>
+    fields.has(key));
   const hasLiteralNutrition = ["calories", "kcal", "protein", "carbs", "fat", "grams",
-    "portiongrams", "servinggrams"].some(key => {
+    "portiongrams", "portion_grams", "servinggrams", "serving_grams", "energykcal"].some(key => {
       const value = fields.get(key);
       return value !== undefined && (ts.isNumericLiteral(value) ||
         (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
     });
-  return hasIdentity && hasLiteralNutrition;
+  return (hasNamedFood || hasFoodIdentifier) && hasLiteralNutrition;
 }
 
 function enclosingDeclaration(node: ts.Node): string {
@@ -333,9 +337,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       } else {
         return;
       }
-      const candidates = [base, base + ".ts", base + ".tsx", base + ".mts",
-        base + ".cts", base + "/index.ts", base + "/index.tsx",
-        base + "/index.mts", base + "/index.cts"];
+      const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+      const candidates = [
+        base,
+        ...extensions.map(extension => base + extension),
+        ...extensions.map(extension => base + "/index" + extension),
+      ];
       for (const candidate of candidates) {
         if (indexed.has(candidate) && !runtime.has(candidate)) {
           runtime.add(candidate);
