@@ -85,6 +85,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
+  if (rule.kind === "scalar" && ts.isVariableDeclaration(node) && node.initializer &&
+      ts.isStringLiteral(unwrap(node.initializer)) && matches(rule.symbolPattern, node.name.getText(source))) {
+    return { symbol: node.name.getText(source), subject: node.initializer.getText(source) };
+  }
   const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined;
   const onlyNamedTypes = bindings && ts.isNamedImports(bindings) &&
     bindings.elements.length > 0 && bindings.elements.every(specifier => specifier.isTypeOnly) &&
@@ -121,8 +125,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         break;
       }
     }
-    if (functionName && matches(rule.symbolPattern, functionName)) {
-      return { symbol: functionName + ":lexical-branch", subject: node.getText(source) };
+    const operand = ts.isStringLiteral(node.left) ? node.right.getText(source) : node.left.getText(source);
+    const relevant = rule.id === "17" ? matches(rule.symbolPattern, operand)
+      : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
+    if (relevant) {
+      return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
+        subject: node.getText(source) };
     }
   }
   if (rule.kind === "call" && ts.isCallExpression(node)) {
