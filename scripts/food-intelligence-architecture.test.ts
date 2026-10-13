@@ -430,4 +430,72 @@ describe("food intelligence architecture wave 1", () => {
     }])).toEqual([]);
   });
 
+  it("A1300-04 blocks JSON food catalogs and catalog edits, not ordinary JSON", () => {
+    const baseline = { path: "server/foodCatalog.json", content:
+      JSON.stringify([{ name: "arroz", calories: 128, protein: 2 }]) };
+    const original = findFoodStaticCandidates([baseline]);
+    expect(original.map(f => f.ruleId)).toEqual(["17", "5"]);
+    const equivalent = findFoodStaticCandidates([{ ...baseline, content:
+      '[ { "name": "arroz", "calories": 128, "protein": 2 } ]' }]);
+    expect(equivalent.map(f => f.fingerprint)).toEqual(original.map(f => f.fingerprint));
+    const modified = findFoodStaticCandidates([{ ...baseline, content:
+      JSON.stringify([{ name: "arroz", calories: 150, protein: 2 }]) }]);
+    expect(compareFoodArchitectureFindings(modified, original).added).toHaveLength(2);
+    expect(evaluateFoodArchitectureGate(modified, original, [], today).errors
+      .some(message => message.includes("New food architecture violation"))).toBe(true);
+    expect(findFoodStaticCandidates([{ path: "server/config.json",
+      content: JSON.stringify({ name: "service", timeout: 20 }) }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ ...baseline, path: "docs/foodCatalog.json" }])).toEqual([]);
+  });
+
+  it("A1300-04 includes imported JSON fixtures and generated catalogs, not inert data", () => {
+    const samples = ["server/fixtures/menu.json", "server/generated/menu.json"];
+    for (const target of samples) {
+      const catalog = { path: target, content:
+        JSON.stringify({ foods: [{ foodId: "ovo", kcal: 78, protein: 6 }] }) };
+      expect(findFoodStaticCandidates([catalog])).toEqual([]);
+      const active = findFoodStaticCandidates([catalog, { path: "server/useCatalog.ts",
+        content: 'import data from "./' + target.split("/").slice(1).join("/") + '";' }]);
+      expect(active.filter(f => f.file === target)).toHaveLength(2);
+      expect(active.some(f => f.ruleId === "17" && f.file === target)).toBe(true);
+    }
+    expect(isProductionFoodSource("server/tacoCatalog.json")).toBe(true);
+    expect(isProductionFoodSource("server/fixtures/menu.json")).toBe(false);
+  });
+
+  it("A1300-05 detects dynamic food identities with hardcoded nutrition without generic false positives", () => {
+    const positive = [
+      "const rows = [{ name: foodName, calories: 125 }];",
+      "function buildFood(name: string) { return { name, calories: 80 }; }",
+      "const entries = [{ label: currentName, kcal: 78, protein: 6 }];",
+    ];
+    for (const content of positive) {
+      const hits = findFoodStaticCandidates([{ path: "server/metrics.ts", content }]);
+      expect(hits.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(hits, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/metrics.ts",
+      content: "const progress = [{ name: user.name, calories: 100 }];" }])).toEqual([]);
+  });
+
+  it("A1300-06 permits UI copy without hiding productive food aliases", () => {
+    const displayOnly = [
+      { path: "client/src/components/FoodCard.tsx", content:
+        'const foodLabel = "Adicionar alimento"; const nutritionTitle = "Resumo nutricional";' },
+      { path: "server/presentation.ts", content:
+        'const foodLabel = "Adicionar alimento";' },
+      { path: "client/src/pages/FoodList.tsx", content:
+        'const foodPlaceholder = "Buscar alimento";' },
+    ];
+    for (const sample of displayOnly) {
+      expect(findFoodStaticCandidates([sample]), sample.path).toEqual([]);
+    }
+    const productive = findFoodStaticCandidates([
+      { path: "server/foodRules.ts", content: 'const DEFAULT_FOOD_NAME = "pão";' },
+      { path: "client/src/components/FoodCard.tsx",
+        content: 'const FOOD_ALIASES = ["pão", "bread"];' },
+    ]);
+    expect(productive.filter(f => f.ruleId === "17").length).toBeGreaterThanOrEqual(2);
+  });
+
 });
