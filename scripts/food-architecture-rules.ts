@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -45,6 +45,24 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     failureClass: "I", kind: "literal-switch",
     symbolPattern: "foodName|foodLabel|foodType|alimento|productName|portion|porcao|porção|brandName|macroType|processingLevel|classification|alias|synonym",
     description: "Chave alimentar ou porção decidida por switch/case literal",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "lexical-lookup",
+    symbolPattern: "food|alimento|nutrition|nutrition|alias|lexicon|ingredient|normaliz",
+    description: "Mapa lexical alimentar com nome genérico aplicado em produção",
+  },
+  {
+    id: "11", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "lexical-lookup", pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
+    symbolPattern: "food|alimento|normaliz|language|lexicon|input|word|term|text",
+    description: "Mapa lexical alimentar anônimo usado diretamente em canal",
+  },
+  {
+    id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "B", kind: "lexical-lookup",
+    symbolPattern: "material|attribute|qualifier|packag|commercial",
+    description: "Materialidade codificada em dicionário lexical de produção",
   },
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
