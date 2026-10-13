@@ -22,6 +22,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "FOOD_CATALOG_REFERENCE: CatalogFoodReference[]",
+        "responsibility": "legacy-static-food-catalog",
+        "observedDecision": "Static reference data for identity, aliases, nutrition and serving quantities; no decision owner proven by this declaration",
+        "disposition": "data-source",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -40,6 +49,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function findCuratedCommonPortion(foodName: string)",
+        "responsibility": "legacy-countable-portion-resolution",
+        "observedDecision": "findCuratedCommonPortion selects a hardcoded portion by normalized food identity",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -57,6 +75,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function hasSpecificCommercialProductName(",
+        "responsibility": "legacy-commercial-identity-materiality",
+        "observedDecision": "hasSpecificCommercialProductName and decideCommercialNutritionPolicy consume these tokens to decide commercial identity",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -75,6 +102,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function categoryTokens(identitySource: string, brand: string)",
+        "responsibility": "legacy-packaging-materiality",
+        "observedDecision": "categoryTokens excludes packaging tokens when choosing identity-relevant category tokens",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -92,6 +128,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function normalizeWhatsappInformalLanguage(",
+        "responsibility": "whatsapp-language-normalization",
+        "observedDecision": "normalizeWhatsappInformalLanguage applies channel-specific replacements before passing normalized text to consumers",
+        "disposition": "channel-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -110,6 +155,15 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function findUncertainTerms(value: string)",
+        "responsibility": "whatsapp-portion-clarification",
+        "observedDecision": "findUncertainTerms drives requiresClarification in WhatsApp language normalizer",
+        "disposition": "channel-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -124,6 +178,15 @@
       "review": {
         "classification": "heuristic-candidate",
         "basis": "Possível gramática S1; não comprova léxico decisório S2 sem validação semântica"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function formatFoodNameTitleCase(",
+        "responsibility": "text-formatting-grammar",
+        "observedDecision": "Formatting title case with lowercase grammatical connectors is not by itself proof of separate food-identity resolution",
+        "disposition": "grammar-only",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     },
     {
@@ -142,10 +205,19 @@
         "owner": "crgasparoto-br",
         "issue": 1300,
         "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "\"source\": \"taco\"",
+        "responsibility": "legacy-taco-reference-data",
+        "observedDecision": "TACO JSON stores food identities, serving sizes and nutrition; dataset is not itself a resolver owner",
+        "disposition": "data-source",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
       }
     }
   ],
   "reviewedAt": "2026-10-13",
-  "reviewMethod": "Inspeção independente dos trechos legados no SHA base; demais findings do inventário completo permanecem candidatos heurísticos até evidência discriminante.",
+  "reviewMethod": "Inspeção independente dos trechos legados no SHA base; demais findings do inventário completo permanecem candidatos heurísticos até evidência discriminante. Owner source anchors are checked against the immutable baseline; these are source-trace reviews, not runtime equivalence certification.",
   "totalFindingsSource": "CI food-architecture-inventory-092c9cfe2dbd44791593d26308304a277e950858 (468 findings antes desta correção); relatórios subsequentes classificam por ocorrência no HEAD. O catálogo JSON TACO é classificado por arquivo com fingerprint do conteúdo normalizado."
 }
