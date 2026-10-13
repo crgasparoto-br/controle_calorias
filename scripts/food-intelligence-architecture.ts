@@ -174,6 +174,38 @@ function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
   return false;
 }
 
+
+/**
+ * A comparison of item.name may be a food/portion decision even when neither
+ * "item" nor "name" contains "food". Require independently observable domain
+ * context; generic usernames, account labels and status checks stay outside.
+ */
+function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, source: ts.SourceFile): boolean {
+  const field = ts.isPropertyAccessExpression(operand) ? operand.name.text :
+    ts.isElementAccessExpression(operand) && operand.argumentExpression &&
+    ts.isStringLiteral(operand.argumentExpression) ? operand.argumentExpression.text : "";
+  if (!/^(?:name|label|title)$/i.test(field)) return false;
+  const receiver = ts.isPropertyAccessExpression(operand) || ts.isElementAccessExpression(operand)
+    ? operand.expression.getText(source) : "";
+  const owner = receiver.split(".")[0].toLowerCase();
+  if (/^(?:user|account|profile|customer|member|admin)$/.test(owner)) return false;
+
+  let context = source.fileName + " " + enclosingDeclaration(node);
+  for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+    if (ts.isIfStatement(parent) || ts.isConditionalExpression(parent)) {
+      // A branch returning portion or nutritional values is itself food evidence.
+      context += " " + parent.getText(source).slice(0, 3000);
+    }
+    if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent) ||
+        ts.isArrowFunction(parent) || ts.isFunctionExpression(parent)) {
+      context += " " + parent.parameters.map(parameter => parameter.getText(source)).join(" ");
+      if (parent.type) context += " " + parent.type.getText(source);
+      break;
+    }
+  }
+  return /food|aliment|meal|nutrition|nutrient|macro|portion|por[cç][aã]?o|serving|ingredient|ingrediente|recipe|receita|calor|kcal|protein|carb|grams|gramas/i.test(context);
+}
+
 function isPresentationOnlyCollection(symbol: string): boolean {
   // Food-related UI navigation is not food knowledge or a nutritional decision.
   return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
@@ -339,7 +371,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       }
     }
     const operand = ts.isStringLiteral(node.left) ? node.right.getText(source) : node.left.getText(source);
-    const relevant = rule.id === "17" ? matches(rule.symbolPattern, operand)
+    const relevant = rule.id === "17"
+      ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
+        ts.isStringLiteral(node.left) ? node.right : node.left, node, source)
       : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
     if (relevant) {
       return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
@@ -369,34 +403,60 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
   } catch {
     throw new Error("Invalid production JSON source: " + file.path);
   }
+
+  // "name" plus "calories" is ambiguous: activity and exercise data use
+  // precisely that shape. Nutrition, food identity or a food-specific source
+  // must independently establish the domain before the static gate blocks.
+  const foodSource = /food|aliment|nutrition|nutrient|meal|ingredient|portion|serving|recipe/i.test(file.path);
+  const channelSource = /whatsapp|inbound|transcri|image|audio|ocr/i.test(file.path);
   let foodRows = 0;
-  function walk(value: unknown): void {
+  let lexicalRows = 0;
+  function walk(value: unknown, context: string): void {
     if (Array.isArray(value)) {
-      value.forEach(walk);
+      value.forEach(entry => walk(entry, context));
       return;
     }
     if (!value || typeof value !== "object") return;
     const item = value as Record<string, unknown>;
-    const named = ["name", "foodName", "food_name", "foodId", "food_id", "food",
-      "label", "slug", "productName", "alimento", "nome"].some(key =>
+    const entries = Object.entries(item);
+    // A governed food alias map can be a plain {"pao":"pão"} JSON object.
+    // Require food + lexical context from the path or enclosing JSON key;
+    // never infer that any ordinary string dictionary is a food lexicon.
+    if (entries.length > 0 &&
+        entries.every(([key, entry]) => key.trim().length > 0 &&
+          typeof entry === "string" && entry.trim().length > 0) &&
+        /alias|synonym|sinonim|lexicon|vocab|normaliz|replacement/i.test(context) &&
+        (/food|aliment|nutrition|ingredient|meal|portion|serving/i.test(context) || channelSource)) {
+      lexicalRows++;
+    }
+
+    const explicitIdentity = ["foodName", "food_name", "foodId", "food_id",
+      "food", "productName", "alimento", "ingredient", "ingredientId"].some(key =>
       typeof item[key] === "string" || typeof item[key] === "number");
-    const nutrient = ["calories", "kcal", "protein", "carbs", "fat", "gramsPerServing",
-      "portionGrams", "portion_grams", "servingGrams", "energyKcal"].some(key =>
-      typeof item[key] === "number");
-    const nested = ["nutrition", "nutrients", "macros"].some(key => {
+    const genericIdentity = ["name", "label", "slug", "nome"].some(key =>
+      typeof item[key] === "string" || typeof item[key] === "number");
+    const specificNutrition = ["kcal", "protein", "carbs", "fat", "fiber",
+      "gramsPerServing", "portionGrams", "portion_grams", "servingGrams",
+      "energyKcal"].some(key => typeof item[key] === "number");
+    const nestedNutrition = ["nutrition", "nutrients", "macros"].some(key => {
       const entry = item[key];
       return entry !== null && typeof entry === "object" && !Array.isArray(entry) &&
-        ["calories", "kcal", "protein", "carbs", "fat"].some(n => typeof (entry as Record<string, unknown>)[n] === "number");
+        ["calories", "kcal", "protein", "carbs", "fat"].some(n =>
+          typeof (entry as Record<string, unknown>)[n] === "number");
     });
-    const aliases = ["aliases", "synonyms", "synonimos", "lexicon", "portions",
-      "portionGrams", "servingGrams", "grams", "processingLevel",
+    const governedAttributes = ["aliases", "synonyms", "synonimos", "lexicon",
+      "portions", "portionGrams", "servingGrams", "grams", "processingLevel",
       "classification"].some(key =>
       Array.isArray(item[key]) || typeof item[key] === "string" || typeof item[key] === "number");
-    if (named && (nutrient || nested || aliases)) foodRows++;
-    Object.values(item).forEach(walk);
+    const genericCalories = typeof item.calories === "number";
+    if ((explicitIdentity || genericIdentity) &&
+        (specificNutrition || nestedNutrition || governedAttributes ||
+          (genericCalories && (explicitIdentity || foodSource)))) foodRows++;
+    for (const [key, child] of entries) walk(child, context + " " + key);
   }
-  walk(parsed);
-  if (!foodRows) return [];
+  walk(parsed, file.path);
+  if (!foodRows && !lexicalRows) return [];
+
   let hash = 2166136261;
   // FNV-1a over normalized JSON; whitespace-only changes preserve identity.
   for (const character of JSON.stringify(parsed)) {
@@ -404,11 +464,20 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
     hash = Math.imul(hash, 16777619);
   }
   const digest = (hash >>> 0).toString(16).padStart(8, "0");
-  return (["17", "5"] as const).map(ruleId => ({
-    ruleId, file: file.path, line: 1, symbol: "json-food-catalog",
-    fingerprint: ruleId + ":" + file.path + ":json-food-catalog:" + digest,
-    failureClass: ruleId === "17" ? "I" as const : "C" as const,
-    description: "Catálogo alimentar JSON em fonte produtiva (" + foodRows + " registros)",
+  const rules: Array<{ id: FoodWaveOneRuleId; failureClass: FoodFinding["failureClass"] }> =
+    foodRows ? [{ id: "17", failureClass: "I" }, { id: "5", failureClass: "C" }] :
+      [{ id: "17", failureClass: "A" }];
+  if (lexicalRows && channelSource && !rules.some(rule => rule.id === "11")) {
+    rules.push({ id: "11", failureClass: "A" });
+  }
+  return rules.map(rule => ({
+    ruleId: rule.id, file: file.path, line: 1,
+    symbol: foodRows ? "json-food-catalog" : "json-food-lexicon",
+    fingerprint: rule.id + ":" + file.path + ":" +
+      (foodRows ? "json-food-catalog:" : "json-food-lexicon:") + digest,
+    failureClass: rule.failureClass,
+    description: foodRows ? "Catálogo alimentar JSON em fonte produtiva (" + foodRows + " registros)" :
+      "Léxico alimentar JSON governável em fonte produtiva (" + lexicalRows + " mapas)",
   }));
 }
 
@@ -509,12 +578,60 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId));
 }
 
+type FoodOwnerFunction = "lexical-knowledge" | "attribute-materiality" |
+  "portion-knowledge" | "food-knowledge" | "food-resolution" |
+  "decision-roundtrip" | "nutrition-source-selection";
+
+function ownerFunction(finding: FoodFinding): FoodOwnerFunction {
+  if (finding.ruleId === "18") return "attribute-materiality";
+  if (finding.ruleId === "11") return "lexical-knowledge";
+  if (finding.ruleId === "3") return "decision-roundtrip";
+  if (finding.ruleId === "4") return "nutrition-source-selection";
+  if (["1", "2", "10"].includes(finding.ruleId)) return "food-resolution";
+  if (/alias|lexic|vocab|synonym|normaliz|replacement|token/i.test(finding.symbol)) {
+    return "lexical-knowledge";
+  }
+  if (/portion|por[cç]|serving/i.test(finding.symbol)) return "portion-knowledge";
+  return "food-knowledge";
+}
+
 export function findCompetingOwnerInventory(files: FoodArchitectureFile[]) {
-  return findFoodStaticCandidates(files).map(finding => ({
-    ...finding,
-    suspectedChannelOwner: /whatsapp|image|audio|ocr|vision|handler|router/i.test(finding.file),
-    status: "requires-review" as const,
-  }));
+  return findFoodStaticCandidates(files).map(finding => {
+    const channel = /whatsapp|image|audio|ocr|vision|handler|router/i.test(finding.file);
+    const layer = channel ? "channel" : finding.file.startsWith("client/")
+      ? "client" : finding.file.startsWith("shared/") ? "shared" : "server-domain";
+    return {
+      ...finding,
+      ownerFunction: ownerFunction(finding),
+      observedOwnerSurface: layer,
+      candidateOwner: finding.file + "#" + finding.symbol,
+      suspectedChannelOwner: channel,
+      // Candidate classification: an AST finding does not prove actual runtime
+      // ownership. Keep the human review status explicit.
+      status: "requires-review" as const,
+    };
+  });
+}
+
+export function groupCompetingFoodOwners(inventory: ReturnType<typeof findCompetingOwnerInventory>) {
+  const groups = new Map<FoodOwnerFunction, typeof inventory>();
+  for (const candidate of inventory) {
+    const group = groups.get(candidate.ownerFunction) ?? [];
+    group.push(candidate);
+    groups.set(candidate.ownerFunction, group);
+  }
+  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right))
+    .map(([decisionFunction, findings]) => {
+      const owners = [...new Set(findings.map(item => item.candidateOwner))].sort();
+      const surfaces = [...new Set(findings.map(item => item.observedOwnerSurface))].sort();
+      return {
+        decisionFunction, expectedBoundary: "canonical-food-domain",
+        observedSurfaces: surfaces, candidateOwners: owners,
+        candidateCount: owners.length,
+        crossSurfaceCandidates: surfaces.length > 1,
+        status: "requires-behavioral-review" as const,
+      };
+    });
 }
 
 /** The non-lexicon, non-materiality wave-one detectors. */

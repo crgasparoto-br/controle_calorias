@@ -116,3 +116,5 @@ Quando um plano for implementado:
 Antes de criar um novo `.md`, verifique se a informação cabe em uma documentação canônica existente. Prefira atualizar o documento de domínio em vez de criar revisão pontual, plano solto ou duplicação de checklist.
 
 Novas funcionalidades profissionais devem ser incorporadas a `product-specs/professionals.md` ou a design docs vinculados. Não criar documentos paralelos que misturem a evolução da Área Profissional com correções da Área do Paciente, infraestrutura compartilhada ou billing.
+
+A auditoria de owners da Issue #1300 em `pnpm food-architecture:report` publica também `ownerInventory.byDecisionFunction`: candidatos agrupados por função de domínio, superfície (`channel`, `client`, `shared`, `server-domain`) e ocorrência. Os grupos são heurísticos, reproduzíveis pelo `sourceSha`, e exigem revisão de comportamento antes de certificar owners concorrentes. Léxicos JSON produtivos são abrangidos; dados ambíguos de exercícios não são presumidos conhecimento alimentar somente por conter `name` e `calories`.

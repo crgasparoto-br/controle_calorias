@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { findFoodStaticCandidates, findCompetingOwnerInventory } from "./food-intelligence-architecture";
+import { findFoodStaticCandidates, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 import { findFoodBaselineDelta, readFoodFilesAtGitRef } from "./food-architecture-baseline";
@@ -126,6 +126,11 @@ const report = {
     heuristicCandidates: inventory.filter(item => item.review.classification === "heuristic-candidate").length,
   },
   inventory,
+  ownerInventory: {
+    sourceSha: sha(),
+    reviewPolicy: "AST owner candidates grouped by domain decision; competing responsibility requires runtime review",
+    byDecisionFunction: groupCompetingFoodOwners(provisionalInventory),
+  },
   triage: {
     sourceBaselineSha: pinned.baseSha,
     policy: "Review each candidate against source and runtime behavior before nominal debt approval; never auto-exempt.",

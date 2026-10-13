@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { findFoodStaticCandidates, isProductionFoodSource } from "./food-intelligence-architecture";
+import { findFoodStaticCandidates, isProductionFoodSource, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
 import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
@@ -518,5 +518,71 @@ describe("food intelligence architecture wave 1", () => {
     ]);
     expect(productive.filter(f => f.ruleId === "17").length).toBeGreaterThanOrEqual(2);
   });
+
+  it("A1300-07 blocks item.name food and portion branches without food-named variables", () => {
+    const samples = [
+      { path: "server/helpers.ts", content:
+        "function computeServing(item: {name: string}) { if (item.name === 'pão') return 50; return 80; }" },
+      { path: "server/rules.ts", content:
+        "function rule(item: FoodPortion) { return item['name'] === 'pão' ? 45 : 70; }" },
+      { path: "server/foodRules.ts", content:
+        "function match(item: {name: string}) { return item.name === 'pão'; }" },
+    ];
+    for (const sample of samples) {
+      const hits = findFoodStaticCandidates([sample]);
+      expect(hits.some(f => f.ruleId === "17" && f.symbol.includes("lexical-branch")), sample.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(hits, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function isAdmin(user: {name: string}) { return user.name === 'admin'; }",
+      "function show(item: {name: string}) { return item.name === 'premium'; }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/accounts.ts", content }])).toEqual([]);
+    }
+  });
+
+  it("A1300-08 blocks productive JSON food alias dictionaries without numeric macros", () => {
+    const examples = [
+      { path: "server/foodAliases.json", content: '{"pao":"pão"}' },
+      { path: "server/config.json", content: '{"foodAliases":{"pao":"pão"}}' },
+      { path: "server/modules/whatsapp/foodLexicon.json", content: '{"pao":"pão"}' },
+    ];
+    for (const sample of examples) {
+      const hits = findFoodStaticCandidates([sample]);
+      expect(hits.some(f => f.ruleId === "17"), sample.path).toBe(true);
+      expect(evaluateFoodArchitectureGate(hits, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/settings.json",
+      content: '{"status":{"pending":"aguardando","saved":"salvo"}}' }])).toEqual([]);
+  });
+
+  it("A1300-09 excludes ambiguous activity calories while preserving food catalogs", () => {
+    const exercise = [
+      { path: "server/exerciseCatalog.json", content: '[{"name":"caminhada","calories":120}]' },
+      { path: "server/activityLog.json", content: '[{"name":"corrida","calories":320}]' },
+    ];
+    for (const sample of exercise) expect(findFoodStaticCandidates([sample])).toEqual([]);
+    const food = findFoodStaticCandidates([{ path: "server/foodCatalog.json",
+      content: '[{"name":"pão","calories":120}]' }]);
+    expect(food.map(f => f.ruleId)).toEqual(["17", "5"]);
+  });
+
+  it("R1300-02 groups suspected decision owners by food-domain function and surface", () => {
+    const files = [
+      { path: "server/foodAliases.ts", content: "const FOOD_ALIASES = ['pao', 'pão'];" },
+      { path: "server/modules/whatsapp/foodNormalizer.ts",
+        content: "const FOOD_ALIASES = ['pao', 'pão'];" },
+      { path: "server/foodCatalog.ts", content: "const FOOD_CATALOG_REFERENCE = [{name:'pão', protein:2}];" },
+    ];
+    const inventory = findCompetingOwnerInventory(files);
+    const groups = groupCompetingFoodOwners(inventory);
+    const lexical = groups.find(group => group.decisionFunction === "lexical-knowledge");
+    expect(lexical?.candidateCount).toBe(2);
+    expect(lexical?.observedSurfaces).toEqual(["channel", "server-domain"]);
+    expect(lexical?.crossSurfaceCandidates).toBe(true);
+    expect(lexical?.status).toBe("requires-behavioral-review");
+    expect(inventory.every(f => f.candidateOwner.includes(f.file))).toBe(true);
+  });
+
 
 });
