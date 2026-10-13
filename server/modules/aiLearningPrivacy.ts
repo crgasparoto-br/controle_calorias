@@ -95,6 +95,10 @@ export function buildAiLearningPrivacyRecord(input: {
           ? "ephemeral"
           : "operational";
   const retentionDays = RETENTION_DAYS[retentionClass];
+  const expiresAt = addDays(input.createdAt, retentionDays);
+  if (!expiresAt) {
+    throw new Error("Data de criação inválida para retenção de aprendizado.");
+  }
 
   return {
     kind: input.kind,
@@ -107,7 +111,7 @@ export function buildAiLearningPrivacyRecord(input: {
     origin: input.origin,
     scope: input.scope ?? (globalPurpose ? "global" : "user"),
     anonymizationApplied: input.anonymizationApplied ?? [],
-    expiresAt: retentionClass === "global_aggregate" ? null : addDays(input.createdAt, retentionDays),
+    expiresAt,
     policyVersion: AI_LEARNING_PRIVACY_POLICY_VERSION,
   };
 }

@@ -1137,7 +1137,7 @@ Campos mínimos:
 - `payload_json` sanitizado;
 - `confidence`;
 - `captured_at`;
-- `retention_until` opcional;
+- `retention_until` obrigatório para evidência vinculada a usuário, de acordo com a política aprovada de §19.8.1;
 - timestamps.
 
 Mídia bruta deve permanecer no storage apropriado com política de retenção; esta tabela guarda referência e conteúdo mínimo necessário para auditoria.
@@ -2460,6 +2460,26 @@ Princípios:
 
 A matriz final de confiança por tipo de fonte, tempos de validade/revalidação e thresholds permanecem `OPEN` para calibração e decisão de produto.
 
+### 19.4.1. Inventário de uso, atribuição e redistribuição (#1303)
+
+Este inventário distingue **consulta**, **extração transitória para resolver uma refeição**, **importação persistente** e **redistribuição do catálogo global**. A disponibilidade pública de um dado ou a presença de `source_url` em `food_sources` não demonstra autorização para copiar, armazenar ou redistribuir. Estado `BLOQUEADO` significa não iniciar **nova** ingestão/promoção/redistribuição nesse recorte, sem afirmar que a implantação V1 já aplica esse bloqueio em runtime.
+
+| Fonte / identidade observada ou prevista | Proveniência e evidência verificável | Uso/atribuição permitidos nesta decisão | Estado para nova publicação global |
+| --- | --- | --- | --- |
+| `curadoria-br-inicial` (seed `common_brazil_foods.seed.json`) | Dados internos aproximados, vinculados à #152; origem dos números ainda requer revisão individual | Uso como estimativa **provisória**, rotulada; não atribuir a TACO/TBCA sem prova nem declarar valores verificados | **BLOQUEADO** até revisão do conteúdo e da origem |
+| `marcas_oficiais_br` (seed `alimentos_industrializados_brasil.json`) | Fonte coletiva "sites oficiais" com URL genérica; mistura marcas e produtos sem evidência individual | Consulta/avaliação apenas; o endereço genérico e o rótulo de fabricante não provam licença de redistribuição | **BLOQUEADO** até URL, edição de rótulo, titular e permissão por item |
+| `taco` — TACO, NEPA/UNICAMP, 4ª edição, 2011 | [Obra oficial, folha de direitos](https://nepa.unicamp.br/wp-content/uploads/sites/27/2023/10/taco_4_edicao_ampliada_e_revisada.pdf): autoriza reprodução com citação da fonte | Reprodução **da edição comprovada** com crédito "Tabela Brasileira de Composição de Alimentos — TACO, NEPA/UNICAMP, 4ª ed., 2011", link e edição; CSV de procedência diversa requer verificação própria | **CONDICIONADO** à proveniência do CSV, atribuição e revisão dos registros; não libera variantes comerciais por similaridade |
+| `tbca` — TBCA/USP | [Portal oficial TBCA](https://www.tbca.net.br/index.html) consultável; não foi verificada licença geral explícita de redistribuição para a carga pretendida | Consulta referencial sem presumir direito de cópia em massa; exigir autorização/termos oficiais versionados antes da carga | **BLOQUEADO** por ausência de autorização de redistribuição documentada |
+| `open_food_facts` (adapter somente por barcode) | [Licenças oficiais](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/license-be-on-the-legal-side/): banco ODbL, conteúdos DbCL, imagens CC BY-SA e eventuais direitos adicionais | Candidato de consulta opt-in, cache em memória de 10 min, sem importação de imagens; creditar Open Food Facts + ODbL e cumprir termos; base derivada pode exigir compartilhamento nas condições ODbL | **BLOQUEADO** para mistura/publicação no catálogo global até avaliação de derivação, segregação, obrigações ODbL e atribuição |
+| Fabricante, site oficial, embalagem e rótulo enviados pelo usuário (`manufacturer`, `nutrition_label`) | URL exata, marca, variante, data/versão do rótulo e titular **por produto**; foto do usuário não transfere direitos de terceiros | Extrair fatos minimizados para a refeição autorizada e revisão restrita; não republicar foto, layout, texto integral ou base derivada sem autorização | **BLOQUEADO** por produto enquanto faltar prova de direitos e origem |
+| Loja, agregador, pesquisa web e conteúdo retornado por IA (`external_source`) | URL, titular, termos, data e evidência da afirmação numérica; IA não é titular nem fonte independente | Consulta transitória/candidato provisório; link não concede licença de reutilização e resumo gerado não substitui fonte primária | **BLOQUEADO** para carga global sem autorização da fonte primária |
+| Correção do usuário, alias pessoal e OCR/imagem da refeição (`user_correction`, `ocr`, `image`) | Evidência e finalidade vinculadas à conta; origem pessoal e conteúdo sensível | Uso pessoal sob isolamento da conta, retenção e exclusão de §19.8; sem redistribuição de texto/imagem bruta | **BLOQUEADO** até desidentificação comprovada, prova nutricional independente e licença própria |
+
+Para **cada** versão inserida em `food_sources` ou candidato de `food_variant_sources`, o gate de governança precisa registrar: `slug`, edição/hash, titular, URL primária acessível, data de consulta, texto/identificador da licença e sua versão, autorizações explícitas de consulta/cópia/armazenamento/redistribuição/uso de imagem, crédito exato e superfície onde aparecerá, responsável/aprovação, restrições de derivação e condição de revogação. `source_reference = admin-upload` ou URL de várias marcas **não** satisfaz esse gate. Registrar metadados de licença não significa autorização automática de importação: revisão de identidade/nutrição e demais gates continuam independentes.
+
+**Desvio confirmado:** `food_sources` V1 preserva procedência/hash e `food_source_imports` guarda tentativas, mas o importador CSV V1 não possui prova de licença por fonte/produto nem bloqueio automático de redistribuição. Até existir verificação de licença e enforcement no fluxo de publicação, novas cargas destinadas ao catálogo compartilhado exigem bloqueio operacional; não alegar que `previewFoods` é aprovação jurídica. Revisar dados já publicados por origem sem apagar snapshots históricos de refeições. A migração de metadados/guard de publicação pertence à implementação específica de ingestão, fora da #1303.
+
+
 ## 19.5. Concorrência, deduplicação e idempotência
 
 O resolvedor e a governança devem ser seguros em múltiplas instâncias e sob retries.
@@ -2548,7 +2568,36 @@ Regras obrigatórias:
 - promoção para conhecimento global deve remover dependência de dado pessoal identificável sempre que possível;
 - qualquer novo compartilhamento com provider externo continua dependendo das políticas por capacidade já documentadas.
 
-Os períodos exatos de retenção de evidência visual/OCR e a política de anonimização para candidatos promovidos permanecem `OPEN` antes da implementação correspondente.
+Os períodos exatos de retenção de evidência visual/OCR e a política de anonimização para candidatos promovidos permanecem `OPEN — BLOQUEADO` até a aprovação da matriz técnica de §19.8.1 e da anonimização de §19.8.2, seguida de testes do fluxo real de expurgo/exclusão. Não confundir proposta documentada com decisão aprovada.
+
+### 19.8.1. Matriz proposta por tipo de evidência (#1303)
+
+Os períodos abaixo são **limites técnicos propostos para o V2, não uma autorização legal de coleta nem uma configuração já executada**. O responsável de Privacidade/LGPD deve aprovar finalidade, prazo e base aplicável antes de qualquer nova persistência V2. Se a aprovação, o job de exclusão, o vínculo por titular ou o direito de uso da fonte faltar, **não persistir** a nova evidência: processar transitoriamente ou pedir revisão. O prazo é contado da captura, salvo indicação explícita. Qualquer manutenção excepcional exige obrigação/ordem documentada, acesso restrito e prazo de revisão próprio; `null` não significa guarda ilimitada.
+
+| Evidência (`food_evidence.evidence_type` ou artefato) | Finalidade e conteúdo mínimo | Prazo máximo proposto | Exclusão e titularidade |
+| --- | --- | --- | --- |
+| `image`: foto/mídia original | Interpretação imediata da refeição/rótulo; somente storage privado por chave opaca, **nunca** blob no banco | Não guardar por padrão; quando necessário e aprovado, **7 dias** | Apagar por chave no término da necessidade, expiração ou exclusão da conta, o que ocorrer primeiro; cópias derivadas seguem mesma ordem |
+| `ocr`: texto integral extraído | Extração transitória de campos de rótulo | Não guardar por padrão; exceção autorizada **7 dias** | Apagar texto integral e referências pessoais; não anexar o OCR cru ao caso global |
+| `nutrition_label`: fatos nutricionais estruturados e sanitizados | Conferência de porção, variante e macros com referência opaca | **180 dias** em triagem; até **365 dias** somente para trilha de decisão autorizada | Remover conteúdo vinculado ao usuário em exclusão; publicação global só via projeção desidentificada |
+| `barcode` | Identidade comercial observada, sem foto ou ID de pessoa | **365 dias** para a evidência transacional; versão publicada mantém referência de fonte licenciada, não prova pessoal | Excluir associação à conta; reter apenas barcode/provenção lícitos e não pessoais aprovados no catálogo |
+| `manufacturer`, `official_source`, `external_source` | URL primária validada, data/edição, código e fatos mínimos | **365 dias** para a cópia da evidência; `food_sources` pode manter referência pública não pessoal enquanto a fonte estiver ativa e autorizada | Revogar/remover cópia em perda de licença; remover vínculos pessoais; não usar a expiração como permissão de publicação |
+| `user_correction` | Correção explícita individual para triagem/alias pessoal | **180 dias** para evidência de triagem; memória pessoal distinta fica sujeita à finalidade e exclusão do titular | Desvincular/apagar na revogação ou exclusão; não promover fala pessoal bruta |
+| `food_resolution_events` | Métricas/diagnóstico técnico sanitizado, versão, status e motivo | **30 dias** (`expires_at` obrigatório) | Excluir por prazo ou titular; não registrar texto, imagem, prompt, URL assinada nem ID de mídia |
+| `food_review_cases`/`food_review_events` | Decisão administrativa, alvo/versão/hash e autoria interna; payload sanitizado | **365 dias** por evento/encerramento do ciclo, com exceção formal de obrigação de retenção | Apagar ou desassociar conteúdo pessoal na exclusão; eventos append-only enquanto vigentes, expurgados ao término conforme trilha autorizada |
+| Agregados globais não identificáveis de aprendizado | Estatística/decisão agregada, sem vínculo reversível com titular | **730 dias**, com expiração explícita | Eliminar no vencimento; não mascarar correlação pessoal por hash ou ID pseudônimo |
+
+Diferenciar estes limites **propostos para novos artefatos V2** do histórico já existente em `mealMedia`, `mealInferences`, WhatsApp e aprendizado #432: a nova tabela não duplica dados nem altera retroativamente seus prazos. A coexistência exige inventário dos registros antigos e ajuste do fluxo de exclusão antes de ativar novos stores. Para `food_evidence` vinculada ao usuário, `retention_until` deve ser preenchido; para `food_resolution_events`, `expires_at` deve ser preenchido. Dado com relógio inválido, expiração ausente ou retenção não autorizada é rejeitado, não convertido em `null`. Um job versionado, idempotente e observável deverá apagar linhas e objetos vencidos e testar tanto sucesso quanto falha/retry; **esse job ainda não existe para as tabelas V2**.
+
+### 19.8.2. Anonimização, exclusão e promoção global
+
+A promoção somente pode criar um **novo registro global de fatos estruturados** após: (1) direitos/licença da fonte comprovados (§19.4.1), (2) evidência nutricional independente suficiente, (3) política de governança dos itens 3/4/15 de §25 e (4) prova de minimização. É proibido promover cópia de foto, OCR/transcrição integral, texto da conversa, `user_id`, `trace_id`, ID de WhatsApp, chave/URL de mídia, telefone, nome, endereço, timestamp granular identificável, hash reversível ou campo livre com identificador. Vínculos privados, ids pessoais ou referência opaca correlacionável **não** devem ser retidos na projeção global; `source_id` global só pode apontar para fonte pública lícita, não para upload de uma pessoa. Trocar `user_id` por hash não é anonimização.
+
+Um registro não deve ser promovido se a origem sanitizada não sustenta revalidação independente sem reabrir a evidência pessoal, se não for possível desvinculá-lo do titular ou se a licença puder ser violada. A negação deve permanecer explícita na governança; confirmação do usuário isolada não autoriza publicação. Reversão de licença/supersessão implica retirar a publicação afetada sem regravar refeições históricas.
+
+Exportação e exclusão do titular devem abranger evidências, correções, `user_food_aliases`, eventos de resolução, pendências pessoais e objetos externos por chave, inclusive durante revisão/retry. Após desvinculação, pode sobreviver **somente** conhecimento global efetivamente não pessoal e publicado com base/atribuição independentes; caso contrário, revogar/despublicar. Backups e cópias externas precisam de política operacional própria, não de omissão silenciosa.
+
+**Gate de liberação dos itens 9 e 21:** antes da implementação que retém ou publica dados reais, exigir aceite versionado e nominal de Privacidade/governança das durações, fundamento e testes de limpeza/exportação/exclusão; autorização verificada **por fonte, edição e uso**, inclusive tratamento de ODbL/derivados, imagem e crédito exibido; e evidência de que a publicação bloqueia ausência de licença, TTL e anonimização. Sem essas provas, itens 9 e 21 ficam `OPEN — BLOQUEADO`, mesmo com esta política escrita.
+
 
 ## 19.9. Critério de rollout, canário e rollback
 
@@ -2798,7 +2847,7 @@ Este registro preserva os números das decisões para rastreabilidade. **Itens 1
 6. **DECIDIDO — 2026-10-05:** política operacional da fila de §14.2–§14.5: dois fatores de alcance, composição exclusiva, ordenação/desempates, tratamento de zero e dado indisponível, metas de prazo, capacidade/excedente, responsabilidade nominal e contenção separada. Restam implementação, validação empírica de 28/29 e configuração operacional antes da ativação;
 7. calibração numérica dos limiares de cada eixo da política de estimativa provisória por família, cuja estrutura está definida na seção 10.1;
 8. **PARCIALMENTE DECIDIDO:** estratégia e fronteiras em §9.5; permanecem `OPEN` a escolha comparada do algoritmo textual, limites de candidatos, thresholds/margens e evidência de calibração pelo protocolo de §16.2 antes do uso decisório;
-9. períodos exatos de retenção de evidências visuais/OCR e política de anonimização na promoção global;
+9. **OPEN — BLOQUEADO (#1303):** matriz técnica de prazos/finalidades em §19.8.1 e regra de anonimização/exclusão em §19.8.2 propostas; falta aceite formal de Privacidade/LGPD, enforcement da expiração em storage/banco, teste de deleção/exportação e comprovação da projeção global sem vínculo identificável;
 10. SLOs de latência, timeout, número máximo de chamadas e orçamento econômico por resolução/capacidade;
 11. percentuais, janelas, amostragem, cobertura verificada e limites operacionais de divergência/pareamento para avanço ou rollback do canário, além da latência máxima de atualização da telemetria e responsáveis pela execução; são bloqueantes antes da ativação produtiva (§1.3), sem reabrir os critérios mínimos de §1.1;
 12. **DECIDIDO — 2026-10-05:** compatibilidade e migração de `semanticContract` em §21.1: adapters explícitos, histórico imutável, pendências versionadas e rollout sem troca de resolvedor no meio da operação;
@@ -2811,7 +2860,7 @@ Este registro preserva os números das decisões para rastreabilidade. **Itens 1
 18. **DECIDIDO — 2026-10-05:** LCL extrai pistas/spans; somente parser canônico produz `MealOperation`, sem execução pela LCL ou reinterpretação por canal (§7.1.1);
 19. regra numérica da escada de §9.2 por categoria, especialmente quando a estimativa provisória é permitida;
 20. atualização e verificação final repository-wide do inventário de consumidores downstream de `foodCatalog`, `portions`, favoritos duplicados e macros de identidade antes do cutover; o inventário inicial já existe em §8.14.4;
-21. licenciamento, atribuição e permissão de redistribuição por fonte em `food_sources`.
+21. **OPEN — BLOQUEADO POR FONTE (#1303):** inventário, atribuição e restrições de §19.4.1 documentados; faltam prova de permissão/versão de TBCA, rótulos por fabricante/produto, avaliação ODbL/derivados do Open Food Facts, revisão do seed interno e bloqueio verificável de novas cargas globais sem licença. TACO admite reprodução da obra citada, não autoriza qualquer CSV sem proveniência.
 
 22. tolerância numérica de divergência de perfis por 100 g para derivar materialidade nutricional de um atributo, e tratamento de famílias com poucas variantes para derivar materialidade de identidade.
 
