@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup" | "numeric-map";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -27,6 +27,18 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     failureClass: "I", kind: "collection",
     symbolPattern: "food|alimento|brand|marca|variant|nutrition|nutrient|macro|portion|porcao|porção|classification|processingLevel|alias|synonym|lexicon|vocab|ingredient|catalog|serving",
     description: "Coleção literal de conhecimento alimentar em produção",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "C", kind: "numeric-map",
+    symbolPattern: "food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog",
+    description: "Mapa numerico de porcao ou nutricao indexado por identidade alimentar",
+  },
+  {
+    id: "5", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "C", kind: "numeric-map",
+    symbolPattern: "food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog",
+    description: "Tabela numerica de porcoes ou macros codificada no dominio alimentar",
   },
   {
     id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",

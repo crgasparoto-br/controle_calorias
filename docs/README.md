@@ -132,3 +132,12 @@ dicionários lexicais anônimos e imports indiretos de resolvedores alternativos
 Listas de filtro exclusivamente visuais em componentes JSX/TSX não são regras alimentares;
 se usadas para decidir domínio, seguem bloqueantes. A análise de owners concorrentes
 continua conservadora: o relatório diferencia candidatos estáticos de provas de comportamento.
+
+
+**Correções A1300-19/20:** mapas numéricos de porção com identificador genérico
+(indexados por identidade alimentar) e constantes de gramas fixas dentro de
+resolução alimentar são verificados com controles negativos para status,
+exercício e conversões de unidade. A saída `ownerInventory.pendingBehavioralReviews`
+enumera individualmente os candidatos legados por fingerprint/linha/SHA-base;
+esses candidatos exigem evidência discriminante antes de qualquer certificação
+de owner ou inclusão no livro de dívida. Nenhuma pendência é aprovada por omissão.

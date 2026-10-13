@@ -826,4 +826,61 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([uiDecision]).some(f => f.ruleId === "17")).toBe(true);
   });
 
+  it("A1300-19 blocks unnamed numeric food portion maps by consumption without flagging status tables", () => {
+    const positive = [
+      { path: "server/portionRules.ts",
+        content: "function resolvePortion(foodName: string) { const table = { pao: 50, arroz: 90 }; return table[foodName] ?? 0; }" },
+      { path: "server/foodCatalog.ts",
+        content: "function resolveFood(item: { name: string }) { const mapping = { pao: 50 }; return mapping[item.name]; }" },
+      { path: "server/portionRules.ts",
+        content: "function resolvePortion(foodName: string) { return ({ pao: 50, arroz: 90 })[foodName]; }" },
+    ];
+    for (const input of positive) {
+      const findings = findFoodStaticCandidates([input]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("numeric-food-map")), input.content).toBe(true);
+      expect(findings.some(f => f.ruleId === "5" && f.symbol.includes("numeric-food-map")), input.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negatives = [
+      { path: "server/foodRules.ts",
+        content: "function applyStatus(status: string) { const table = { active: 1, disabled: 0 }; return table[status]; }" },
+      { path: "server/account.ts",
+        content: "function resolveRole(name: string) { const table = { admin: 1, member: 2 }; return table[name]; }" },
+      { path: "server/exerciseService.ts",
+        content: "function recordExercise(foodName: string) { const table = { walking: 120 }; return table[foodName]; }" },
+    ];
+    for (const input of negatives) {
+      expect(findFoodStaticCandidates([input]).filter(f =>
+        f.symbol.includes("numeric-food-map")), input.content).toEqual([]);
+    }
+  });
+
+  it("A1300-20 blocks literal default grams inside food resolution but not unit conversion constants", () => {
+    const positive = [
+      { path: "server/quantityUtils.ts",
+        content: "function resolveFood(foodName: string) { const defaultGrams = 50; return defaultGrams; }" },
+      { path: "server/foodItemResolution.ts",
+        content: "function resolvePortion(foodName: string) { const servingGrams = 35; return servingGrams; }" },
+      { path: "server/portionRules.ts",
+        content: "function resolvePortion(foodName: string) { const grams = 30; return grams; }" },
+    ];
+    for (const input of positive) {
+      const findings = findFoodStaticCandidates([input]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("Grams") ||
+        f.ruleId === "17" && f.symbol === "grams"), input.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negatives = [
+      { path: "server/exerciseService.ts",
+        content: "function calculateExercise() { const defaultGrams = 50; return defaultGrams; }" },
+      { path: "server/foodItemResolution.ts",
+        content: "function resolveFood() { const gramsPerKilogram = 1000; return gramsPerKilogram; }" },
+    ];
+    for (const input of negatives) {
+      expect(findFoodStaticCandidates([input]).filter(f =>
+        f.ruleId === "17" && f.symbol === "defaultGrams" ||
+        f.ruleId === "17" && f.symbol === "gramsPerKilogram"), input.content).toEqual([]);
+    }
+  });
+
 });

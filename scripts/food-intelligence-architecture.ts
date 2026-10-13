@@ -119,6 +119,69 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     isAnonymousFoodNutrition(node, fields, enclosingDeclaration, unwrap);
 }
 
+/** Domain-driven numeric maps need evidence of food identity, not food words
+ * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
+function isLiteralNumericMap(value: ts.Expression): boolean {
+  const object = unwrap(value);
+  return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
+    object.properties.every(property => {
+      if (!ts.isPropertyAssignment(property)) return false;
+      if (!ts.isIdentifier(property.name) &&
+          !ts.isStringLiteral(property.name) &&
+          !ts.isNumericLiteral(property.name)) return false;
+      const numeric = unwrap(property.initializer);
+      return ts.isNumericLiteral(numeric) ||
+        (ts.isPrefixUnaryExpression(numeric) &&
+          ts.isNumericLiteral(numeric.operand));
+    });
+}
+
+function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.SourceFile): boolean {
+  const name = index.getText(source);
+  const domain = source.fileName + " " + enclosingDeclaration(node);
+  if (!/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain) ||
+      /exercise|activity|workout|fitness|burnedcalories/i.test(domain)) return false;
+  return /food|aliment|ingredient|product|portion|porc|serving|recipe|receita/i.test(name) ||
+    /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
+}
+
+function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
+  if (!node.initializer || !ts.isIdentifier(node.name) ||
+      !isLiteralNumericMap(node.initializer)) return false;
+  const symbol = node.name.text;
+  const context = source.fileName + " " + enclosingDeclaration(node);
+  if (/exercise|activity|workout|fitness|burnedcalories/i.test(context)) return false;
+  if (/food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog/i.test(symbol) &&
+      /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving/i.test(context)) {
+    return true;
+  }
+  // A generic "table" becomes food knowledge when indexed by a food identity.
+  // Search the enclosing function/block; declarations at module scope use the
+  // module as their consumer scope.
+  let scope: ts.Node = source;
+  for (let parent = node.parent; parent && !ts.isSourceFile(parent); parent = parent.parent) {
+    if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent) ||
+        ts.isArrowFunction(parent) || ts.isFunctionExpression(parent)) {
+      scope = parent;
+      break;
+    }
+  }
+  let consumed = false;
+  const visit = (candidate: ts.Node): void => {
+    if (consumed) return;
+    if (ts.isElementAccessExpression(candidate) &&
+        ts.isIdentifier(candidate.expression) && candidate.expression.text === symbol &&
+        candidate.argumentExpression &&
+        foodIndexContext(candidate.argumentExpression, candidate, source)) {
+      consumed = true;
+      return;
+    }
+    ts.forEachChild(candidate, visit);
+  };
+  visit(scope);
+  return consumed;
+}
+
 function enclosingDeclaration(node: ts.Node): string {
   for (let parent = node.parent; parent; parent = parent.parent) {
     if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
@@ -299,6 +362,18 @@ function failureClass(rule: FoodWaveOneRule, symbol: string): FoodFinding["failu
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
+  if (rule.kind === "numeric-map") {
+    if (ts.isVariableDeclaration(node) && isFoodNumericMapUse(node, source)) {
+      return { symbol: node.name.getText(source) + ":numeric-food-map",
+        subject: node.initializer!.getText(source) };
+    }
+    // Avoid evasion by returning an indexed inline numeric object directly.
+    if (ts.isElementAccessExpression(node) && node.argumentExpression &&
+        isLiteralNumericMap(node.expression) &&
+        foodIndexContext(node.argumentExpression, node, source)) {
+      return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
+    }
+  }
   if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
     node.initializer && isLiteralCollection(node.initializer)) {
     const symbol = node.name.getText(source);
@@ -326,7 +401,15 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const value = unwrap(node.initializer);
     const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
     if (isStaticText(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName)) return null;
-    if (matches(rule.symbolPattern, symbol) &&
+    const numericLiteral = ts.isNumericLiteral(value) ||
+      (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand));
+    const scalarDomain = source.fileName + " " + enclosingDeclaration(node);
+    const domainNumericFoodValue = rule.id === "17" && numericFoodField &&
+      numericLiteral &&
+      /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(scalarDomain) &&
+      !/exercise|activity|workout|fitness|burnedcalories/i.test(scalarDomain) &&
+      !/^(?:grams?Per(?:Kg|Kilogram|Ounce|Pound)|milligrams?PerGram|unitConversion|conversionFactor)/i.test(symbol);
+    if ((matches(rule.symbolPattern, symbol) || domainNumericFoodValue) &&
         (isStaticText(value) || (numericFoodField &&
           (ts.isNumericLiteral(value) ||
             (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)))))) {

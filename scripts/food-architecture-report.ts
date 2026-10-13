@@ -156,7 +156,16 @@ const report = {
     reviewPolicy: "AST owner candidates grouped by domain decision; competing responsibility requires runtime review",
     byDecisionFunction: groupCompetingFoodOwners(provisionalInventory),
     reviewedLegacyResponsibilities: reviewedOwnerResponsibilities,
+    // Each unapproved legacy candidate stays individually traceable by SHA.
+    // This is a review queue, not a certified inventory of competing runtime owners.
+    pendingBehavioralReviews: triageQueue.map(item => ({
+      sourceBaselineSha: pinned.baseSha,
+      fingerprint: item.fingerprint, failureClass: item.failureClass,
+      file: item.file, line: item.line, ruleId: item.ruleId,
+      status: "requires-behavioral-review" as const,
+    })),
     reviewTotals: {
+      pendingBehavioralReviews: triageQueue.length,
       sourceReviewed: reviewedOwnerResponsibilities.length,
       decisionOwnerCandidates: reviewedOwnerResponsibilities.filter(item =>
         item.disposition.endsWith("-decision-owner")).length,
