@@ -4,7 +4,9 @@ import { execFileSync } from "node:child_process";
 import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
-import { assessFoodDebt, assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
+import { readFoodFilesAtGitRef } from "./food-architecture-baseline";
+import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
+import { assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const root = process.cwd();
@@ -134,27 +136,59 @@ for (const violation of findTimeZoneArchitectureViolations(timeZoneArchitectureF
 
 
 /**
- * ADR Food Intelligence V2 §19: report wave-one candidates without silently
- * promoting OPEN scope decisions (§25 items 25 and 26) to a blocking gate.
- * Ledger violations are independently blocking (expired, orphaned, malformed).
+ * ADR §25 item 25 (DECIDIDO): freeze the legacy baseline and FAIL additions.
+ * It is never acceptable to add a new finding to architecture-debt.json as
+ * part of the same change to bypass the gate.
  */
-const foodArchitectureFiles = walk("server")
+const foodArchitectureFiles = ["server", "shared", "client/src"]
+  .flatMap(dir => walk(dir))
   .filter(file => /\.[cm]?tsx?$/.test(file))
   .map(file => ({ path: file, content: read(file) }));
 const foodFindings = findFoodStaticCandidates(foodArchitectureFiles);
 const debtPath = "architecture-debt.json";
-if (!existsSync(path.join(root, debtPath))) {
-  fail("Food architecture debt ledger missing: " + debtPath);
+const inventoryPath = "docs/design-docs/food-architecture-owners-1300.json";
+if (!existsSync(path.join(root, debtPath)) || !existsSync(path.join(root, inventoryPath))) {
+  fail("Food architecture debt book or pinned owners inventory missing");
 } else {
   try {
     const ledger: unknown = JSON.parse(read(debtPath));
+    const inventory: unknown = JSON.parse(read(inventoryPath));
     if (!ledger || typeof ledger !== "object" || !("entries" in ledger) ||
         !Array.isArray((ledger as { entries: unknown }).entries)) {
       fail("Invalid food architecture debt ledger: entries array required");
+    } else if (!inventory || typeof inventory !== "object" || !("baseSha" in inventory) ||
+        !/^[0-9a-f]{40}$/.test(String((inventory as { baseSha: unknown }).baseSha))) {
+      fail("Invalid food architecture baseline SHA");
     } else {
-      const result = assessFoodDebt(foodFindings, (ledger as { entries: FoodDebt[] }).entries, new Date());
-      const baseRef = process.env.GITHUB_BASE_REF || (process.env.GITHUB_REF_NAME === "main" ? "main" : "develop");
-      if (/^[a-zA-Z0-9._/-]+$/.test(baseRef)) {
+      const entries = (ledger as { entries: FoodDebt[] }).entries;
+      const baseSha = (inventory as { baseSha: string }).baseSha;
+      // The SHA authorized before implementation #1300 cannot drift merely by
+      // changing the inventory; future rebaselines require a reviewed migration.
+      if (baseSha !== "0040adffc989d0b4d47e7cdc640ab9878e82c993") {
+        fail("Unapproved food architecture baseline SHA change: " + baseSha);
+      }
+      try {
+        const baseline = findFoodStaticCandidates(readFoodFilesAtGitRef(baseSha, root));
+        const result = evaluateFoodArchitectureGate(foodFindings, baseline, entries, new Date());
+        for (const error of result.errors) fail("Food architecture: " + error);
+        for (const warning of result.assessment.warnings) console.warn("[food-architecture] " + warning);
+        console.log("[food-architecture] wave 1 enforced: " +
+          new Set(FOOD_WAVE_ONE_RULES.map(rule => rule.id)).size + " gates; current=" + foodFindings.length +
+          " legacy=" + result.delta.retained.length + " added=" + result.delta.added.length +
+          " removed=" + result.delta.removed.length +
+          " legacy awaiting review=" + result.legacyUncovered.length +
+          " source baseline=" + baseSha);
+        if (result.legacyUncovered.length) {
+          console.warn("[food-architecture] pre-existing candidates require owner/debt triage; no auto-approval");
+        }
+      } catch (error) {
+        fail("Cannot verify food architecture baseline: " + String(error));
+      }
+      const baseRef = process.env.GITHUB_BASE_REF ||
+        (process.env.GITHUB_REF_NAME === "main" ? "main" : "develop");
+      if (!/^[a-zA-Z0-9._/-]+$/.test(baseRef)) {
+        fail("Invalid base ref for debt immutability comparison");
+      } else {
         try {
           execFileSync("git", ["rev-parse", "--verify", "origin/" + baseRef], { stdio: "ignore" });
           let previous: { entries: FoodDebt[] } = { entries: [] };
@@ -163,31 +197,18 @@ if (!existsSync(path.join(root, debtPath))) {
               encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
             }));
           } catch {
-            // No architecture debt book in the baseline: introducing a book is allowed.
+            // Initial baseline may legitimately predate architecture-debt.json.
           }
           if (!Array.isArray(previous.entries)) fail("Invalid baseline architecture debt book");
-          else for (const renewal of assessFoodDebtRenewal(previous.entries, (ledger as { entries: FoodDebt[] }).entries)) {
-            fail("Food architecture debt: " + renewal);
-          }
+          else for (const error of assessFoodDebtRenewal(previous.entries, entries)) fail("Food architecture debt: " + error);
         } catch {
-          if (process.env.GITHUB_ACTIONS === "true") fail("Cannot verify architecture debt renewal against origin/" + baseRef);
-          else console.warn("[food-architecture] base unavailable; debt immutability comparison not run");
+          if (process.env.GITHUB_ACTIONS === "true") fail("Cannot compare debt renewals with origin/" + baseRef);
+          else console.warn("[food-architecture] debt immutability comparison needs fetched origin/" + baseRef);
         }
-      } else {
-        fail("Invalid base ref for food architecture debt comparison");
       }
-      for (const error of result.errors.filter(item => !item.startsWith("Uncovered architecture violation: "))) {
-        fail("Food architecture debt: " + error);
-      }
-      for (const warning of result.warnings) console.warn("[food-architecture] " + warning);
-      console.log(
-        "[food-architecture] wave-one preview: " + new Set(FOOD_WAVE_ONE_RULES.map(rule => rule.id)).size +
-        " rules, " + foodFindings.length + " findings, " + result.uncovered.length +
-        " uncovered; blocking promotion awaits ADR §25 items 25/26",
-      );
     }
   } catch (error) {
-    fail("Food architecture ledger unreadable: " + String(error));
+    fail("Food architecture configuration unreadable: " + String(error));
   }
 }
 
