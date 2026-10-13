@@ -1,7 +1,7 @@
 /**
  * Static, AST-backed Food Intelligence V2 architecture discovery (ADR §19).
  * Do not confuse a candidate with a proven behavioral violation: the wave-one
- * registry remains preview until ADR §25 item 25 defines the final scope.
+ * registry blocks NEW findings after item 25 approval; existing legacy stays visible.
  */
 import ts from "typescript";
 import path from "node:path";
@@ -22,7 +22,7 @@ export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
   return (p.startsWith("server/") || p.startsWith("shared/") || p.startsWith("client/src/")) &&
     /\.[cm]?tsx?$/.test(p) &&
-    !/\.d\.ts$|\.(?:test|spec)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
+    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
 }
 
 function matches(pattern: string | undefined, value: string): boolean {
