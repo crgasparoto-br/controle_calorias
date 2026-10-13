@@ -698,4 +698,24 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+
+  it("R1300-03 records source-backed responsibilities without falsely certifying runtime owner equivalence", () => {
+    const pinned = JSON.parse(readFileSync("docs/design-docs/food-architecture-owners-1300.json", "utf8"));
+    expect(pinned.observations).toHaveLength(8);
+    const dispositions = new Set<string>();
+    for (const item of pinned.observations) {
+      const review = item.behavioralReview;
+      expect(review?.sourceAnchor, item.symbol).toBeTruthy();
+      expect(readFileSync(item.file, "utf8").includes(review.sourceAnchor), item.file).toBe(true);
+      expect(review.verification).toBe("source-anchor-in-frozen-develop");
+      expect(review.runtimeEvidence).toBe("not-executed");
+      expect(review.observedDecision.length).toBeGreaterThan(25);
+      dispositions.add(review.disposition);
+    }
+    expect(dispositions.has("domain-decision-owner")).toBe(true);
+    expect(dispositions.has("channel-decision-owner")).toBe(true);
+    expect(dispositions.has("data-source")).toBe(true);
+    expect(dispositions.has("grammar-only")).toBe(true);
+  });
+
 });
