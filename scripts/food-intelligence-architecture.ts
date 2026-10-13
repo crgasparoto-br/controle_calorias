@@ -163,8 +163,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     node.initializer && isLiteralCollection(node.initializer)) {
     const symbol = node.name.getText(source);
     const mappedLexicon = rule.id === "11" && isLexicalMap(node.initializer) &&
+      // The path alone does not make an ordinary UI/status dictionary a food lexicon.
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
-        symbol + " " + enclosingDeclaration(node) + " " + source.fileName);
+        symbol + " " + enclosingDeclaration(node));
     if ((matches(rule.symbolPattern, symbol) || mappedLexicon ||
         (rule.contentPattern && matches(rule.contentPattern, node.initializer.getText(source)))) &&
         matches(rule.evidencePattern, symbol)) {
