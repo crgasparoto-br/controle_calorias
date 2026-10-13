@@ -478,6 +478,27 @@ describe("food intelligence architecture wave 1", () => {
       content: "const progress = [{ name: user.name, calories: 100 }];" }])).toEqual([]);
   });
 
+  it("A1300-04 detects alias, portion and classification JSON without numeric macros", () => {
+    const documents = [
+      [{ name: "pão", aliases: ["bread", "pao"] }],
+      [{ food: "pão", grams: 25 }],
+      [{ name: "biscoito", processingLevel: "ultra-processed" }],
+      [{ name: "ovo", nutrition: { calories: 78, protein: 6 } }],
+    ];
+    for (const rows of documents) {
+      const findings = findFoodStaticCandidates([{ path: "server/catalog.json",
+        content: JSON.stringify(rows) }]);
+      expect(findings.map(f => f.ruleId), JSON.stringify(rows)).toEqual(["17", "5"]);
+    }
+  });
+
+  it("A1300-05 recognizes nested literal macros with dynamically selected identity", () => {
+    const hits = findFoodStaticCandidates([{ path: "server/foodResolver.ts",
+      content: "const rows = [{ name: currentFood.name, nutrition: { calories: 120, protein: 3 } }];" }]);
+    expect(hits.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge")).toBe(true);
+    expect(evaluateFoodArchitectureGate(hits, [], [], today).errors.length).toBeGreaterThan(0);
+  });
+
   it("A1300-06 permits UI copy without hiding productive food aliases", () => {
     const displayOnly = [
       { path: "client/src/components/FoodCard.tsx", content:
