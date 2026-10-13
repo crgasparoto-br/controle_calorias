@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findFoodStaticCandidates, isProductionFoodSource } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
 import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
+import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
 const today = new Date("2026-10-12T12:00:00Z");
 const legacy = { path: "server/foodCatalogReference.ts", content: "const FOOD_ALIASES = ['pao', 'pão'];" };
@@ -88,6 +89,44 @@ describe("food intelligence architecture wave 1", () => {
     expect(delta.added.some(f => f.file === "server/newFood.ts")).toBe(true);
     expect(delta.retained.some(f => f.fingerprint === finding.fingerprint)).toBe(true);
     expect(delta.removed.some(f => f.file === "server/oldFood.ts")).toBe(true);
+  });
+
+  it("blocks new hardcodes even if added to debt in the same PR, while reporting old candidates", () => {
+    const fresh = findFoodStaticCandidates([{
+      path: "server/newHardcode.ts",
+      content: "const FOOD_PORTIONS = [{ name: 'pão', grams: 25 }];",
+    }]);
+    const debt = {
+      ruleId: fresh[0].ruleId, file: fresh[0].file, fingerprint: fresh[0].fingerprint,
+      reason: "must not mask new code", owner: "food-team", issue: 1300,
+      createdAt: "2026-10-12", expiresAt: "2026-12-12",
+    };
+    const result = evaluateFoodArchitectureGate([...fresh, finding], [finding], [debt], today);
+    expect(result.errors.some(e => e.includes("New food architecture violation"))).toBe(true);
+    expect(result.legacyUncovered).toHaveLength(1);
+    expect(evaluateFoodArchitectureGate([finding], [finding], [], today).errors).toEqual([]);
+    expect(evaluateFoodArchitectureGate([finding], [finding], [], today).legacyUncovered).toHaveLength(1);
+    expect(evaluateFoodArchitectureGate([finding], [finding], [{ ...debt, ruleId: finding.ruleId,
+      file: finding.file, fingerprint: finding.fingerprint, expiresAt: "2026-10-01" }], today)
+      .errors.some(e => e.includes("Expired"))).toBe(true);
+  });
+
+  it("scans productive shared/client code and imported fixtures, not isolated samples", () => {
+    const example = "const FOOD_ALIASES = ['ovo', 'ovos'];";
+    expect(findFoodStaticCandidates([{ path: "shared/foodKnowledge.ts", content: example }])).toHaveLength(1);
+    expect(findFoodStaticCandidates([{ path: "client/src/foodKnowledge.ts", content: example }])).toHaveLength(1);
+    const fixture = { path: "server/fixtures/foodData.ts", content: example };
+    const generated = { path: "server/generated/foodData.ts", content: example };
+    expect(findFoodStaticCandidates([fixture, generated])).toEqual([]);
+    const active = findFoodStaticCandidates([fixture, {
+      path: "server/liveService.ts", content: "import { FOOD_ALIASES } from './fixtures/foodData';",
+    }]);
+    expect(active.some(f => f.file === fixture.path)).toBe(true);
+    expect(findFoodStaticCandidates([generated, {
+      path: "server/liveService.ts", content: "import type { FoodData } from './generated/foodData';",
+    }])).toEqual([]);
+    expect(isProductionFoodSource("server/x.spec.ts")).toBe(false);
+    expect(isProductionFoodSource("docs/recipe.ts")).toBe(false);
   });
 
   it("fails uncovered and orphaned debt", () => {
