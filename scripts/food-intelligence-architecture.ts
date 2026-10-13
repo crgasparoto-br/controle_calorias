@@ -396,10 +396,19 @@ function localDecisionEvidence(value: ts.Expression, node: ts.Node, source: ts.S
     for (const statement of scope.statements) {
       if (!ts.isVariableStatement(statement)) continue;
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && declaration.name.text === current.text &&
-            declaration.initializer && declaration.getStart(source) < node.getStart(source)) {
+        if (!declaration.initializer || declaration.getStart(source) >= node.getStart(source)) continue;
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === current.text) {
           return declaration.initializer.getText(source) + " " +
             localDecisionEvidence(declaration.initializer, node, source, depth + 1, visited);
+        }
+        if (ts.isObjectBindingPattern(declaration.name)) {
+          const binding = declaration.name.elements.find(element =>
+            ts.isIdentifier(element.name) && element.name.text === current.text);
+          if (binding) {
+            const property = binding.propertyName?.getText(source) ?? current.text;
+            return declaration.initializer.getText(source) + "." + property + " " +
+              localDecisionEvidence(declaration.initializer, node, source, depth + 1, visited);
+          }
         }
       }
     }
@@ -791,7 +800,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node): void {
       for (const rule of FOOD_WAVE_ONE_RULES) {
-        if (!matches(rule.pathPattern, file.path)) continue;
+        // New channel names must never bypass the single food decision owner.
+        const ownerDeclaration = (rule.id === "1" || rule.id === "2") &&
+          rule.kind === "function";
+        const canonicalOwner = /^server\/(?:foodItemResolution\.[cm]?[jt]sx?|modules\/foodIntelligenceV2\/)/i
+          .test(file.path);
+        if (ownerDeclaration ? canonicalOwner : !matches(rule.pathPattern, file.path)) continue;
         const finding = ruleEvidence(node, source, rule);
         if (!finding) continue;
         const fingerprint = rule.id + ":" + file.path + ":" + finding.symbol + ":" + stableHash(finding.subject);

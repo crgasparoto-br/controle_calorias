@@ -907,6 +907,7 @@ describe("food intelligence architecture wave 1", () => {
   it("A1300-22 detects competing food owners on web and API channel entrypoints", () => {
     for (const file of [
       "server/modules/web/handler.ts", "server/routes/food.ts", "server/modules/api/food.ts",
+      "server/modules/newDeliveryChannel/food.ts", "server/customFoodAdapter.ts",
     ]) {
       const content = "export function resolveFood(input: string) { return { input }; }";
       const findings = findFoodStaticCandidates([{ path: file, content }]);
@@ -914,9 +915,12 @@ describe("food intelligence architecture wave 1", () => {
       expect(findings.some(f => f.ruleId === "2"), file).toBe(true);
       expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
     }
-    expect(findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
-      content: "export function resolveFood(input: string) { return input; }" }]
-    ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+    for (const canonical of ["server/foodItemResolution.ts",
+      "server/modules/foodIntelligenceV2/foodResolver.ts"]) {
+      expect(findFoodStaticCandidates([{ path: canonical,
+        content: "export function resolveFood(input: string) { return input; }" }]
+      ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+    }
     expect(findFoodStaticCandidates([{ path: "server/modules/web/handler.ts",
       content: "export function resolveAccount(input: string) { return input; }" }]
     ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
@@ -926,6 +930,7 @@ describe("food intelligence architecture wave 1", () => {
     for (const content of [
       "function rerun(decision: ResolvedFoodDecision) { const raw = decision.normalizedText; return parseFoodText(raw); }",
       "function rerun(decision: ResolvedFoodDecision) { const raw = decision.normalizedText; const alias = raw; return parseFoodText(alias); }",
+      "function rerun(decision: ResolvedFoodDecision) { const { normalizedText: raw } = decision; return parseFoodText(raw); }",
     ]) {
       const findings = findFoodStaticCandidates([{ path: "server/foodReparser.ts", content }]);
       expect(findings.some(f => f.ruleId === "3"), content).toBe(true);
