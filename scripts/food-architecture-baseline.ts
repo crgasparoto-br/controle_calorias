@@ -23,10 +23,10 @@ export function readFoodFilesAtGitRef(ref: string, cwd: string): FoodArchitectur
   const git = (...args: string[]) => execFileSync("git", args, {
     cwd, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
   });
-  const names = git("ls-tree", "-r", "--name-only", ref, "--", "server")
+  const names = git("ls-tree", "-r", "--name-only", ref, "--", "server", "shared", "client/src")
     .split(/\r?\n/).filter(Boolean)
-    .filter(name => /^server\/.+\.[cm]?tsx?$/.test(name));
-  if (!names.length) throw new Error("Baseline Git tree contains no server TypeScript files: " + ref);
+    .filter(name => /^(?:server|shared|client\/src)\/.+\.[cm]?tsx?$/.test(name));
+  if (!names.length) throw new Error("Baseline Git tree contains no production TypeScript files: " + ref);
   return names.map(file => ({
     path: file,
     content: git("show", ref + ":" + file),
