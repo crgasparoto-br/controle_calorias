@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-membership" | "literal-regex-test";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -41,6 +41,12 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     description: "Comparação literal de alimento ou porção em código produtivo",
   },
   {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "I", kind: "literal-switch",
+    symbolPattern: "foodName|foodLabel|foodType|alimento|productName|portion|porcao|porção|brandName|macroType|processingLevel|classification|alias|synonym",
+    description: "Chave alimentar ou porção decidida por switch/case literal",
+  },
+  {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "B", kind: "collection",
     symbolPattern: "materiality|materialidade|nutritionally[_-]?neutral|neutral[_-]?packaging|commercial[_-]?category|attribute[_-]?material|material[_-]?attribute|broad[_-]?commercial|identity[_-]?stop[_-]?words",
@@ -53,6 +59,12 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     // Semantic food/materiality context, regardless of source filename.
     symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
     description: "Comparação literal potencialmente definindo materialidade de atributo",
+  },
+  {
+    id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "B", kind: "literal-switch",
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
+    description: "Materialidade lexical decidida por switch/case",
   },
   {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
