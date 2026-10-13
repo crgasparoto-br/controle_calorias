@@ -3,7 +3,7 @@
   "repository": "crgasparoto-br/controle_calorias",
   "baseRef": "develop",
   "baseSha": "0040adffc989d0b4d47e7cdc640ab9878e82c993",
-  "method": "Targeted inventory of ADR §8.5 legacy owners at the exact develop SHA; use scripts/food-architecture-report.ts for exhaustive source-tree discovery.",
+  "method": "Targeted inventory of ADR §8.5 legacy owners at the exact develop SHA; use scripts/food-architecture-report.ts for exhaustive source-tree discovery. JSON produtivo incluído por varredura e fingerprint semântico do catálogo.",
   "completeness": "targeted-seed-not-full-source-tree",
   "observations": [
     {
@@ -125,9 +125,27 @@
         "classification": "heuristic-candidate",
         "basis": "Possível gramática S1; não comprova léxico decisório S2 sem validação semântica"
       }
+    },
+    {
+      "file": "server/tacoCatalog.json",
+      "sourceBlobSha": "252631de8166a761b03e3573eb149eb0e34de136",
+      "symbol": "json-food-catalog",
+      "concern": "Catálogo TACO embarcado de 616 alimentos/porções/nutrientes em JSON produtivo (ADR §8.5)",
+      "class": "I",
+      "rules": [
+        "17",
+        "5"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "Fonte legada explicitamente identificada como catálogo produtivo a aposentar na ADR §8.5; SHA e conteúdo conferidos contra a base imutável",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      }
     }
   ],
   "reviewedAt": "2026-10-13",
   "reviewMethod": "Inspeção independente dos trechos legados no SHA base; demais findings do inventário completo permanecem candidatos heurísticos até evidência discriminante.",
-  "totalFindingsSource": "CI food-architecture-inventory-092c9cfe2dbd44791593d26308304a277e950858 (468 findings antes desta correção); relatórios subsequentes classificam por ocorrência no HEAD."
+  "totalFindingsSource": "CI food-architecture-inventory-092c9cfe2dbd44791593d26308304a277e950858 (468 findings antes desta correção); relatórios subsequentes classificam por ocorrência no HEAD. O catálogo JSON TACO é classificado por arquivo com fingerprint do conteúdo normalizado."
 }
