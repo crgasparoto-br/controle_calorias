@@ -614,4 +614,88 @@ describe("food intelligence architecture wave 1", () => {
   });
 
 
+
+  it("A1300-10 blocks food/portion decisions in switch/case including generic item.name", () => {
+    const cases = [
+      { path: "server/portionRules.ts", content:
+        "function resolvePortion(item: {name: string}) { switch (item.name) { case 'pão': return 50; default: return 0; } }" },
+      { path: "server/foodRules.ts", content:
+        "function pick(foodName: string) { switch (foodName) { case 'arroz': return 90; default: return 0; } }" },
+      { path: "server/foodAttribute.ts", content:
+        "function decideMateriality(attribute: string) { switch (attribute) { case 'integral': return true; default: return false; } }" },
+    ];
+    for (const source of cases) {
+      const findings = findFoodStaticCandidates([source]);
+      const expectedGate = source.content.includes("decideMateriality") ? "18" : "17";
+      expect(findings.some(f => f.ruleId === expectedGate &&
+        f.symbol.includes("lexical-switch")), source.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negative = [
+      { path: "server/accountStatus.ts", content:
+        "function pick(status: string) { switch (status) { case 'active': return 1; default: return 0; } }" },
+      { path: "server/foodRules.ts", content:
+        "function status(value: string) { switch (value) { case 'active': return 1; default: return 0; } }" },
+    ];
+    for (const source of negative) {
+      expect(findFoodStaticCandidates([source]).filter(f => f.symbol.includes("lexical-switch"))).toEqual([]);
+    }
+  });
+
+  it("A1300-11 blocks numeric food-to-portion maps in productive JSON", () => {
+    const cases = [
+      { path: "server/foodPortions.json", content: '{"pão":50,"arroz":90}' },
+      { path: "server/foodCatalog.json", content: '{"pão":50}' },
+      { path: "server/mappings.json", content: '{"foodPortions":{"arroz":90}}' },
+    ];
+    for (const source of cases) {
+      const findings = findFoodStaticCandidates([source]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol === "json-food-catalog"), source.path).toBe(true);
+      expect(findings.some(f => f.ruleId === "5"), source.path).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/featureFlags.json",
+      content: '{"retry":3,"timeout":500}' }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/foodPortionsConfig.json",
+      content: '{"retry":3,"timeout":500}' }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/exerciseCalories.json",
+      content: '{"caminhada":120,"corrida":320}' }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/fixtures/foodPortions.json",
+      content: '{"pão":50}' }])).toEqual([]);
+  });
+
+  it("A1300-11 checks JSON numeric maps imported into food runtime", () => {
+    const fixture = { path: "server/fixtures/foodPortions.json", content: '{"pão":50}' };
+    const imported = { path: "server/foodItemResolution.ts",
+      content: "import portions from './fixtures/foodPortions.json'; export const values = portions;" };
+    const findings = findFoodStaticCandidates([fixture, imported]);
+    expect(findings.some(f => f.file === fixture.path && f.ruleId === "17")).toBe(true);
+  });
+
+  it("A1300-12 detects anonymous materiality regex and lexical membership using food-domain evidence", () => {
+    const positives = [
+      { path: "server/foodItemResolution.ts", content:
+        "function decide(value: string) { return /integral|light/.test(value); }" },
+      { path: "server/foodItemResolution.ts", content:
+        "function decide(value: string) { const words = ['integral', 'light']; return words.includes(value); }" },
+      { path: "server/foodItemResolution.ts", content:
+        "const words = /integral|light/; function decide(value: string) { return words.test(value); }" },
+    ];
+    for (const source of positives) {
+      const findings = findFoodStaticCandidates([source]);
+      expect(findings.some(f => f.ruleId === "18" &&
+        /lexical-(regex|membership)/.test(f.symbol)), source.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negatives = [
+      { path: "server/foodItemResolution.ts", content:
+        "function decide(value: string) { return /^\\d+$/.test(value); }" },
+      { path: "server/accountHelpers.ts", content:
+        "function decide(value: string) { return /integral|light/.test(value); }" },
+    ];
+    for (const source of negatives) {
+      expect(findFoodStaticCandidates([source]).filter(f => f.ruleId === "18")).toEqual([]);
+    }
+  });
+
 });
