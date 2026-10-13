@@ -277,4 +277,35 @@ describe("food intelligence architecture wave 1", () => {
     expect(compareFoodArchitectureFindings(before, after).removed).toHaveLength(1);
   });
 
+  it("F02 recognizes an inline lexical table referenced through a local variable", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/foodMateriality.ts",
+      content: "function isMaterialAttribute(variant:string) { const tokens = ['integral', 'light']; return tokens.includes(variant); }",
+    }]);
+    expect(findings.some(f => f.ruleId === "18" && f.symbol.includes("lexical-membership"))).toBe(true);
+    // A dynamically supplied set from governed knowledge is not a literal table.
+    const governed = findFoodStaticCandidates([{
+      path: "server/foodMateriality.ts",
+      content: "function isMaterialAttribute(variant:string, tokens: string[]) { return tokens.includes(variant); }",
+    }]);
+    expect(governed.some(f => f.ruleId === "18" && f.symbol.includes("lexical-membership"))).toBe(false);
+  });
+
+  it("F03 rejects dynamic and reexported imports of competing channel resolvers", () => {
+    for (const consumer of [
+      "async function resolve(){ return import('../../../nutritionEngine'); }",
+      "const existing = require('../../../nutritionEngine');",
+      "export { resolveNutrition } from '../../../nutritionEngine';",
+    ]) {
+      const findings = findFoodStaticCandidates([{
+        path: "server/modules/whatsapp/foodAdapter.ts", content: consumer,
+      }]);
+      expect(findings.some(f => f.ruleId === "10"), consumer).toBe(true);
+    }
+    expect(findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/foodAdapter.ts",
+      content: "export type { Resolver } from '../../../nutritionEngine';",
+    }]).some(f => f.ruleId === "10")).toBe(false);
+  });
+
 });
