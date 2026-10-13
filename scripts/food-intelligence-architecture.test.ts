@@ -216,6 +216,10 @@ describe("food intelligence architecture wave 1", () => {
     }]);
     expect(vocabulary.some(f => f.ruleId === "11")).toBe(true);
     expect(findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/foodAdapter.ts",
+      content: "const STATUS_LABELS = { pending: 'Pendente', saved: 'Salvo' };",
+    }]).filter(f => f.ruleId === "11")).toEqual([]);
+    expect(findFoodStaticCandidates([{
       path: "server/utility.ts",
       content: "function supports(mode:string) {return ['auto', 'manual'].includes(mode);}",
     }])).toEqual([]);
