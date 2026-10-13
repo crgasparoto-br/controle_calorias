@@ -916,7 +916,7 @@ describe("food intelligence architecture wave 1", () => {
       expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
     }
     for (const canonical of ["server/foodItemResolution.ts",
-      "server/modules/foodIntelligenceV2/foodResolver.ts"]) {
+      "server/modules/foodIntelligenceV[0-9]+/foodResolver.ts"]) {
       expect(findFoodStaticCandidates([{ path: canonical,
         content: "export function resolveFood(input: string) { return input; }" }]
       ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);

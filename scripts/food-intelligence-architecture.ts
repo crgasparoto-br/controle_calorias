@@ -803,7 +803,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         // New channel names must never bypass the single food decision owner.
         const ownerDeclaration = (rule.id === "1" || rule.id === "2") &&
           rule.kind === "function";
-        const canonicalOwner = /^server\/(?:foodItemResolution\.[cm]?[jt]sx?|modules\/foodIntelligenceV2\/)/i
+        const canonicalOwner = /^server\/(?:foodItemResolution\.[cm]?[jt]sx?|modules\/foodIntelligenceV[0-9]+\/)/i
           .test(file.path);
         if (ownerDeclaration ? canonicalOwner : !matches(rule.pathPattern, file.path)) continue;
         const finding = ruleEvidence(node, source, rule);
