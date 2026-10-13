@@ -213,6 +213,44 @@ function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, sourc
   return /food|aliment|meal|nutrition|nutrient|macro|portion|por[cç][aã]?o|serving|ingredient|ingrediente|recipe|receita|calor|kcal|protein|carb|grams|gramas/i.test(context);
 }
 
+function isFoodDomainSource(file: string): boolean {
+  return /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|product|materiality/i.test(file);
+}
+
+/**
+ * A regex used to make a lexical decision may be anonymous (e.g. decide(value)).
+ * Limit path-based inference to literal word alternatives or word-boundary terms;
+ * numeric/input-format regexes in food modules are not food attributes.
+ */
+function hasLexicalVocabularyRegex(target: ts.Expression, node: ts.Node): boolean {
+  const literalPattern = (value: ts.Expression): string | null => {
+    const expr = unwrap(value);
+    if (ts.isRegularExpressionLiteral(expr)) return expr.getText();
+    if (ts.isNewExpression(expr) && expr.expression.getText() === "RegExp" &&
+        expr.arguments?.length && ts.isStringLiteral(unwrap(expr.arguments[0]))) {
+      return (unwrap(expr.arguments[0]) as ts.StringLiteral).text;
+    }
+    return null;
+  };
+  let pattern = literalPattern(target);
+  if (pattern === null && ts.isIdentifier(target)) {
+    for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const decl of statement.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.name.text === target.text && decl.initializer) {
+            pattern = literalPattern(decl.initializer);
+          }
+        }
+      }
+      if (pattern !== null) break;
+    }
+  }
+  if (pattern === null) return false;
+  return /[a-zA-ZÀ-ÿ]{3,}\|[a-zA-ZÀ-ÿ]{3,}|\\b[a-zA-ZÀ-ÿ]{3,}/.test(pattern);
+}
+
 function isPresentationOnlyCollection(symbol: string): boolean {
   // Food-related UI navigation is not food knowledge or a nutritional decision.
   return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
@@ -311,7 +349,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       node.arguments.length > 0 &&
       referencesLiteralWords(node.expression.expression, node)) {
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
-    if (matches(rule.symbolPattern, context)) {
+    const sourceDecision = rule.id === "18" && isFoodDomainSource(source.fileName);
+    if (matches(rule.symbolPattern, context) || sourceDecision) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
         subject: node.getText(source) };
     }
@@ -320,7 +359,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "test" &&
       node.arguments.length > 0 && referencesLiteralRegex(node.expression.expression, node)) {
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
-    if (matches(rule.symbolPattern, context)) {
+    const sourceDecision = rule.id === "18" && isFoodDomainSource(source.fileName) &&
+      hasLexicalVocabularyRegex(node.expression.expression, node);
+    if (matches(rule.symbolPattern, context) || sourceDecision) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-regex",
         subject: node.getText(source) };
     }
@@ -358,6 +399,23 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           ? node.name.getText(source) : undefined;
     if (symbol && matches(rule.symbolPattern, symbol)) {
       return { symbol, subject: node.getText(source) };
+    }
+  }
+  if (rule.kind === "literal-switch" && ts.isCaseClause(node) &&
+      ts.isStringLiteral(node.expression)) {
+    const block = node.parent;
+    const branch = ts.isCaseBlock(block) && block.parent && ts.isSwitchStatement(block.parent)
+      ? block.parent : null;
+    if (!branch) return null;
+    const operand = branch.expression.getText(source);
+    const relevant = rule.id === "17"
+      ? matches(rule.symbolPattern, operand) ||
+        hasFoodNameDecisionContext(branch.expression, node, source)
+      : matches(rule.symbolPattern, operand) ||
+        matches(rule.symbolPattern, enclosingDeclaration(node));
+    if (relevant) {
+      return { symbol: (enclosingDeclaration(node) || "expression") + ":" + operand + ":lexical-switch",
+        subject: branch.expression.getText(source) + " => " + node.getText(source) };
     }
   }
   if (rule.kind === "literal-branch" && ts.isBinaryExpression(node) &&
@@ -460,6 +518,15 @@ function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""):
       "classification"].some(key =>
       Array.isArray(item[key]) || typeof item[key] === "string" || typeof item[key] === "number");
     const genericCalories = typeof item.calories === "number";
+    // Numeric dictionaries keyed by food identity are production knowledge
+    // even without a name/grams field: {"pão":50,"arroz":90}. Domain evidence
+    // must come from a food/portion/catalog context, never a product name list.
+    const foodNumericMap = entries.length > 0 &&
+      entries.every(([key, entry]) => key.trim().length > 0 &&
+        typeof entry === "number" && Number.isFinite(entry)) &&
+      /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context) &&
+      !/(?:config|settings|preferences|options)\.json$/i.test(file.path);
+    if (foodNumericMap) foodRows++;
     if ((explicitIdentity || genericIdentity) &&
         (specificNutrition || nestedNutrition || governedAttributes ||
           (genericCalories && (explicitIdentity || foodSource)))) foodRows++;
