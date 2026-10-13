@@ -33,14 +33,39 @@ const ledger = JSON.parse(readFileSync(path.join(root, "architecture-debt.json")
 if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt ledger: entries array required");
 const pinned = JSON.parse(readFileSync(path.join(root, "docs/design-docs/food-architecture-owners-1300.json"), "utf8")) as {
   baseSha: string;
-  observations: Array<{ file: string; symbol: string; rules: string[]; review?: { classification: string; basis: string } }>;
+  observations: Array<{ file: string; symbol: string; rules: string[];
+    review?: { classification: string; basis: string };
+    behavioralReview?: {
+      sourceAnchor: string; responsibility: string; observedDecision: string;
+      disposition: string; verification: string; runtimeEvidence: string;
+    };
+  }>;
 };
 if (pinned.baseSha !== "0040adffc989d0b4d47e7cdc640ab9878e82c993") {
   throw new Error("Unapproved architecture baseline SHA");
 }
 // Only individual occurrences present in the immutable reviewed baseline can
 // inherit a confirmation. A modified or repeated symbol is not automatically approved.
-const frozenFindings = findFoodStaticCandidates(readFoodFilesAtGitRef(pinned.baseSha, root));
+const frozenSourceFiles = readFoodFilesAtGitRef(pinned.baseSha, root);
+const frozenFindings = findFoodStaticCandidates(frozenSourceFiles);
+const frozenSourceIndex = new Map(frozenSourceFiles.map(file => [file.path, file.content]));
+const reviewedOwnerResponsibilities = pinned.observations.map(item => {
+  const review = item.behavioralReview;
+  const source = frozenSourceIndex.get(item.file);
+  if (!review || !review.sourceAnchor || !source?.includes(review.sourceAnchor)) {
+    throw new Error("Stale or missing owner source review at immutable develop SHA: " +
+      item.file + "#" + item.symbol);
+  }
+  return {
+    file: item.file, symbol: item.symbol, baseSha: pinned.baseSha,
+    responsibility: review.responsibility, observedDecision: review.observedDecision,
+    disposition: review.disposition, sourceAnchor: review.sourceAnchor,
+    status: "source-reviewed" as const,
+    // Static source evidence can identify behavior but cannot alone certify
+    // that two active runtime paths have equal authority or equivalent outputs.
+    runtimeEquivalence: "requires-behavioral-review" as const,
+  };
+});
 const confirmedBudget = new Map<string, number>();
 for (const finding of frozenFindings) {
   const review = pinned.observations.find(item =>
@@ -130,6 +155,14 @@ const report = {
     sourceSha: sha(),
     reviewPolicy: "AST owner candidates grouped by domain decision; competing responsibility requires runtime review",
     byDecisionFunction: groupCompetingFoodOwners(provisionalInventory),
+    reviewedLegacyResponsibilities: reviewedOwnerResponsibilities,
+    reviewTotals: {
+      sourceReviewed: reviewedOwnerResponsibilities.length,
+      decisionOwnerCandidates: reviewedOwnerResponsibilities.filter(item =>
+        item.disposition.endsWith("-decision-owner")).length,
+      runtimeEquivalenceCertified: 0,
+      runtimeEquivalenceStatus: "pending-behavioral-review",
+    },
   },
   triage: {
     sourceBaselineSha: pinned.baseSha,
