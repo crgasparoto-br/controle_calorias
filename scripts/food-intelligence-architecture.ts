@@ -231,8 +231,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
     if (rule.id === "17" && isPresentationOnlyCollection(symbol)) return null;
-    if ((matches(rule.symbolPattern, symbol) || mappedLexicon ||
-        (rule.contentPattern && matches(rule.contentPattern, node.initializer.getText(source)))) &&
+    // Inline food rows are visited separately by isInlineFoodKnowledge.
+    // A generic { name: user.name, calories: 100 } collection must not be
+    // reclassified as food solely because those two property names coexist.
+    if ((matches(rule.symbolPattern, symbol) || mappedLexicon) &&
         matches(rule.evidencePattern, symbol)) {
       return { symbol, subject: node.initializer.getText(source) };
     }
