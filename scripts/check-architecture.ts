@@ -142,7 +142,7 @@ for (const violation of findTimeZoneArchitectureViolations(timeZoneArchitectureF
  */
 const foodArchitectureFiles = ["server", "shared", "client/src"]
   .flatMap(dir => walk(dir))
-  .filter(file => /\.[cm]?[jt]sx?$/.test(file))
+  .filter(file => /\.(?:[cm]?[jt]sx?|json)$/.test(file))
   .map(file => ({ path: file, content: read(file) }));
 const foodFindings = findFoodStaticCandidates(foodArchitectureFiles);
 const debtPath = "architecture-debt.json";
