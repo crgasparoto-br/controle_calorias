@@ -100,6 +100,26 @@
       "issue": 1300,
       "createdAt": "2026-10-13",
       "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "17",
+      "file": "server/tacoCatalog.json",
+      "fingerprint": "17:server/tacoCatalog.json:json-food-catalog:c1343774",
+      "reason": "Catálogo TACO JSON embarcado de identidade e macronutrientes, explicitamente listado como legado na ADR §8.5",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
+    },
+    {
+      "ruleId": "5",
+      "file": "server/tacoCatalog.json",
+      "fingerprint": "5:server/tacoCatalog.json:json-food-catalog:c1343774",
+      "reason": "Catálogo TACO JSON embarcado de identidade e macronutrientes, explicitamente listado como legado na ADR §8.5",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11"
     }
   ]
 }
