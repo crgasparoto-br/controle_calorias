@@ -39,7 +39,9 @@ Initial retention defaults are:
 - `operational`: 30 days;
 - `audit`: 365 days;
 - `learning_candidate`: 180 days;
-- `global_aggregate`: no automatic expiration in this module because it should contain only anonymized or aggregate data.
+- `global_aggregate`: 730 days (explicit `expiresAt` for anonymized/aggregate data; no infinite default). Invalid creation timestamps are rejected rather than persisted without expiry.
+
+These are the pre-existing #432 learning policy durations, not automatic legal approval or a cleanup job for new Food Intelligence V2 evidence. For V2 source-specific retention, review and blocking decisions, see `adr-food-intelligence-resolver-v2.md` §§19.4.1, 19.8 and 25 items 9/21. Existing records with absent expiry require migration/cleanup review before claiming end-to-end enforcement.
 
 These defaults are implementation policy, not a complete legal retention policy.
 

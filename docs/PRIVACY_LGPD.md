@@ -96,11 +96,15 @@ A evolução descrita em `design-docs/adr-food-intelligence-resolver-v2.md` pode
 - memória pessoal deve permanecer isolada por usuário e não ser promovida globalmente com conteúdo identificável;
 - fila/revisão global deve usar somente a evidência necessária para a decisão e evitar expor identidade do usuário quando não houver necessidade operacional;
 - imagens, OCR, transcrições e texto bruto não devem ser copiados para novas tabelas apenas para auditoria; prefira referências opacas, fatos estruturados e retenção explícita;
-- qualquer novo período de retenção ou uso de evidência visual precisa ser definido antes da implementação correspondente;
+- qualquer novo período de retenção ou uso de evidência visual precisa ser definido **e aprovado formalmente** antes da implementação correspondente;
 - promoção, rejeição e revogação globais devem preservar autoria administrativa e justificativa sanitizada sem replicar conteúdo sensível desnecessário.
 - `food_resolution_events` deve possuir retenção finita e sanitizada; não pode se tornar arquivo permanente de texto, transcrição ou OCR do usuário;
 - promoção de candidato pessoal para conhecimento global deve remover associação identificável ao usuário sempre que a finalidade puder ser atendida sem ela;
 - exportação/exclusão deve classificar memória pessoal, evidências e eventos de resolução conforme vínculo, finalidade e obrigação de retenção antes do rollout correspondente.
+
+A matriz por tipo de evidência, os períodos técnicos **propostos** (7/30/180/365/730 dias, segundo finalidade), o tratamento de imagem/OCR, o procedimento de anonimização e a política de licenciamento por fonte estão exclusivamente em `design-docs/adr-food-intelligence-resolver-v2.md` §§19.4.1, 19.8.1 e 19.8.2. Os itens 9 e 21 da seção 25 permanecem **OPEN — BLOQUEADO** até aprovação formal e verificação do expurgo real, incluindo mídias externas. Nenhuma nova tabela V2 ou redistribuição se considera liberada apenas por existir esta documentação; no importador V1, a licença ainda não é bloqueada automaticamente.
+
+No aprendizado já existente (#432), a classe `global_aggregate` possui prazo técnico de **730 dias** e agora gera expiração finita; isso **não comprova** remoção física de registros legados sem expiração ou instalação de scheduler de limpeza. A exclusão individual continua prioritária para vínculos pessoais, sem apagar informação nutricional global legitimamente publicada e independente de dados pessoais.
 
 ## IA e serviços externos
 

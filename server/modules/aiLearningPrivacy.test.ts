@@ -26,7 +26,7 @@ describe("ai learning privacy", () => {
       anonymizationRequired: true,
       globalPromotionAllowed: false,
       retentionClass: "global_aggregate",
-      expiresAt: null,
+      expiresAt: "2028-06-15T00:00:00.000Z",
       anonymizationApplied: ["direct_identifier_redaction"],
     }));
   });
@@ -55,6 +55,27 @@ describe("ai learning privacy", () => {
       anonymizationRequired: true,
       expiresAt: "2026-12-13T00:00:00.000Z",
     }));
+  });
+
+  it("expira agregados globais em 730 dias e bloqueia relógio inválido", () => {
+    const global = buildAiLearningPrivacyRecord({
+      kind: "structured_decision",
+      purpose: "global_learning",
+      origin: "global-metrics",
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+    expect(global).toEqual(expect.objectContaining({
+      retentionClass: "global_aggregate",
+      retentionDays: 730,
+      expiresAt: "2028-06-15T00:00:00.000Z",
+    }));
+
+    expect(() => buildAiLearningPrivacyRecord({
+      kind: "audit_event",
+      purpose: "audit",
+      origin: "diagnostics",
+      createdAt: "2026-99-99",
+    })).toThrow("Data de criação inválida");
   });
 
   it("anonimiza transcricoes e conversas reais", () => {

@@ -97,6 +97,10 @@ A migração do importador deve preservar a semântica de idempotência e govern
 Até o cutover, o executor V1 continua válido operacionalmente. Depois que a leitura V2 estiver ativa e reconciliada, novas escritas nos destinos V1 devem ser bloqueadas e o bridge removido.
 
 
+## Autorização de uso e redistribuição (#1303)
+
+A procedência técnica (`source_reference`, `source_url`, `content_hash`) **não equivale** a licença. A matriz canônica de fontes TACO, TBCA, Open Food Facts, curadoria interna, fabricantes e rótulos está na ADR `adr-food-intelligence-resolver-v2.md` §19.4.1. O importador atual não verifica autorização/licença por item: até integrar o gate de direitos ao preview/publicação, **suspender operacionalmente novas cargas globais cuja licença e atribuição não tenham sido verificadas**. O CSV local TACO/TBCA, a referência `admin-upload` e o seed coletivo `marcas_oficiais_br` não provam direitos por si só. Essa decisão não faz migração destrutiva nem reescreve refeições históricas.
+
 ## Limites desta versao
 
 - A base curada inicial e pequena, feita para validar o pipeline antes de uma carga de 300 a 600 itens.
