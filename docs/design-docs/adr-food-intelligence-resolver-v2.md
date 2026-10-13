@@ -2854,17 +2854,17 @@ Os itens 1, 6, 12, 14, 16, 18 e 31 têm decisão documentada, mas seus testes, m
 
 ### 25.2. Decisão 25 — escopo dos gates estáticos (aprovada em 2026-10-12)
 
-**Política vinculante para a onda 1 (§19.0.5):** o detector examina declarações e decisões do **código executável de produção**, especialmente \`server/\` e quaisquer novos módulos de domínio realmente carregados no runtime. A regra efetiva não pode ser reduzida pelo nome do arquivo ou pela tecnologia da entrada (texto, áudio, imagem, WhatsApp ou web).
+**Política vinculante para a onda 1 (§19.0.5):** o detector examina declarações e decisões do **código executável de produção**, especialmente `server/` e quaisquer novos módulos de domínio realmente carregados no runtime. A regra efetiva não pode ser reduzida pelo nome do arquivo ou pela tecnologia da entrada (texto, áudio, imagem, WhatsApp ou web).
 
 | Tipo de fonte | Regra operacional |
 | --- | --- |
 | Produção | Gates 17, 18, 5, 11, 3, 10, 1, 2 e 4 bloqueiam **novas violações** confirmadas; sem allowlist implícita e sem exceção automática. |
-| Testes \`*.test.*\`/\`*.spec.*\` e diretórios de teste | Exemplos sintéticos não são violação por si sós; qualquer dependência ou importação produtiva dos exemplos permanece sujeita à verificação de produção. |
+| Testes `*.test.*`/`*.spec.*` e diretórios de teste | Exemplos sintéticos não são violação por si sós; qualquer dependência ou importação produtiva dos exemplos permanece sujeita à verificação de produção. |
 | Fixtures isoladas | Dados sintéticos declarados para testes são aceitos somente quando não consumidos como conhecimento decisório produtivo. Fixtures consumidas em runtime devem ser tratadas como produção, independentemente do caminho. |
 | Arquivos gerados | Não penalizar código gerado inerte só por repetição do conteúdo; verificar fonte/template e todos os caminhos produtivos que carregam seus dados. Geração não permite escapar da regra. |
 | Documentação | Exemplos não executáveis são permitidos; snippets ou artefatos promovidos a código de produção voltam ao escopo de produção. |
 
-**Baseline e dívida:** o SHA da base \`develop\` é registrado junto do inventário. Uma violação existente e inalterada é reportada como legado, não justifica falhar toda a migração da onda 1. O legado **confirmado como violação** deve ser colocado no \`architecture-debt.json\` mediante revisão humana, com \`ruleId\`, arquivo, fingerprint, motivo, owner, issue e prazo máximo de 90 dias, sem prorrogação; a entrada vencida/órfã falha. Achado heurístico não confirmado é candidato de triagem, **não** dívida aprovada. Violação adicionada ou alterada desde a base falha mesmo que alguém tente criar uma exceção junto da PR. Um catálogo novo de alimentos/porções/classificação ou um novo léxico/materialidade específica de alimento em código produtivo sempre falha, independentemente do canal de entrada.
+**Baseline e dívida:** o SHA da base `develop` é registrado junto do inventário. Uma violação existente e inalterada é reportada como legado, não justifica falhar toda a migração da onda 1. O legado **confirmado como violação** deve ser colocado no `architecture-debt.json` mediante revisão humana, com `ruleId`, arquivo, fingerprint, motivo, owner, issue e prazo máximo de 90 dias, sem prorrogação; a entrada vencida/órfã falha. Achado heurístico não confirmado é candidato de triagem, **não** dívida aprovada. Violação adicionada ou alterada desde a base falha mesmo que alguém tente criar uma exceção junto da PR. Um catálogo novo de alimentos/porções/classificação ou um novo léxico/materialidade específica de alimento em código produtivo sempre falha, independentemente do canal de entrada.
 
 A liberação do gate exige testes positivos e negativos em produção, testes, fixtures, documentação, código gerado e imports de tipos; um detector somente heurístico deve ser classificado explicitamente como candidato e refinado para não criar bloqueio falso. Toda alteração de escopo exige nova decisão versionada, e não inferência pelo desenvolvedor.
 
@@ -2874,11 +2874,11 @@ Aplica-se **somente aos gates da camada 3: 6, 8 e 15** (§19.0.1). Não adia o b
 
 A passagem por gate segue este contrato:
 
-1. Ativar guarda observável em teste, desenvolvimento e \`shadow mode\`, com métricas por entrypoint, trace e cenários de violação explícitos; não interromper escrita produtiva durante a observação.
+1. Ativar guarda observável em teste, desenvolvimento e `shadow mode`, com métricas por entrypoint, trace e cenários de violação explícitos; não interromper escrita produtiva durante a observação.
 2. Demonstrar cobertura dos caminhos relevantes (texto, áudio, imagem, WhatsApp e web conforme aplicável), testes positivos/negativos e ausência de violações não justificadas por **sete dias consecutivos completos** de observação válida após a instrumentação e correções. Lacunas de telemetria ou regressão relevante reiniciam a janela para o gate afetado.
 3. Homologar o comportamento seguro de erro/clarificação e exercitar a reversão por feature flag sem perda nem corrupção de dados, evitando fallback silencioso.
 4. Exigir aprovação **explícita por gate** de Arquitetura e Qualidade, com pessoa responsável, evidência, janela observada, data efetiva, plano de rollback e registro versionado. A data é definida após a aprovação: transcorrerem sete dias **não ativa nada automaticamente**.
-5. Habilitar o bloqueio gradualmente com telemetria, canário e rollback. Se houver regressão, retornar a \`warning/shadow\` e recomeçar a homologação.
+5. Habilitar o bloqueio gradualmente com telemetria, canário e rollback. Se houver regressão, retornar a `warning/shadow` e recomeçar a homologação.
 
 Essa política define os critérios e o **mínimo de observação**, não antecipa o rollout V2, não substitui o Gate A/B nem modifica as questões de ativação ainda abertas (§25 item 11).
 
