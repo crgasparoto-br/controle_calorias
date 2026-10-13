@@ -51,6 +51,26 @@ function isLiteralCollection(expr: ts.Expression): boolean {
 
 
 /** A literal nutrition row is a rule even when returned without a named table. */
+function isStaticNutritionNumber(expr: ts.Expression): boolean {
+  const value = unwrap(expr);
+  return ts.isNumericLiteral(value) ||
+    (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand));
+}
+
+/** A food resolver must not hardcode macros merely by omitting foodId/name. */
+function isAnonymousFoodNutrition(node: ts.ObjectLiteralExpression, fields: Map<string, ts.Expression>): boolean {
+  const context = node.getSourceFile().fileName + " " + enclosingDeclaration(node);
+  if (!/food|aliment|meal|nutrition|nutrient|ingredient|portion|serving|recipe/i.test(context) ||
+      /exercise|activity|workout|fitness|sport|burnedcalories/i.test(context)) return false;
+  const macros = ["protein", "carbs", "fat", "kcal", "energykcal"].filter(key => {
+    const value = fields.get(key);
+    return value !== undefined && isStaticNutritionNumber(value);
+  });
+  const calories = fields.get("calories");
+  return macros.length >= 2 || (macros.length >= 1 &&
+    calories !== undefined && isStaticNutritionNumber(calories));
+}
+
 function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   const fields = new Map<string, ts.Expression>();
   for (const property of node.properties) {
@@ -110,7 +130,9 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
           (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
     });
   });
-  return (hasNamedFood || hasFoodIdentifier) && (hasLiteralNutrition || hasNestedLiteralNutrition);
+  return ((hasNamedFood || hasFoodIdentifier) &&
+    (hasLiteralNutrition || hasNestedLiteralNutrition)) ||
+    isAnonymousFoodNutrition(node, fields);
 }
 
 function enclosingDeclaration(node: ts.Node): string {
@@ -124,6 +146,25 @@ function enclosingDeclaration(node: ts.Node): string {
     }
   }
   return "";
+}
+
+/** Follow locally declared lexical maps without mistaking generated data for hardcodes. */
+function referencesLiteralLexicalMap(target: ts.Expression, node: ts.Node): boolean {
+  const value = unwrap(target);
+  if (ts.isObjectLiteralExpression(value)) return isLexicalMap(value);
+  if (!ts.isIdentifier(value)) return false;
+  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === value.text) {
+          return !!declaration.initializer && isLexicalMap(declaration.initializer);
+        }
+      }
+    }
+  }
+  return false;
 }
 
 function isLexicalMap(expr: ts.Expression): boolean {
@@ -144,6 +185,10 @@ function isLexicalMap(expr: ts.Expression): boolean {
     });
   }
   return false;
+}
+
+function isStaticText(expr: ts.Node): expr is ts.StringLiteral | ts.NoSubstitutionTemplateLiteral {
+  return ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr);
 }
 
 function hasLiteralWords(expr: ts.Expression): boolean {
@@ -251,6 +296,27 @@ function hasLexicalVocabularyRegex(target: ts.Expression, node: ts.Node): boolea
   return /[a-zA-ZÀ-ÿ]{3,}\|[a-zA-ZÀ-ÿ]{3,}|\\b[a-zA-ZÀ-ÿ]{3,}/.test(pattern);
 }
 
+/** A pure navigation list must not become a blocked food rule. */
+function isPresentationOnlyFilter(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
+  if (!/^client\/src\/.*\.(?:tsx|jsx)$/i.test(source.fileName) || !node.initializer) return false;
+  const symbol = node.name.getText(source);
+  if (!/(?:^|[_-])(?:filters?|views?|facets?|sorts?)(?:$|[_-])|(?:Filters?|Views?|Facets?)$/i.test(symbol)) return false;
+  const value = unwrap(node.initializer);
+  if (!ts.isArrayLiteralExpression(value) || value.elements.length === 0 ||
+      !value.elements.every(element => isStaticText(unwrap(element)))) return false;
+  let decisionUse = false;
+  const scan = (candidate: ts.Node): void => {
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        ["includes", "has", "indexOf", "some", "find", "filter", "every"].includes(candidate.expression.name.text) &&
+        candidate.expression.expression.getText(source) === symbol) decisionUse = true;
+    if (ts.isElementAccessExpression(candidate) &&
+        candidate.expression.getText(source) === symbol) decisionUse = true;
+    ts.forEachChild(candidate, scan);
+  };
+  scan(source);
+  return !decisionUse;
+}
+
 function isPresentationOnlyCollection(symbol: string): boolean {
   // Food-related UI navigation is not food knowledge or a nutritional decision.
   return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
@@ -318,7 +384,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       // The path alone does not make an ordinary UI/status dictionary a food lexicon.
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
-    if (rule.id === "17" && isPresentationOnlyCollection(symbol)) return null;
+    if (rule.id === "17" &&
+        (isPresentationOnlyCollection(symbol) ||
+          isPresentationOnlyFilter(node, source))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.
     // A generic { name: user.name, calories: 100 } collection must not be
     // reclassified as food solely because those two property names coexist.
@@ -335,12 +403,26 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const symbol = node.name.getText(source);
     const value = unwrap(node.initializer);
     const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
-    if (ts.isStringLiteral(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName)) return null;
+    if (isStaticText(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName)) return null;
     if (matches(rule.symbolPattern, symbol) &&
-        (ts.isStringLiteral(value) || (numericFoodField &&
+        (isStaticText(value) || (numericFoodField &&
           (ts.isNumericLiteral(value) ||
             (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)))))) {
       return { symbol, subject: node.initializer.getText(source) };
+    }
+  }
+  if (rule.kind === "lexical-lookup" && ts.isElementAccessExpression(node) &&
+      node.argumentExpression && !isStaticText(node.argumentExpression) &&
+      referencesLiteralLexicalMap(node.expression, node)) {
+    const context = node.expression.getText(source) + " " +
+      node.argumentExpression.getText(source) + " " + enclosingDeclaration(node);
+    const unrelated = /status|account|user|profile|role|permission|featureflag|config|setting/i.test(context);
+    const relevant = rule.id === "11"
+      ? /normaliz|language|lexic|food|aliment|word|term|input|text|token/i.test(context)
+      : isFoodDomainSource(source.fileName) || matches(rule.symbolPattern, context);
+    if (!unrelated && relevant) {
+      return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-dictionary",
+        subject: node.getText(source) + " " + node.expression.getText(source) };
     }
   }
   if (rule.kind === "literal-membership" && ts.isCallExpression(node) &&
@@ -402,7 +484,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
   }
   if (rule.kind === "literal-switch" && ts.isCaseClause(node) &&
-      ts.isStringLiteral(node.expression)) {
+      isStaticText(node.expression)) {
     const block = node.parent;
     const branch = ts.isCaseBlock(block) && block.parent && ts.isSwitchStatement(block.parent)
       ? block.parent : null;
@@ -422,7 +504,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
       ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
       .includes(node.operatorToken.kind) &&
-    (ts.isStringLiteral(node.left) || ts.isStringLiteral(node.right))) {
+    (isStaticText(node.left) || isStaticText(node.right))) {
     let functionName = "";
     for (let parent = node.parent; parent; parent = parent.parent) {
       if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
@@ -435,10 +517,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         break;
       }
     }
-    const operand = ts.isStringLiteral(node.left) ? node.right.getText(source) : node.left.getText(source);
+    const operand = isStaticText(node.left) ? node.right.getText(source) : node.left.getText(source);
     const relevant = rule.id === "17"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
-        ts.isStringLiteral(node.left) ? node.right : node.left, node, source)
+        isStaticText(node.left) ? node.right : node.left, node, source)
       : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
     if (relevant) {
       return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
@@ -524,7 +606,7 @@ function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""):
     const foodNumericMap = entries.length > 0 &&
       entries.every(([key, entry]) => key.trim().length > 0 &&
         typeof entry === "number" && Number.isFinite(entry)) &&
-      /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context) &&
+      /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
       !/(?:config|settings|preferences|options)\.json$/i.test(file.path);
     if (foodNumericMap) foodRows++;
     if ((explicitIdentity || genericIdentity) &&
@@ -568,13 +650,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   const runtime = new Set(files.filter(file => isProductionFoodSource(file.path))
     .map(file => file.path.replace(/\\/g, "/")));
   const importerContext = new Map<string, Set<string>>();
+  const dependencyGraph = new Map<string, Set<string>>();
   const queue = [...runtime];
   for (let i = 0; i < queue.length; i++) {
     const file = indexed.get(queue[i]);
     if (!file) continue;
     if (/\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
-    const addDependency = (specifier: string): void => {
+    const addDependency = (specifier: string, importSource = ""): void => {
       let base: string;
       if (specifier.startsWith(".")) {
         base = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier));
@@ -595,8 +678,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       ];
       for (const candidate of candidates) {
         if (!indexed.has(candidate)) continue;
+        const direct = dependencyGraph.get(file.path) ?? new Set<string>();
+        direct.add(candidate);
+        dependencyGraph.set(file.path, direct);
         const contexts = importerContext.get(candidate) ?? new Set<string>();
-        contexts.add(file.path + " " + [...(importerContext.get(file.path) ?? [])].join(" "));
+        contexts.add(file.path + " " + importSource + " " +
+          [...(importerContext.get(file.path) ?? [])].join(" "));
         importerContext.set(candidate, contexts);
         if (!runtime.has(candidate)) {
           runtime.add(candidate);
@@ -611,20 +698,20 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const namedTypesOnly = bindings && ts.isNamedImports(bindings) &&
           bindings.elements.length > 0 && bindings.elements.every(e => e.isTypeOnly) &&
           !node.importClause?.name;
-        if (!namedTypesOnly) addDependency(node.moduleSpecifier.text);
+        if (!namedTypesOnly) addDependency(node.moduleSpecifier.text, node.getText(source));
       }
       if (ts.isExportDeclaration(node) && node.moduleSpecifier &&
           ts.isStringLiteral(node.moduleSpecifier) && !node.isTypeOnly) {
         const clause = node.exportClause;
         const typesOnly = clause && ts.isNamedExports(clause) &&
           clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
-        if (!typesOnly) addDependency(node.moduleSpecifier.text);
+        if (!typesOnly) addDependency(node.moduleSpecifier.text, node.getText(source));
       }
       if (ts.isCallExpression(node) && node.arguments.length > 0 &&
           ts.isStringLiteral(node.arguments[0]) &&
           (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
             (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
-        addDependency(node.arguments[0].text);
+        addDependency(node.arguments[0].text, node.getText(source));
       }
       ts.forEachChild(node, follow);
     };
@@ -657,6 +744,33 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       ts.forEachChild(node, visit);
     }
     visit(source);
+  }
+  // A neutral barrel module does not make an alternative resolver safe:
+  // traverse import edges from channel entrypoints to legacy decision owners.
+  const alternateResolver = /nutritionEngine|foodItemResolution|catalogMatching|foodSemanticCompatibility/i;
+  const gate10 = FOOD_WAVE_ONE_RULES.find(rule => rule.id === "10" && rule.kind === "import");
+  if (gate10) for (const origin of [...runtime].filter(file =>
+    isProductionFoodSource(file) && matches(gate10.pathPattern, file))) {
+    const frontier: Array<{ file: string; depth: number }> = [{ file: origin, depth: 0 }];
+    const visited = new Set<string>([origin]);
+    for (let i = 0; i < frontier.length; i++) {
+      const { file, depth } = frontier[i];
+      for (const dependency of dependencyGraph.get(file) ?? []) {
+        if (visited.has(dependency)) continue;
+        visited.add(dependency);
+        const nextDepth = depth + 1;
+        if (nextDepth >= 2 && alternateResolver.test(dependency)) {
+          const symbol = "transitive-import:" + dependency;
+          results.push({
+            ruleId: "10", file: origin, line: 1, symbol,
+            fingerprint: "10:" + origin + ":" + symbol + ":" + stableHash(symbol),
+            failureClass: "E",
+            description: "Canal alcança resolvedor alimentar alternativo por importação indireta",
+          });
+        }
+        frontier.push({ file: dependency, depth: nextDepth });
+      }
+    }
   }
   return results.sort((a, b) =>
     a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId));
