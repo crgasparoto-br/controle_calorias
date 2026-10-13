@@ -357,4 +357,17 @@ describe("food intelligence architecture wave 1", () => {
     expect(compareFoodArchitectureFindings([legacyFinding], []).added).toHaveLength(1);
   });
 
+  it("R01 ties every timeboxed debt to a reviewed finding and exact rule", () => {
+    const inventory = JSON.parse(readFileSync("docs/design-docs/food-architecture-owners-1300.json", "utf8"));
+    const debts = JSON.parse(readFileSync("architecture-debt.json", "utf8"));
+    for (const debt of debts.entries) {
+      const symbol = debt.fingerprint.slice((debt.ruleId + ":" + debt.file + ":").length).split(":")[0];
+      const source = inventory.observations.find((item: { file: string; symbol: string }) =>
+        item.file === debt.file && item.symbol === symbol);
+      expect(source, debt.fingerprint).toBeDefined();
+      expect(source.review.classification, debt.fingerprint).toBe("confirmed-legacy-violation");
+      expect(source.rules, debt.fingerprint).toContain(debt.ruleId);
+    }
+  });
+
 });

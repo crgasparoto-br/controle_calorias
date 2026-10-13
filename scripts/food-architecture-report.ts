@@ -57,6 +57,12 @@ const inventory = provisionalInventory.map(finding => {
     },
   };
 });
+const inconsistentDebt = inventory.filter(item =>
+  item.review.debt === "timeboxed" && item.review.classification !== "confirmed-legacy-violation");
+if (inconsistentDebt.length) {
+  throw new Error("Approved food architecture debt without confirmed inventory evidence: " +
+    inconsistentDebt.map(item => item.fingerprint).join(", "));
+}
 const enforced = evaluateFoodArchitectureGate(
   findings, findFoodStaticCandidates(readFoodFilesAtGitRef(pinned.baseSha, root)),
   ledger.entries, new Date(),
