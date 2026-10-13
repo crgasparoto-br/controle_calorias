@@ -42,7 +42,7 @@ export function readFoodFilesAtGitRef(ref: string, cwd: string): FoodArchitectur
   });
   const names = git("ls-tree", "-r", "--name-only", ref, "--", "server", "shared", "client/src")
     .split(/\r?\n/).filter(Boolean)
-    .filter(name => /^(?:server|shared|client\/src)\/.+\.[cm]?tsx?$/.test(name));
+    .filter(name => /^(?:server|shared|client\/src)\/.+\.[cm]?[jt]sx?$/.test(name));
   if (!names.length) throw new Error("Baseline Git tree contains no production TypeScript files: " + ref);
   return names.map(file => ({
     path: file,

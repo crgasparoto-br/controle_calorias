@@ -21,8 +21,8 @@ export type FoodFinding = {
 export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
   return (p.startsWith("server/") || p.startsWith("shared/") || p.startsWith("client/src/")) &&
-    /\.[cm]?tsx?$/.test(p) &&
-    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
+    /\.[cm]?[jt]sx?$/.test(p) &&
+    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.[cm]?[jt]sx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
 }
 
 function matches(pattern: string | undefined, value: string): boolean {
@@ -58,7 +58,7 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     const key = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
     fields.set(key, unwrap(property.initializer));
   }
-  const hasIdentity = ["name", "foodname", "alimento", "productname"].some(key =>
+  const hasIdentity = ["name", "foodname", "alimento", "productname", "label", "nome", "productlabel"].some(key =>
     fields.has(key) && ts.isStringLiteral(fields.get(key)!));
   const hasLiteralNutrition = ["calories", "kcal", "protein", "carbs", "fat", "grams",
     "portiongrams", "servinggrams"].some(key => {
@@ -113,6 +113,35 @@ function hasLiteralWords(expr: ts.Expression): boolean {
 }
 
 
+function hasLiteralRegex(expr: ts.Expression): boolean {
+  const value = unwrap(expr);
+  return ts.isRegularExpressionLiteral(value) ||
+    (ts.isNewExpression(value) && value.expression.getText() === "RegExp" &&
+      !!value.arguments?.length && ts.isStringLiteral(unwrap(value.arguments[0])));
+}
+
+function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
+  if (hasLiteralRegex(target)) return true;
+  if (!ts.isIdentifier(target)) return false;
+  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === target.text) {
+          return !!declaration.initializer && hasLiteralRegex(declaration.initializer);
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function isPresentationOnlyCollection(symbol: string): boolean {
+  // Food-related UI navigation is not food knowledge or a nutritional decision.
+  return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
+}
+
 function referencesLiteralWords(target: ts.Expression, node: ts.Node): boolean {
   if (hasLiteralWords(target)) return true;
   if (!ts.isIdentifier(target)) return false;
@@ -166,6 +195,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       // The path alone does not make an ordinary UI/status dictionary a food lexicon.
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
+    if (rule.id === "17" && isPresentationOnlyCollection(symbol)) return null;
     if ((matches(rule.symbolPattern, symbol) || mappedLexicon ||
         (rule.contentPattern && matches(rule.contentPattern, node.initializer.getText(source)))) &&
         matches(rule.evidencePattern, symbol)) {
@@ -195,6 +225,15 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
     if (matches(rule.symbolPattern, context)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
+        subject: node.getText(source) };
+    }
+  }
+  if (rule.kind === "literal-regex-test" && ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "test" &&
+      node.arguments.length > 0 && referencesLiteralRegex(node.expression.expression, node)) {
+    const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
+    if (matches(rule.symbolPattern, context)) {
+      return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-regex",
         subject: node.getText(source) };
     }
   }

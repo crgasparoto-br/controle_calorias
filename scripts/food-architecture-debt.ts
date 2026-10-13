@@ -61,7 +61,7 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
  * Existing exceptions cannot be extended by changing their creation/expiry
  * dates or substituting their owner issue. CI compares against the base ref.
  */
-export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[]) {
+export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[], currentFindings: FoodFinding[] = []) {
   const errors: string[] = [];
   const indexed = new Map(current.map(item => [item.fingerprint, item]));
   for (const old of previous) {
@@ -72,7 +72,12 @@ export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[])
       const reissued = current.find(item => item.ruleId === old.ruleId && item.file === old.file &&
         item.fingerprint.startsWith(base + oldSymbol + ":"));
       if (reissued) errors.push("Architecture debt cannot be reissued under a new fingerprint: " + old.fingerprint);
-      continue; // actual repayment is allowed
+      // Repayment requires removing the underlying violation, not just the
+      // ledger entry. Without this check debt can be dropped and renewed later.
+      if (currentFindings.some(f => f.fingerprint === old.fingerprint && f.ruleId === old.ruleId && f.file === old.file)) {
+        errors.push("Architecture debt removed while violation remains: " + old.fingerprint);
+      }
+      continue; // actual repayment is allowed only after fixing the code
     }
     if (next.createdAt !== old.createdAt || next.expiresAt !== old.expiresAt ||
         next.issue !== old.issue || next.owner !== old.owner) {

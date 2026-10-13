@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-membership";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-membership" | "literal-regex-test";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -63,6 +63,13 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     description: "Materialidade alimentar decidida por consulta a coleção lexical inline",
   },
   {
+    id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "B", kind: "literal-regex-test",
+    pathPattern: "food|nutrition|catalog|attribute|resolver|material",
+    symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|variant",
+    description: "Materialidade lexical codificada em expressão regular",
+  },
+  {
     id: "5", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "C", kind: "collection",
     symbolPattern: "FOOD_CATALOG_REFERENCE|CURATED.*PORTION|COMMON.*FOOD|STATIC.*FOOD|FOOD.*DEFAULT",
@@ -81,6 +88,13 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
     symbolPattern: "alias|synonym|lexic|vocab|informal|slang|language|abbrev|typo|normaliz|food|alimento",
     description: "Canal decidindo vocabulário alimentar por coleção lexical inline",
+  },
+  {
+    id: "11", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "literal-regex-test",
+    pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
+    symbolPattern: "food|alimento|alias|synonym|lexic|vocab|informal|slang|language|abbrev|typo|normaliz",
+    description: "Canal mantendo léxico alimentar em expressão regular",
   },
   {
     id: "3", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",

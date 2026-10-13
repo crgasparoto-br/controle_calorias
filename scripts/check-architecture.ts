@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
-import { readFoodFilesAtGitRef } from "./food-architecture-baseline";
+import { compareFoodArchitectureFindings, readFoodFilesAtGitRef } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 import { assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
@@ -142,7 +142,7 @@ for (const violation of findTimeZoneArchitectureViolations(timeZoneArchitectureF
  */
 const foodArchitectureFiles = ["server", "shared", "client/src"]
   .flatMap(dir => walk(dir))
-  .filter(file => /\.[cm]?tsx?$/.test(file))
+  .filter(file => /\.[cm]?[jt]sx?$/.test(file))
   .map(file => ({ path: file, content: read(file) }));
 const foodFindings = findFoodStaticCandidates(foodArchitectureFiles);
 const debtPath = "architecture-debt.json";
@@ -200,7 +200,14 @@ if (!existsSync(path.join(root, debtPath)) || !existsSync(path.join(root, invent
             // Initial baseline may legitimately predate architecture-debt.json.
           }
           if (!Array.isArray(previous.entries)) fail("Invalid baseline architecture debt book");
-          else for (const error of assessFoodDebtRenewal(previous.entries, entries)) fail("Food architecture debt: " + error);
+          else for (const error of assessFoodDebtRenewal(previous.entries, entries, foodFindings)) fail("Food architecture debt: " + error);
+          // A legacy fingerprint removed on develop must never become silently
+          // eligible again merely because it existed in the immutable seed.
+          const currentDevelopFindings = findFoodStaticCandidates(readFoodFilesAtGitRef("origin/" + baseRef, root));
+          const reintroduced = compareFoodArchitectureFindings(foodFindings, currentDevelopFindings).added;
+          for (const finding of reintroduced) {
+            fail("Food architecture violation added since " + baseRef + ": " + finding.fingerprint);
+          }
         } catch {
           if (process.env.GITHUB_ACTIONS === "true") fail("Cannot compare debt renewals with origin/" + baseRef);
           else console.warn("[food-architecture] debt immutability comparison needs fetched origin/" + baseRef);
