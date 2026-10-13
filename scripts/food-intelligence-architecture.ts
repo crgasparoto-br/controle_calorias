@@ -92,7 +92,18 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
       return value !== undefined && (ts.isNumericLiteral(value) ||
         (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
     });
-  return (hasNamedFood || hasFoodIdentifier) && hasLiteralNutrition;
+  const hasNestedLiteralNutrition = ["macros", "nutrition", "nutrients"].some(key => {
+    const block = fields.get(key);
+    return block && ts.isObjectLiteralExpression(block) && block.properties.some(property => {
+      if (!ts.isPropertyAssignment(property)) return false;
+      const name = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
+      const value = unwrap(property.initializer);
+      return /^(?:calories|kcal|protein|carbs|fat|energykcal)$/.test(name) &&
+        (ts.isNumericLiteral(value) ||
+          (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
+    });
+  });
+  return (hasNamedFood || hasFoodIdentifier) && (hasLiteralNutrition || hasNestedLiteralNutrition);
 }
 
 function enclosingDeclaration(node: ts.Node): string {
@@ -366,8 +377,8 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
     }
     if (!value || typeof value !== "object") return;
     const item = value as Record<string, unknown>;
-    const named = ["name", "foodName", "food_name", "foodId", "food_id", "label",
-      "slug", "productName", "alimento", "nome"].some(key =>
+    const named = ["name", "foodName", "food_name", "foodId", "food_id", "food",
+      "label", "slug", "productName", "alimento", "nome"].some(key =>
       typeof item[key] === "string" || typeof item[key] === "number");
     const nutrient = ["calories", "kcal", "protein", "carbs", "fat", "gramsPerServing",
       "portionGrams", "portion_grams", "servingGrams", "energyKcal"].some(key =>
@@ -377,7 +388,11 @@ function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
       return entry !== null && typeof entry === "object" && !Array.isArray(entry) &&
         ["calories", "kcal", "protein", "carbs", "fat"].some(n => typeof (entry as Record<string, unknown>)[n] === "number");
     });
-    if (named && (nutrient || nested)) foodRows++;
+    const aliases = ["aliases", "synonyms", "synonimos", "lexicon", "portions",
+      "portionGrams", "servingGrams", "grams", "processingLevel",
+      "classification"].some(key =>
+      Array.isArray(item[key]) || typeof item[key] === "string" || typeof item[key] === "number");
+    if (named && (nutrient || nested || aliases)) foodRows++;
     Object.values(item).forEach(walk);
   }
   walk(parsed);
