@@ -2,13 +2,30 @@ import { execFileSync } from "node:child_process";
 import { findFoodStaticCandidates, type FoodArchitectureFile, type FoodFinding } from "./food-intelligence-architecture";
 
 export function compareFoodArchitectureFindings(current: FoodFinding[], baseline: FoodFinding[]) {
-  const before = new Set(baseline.map(f => f.fingerprint));
-  const after = new Set(current.map(f => f.fingerprint));
-  return {
-    added: current.filter(f => !before.has(f.fingerprint)),
-    retained: current.filter(f => before.has(f.fingerprint)),
-    removed: baseline.filter(f => !after.has(f.fingerprint)),
-  };
+  // Multiset comparison, not Set comparison. An identical rule added in a
+  // second scope remains a new violation and cannot hide behind legacy.
+  const remaining = new Map<string, number>();
+  for (const finding of baseline) {
+    remaining.set(finding.fingerprint, (remaining.get(finding.fingerprint) ?? 0) + 1);
+  }
+  const added: FoodFinding[] = [];
+  const retained: FoodFinding[] = [];
+  for (const finding of current) {
+    const count = remaining.get(finding.fingerprint) ?? 0;
+    if (count > 0) {
+      retained.push(finding);
+      remaining.set(finding.fingerprint, count - 1);
+    } else {
+      added.push(finding);
+    }
+  }
+  const removed = baseline.filter(finding => {
+    const count = remaining.get(finding.fingerprint) ?? 0;
+    if (!count) return false;
+    remaining.set(finding.fingerprint, count - 1);
+    return true;
+  });
+  return { added, retained, removed };
 }
 
 /**
