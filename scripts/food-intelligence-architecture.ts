@@ -4,6 +4,7 @@
  * registry remains preview until ADR §25 item 25 defines the final scope.
  */
 import ts from "typescript";
+import path from "node:path";
 import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRuleId, type FoodWaveOneRule } from "./food-architecture-rules";
 
 export type FoodArchitectureFile = { path: string; content: string };
@@ -19,9 +20,9 @@ export type FoodFinding = {
 
 export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
-  return p.startsWith("server/") &&
+  return (p.startsWith("server/") || p.startsWith("shared/") || p.startsWith("client/src/")) &&
     /\.[cm]?tsx?$/.test(p) &&
-    !/\.d\.ts$|\.(?:test|spec)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|fixtures|generated)(?:\/|$)/i.test(p);
+    !/\.d\.ts$|\.(?:test|spec)\.[cm]?tsx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
 }
 
 function matches(pattern: string | undefined, value: string): boolean {
@@ -137,8 +138,37 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
   const results: FoodFinding[] = [];
   const observed = new Set<string>();
+  // A fixture or generated TS module imported by production must not escape
+  // the gate solely because it lives under a normally excluded folder.
+  const indexed = new Map(files.map(file => [file.path.replace(/\\/g, "/"), file]));
+  const runtime = new Set(files.filter(file => isProductionFoodSource(file.path))
+    .map(file => file.path.replace(/\\/g, "/")));
+  const queue = [...runtime];
+  for (let i = 0; i < queue.length; i++) {
+    const file = indexed.get(queue[i]);
+    if (!file) continue;
+    const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
+    source.forEachChild(node => {
+      if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) ||
+          node.importClause?.isTypeOnly ||
+          (node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings) &&
+            node.importClause.namedBindings.elements.length > 0 &&
+            node.importClause.namedBindings.elements.every(element => element.isTypeOnly) &&
+            !node.importClause.name)) return;
+      const specifier = node.moduleSpecifier.text;
+      if (!specifier.startsWith(".")) return;
+      const base = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier));
+      for (const candidate of [base, base + ".ts", base + ".tsx", base + ".mts",
+        base + ".cts", base + "/index.ts", base + "/index.tsx"]) {
+        if (indexed.has(candidate) && !runtime.has(candidate)) {
+          runtime.add(candidate);
+          queue.push(candidate);
+        }
+      }
+    });
+  }
   for (const file of files) {
-    if (!isProductionFoodSource(file.path)) continue;
+    if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node): void {
       for (const rule of FOOD_WAVE_ONE_RULES) {
