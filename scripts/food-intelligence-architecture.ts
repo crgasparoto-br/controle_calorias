@@ -21,8 +21,8 @@ export type FoodFinding = {
 export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
   return (p.startsWith("server/") || p.startsWith("shared/") || p.startsWith("client/src/")) &&
-    /\.[cm]?[jt]sx?$/.test(p) &&
-    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.[cm]?[jt]sx?$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
+    /\.(?:[cm]?[jt]sx?|json)$/.test(p) &&
+    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.(?:[cm]?[jt]sx?|json)$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
 }
 
 function matches(pattern: string | undefined, value: string): boolean {
@@ -64,8 +64,24 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     const key = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
     fields.set(key, unwrap(property.initializer));
   }
-  const hasNamedFood = ["name", "foodname", "alimento", "productname", "label", "nome", "productlabel"].some(key =>
-    fields.has(key) && ts.isStringLiteral(fields.get(key)!));
+  const nameKeys = ["name", "foodname", "alimento", "productname", "label", "nome", "productlabel"];
+  const hasNamedFood = nameKeys.some(key => {
+    const value = fields.get(key);
+    if (!value) return false;
+    // A food identity may be selected at runtime while its macro data remain
+    // hardcoded. Do not require the food name itself to be a string literal.
+    if (ts.isStringLiteral(value)) return true;
+    const nameIsFoodSpecific = key !== "name" && key !== "label" && key !== "nome";
+    const foodContext = /food|alimento|meal|ingredient|nutrition|nutrient|macro|portion|porc|product/i.test(
+      value.getText() + " " + enclosingDeclaration(node) + " " + node.getSourceFile().fileName);
+    const numericNutrientCount = ["calories", "kcal", "protein", "carbs", "fat", "energykcal"]
+      .filter(nutrient => {
+        const nutrientValue = fields.get(nutrient);
+        return nutrientValue && (ts.isNumericLiteral(nutrientValue) ||
+          (ts.isPrefixUnaryExpression(nutrientValue) && ts.isNumericLiteral(nutrientValue.operand)));
+      }).length;
+    return nameIsFoodSpecific || foodContext || numericNutrientCount >= 2;
+  });
   // A stable food identifier may be a runtime variable while its nutrition
   // numbers are hardcoded in a nameless collection.
   const hasFoodIdentifier = ["foodid", "food_id", "alimentoid", "alimento_id", "productfoodid"].some(key =>
@@ -152,6 +168,15 @@ function isPresentationOnlyCollection(symbol: string): boolean {
   return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
 }
 
+/** Presentation copy is not a food identity or a domain decision. */
+function isPresentationOnlyScalar(symbol: string, value: string, file: string): boolean {
+  if (!/(?:label|title|text|placeholder|description|message|tooltip|caption|heading|button|toast)/i.test(symbol) ||
+      /alias|synonym|lexic|classification|materiality|defaultFoodName/i.test(symbol)) return false;
+  const viewOnly = /^client\/src\/.*\.(?:tsx|jsx)$/i.test(file);
+  const instructionalCopy = /^(?:Adicionar|Salvar|Selecionar|Selecione|Buscar|Editar|Remover|Excluir|Escolher|Escolha|Informe|Registrar|Cancelar|Carregar|Nenhum|Nenhuma|Add|Save|Select|Search|Edit|Remove|Choose|Enter|Cancel)\s+/i.test(value);
+  return viewOnly || instructionalCopy;
+}
+
 function referencesLiteralWords(target: ts.Expression, node: ts.Node): boolean {
   if (hasLiteralWords(target)) return true;
   if (!ts.isIdentifier(target)) return false;
@@ -220,6 +245,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const symbol = node.name.getText(source);
     const value = unwrap(node.initializer);
     const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
+    if (ts.isStringLiteral(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName)) return null;
     if (matches(rule.symbolPattern, symbol) &&
         (ts.isStringLiteral(value) || (numericFoodField &&
           (ts.isNumericLiteral(value) ||
@@ -317,6 +343,58 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   return null;
 }
 
+/**
+ * JSON catalogs are food knowledge just as TS/JS literal tables are. A JSON
+ * source produces one finding per gate/file; its normalized content hash makes
+ * additions and edits visible without flooding the debt ledger with every row.
+ * Non-food JSON does not produce a finding.
+ */
+function findJsonFoodCatalog(file: FoodArchitectureFile): FoodFinding[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(file.content);
+  } catch {
+    throw new Error("Invalid production JSON source: " + file.path);
+  }
+  let foodRows = 0;
+  function walk(value: unknown): void {
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    const item = value as Record<string, unknown>;
+    const named = ["name", "foodName", "food_name", "foodId", "food_id", "label",
+      "slug", "productName", "alimento", "nome"].some(key =>
+      typeof item[key] === "string" || typeof item[key] === "number");
+    const nutrient = ["calories", "kcal", "protein", "carbs", "fat", "gramsPerServing",
+      "portionGrams", "portion_grams", "servingGrams", "energyKcal"].some(key =>
+      typeof item[key] === "number");
+    const nested = ["nutrition", "nutrients", "macros"].some(key => {
+      const entry = item[key];
+      return entry !== null && typeof entry === "object" && !Array.isArray(entry) &&
+        ["calories", "kcal", "protein", "carbs", "fat"].some(n => typeof (entry as Record<string, unknown>)[n] === "number");
+    });
+    if (named && (nutrient || nested)) foodRows++;
+    Object.values(item).forEach(walk);
+  }
+  walk(parsed);
+  if (!foodRows) return [];
+  let hash = 2166136261;
+  // FNV-1a over normalized JSON; whitespace-only changes preserve identity.
+  for (const character of JSON.stringify(parsed)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  const digest = (hash >>> 0).toString(16).padStart(8, "0");
+  return (["17", "5"] as const).map(ruleId => ({
+    ruleId, file: file.path, line: 1, symbol: "json-food-catalog",
+    fingerprint: ruleId + ":" + file.path + ":json-food-catalog:" + digest,
+    failureClass: ruleId === "17" ? "I" as const : "C" as const,
+    description: "Catálogo alimentar JSON em fonte produtiva (" + foodRows + " registros)",
+  }));
+}
+
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
   const results: FoodFinding[] = [];
   // Preserve multiplicity: adding an identical rule in another scope is still new.
@@ -329,6 +407,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   for (let i = 0; i < queue.length; i++) {
     const file = indexed.get(queue[i]);
     if (!file) continue;
+    if (/\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const addDependency = (specifier: string): void => {
       let base: string;
@@ -343,7 +422,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       } else {
         return;
       }
-      const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+      const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
       const candidates = [
         base,
         ...extensions.map(extension => base + extension),
@@ -384,6 +463,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   }
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
+    if (/\.json$/i.test(file.path)) {
+      results.push(...findJsonFoodCatalog(file));
+      continue;
+    }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node): void {
       for (const rule of FOOD_WAVE_ONE_RULES) {
