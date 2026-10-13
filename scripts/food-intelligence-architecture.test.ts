@@ -184,4 +184,97 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessFoodDebt([finding], [{ ...debt, createdAt: "2027-01-01", expiresAt: "2027-02-01" }], today)
       .errors.some(s => s.includes("Future-dated"))).toBe(true);
   });
+  it("F01 blocks numeric portions and inline nutrition objects without named catalogs", () => {
+    const findings = findFoodStaticCandidates([{
+      path: "server/foodResolver.ts",
+      content: [
+        "const FOOD_PORTION_GRAMS = 25;",
+        "function makeFood() { return { name: 'ovo', calories: 78, protein: 6 }; }",
+      ].join("\n"),
+    }]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol === "FOOD_PORTION_GRAMS")).toBe(true);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge")).toBe(true);
+    expect(findFoodStaticCandidates([{
+      path: "server/unrelated.ts", content: "const RETRY_COUNT = 25; function make(){return { name: 'test', count: 3 };}",
+    }])).toEqual([]);
+  });
+
+  it("F02 detects inline lexical membership and unnamed food channel dictionaries", () => {
+    const material = findFoodStaticCandidates([{
+      path: "server/foodMateriality.ts",
+      content: "function isMaterialAttribute(variant: string) { return ['integral', 'light'].includes(variant); }",
+    }]);
+    expect(material.some(f => f.ruleId === "18" && f.symbol.includes("lexical-membership"))).toBe(true);
+    const vocabulary = findFoodStaticCandidates([{
+      path: "server/modules/whatsapp/foodMessageNormalizer.ts",
+      content: [
+        "function normalizeFoodName(value: string) {",
+        " const map = { refri: 'refrigerante', cafezinho: 'café' };",
+        " return ['refri', 'cafezinho'].includes(value) ? map.refri : value;",
+        "}",
+      ].join("\n"),
+    }]);
+    expect(vocabulary.some(f => f.ruleId === "11")).toBe(true);
+    expect(findFoodStaticCandidates([{
+      path: "server/utility.ts",
+      content: "function supports(mode:string) {return ['auto', 'manual'].includes(mode);}",
+    }])).toEqual([]);
+  });
+
+  it("F03 traverses runtime dynamic imports, require and reexports of excluded source", () => {
+    const generated = { path: "server/generated/knownFood.ts",
+      content: "const FOOD_ALIASES = ['pão', 'paes'];" };
+    for (const consumer of [
+      "async function getData(){ return import('./generated/knownFood'); }",
+      "const data = require('./generated/knownFood');",
+      "export { FOOD_ALIASES } from './generated/knownFood';",
+    ]) {
+      const findings = findFoodStaticCandidates([generated, {
+        path: "server/liveService.ts", content: consumer,
+      }]);
+      expect(findings.some(f => f.file === generated.path && f.ruleId === "17"),
+        "runtime import should activate generated data: " + consumer).toBe(true);
+    }
+    expect(findFoodStaticCandidates([generated, {
+      path: "server/liveService.ts", content:
+        "export type { FoodAliases } from './generated/knownFood';",
+    }])).toEqual([]);
+    const fixture = { path: "client/src/fixtures/foodData.ts",
+      content: "const FOOD_ALIASES = ['pão', 'paes'];" };
+    const alias = findFoodStaticCandidates([fixture, {
+      path: "client/src/liveService.ts", content:
+        "async function load(){ return import('@/fixtures/foodData'); }",
+    }]);
+    expect(alias.some(f => f.file === fixture.path)).toBe(true);
+    const sharedFixture = { path: "shared/fixtures/knownFood.ts",
+      content: "const FOOD_ALIASES = ['pão', 'paes'];" };
+    expect(findFoodStaticCandidates([sharedFixture, {
+      path: "server/liveService.ts", content:
+        "export * from '@shared/fixtures/knownFood';",
+    }]).some(f => f.file === sharedFixture.path)).toBe(true);
+  });
+
+  it("F04 treats repeated identical findings as new occurrences, not inherited exceptions", () => {
+    const before = findFoodStaticCandidates([{
+      path: "server/catalog.ts",
+      content: "function first() { const FOOD_ALIASES = ['pão']; }",
+    }]);
+    const after = findFoodStaticCandidates([{
+      path: "server/catalog.ts",
+      content: [
+        "function first() { const FOOD_ALIASES = ['pão']; }",
+        "function second() { const FOOD_ALIASES = ['pão']; }",
+      ].join("\n"),
+    }]);
+    expect(before).toHaveLength(1);
+    expect(after).toHaveLength(2);
+    expect(after[0].fingerprint).toBe(after[1].fingerprint);
+    expect(compareFoodArchitectureFindings(after, before)).toMatchObject({
+      added: [after[1]], retained: [after[0]], removed: [],
+    });
+    expect(evaluateFoodArchitectureGate(after, before, [], today).errors.some(e =>
+      e.includes("New food architecture violation"))).toBe(true);
+    expect(compareFoodArchitectureFindings(before, after).removed).toHaveLength(1);
+  });
+
 });
