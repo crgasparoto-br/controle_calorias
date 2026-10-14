@@ -1608,6 +1608,9 @@ describe("food intelligence architecture wave 1", () => {
       expect(detected.some(f => f.ruleId === "5"), JSON.stringify(files)).toBe(true);
       expect(evaluateFoodArchitectureGate(detected, [], [], today).errors.length).toBeGreaterThan(0);
     }
+    const legacyNumericLexicon = findFoodStaticCandidates([{ path: "server/foodTextNormalization.ts", content:
+      "const NUMBER_WORDS = {um: 1, dois: 2}; function normalizeFoodText(input: string) { return NUMBER_WORDS[normalizeFoodLookupText(input)]; }" }]);
+    expect(legacyNumericLexicon.some(f => f.ruleId === "17" && f.symbol.includes("numeric-food-map"))).toBe(true);
     const unrelated = findFoodStaticCandidates([{ path: "server/exerciseService.ts", content:
       "const table = {corrida:50, caminhada:90}; function getPortion(activityName: string) { const key = activityName.toLowerCase(); return table[key]; }" }]);
     expect(unrelated.filter(f => f.ruleId === "17" || f.ruleId === "5")).toEqual([]);

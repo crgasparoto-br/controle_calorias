@@ -232,7 +232,10 @@ function foodIndexOrigin(value: ts.Expression, use: ts.Node, source: ts.SourceFi
         expr.arguments.length) {
       return foodIndexOrigin(expr.arguments[0], use, source, visited, depth + 1);
     }
-    return "";
+    // Preserve existing productive food-normalizer indices while following
+    // transparent local aliases; never silently drop a legacy finding.
+    return /food|aliment|portion|porc|serving/i.test(callee.getText(source))
+      ? expr.getText(source) : "";
   }
   if (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) {
     return expr.getText(source);
