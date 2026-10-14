@@ -17,6 +17,7 @@ export type FoodWaveOneRule = {
   symbolPattern: string;
   pathPattern?: string;
   evidencePattern?: string;
+  lexicalEvidencePathPattern?: string;
   contentPattern?: string;
   description: string;
 };
@@ -116,6 +117,9 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
     // Detector-only lexical evidence; not a runtime vocabulary of food rules.
     evidencePattern: "integral|light|diet|desnatad|sem[\\s_-]*a[cç][uú]car|zero[\\s_-]*(?:acucar|a[cç][uú]car|lactose)|sem[\\s_-]*lactose",
+    // In anonymous functions, lexical cues require an entrypoint surface.
+    // Account/status helpers remain out of scope without food-domain evidence.
+    lexicalEvidencePathPattern: "(?:^|/)(?:handlers?|routes?|controllers?|adapters?|api)(?:/|\\.)",
     description: "Materialidade lexical codificada em expressão regular",
   },
   {

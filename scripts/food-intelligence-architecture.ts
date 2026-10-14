@@ -631,6 +631,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     // Materiality vocabulary in the registry is evidence for this detector,
     // not a product-level nutrition or identity decision.
     const materialityLexeme = rule.id === "18" && !!rule.evidencePattern &&
+      (isFoodDomainSource(source.fileName) ||
+        (rule.lexicalEvidencePathPattern !== undefined &&
+          matches(rule.lexicalEvidencePathPattern, source.fileName))) &&
       matches(rule.evidencePattern,
         localDecisionEvidence(node.expression.expression, node, source));
     if (matches(rule.symbolPattern, context) || sourceDecision || materialityLexeme) {
