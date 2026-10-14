@@ -111,6 +111,12 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     description: "Materialidade alimentar decidida por consulta a coleção lexical inline",
   },
   {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "literal-regex-test",
+    symbolPattern: "food|alimento|nutrition|meal|ingredient|portion|porc|serving|alias|lexic|normaliz",
+    description: "Decisão lexical alimentar usando regex literal",
+  },
+  {
     id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "B", kind: "literal-regex-test",
     // Semantic food/materiality context, regardless of source filename.

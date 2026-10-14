@@ -5,6 +5,7 @@
  */
 import ts from "typescript";
 import path from "node:path";
+import { findImportedLexicalFoodFindings } from "./food-architecture-lexical-imports";
 import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRuleId, type FoodWaveOneRule } from "./food-architecture-rules";
 import {
   isAnonymousFoodNutrition, referencesLiteralLexicalMap, isLexicalMap,
@@ -958,11 +959,17 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
   }
   if (rule.kind === "literal-regex-test" && ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "test" &&
-      node.arguments.length > 0 && referencesLiteralRegex(node.expression.expression, node)) {
-    const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
-    const sourceDecision = rule.id === "18" && isFoodDomainSource(source.fileName) &&
-      hasLexicalVocabularyRegex(node.expression.expression, node);
+      ts.isPropertyAccessExpression(node.expression) && node.arguments.length > 0 &&
+      (/^(?:test|exec)$/.test(node.expression.name.text) &&
+        referencesLiteralRegex(node.expression.expression, node) ||
+       /^(?:match|matchAll|search)$/.test(node.expression.name.text) &&
+        referencesLiteralRegex(node.arguments[0], node))) {
+    const regexSource = /^(?:test|exec)$/.test(node.expression.name.text)
+      ? node.expression.expression : node.arguments[0];
+    const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source) +
+      " " + node.expression.expression.getText(source);
+    const sourceDecision = isFoodDomainSource(source.fileName) &&
+      hasLexicalVocabularyRegex(regexSource, node);
     // Materiality vocabulary in the registry is evidence for this detector,
     // not a product-level nutrition or identity decision.
     const materialityLexeme = rule.id === "18" && !!rule.evidencePattern &&
@@ -970,8 +977,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         (rule.lexicalEvidencePathPattern !== undefined &&
           matches(rule.lexicalEvidencePathPattern, source.fileName))) &&
       matches(rule.evidencePattern,
-        localDecisionEvidence(node.expression.expression, node, source));
-    if (matches(rule.symbolPattern, context) || sourceDecision || materialityLexeme) {
+        localDecisionEvidence(regexSource, node, source));
+    const unrelated = /status|account|permission|role|exercise|activity|workout|fitness|render|display/i
+      .test(enclosingDeclaration(node));
+    if (!unrelated && (matches(rule.symbolPattern, context) || sourceDecision || materialityLexeme)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-regex",
         subject: node.getText(source) };
     }
@@ -1963,6 +1972,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     visit(source);
   }
   results.push(...importedNumericMaps.findings);
+  results.push(...findImportedLexicalFoodFindings(files, runtime, indexed, resolveRuntimeDependencies, stableHash));
   results.push(...findTransitiveAlternativeResolverFindings(
     dependencyGraph, runtime, isProductionFoodSource, stableHash,
   ));

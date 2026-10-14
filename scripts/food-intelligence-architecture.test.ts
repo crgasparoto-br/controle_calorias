@@ -1969,4 +1969,87 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("AUD1300-LEX-01 blocks exec, match, search and matchAll food regex decisions", () => {
+    const samples = [
+      'return /\\\\bpão\\\\b/i.exec(foodName) ? "bread" : "unknown";',
+      'return foodName.match(/pão|arroz/i) ? "bread" : "unknown";',
+      'return foodName.search(/pão|arroz/i) >= 0 ? "bread" : "unknown";',
+      'return [...foodName.matchAll(/pão|arroz/g)].length ? "bread" : "unknown";',
+    ];
+    for (const sample of samples) {
+      const files = [{path: "server/foodClassifier.ts",
+        content: "function classifyFood(foodName: string) { " + sample + " }"}];
+      const findings = findFoodStaticCandidates(files);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("lexical-regex")), sample).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.some(err =>
+        err.startsWith("New food architecture violation gate 17")), sample).toBe(true);
+    }
+    const materiality = findFoodStaticCandidates([{ path: "server/foodMateriality.ts",
+      content: 'function isMaterialFood(foodName: string) { return /light|sem açúcar/i.exec(foodName) !== null; }' }]);
+    expect(materiality.some(f => f.ruleId === "18" && f.symbol.includes("lexical-regex"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(materiality, [], [], today).errors.length).toBeGreaterThan(0);
+  });
+
+  it("AUD1300-LEX-01 excludes account, status, UI and format-regex controls", () => {
+    for (const sample of [
+      {path:"server/accounts.ts",content:'function checkStatus(status: string) { return /active|pending/.exec(status); }'},
+      {path:"server/foodService.ts",content:'function checkStatus(status: string) { return /active|pending/.exec(status); }'},
+      {path:"client/src/components/FoodTabs.tsx",content:'function render(tab: string) { return tab.match(/daily|weekly/); }'},
+      {path:"server/foodService.ts",content:'function validateFormat(code: string) { return /^\\\\d{3}$/.exec(code); }'},
+    ]) {
+      const findings = findFoodStaticCandidates([sample]);
+      expect(findings.filter(f => f.symbol.includes("lexical-regex")), sample.content).toEqual([]);
+    }
+  });
+
+  it("AUD1300-LEX-02 blocks imported generic lexical arrays at food decisions", () => {
+    const source = {path:"shared/words.ts", content:'export const words = ["pão", "arroz"];'};
+    const consumer = {path:"server/foodClassifier.ts", content:
+      'import {words} from "../shared/words"; export function classifyFood(foodName: string) { return words.includes(foodName) ? "known" : "unknown"; }'};
+    const findings = findFoodStaticCandidates([source, consumer]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("shared/words.ts#words"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    expect(findFoodStaticCandidates([source]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+    const local = findFoodStaticCandidates([{path:"server/foodClassifier.ts",content:
+      'const words = ["pão", "arroz"]; function classifyFood(foodName: string) { return words.includes(foodName); }'}]);
+    expect(local.some(f => f.ruleId === "17" && f.symbol.startsWith("consumed-lexical-table:"))).toBe(true);
+  });
+
+  it("AUD1300-LEX-02 follows reexports, import aliases and const aliases", () => {
+    const source = {path:"shared/vocab.ts",content:'export const words = ["pão", "arroz"];'};
+    const barrel = {path:"shared/index.ts",content:'export {words as terms} from "./vocab";'};
+    const consumer = {path:"server/foodClassifier.ts",content:
+      'import { terms as vocabulary } from "../shared"; function classifyFood(foodName: string) { const names = vocabulary; return names.indexOf(foodName) >= 0; }'};
+    const findings = findFoodStaticCandidates([source,barrel,consumer]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("shared/vocab.ts#words"))).toBe(true);
+    const shadowed = { ...consumer, content:
+      'import { terms as vocabulary } from "../shared"; function classifyFood(foodName: string) { const vocabulary = loadFoodNames(); return vocabulary.includes(foodName); }'};
+    expect(findFoodStaticCandidates([source,barrel,shadowed]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
+  it("AUD1300-LEX-02 recognizes materiality and channel lexicons but not administrative data", () => {
+    const words = {path:"shared/words.ts",content:'export const words = new Set(["integral", "light"]);'};
+    const material = {path:"server/materiality.ts",content:
+      'import {words} from "../shared/words"; function decideMateriality(attribute: string) { return words.has(attribute); }'};
+    const candidate = findFoodStaticCandidates([words,material]);
+    expect(candidate.some(f => f.ruleId === "18" && f.failureClass === "B")).toBe(true);
+    expect(evaluateFoodArchitectureGate(candidate,[],[],today).errors.length).toBeGreaterThan(0);
+    const channel = findFoodStaticCandidates([
+      {path:"server/modules/whatsapp/vocab.ts",content:'export const words = ["pão","arroz"];'},
+      {path:"server/modules/whatsapp/foodClassifier.ts",content:
+        'import {words} from "./vocab"; function normalizeFoodInput(input:string) { return words.includes(input); }'},
+    ]);
+    expect(channel.some(f => f.ruleId === "11" && f.symbol.startsWith("consumed-lexical-table:"))).toBe(true);
+    const administrative = findFoodStaticCandidates([
+      {path:"shared/words.ts",content:'export const words = ["admin", "user"];'},
+      {path:"server/accounts.ts",content:
+        'import {words} from "../shared/words"; function checkStatus(status:string) { return words.includes(status); }'},
+    ]);
+    expect(administrative.filter(f => f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+    expect(findFoodStaticCandidates([{path:"server/fixtures/vocab.ts",
+      content:'export const words = ["pão", "arroz"];'}])).toEqual([]);
+  });
+
 });
