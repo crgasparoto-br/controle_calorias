@@ -29,6 +29,20 @@ test("ordinary backend path is STANDARD", () => {
   assert.equal(classifyCiRisk({ changedPaths: ["server/modules/profile/service.ts"] }).riskProfile, "standard");
 });
 
+test("architecture debt and inventory-only changes always schedule the food gate", () => {
+  for (const changed of [
+    "architecture-debt.json",
+    "docs/design-docs/food-architecture-owners-1300.json",
+    "packages/food-data/knowledge.json",
+    "packages/food-data/catalog.ts"
+  ]) {
+    const plan = classifyCiRisk({ requested: "fast", changedPaths: [changed] });
+    assert.equal(plan.codeChanged, true, changed);
+    assert.equal(plan.riskProfile, "critical" /* unfamiliar paths fail closed */, changed);
+  }
+  assert.equal(classifyCiRisk({ changedPaths: ["docs/design-docs/sample.json"] }).codeChanged, false);
+});
+
 test("common documentation can be FAST while still requiring docs validation", () => {
   const plan = classifyCiRisk({ changedPaths: ["docs/testing/example.md"] });
   assert.equal(plan.riskProfile, "fast");
