@@ -1516,6 +1516,12 @@ describe("food intelligence architecture wave 1", () => {
     const functions = "import weights from './weights.json'; function first(foodName: string) { const alias = weights; return alias[foodName]; } function second(foodName: string) { const alias = loadDatabaseMap(); return alias[foodName]; }";
     const findings = findFoodStaticCandidates([json, { path: source, content: functions }]);
     expect(findings.filter(f => f.ruleId === "17" && f.symbol.includes("imported-numeric-food-map"))).toHaveLength(1);
+    // The real repository contains sparse destructuring patterns. An omitted
+    // array element is not a binding and must never crash architecture:check.
+    const sparse = findFoodStaticCandidates([json, { path: source, content:
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { for (const [, item] of [[1, 2]]) { void item; } return weights[foodName]; }" }]);
+    expect(sparse.some(f => f.ruleId === "17" &&
+      f.symbol.includes("imported-numeric-food-map"))).toBe(true);
   });
 
 });
