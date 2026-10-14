@@ -1771,4 +1771,73 @@ describe("food intelligence architecture wave 1", () => {
     }]);
     expect(generic.filter(f => f.ruleId === "2")).toEqual([]);
   });
+
+  it("AUD1300-03 tracks immutable numeric aliases used as food macros, but not dynamic or shadowed values", () => {
+    const cases = [
+      "const n = 95; export function compute(foodId: string) { return { foodId, calories: n }; }",
+      "const n = 60; const alias = n + 35; export function compute(foodId: string) { return { foodId, protein: alias }; }",
+      "function resolveFood(foodName: string) { const n = 95; return { calories: n }; }",
+      "const n = 50; function compute(foodId: string) { return { foodId, macros: { protein: n } }; }",
+    ];
+    for (const content of cases) {
+      const found = findFoodStaticCandidates([{ path: "server/foodCompute.ts", content }]);
+      expect(found.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length, content).toBeGreaterThan(0);
+    }
+    const negatives = [
+      "const n = loadFromDatabase(); function compute(foodId: string) { return { foodId, calories: n }; }",
+      "const n = 95; function compute(foodId: string, n: number) { return { foodId, calories: n }; }",
+      "let n = 95; function compute(foodId: string) { return { foodId, calories: n }; }",
+      "const n = 95; function exercise() { return { calories: n }; }",
+    ];
+    for (const content of negatives) {
+      const found = findFoodStaticCandidates([{ path: "server/foodCompute.ts", content }]);
+      expect(found.filter(f => f.symbol === "inline-food-knowledge"), content).toEqual([]);
+    }
+  });
+
+  it("AUD1300-04 blocks mixed nutritional maps in TypeScript and imported JSON", () => {
+    const mixedLocal = findFoodStaticCandidates([{ path: "server/foodPortions.ts",
+      content: "const weights = { pao: 50, arroz: null }; function resolvePortion(foodName: string) { return weights[foodName]; }",
+    }]);
+    for (const id of ["17", "5"]) {
+      expect(mixedLocal.some(f => f.ruleId === id && f.symbol.includes("numeric-food-map"))).toBe(true);
+    }
+    const mixedImported = findFoodStaticCandidates([
+      { path: "server/data/weights.json", content: '{"pao":50,"arroz":null}' },
+      { path: "server/foodPortions.ts",
+        content: 'import weights from "./data/weights.json"; function resolvePortion(foodName: string) { return weights[foodName]; }' },
+    ]);
+    for (const id of ["17", "5"]) {
+      expect(mixedImported.some(f => f.ruleId === id && f.file === "server/data/weights.json")).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(mixedImported, [], [], today).errors.length).toBeGreaterThan(0);
+    const nonFood = findFoodStaticCandidates([
+      { path: "server/data/accounts.json", content: '{"admin":50,"guest":null}' },
+      { path: "server/accounts/service.ts",
+        content: 'import weights from "../data/accounts.json"; function resolveAccount(role: string) { return weights[role]; }' },
+    ]);
+    expect(nonFood.filter(f => f.ruleId === "5" || f.symbol.includes("numeric-food-map"))).toEqual([]);
+  });
+
+  it("AUD1300-05 identifies generic resolver signatures by food catalog decisions", () => {
+    const cases = [
+      "import { FOOD_CATALOG_REFERENCE } from '../../foodCatalogReference'; export function createResolver(input: string) { return FOOD_CATALOG_REFERENCE.find(item => item.name === input); }",
+      "import { foodCatalog } from '../../foodCatalogReference'; export const resolver = (input: string) => foodCatalog[input];",
+      "export function createResolver(input: string) { const foodCatalog = require('../../foodCatalogReference'); return foodCatalog[input]; }",
+    ];
+    for (const content of cases) {
+      const found = findFoodStaticCandidates([{ path: "server/modules/catalog/service.ts", content }]);
+      expect(found.some(f => f.ruleId === "2"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length, content).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "export function createResolver(input: string) { return accountCatalog[input]; }",
+      "export const resolver = (input: string) => accountCatalog[input];",
+      "export function createResolver(input: string) { return input; }",
+    ]) {
+      const found = findFoodStaticCandidates([{ path: "server/modules/accounts/service.ts", content }]);
+      expect(found.filter(f => f.ruleId === "2"), content).toEqual([]);
+    }
+  });
 });

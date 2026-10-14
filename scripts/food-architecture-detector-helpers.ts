@@ -24,16 +24,20 @@ function isStaticNutritionNumber(expr: ts.Expression, unwrap: Unwrap): boolean {
 }
 
 /** A food resolver must not hardcode macros merely by omitting foodId/name. */
-export function isAnonymousFoodNutrition(node: ts.ObjectLiteralExpression, fields: Map<string, ts.Expression>, enclosingDeclaration: (node: ts.Node) => string, unwrap: Unwrap): boolean {
+export function isAnonymousFoodNutrition(
+  node: ts.ObjectLiteralExpression, fields: Map<string, ts.Expression>,
+  enclosingDeclaration: (node: ts.Node) => string, unwrap: Unwrap,
+  isStaticallyNumeric: (value: ts.Expression) => boolean = value => isStaticNutritionNumber(value, unwrap),
+): boolean {
   const context = node.getSourceFile().fileName + " " + enclosingDeclaration(node);
   if (!/food|aliment|meal|nutrition|nutrient|ingredient|portion|serving|recipe/i.test(context) ||
       /exercise|activity|workout|fitness|sport|burnedcalories/i.test(context)) return false;
   const macros = ["protein", "carbs", "fat", "kcal", "energykcal"].filter(key => {
     const value = fields.get(key);
-    return value !== undefined && isStaticNutritionNumber(value, unwrap);
+    return value !== undefined && isStaticallyNumeric(value);
   });
   const calories = fields.get("calories");
-  const fixedCalories = calories !== undefined && isStaticNutritionNumber(calories, unwrap);
+  const fixedCalories = calories !== undefined && isStaticallyNumeric(calories);
   if (macros.length >= 2 || (macros.length >= 1 && fixedCalories)) return true;
   // A resolver can return a single hardcoded nutrient without a named food
   // field. Restrict this extra case to a decision return, not arbitrary UI or

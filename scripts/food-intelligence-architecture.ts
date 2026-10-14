@@ -113,26 +113,55 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   });
   return ((hasNamedFood || hasFoodIdentifier) &&
     (hasLiteralNutrition || hasNestedLiteralNutrition)) ||
-    isAnonymousFoodNutrition(node, fields, enclosingDeclaration, unwrap);
+    isAnonymousFoodNutrition(node, fields, enclosingDeclaration, unwrap,
+      value => staticNutritionNumber(value) !== null);
 }
 
 /** Nutrition maps may hold literal nutrient objects instead of bare numbers.
  * A food-indexed consumer, not the arbitrary map keys, determines food scope. */
 /** Only arithmetic derived entirely from constants is hardcoded nutrition.
  * Mixed provider/DB values remain dynamic and must not be guessed as rules. */
-function staticNutritionNumber(value: ts.Expression): number | null {
+function staticNutritionNumber(
+  value: ts.Expression, visited = new Set<ts.VariableDeclaration>(), depth = 0,
+): number | null {
+  if (depth > 12) return null;
   const expr = unwrap(value);
+  if (ts.isIdentifier(expr)) {
+    // Resolve only immutable lexical bindings. A DB result, parameter, mutable
+    // variable or shadowed name is not a proven hardcoded nutritional number.
+    const source = expr.getSourceFile();
+    for (let scope: ts.Node | undefined = expr; scope; scope = scope.parent) {
+      if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+          ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+          scope.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+            parameter.name.text === expr.text)) return null;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+          if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+              !declaration.initializer || declaration.getStart(source) >= expr.getStart(source) ||
+              visited.has(declaration)) return null;
+          const next = new Set(visited);
+          next.add(declaration);
+          return staticNutritionNumber(declaration.initializer, next, depth + 1);
+        }
+      }
+    }
+    return null;
+  }
   if (ts.isNumericLiteral(expr)) return Number(expr.text);
   if (ts.isPrefixUnaryExpression(expr) &&
       [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(expr.operator)) {
-    const operand = staticNutritionNumber(expr.operand);
+    const operand = staticNutritionNumber(expr.operand, visited, depth + 1);
     if (operand === null) return null;
     const result = expr.operator === ts.SyntaxKind.MinusToken ? -operand : operand;
     return Number.isFinite(result) ? result : null;
   }
   if (ts.isBinaryExpression(expr)) {
-    const left = staticNutritionNumber(expr.left);
-    const right = staticNutritionNumber(expr.right);
+    const left = staticNutritionNumber(expr.left, visited, depth + 1);
+    const right = staticNutritionNumber(expr.right, visited, depth + 1);
     if (left === null || right === null) return null;
     let result: number;
     switch (expr.operatorToken.kind) {
@@ -176,7 +205,7 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
       object.expression.text === "Map" && object.arguments?.length === 1) {
     const entries = unwrap(object.arguments[0]);
     return ts.isArrayLiteralExpression(entries) && entries.elements.length > 0 &&
-      entries.elements.every(entry => {
+      entries.elements.some(entry => {
         const pair = unwrap(entry);
         if (!ts.isArrayLiteralExpression(pair) || pair.elements.length !== 2) return false;
         const key = unwrap(pair.elements[0]);
@@ -186,7 +215,7 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
       });
   }
   return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
-    object.properties.every(property => {
+    object.properties.some(property => {
       if (!ts.isPropertyAssignment(property)) return false;
       if (!ts.isIdentifier(property.name) &&
           !ts.isStringLiteral(property.name) &&
@@ -748,8 +777,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
     if (isStaticText(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName) &&
         !isDecisionBearingFoodScalar(node, source)) return null;
-    const numericLiteral = ts.isNumericLiteral(value) ||
-      (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand));
+    const numericLiteral = staticNutritionNumber(value) !== null;
     const scalarDomain = source.fileName + " " + enclosingDeclaration(node);
     const domainNumericFoodValue = rule.id === "17" && numericFoodField &&
       numericLiteral &&
@@ -959,20 +987,29 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           ? node.name.getText(source)
           : propertyCallable && (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node))
             ? node.name.getText(source).replace(/^['"]|['"]$/g, "") : undefined;
-    if (symbol && matches(rule.symbolPattern, symbol)) {
+    if (symbol) {
       const declarationCallable = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
         ? node : ts.isVariableDeclaration(node) && node.initializer &&
           (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
             ? node.initializer : undefined;
       const callable = propertyCallable ?? declarationCallable;
-      // Gate 2 is repository-wide; a generic account/status resolver outside
-      // the food domain must not be rejected solely by its function name.
       const signature = symbol + " " + (callable?.parameters
         .map(parameter => parameter.getText(source)).join(" ") ?? "");
+      const body = callable?.body?.getText(source) ?? "";
+      // Generic resolver signatures are not evidence of safety: follow the
+      // actual food/nutrition lookup in the body, including imported catalogs.
+      const foodBodyDecision =
+        /food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(body) &&
+        /\[[^\]]+\]|\.get\s*\(|\.find\s*\(|\.filter\s*\(|resolve|select|decide|match|lookup|return\s*\{/i.test(body);
+      const namedRule = matches(rule.symbolPattern, symbol);
+      if (!namedRule && !(rule.id === "2" &&
+          /resolv|select|identify|infer|classif|lookup|match|choose/i.test(symbol) &&
+          foodBodyDecision)) return null;
+      // Account/status resolvers without food-specific decisions stay outside
+      // gate 2 even if they have a generic resolver-like name.
       if (rule.id === "2" &&
-          !/food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(signature)) {
-        return null;
-      }
+          !/food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(signature) &&
+          !foodBodyDecision) return null;
       // A pure delegation to the real canonical import is not a competing
       // owner, whether it uses a function, arrow, class or object method.
       if (callable && isCanonicalFoodResolverDelegate(callable, source)) return null;
@@ -1124,7 +1161,7 @@ function findJsonFoodCatalog(
     // even without a name/grams field: {"pão":50,"arroz":90}. Domain evidence
     // must come from a food/portion/catalog context, never a product name list.
     const foodNumericMap = entries.length > 0 &&
-      entries.every(([key, entry]) => key.trim().length > 0 &&
+      entries.some(([key, entry]) => key.trim().length > 0 &&
         isJsonNutritionValue(entry)) &&
       (indexedByFoodIdentity || (
         /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
@@ -1500,7 +1537,7 @@ function findCrossModuleNumericFoodMaps(
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
       const entries = Object.entries(parsed);
-      if (!entries.length || !entries.every(([key, value]) =>
+      if (!entries.length || !entries.some(([key, value]) =>
         key.trim().length > 0 && isJsonNutritionValue(value))) continue;
       exported.set(file.path, new Map([["default", {
         symbol: "default", source: JSON.stringify(parsed),
