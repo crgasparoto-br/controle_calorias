@@ -1437,4 +1437,85 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+
+  it("A1300-42 blocks food alias dictionaries consumed through Object.entries and replaceAll", () => {
+    const cases = [
+      { path: "server/foodItemResolution.ts",
+        content: "function normalizeFoodInput(text: string) { const dict = { pao: 'pão', cafe: 'café' }; let result = text; for (const [from, to] of Object.entries(dict)) { result = result.replaceAll(from, to); } return result; }" },
+      { path: "server/modules/whatsapp/informalLanguageNormalizer.ts",
+        content: "function normalizeWhatsappInformalLanguage(text: string) { const changes = { pao: 'pão' }; return Object.entries(changes).reduce((value, [from, to]) => value.replaceAll(from, to), text); }" },
+    ];
+    for (const example of cases) {
+      const findings = findFoodStaticCandidates([example]);
+      expect(findings.some(f => f.symbol.includes("iterated-lexical-dictionary")), example.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const example of [
+      { path: "server/accountHelpers.ts",
+        content: "function normalizeStatus(input: string) { const values = { pending: 'Pendente' }; let result = input; for (const [from, to] of Object.entries(values)) { result = result.replaceAll(from, to); } return result; }" },
+      { path: "client/src/components/FoodEntry.tsx",
+        content: "function renderLabels() { const titles = { save: 'Salvar' }; return Object.entries(titles).map(([key, label]) => <span key={key}>{label}</span>); }" },
+      { path: "server/foodItemResolution.ts",
+        content: "function normalizeFoodInput(input: string) { const tags = { pending: 'Pendente' }; return Object.entries(tags).map(([code, name]) => name); }" },
+    ]) {
+      const findings = findFoodStaticCandidates([example]);
+      expect(findings.filter(f => f.symbol.includes("iterated-lexical-dictionary")), example.content).toEqual([]);
+    }
+  });
+
+  it("A1300-43 includes statically loaded async food JSON from fs/promises", () => {
+    const json = { path: "server/weights.json", content: '{"pao":50,"arroz":90}' };
+    const examples = [
+      "import { readFile } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "import * as io from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "import fs from 'node:fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await fs.promises.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "const io = require('node:fs/promises'); async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "async function resolvePortion(foodName: string) { const weights = JSON.parse(await require('node:fs/promises').readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "import { readFile as load } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const raw = await load('./weights.json', 'utf8'); const weights = JSON.parse(raw); return weights[foodName]; }",
+    ];
+    for (const content of examples) {
+      const findings = findFoodStaticCandidates([json, { path: "server/foodItemResolution.ts", content }]);
+      expect(findings.some(f => f.file === json.path && f.ruleId === "17" &&
+        f.symbol === "json-food-catalog"), content).toBe(true);
+      expect(findings.some(f => f.ruleId === "5" &&
+        f.symbol.includes("imported-numeric-food-map")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "import io from 'not-fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
+      "import { readFile } from 'node:fs/promises'; async function getRole(user: string) { const weights = JSON.parse(await readFile('./weights.json', 'utf8')); return weights[user]; }",
+      "import { readFile } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await readFile(getPath(), 'utf8')); return weights[foodName]; }",
+    ]) {
+      const findings = findFoodStaticCandidates([json, { path: "server/foodItemResolution.ts", content }]);
+      expect(findings.filter(f => f.symbol === "json-food-catalog" ||
+        f.symbol.includes("imported-numeric-food-map")), content).toEqual([]);
+    }
+  });
+
+  it("A1300-44 resolves imported food maps at lexical use sites without shadowing leaks", () => {
+    const json = { path: "server/weights.json", content: '{"pao":50,"arroz":90}' };
+    const source = "server/foodItemResolution.ts";
+    const positive = [
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { const alias = weights; return alias[foodName]; }",
+      "function resolvePortion(foodName: string) { const weights = require('./weights.json'); return weights[foodName]; }",
+    ];
+    for (const content of positive) {
+      const findings = findFoodStaticCandidates([json, { path: source, content }]);
+      expect(findings.some(f => f.symbol.includes("imported-numeric-food-map")), content).toBe(true);
+    }
+    const shadows = [
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { const weights = loadDatabaseMap(); return weights[foodName]; }",
+      "import weights from './weights.json'; function resolvePortion(weights: Record<string,number>, foodName: string) { return weights[foodName]; }",
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { const alias = weights; { const alias = loadDatabaseMap(); return alias[foodName]; } }",
+    ];
+    for (const content of shadows) {
+      const findings = findFoodStaticCandidates([json, { path: source, content }]);
+      expect(findings.filter(f => f.symbol.includes("imported-numeric-food-map")), content).toEqual([]);
+    }
+    const functions = "import weights from './weights.json'; function first(foodName: string) { const alias = weights; return alias[foodName]; } function second(foodName: string) { const alias = loadDatabaseMap(); return alias[foodName]; }";
+    const findings = findFoodStaticCandidates([json, { path: source, content: functions }]);
+    expect(findings.filter(f => f.ruleId === "17" && f.symbol.includes("imported-numeric-food-map"))).toHaveLength(1);
+  });
+
 });
