@@ -689,8 +689,14 @@ function isCanonicalFoodResolverDelegate(
   if (!returned) return false;
   let value = unwrap(returned);
   if (ts.isAwaitExpression(value)) value = unwrap(value.expression);
-  return ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
-    value.expression.text === "resolveCanonicalFoodQuantity";
+  if (!ts.isCallExpression(value) || !ts.isIdentifier(value.expression) ||
+      value.expression.text !== "resolveCanonicalFoodQuantity") return false;
+  // An apparent forwarder can still hardcode or transform the identity. Only
+  // the unchanged arguments of the wrapper are a proven pure delegation.
+  return value.arguments.length === callable.parameters.length &&
+    value.arguments.every((argument, index) =>
+      ts.isIdentifier(argument) && ts.isIdentifier(callable.parameters[index].name) &&
+      argument.text === callable.parameters[index].name.text);
 }
 
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {

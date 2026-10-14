@@ -1757,6 +1757,15 @@ describe("food intelligence architecture wave 1", () => {
       ].join("\n"),
     }]);
     expect(delegated.filter(f => f.ruleId === "2")).toEqual([]);
+    for (const expression of ["'pão'", "foodName.trim()", "otherFood"]) {
+      const altered = findFoodStaticCandidates([{ path: "server/modules/catalog/service.ts",
+        content: [
+          "import { resolveCanonicalFoodQuantity } from '../../foodItemResolution';",
+          "export function resolveFood(foodName: string) { return resolveCanonicalFoodQuantity(" + expression + "); }",
+        ].join("\n"),
+      }]);
+      expect(altered.some(f => f.ruleId === "2"), expression).toBe(true);
+    }
     const generic = findFoodStaticCandidates([{ path: "server/modules/accounts/service.ts",
       content: "export function createAccountResolver(userId: string) { return userId; }",
     }]);
