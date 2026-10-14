@@ -845,6 +845,21 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
   return null;
 }
 
+/** Resolve a parsed numeric JSON binding, not merely a filesystem dependency.
+ * Unknown/dynamic paths stay outside the static proof and require separate review.
+ */
+function parsedFilesystemJsonPath(initializer: ts.Expression): string | null {
+  const parsed = unwrap(initializer);
+  if (!ts.isCallExpression(parsed) || parsed.expression.getText() !== "JSON.parse" ||
+      parsed.arguments.length < 1) return null;
+  const read = unwrap(parsed.arguments[0]);
+  if (!ts.isCallExpression(read) ||
+      !/^(?:readFileSync|fs\.readFileSync)$/.test(read.expression.getText()) ||
+      !read.arguments[0]) return null;
+  const file = staticFilesystemPath(read.arguments[0]);
+  return file && /\.json$/i.test(file) ? file : null;
+}
+
 /** Follow named exported numeric dictionaries into a food-domain consumer. */
 function findCrossModuleNumericFoodMaps(
   files: FoodArchitectureFile[], runtime: Set<string>,
@@ -985,9 +1000,14 @@ function findCrossModuleNumericFoodMaps(
             initializer.expression.text === "require" &&
             initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
           bindMap(initializer.arguments[0].text, node.name.text);
-        } else if (ts.isIdentifier(initializer)) {
-          const parent = imports.get(initializer.text);
-          if (parent) imports.set(node.name.text, parent);
+        } else {
+          const parsedFile = parsedFilesystemJsonPath(initializer);
+          if (parsedFile) {
+            bindMap(parsedFile, node.name.text);
+          } else if (ts.isIdentifier(initializer)) {
+            const parent = imports.get(initializer.text);
+            if (parent) imports.set(node.name.text, parent);
+          }
         }
       }
       ts.forEachChild(node, collectAliases);

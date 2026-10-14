@@ -155,3 +155,13 @@ carregado ao binding consultado por identidade alimentar, incluindo aliases
 locais; bloqueia os gates 17/5 somente quando há uso decisório comprovado.
 Imports somente de tipos, dados não consultados, status/conta/exercício e
 fixtures isoladas permanecem fora da classificação de conhecimento alimentar.
+
+**Correção A1300-36 — JSON por leitura estática de filesystem:** o detector
+reconhece mapas numéricos genéricos atribuídos por
+`JSON.parse(readFileSync(...))` e `JSON.parse(fs.readFileSync(...))`, com
+caminhos estáticos relativos, `new URL(..., import.meta.url)`,
+`path.join(__dirname, ...)` ou `path.resolve(process.cwd(), ...)`.
+Somente quando a variável carregada (inclusive alias ou variável local de função)
+participa de consulta por identidade alimentar os gates 17/5 bloqueiam.
+Conta, status, exercício, mapas não consultados, caminhos dinâmicos e fixtures
+isoladas permanecem controles negativos; I/O dinâmico não é certificado por AST.
