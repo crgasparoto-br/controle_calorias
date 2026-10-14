@@ -429,6 +429,10 @@ function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, sourc
     ? identity.expression.getText(source) : "";
   const owner = receiver.split(".")[0].toLowerCase();
   if (/^(?:user|account|profile|customer|member|admin)$/.test(owner)) return false;
+  // A UI tab/navigation label is not a food-identity decision merely because
+  // it appears in a Food* component; do not exempt food objects themselves.
+  if (/^client\/src\/.*\.(?:tsx|jsx)$/i.test(source.fileName) &&
+      /^(?:tab|nav|menu|view|header|column|button|icon)$/.test(owner)) return false;
 
   let context = source.fileName + " " + enclosingDeclaration(node);
   for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
