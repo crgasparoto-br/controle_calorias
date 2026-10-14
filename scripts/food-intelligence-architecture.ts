@@ -599,6 +599,32 @@ function iteratedLexicalDecision(call: ts.CallExpression, source: ts.SourceFile)
   return result;
 }
 
+/** A class/object resolver property may only be exempt when it is a pure
+ * forwarding wrapper to the actual canonical import, without local decisions. */
+function isCanonicalFoodResolverDelegate(callable: ts.ArrowFunction | ts.FunctionExpression,
+  source: ts.SourceFile): boolean {
+  const canonicalImport = source.statements.some(statement =>
+    ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
+    /(?:^|\\/)foodItemResolution(?:\\.[cm]?[jt]s)?$/.test(statement.moduleSpecifier.text) &&
+    statement.importClause?.namedBindings &&
+    ts.isNamedImports(statement.importClause.namedBindings) &&
+    statement.importClause.namedBindings.elements.some(element =>
+      !element.isTypeOnly && element.name.text === "resolveCanonicalFoodQuantity" &&
+      (!element.propertyName || element.propertyName.text === element.name.text)));
+  if (!canonicalImport) return false;
+  const body = callable.body;
+  let returned: ts.Expression | undefined;
+  if (ts.isBlock(body)) {
+    if (body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0])) return false;
+    returned = body.statements[0].expression;
+  } else returned = body;
+  if (!returned) return false;
+  let value = unwrap(returned);
+  if (ts.isAwaitExpression(value)) value = unwrap(value.expression);
+  return ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
+    value.expression.text === "resolveCanonicalFoodQuantity";
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -849,12 +875,21 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
   }
   if (rule.kind === "function") {
+    const propertyCallable = (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) &&
+      node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+        ? node.initializer : undefined;
     const symbol = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
       ? node.name?.getText(source)
       : ts.isVariableDeclaration(node) && node.initializer &&
         (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
-          ? node.name.getText(source) : undefined;
+          ? node.name.getText(source)
+          : propertyCallable && (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node))
+            ? node.name.getText(source).replace(/^['"]|['"]$/g, "") : undefined;
     if (symbol && matches(rule.symbolPattern, symbol)) {
+      // A property that *only* delegates to the existing canonical owner is
+      // not a second decision owner. Prove the import and the single call;
+      // arbitrary functions named like the canonical entrypoint are not safe.
+      if (propertyCallable && isCanonicalFoodResolverDelegate(propertyCallable, source)) return null;
       return { symbol, subject: node.getText(source) };
     }
   }
@@ -1304,6 +1339,59 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
   return file && /\.json$/i.test(file) ? file : null;
 }
 
+/**
+ * Runtime food data loaded from an unknown filesystem path cannot be excluded
+ * as an inert fixture. Record a static gate finding rather than claiming that
+ * a missing path in the dependency graph proves the content is safe.
+ * Only actual Node fs bindings consumed by JSON.parse qualify.
+ */
+function isOpaqueFoodJsonLoad(node: ts.Node, source: ts.SourceFile,
+  bindings: ReturnType<typeof filesystemReadBindings>): boolean {
+  if (!ts.isCallExpression(node) || node.expression.getText(source) !== "JSON.parse" ||
+      !node.arguments[0]) return false;
+  const unwrapAwait = (expr: ts.Expression): ts.Expression => {
+    let result = unwrap(expr);
+    while (ts.isAwaitExpression(result)) result = unwrap(result.expression);
+    return result;
+  };
+  let read = unwrapAwait(node.arguments[0]);
+  if (ts.isIdentifier(read)) {
+    const name = read.text;
+    for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      const declaration = scope.statements.filter(ts.isVariableStatement)
+        .flatMap(statement => [...statement.declarationList.declarations])
+        .find(decl => ts.isIdentifier(decl.name) && decl.name.text === name);
+      if (declaration) {
+        if (declaration.initializer) read = unwrapAwait(declaration.initializer);
+        break;
+      }
+    }
+  }
+  if (!ts.isCallExpression(read) || !read.arguments[0] ||
+      !(bindings.any.has(filesystemExpressionName(read.expression)) ||
+        isDirectFilesystemSyncReader(read.expression) ||
+        isDirectFilesystemAsyncReader(read.expression)) ||
+      staticFilesystemPath(read.arguments[0]) !== null) return false;
+  const decision = enclosingDeclaration(node);
+  const pathExpression = read.arguments[0].getText(source);
+  if (/account|status|settings|featureflag|permission|admin|exercise|workout|activity/i.test(
+    decision + " " + pathExpression)) return false;
+  return /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i.test(
+    source.fileName + " " + decision + " " + pathExpression);
+}
+
+function isOpaqueFoodDynamicImport(node: ts.Node, source: ts.SourceFile): boolean {
+  if (!ts.isCallExpression(node) || node.expression.kind !== ts.SyntaxKind.ImportKeyword ||
+      !node.arguments[0] || isStaticText(unwrap(node.arguments[0]))) return false;
+  const decision = enclosingDeclaration(node);
+  const dynamicPath = node.arguments[0].getText(source);
+  return /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i.test(
+    source.fileName + " " + decision + " " + dynamicPath) &&
+    !/account|status|settings|featureflag|permission|admin|exercise|workout|activity/i.test(
+      decision + " " + dynamicPath);
+}
+
 /** Follow named exported numeric dictionaries into a food-domain consumer. */
 function findCrossModuleNumericFoodMaps(
   files: FoodArchitectureFile[], runtime: Set<string>,
@@ -1596,7 +1684,20 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       continue;
     }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
+    const filesystemBindings = filesystemReadBindings(source);
     function visit(node: ts.Node): void {
+      if (isOpaqueFoodJsonLoad(node, source, filesystemBindings) ||
+          isOpaqueFoodDynamicImport(node, source)) {
+        const symbol = "opaque-runtime-food-data-load";
+        results.push({
+          ruleId: "17", file: file.path,
+          line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+          symbol,
+          fingerprint: "17:" + file.path + ":" + symbol + ":" + stableHash(node.getText(source)),
+          failureClass: "I",
+          description: "Fonte alimentar dinamica em runtime sem prova estatica do catalogo",
+        });
+      }
       for (const rule of FOOD_WAVE_ONE_RULES) {
         // New channel names must never bypass the single food decision owner.
         const ownerDeclaration = (rule.id === "1" || rule.id === "2") &&

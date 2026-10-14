@@ -202,6 +202,16 @@ const report = {
   triage: {
     sourceBaselineSha: pinned.baseSha,
     policy: "Review each candidate against source and runtime behavior before nominal debt approval; never auto-exempt.",
+    reviewRequirements: [
+      "Record runtime food decision and exact source revision for this fingerprint",
+      "Compare the result and responsibility against the canonical food decision owner",
+      "Approve or reject each legacy violation explicitly before any nominal timeboxed debt",
+      "Never treat a source-line hash or heuristic candidate as runtime certification",
+    ],
+    pendingByFailureClass: Object.fromEntries(
+      ["A", "B", "C", "E", "I"].map(classId =>
+        [classId, sourceAnchoredTriage.filter(item => item.failureClass === classId).length]),
+    ),
     pending: sourceAnchoredTriage,
   },
   enforcement: {

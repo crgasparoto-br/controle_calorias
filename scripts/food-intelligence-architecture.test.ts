@@ -1654,4 +1654,64 @@ describe("food intelligence architecture wave 1", () => {
       expect(findings.filter(f => f.ruleId === "5" || f.ruleId === "17"), numeric).toEqual([]);
     }
   });
+
+  it("A1300-52 blocks a lone fixed calorie/macro returned by a food resolver", () => {
+    for (const literal of ["{ calories: 200 }", "{ protein: 3 }", "{ kcal: 50 }"]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodResolver.ts",
+        content: `function resolveFood(foodName: string) { return ${literal}; }` }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol === "inline-food-knowledge"),
+        literal).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negatives = findFoodStaticCandidates([{ path: "server/exerciseSummary.ts",
+      content: "function calculateExercise(activity: string) { return { calories: 200 }; }" },
+      { path: "server/foodResolver.ts",
+        content: "function resolveFood(foodName: string, dbValue: number) { return { calories: dbValue }; }" }]);
+    expect(negatives.filter(f => f.symbol === "inline-food-knowledge")).toEqual([]);
+  });
+
+  it("A1300-53 catches arrow resolvers in class and object properties without blocking pure forwarding", () => {
+    const suspect = findFoodStaticCandidates([{ path: "server/modules/whatsapp/foodAdapter.ts",
+      content: [
+        "class AlternativeFoodResolver { resolveFood = async (foodName: string) => ({calories: 200}); }",
+        "const channel = { resolveNutrition: (foodName: string) => ({calories: 90}) };",
+      ].join("\\n") }]);
+    for (const gate of ["1", "2"]) {
+      expect(suspect.some(f => f.ruleId === gate && f.symbol === "resolveFood")).toBe(true);
+      expect(suspect.some(f => f.ruleId === gate && f.symbol === "resolveNutrition")).toBe(true);
+    }
+    const delegated = findFoodStaticCandidates([{ path: "server/modules/whatsapp/foodAdapter.ts",
+      content: [
+        "import { resolveCanonicalFoodQuantity } from '../../foodItemResolution';",
+        "class Forwarder { resolveFood = (foodName: string) => resolveCanonicalFoodQuantity(foodName); }",
+        "const admin = { resolveAccount: (id: string) => id };",
+      ].join("\\n") }]);
+    expect(delegated.filter(f => ["1", "2"].includes(f.ruleId))).toEqual([]);
+    const fake = findFoodStaticCandidates([{ path: "server/modules/whatsapp/foodAdapter.ts",
+      content: "const channel = { resolveFood: (foodName: string) => resolveCanonicalFoodQuantity(foodName) };" }]);
+    expect(fake.some(f => f.ruleId === "1")).toBe(true);
+  });
+
+  it("A1300-54 blocks opaque food JSON and dynamic imports but not unrelated filesystem data", () => {
+    const cases = [
+      "import { readFileSync } from 'node:fs'; function resolveFood(foodName: string, dataFile: string) { return JSON.parse(readFileSync(dataFile, 'utf8')); }",
+      "import fs from 'node:fs'; function resolveFood(foodName: string, dataFile: string) { const raw = fs.readFileSync(dataFile, 'utf8'); return JSON.parse(raw); }",
+      "import { readFile } from 'node:fs/promises'; async function resolveFood(foodName: string, fileName: string) { return JSON.parse(await readFile(fileName, 'utf8')); }",
+      "async function resolveFood(foodName: string) { return import(`./fixtures/${foodName}.json`); }",
+    ];
+    for (const content of cases) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodPortionService.ts", content }]);
+      expect(findings.some(f => f.ruleId === "17" &&
+        f.symbol === "opaque-runtime-food-data-load"), content).toBe(true);
+    }
+    const unrelated = findFoodStaticCandidates([
+      { path: "server/accountConfig.ts", content:
+        "import { readFileSync } from 'node:fs'; function loadAccountSettings(configPath: string) { return JSON.parse(readFileSync(configPath, 'utf8')); }" },
+      { path: "server/foodSettings.ts", content:
+        "import { readFileSync } from 'node:fs'; function readSettings(settingsPath: string) { return JSON.parse(readFileSync(settingsPath, 'utf8')); }" },
+      { path: "server/foodPortionService.ts", content:
+        "import { readFileSync } from 'node:fs'; function resolveFood() { return JSON.parse(readFileSync('./catalog.json', 'utf8')); }" },
+    ]);
+    expect(unrelated.filter(f => f.symbol === "opaque-runtime-food-data-load")).toEqual([]);
+  });
 });

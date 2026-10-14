@@ -33,8 +33,16 @@ export function isAnonymousFoodNutrition(node: ts.ObjectLiteralExpression, field
     return value !== undefined && isStaticNutritionNumber(value, unwrap);
   });
   const calories = fields.get("calories");
-  return macros.length >= 2 || (macros.length >= 1 &&
-    calories !== undefined && isStaticNutritionNumber(calories, unwrap));
+  const fixedCalories = calories !== undefined && isStaticNutritionNumber(calories, unwrap);
+  if (macros.length >= 2 || (macros.length >= 1 && fixedCalories)) return true;
+  // A resolver can return a single hardcoded nutrient without a named food
+  // field. Restrict this extra case to a decision return, not arbitrary UI or
+  // activity summaries that also happen to have a "calories" property.
+  const directReturn = ts.isReturnStatement(node.parent) ||
+    (ts.isArrowFunction(node.parent) && node.parent.body === node);
+  const decisionName = enclosingDeclaration(node);
+  const foodDecision = /resolve|infer|select|decide|lookup|find|calculate|estimate|classif|portion|nutrition|nutrient|macro|calor/i.test(decisionName);
+  return directReturn && foodDecision && (fixedCalories || macros.length > 0);
 }
 
 
