@@ -377,17 +377,56 @@ function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
 
 
 /**
+ * Unwrap only transparent, bounded string normalizations when tracing an
+ * identity in a literal comparison or switch. Never trust arbitrary method
+ * calls as evidence of the original food name: they may return unrelated data.
+ */
+function unwrapFoodIdentityNormalization(expression: ts.Expression): ts.Expression {
+  let current = unwrap(expression);
+  for (let depth = 0; depth < 12; depth++) {
+    if (!ts.isCallExpression(current)) break;
+    const callee = current.expression;
+    if (ts.isPropertyAccessExpression(callee)) {
+      const name = callee.name.text;
+      const args = current.arguments;
+      const noArgs = /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase)$/.test(name) &&
+        args.length === 0;
+      const unicodeNormalization = name === "normalize" && args.length <= 1 &&
+        (args.length === 0 || isStaticText(unwrap(args[0])));
+      const literalReplacement = /^(?:replace|replaceAll)$/.test(name) &&
+        args.length === 2 &&
+        (isStaticText(unwrap(args[0])) || ts.isRegularExpressionLiteral(unwrap(args[0]))) &&
+        isStaticText(unwrap(args[1]));
+      if (noArgs || unicodeNormalization || literalReplacement) {
+        current = unwrap(callee.expression);
+        continue;
+      }
+    }
+    // Named identity normalizers are still constrained by the surrounding
+    // food-decision evidence; a generic transform is not unwrapped.
+    if (ts.isIdentifier(callee) && current.arguments.length === 1 &&
+        /^(?:String|normalizeFood[A-Za-z0-9_]*|normalizeAlimento[A-Za-z0-9_]*|canonicalizeFood[A-Za-z0-9_]*|stripAccents|removeAccents)$/.test(callee.text)) {
+      current = unwrap(current.arguments[0]);
+      continue;
+    }
+    break;
+  }
+  return current;
+}
+
+/**
  * A comparison of item.name may be a food/portion decision even when neither
  * "item" nor "name" contains "food". Require independently observable domain
  * context; generic usernames, account labels and status checks stay outside.
  */
 function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, source: ts.SourceFile): boolean {
-  const field = ts.isPropertyAccessExpression(operand) ? operand.name.text :
-    ts.isElementAccessExpression(operand) && operand.argumentExpression &&
-    ts.isStringLiteral(operand.argumentExpression) ? operand.argumentExpression.text : "";
+  const identity = unwrapFoodIdentityNormalization(operand);
+  const field = ts.isPropertyAccessExpression(identity) ? identity.name.text :
+    ts.isElementAccessExpression(identity) && identity.argumentExpression &&
+    ts.isStringLiteral(identity.argumentExpression) ? identity.argumentExpression.text : "";
   if (!/^(?:name|label|title)$/i.test(field)) return false;
-  const receiver = ts.isPropertyAccessExpression(operand) || ts.isElementAccessExpression(operand)
-    ? operand.expression.getText(source) : "";
+  const receiver = ts.isPropertyAccessExpression(identity) || ts.isElementAccessExpression(identity)
+    ? identity.expression.getText(source) : "";
   const owner = receiver.split(".")[0].toLowerCase();
   if (/^(?:user|account|profile|customer|member|admin)$/.test(owner)) return false;
 
@@ -412,7 +451,7 @@ function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, sourc
 function hasGenericFoodIdentityDecisionContext(
   operand: ts.Expression, node: ts.Node, source: ts.SourceFile,
 ): boolean {
-  const name = operand.getText(source);
+  const name = unwrapFoodIdentityNormalization(operand).getText(source);
   if (!/^(?:item|input|value|name|label|term|token|text|raw|candidate)$/i.test(name)) return false;
   const owner = enclosingDeclaration(node);
   if (!/food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|materiality/i.test(source.fileName) ||
