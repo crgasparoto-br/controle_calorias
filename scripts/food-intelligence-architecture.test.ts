@@ -1754,7 +1754,7 @@ describe("food intelligence architecture wave 1", () => {
       content: [
         "import { resolveCanonicalFoodQuantity } from '../../foodItemResolution';",
         "export function resolveFood(foodName: string) { return resolveCanonicalFoodQuantity(foodName); }",
-      ].join("\\n"),
+      ].join("\n"),
     }]);
     expect(delegated.filter(f => f.ruleId === "2")).toEqual([]);
     const generic = findFoodStaticCandidates([{ path: "server/modules/accounts/service.ts",
