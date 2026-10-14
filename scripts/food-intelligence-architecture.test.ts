@@ -1840,4 +1840,57 @@ describe("food intelligence architecture wave 1", () => {
       expect(found.filter(f => f.ruleId === "2"), content).toEqual([]);
     }
   });
+
+  it("AUD1300-F01 blocks food identity decisions on generic arguments, not unrelated status", () => {
+    for (const code of [
+      "function normalize(item: string) { return item === 'pão' ? 'pão francês' : item; }",
+      "function decide(input: string) { switch (input) { case 'arroz': return 90; default: return 0; } }",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodRules.ts", content: code }]);
+      expect(findings.some(f => f.ruleId === "17" && /lexical-(branch|switch)/.test(f.symbol)), code).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const code of [
+      "function normalizeStatus(item: string) { return item === 'active' ? 'ok' : item; }",
+      "function decide(input: string) { return input === 'auto'; }",
+    ]) {
+      const path = code.includes("Status") ? "server/foodRules.ts" : "server/accounts/service.ts";
+      expect(findFoodStaticCandidates([{ path, content: code }])
+        .filter(f => f.ruleId === "17" && /lexical-(branch|switch)/.test(f.symbol)), code).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F02 detects generic parallel food owners without trapping account resolvers", () => {
+    for (const code of [
+      "function decide(input: string) { return foods.find(x => x.name === input); }",
+      "function pick(input: string) { return foodCatalog.find(x => x.name === input); }",
+    ]) {
+      const found = findFoodStaticCandidates([{ path: "server/modules/catalog/service.ts", content: code }]);
+      expect(found.some(f => f.ruleId === "2"), code).toBe(true);
+      expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([{ path: "server/modules/accounts/service.ts",
+      content: "function decide(input: string) { return accountCatalog.find(x => x.name === input); }" }])
+      .filter(f => f.ruleId === "2")).toEqual([]);
+  });
+
+  it("AUD1300-F03 blocks generic JSON food rows selected by identity, not unused or activity lists", () => {
+    const records = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const resolver = { path: "server/foodResolver.ts",
+      content: "import data from './data/records.json'; function resolveFood(input: string) { return data.find(row => row.name === input); }" };
+    expect(findFoodStaticCandidates([records])).toEqual([]);
+    const found = findFoodStaticCandidates([records, resolver]);
+    for (const id of ["17", "5"]) {
+      expect(found.some(f => f.ruleId === id && f.file === records.path), id).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length).toBeGreaterThan(0);
+    expect(findFoodStaticCandidates([records, { ...resolver,
+      content: "import data from './data/records.json'; export const unused = data;" }])
+      .filter(f => f.file === records.path)).toEqual([]);
+    expect(findFoodStaticCandidates([records, {
+      path: "server/exercises/activityService.ts",
+      content: "import data from '../data/records.json'; function findActivity(input: string) { return data.find(row => row.name === input); }",
+    }]).filter(f => f.file === records.path)).toEqual([]);
+  });
 });

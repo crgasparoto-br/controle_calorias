@@ -407,6 +407,19 @@ function hasFoodNameDecisionContext(operand: ts.Expression, node: ts.Node, sourc
   return /food|aliment|meal|nutrition|nutrient|macro|portion|por[cç][aã]?o|serving|ingredient|ingrediente|recipe|receita|calor|kcal|protein|carb|grams|gramas/i.test(context);
 }
 
+
+/** Food decisions may use "item" or "input" instead of "foodName". */
+function hasGenericFoodIdentityDecisionContext(
+  operand: ts.Expression, node: ts.Node, source: ts.SourceFile,
+): boolean {
+  const name = operand.getText(source);
+  if (!/^(?:item|input|value|name|label|term|token|text|raw|candidate)$/i.test(name)) return false;
+  const owner = enclosingDeclaration(node);
+  if (!/food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|materiality/i.test(source.fileName) ||
+      !/normaliz|resolv|decid|classif|infer|select|pick|parse|match|identif|lookup|find|extract/i.test(owner)) return false;
+  return !/status|account|permission|role|exercise|activity|workout|mode|view|tab/i.test(owner);
+}
+
 function isFoodDomainSource(file: string): boolean {
   return /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|product|materiality/i.test(file);
 }
@@ -1003,7 +1016,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         /\[[^\]]+\]|\.get\s*\(|\.find\s*\(|\.filter\s*\(|resolve|select|decide|match|lookup|return\s*\{/i.test(body);
       const namedRule = matches(rule.symbolPattern, symbol);
       if (!namedRule && !(rule.id === "2" &&
-          /resolv|select|identify|infer|classif|lookup|match|choose/i.test(symbol) &&
+          /resolv|select|identify|infer|classif|lookup|match|choose|decid|pick|find/i.test(symbol) &&
           foodBodyDecision)) return null;
       // Account/status resolvers without food-specific decisions stay outside
       // gate 2 even if they have a generic resolver-like name.
@@ -1025,7 +1038,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const operand = branch.expression.getText(source);
     const relevant = rule.id === "17"
       ? matches(rule.symbolPattern, operand) ||
-        hasFoodNameDecisionContext(branch.expression, node, source)
+        hasFoodNameDecisionContext(branch.expression, node, source) ||
+        hasGenericFoodIdentityDecisionContext(branch.expression, node, source)
       : matches(rule.symbolPattern, operand) ||
         matches(rule.symbolPattern, enclosingDeclaration(node));
     if (relevant) {
@@ -1053,7 +1067,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const operand = isStaticText(node.left) ? node.right.getText(source) : node.left.getText(source);
     const relevant = rule.id === "17"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
-        isStaticText(node.left) ? node.right : node.left, node, source)
+        isStaticText(node.left) ? node.right : node.left, node, source) ||
+        hasGenericFoodIdentityDecisionContext(isStaticText(node.left) ? node.right : node.left, node, source)
       : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
     if (relevant) {
       return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
@@ -1092,6 +1107,7 @@ function isJsonNutritionValue(value: unknown): boolean {
 
 function findJsonFoodCatalog(
   file: FoodArchitectureFile, consumerEvidence = "", indexedByFoodIdentity = false,
+  usedAsFoodRecords = false,
 ): FoodFinding[] {
   let parsed: unknown;
   try {
@@ -1170,7 +1186,7 @@ function findJsonFoodCatalog(
     if (foodNumericMap) foodRows++;
     if ((explicitIdentity || genericIdentity) &&
         (specificNutrition || nestedNutrition || governedAttributes ||
-          (genericCalories && (explicitIdentity || foodSource)))) foodRows++;
+          (genericCalories && (explicitIdentity || foodSource || usedAsFoodRecords)))) foodRows++;
     for (const [key, child] of entries) walk(child, context + " " + key);
   }
   walk(parsed, file.path);
@@ -1797,13 +1813,67 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     };
     ts.forEachChild(source, follow);
   }
+  // Generic JSON records are food knowledge only when productive code consumes
+  // their identity in a food decision. Unused imports and exercise lookups stay exempt.
+  const jsonRecordsConsumedByFood = new Set<string>();
+  for (const consumer of files) {
+    if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
+    const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
+    const imports = new Map<string, string[]>();
+    for (const statement of source.statements) {
+      let specifier: string | undefined;
+      let binding: string | undefined;
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
+          !statement.importClause?.isTypeOnly && statement.importClause?.name) {
+        specifier = statement.moduleSpecifier.text;
+        binding = statement.importClause.name.text;
+      } else if (ts.isVariableStatement(statement)) {
+        const declaration = statement.declarationList.declarations[0];
+        if (declaration && ts.isIdentifier(declaration.name) && declaration.initializer &&
+            ts.isCallExpression(declaration.initializer) &&
+            ts.isIdentifier(declaration.initializer.expression) &&
+            declaration.initializer.expression.text === "require" &&
+            declaration.initializer.arguments[0] &&
+            ts.isStringLiteral(declaration.initializer.arguments[0])) {
+          specifier = declaration.initializer.arguments[0].text;
+          binding = declaration.name.text;
+        }
+      }
+      if (specifier && binding) {
+        const targets = resolveRuntimeDependencies(consumer.path, specifier, indexed)
+          .filter(target => /\.json$/i.test(target));
+        if (targets.length) imports.set(binding, targets);
+      }
+    }
+    if (imports.size === 0) continue;
+    const visitJsonUse = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+          /^(?:find|filter|some)$/.test(node.expression.name.text) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.arguments[0] && imports.has(node.expression.expression.text)) {
+        const owner = enclosingDeclaration(node);
+        const context = consumer.path + " " + owner;
+        const predicate = node.arguments[0].getText(source);
+        const foodDecision = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
+          !/exercise|activity|workout|fitness|account|status/i.test(context) &&
+          /\.(?:name|foodName|foodId|alimento|productName)\b/.test(predicate) &&
+          /===?|\.includes\s*\(|\.startsWith\s*\(/.test(predicate);
+        if (foodDecision) for (const target of imports.get(node.expression.expression.text) ?? []) {
+          jsonRecordsConsumedByFood.add(target);
+        }
+      }
+      ts.forEachChild(node, visitJsonUse);
+    };
+    ts.forEachChild(source, visitJsonUse);
+  }
   const importedNumericMaps = findCrossModuleNumericFoodMaps(files, runtime, indexed);
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     if (/\.json$/i.test(file.path)) {
       results.push(...findJsonFoodCatalog(file,
         [...(importerContext.get(file.path) ?? [])].join(" "),
-        importedNumericMaps.foodIndexedJson.has(file.path.replace(/\\/g, "/"))));
+        importedNumericMaps.foodIndexedJson.has(file.path.replace(/\\/g, "/")),
+        jsonRecordsConsumedByFood.has(file.path.replace(/\\/g, "/"))));
       continue;
     }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
