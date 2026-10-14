@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { findWhatsAppResponseArchitectureViolations } from "./whatsapp-response-architecture";
 import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
-import { compareFoodArchitectureFindings, readFoodFilesAtGitRef } from "./food-architecture-baseline";
+import { compareFoodArchitectureFindings, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 import { assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
@@ -140,10 +140,7 @@ for (const violation of findTimeZoneArchitectureViolations(timeZoneArchitectureF
  * It is never acceptable to add a new finding to architecture-debt.json as
  * part of the same change to bypass the gate.
  */
-const foodArchitectureFiles = ["server", "shared", "client/src"]
-  .flatMap(dir => walk(dir))
-  .filter(file => /\.(?:[cm]?[jt]sx?|json)$/.test(file))
-  .map(file => ({ path: file, content: read(file) }));
+const foodArchitectureFiles = readFoodWorkingFiles(root);
 const foodFindings = findFoodStaticCandidates(foodArchitectureFiles);
 const debtPath = "architecture-debt.json";
 const inventoryPath = "docs/design-docs/food-architecture-owners-1300.json";
