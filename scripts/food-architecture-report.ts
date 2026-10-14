@@ -8,7 +8,7 @@ import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
-import { findFoodBaselineDelta, readFoodFilesAtGitRef } from "./food-architecture-baseline";
+import { findFoodBaselineDelta, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
 const root = process.cwd();
@@ -24,9 +24,7 @@ function walk(dir: string): string[] {
 function sha(): string {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 }
-const files = ["server", "shared", "client/src"].flatMap(walk)
-  .filter(p => /\.(?:[cm]?[jt]sx?|json)$/.test(p))
-  .map(p => ({ path: p, content: readFileSync(path.join(root, p), "utf8") }));
+const files = readFoodWorkingFiles(root);
 const findings = findFoodStaticCandidates(files);
 const provisionalInventory = findCompetingOwnerInventory(files);
 const ledger = JSON.parse(readFileSync(path.join(root, "architecture-debt.json"), "utf8")) as { entries: FoodDebt[] };
