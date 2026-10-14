@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup" | "numeric-map" | "numeric-return";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "literal-string-method" | "lexical-lookup" | "numeric-map" | "numeric-return";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -121,6 +121,26 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     // Account/status helpers remain out of scope without food-domain evidence.
     lexicalEvidencePathPattern: "(?:^|/)(?:handlers?|routes?|controllers?|adapters?|api)(?:/|\\.)",
     description: "Materialidade lexical codificada em expressão regular",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "literal-string-method",
+    symbolPattern: "food|alimento|nutrition|meal|ingredient|portion|porc|serving|recipe|lexic|alias|normaliz",
+    description: "Decisão alimentar lexical por includes/startsWith/endsWith em string",
+  },
+  {
+    id: "18", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "B", kind: "literal-string-method",
+    symbolPattern: "material|neutral|nutrition|attribute|qualifier|packag|commercial|food|alimento",
+    evidencePattern: "integral|light|diet|desnatad|sem[\\s_-]*a[cç][uú]car|zero[\\s_-]*(?:acucar|a[cç][uú]car|lactose)|sem[\\s_-]*lactose",
+    description: "Materialidade lexical por método de string em código produtivo",
+  },
+  {
+    id: "11", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "A", kind: "literal-string-method",
+    pathPattern: "whatsapp|inbound|transcri|image|audio|ocr",
+    symbolPattern: "food|alimento|normaliz|language|lexicon|input|word|term|text",
+    description: "Canal aplicando vocabulário alimentar literal por método de string",
   },
   {
     id: "5", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
