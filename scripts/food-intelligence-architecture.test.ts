@@ -1675,7 +1675,7 @@ describe("food intelligence architecture wave 1", () => {
       content: [
         "class AlternativeFoodResolver { resolveFood = async (foodName: string) => ({calories: 200}); }",
         "const channel = { resolveNutrition: (foodName: string) => ({calories: 90}) };",
-      ].join("\\n") }]);
+      ].join("\n") }]);
     for (const gate of ["1", "2"]) {
       expect(suspect.some(f => f.ruleId === gate && f.symbol === "resolveFood")).toBe(true);
       expect(suspect.some(f => f.ruleId === gate && f.symbol === "resolveNutrition")).toBe(true);
@@ -1685,7 +1685,7 @@ describe("food intelligence architecture wave 1", () => {
         "import { resolveCanonicalFoodQuantity } from '../../foodItemResolution';",
         "class Forwarder { resolveFood = (foodName: string) => resolveCanonicalFoodQuantity(foodName); }",
         "const admin = { resolveAccount: (id: string) => id };",
-      ].join("\\n") }]);
+      ].join("\n") }]);
     expect(delegated.filter(f => ["1", "2"].includes(f.ruleId))).toEqual([]);
     const fake = findFoodStaticCandidates([{ path: "server/modules/whatsapp/foodAdapter.ts",
       content: "const channel = { resolveFood: (foodName: string) => resolveCanonicalFoodQuantity(foodName) };" }]);

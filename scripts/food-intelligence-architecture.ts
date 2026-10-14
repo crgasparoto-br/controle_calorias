@@ -605,7 +605,7 @@ function isCanonicalFoodResolverDelegate(callable: ts.ArrowFunction | ts.Functio
   source: ts.SourceFile): boolean {
   const canonicalImport = source.statements.some(statement =>
     ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
-    /(?:^|\\/)foodItemResolution(?:\\.[cm]?[jt]s)?$/.test(statement.moduleSpecifier.text) &&
+    /(?:^|\/)foodItemResolution(?:\.[cm]?[jt]s)?$/.test(statement.moduleSpecifier.text) &&
     statement.importClause?.namedBindings &&
     ts.isNamedImports(statement.importClause.namedBindings) &&
     statement.importClause.namedBindings.elements.some(element =>
