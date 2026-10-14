@@ -594,6 +594,34 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       }
     }
   }
+  // A dictionary consumed through Object.entries() is still a lexical decision
+  // when its pairs drive normalization; it must not evade a gate merely by
+  // having an arbitrary identifier and using replaceAll instead of [key].
+  if (rule.kind === "lexical-lookup" && ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ["entries", "keys", "values"].includes(node.expression.name.text) &&
+      node.expression.expression.getText(source) === "Object" &&
+      node.arguments.length === 1 &&
+      referencesLiteralLexicalMap(node.arguments[0], node, unwrap)) {
+    let behavior: ts.Node | undefined = node.parent;
+    while (behavior && !ts.isFunctionDeclaration(behavior) &&
+        !ts.isMethodDeclaration(behavior) && !ts.isArrowFunction(behavior) &&
+        !ts.isFunctionExpression(behavior)) behavior = behavior.parent;
+    const behaviorText = behavior?.getText(source) ?? "";
+    const decisionText = enclosingDeclaration(node) + " " + source.fileName;
+    const domainContext = isFoodDomainSource(source.fileName) ||
+      /food|alimento|nutrition|ingredient|portion|lexic|alias|synonym/i.test(decisionText);
+    const channelContext = /whatsapp|inbound|transcri|image|audio|ocr/i.test(source.fileName);
+    const unrelated = /account|status|permission|userrole|exercise|activity/i.test(decisionText);
+    const isNormalization = /\.replace(?:All)?\s*\(|\.split\s*\(|\.join\s*\(/.test(behaviorText);
+    if (!unrelated && isNormalization &&
+        (rule.id === "11" ? channelContext && domainContext :
+          rule.id === "17" ? domainContext :
+          /material|nutrition|packag|commercial|qualifier/i.test(decisionText))) {
+      return { symbol: (enclosingDeclaration(node) || "expression") + ":iterated-lexical-dictionary",
+        subject: node.getText(source) + " " + behaviorText };
+    }
+  }
   if (rule.kind === "lexical-lookup" && ts.isElementAccessExpression(node) &&
       node.argumentExpression && !isStaticText(node.argumentExpression) &&
       referencesLiteralLexicalMap(node.expression, node, unwrap)) {
@@ -949,10 +977,16 @@ function filesystemReadBindings(source: ts.SourceFile): {
     }
   };
   const fsModule = (specifier: string): boolean => specifier === "fs" || specifier === "node:fs";
-  const collectBindings = (name: ts.BindingName, provider: boolean): void => {
-    if (!provider) return;
+  const fsPromisesModule = (specifier: string): boolean =>
+    specifier === "fs/promises" || specifier === "node:fs/promises";
+  const addPromiseNamespace = (name: string): void => {
+    namespaces.add(name);
+    any.add(name + ".readFile");
+  };
+  const collectBindings = (name: ts.BindingName, promises: boolean): void => {
     if (ts.isIdentifier(name)) {
-      addNamespace(name.text);
+      if (promises) addPromiseNamespace(name.text);
+      else addNamespace(name.text);
     } else if (ts.isObjectBindingPattern(name)) {
       for (const element of name.elements) {
         if (!ts.isIdentifier(element.name)) continue;
@@ -963,11 +997,17 @@ function filesystemReadBindings(source: ts.SourceFile): {
   };
   for (const statement of source.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
-        fsModule(statement.moduleSpecifier.text) && !statement.importClause?.isTypeOnly) {
+        (fsModule(statement.moduleSpecifier.text) ||
+          fsPromisesModule(statement.moduleSpecifier.text)) && !statement.importClause?.isTypeOnly) {
       const clause = statement.importClause;
-      if (clause?.name) addNamespace(clause.name.text);
+      const promises = fsPromisesModule(statement.moduleSpecifier.text);
+      if (clause?.name) {
+        if (promises) addPromiseNamespace(clause.name.text);
+        else addNamespace(clause.name.text);
+      }
       if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
-        addNamespace(clause.namedBindings.name.text);
+        if (promises) addPromiseNamespace(clause.namedBindings.name.text);
+        else addNamespace(clause.namedBindings.name.text);
       } else if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
         for (const element of clause.namedBindings.elements) {
           if (!element.isTypeOnly) addMember(element.name.text, element.propertyName?.text ?? element.name.text);
@@ -977,8 +1017,10 @@ function filesystemReadBindings(source: ts.SourceFile): {
         ts.isExternalModuleReference(statement.moduleReference) &&
         statement.moduleReference.expression &&
         ts.isStringLiteral(statement.moduleReference.expression) &&
-        fsModule(statement.moduleReference.expression.text)) {
-      addNamespace(statement.name.text);
+        (fsModule(statement.moduleReference.expression.text) ||
+          fsPromisesModule(statement.moduleReference.expression.text))) {
+      if (fsPromisesModule(statement.moduleReference.expression.text)) addPromiseNamespace(statement.name.text);
+      else addNamespace(statement.name.text);
     }
   }
   // Variable aliases in the same source may appear after their provider import.
@@ -987,10 +1029,12 @@ function filesystemReadBindings(source: ts.SourceFile): {
       const init = unwrap(node.initializer);
       if (ts.isCallExpression(init) && ts.isIdentifier(init.expression) &&
           init.expression.text === "require" && init.arguments[0] &&
-          ts.isStringLiteral(init.arguments[0]) && fsModule(init.arguments[0].text)) {
-        collectBindings(node.name, true);
+          ts.isStringLiteral(init.arguments[0]) &&
+          (fsModule(init.arguments[0].text) || fsPromisesModule(init.arguments[0].text))) {
+        collectBindings(node.name, fsPromisesModule(init.arguments[0].text));
       } else if (ts.isIdentifier(init) && namespaces.has(init.text)) {
-        collectBindings(node.name, true);
+        collectBindings(node.name, any.has(init.text + ".readFile") &&
+          !sync.has(init.text + ".readFileSync"));
       } else if (ts.isIdentifier(node.name) && ts.isIdentifier(init) && sync.has(init.text)) {
         addMember(node.name.text, "readFileSync");
       } else if (ts.isIdentifier(node.name) && ts.isIdentifier(init) && any.has(init.text)) {
@@ -1047,18 +1091,57 @@ function isDirectFilesystemSyncReader(expression: ts.Node): boolean {
     (provider.arguments[0].text === "fs" || provider.arguments[0].text === "node:fs");
 }
 
-/** Resolve a parsed numeric JSON binding, not merely a filesystem dependency.
+/** Prove a filesystem provider, including fs/promises, instead of trusting a
+ * name like readFile that may refer to a local unrelated function.
+ */
+function isDirectFilesystemAsyncReader(expression: ts.Node): boolean {
+  if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
+  const member = ts.isPropertyAccessExpression(expression) ? expression.name.text :
+    expression.argumentExpression && isStaticText(unwrap(expression.argumentExpression)) ?
+      (unwrap(expression.argumentExpression) as ts.StringLiteral).text : "";
+  if (member !== "readFile") return false;
+  const isRequireOf = (node: ts.Node, modules: string[]): boolean =>
+    ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+    node.expression.text === "require" && node.arguments.length === 1 &&
+    ts.isStringLiteral(node.arguments[0]) && modules.includes(node.arguments[0].text);
+  const provider = expression.expression;
+  return isRequireOf(provider, ["node:fs/promises", "fs/promises"]) ||
+    (ts.isPropertyAccessExpression(provider) && provider.name.text === "promises" &&
+      isRequireOf(provider.expression, ["node:fs", "fs"]));
+}
+
+/** Resolve a parsed numeric JSON binding, including awaited fs/promises reads.
  * Unknown/dynamic paths stay outside the static proof and require separate review.
  */
 function parsedFilesystemJsonPath(initializer: ts.Expression,
-  bindings: ReturnType<typeof filesystemReadBindings>): string | null {
-  const parsed = unwrap(initializer);
+  bindings: ReturnType<typeof filesystemReadBindings>, location?: ts.Node): string | null {
+  const unwrapAwait = (node: ts.Expression): ts.Expression => {
+    let value = unwrap(node);
+    while (ts.isAwaitExpression(value)) value = unwrap(value.expression);
+    return value;
+  };
+  const parsed = unwrapAwait(initializer);
   if (!ts.isCallExpression(parsed) || parsed.expression.getText() !== "JSON.parse" ||
       parsed.arguments.length < 1) return null;
-  const read = unwrap(parsed.arguments[0]);
+  let read = unwrapAwait(parsed.arguments[0]);
+  // Common async pattern: const raw = await readFile(...); JSON.parse(raw).
+  if (ts.isIdentifier(read) && location) {
+    const target = read.text;
+    for (let scope: ts.Node | undefined = location; scope; scope = scope.parent) {
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      const declaration = scope.statements.filter(ts.isVariableStatement)
+        .flatMap(statement => [...statement.declarationList.declarations])
+        .find(decl => ts.isIdentifier(decl.name) && decl.name.text === target);
+      if (declaration) {
+        read = declaration.initializer ? unwrapAwait(declaration.initializer) : read;
+        break;
+      }
+    }
+  }
   if (!ts.isCallExpression(read) ||
-      !(bindings.sync.has(filesystemExpressionName(read.expression)) ||
-        isDirectFilesystemSyncReader(read.expression)) ||
+      !(bindings.any.has(filesystemExpressionName(read.expression)) ||
+        isDirectFilesystemSyncReader(read.expression) ||
+        isDirectFilesystemAsyncReader(read.expression)) ||
       !read.arguments[0]) return null;
   const file = staticFilesystemPath(read.arguments[0]);
   return file && /\.json$/i.test(file) ? file : null;
@@ -1168,57 +1251,79 @@ function findCrossModuleNumericFoodMaps(
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
     const filesystemBindings = filesystemReadBindings(source);
-    const imports = new Map<string, { file: string; declaration: ExportedMap }>();
-    // Resolve the binding, not merely the dependency: CommonJS JSON has the
-    // same default data object as an ES default import.
-    const bindMap = (specifier: string, localName: string, exportedName = "default"): void => {
+    const importedBindings = new Map<string, { file: string; declaration: ExportedMap }>();
+    const fromSpecifier = (specifier: string, exportedName = "default"):
+      { file: string; declaration: ExportedMap } | undefined => {
       for (const dependency of resolveRuntimeDependencies(consumer.path, specifier, indexed)) {
         const match = exported.get(dependency)?.get(exportedName);
-        if (match) imports.set(localName, { file: dependency, declaration: match });
+        if (match) return { file: dependency, declaration: match };
       }
+      return undefined;
     };
     for (const statement of source.statements) {
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
           !statement.importClause?.isTypeOnly) {
         const specifier = statement.moduleSpecifier.text;
-        if (statement.importClause?.name) bindMap(specifier, statement.importClause.name.text);
+        if (statement.importClause?.name) {
+          const match = fromSpecifier(specifier);
+          if (match) importedBindings.set(statement.importClause.name.text, match);
+        }
         const bindings = statement.importClause?.namedBindings;
         if (bindings && ts.isNamedImports(bindings)) {
           for (const element of bindings.elements) {
-            if (!element.isTypeOnly) bindMap(
-              specifier, element.name.text, element.propertyName?.text ?? element.name.text);
+            if (element.isTypeOnly) continue;
+            const match = fromSpecifier(specifier, element.propertyName?.text ?? element.name.text);
+            if (match) importedBindings.set(element.name.text, match);
           }
         }
       } else if (ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly &&
           ts.isExternalModuleReference(statement.moduleReference) &&
           statement.moduleReference.expression &&
           ts.isStringLiteral(statement.moduleReference.expression)) {
-        bindMap(statement.moduleReference.expression.text, statement.name.text);
+        const match = fromSpecifier(statement.moduleReference.expression.text);
+        if (match) importedBindings.set(statement.name.text, match);
       }
     }
-    // Follow require() declarations inside functions as well as at module
-    // scope. Keeping binding discovery in one AST walk also preserves aliases.
-    const collectAliases = (node: ts.Node): void => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-        const initializer = unwrap(node.initializer);
-        if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) &&
-            initializer.expression.text === "require" &&
-            initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
-          bindMap(initializer.arguments[0].text, node.name.text);
-        } else {
-          const parsedFile = parsedFilesystemJsonPath(initializer, filesystemBindings);
-          if (parsedFile) {
-            bindMap(parsedFile, node.name.text);
-          } else if (ts.isIdentifier(initializer)) {
-            const parent = imports.get(initializer.text);
-            if (parent) imports.set(node.name.text, parent);
+    // Resolve each use at its lexical binding site. A local DB result or
+    // parameter named like an imported JSON map must NOT inherit that import.
+    // Likewise, a function-local alias cannot contaminate another function.
+    type Reference = { file: string; declaration: ExportedMap };
+    const bindingNames = (name: ts.BindingName, target: string): boolean =>
+      ts.isIdentifier(name) ? name.text === target :
+        name.elements.some(element => bindingNames(element.name, target));
+    const resolveReference = (name: string, use: ts.Node,
+      visited = new Set<ts.VariableDeclaration>()): Reference | undefined => {
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+            ts.isFunctionExpression(scope) || ts.isArrowFunction(scope)) &&
+            scope.parameters.some(parameter => bindingNames(parameter.name, name))) return undefined;
+        if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+            bindingNames(scope.variableDeclaration.name, name)) return undefined;
+        if ((ts.isForOfStatement(scope) || ts.isForInStatement(scope)) &&
+            ts.isVariableDeclarationList(scope.initializer) &&
+            scope.initializer.declarations.some(decl => bindingNames(decl.name, name))) return undefined;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const declaration of statement.declarationList.declarations) {
+            if (!bindingNames(declaration.name, name)) continue;
+            if (visited.has(declaration) || !declaration.initializer) return undefined;
+            visited.add(declaration);
+            const initializer = unwrap(declaration.initializer);
+            if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) &&
+                initializer.expression.text === "require" && initializer.arguments[0] &&
+                ts.isStringLiteral(initializer.arguments[0])) {
+              return fromSpecifier(initializer.arguments[0].text);
+            }
+            const parsedFile = parsedFilesystemJsonPath(initializer, filesystemBindings, declaration);
+            if (parsedFile) return fromSpecifier(parsedFile);
+            if (ts.isIdentifier(initializer)) return resolveReference(initializer.text, declaration, visited);
+            return undefined; // a shadowing declaration from another source
           }
         }
       }
-      ts.forEachChild(node, collectAliases);
+      return importedBindings.get(name);
     };
-    collectAliases(source);
-    if (!imports.size) continue;
     const visit = (node: ts.Node): void => {
       let localName: string | undefined;
       let index: ts.Expression | undefined;
@@ -1230,7 +1335,7 @@ function findCrossModuleNumericFoodMaps(
         localName = node.expression.expression.text;
         index = node.arguments[0];
       }
-      const reference = localName ? imports.get(localName) : undefined;
+      const reference = localName ? resolveReference(localName, node) : undefined;
       if (reference && index && foodIndexContext(index, node, source)) {
         if (/\.json$/i.test(reference.file)) foodIndexedJson.add(reference.file.replace(/\\/g, "/"));
         const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
