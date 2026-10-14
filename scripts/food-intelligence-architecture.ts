@@ -324,9 +324,21 @@ function hasLexicalVocabularyRegex(target: ts.Expression, node: ts.Node): boolea
 }
 
 /** A pure navigation list must not become a blocked food rule. */
-function isPresentationOnlyCollection(symbol: string): boolean {
-  // Food-related UI navigation is not food knowledge or a nutritional decision.
-  return /(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol);
+function isPresentationOnlyCollection(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
+  const symbol = node.name.getText(source);
+  if (!/(?:^|[_-])(?:tabs?|columns?|headers?|menus?|navigation|buttons?|icons?|styles?|statuses?|badges?|toasts?)(?:$|[_-])|(?:Tabs?|Columns?|Headers?|Menus?|Styles?)$/i.test(symbol)) return false;
+  // A view-oriented name is not an exemption once the collection drives a decision.
+  let decisiveConsumer = false;
+  const visit = (candidate: ts.Node): void => {
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        ["includes", "has", "indexOf", "some", "find", "filter", "every"].includes(candidate.expression.name.text) &&
+        candidate.expression.expression.getText(source) === symbol) decisiveConsumer = true;
+    if (ts.isElementAccessExpression(candidate) &&
+        candidate.expression.getText(source) === symbol) decisiveConsumer = true;
+    ts.forEachChild(candidate, visit);
+  };
+  visit(source);
+  return !decisiveConsumer;
 }
 
 /** Presentation copy is not a food identity or a domain decision. */
@@ -445,7 +457,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
     if (rule.id === "17" &&
-        (isPresentationOnlyCollection(symbol) ||
+        (isPresentationOnlyCollection(node, source) ||
           isPresentationOnlyFilter(node, source, unwrap))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.
     // A generic { name: user.name, calories: 100 } collection must not be
@@ -714,6 +726,150 @@ function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""):
   }));
 }
 
+/**
+ * Resolve local runtime dependencies without restricting imports to three legacy
+ * source roots. A production entrypoint may import a package outside server/.
+ */
+function resolveRuntimeDependencies(
+  importer: string, specifier: string, indexed: Map<string, FoodArchitectureFile>,
+): string[] {
+  let base: string;
+  if (specifier.startsWith(".")) {
+    base = path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier));
+  } else if (specifier.startsWith("@/")) {
+    base = "client/src/" + specifier.slice(2);
+  } else if (specifier.startsWith("@shared/")) {
+    base = "shared/" + specifier.slice("@shared/".length);
+  } else if (/^(?:server|shared|client\/src|packages|apps|src|lib|modules)\//.test(specifier)) {
+    base = specifier;
+  } else {
+    return [];
+  }
+  const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
+  const candidates = [base, ...extensions.map(ext => base + ext),
+    ...extensions.map(ext => base + "/index" + ext)];
+  // A transpiled .js specifier may refer to the TypeScript source in the tree.
+  if (/\.[cm]?js$/.test(base)) {
+    const stem = base.replace(/\.[cm]?js$/, "");
+    candidates.push(stem + ".ts", stem + ".tsx", stem + ".mts", stem + ".cts");
+  }
+  return [...new Set(candidates)].filter(candidate => indexed.has(candidate));
+}
+
+/** Resolve only statically knowable filesystem loads; unresolved paths are not exempted. */
+function staticFilesystemPath(argument: ts.Expression): string | null {
+  const value = unwrap(argument);
+  if (isStaticText(value)) return value.text;
+  if (ts.isNewExpression(value) && value.expression.getText() === "URL" &&
+      value.arguments?.length === 2 && isStaticText(unwrap(value.arguments[0])) &&
+      /import\.meta\.url/.test(value.arguments[1].getText())) {
+    return (unwrap(value.arguments[0]) as ts.StringLiteral).text;
+  }
+  if (ts.isCallExpression(value) &&
+      /^(?:fileURLToPath|url\.fileURLToPath)$/.test(value.expression.getText()) &&
+      value.arguments[0]) return staticFilesystemPath(value.arguments[0]);
+  if (ts.isCallExpression(value) &&
+      /^(?:path\.)?(?:join|resolve)$/.test(value.expression.getText())) {
+    const args = value.arguments.map(a => unwrap(a));
+    const literal = args.filter(isStaticText).map(a => a.text);
+    if (literal.length !== args.length &&
+        !(args.length > 1 && /^(?:__dirname|process\.cwd\(\))$/.test(args[0].getText()) &&
+          literal.length === args.length - 1)) return null;
+    const prefix = args.length > literal.length && args[0].getText() === "process.cwd()" ? "" : ".";
+    return path.posix.join(prefix, ...literal);
+  }
+  return null;
+}
+
+/** Follow named exported numeric dictionaries into a food-domain consumer. */
+function findCrossModuleNumericFoodMaps(
+  files: FoodArchitectureFile[], runtime: Set<string>,
+  indexed: Map<string, FoodArchitectureFile>,
+): FoodFinding[] {
+  type ExportedMap = { symbol: string; source: string };
+  const exported = new Map<string, Map<string, ExportedMap>>();
+  for (const file of files) {
+    if (!runtime.has(file.path.replace(/\\/g, "/")) || /\.json$/i.test(file.path)) continue;
+    const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
+    const maps = new Map<string, ExportedMap>();
+    for (const statement of source.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      const isExported = statement.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (!isExported) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer &&
+            isLiteralNumericMap(declaration.initializer)) {
+          maps.set(declaration.name.text, {
+            symbol: declaration.name.text, source: declaration.initializer.getText(source),
+          });
+        }
+      }
+    }
+    if (maps.size) exported.set(file.path, maps);
+  }
+  const results: FoodFinding[] = [];
+  for (const consumer of files) {
+    if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
+    const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
+    const imports = new Map<string, { file: string; declaration: ExportedMap }>();
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) ||
+          statement.importClause?.isTypeOnly) continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      for (const dependency of resolveRuntimeDependencies(
+        consumer.path, statement.moduleSpecifier.text, indexed)) {
+        const maps = exported.get(dependency);
+        if (!maps) continue;
+        for (const specifier of bindings.elements) {
+          if (specifier.isTypeOnly) continue;
+          const match = maps.get(specifier.propertyName?.text ?? specifier.name.text);
+          if (match) imports.set(specifier.name.text, { file: dependency, declaration: match });
+        }
+      }
+    }
+    if (!imports.size) continue;
+    // Common aliases must not allow a consumer to hide the imported dictionary.
+    const collectAliases = (node: ts.Node): void => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
+          node.initializer && ts.isIdentifier(unwrap(node.initializer))) {
+        const parent = imports.get((unwrap(node.initializer) as ts.Identifier).text);
+        if (parent) imports.set(node.name.text, parent);
+      }
+      ts.forEachChild(node, collectAliases);
+    };
+    collectAliases(source);
+    const visit = (node: ts.Node): void => {
+      let localName: string | undefined;
+      let index: ts.Expression | undefined;
+      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression)) {
+        localName = node.expression.text;
+        index = node.argumentExpression;
+      } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+          node.expression.name.text === "get" && ts.isIdentifier(node.expression.expression)) {
+        localName = node.expression.expression.text;
+        index = node.arguments[0];
+      }
+      const reference = localName ? imports.get(localName) : undefined;
+      if (reference && index && foodIndexContext(index, node, source)) {
+        const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
+        for (const ruleId of ["17", "5"] as const) {
+          const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
+          results.push({
+            ruleId, file: consumer.path,
+            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+            symbol, fingerprint: ruleId + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
+            failureClass: "C", description: "Mapa numerico de alimento/porcao vindo de outro modulo",
+          });
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return results;
+}
+
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
   const results: FoodFinding[] = [];
   // Preserve multiplicity: adding an identical rule in another scope is still new.
@@ -731,26 +887,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     if (/\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const addDependency = (specifier: string, importSource = ""): void => {
-      let base: string;
-      if (specifier.startsWith(".")) {
-        base = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier));
-      } else if (specifier.startsWith("@/")) {
-        base = "client/src/" + specifier.slice(2);
-      } else if (specifier.startsWith("@shared/")) {
-        base = "shared/" + specifier.slice("@shared/".length);
-      } else if (/^(?:server|shared|client\/src)\//.test(specifier)) {
-        base = specifier;
-      } else {
-        return;
-      }
-      const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
-      const candidates = [
-        base,
-        ...extensions.map(extension => base + extension),
-        ...extensions.map(extension => base + "/index" + extension),
-      ];
-      for (const candidate of candidates) {
-        if (!indexed.has(candidate)) continue;
+      for (const candidate of resolveRuntimeDependencies(file.path, specifier, indexed)) {
         const direct = dependencyGraph.get(file.path) ?? new Set<string>();
         direct.add(candidate);
         dependencyGraph.set(file.path, direct);
@@ -785,6 +922,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
             (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
         addDependency(node.arguments[0].text, node.getText(source));
+      }
+      if (ts.isCallExpression(node) &&
+          /^(?:readFileSync|readFile|fs\.readFileSync|fs\.readFile|fs\.promises\.readFile)$/.test(node.expression.getText(source)) &&
+          node.arguments[0]) {
+        const staticPath = staticFilesystemPath(node.arguments[0]);
+        if (staticPath) addDependency(staticPath, node.getText(source));
       }
       ts.forEachChild(node, follow);
     };
@@ -823,6 +966,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     }
     visit(source);
   }
+  results.push(...findCrossModuleNumericFoodMaps(files, runtime, indexed));
   results.push(...findTransitiveAlternativeResolverFindings(
     dependencyGraph, runtime, isProductionFoodSource, stableHash,
   ));
