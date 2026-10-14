@@ -915,11 +915,17 @@ describe("food intelligence architecture wave 1", () => {
       expect(findings.some(f => f.ruleId === "2"), file).toBe(true);
       expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
     }
-    for (const canonical of ["server/foodItemResolution.ts",
+    expect(findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
+      content: "export function resolveCanonicalFoodQuantity(foodName: string) { return foodName; }" }]
+    ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+    for (const competing of ["server/foodItemResolution.ts",
+      "server/modules/foodIntelligenceV1/foodResolver.ts",
+      "server/modules/foodIntelligenceV2/foodResolver.ts",
       "server/modules/foodIntelligenceV3/foodResolver.ts"]) {
-      expect(findFoodStaticCandidates([{ path: canonical,
-        content: "export function resolveFood(input: string) { return input; }" }]
-      ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+      const findings = findFoodStaticCandidates([{ path: competing,
+        content: "export function resolveFood(input: string) { return input; }" }]);
+      expect(findings.some(f => f.ruleId === "1" || f.ruleId === "2"), competing).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
     }
     expect(findFoodStaticCandidates([{ path: "server/modules/web/handler.ts",
       content: "export function resolveAccount(input: string) { return input; }" }]
@@ -1524,4 +1530,67 @@ describe("food intelligence architecture wave 1", () => {
       f.symbol.includes("imported-numeric-food-map"))).toBe(true);
   });
 
+
+  it("A1300-45 blocks food lexicon string methods without flagging account/UI formats", () => {
+    for (const method of ["includes", "startsWith", "endsWith"]) {
+      const content = `function classifyFood(text: string) {
+        return text.${method}("sem açúcar") ? "sugar_free" : "unknown";
+      }`;
+      const findings = findFoodStaticCandidates([{ path: "server/foodLexicon.ts", content }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("literal-string-")), content).toBe(true);
+      expect(findings.some(f => f.ruleId === "18" && f.symbol.includes("literal-string-")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const channel = findFoodStaticCandidates([{ path: "server/modules/whatsapp/normalizer.ts",
+      content: 'function normalizeFoodInput(text: string) { return text.startsWith("sem açúcar"); }' }]);
+    expect(channel.some(f => f.ruleId === "11" && f.symbol.includes("literal-string-"))).toBe(true);
+    for (const item of [
+      { path: "server/accountHelpers.ts", content: 'function classifyStatus(status: string) { return status.includes("error"); }' },
+      { path: "server/foodLexicon.ts", content: 'function checkStatus(status: string) { return status.includes("error"); }' },
+      { path: "client/src/pages/FoodPage.tsx", content: 'function displayInfo(text: string) { return text.startsWith("Salvar"); }' },
+    ]) {
+      const findings = findFoodStaticCandidates([item]);
+      expect(findings.filter(f => f.symbol.includes("literal-string-")), item.content).toEqual([]);
+    }
+  });
+
+  it("A1300-46 scans simple food alias arrays in productive and imported JSON only", () => {
+    const data = { path: "server/foodAliases.json",
+      content: '{"aliases":["pão", "pao", "pão de forma"]}' };
+    const productive = findFoodStaticCandidates([data]);
+    expect(productive.some(f => f.ruleId === "17" && f.symbol === "json-food-lexicon")).toBe(true);
+    expect(evaluateFoodArchitectureGate(productive, [], [], today).errors.length).toBeGreaterThan(0);
+
+    const imported = findFoodStaticCandidates([
+      { path: "server/generated/aliases.json", content: '{"aliases":["pão","pao"]}' },
+      { path: "server/foodAliasResolution.ts",
+        content: 'import words from "./generated/aliases.json"; export const aliases = words.aliases;' },
+    ]);
+    expect(imported.some(f => f.file === "server/generated/aliases.json" &&
+      f.symbol === "json-food-lexicon")).toBe(true);
+
+    expect(findFoodStaticCandidates([{ path: "server/generated/aliases.json",
+      content: '{"aliases":["pão","pao"]}' }])).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/accountAliases.json",
+      content: '{"aliases":["admin","user"]}' }]).filter(f =>
+        f.symbol === "json-food-lexicon")).toEqual([]);
+    expect(findFoodStaticCandidates([{ path: "server/unrelated.ts",
+      content: 'import aliases from "./accountAliases.json"; export const roles = aliases.aliases;' },
+      { path: "server/accountAliases.json", content: '{"aliases":["admin","user"]}' },
+    ]).filter(f => f.symbol === "json-food-lexicon")).toEqual([]);
+  });
+
+  it("A1300-47 permits only the actual canonical owner, never arbitrary V2 descendants", () => {
+    const expected = findFoodStaticCandidates([{ path: "server/foodItemResolution.ts",
+      content: 'export function resolveCanonicalFoodQuantity(foodName: string) { return foodName; }' }]);
+    expect(expected.filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
+    for (const path of ["server/foodItemResolution.ts",
+      "server/modules/foodIntelligenceV1/foodResolver.ts",
+      "server/modules/foodIntelligenceV2/extraResolver.ts",
+      "server/modules/foodIntelligenceV3/foodResolver.ts"]) {
+      const findings = findFoodStaticCandidates([{ path,
+        content: 'export function resolveFood(input: string) { return input; }' }]);
+      expect(findings.some(f => f.ruleId === "1" || f.ruleId === "2"), path).toBe(true);
+    }
+  });
 });
