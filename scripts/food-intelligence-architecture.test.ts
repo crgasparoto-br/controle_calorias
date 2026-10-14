@@ -1020,4 +1020,60 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([packageData, typeEntry])).toEqual([]);
   });
 
+  it("A1300-28 follows cwd-rooted filesystem catalogs without exempting isolated JSON", () => {
+    const catalog = { path: "data/foodPortions.json", content: '{"pao":50,"arroz":90}' };
+    const consumers = [
+      "import { readFileSync } from 'node:fs'; const rows = readFileSync(path.join(process.cwd(), 'data', 'foodPortions.json'));",
+      "import fs from 'node:fs'; const rows = fs.readFileSync(path.resolve(process.cwd(), 'data', 'foodPortions.json'));",
+    ];
+    expect(findFoodStaticCandidates([catalog])).toEqual([]);
+    for (const content of consumers) {
+      const findings = findFoodStaticCandidates([catalog, { path: "server/foodResolver.ts", content }]);
+      expect(findings.some(f => f.file === catalog.path && f.ruleId === "17"), content).toBe(true);
+      expect(findings.some(f => f.file === catalog.path && f.ruleId === "5"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("A1300-29 blocks numeric food maps with default exports and imported aliases", () => {
+    const producers = [
+      "export default { pao: 50, arroz: 90 };",
+      "const table = { pao: 50, arroz: 90 }; export default table;",
+      "export default new Map([['pao', 50], ['arroz', 90]]);",
+    ];
+    for (const content of producers) {
+      const producer = { path: "server/numbers.ts", content };
+      const consumer = { path: "server/foodResolver.ts",
+        content: "import portions from './numbers'; const rows = portions; function resolvePortion(foodName: string) { return rows[foodName]; }" };
+      const findings = findFoodStaticCandidates([producer, consumer]);
+      expect(findings.some(f => f.ruleId === "17" &&
+        f.symbol.includes("imported-numeric-food-map")), content).toBe(true);
+      expect(findings.some(f => f.ruleId === "5" &&
+        f.symbol.includes("imported-numeric-food-map")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+      const account = { path: "server/account.ts",
+        content: "import roles from './numbers'; function accountRole(username: string) { return roles[username]; }" };
+      expect(findFoodStaticCandidates([producer, account]).filter(f =>
+        f.symbol.includes("imported-numeric-food-map"))).toEqual([]);
+    }
+  });
+
+  it("A1300-30 blocks direct numeric returns for food-specific decisions, not conversion units", () => {
+    for (const content of [
+      "function defaultPortionGrams(foodName: string) { return 50; }",
+      "const resolveServingGrams = (item: {foodId: string}) => 80;",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodResolver.ts", content }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes(":numeric-return")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function gramsPerKilogram(weightKg: number) { return 1000; }",
+      "function caloriesBurned(activity: string) { return 50; }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/exercise.ts", content }]
+        .filter(f => f.symbol.includes(":numeric-return"))).toEqual([]);
+    }
+  });
+
 });

@@ -5,7 +5,7 @@
  * Every rule has a layer, scope, failure class and matching strategy.
  */
 export type FoodWaveOneRuleId = "17" | "18" | "5" | "11" | "3" | "10" | "1" | "2" | "4";
-export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup" | "numeric-map";
+export type FoodRuleKind = "collection" | "scalar" | "import" | "function" | "call" | "literal-branch" | "literal-switch" | "literal-membership" | "literal-regex-test" | "lexical-lookup" | "numeric-map" | "numeric-return";
 export type FoodWaveOneRule = {
   id: FoodWaveOneRuleId;
   layer: 1;
@@ -45,6 +45,12 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     failureClass: "I", kind: "scalar",
     symbolPattern: "food|alimento|portion|porcao|porção|nutrition|nutrient|macro|classification|alias|synonym|brand|marca|lexicon|vocab",
     description: "Valor alimentar individual codificado em constante produtiva",
+  },
+  {
+    id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
+    failureClass: "C", kind: "numeric-return",
+    symbolPattern: "portion|porcao|porção|serving|nutrition|nutrient|macro|kcal|calor|grams",
+    description: "Porção ou valor nutricional literal retornado por decisão alimentar",
   },
   {
     id: "17", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",

@@ -491,6 +491,35 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
+  if (rule.kind === "numeric-return" &&
+      (ts.isReturnStatement(node) || ts.isArrowFunction(node) && !ts.isBlock(node.body))) {
+    const expression = ts.isReturnStatement(node) ? node.expression : node.body;
+    const number = expression && unwrap(expression);
+    if (number && (ts.isNumericLiteral(number) ||
+        ts.isPrefixUnaryExpression(number) && ts.isNumericLiteral(number.operand))) {
+      let enclosing: ts.Node | undefined = node;
+      while (enclosing && !ts.isFunctionDeclaration(enclosing) &&
+          !ts.isMethodDeclaration(enclosing) && !ts.isArrowFunction(enclosing) &&
+          !ts.isFunctionExpression(enclosing)) enclosing = enclosing.parent;
+      if (enclosing && (ts.isFunctionDeclaration(enclosing) ||
+          ts.isMethodDeclaration(enclosing) || ts.isArrowFunction(enclosing) ||
+          ts.isFunctionExpression(enclosing))) {
+        const functionName = ts.isFunctionDeclaration(enclosing) || ts.isMethodDeclaration(enclosing)
+          ? enclosing.name?.getText(source) ?? ""
+          : enclosing.parent && ts.isVariableDeclaration(enclosing.parent)
+            ? enclosing.parent.name.getText(source) : "";
+        const parameters = enclosing.parameters.map(parameter => parameter.getText(source)).join(" ");
+        const nutritionDecision = /portion|por[cç]|serving|grams|nutrition|nutrient|macro|kcal|calor/i.test(functionName);
+        const foodIdentity = /food|aliment|ingredient|product|meal|item|recipe|receita/i.test(parameters);
+        const excludedConversion = /conversion|convert|perkilogram|perkg|pergram|milligram|unitfactor/i.test(functionName);
+        const exercise = /exercise|activity|workout|fitness|burnedcalories/i.test(
+          source.fileName + " " + functionName);
+        if (nutritionDecision && foodIdentity && !excludedConversion && !exercise) {
+          return { symbol: functionName + ":numeric-return", subject: number.getText(source) };
+        }
+      }
+    }
+  }
   if (rule.kind === "lexical-lookup" && ts.isElementAccessExpression(node) &&
       node.argumentExpression && !isStaticText(node.argumentExpression) &&
       referencesLiteralLexicalMap(node.expression, node, unwrap)) {
@@ -736,6 +765,9 @@ function resolveRuntimeDependencies(
   let base: string;
   if (specifier.startsWith(".")) {
     base = path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier));
+  } else if (specifier.startsWith("/")) {
+    // Absolute marker for paths rooted at process.cwd(), not at the importer.
+    base = path.posix.normalize(specifier.slice(1));
   } else if (specifier.startsWith("@/")) {
     base = "client/src/" + specifier.slice(2);
   } else if (specifier.startsWith("@shared/")) {
@@ -775,8 +807,11 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
     if (literal.length !== args.length &&
         !(args.length > 1 && /^(?:__dirname|process\.cwd\(\))$/.test(args[0].getText()) &&
           literal.length === args.length - 1)) return null;
-    if (args.length > literal.length && args[0].getText() === "__dirname") {
-      return "./" + literal.join("/");
+    if (args.length > literal.length) {
+      if (args[0].getText() === "__dirname") return "./" + literal.join("/");
+      // process.cwd() is the repository root; relative module resolution
+      // would otherwise turn data/food.json into server/data/food.json.
+      if (args[0].getText() === "process.cwd()") return "/" + path.posix.join(...literal);
     }
     return path.posix.join(...literal);
   }
@@ -794,17 +829,24 @@ function findCrossModuleNumericFoodMaps(
     if (!runtime.has(file.path.replace(/\\/g, "/")) || /\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const maps = new Map<string, ExportedMap>();
+    const localNumericMaps = new Map<string, ExportedMap>();
     for (const statement of source.statements) {
       if (!ts.isVariableStatement(statement)) continue;
       const isExported = statement.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
-      if (!isExported) continue;
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && declaration.initializer &&
-            isLiteralNumericMap(declaration.initializer)) {
-          maps.set(declaration.name.text, {
-            symbol: declaration.name.text, source: declaration.initializer.getText(source),
-          });
-        }
+        if (!ts.isIdentifier(declaration.name) || !declaration.initializer ||
+            !isLiteralNumericMap(declaration.initializer)) continue;
+        const record = { symbol: declaration.name.text, source: declaration.initializer.getText(source) };
+        localNumericMaps.set(declaration.name.text, record);
+        if (isExported) maps.set(declaration.name.text, record);
+      }
+    }
+    for (const statement of source.statements) {
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+        const value = unwrap(statement.expression);
+        const record = ts.isIdentifier(value) ? localNumericMaps.get(value.text) :
+          isLiteralNumericMap(value) ? { symbol: "default", source: value.getText(source) } : undefined;
+        if (record) maps.set("default", record);
       }
     }
     if (maps.size) exported.set(file.path, maps);
@@ -818,11 +860,16 @@ function findCrossModuleNumericFoodMaps(
       if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) ||
           statement.importClause?.isTypeOnly) continue;
       const bindings = statement.importClause?.namedBindings;
-      if (!bindings || !ts.isNamedImports(bindings)) continue;
       for (const dependency of resolveRuntimeDependencies(
         consumer.path, statement.moduleSpecifier.text, indexed)) {
         const maps = exported.get(dependency);
         if (!maps) continue;
+        if (statement.importClause?.name) {
+          const match = maps.get("default");
+          if (match) imports.set(statement.importClause.name.text,
+            { file: dependency, declaration: match });
+        }
+        if (!bindings || !ts.isNamedImports(bindings)) continue;
         for (const specifier of bindings.elements) {
           if (specifier.isTypeOnly) continue;
           const match = maps.get(specifier.propertyName?.text ?? specifier.name.text);
