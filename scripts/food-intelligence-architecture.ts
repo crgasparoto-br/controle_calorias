@@ -608,12 +608,14 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         !ts.isMethodDeclaration(behavior) && !ts.isArrowFunction(behavior) &&
         !ts.isFunctionExpression(behavior)) behavior = behavior.parent;
     const behaviorText = behavior?.getText(source) ?? "";
-    const decisionText = enclosingDeclaration(node) + " " + source.fileName;
-    const domainContext = isFoodDomainSource(source.fileName) ||
-      /food|alimento|nutrition|ingredient|portion|lexic|alias|synonym/i.test(decisionText);
+    const decisionName = enclosingDeclaration(node);
+    const decisionText = decisionName + " " + source.fileName;
     const channelContext = /whatsapp|inbound|transcri|image|audio|ocr/i.test(source.fileName);
-    const unrelated = /account|status|permission|userrole|exercise|activity/i.test(decisionText);
-    const isNormalization = /\.replace(?:All)?\s*\(|\.split\s*\(|\.join\s*\(/.test(behaviorText);
+    const foodBehavior = /food|alimento|nutrition|ingredient|portion|lexic|alias|synonym|normaliz|resolv|parse|material|classif|language/i.test(decisionName);
+    const domainContext = (isFoodDomainSource(source.fileName) || channelContext ||
+      /food|alimento|nutrition|ingredient|portion/i.test(decisionName)) && foodBehavior;
+    const unrelated = /account|status|permission|userrole|exercise|activity/i.test(decisionName);
+    const isNormalization = /\.replace(?:All)?\s*\(/.test(behaviorText);
     if (!unrelated && isNormalization &&
         (rule.id === "11" ? channelContext && domainContext :
           rule.id === "17" ? domainContext :
