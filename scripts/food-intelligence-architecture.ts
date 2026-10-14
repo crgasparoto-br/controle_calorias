@@ -592,6 +592,11 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       const typesOnly = clause && ts.isNamedExports(clause) &&
         clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
       if (!typesOnly) moduleSpecifier = node.moduleSpecifier.text;
+    } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly &&
+        ts.isExternalModuleReference(node.moduleReference) &&
+        node.moduleReference.expression &&
+        ts.isStringLiteral(node.moduleReference.expression)) {
+      moduleSpecifier = node.moduleReference.expression.text;
     } else if (ts.isCallExpression(node) && node.arguments.length > 0 &&
         ts.isStringLiteral(node.arguments[0]) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
@@ -944,24 +949,40 @@ function findCrossModuleNumericFoodMaps(
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
     const imports = new Map<string, { file: string; declaration: ExportedMap }>();
+    // Resolve the binding, not merely the dependency: CommonJS JSON has the
+    // same default data object as an ES default import.
+    const bindMap = (specifier: string, localName: string, exportedName = "default"): void => {
+      for (const dependency of resolveRuntimeDependencies(consumer.path, specifier, indexed)) {
+        const match = exported.get(dependency)?.get(exportedName);
+        if (match) imports.set(localName, { file: dependency, declaration: match });
+      }
+    };
     for (const statement of source.statements) {
-      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) ||
-          statement.importClause?.isTypeOnly) continue;
-      const bindings = statement.importClause?.namedBindings;
-      for (const dependency of resolveRuntimeDependencies(
-        consumer.path, statement.moduleSpecifier.text, indexed)) {
-        const maps = exported.get(dependency);
-        if (!maps) continue;
-        if (statement.importClause?.name) {
-          const match = maps.get("default");
-          if (match) imports.set(statement.importClause.name.text,
-            { file: dependency, declaration: match });
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
+          !statement.importClause?.isTypeOnly) {
+        const specifier = statement.moduleSpecifier.text;
+        if (statement.importClause?.name) bindMap(specifier, statement.importClause.name.text);
+        const bindings = statement.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) {
+          for (const element of bindings.elements) {
+            if (!element.isTypeOnly) bindMap(
+              specifier, element.name.text, element.propertyName?.text ?? element.name.text);
+          }
         }
-        if (!bindings || !ts.isNamedImports(bindings)) continue;
-        for (const specifier of bindings.elements) {
-          if (specifier.isTypeOnly) continue;
-          const match = maps.get(specifier.propertyName?.text ?? specifier.name.text);
-          if (match) imports.set(specifier.name.text, { file: dependency, declaration: match });
+      } else if (ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly &&
+          ts.isExternalModuleReference(statement.moduleReference) &&
+          statement.moduleReference.expression &&
+          ts.isStringLiteral(statement.moduleReference.expression)) {
+        bindMap(statement.moduleReference.expression.text, statement.name.text);
+      } else if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+          const initializer = unwrap(declaration.initializer);
+          if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) &&
+              initializer.expression.text === "require" &&
+              initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
+            bindMap(initializer.arguments[0].text, declaration.name.text);
+          }
         }
       }
     }
@@ -1054,6 +1075,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const typesOnly = clause && ts.isNamedExports(clause) &&
           clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
         if (!typesOnly) addDependency(node.moduleSpecifier.text, node.getText(source));
+      }
+      if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly &&
+          ts.isExternalModuleReference(node.moduleReference) &&
+          node.moduleReference.expression &&
+          ts.isStringLiteral(node.moduleReference.expression)) {
+        addDependency(node.moduleReference.expression.text, node.getText(source));
       }
       if (ts.isCallExpression(node) && node.arguments.length > 0 &&
           ts.isStringLiteral(node.arguments[0]) &&

@@ -145,3 +145,13 @@ esses candidatos exigem evidência discriminante antes de qualquer certificaçã
 de owner ou inclusão no livro de dívida. Nenhuma pendência é aprovada por omissão.
 
 **Correções A1300-24/25/26/27:** o gate acompanha mapas numéricos exportados e consumidos por outro módulo em decisões de porção; considera fixtures/JSON carregados em runtime por leituras estáticas de filesystem (`readFileSync`, `fs.readFileSync`, `readFile`, `fs.promises.readFile`, `new URL(..., import.meta.url)` e `path.join(__dirname, ...)`); e diferencia coleções de navegação exclusivamente visual de coleções usadas em decisões. A varredura e a base SHA agora enumeram arquivos fonte de outros diretórios potencialmente produtivos e alcançam os que forem importados a partir dos entrypoints de `server/`, `shared/` e `client/src/`. Caminhos computados dinamicamente sem valor estático e runtime entrypoints inteiramente externos continuam exigindo revisão específica — não são certificados pelo detector AST. Alterações apenas em catálogos JSON produtivos, `architecture-debt.json` e no inventário nominal `food-architecture-owners-1300.json` também obrigam `architecture:check` no CI, sem exceção automática.
+
+
+**Importação CommonJS na onda 1 (#1300):** mapas JSON numéricos com nomes
+genéricos, como `weights.json`, são alcançados tanto por import ES quanto por
+`const weights = require('./weights.json')` e
+`import weights = require('./weights.json')`. O verificador associa o objeto
+carregado ao binding consultado por identidade alimentar, incluindo aliases
+locais; bloqueia os gates 17/5 somente quando há uso decisório comprovado.
+Imports somente de tipos, dados não consultados, status/conta/exercício e
+fixtures isoladas permanecem fora da classificação de conhecimento alimentar.
