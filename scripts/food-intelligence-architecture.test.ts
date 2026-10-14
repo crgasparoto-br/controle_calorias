@@ -1189,6 +1189,8 @@ describe("food intelligence architecture wave 1", () => {
       "const weights = require('./weights.json'); function resolvePortion(foodName: string) { return weights[foodName]; }",
       "import weights = require('./weights.json'); function resolvePortion(foodName: string) { return weights[foodName]; }",
       "const weights = require('./weights.json'); const sizes = weights; function resolvePortion(foodName: string) { return sizes[foodName]; }",
+      "function resolvePortion(foodName: string) { const weights = require('./weights.json'); return weights[foodName]; }",
+      "function resolvePortion(foodName: string) { const weights = require('./weights.json'); const sizes = weights; return sizes[foodName]; }",
     ];
     for (const content of variants) {
       const findings = findFoodStaticCandidates([weights, { path: consumerPath, content }]);
@@ -1210,6 +1212,8 @@ describe("food intelligence architecture wave 1", () => {
     const negatives = [
       { path: "server/account.ts", content:
         "const weights = require('./weights.json'); function role(user: string) { return weights[user]; }" },
+      { path: "server/account.ts", content:
+        "function role(user: string) { const weights = require('./weights.json'); return weights[user]; }" },
       { path: "server/exerciseService.ts", content:
         "const weights = require('./weights.json'); function exercise(foodName: string) { return weights[foodName]; }" },
       { path: consumerPath, content:

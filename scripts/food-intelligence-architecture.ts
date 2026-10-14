@@ -974,29 +974,26 @@ function findCrossModuleNumericFoodMaps(
           statement.moduleReference.expression &&
           ts.isStringLiteral(statement.moduleReference.expression)) {
         bindMap(statement.moduleReference.expression.text, statement.name.text);
-      } else if (ts.isVariableStatement(statement)) {
-        for (const declaration of statement.declarationList.declarations) {
-          if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
-          const initializer = unwrap(declaration.initializer);
-          if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) &&
-              initializer.expression.text === "require" &&
-              initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
-            bindMap(initializer.arguments[0].text, declaration.name.text);
-          }
-        }
       }
     }
-    if (!imports.size) continue;
-    // Common aliases must not allow a consumer to hide the imported dictionary.
+    // Follow require() declarations inside functions as well as at module
+    // scope. Keeping binding discovery in one AST walk also preserves aliases.
     const collectAliases = (node: ts.Node): void => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) &&
-          node.initializer && ts.isIdentifier(unwrap(node.initializer))) {
-        const parent = imports.get((unwrap(node.initializer) as ts.Identifier).text);
-        if (parent) imports.set(node.name.text, parent);
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+        const initializer = unwrap(node.initializer);
+        if (ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression) &&
+            initializer.expression.text === "require" &&
+            initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
+          bindMap(initializer.arguments[0].text, node.name.text);
+        } else if (ts.isIdentifier(initializer)) {
+          const parent = imports.get(initializer.text);
+          if (parent) imports.set(node.name.text, parent);
+        }
       }
       ts.forEachChild(node, collectAliases);
     };
     collectAliases(source);
+    if (!imports.size) continue;
     const visit = (node: ts.Node): void => {
       let localName: string | undefined;
       let index: ts.Expression | undefined;
