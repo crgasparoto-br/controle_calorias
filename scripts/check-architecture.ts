@@ -6,7 +6,7 @@ import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
 import { compareFoodArchitectureFindings, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
-import { assessFoodDebtRenewal, type FoodDebt } from "./food-architecture-debt";
+import { assessFoodDebtRenewal, assessReviewedFoodDebt, type FoodDebt, type ReviewedFoodDebtSeed } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const root = process.cwd();
@@ -168,6 +168,16 @@ if (!existsSync(path.join(root, debtPath)) || !existsSync(path.join(root, invent
         const baseline = findFoodStaticCandidates(readFoodFilesAtGitRef(baseSha, root));
         const result = evaluateFoodArchitectureGate(foodFindings, baseline, entries, new Date());
         for (const error of result.errors) fail("Food architecture: " + error);
+        // No develop ledger exists during the initial PR. The immutable
+        // pre-migration source inventory binds approved debt to actual findings.
+        const reviewedSeeds = (inventory as { observations?: ReviewedFoodDebtSeed[] }).observations;
+        if (!Array.isArray(reviewedSeeds)) {
+          fail("Missing reviewed source-anchored food debt inventory");
+        } else {
+          for (const error of assessReviewedFoodDebt(foodFindings, baseline, entries, reviewedSeeds)) {
+            fail("Food architecture: " + error);
+          }
+        }
         for (const warning of result.assessment.warnings) console.warn("[food-architecture] " + warning);
         console.log("[food-architecture] wave 1 enforced: " +
           new Set(FOOD_WAVE_ONE_RULES.map(rule => rule.id)).size + " gates; current=" + foodFindings.length +

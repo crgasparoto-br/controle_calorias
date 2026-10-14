@@ -61,6 +61,45 @@ export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today
  * Existing exceptions cannot be extended by changing their creation/expiry
  * dates or substituting their owner issue. CI compares against the base ref.
  */
+/** ADR 25.2: a reviewed legacy violation requires a nominal debt until repaid.
+ * This anchor works even before architecture-debt.json lands in develop.
+ * An unreviewed AST candidate must never become an approved exception.
+ */
+export type ReviewedFoodDebtSeed = {
+  file: string;
+  symbol: string;
+  rules: readonly string[];
+  review?: { classification: string };
+};
+
+export function assessReviewedFoodDebt(
+  currentFindings: FoodFinding[],
+  frozenBaseline: FoodFinding[],
+  debts: FoodDebt[],
+  reviewedSeeds: readonly ReviewedFoodDebtSeed[],
+): string[] {
+  const approved = new Set(frozenBaseline.filter(finding =>
+    reviewedSeeds.some(seed =>
+      seed.file === finding.file && seed.symbol === finding.symbol &&
+      seed.rules.includes(finding.ruleId) &&
+      seed.review?.classification === "confirmed-legacy-violation"),
+  ).map(finding => finding.fingerprint));
+  const current = new Set(currentFindings.map(finding => finding.fingerprint));
+  const debtKeys = new Set(debts.map(debt => debt.fingerprint));
+  const errors: string[] = [];
+  for (const fingerprint of approved) {
+    if (current.has(fingerprint) && !debtKeys.has(fingerprint)) {
+      errors.push("Confirmed legacy debt removed while violation remains: " + fingerprint);
+    }
+  }
+  for (const debt of debts) {
+    if (!approved.has(debt.fingerprint)) {
+      errors.push("Architecture debt lacks source-reviewed immutable legacy approval: " + debt.fingerprint);
+    }
+  }
+  return errors;
+}
+
 export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[], currentFindings: FoodFinding[] = []) {
   const errors: string[] = [];
   const indexed = new Map(current.map(item => [item.fingerprint, item]));

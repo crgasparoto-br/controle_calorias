@@ -494,9 +494,27 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "numeric-return" &&
       (ts.isReturnStatement(node) || ts.isArrowFunction(node) && !ts.isBlock(node.body))) {
     const expression = ts.isReturnStatement(node) ? node.expression : node.body;
-    const number = expression && unwrap(expression);
-    if (number && (ts.isNumericLiteral(number) ||
-        ts.isPrefixUnaryExpression(number) && ts.isNumericLiteral(number.operand))) {
+    // Only inspect returned branches, not their conditions, so a guard like
+    // foodName.length > 0 does not become a false nutritional hardcode.
+    const numericParts = (expr: ts.Expression): string[] => {
+      const value = unwrap(expr);
+      if (ts.isNumericLiteral(value) ||
+          ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)) {
+        return [value.getText(source)];
+      }
+      if (ts.isConditionalExpression(value)) {
+        return [...numericParts(value.whenTrue), ...numericParts(value.whenFalse)];
+      }
+      if (ts.isBinaryExpression(value) && [
+        ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken,
+        ts.SyntaxKind.AsteriskToken, ts.SyntaxKind.SlashToken,
+        ts.SyntaxKind.PercentToken, ts.SyntaxKind.AsteriskAsteriskToken,
+      ].includes(value.operatorToken.kind)) {
+        return [...numericParts(value.left), ...numericParts(value.right)];
+      }
+      return [];
+    };
+    if (expression && numericParts(expression).length > 0) {
       let enclosing: ts.Node | undefined = node;
       while (enclosing && !ts.isFunctionDeclaration(enclosing) &&
           !ts.isMethodDeclaration(enclosing) && !ts.isArrowFunction(enclosing) &&
@@ -515,7 +533,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         const exercise = /exercise|activity|workout|fitness|burnedcalories/i.test(
           source.fileName + " " + functionName);
         if (nutritionDecision && foodIdentity && !excludedConversion && !exercise) {
-          return { symbol: functionName + ":numeric-return", subject: number.getText(source) };
+          return { symbol: functionName + ":numeric-return", subject: expression.getText(source) };
         }
       }
     }
@@ -825,6 +843,7 @@ function findCrossModuleNumericFoodMaps(
 ): FoodFinding[] {
   type ExportedMap = { symbol: string; source: string };
   const exported = new Map<string, Map<string, ExportedMap>>();
+  const locals = new Map<string, Map<string, ExportedMap>>();
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/")) || /\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
@@ -849,7 +868,52 @@ function findCrossModuleNumericFoodMaps(
         if (record) maps.set("default", record);
       }
     }
+    if (localNumericMaps.size) locals.set(file.path, localNumericMaps);
     if (maps.size) exported.set(file.path, maps);
+  }
+  // Preserve aliases across export { local as named }, export-from and
+  // export-star barrels. A type-only re-export never loads food knowledge.
+  for (let pass = 0; pass < files.length; pass++) {
+    let changed = false;
+    for (const file of files) {
+      if (!runtime.has(file.path.replace(/\\/g, "/")) || /\.json$/i.test(file.path)) continue;
+      const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
+      const maps = exported.get(file.path) ?? new Map<string, ExportedMap>();
+      for (const statement of source.statements) {
+        if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
+        const sources: Array<Map<string, ExportedMap>> = [];
+        if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+          for (const target of resolveRuntimeDependencies(
+            file.path, statement.moduleSpecifier.text, indexed)) {
+            const targetMaps = exported.get(target);
+            if (targetMaps) sources.push(targetMaps);
+          }
+        } else {
+          sources.push(locals.get(file.path) ?? new Map());
+        }
+        for (const available of sources) {
+          if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+            for (const element of statement.exportClause.elements) {
+              if (element.isTypeOnly) continue;
+              const value = available.get(element.propertyName?.text ?? element.name.text);
+              if (value && !maps.has(element.name.text)) {
+                maps.set(element.name.text, value);
+                changed = true;
+              }
+            }
+          } else if (!statement.exportClause && statement.moduleSpecifier) {
+            for (const [name, value] of available) {
+              if (name !== "default" && !maps.has(name)) {
+                maps.set(name, value);
+                changed = true;
+              }
+            }
+          }
+        }
+      }
+      if (maps.size) exported.set(file.path, maps);
+    }
+    if (!changed) break;
   }
   const results: FoodFinding[] = [];
   for (const consumer of files) {

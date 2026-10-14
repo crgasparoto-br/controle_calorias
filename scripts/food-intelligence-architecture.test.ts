@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { normalizeWhatsappInformalLanguage } from "../server/modules/whatsapp/informalLanguageNormalizer";
 import { normalizeText } from "../server/mealTextParsing";
 import { findFoodStaticCandidates, isProductionFoodSource, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
-import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
+import { assessFoodDebt, assessFoodDebtRenewal, assessReviewedFoodDebt } from "./food-architecture-debt";
 import { compareFoodArchitectureFindings, isFoodArchitectureSourcePath } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
@@ -1072,6 +1072,67 @@ describe("food intelligence architecture wave 1", () => {
       "function caloriesBurned(activity: string) { return 50; }",
     ]) {
       expect(findFoodStaticCandidates([{ path: "server/exercise.ts", content }]
+        .filter(f => f.symbol.includes(":numeric-return"))).toEqual([]);
+    }
+  });
+
+  it("A1300-31 fails removal of confirmed debt while the reviewed violation persists", () => {
+    const reviewed = [{ file: finding.file, symbol: finding.symbol,
+      rules: [finding.ruleId], review: { classification: "confirmed-legacy-violation" } }];
+    const approved = { ruleId: finding.ruleId, file: finding.file,
+      fingerprint: finding.fingerprint, reason: "reviewed legacy",
+      owner: "food-team", issue: 1300, createdAt: "2026-10-12", expiresAt: "2026-12-11" };
+    expect(assessReviewedFoodDebt([finding], [finding], [], reviewed)).toContain(
+      "Confirmed legacy debt removed while violation remains: " + finding.fingerprint);
+    expect(assessReviewedFoodDebt([finding], [finding], [approved], reviewed)).toEqual([]);
+    expect(assessReviewedFoodDebt([], [finding], [], reviewed)).toEqual([]);
+    expect(assessReviewedFoodDebt([finding], [finding], [approved], [
+      { ...reviewed[0], review: { classification: "heuristic-candidate" } },
+    ]).some(error => error.includes("lacks source-reviewed"))).toBe(true);
+  });
+
+  it("A1300-32 follows named aliases and chained reexports for imported portion maps", () => {
+    const files = [
+      { path: "server/numbers.ts",
+        content: "const table = { pao: 50, arroz: 90 }; export { table as quantities };" },
+      { path: "server/barrel.ts", content: "export { quantities as portions } from './numbers';" },
+      { path: "server/aggregate.ts", content: "export * from './barrel';" },
+      { path: "server/foodResolver.ts", content:
+        "import { portions as sizes } from './aggregate'; function resolvePortion(foodName: string) { return sizes[foodName]; }" },
+    ];
+    const findings = findFoodStaticCandidates(files);
+    for (const id of ["17", "5"]) {
+      expect(findings.some(f => f.ruleId === id && f.file === "server/foodResolver.ts" &&
+        f.symbol.includes("imported-numeric-food-map"))).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const account = { path: "server/account.ts",
+      content: "import { portions } from './aggregate'; function role(user: string) { return portions[user]; }" };
+    expect(findFoodStaticCandidates([...files.slice(0, 3), account]).filter(f =>
+      f.symbol.includes("imported-numeric-food-map"))).toEqual([]);
+    const types = { path: "server/typeBarrel.ts",
+      content: "export type { quantities as portions } from './numbers';" };
+    expect(findFoodStaticCandidates([files[0], types, { path: "server/foodResolver.ts",
+      content: "import type { portions } from './typeBarrel';" }]).filter(f =>
+      f.symbol.includes("imported-numeric-food-map"))).toEqual([]);
+  });
+
+  it("A1300-33 detects conditional and arithmetic nutritional returns, not unit conversions", () => {
+    for (const content of [
+      "function defaultPortionGrams(foodName: string) { return foodName.length > 0 ? 50 : 80; }",
+      "const resolveServingGrams = (foodId: string) => foodId ? 40 * 2 : getServing(foodId);",
+      "function nutritionKcal(item: {foodId: string}) { return choose(item) ? 120 : 0; }",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodResolver.ts", content }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes(":numeric-return")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function gramsPerKilogram(weightKg: number) { return weightKg > 0 ? 1000 : 0; }",
+      "function caloriesBurned(activity: string) { return activity ? 50 : 80; }",
+      "function defaultPortionGrams(foodName: string) { return lookupPortion(foodName); }",
+    ]) {
+      expect(findFoodStaticCandidates([{ path: "server/calculations.ts", content }]
         .filter(f => f.symbol.includes(":numeric-return"))).toEqual([]);
     }
   });
