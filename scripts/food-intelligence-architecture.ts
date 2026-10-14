@@ -927,6 +927,16 @@ function filesystemReadBindings(source: ts.SourceFile): {
 
 function filesystemExpressionName(expression: ts.Node): string {
   if (ts.isIdentifier(expression)) return expression.text;
+  // CommonJS supports direct member calls and assignments without an
+  // intermediate namespace variable: require("node:fs").readFileSync(...).
+  // Only a literal fs provider is trusted, never require(variable) or a
+  // similarly named third-party module.
+  if (ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) &&
+      expression.expression.text === "require" && expression.arguments.length === 1 &&
+      ts.isStringLiteral(expression.arguments[0]) &&
+      (expression.arguments[0].text === "fs" || expression.arguments[0].text === "node:fs")) {
+    return "fs";
+  }
   if (ts.isPropertyAccessExpression(expression)) {
     return filesystemExpressionName(expression.expression) + "." + expression.name.text;
   }

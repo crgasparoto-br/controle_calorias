@@ -177,3 +177,13 @@ controles negativos e positivos. As regressões A1300-08/30/33, antes não exerc
 foram reparadas: léxicos JSON reconhecem chaves ancestrais com contexto
 alimentar (`foodAliases`) e filtros negativos de retornos numéricos operam sobre
 achados, não sobre arquivos de entrada.
+
+**Correção A1300-38 — CommonJS sem namespace intermediário:** chamadas
+`JSON.parse(require('fs').readFileSync('./weights.json'))`, acesso estático
+`require('node:fs')['readFileSync']` e aliases diretos de método (`const load =
+require('fs').readFileSync`) mantêm a mesma detecção dos gates 17/5, se o
+JSON numérico for consumido em uma decisão por identidade alimentar. Somente
+módulos `fs`/`node:fs` literais são seguidos; módulos terceiros, caminhos de
+`require()` dinâmicos e leituras voltadas a contas/status não são aprovados
+como violação por essa regra. Os testes positivos e negativos fazem parte da
+suíte Vitest executada na CI; análise dinâmica exige revisão separada.
