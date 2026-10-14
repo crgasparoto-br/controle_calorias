@@ -1420,7 +1420,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       }
       if (ts.isCallExpression(node) &&
           (filesystemBindings.any.has(filesystemExpressionName(node.expression)) ||
-            isDirectFilesystemSyncReader(node.expression)) &&
+            isDirectFilesystemSyncReader(node.expression) ||
+            isDirectFilesystemAsyncReader(node.expression)) &&
           node.arguments[0]) {
         const staticPath = staticFilesystemPath(node.arguments[0]);
         if (staticPath) addDependency(staticPath, node.getText(source));
