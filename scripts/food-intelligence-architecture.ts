@@ -124,9 +124,12 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
 function isLiteralNutritionRecord(value: ts.Expression): boolean {
   const record = unwrap(value);
   if (!ts.isObjectLiteralExpression(record) || record.properties.length === 0) return false;
-  return record.properties.every(property => {
+  return record.properties.some(property => {
     if (!ts.isPropertyAssignment(property)) return false;
     const name = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
+    if (/^(?:nutrition|nutrients|macros)$/.test(name)) {
+      return isLiteralNutritionRecord(property.initializer);
+    }
     if (!/^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/.test(name)) return false;
     const numeric = unwrap(property.initializer);
     return ts.isNumericLiteral(numeric) ||
@@ -742,9 +745,11 @@ function isJsonNutritionValue(value: unknown): boolean {
   if (typeof value === "number") return Number.isFinite(value);
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const entries = Object.entries(value);
-  return entries.length > 0 && entries.every(([key, entry]) =>
-    /^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/i.test(key) &&
-    typeof entry === "number" && Number.isFinite(entry));
+  return entries.length > 0 && entries.some(([key, entry]) =>
+    /^(?:nutrition|nutrients|macros)$/i.test(key)
+      ? isJsonNutritionValue(entry)
+      : /^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/i.test(key) &&
+        typeof entry === "number" && Number.isFinite(entry));
 }
 
 function findJsonFoodCatalog(

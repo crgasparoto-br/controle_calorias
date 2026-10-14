@@ -1388,7 +1388,7 @@ describe("food intelligence architecture wave 1", () => {
   it("audit 2026-10-14 blocks nested per-food numeric maps and keeps activity data inert", () => {
     for (const literal of [
       "const values = { pao: { calories: 90 }, arroz: { calories: 120 } }; function resolvePortion(foodName: string) { return values[foodName]?.calories; }",
-      "const values = new Map([['pao', { calories: 90 }], ['arroz', { calories: 120 }]]); function resolvePortion(foodName: string) { return values.get(foodName)?.calories; }",
+      "const values = new Map([['pao', { calories: 90, unit: 'g' }], ['arroz', { nutrition: { calories: 120 }, source: 'label' }]]); function resolvePortion(foodName: string) { return values.get(foodName)?.calories; }",
     ]) {
       const detected = findFoodStaticCandidates([{ path: "server/foodItemResolution.ts", content: literal }]);
       for (const id of ["17", "5"]) {
@@ -1397,7 +1397,7 @@ describe("food intelligence architecture wave 1", () => {
       expect(evaluateFoodArchitectureGate(detected, [], [], today).errors.length).toBeGreaterThan(0);
     }
     const source = { path: "server/weights.json",
-      content: '{"pao":{"calories":90},"arroz":{"calories":120}}' };
+      content: '{"pao":{"calories":90,"unit":"g"},"arroz":{"nutrition":{"calories":120},"source":"label"}}' };
     const consumer = { path: "server/foodItemResolution.ts",
       content: 'import weights from "./weights.json"; function resolvePortion(foodName: string) { return weights[foodName]?.calories; }' };
     const detected = findFoodStaticCandidates([source, consumer]);
