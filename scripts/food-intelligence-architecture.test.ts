@@ -1005,8 +1005,11 @@ describe("food intelligence architecture wave 1", () => {
       content: "import { FOOD_ALIASES } from '../packages/food-intelligence/knowledge'; export const value = FOOD_ALIASES;" };
     expect(isFoodArchitectureSourcePath(packageData.path)).toBe(true);
     expect(isFoodArchitectureSourcePath(entry.path)).toBe(true);
-    expect(isFoodArchitectureSourcePath("docs/food-intelligence/knowledge.ts")).toBe(false);
-    expect(isFoodArchitectureSourcePath("scripts/food-intelligence-architecture.ts")).toBe(false);
+    expect(isFoodArchitectureSourcePath("docs/food-intelligence/knowledge.ts")).toBe(true);
+    expect(isFoodArchitectureSourcePath("scripts/food-intelligence-architecture.ts")).toBe(true);
+    expect(isFoodArchitectureSourcePath("node_modules/generated/food.ts")).toBe(false);
+    expect(findFoodStaticCandidates([{ path: "docs/food-knowledge.ts",
+      content: "export const FOOD_ALIASES = ['pão'];" }])).toEqual([]);
     const findings = findFoodStaticCandidates([packageData, entry].filter(file =>
       isFoodArchitectureSourcePath(file.path)));
     expect(findings.some(f => f.file === packageData.path && f.ruleId === "17")).toBe(true);
