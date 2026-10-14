@@ -43,10 +43,9 @@ export function compareFoodArchitectureFindings(current: FoodFinding[], baseline
 export function isFoodArchitectureSourcePath(file: string): boolean {
   const normalized = file.replace(/\\/g, "/").replace(/^\.\//, "");
   if (!/\.(?:[cm]?[jt]sx?|json)$/.test(normalized)) return false;
+  // A docs/example.ts, a script or even a root-level module is inert until
+  // loaded from runtime. Excluding its directory here would create an escape.
   const segments = normalized.split("/");
-  if (segments.length < 2) return false;
-  if (["docs", "scripts", "tests", "test", "artifacts", ".github", ".ci",
-    "public", "assets", "e2e", "playwright", "benchmarks"].includes(segments[0])) return false;
   return !segments.some(segment => ["node_modules", ".git", ".next", ".turbo",
     "dist", "build", "coverage", "playwright-report", "test-results"].includes(segment));
 }
@@ -61,7 +60,6 @@ export function readFoodWorkingFiles(cwd: string): FoodArchitectureFile[] {
         // directories because a production module may load their contents.
         if (["node_modules", ".git", ".next", ".turbo", "dist", "build", "coverage",
           "playwright-report", "test-results"].includes(entry.name)) continue;
-        if (!directory && !isFoodArchitectureSourcePath(location + "/index.ts")) continue;
         walk(location);
       } else if (entry.isFile() && isFoodArchitectureSourcePath(location)) {
         result.push({ path: location, content: readFileSync(path.join(cwd, location), "utf8") });
