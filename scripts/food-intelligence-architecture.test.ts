@@ -1893,4 +1893,76 @@ describe("food intelligence architecture wave 1", () => {
       content: "import data from '../data/records.json'; function findActivity(input: string) { return data.find(row => row.name === input); }",
     }]).filter(f => f.file === records.path)).toEqual([]);
   });
+  it("AUD1300-20261014-F04 blocks normalized food identity comparisons and switches", () => {
+    const positives = [
+      {
+        path: "server/foodRules.ts",
+        content: 'function pick(item: { name: string }) { return item.name.trim().toLowerCase() === "pão" ? 50 : 0; }',
+        kind: "lexical-branch",
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function choose(item: { name: string }) { switch (item.name.toLowerCase()) { case "pão": return 50; default: return 0; } }',
+        kind: "lexical-switch",
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function pick(input: string) { return input.normalize("NFC").trim().toLowerCase() === "pão" ? 50 : 0; }',
+        kind: "lexical-branch",
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function decide(item: { name: string }) { return item.name.replaceAll(" ", "").toLowerCase() === "pão" ? 50 : 0; }',
+        kind: "lexical-branch",
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function choose(item: { name: string }) { switch (normalizeFoodName(item.name)) { case "pão": return 50; default: return 0; } }',
+        kind: "lexical-switch",
+      },
+      {
+        path: "server/helpers.ts",
+        content: 'function computeServing(item: { name: string }) { return item.name.trim().toLowerCase() === "pão" ? 50 : 0; }',
+        kind: "lexical-branch",
+      },
+    ];
+    for (const sample of positives) {
+      const findings = findFoodStaticCandidates([sample]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes(sample.kind)),
+        sample.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.some(error =>
+        error.startsWith("New food architecture violation gate 17")), sample.content).toBe(true);
+    }
+  });
+
+  it("AUD1300-20261014-F04 preserves non-food normalization and opaque-call negatives", () => {
+    const negatives = [
+      {
+        path: "server/accounts.ts",
+        content: 'function checkUser(user: { name: string }) { return user.name.trim().toLowerCase() === "admin"; }',
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function checkStatus(status: string) { return status.trim().toLowerCase() === "active"; }',
+      },
+      {
+        path: "server/exercises.ts",
+        content: 'function decide(item: { name: string }) { return item.name.toLowerCase() === "walking" ? 1 : 0; }',
+      },
+      {
+        path: "client/src/components/Overview.tsx",
+        content: 'function render(tab: { name: string }) { return tab.name.toLowerCase() === "daily"; }',
+      },
+      {
+        path: "server/accounts.ts",
+        content: 'function checkUser(user: { name: string }) { return customTransform(user.name) === "admin"; }',
+      },
+    ];
+    for (const sample of negatives) {
+      const findings = findFoodStaticCandidates([sample]);
+      expect(findings.filter(f => f.ruleId === "17" &&
+        /lexical-(?:branch|switch)/.test(f.symbol)), sample.content).toEqual([]);
+    }
+  });
+
 });
