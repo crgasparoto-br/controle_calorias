@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import { findFoodStaticCandidates, type FoodArchitectureFile, type FoodFinding } from "./food-intelligence-architecture";
 
 export function compareFoodArchitectureFindings(current: FoodFinding[], baseline: FoodFinding[]) {
@@ -32,6 +34,44 @@ export function compareFoodArchitectureFindings(current: FoodFinding[], baseline
  * Uses an immutable Git tree, not a mutable best-effort search index. This
  * comparison is evidence, not an automatic interpretation of ADR §25 item 25.
  */
+/**
+ * Every source reachable from a productive entrypoint must be in the input
+ * tree, even when its directory was introduced after this gate was written.
+ * Only inert/tooling directories are excluded; runtime reachability is decided
+ * by findFoodStaticCandidates, not by this filesystem predicate.
+ */
+export function isFoodArchitectureSourcePath(file: string): boolean {
+  const normalized = file.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!/\.(?:[cm]?[jt]sx?|json)$/.test(normalized)) return false;
+  const segments = normalized.split("/");
+  if (segments.length < 2) return false;
+  if (["docs", "scripts", "tests", "test", "artifacts", ".github", ".ci",
+    "public", "assets", "e2e", "playwright", "benchmarks"].includes(segments[0])) return false;
+  return !segments.some(segment => ["node_modules", ".git", ".next", ".turbo",
+    "dist", "build", "coverage", "playwright-report", "test-results"].includes(segment));
+}
+
+export function readFoodWorkingFiles(cwd: string): FoodArchitectureFile[] {
+  const result: FoodArchitectureFile[] = [];
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(path.join(cwd, directory), { withFileTypes: true })) {
+      const location = path.posix.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        // Skip tooling/output trees before recursion; retain fixture/generated
+        // directories because a production module may load their contents.
+        if (["node_modules", ".git", ".next", ".turbo", "dist", "build", "coverage",
+          "playwright-report", "test-results"].includes(entry.name)) continue;
+        if (!directory && !isFoodArchitectureSourcePath(location + "/index.ts")) continue;
+        walk(location);
+      } else if (entry.isFile() && isFoodArchitectureSourcePath(location)) {
+        result.push({ path: location, content: readFileSync(path.join(cwd, location), "utf8") });
+      }
+    }
+  };
+  walk("");
+  return result;
+}
+
 export function readFoodFilesAtGitRef(ref: string, cwd: string): FoodArchitectureFile[] {
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/.test(ref) || ref.startsWith("-") ||
       ref.includes("..") || ref.includes("//")) {
@@ -40,9 +80,8 @@ export function readFoodFilesAtGitRef(ref: string, cwd: string): FoodArchitectur
   const git = (...args: string[]) => execFileSync("git", args, {
     cwd, encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
   });
-  const names = git("ls-tree", "-r", "--name-only", ref, "--", "server", "shared", "client/src")
-    .split(/\r?\n/).filter(Boolean)
-    .filter(name => /^(?:server|shared|client\/src)\/.+\.(?:[cm]?[jt]sx?|json)$/.test(name));
+  const names = git("ls-tree", "-r", "--name-only", ref)
+    .split(/\r?\n/).filter(isFoodArchitectureSourcePath);
   if (!names.length) throw new Error("Baseline Git tree contains no production TypeScript files: " + ref);
   return names.map(file => ({
     path: file,
