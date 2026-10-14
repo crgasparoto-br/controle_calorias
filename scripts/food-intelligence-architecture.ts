@@ -1292,7 +1292,8 @@ function findCrossModuleNumericFoodMaps(
     type Reference = { file: string; declaration: ExportedMap };
     const bindingNames = (name: ts.BindingName, target: string): boolean =>
       ts.isIdentifier(name) ? name.text === target :
-        name.elements.some(element => bindingNames(element.name, target));
+        name.elements.some(element => ts.isBindingElement(element) &&
+          bindingNames(element.name, target));
     const resolveReference = (name: string, use: ts.Node,
       visited = new Set<ts.VariableDeclaration>()): Reference | undefined => {
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
