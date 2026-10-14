@@ -1950,8 +1950,12 @@ describe("food intelligence architecture wave 1", () => {
         content: 'function decide(item: { name: string }) { return item.name.toLowerCase() === "walking" ? 1 : 0; }',
       },
       {
-        path: "client/src/components/Overview.tsx",
+        path: "client/src/components/FoodTabs.tsx",
         content: 'function render(tab: { name: string }) { return tab.name.toLowerCase() === "daily"; }',
+      },
+      {
+        path: "server/foodRules.ts",
+        content: 'function pick(item: { name: string }) { return getStatus(item.name) === "active" ? 1 : 0; }',
       },
       {
         path: "server/accounts.ts",
