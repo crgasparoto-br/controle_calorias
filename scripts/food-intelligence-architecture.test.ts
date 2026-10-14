@@ -1137,4 +1137,49 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("A1300-34 blocks generic numeric JSON only when the imported binding is indexed by food identity", () => {
+    const weights = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
+    const direct = { path: "server/foodItemResolution.ts", content:
+      "import weights from './weights.json'; function resolvePortion(foodName: string) { return weights[foodName]; }" };
+    expect(findFoodStaticCandidates([weights])).toEqual([]);
+    const findings = findFoodStaticCandidates([weights, direct]);
+    for (const ruleId of ["17", "5"]) {
+      expect(findings.some(f => f.file === weights.path && f.ruleId === ruleId &&
+        f.symbol === "json-food-catalog"), ruleId).toBe(true);
+      expect(findings.some(f => f.file === direct.path && f.ruleId === ruleId &&
+        f.symbol.includes("imported-numeric-food-map")), ruleId).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+
+    const aliased = { path: direct.path, content:
+      "import weights from './weights.json'; const sizes = weights; function resolvePortion(foodName: string) { return sizes[foodName]; }" };
+    expect(findFoodStaticCandidates([weights, aliased]).some(f =>
+      f.file === weights.path && f.ruleId === "17")).toBe(true);
+
+    const fixture = { path: "server/fixtures/weights.json", content: weights.content };
+    const fixtureConsumer = { path: direct.path, content:
+      "import weights from './fixtures/weights.json'; function resolvePortion(foodName: string) { return weights[foodName]; }" };
+    expect(findFoodStaticCandidates([fixture])).toEqual([]);
+    expect(findFoodStaticCandidates([fixture, fixtureConsumer]).some(f =>
+      f.file === fixture.path && f.ruleId === "17")).toBe(true);
+    expect(findFoodStaticCandidates([fixture, { path: direct.path,
+      content: "import type weights from './fixtures/weights.json';" }])).toEqual([]);
+
+    const negatives = [
+      { path: "server/account.ts", content:
+        "import weights from './weights.json'; function role(user: string) { return weights[user]; }" },
+      { path: direct.path, content:
+        "import weights from './weights.json'; function status(value: string) { return weights[value]; }" },
+      { path: "server/exerciseService.ts", content:
+        "import weights from './weights.json'; function exercise(foodName: string) { return weights[foodName]; }" },
+      { path: direct.path, content:
+        "import weights from './weights.json'; const unused = weights;" },
+    ];
+    for (const negative of negatives) {
+      expect(findFoodStaticCandidates([weights, negative]).filter(f =>
+        f.symbol === "json-food-catalog" || f.symbol.includes("imported-numeric-food-map")),
+      negative.content).toEqual([]);
+    }
+  });
+
 });

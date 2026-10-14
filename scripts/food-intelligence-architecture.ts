@@ -675,7 +675,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
  * additions and edits visible without flooding the debt ledger with every row.
  * Non-food JSON does not produce a finding.
  */
-function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""): FoodFinding[] {
+function findJsonFoodCatalog(
+  file: FoodArchitectureFile, consumerEvidence = "", indexedByFoodIdentity = false,
+): FoodFinding[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(file.content);
@@ -738,8 +740,10 @@ function findJsonFoodCatalog(file: FoodArchitectureFile, consumerEvidence = ""):
     const foodNumericMap = entries.length > 0 &&
       entries.every(([key, entry]) => key.trim().length > 0 &&
         typeof entry === "number" && Number.isFinite(entry)) &&
-      /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
-      !/(?:config|settings|preferences|options)\.json$/i.test(file.path);
+      (indexedByFoodIdentity || (
+        /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
+        !/(?:config|settings|preferences|options)\.json$/i.test(file.path)
+      ));
     if (foodNumericMap) foodRows++;
     if ((explicitIdentity || genericIdentity) &&
         (specificNutrition || nestedNutrition || governedAttributes ||
@@ -840,12 +844,31 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
 function findCrossModuleNumericFoodMaps(
   files: FoodArchitectureFile[], runtime: Set<string>,
   indexed: Map<string, FoodArchitectureFile>,
-): FoodFinding[] {
+): { findings: FoodFinding[]; foodIndexedJson: Set<string> } {
   type ExportedMap = { symbol: string; source: string };
   const exported = new Map<string, Map<string, ExportedMap>>();
   const locals = new Map<string, Map<string, ExportedMap>>();
   for (const file of files) {
-    if (!runtime.has(file.path.replace(/\\/g, "/")) || /\.json$/i.test(file.path)) continue;
+    if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
+    if (/\.json$/i.test(file.path)) {
+      // JSON modules export their parsed object as the default binding. Do
+      // not infer a food rule from a neutral file name or numeric values alone:
+      // the consumer's indexed food identity must prove domain ownership.
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(file.content);
+      } catch {
+        continue; // findJsonFoodCatalog reports invalid productive JSON.
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+      const entries = Object.entries(parsed);
+      if (!entries.length || !entries.every(([key, value]) =>
+        key.trim().length > 0 && typeof value === "number" && Number.isFinite(value))) continue;
+      exported.set(file.path, new Map([["default", {
+        symbol: "default", source: JSON.stringify(parsed),
+      }]]));
+      continue;
+    }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const maps = new Map<string, ExportedMap>();
     const localNumericMaps = new Map<string, ExportedMap>();
@@ -916,6 +939,7 @@ function findCrossModuleNumericFoodMaps(
     if (!changed) break;
   }
   const results: FoodFinding[] = [];
+  const foodIndexedJson = new Set<string>();
   for (const consumer of files) {
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
@@ -965,6 +989,7 @@ function findCrossModuleNumericFoodMaps(
       }
       const reference = localName ? imports.get(localName) : undefined;
       if (reference && index && foodIndexContext(index, node, source)) {
+        if (/\.json$/i.test(reference.file)) foodIndexedJson.add(reference.file.replace(/\\/g, "/"));
         const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
         for (const ruleId of ["17", "5"] as const) {
           const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
@@ -980,7 +1005,7 @@ function findCrossModuleNumericFoodMaps(
     };
     visit(source);
   }
-  return results;
+  return { findings: results, foodIndexedJson };
 }
 
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {
@@ -1046,11 +1071,13 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     };
     ts.forEachChild(source, follow);
   }
+  const importedNumericMaps = findCrossModuleNumericFoodMaps(files, runtime, indexed);
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     if (/\.json$/i.test(file.path)) {
       results.push(...findJsonFoodCatalog(file,
-        [...(importerContext.get(file.path) ?? [])].join(" ")));
+        [...(importerContext.get(file.path) ?? [])].join(" "),
+        importedNumericMaps.foodIndexedJson.has(file.path.replace(/\\/g, "/"))));
       continue;
     }
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
@@ -1079,7 +1106,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     }
     visit(source);
   }
-  results.push(...findCrossModuleNumericFoodMaps(files, runtime, indexed));
+  results.push(...importedNumericMaps.findings);
   results.push(...findTransitiveAlternativeResolverFindings(
     dependencyGraph, runtime, isProductionFoodSource, stableHash,
   ));
