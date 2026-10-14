@@ -775,8 +775,10 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
     if (literal.length !== args.length &&
         !(args.length > 1 && /^(?:__dirname|process\.cwd\(\))$/.test(args[0].getText()) &&
           literal.length === args.length - 1)) return null;
-    const prefix = args.length > literal.length && args[0].getText() === "process.cwd()" ? "" : ".";
-    return path.posix.join(prefix, ...literal);
+    if (args.length > literal.length && args[0].getText() === "__dirname") {
+      return "./" + literal.join("/");
+    }
+    return path.posix.join(...literal);
   }
   return null;
 }
