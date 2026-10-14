@@ -684,12 +684,14 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const domain = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|recipe|material|lexic|alias/i.test(context);
     const unrelated = /account|status|permission|userrole|exercise|activity|workout|fitness/i.test(owner + " " + receiver);
     const word = /[a-zA-ZÀ-ÿ]{2,}/.test(literal);
+    const semanticOwner = /food|aliment|nutrition|meal|ingredient|portion|porc|serving|recipe|lexic|alias|normaliz/i.test(owner + " " + receiver);
+    const decidingFunction = /classif|resolv|normaliz|parse|identif|detect|decid|qualif|match|infer|select|extract/i.test(owner);
     const relevant = rule.id === "18"
       ? matches(rule.evidencePattern, literal) ||
         /material|qualifier|attribute|packag|commercial/i.test(owner + " " + receiver)
       : rule.id === "11"
         ? /food|aliment|normaliz|lexic|alias|synonym|input/i.test(owner + " " + receiver)
-        : /food|aliment|nutrition|meal|ingredient|portion|porc|serving|recipe|lexic|alias|normaliz/i.test(context);
+        : semanticOwner || (isFoodDomainSource(source.fileName) && decidingFunction);
     if (word && domain && !unrelated && relevant) {
       return { symbol: (owner || "expression") + ":literal-string-" + node.expression.name.text,
         subject: node.getText(source) };
