@@ -1385,4 +1385,56 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("audit 2026-10-14 blocks nested per-food numeric maps and keeps activity data inert", () => {
+    for (const literal of [
+      "const values = { pao: { calories: 90 }, arroz: { calories: 120 } }; function resolvePortion(foodName: string) { return values[foodName]?.calories; }",
+      "const values = new Map([['pao', { calories: 90 }], ['arroz', { calories: 120 }]]); function resolvePortion(foodName: string) { return values.get(foodName)?.calories; }",
+    ]) {
+      const detected = findFoodStaticCandidates([{ path: "server/foodItemResolution.ts", content: literal }]);
+      for (const id of ["17", "5"]) {
+        expect(detected.some(f => f.ruleId === id && f.symbol.includes("numeric-food-map")), literal + id).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(detected, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const source = { path: "server/weights.json",
+      content: '{"pao":{"calories":90},"arroz":{"calories":120}}' };
+    const consumer = { path: "server/foodItemResolution.ts",
+      content: 'import weights from "./weights.json"; function resolvePortion(foodName: string) { return weights[foodName]?.calories; }' };
+    const detected = findFoodStaticCandidates([source, consumer]);
+    expect(detected.some(f => f.file === source.path && f.ruleId === "17" && f.symbol === "json-food-catalog")).toBe(true);
+    expect(detected.some(f => f.file === consumer.path && f.ruleId === "5" &&
+      f.symbol.includes("imported-numeric-food-map"))).toBe(true);
+    const activity = findFoodStaticCandidates([{ path: "server/handlers/activity.ts",
+      content: "const values = { running: { calories: 90 } }; function getActivity(activityName: string) { return values[activityName]?.calories; }" }]);
+    expect(activity.filter(f => f.symbol.includes("numeric-food-map"))).toEqual([]);
+  });
+
+  it("audit 2026-10-14 never exempts presentation labels used as food identity predicates", () => {
+    const productive = findFoodStaticCandidates([{ path: "client/src/components/FoodEntry.tsx",
+      content: "const foodLabel = 'pao'; function detect(input: string) { return input === foodLabel; }" }]);
+    expect(productive.some(f => f.ruleId === "17" && f.symbol === "foodLabel")).toBe(true);
+    expect(evaluateFoodArchitectureGate(productive, [], [], today).errors.length).toBeGreaterThan(0);
+    const visual = findFoodStaticCandidates([{ path: "client/src/components/FoodEntry.tsx",
+      content: "const foodLabel = 'Alimento'; export function Display() { return <span>{foodLabel}</span>; }" }]);
+    expect(visual.filter(f => f.symbol === "foodLabel")).toEqual([]);
+  });
+
+  it("audit 2026-10-14 detects materiality regexes in generic handlers, not unrelated formats", () => {
+    for (const content of [
+      "function decide(value: string) { return /integral/i.test(value); }",
+      "const matcher = /light/i; function decide(value: string) { return matcher.test(value); }",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/handlers/generic.ts", content }]);
+      expect(findings.some(f => f.ruleId === "18" && f.symbol.includes("lexical-regex")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    for (const content of [
+      "function decide(value: string) { return /active/i.test(value); }",
+      "function decide(value: string) { return /^\\d+$/.test(value); }",
+    ]) {
+      const findings = findFoodStaticCandidates([{ path: "server/handlers/generic.ts", content }]);
+      expect(findings.filter(f => f.ruleId === "18")).toEqual([]);
+    }
+  });
+
 });

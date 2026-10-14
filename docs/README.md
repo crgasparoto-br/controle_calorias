@@ -197,3 +197,5 @@ não comprovado não é um leitor do filesystem Node para fins do detector
 estático. Chamada CommonJS direta e alias legítimo permanecem bloqueados
 quando o JSON é usado como mapa alimentar. Isso evita falsos positivos sem
 certificar leitores dinâmicos nem dispensar a revisão de comportamento.
+
+**Correções da auditoria de 2026-10-14 (Issue #1300):** os gates 17/5 detectam mapas de alimentos indexados por identidade com valores numéricos aninhados (por exemplo, porções e calorias), incluindo catálogos JSON importados; consultas não alimentares de exercícios permanecem fora do bloqueio. Em componentes de interface, um rótulo é isento somente quando usado para apresentação, não quando participa de comparação/decisão de identidade alimentar. O gate 18 também identifica expressões regulares de qualificadores de materialidade em handlers genéricos por pistas declarativas de sintaxe, sem transformar essas pistas em política nutricional de runtime. Testes adversariais positivos e negativos sustentam os três casos; reconhecimentos estáticos não constituem certificação de comportamento dinâmico.

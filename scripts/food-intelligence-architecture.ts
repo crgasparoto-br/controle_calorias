@@ -119,6 +119,28 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     isAnonymousFoodNutrition(node, fields, enclosingDeclaration, unwrap);
 }
 
+/** Nutrition maps may hold literal nutrient objects instead of bare numbers.
+ * A food-indexed consumer, not the arbitrary map keys, determines food scope. */
+function isLiteralNutritionRecord(value: ts.Expression): boolean {
+  const record = unwrap(value);
+  if (!ts.isObjectLiteralExpression(record) || record.properties.length === 0) return false;
+  return record.properties.every(property => {
+    if (!ts.isPropertyAssignment(property)) return false;
+    const name = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
+    if (!/^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/.test(name)) return false;
+    const numeric = unwrap(property.initializer);
+    return ts.isNumericLiteral(numeric) ||
+      (ts.isPrefixUnaryExpression(numeric) && ts.isNumericLiteral(numeric.operand));
+  });
+}
+
+function isLiteralNumericFoodValue(value: ts.Expression): boolean {
+  const expr = unwrap(value);
+  return ts.isNumericLiteral(expr) ||
+    (ts.isPrefixUnaryExpression(expr) && ts.isNumericLiteral(expr.operand)) ||
+    isLiteralNutritionRecord(expr);
+}
+
 /** Domain-driven numeric maps need evidence of food identity, not food words
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
 function isLiteralNumericMap(value: ts.Expression): boolean {
@@ -133,8 +155,7 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
         const key = unwrap(pair.elements[0]);
         const number = unwrap(pair.elements[1]);
         return (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) &&
-          (ts.isNumericLiteral(number) ||
-            (ts.isPrefixUnaryExpression(number) && ts.isNumericLiteral(number.operand)));
+          isLiteralNumericFoodValue(number);
       });
   }
   return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
@@ -143,10 +164,7 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
       if (!ts.isIdentifier(property.name) &&
           !ts.isStringLiteral(property.name) &&
           !ts.isNumericLiteral(property.name)) return false;
-      const numeric = unwrap(property.initializer);
-      return ts.isNumericLiteral(numeric) ||
-        (ts.isPrefixUnaryExpression(numeric) &&
-          ts.isNumericLiteral(numeric.operand));
+      return isLiteralNumericFoodValue(property.initializer);
     });
 }
 
@@ -341,6 +359,40 @@ function isPresentationOnlyCollection(node: ts.VariableDeclaration, source: ts.S
   return !decisiveConsumer;
 }
 
+/** A rendered label becomes food knowledge when code also uses it to decide
+ * identity or aliases. A display-only TSX label remains excluded. */
+function isDecisionBearingFoodScalar(declaration: ts.VariableDeclaration, source: ts.SourceFile): boolean {
+  if (!ts.isIdentifier(declaration.name)) return false;
+  const symbol = declaration.name.text;
+  let decisionUse = false;
+  const refers = (expr: ts.Expression) => ts.isIdentifier(expr) && expr.text === symbol;
+  const visit = (node: ts.Node): void => {
+    if (decisionUse) return;
+    if (ts.isBinaryExpression(node) &&
+        [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
+          .includes(node.operatorToken.kind) &&
+        (refers(node.left) || refers(node.right))) {
+      decisionUse = true;
+      return;
+    }
+    if (ts.isSwitchStatement(node) && refers(node.expression) &&
+        node.caseBlock.clauses.some(clause => ts.isCaseClause(clause) && isStaticText(clause.expression))) {
+      decisionUse = true;
+      return;
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
+        (refers(node.expression.expression) || node.arguments.some(argument => refers(argument)))) {
+      decisionUse = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return decisionUse;
+}
+
 /** Presentation copy is not a food identity or a domain decision. */
 function isPresentationOnlyScalar(symbol: string, value: string, file: string): boolean {
   if (!/(?:label|title|text|placeholder|description|message|tooltip|caption|heading|button|toast)/i.test(symbol) ||
@@ -475,7 +527,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const symbol = node.name.getText(source);
     const value = unwrap(node.initializer);
     const numericFoodField = /portion|porc|serving|gram|calor|kcal|protein|carb|fat|macro|nutrient|nutrition|classification/i.test(symbol);
-    if (isStaticText(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName)) return null;
+    if (isStaticText(value) && isPresentationOnlyScalar(symbol, value.text, source.fileName) &&
+        !isDecisionBearingFoodScalar(node, source)) return null;
     const numericLiteral = ts.isNumericLiteral(value) ||
       (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand));
     const scalarDomain = source.fileName + " " + enclosingDeclaration(node);
@@ -572,7 +625,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
     const sourceDecision = rule.id === "18" && isFoodDomainSource(source.fileName) &&
       hasLexicalVocabularyRegex(node.expression.expression, node);
-    if (matches(rule.symbolPattern, context) || sourceDecision) {
+    // Materiality vocabulary in the registry is evidence for this detector,
+    // not a product-level nutrition or identity decision.
+    const materialityLexeme = rule.id === "18" && !!rule.evidencePattern &&
+      matches(rule.evidencePattern,
+        localDecisionEvidence(node.expression.expression, node, source));
+    if (matches(rule.symbolPattern, context) || sourceDecision || materialityLexeme) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-regex",
         subject: node.getText(source) };
     }
@@ -680,6 +738,15 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
  * additions and edits visible without flooding the debt ledger with every row.
  * Non-food JSON does not produce a finding.
  */
+function isJsonNutritionValue(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entries = Object.entries(value);
+  return entries.length > 0 && entries.every(([key, entry]) =>
+    /^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/i.test(key) &&
+    typeof entry === "number" && Number.isFinite(entry));
+}
+
 function findJsonFoodCatalog(
   file: FoodArchitectureFile, consumerEvidence = "", indexedByFoodIdentity = false,
 ): FoodFinding[] {
@@ -744,7 +811,7 @@ function findJsonFoodCatalog(
     // must come from a food/portion/catalog context, never a product name list.
     const foodNumericMap = entries.length > 0 &&
       entries.every(([key, entry]) => key.trim().length > 0 &&
-        typeof entry === "number" && Number.isFinite(entry)) &&
+        isJsonNutritionValue(entry)) &&
       (indexedByFoodIdentity || (
         /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
         !/(?:config|settings|preferences|options)\.json$/i.test(file.path)
@@ -1012,7 +1079,7 @@ function findCrossModuleNumericFoodMaps(
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
       const entries = Object.entries(parsed);
       if (!entries.length || !entries.every(([key, value]) =>
-        key.trim().length > 0 && typeof value === "number" && Number.isFinite(value))) continue;
+        key.trim().length > 0 && isJsonNutritionValue(value))) continue;
       exported.set(file.path, new Map([["default", {
         symbol: "default", source: JSON.stringify(parsed),
       }]]));
