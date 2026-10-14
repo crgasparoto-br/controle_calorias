@@ -671,6 +671,30 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         subject: node.getText(source) };
     }
   }
+  if (rule.kind === "literal-string-method" && ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ["includes", "startsWith", "endsWith"].includes(node.expression.name.text) &&
+      node.arguments.length === 1 && isStaticText(unwrap(node.arguments[0]))) {
+    const literal = (unwrap(node.arguments[0]) as ts.StringLiteral).text;
+    const receiver = node.expression.expression.getText(source);
+    const owner = enclosingDeclaration(node);
+    const context = source.fileName + " " + owner + " " + receiver;
+    // Only textual lexical decisions: avoid account/status/UI format checks.
+    // Domain evidence comes from the decision surface, not a food-name allowlist.
+    const domain = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|recipe|material|lexic|alias/i.test(context);
+    const unrelated = /account|status|permission|userrole|exercise|activity|workout|fitness/i.test(owner + " " + receiver);
+    const word = /[a-zA-ZÀ-ÿ]{2,}/.test(literal);
+    const relevant = rule.id === "18"
+      ? matches(rule.evidencePattern, literal) ||
+        /material|qualifier|attribute|packag|commercial/i.test(owner + " " + receiver)
+      : rule.id === "11"
+        ? /food|aliment|normaliz|lexic|alias|synonym|input/i.test(owner + " " + receiver)
+        : /food|aliment|nutrition|meal|ingredient|portion|porc|serving|recipe|lexic|alias|normaliz/i.test(context);
+    if (word && domain && !unrelated && relevant) {
+      return { symbol: (owner || "expression") + ":literal-string-" + node.expression.name.text,
+        subject: node.getText(source) };
+    }
+  }
   const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : undefined;
   const onlyNamedTypes = bindings && ts.isNamedImports(bindings) &&
     bindings.elements.length > 0 && bindings.elements.every(specifier => specifier.isTypeOnly) &&
@@ -808,6 +832,14 @@ function findJsonFoodCatalog(
   let lexicalRows = 0;
   function walk(value: unknown, context: string): void {
     if (Array.isArray(value)) {
+      // A plain array of governed food aliases is itself lexical knowledge.
+      // Keep inert fixtures and account/status dictionaries out of scope.
+      if (value.length > 0 && value.every(entry =>
+          typeof entry === "string" && entry.trim().length > 0) &&
+          /alias|synonym|sinonim|lexicon|vocab|normaliz|replacement/i.test(context) &&
+          lexicalDomain) {
+        lexicalRows++;
+      }
       value.forEach(entry => walk(entry, context));
       return;
     }
@@ -1446,8 +1478,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         // New channel names must never bypass the single food decision owner.
         const ownerDeclaration = (rule.id === "1" || rule.id === "2") &&
           rule.kind === "function";
-        const canonicalOwner = /^server\/(?:foodItemResolution\.[cm]?[jt]sx?|modules\/foodIntelligenceV[0-9]+\/)/i
-          .test(file.path);
+        // Exemption is the currently published owner contract, not a folder
+        // or an arbitrary version name. New V1/V2/V3 resolver entrypoints must
+        // be audited even if colocated with Food Intelligence modules.
+        const canonicalOwner = file.path === "server/foodItemResolution.ts" &&
+          ts.isFunctionDeclaration(node) &&
+          node.name?.text === "resolveCanonicalFoodQuantity";
         if (ownerDeclaration ? canonicalOwner : !matches(rule.pathPattern, file.path)) continue;
         const finding = ruleEvidence(node, source, rule);
         if (!finding) continue;
