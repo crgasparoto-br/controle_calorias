@@ -440,31 +440,97 @@ function isDecisionBearingFoodScalar(declaration: ts.VariableDeclaration, source
   if (!ts.isIdentifier(declaration.name)) return false;
   const symbol = declaration.name.text;
   let decisionUse = false;
-  const refers = (expr: ts.Expression) => ts.isIdentifier(expr) && expr.text === symbol;
-  const visit = (node: ts.Node): void => {
+
+  // A display label ceases to be presentation-only if its value (including a
+  // local alias) feeds food identity, nutrition, classification or portioning.
+  // Resolve lexical declarations instead of relying on repeated identifier
+  // spellings: a shadowing parameter must not taint the original label.
+  const refers = (expr: ts.Expression, use: ts.Node,
+    visited = new Set<ts.VariableDeclaration>()): boolean => {
+    const value = unwrap(expr);
+    if (!ts.isIdentifier(value)) return false;
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if ((ts.isFunctionDeclaration(scope) || ts.isFunctionExpression(scope) ||
+           ts.isMethodDeclaration(scope) || ts.isArrowFunction(scope)) &&
+          scope.parameters.some(parameter =>
+            ts.isIdentifier(parameter.name) && parameter.name.text === value.text)) return false;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const candidate of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(candidate.name) || candidate.name.text !== value.text) continue;
+          if (candidate === declaration) return true;
+          if (!candidate.initializer || visited.has(candidate)) return false;
+          visited.add(candidate);
+          return refers(candidate.initializer, candidate, visited);
+        }
+      }
+    }
+    return false;
+  };
+  const containsReference = (root: ts.Node): boolean => {
+    let found = false;
+    const scan = (candidate: ts.Node): void => {
+      if (found) return;
+      if (ts.isIdentifier(candidate) && refers(candidate, candidate)) {
+        found = true;
+        return;
+      }
+      ts.forEachChild(candidate, scan);
+    };
+    scan(root);
+    return found;
+  };
+  const foodDecision = /(?:resolve|decide|infer|identify|classify|match|select|choose|lookup|find|parse|extract|register|create|get)[A-Za-z0-9_]*(?:food|alimento|nutrition|nutrient|portion|serving|ingredient|meal)[A-Za-z0-9_]*/i;
+  const scan = (candidate: ts.Node): void => {
     if (decisionUse) return;
-    if (ts.isBinaryExpression(node) &&
+    if (ts.isBinaryExpression(candidate) &&
         [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
           ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
-          .includes(node.operatorToken.kind) &&
-        (refers(node.left) || refers(node.right))) {
+          .includes(candidate.operatorToken.kind) &&
+        ((ts.isExpression(candidate.left) && refers(candidate.left, candidate.left)) ||
+         refers(candidate.right, candidate.right))) {
       decisionUse = true;
       return;
     }
-    if (ts.isSwitchStatement(node) && refers(node.expression) &&
-        node.caseBlock.clauses.some(clause => ts.isCaseClause(clause) && isStaticText(clause.expression))) {
+    if (ts.isSwitchStatement(candidate) &&
+        refers(candidate.expression, candidate.expression) &&
+        candidate.caseBlock.clauses.some(clause =>
+          ts.isCaseClause(clause) && isStaticText(clause.expression))) {
       decisionUse = true;
       return;
     }
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-        ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
-        (refers(node.expression.expression) || node.arguments.some(argument => refers(argument)))) {
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        ["includes", "has", "indexOf"].includes(candidate.expression.name.text) &&
+        (refers(candidate.expression.expression, candidate.expression.expression) ||
+         candidate.arguments.some(argument => containsReference(argument)))) {
       decisionUse = true;
       return;
     }
-    ts.forEachChild(node, visit);
+    // Resolve calls are a decision sink even when the constant is nested in
+    // an argument object or passed through a simple lexical alias.
+    if (ts.isCallExpression(candidate) &&
+        foodDecision.test(candidate.expression.getText(source)) &&
+        candidate.arguments.some(argument => containsReference(argument))) {
+      decisionUse = true;
+      return;
+    }
+    if (ts.isPropertyAssignment(candidate) &&
+        /^(?:foodName|foodLabel|foodId|food_id|alimento|alimentoId|productName|ingredientName|nutritionIdentity)$/i
+          .test(candidate.name.getText(source).replace(/^['"]|['"]$/g, "")) &&
+        containsReference(candidate.initializer)) {
+      decisionUse = true;
+      return;
+    }
+    if (ts.isReturnStatement(candidate) && candidate.expression &&
+        foodDecision.test(enclosingDeclaration(candidate)) &&
+        containsReference(candidate.expression)) {
+      decisionUse = true;
+      return;
+    }
+    ts.forEachChild(candidate, scan);
   };
-  visit(source);
+  scan(source);
   return decisionUse;
 }
 
@@ -601,7 +667,8 @@ function iteratedLexicalDecision(call: ts.CallExpression, source: ts.SourceFile)
 
 /** A class/object resolver property may only be exempt when it is a pure
  * forwarding wrapper to the actual canonical import, without local decisions. */
-function isCanonicalFoodResolverDelegate(callable: ts.ArrowFunction | ts.FunctionExpression,
+function isCanonicalFoodResolverDelegate(
+  callable: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration | ts.MethodDeclaration,
   source: ts.SourceFile): boolean {
   const canonicalImport = source.statements.some(statement =>
     ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
@@ -613,6 +680,7 @@ function isCanonicalFoodResolverDelegate(callable: ts.ArrowFunction | ts.Functio
       (!element.propertyName || element.propertyName.text === element.name.text)));
   if (!canonicalImport) return false;
   const body = callable.body;
+  if (!body) return false;
   let returned: ts.Expression | undefined;
   if (ts.isBlock(body)) {
     if (body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0])) return false;
@@ -886,10 +954,22 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           : propertyCallable && (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node))
             ? node.name.getText(source).replace(/^['"]|['"]$/g, "") : undefined;
     if (symbol && matches(rule.symbolPattern, symbol)) {
-      // A property that *only* delegates to the existing canonical owner is
-      // not a second decision owner. Prove the import and the single call;
-      // arbitrary functions named like the canonical entrypoint are not safe.
-      if (propertyCallable && isCanonicalFoodResolverDelegate(propertyCallable, source)) return null;
+      const declarationCallable = ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)
+        ? node : ts.isVariableDeclaration(node) && node.initializer &&
+          (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+            ? node.initializer : undefined;
+      const callable = propertyCallable ?? declarationCallable;
+      // Gate 2 is repository-wide; a generic account/status resolver outside
+      // the food domain must not be rejected solely by its function name.
+      const signature = symbol + " " + (callable?.parameters
+        .map(parameter => parameter.getText(source)).join(" ") ?? "");
+      if (rule.id === "2" &&
+          !/food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(signature)) {
+        return null;
+      }
+      // A pure delegation to the real canonical import is not a competing
+      // owner, whether it uses a function, arrow, class or object method.
+      if (callable && isCanonicalFoodResolverDelegate(callable, source)) return null;
       return { symbol, subject: node.getText(source) };
     }
   }

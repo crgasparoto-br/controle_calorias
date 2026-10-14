@@ -1714,4 +1714,52 @@ describe("food intelligence architecture wave 1", () => {
     ]);
     expect(unrelated.filter(f => f.symbol === "opaque-runtime-food-data-load")).toEqual([]);
   });
+
+  it("AUD1300-01 blocks food presentation literals when passed into a decision sink", () => {
+    const cases = [
+      "const foodLabel = 'pão'; export const selected = resolveCanonicalFoodQuantity(foodLabel);",
+      "const foodLabel = 'pão'; const chosen = foodLabel; function save() { return resolveCanonicalFoodQuantity(chosen); }",
+      "const foodLabel = 'pão'; export const decision = { foodName: foodLabel };",
+      "const foodLabel = 'pão'; function resolveFoodName() { return foodLabel; }",
+      "const foodLabel = 'pão'; export const decision = resolveCanonicalFoodQuantity({ foodName: foodLabel });",
+    ];
+    for (const content of cases) {
+      const found = findFoodStaticCandidates([{ path: "client/src/components/FoodEntry.tsx", content }]);
+      expect(found.some(f => f.ruleId === "17" && f.symbol === "foodLabel"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(found, [], [], today).errors.some(
+        error => error.includes("New food architecture violation")), content).toBe(true);
+    }
+    for (const content of [
+      "const foodLabel = 'Adicionar alimento'; export const View = () => <span>{foodLabel}</span>;",
+      "const foodLabel = 'Adicionar alimento'; const labelCopy = foodLabel; export const View = () => <span>{labelCopy}</span>;",
+      "const foodLabel = 'Adicionar alimento'; function handle(foodLabel: string) { return resolveCanonicalFoodQuantity(foodLabel); }",
+    ]) {
+      const found = findFoodStaticCandidates([{ path: "client/src/components/FoodEntry.tsx", content }]);
+      expect(found.filter(f => f.ruleId === "17" && f.symbol === "foodLabel"), content).toEqual([]);
+    }
+  });
+
+  it("AUD1300-02 blocks parallel food decision owners outside channel paths", () => {
+    const parallel = [
+      "export function resolveFood(name: string) { return { foodName: name, calories: 95 }; }",
+      "export const resolveNutrition = (foodName: string) => ({ calories: 95 });",
+      "export function createCatalogResolver(foodName: string) { return { foodName, calories: 95 }; }",
+    ];
+    for (const content of parallel) {
+      const found = findFoodStaticCandidates([{ path: "server/modules/catalog/service.ts", content }]);
+      expect(found.some(f => f.ruleId === "2"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length, content).toBeGreaterThan(0);
+    }
+    const delegated = findFoodStaticCandidates([{ path: "server/modules/catalog/service.ts",
+      content: [
+        "import { resolveCanonicalFoodQuantity } from '../../foodItemResolution';",
+        "export function resolveFood(foodName: string) { return resolveCanonicalFoodQuantity(foodName); }",
+      ].join("\\n"),
+    }]);
+    expect(delegated.filter(f => f.ruleId === "2")).toEqual([]);
+    const generic = findFoodStaticCandidates([{ path: "server/modules/accounts/service.ts",
+      content: "export function createAccountResolver(userId: string) { return userId; }",
+    }]);
+    expect(generic.filter(f => f.ruleId === "2")).toEqual([]);
+  });
 });

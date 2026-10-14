@@ -193,9 +193,8 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
   {
     id: "2", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
     failureClass: "I", kind: "function",
-    pathPattern: "whatsapp|image|vision|ocr|photo|barcode|audio|(?:^|/)(?:web|mobile|api|routes?|handlers?|controllers?|adapters?)(?:/|\\.)",
-    symbolPattern: "create.*Resolver|resolveFood|resolveNutrition",
-    description: "Possível resolvedor concorrente de canal",
+    symbolPattern: "create.*Resolver|resolveFood|resolveNutrition|(?:make|build|select|identify|decide|infer|match).*?(?:Food|Nutrition).*Resolver",
+    description: "Possível resolvedor alimentar concorrente em qualquer módulo produtivo",
   },
   {
     id: "4", layer: 1, severity: "error", mode: "block-new", scope: "production-runtime",
