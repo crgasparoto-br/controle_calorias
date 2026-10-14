@@ -164,4 +164,16 @@ caminhos estáticos relativos, `new URL(..., import.meta.url)`,
 Somente quando a variável carregada (inclusive alias ou variável local de função)
 participa de consulta por identidade alimentar os gates 17/5 bloqueiam.
 Conta, status, exercício, mapas não consultados, caminhos dinâmicos e fixtures
-isoladas permanecem controles negativos; I/O dinâmico não é certificado por AST.
+isoladas permanecem controles negativos; I/O dinâmico não é certificado por AST. A correção A1300-37 rastreia aliases da API
+`readFileSync` (imports nomeados renomeados, namespaces ES/CommonJS,
+destruturing CommonJS e acesso estático por colchetes) antes de aprovar um mapa
+JSON produtivo: somente a consulta por identidade alimentar ativa 17/5;
+caminho dinâmico, dado não consumido, status, conta, exercício e fixture isolada
+continuam fora do bloqueio. A análise estática não certifica aliases criados
+por mutação ou reflexão em runtime. A suíte adversarial da arquitetura alimentar passa
+agora a integrar explicitamente o `vitest.config.ts` e o gate `Full tests` do
+CI, evitando que alterações no detector recebam CI verde sem executar seus
+controles negativos e positivos. As regressões A1300-08/30/33, antes não exercitadas pelo padrão do Vitest,
+foram reparadas: léxicos JSON reconhecem chaves ancestrais com contexto
+alimentar (`foodAliases`) e filtros negativos de retornos numéricos operam sobre
+achados, não sobre arquivos de entrada.

@@ -716,7 +716,7 @@ function findJsonFoodCatalog(
         entries.every(([key, entry]) => key.trim().length > 0 &&
           typeof entry === "string" && entry.trim().length > 0) &&
         /alias|synonym|sinonim|lexicon|vocab|normaliz|replacement/i.test(context + " " + consumerEvidence) &&
-        lexicalDomain) {
+        (lexicalDomain || /food|aliment|nutrition|nutrient|meal|ingredient|portion|serving|recipe/i.test(context))) {
       lexicalRows++;
     }
 
@@ -845,16 +845,109 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
   return null;
 }
 
+/** Track statically imported filesystem APIs, including renamed imports and
+ * CommonJS bindings. Matching a bare identifier name without resolving its
+ * provider would miss otherwise ordinary aliases such as `readFileSync as load`.
+ */
+function filesystemReadBindings(source: ts.SourceFile): {
+  sync: Set<string>; any: Set<string>;
+} {
+  const sync = new Set(["readFileSync", "fs.readFileSync"]);
+  const any = new Set([...sync, "readFile", "fs.readFile", "fs.promises.readFile"]);
+  const namespaces = new Set(["fs"]);
+  const addNamespace = (name: string): void => {
+    namespaces.add(name);
+    sync.add(name + ".readFileSync");
+    for (const method of ["readFile", "promises.readFile"]) any.add(name + "." + method);
+    any.add(name + ".readFileSync");
+  };
+  const addMember = (name: string, original: string): void => {
+    if (original === "readFileSync") {
+      sync.add(name);
+      any.add(name);
+    } else if (original === "readFile") {
+      any.add(name);
+    } else if (original === "promises") {
+      any.add(name + ".readFile");
+    }
+  };
+  const fsModule = (specifier: string): boolean => specifier === "fs" || specifier === "node:fs";
+  const collectBindings = (name: ts.BindingName, provider: boolean): void => {
+    if (!provider) return;
+    if (ts.isIdentifier(name)) {
+      addNamespace(name.text);
+    } else if (ts.isObjectBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (!ts.isIdentifier(element.name)) continue;
+        const original = element.propertyName?.getText(source).replace(/^['"]|['"]$/g, "") ?? element.name.text;
+        addMember(element.name.text, original);
+      }
+    }
+  };
+  for (const statement of source.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
+        fsModule(statement.moduleSpecifier.text) && !statement.importClause?.isTypeOnly) {
+      const clause = statement.importClause;
+      if (clause?.name) addNamespace(clause.name.text);
+      if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+        addNamespace(clause.namedBindings.name.text);
+      } else if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        for (const element of clause.namedBindings.elements) {
+          if (!element.isTypeOnly) addMember(element.name.text, element.propertyName?.text ?? element.name.text);
+        }
+      }
+    }
+  }
+  // Variable aliases in the same source may appear after their provider import.
+  const collect = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const init = unwrap(node.initializer);
+      if (ts.isCallExpression(init) && ts.isIdentifier(init.expression) &&
+          init.expression.text === "require" && init.arguments[0] &&
+          ts.isStringLiteral(init.arguments[0]) && fsModule(init.arguments[0].text)) {
+        collectBindings(node.name, true);
+      } else if (ts.isIdentifier(init) && namespaces.has(init.text)) {
+        collectBindings(node.name, true);
+      } else if (ts.isIdentifier(node.name) && ts.isIdentifier(init) && sync.has(init.text)) {
+        addMember(node.name.text, "readFileSync");
+      } else if (ts.isIdentifier(node.name) && ts.isIdentifier(init) && any.has(init.text)) {
+        addMember(node.name.text, "readFile");
+      } else if (ts.isIdentifier(node.name) &&
+          (ts.isPropertyAccessExpression(init) || ts.isElementAccessExpression(init))) {
+        const invoked = filesystemExpressionName(init);
+        if (sync.has(invoked)) addMember(node.name.text, "readFileSync");
+        else if (any.has(invoked)) addMember(node.name.text, "readFile");
+      }
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(source);
+  return { sync, any };
+}
+
+function filesystemExpressionName(expression: ts.Node): string {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) {
+    return filesystemExpressionName(expression.expression) + "." + expression.name.text;
+  }
+  if (ts.isElementAccessExpression(expression) && expression.argumentExpression &&
+      isStaticText(expression.argumentExpression)) {
+    return filesystemExpressionName(expression.expression) + "." + expression.argumentExpression.text;
+  }
+  return "";
+}
+
 /** Resolve a parsed numeric JSON binding, not merely a filesystem dependency.
  * Unknown/dynamic paths stay outside the static proof and require separate review.
  */
-function parsedFilesystemJsonPath(initializer: ts.Expression): string | null {
+function parsedFilesystemJsonPath(initializer: ts.Expression,
+  bindings: ReturnType<typeof filesystemReadBindings>): string | null {
   const parsed = unwrap(initializer);
   if (!ts.isCallExpression(parsed) || parsed.expression.getText() !== "JSON.parse" ||
       parsed.arguments.length < 1) return null;
   const read = unwrap(parsed.arguments[0]);
   if (!ts.isCallExpression(read) ||
-      !/^(?:readFileSync|fs\.readFileSync)$/.test(read.expression.getText()) ||
+      !bindings.sync.has(filesystemExpressionName(read.expression)) ||
       !read.arguments[0]) return null;
   const file = staticFilesystemPath(read.arguments[0]);
   return file && /\.json$/i.test(file) ? file : null;
@@ -963,6 +1056,7 @@ function findCrossModuleNumericFoodMaps(
   for (const consumer of files) {
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
+    const filesystemBindings = filesystemReadBindings(source);
     const imports = new Map<string, { file: string; declaration: ExportedMap }>();
     // Resolve the binding, not merely the dependency: CommonJS JSON has the
     // same default data object as an ES default import.
@@ -1001,7 +1095,7 @@ function findCrossModuleNumericFoodMaps(
             initializer.arguments[0] && ts.isStringLiteral(initializer.arguments[0])) {
           bindMap(initializer.arguments[0].text, node.name.text);
         } else {
-          const parsedFile = parsedFilesystemJsonPath(initializer);
+          const parsedFile = parsedFilesystemJsonPath(initializer, filesystemBindings);
           if (parsedFile) {
             bindMap(parsedFile, node.name.text);
           } else if (ts.isIdentifier(initializer)) {
@@ -1062,6 +1156,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     if (!file) continue;
     if (/\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
+    const filesystemBindings = filesystemReadBindings(source);
     const addDependency = (specifier: string, importSource = ""): void => {
       for (const candidate of resolveRuntimeDependencies(file.path, specifier, indexed)) {
         const direct = dependencyGraph.get(file.path) ?? new Set<string>();
@@ -1106,7 +1201,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         addDependency(node.arguments[0].text, node.getText(source));
       }
       if (ts.isCallExpression(node) &&
-          /^(?:readFileSync|readFile|fs\.readFileSync|fs\.readFile|fs\.promises\.readFile)$/.test(node.expression.getText(source)) &&
+          filesystemBindings.any.has(filesystemExpressionName(node.expression)) &&
           node.arguments[0]) {
         const staticPath = staticFilesystemPath(node.arguments[0]);
         if (staticPath) addDependency(staticPath, node.getText(source));

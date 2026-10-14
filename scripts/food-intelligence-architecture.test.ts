@@ -1071,7 +1071,7 @@ describe("food intelligence architecture wave 1", () => {
       "function gramsPerKilogram(weightKg: number) { return 1000; }",
       "function caloriesBurned(activity: string) { return 50; }",
     ]) {
-      expect(findFoodStaticCandidates([{ path: "server/exercise.ts", content }]
+      expect(findFoodStaticCandidates([{ path: "server/exercise.ts", content }])
         .filter(f => f.symbol.includes(":numeric-return"))).toEqual([]);
     }
   });
@@ -1132,7 +1132,7 @@ describe("food intelligence architecture wave 1", () => {
       "function caloriesBurned(activity: string) { return activity ? 50 : 80; }",
       "function defaultPortionGrams(foodName: string) { return lookupPortion(foodName); }",
     ]) {
-      expect(findFoodStaticCandidates([{ path: "server/calculations.ts", content }]
+      expect(findFoodStaticCandidates([{ path: "server/calculations.ts", content }])
         .filter(f => f.symbol.includes(":numeric-return"))).toEqual([]);
     }
   });
@@ -1266,6 +1266,54 @@ describe("food intelligence architecture wave 1", () => {
         "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); const unused = weights;" },
       { path: foodPath, content:
         "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(getPath(), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" },
+    ];
+    for (const negative of negatives) {
+      expect(findFoodStaticCandidates([weights, negative]).filter(f =>
+        f.symbol === "json-food-catalog" || f.symbol.includes("imported-numeric-food-map")),
+      negative.content).toEqual([]);
+    }
+  });
+
+  it("A1300-37 follows aliased filesystem JSON readers without classifying unrelated data", () => {
+    const weights = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
+    const foodPath = "server/foodItemResolution.ts";
+    const positives = [
+      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const { readFileSync: load } = require('node:fs'); const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fileSystem = require('node:fs'); const weights = JSON.parse(fileSystem.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs from 'node:fs'; const weights = JSON.parse(fs['readFileSync']('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import { readFileSync as load } from 'node:fs'; const readAlias = load; const weights = JSON.parse(readAlias('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+    ];
+    for (const content of positives) {
+      const findings = findFoodStaticCandidates([weights, { path: foodPath, content }]);
+      for (const ruleId of ["17", "5"]) {
+        expect(findings.some(f => f.file === weights.path && f.ruleId === ruleId &&
+          f.symbol === "json-food-catalog"), content + ":" + ruleId).toBe(true);
+        expect(findings.some(f => f.file === foodPath && f.ruleId === ruleId &&
+          f.symbol.includes("imported-numeric-food-map")), content + ":" + ruleId).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length,
+        content).toBeGreaterThan(0);
+    }
+    const fixture = { path: "server/fixtures/weights.json", content: weights.content };
+    expect(findFoodStaticCandidates([fixture])).toEqual([]);
+    expect(findFoodStaticCandidates([fixture, { path: foodPath, content:
+      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./fixtures/weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" }])
+      .some(f => f.file === fixture.path && f.ruleId === "17" && f.symbol === "json-food-catalog")).toBe(true);
+    const negatives = [
+      { path: "server/account.ts", content:
+        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); function role(user: string) { return weights[user]; }" },
+      { path: "server/exerciseService.ts", content:
+        "const fileSystem = require('fs'); const weights = JSON.parse(fileSystem.readFileSync('./weights.json', 'utf8')); function exercise(foodName: string) { return weights[foodName]; }" },
+      { path: foodPath, content:
+        "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync('./weights.json', 'utf8')); function status(value: string) { return weights[value]; }" },
+      { path: foodPath, content:
+        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); const unused = weights;" },
+      { path: foodPath, content:
+        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(getPath(), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" },
+      { path: foodPath, content:
+        "import type { readFileSync as load } from 'node:fs'; function resolvePortion(foodName: string) { return 0; }" },
     ];
     for (const negative of negatives) {
       expect(findFoodStaticCandidates([weights, negative]).filter(f =>
