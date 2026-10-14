@@ -3,6 +3,7 @@
  * JSON; CI writes it directly into a SHA-addressed workflow artifact.
  */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
@@ -122,8 +123,30 @@ const triageQueue = inventory.filter(item =>
     fingerprint: item.fingerprint, ruleId: item.ruleId, failureClass: item.failureClass,
     file: item.file, line: item.line, status: "pending-evidence",
   }));
+// R1300-05: process *every* pending candidate rather than sampling. Prove
+// the source/line at this SHA, but never call source inspection a behavioral
+// certification of a competing owner or a nutrition rule.
+const sourceSha = sha();
+const sourceLines = new Map(files.map(file => [file.path, file.content.split(/\r?\n/)]));
+const sourceAnchoredTriage = triageQueue.map(item => {
+  const lines = sourceLines.get(item.file);
+  const line = lines?.[item.line - 1];
+  if (!line?.trim()) throw new Error("Unverifiable architecture triage source at " +
+    sourceSha + " " + item.file + ":" + item.line);
+  return {
+    ...item,
+    evidence: {
+      kind: "source-line-only" as const,
+      sourceSha,
+      lineSha256: createHash("sha256").update(line).digest("hex"),
+      sourceLocationValidated: true,
+      behavioralDecisionCertified: false,
+      nextVerification: "Confirm runtime decision, compare with canonical owner, then review disposition",
+    },
+  };
+});
 const report = {
-  sourceSha: sha(),
+  sourceSha,
   enforcementBaselineSha: pinned.baseSha,
   baselineRef,
   baselineSha,
@@ -159,14 +182,16 @@ const report = {
     reviewedLegacyResponsibilities: reviewedOwnerResponsibilities,
     // Each unapproved legacy candidate stays individually traceable by SHA.
     // This is a review queue, not a certified inventory of competing runtime owners.
-    pendingBehavioralReviews: triageQueue.map(item => ({
+    pendingBehavioralReviews: sourceAnchoredTriage.map(item => ({
       sourceBaselineSha: pinned.baseSha,
       fingerprint: item.fingerprint, failureClass: item.failureClass,
       file: item.file, line: item.line, ruleId: item.ruleId,
+      evidence: item.evidence,
       status: "requires-behavioral-review" as const,
     })),
     reviewTotals: {
-      pendingBehavioralReviews: triageQueue.length,
+      pendingBehavioralReviews: sourceAnchoredTriage.length,
+      sourceAnchoredPending: sourceAnchoredTriage.length,
       sourceReviewed: reviewedOwnerResponsibilities.length,
       decisionOwnerCandidates: reviewedOwnerResponsibilities.filter(item =>
         item.disposition.endsWith("-decision-owner")).length,
@@ -177,7 +202,7 @@ const report = {
   triage: {
     sourceBaselineSha: pinned.baseSha,
     policy: "Review each candidate against source and runtime behavior before nominal debt approval; never auto-exempt.",
-    pending: triageQueue,
+    pending: sourceAnchoredTriage,
   },
   enforcement: {
     errors: [...enforced.errors, ...reviewedDebtErrors], activeDebtWarnings: enforced.assessment.warnings,

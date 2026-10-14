@@ -1593,4 +1593,62 @@ describe("food intelligence architecture wave 1", () => {
       expect(findings.some(f => f.ruleId === "1" || f.ruleId === "2"), path).toBe(true);
     }
   });
+
+  it("A1300-48 tracks food-identity key normalization in local and imported portion maps", () => {
+    const cases = [
+      [{ path: "server/foodPortionService.ts", content:
+        "const table = {'pão': 50, arroz: 90}; function getFoodPortion(foodName: string) { const key = foodName.toLowerCase(); return table[key]; }" }],
+      [{ path: "shared/lookup.ts", content: "export const lookup = {'pão': 50, arroz: 90};" },
+        { path: "server/foodPortionService.ts", content:
+          "import {lookup} from '../shared/lookup'; function getPortion(foodName: string) { const raw = foodName; const key = raw.trim().toLowerCase(); return lookup[key]; }" }],
+    ];
+    for (const files of cases) {
+      const detected = findFoodStaticCandidates(files);
+      expect(detected.some(f => f.ruleId === "17" && f.failureClass === "C"), JSON.stringify(files)).toBe(true);
+      expect(detected.some(f => f.ruleId === "5"), JSON.stringify(files)).toBe(true);
+      expect(evaluateFoodArchitectureGate(detected, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const unrelated = findFoodStaticCandidates([{ path: "server/exerciseService.ts", content:
+      "const table = {corrida:50, caminhada:90}; function getPortion(activityName: string) { const key = activityName.toLowerCase(); return table[key]; }" }]);
+    expect(unrelated.filter(f => f.ruleId === "17" || f.ruleId === "5")).toEqual([]);
+  });
+
+  it("A1300-49 tracks lexical alias comparison using Object.entries, not only replaceAll", () => {
+    const names = [
+      "function normalizeFood(input: string) { for (const [raw, normalized] of Object.entries(table)) { if (input === raw) return normalized; } return input; }",
+      "function normalizeFood(input: string) { for (const term of Object.keys(table)) { if (term == input) return table[term]; } return input; }",
+    ];
+    for (const variant of names) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodNormalizer.ts",
+        content: "const table = {pao: 'pão', arro: 'arroz'}; " + variant }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("iterated-lexical-dictionary")), variant).toBe(true);
+    }
+    const unrelated = findFoodStaticCandidates([{ path: "server/accountService.ts", content:
+      "const table={active:'A',blocked:'B'}; function classifyStatus(input:string){for (const [raw, normalized] of Object.entries(table)){if(input===raw) return normalized;}return input;}" }]);
+    expect(unrelated.filter(f => f.symbol.includes("iterated-lexical-dictionary"))).toEqual([]);
+  });
+
+  it("A1300-50 tracks dynamic materiality tokens, not status or visual display", () => {
+    const findings = findFoodStaticCandidates([{ path: "server/foodMaterialityService.ts", content:
+      "const table={integral:'material',light:'material'}; function classifyMateriality(foodText:string){for(const [term,decision] of Object.entries(table)){if(foodText.includes(term))return decision;}return 'neutral';}" }]);
+    expect(findings.some(f => f.ruleId === "18" && f.symbol.includes("iterated-lexical-dictionary"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const display = findFoodStaticCandidates([{ path: "client/src/pages/FoodPage.tsx", content:
+      "const labels={integral:'Integral',light:'Light'}; function renderOptions(){return Object.entries(labels).map(([term,label]) => label)}" }]);
+    expect(display.filter(f => f.symbol.includes("iterated-lexical-dictionary"))).toEqual([]);
+  });
+
+  it("A1300-51 blocks arithmetic constants as nutritional knowledge but not dynamic DB values", () => {
+    for (const numeric of ["20 + 30", "(100 / 2)", "40 * 2", "2 ** 4", "(60 - 10)"]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodPortionService.ts", content:
+        `const table={'pão':${numeric}}; function getFoodPortion(foodName:string){return table[foodName]}` }]);
+      expect(findings.some(f => f.ruleId === "17"), numeric).toBe(true);
+      expect(findings.some(f => f.ruleId === "5"), numeric).toBe(true);
+    }
+    for (const numeric of ["20 + dbValue", "40 / externalGrams", "50 / 0"]) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodPortionService.ts", content:
+        `const table={'pão':${numeric}}; function getFoodPortion(foodName:string){return table[foodName]}` }]);
+      expect(findings.filter(f => f.ruleId === "5" || f.ruleId === "17"), numeric).toEqual([]);
+    }
+  });
 });

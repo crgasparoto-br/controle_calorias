@@ -80,8 +80,7 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
     const numericNutrientCount = ["calories", "kcal", "protein", "carbs", "fat", "energykcal"]
       .filter(nutrient => {
         const nutrientValue = fields.get(nutrient);
-        return nutrientValue && (ts.isNumericLiteral(nutrientValue) ||
-          (ts.isPrefixUnaryExpression(nutrientValue) && ts.isNumericLiteral(nutrientValue.operand)));
+        return nutrientValue && staticNutritionNumber(nutrientValue) !== null;
       }).length;
     const domainEvidence = ["kcal", "protein", "carbs", "fat", "energykcal",
       "portiongrams", "portion_grams", "servinggrams", "serving_grams",
@@ -100,8 +99,7 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   const hasLiteralNutrition = ["calories", "kcal", "protein", "carbs", "fat", "grams",
     "portiongrams", "portion_grams", "servinggrams", "serving_grams", "energykcal"].some(key => {
       const value = fields.get(key);
-      return value !== undefined && (ts.isNumericLiteral(value) ||
-        (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
+      return value !== undefined && staticNutritionNumber(value) !== null;
     });
   const hasNestedLiteralNutrition = ["macros", "nutrition", "nutrients"].some(key => {
     const block = fields.get(key);
@@ -110,8 +108,7 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
       const name = property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase();
       const value = unwrap(property.initializer);
       return /^(?:calories|kcal|protein|carbs|fat|energykcal)$/.test(name) &&
-        (ts.isNumericLiteral(value) ||
-          (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand)));
+        staticNutritionNumber(value) !== null;
     });
   });
   return ((hasNamedFood || hasFoodIdentifier) &&
@@ -121,6 +118,37 @@ function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
 
 /** Nutrition maps may hold literal nutrient objects instead of bare numbers.
  * A food-indexed consumer, not the arbitrary map keys, determines food scope. */
+/** Only arithmetic derived entirely from constants is hardcoded nutrition.
+ * Mixed provider/DB values remain dynamic and must not be guessed as rules. */
+function staticNutritionNumber(value: ts.Expression): number | null {
+  const expr = unwrap(value);
+  if (ts.isNumericLiteral(expr)) return Number(expr.text);
+  if (ts.isPrefixUnaryExpression(expr) &&
+      [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(expr.operator)) {
+    const operand = staticNutritionNumber(expr.operand);
+    if (operand === null) return null;
+    const result = expr.operator === ts.SyntaxKind.MinusToken ? -operand : operand;
+    return Number.isFinite(result) ? result : null;
+  }
+  if (ts.isBinaryExpression(expr)) {
+    const left = staticNutritionNumber(expr.left);
+    const right = staticNutritionNumber(expr.right);
+    if (left === null || right === null) return null;
+    let result: number;
+    switch (expr.operatorToken.kind) {
+      case ts.SyntaxKind.PlusToken: result = left + right; break;
+      case ts.SyntaxKind.MinusToken: result = left - right; break;
+      case ts.SyntaxKind.AsteriskToken: result = left * right; break;
+      case ts.SyntaxKind.SlashToken: result = left / right; break;
+      case ts.SyntaxKind.PercentToken: result = left % right; break;
+      case ts.SyntaxKind.AsteriskAsteriskToken: result = left ** right; break;
+      default: return null;
+    }
+    return Number.isFinite(result) ? result : null;
+  }
+  return null;
+}
+
 function isLiteralNutritionRecord(value: ts.Expression): boolean {
   const record = unwrap(value);
   if (!ts.isObjectLiteralExpression(record) || record.properties.length === 0) return false;
@@ -131,17 +159,13 @@ function isLiteralNutritionRecord(value: ts.Expression): boolean {
       return isLiteralNutritionRecord(property.initializer);
     }
     if (!/^(?:calories|kcal|energykcal|protein|carbs|fat|fiber|grams|portiongrams|portion_grams|servinggrams|serving_grams)$/.test(name)) return false;
-    const numeric = unwrap(property.initializer);
-    return ts.isNumericLiteral(numeric) ||
-      (ts.isPrefixUnaryExpression(numeric) && ts.isNumericLiteral(numeric.operand));
+    return staticNutritionNumber(property.initializer) !== null;
   });
 }
 
 function isLiteralNumericFoodValue(value: ts.Expression): boolean {
   const expr = unwrap(value);
-  return ts.isNumericLiteral(expr) ||
-    (ts.isPrefixUnaryExpression(expr) && ts.isNumericLiteral(expr.operand)) ||
-    isLiteralNutritionRecord(expr);
+  return staticNutritionNumber(expr) !== null || isLiteralNutritionRecord(expr);
 }
 
 /** Domain-driven numeric maps need evidence of food identity, not food words
@@ -171,8 +195,53 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
     });
 }
 
+/** Resolve local aliases of the food identity without treating arbitrary
+ * indexes as food. Only transparent string normalization may be followed. */
+function foodIndexOrigin(value: ts.Expression, use: ts.Node, source: ts.SourceFile,
+  visited = new Set<ts.VariableDeclaration>(), depth = 0): string {
+  if (depth > 8) return "";
+  const expr = unwrap(value);
+  if (ts.isIdentifier(expr)) {
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if ((ts.isFunctionDeclaration(scope) || ts.isFunctionExpression(scope) ||
+           ts.isArrowFunction(scope) || ts.isMethodDeclaration(scope)) &&
+          scope.parameters.some(parameter =>
+            ts.isIdentifier(parameter.name) && parameter.name.text === expr.text)) {
+        return expr.text;
+      }
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+          if (!declaration.initializer || visited.has(declaration)) return expr.text;
+          visited.add(declaration);
+          return foodIndexOrigin(declaration.initializer, declaration, source, visited, depth + 1);
+        }
+      }
+    }
+    return expr.text;
+  }
+  if (ts.isCallExpression(expr)) {
+    const callee = expr.expression;
+    if (ts.isPropertyAccessExpression(callee) &&
+        /^(?:toLowerCase|toUpperCase|trim|normalize|replace|replaceAll)$/.test(callee.name.text)) {
+      return foodIndexOrigin(callee.expression, use, source, visited, depth + 1);
+    }
+    if (ts.isIdentifier(callee) && /^(?:String|normalizeFoodName|normalizeFoodKey)$/.test(callee.text) &&
+        expr.arguments.length) {
+      return foodIndexOrigin(expr.arguments[0], use, source, visited, depth + 1);
+    }
+    return "";
+  }
+  if (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) {
+    return expr.getText(source);
+  }
+  return "";
+}
+
 function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.SourceFile): boolean {
-  const name = index.getText(source);
+  const name = foodIndexOrigin(index, node, source);
   const domain = source.fileName + " " + enclosingDeclaration(node);
   if (!/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain) ||
       /exercise|activity|workout|fitness|burnedcalories/i.test(domain)) return false;
@@ -483,6 +552,47 @@ function localDecisionEvidence(value: ts.Expression, node: ts.Node, source: ts.S
   return "";
 }
 
+/** A dictionary is a decision even when its entries drive a comparison or
+ * dynamic includes() instead of replaceAll(). Verify the iterator binding,
+ * then find a predicate in the same loop body (not mere presentation). */
+function iteratedLexicalDecision(call: ts.CallExpression, source: ts.SourceFile): {
+  equality: boolean; textMethod: boolean;
+} {
+  const result = { equality: false, textMethod: false };
+  const iterator = call.parent;
+  if (!ts.isForOfStatement(iterator) || !ts.isVariableDeclarationList(iterator.initializer)) return result;
+  const declaration = iterator.initializer.declarations[0];
+  if (!declaration) return result;
+  const method = ts.isPropertyAccessExpression(call.expression) ? call.expression.name.text : "";
+  let term: string | undefined;
+  if (ts.isArrayBindingPattern(declaration.name) && method === "entries") {
+    const head = declaration.name.elements[0];
+    if (head && ts.isIdentifier(head.name)) term = head.name.text;
+  } else if (ts.isIdentifier(declaration.name) && method === "keys") {
+    term = declaration.name.text;
+  }
+  if (!term) return result;
+  const scan = (candidate: ts.Node): void => {
+    if (ts.isBinaryExpression(candidate) &&
+        [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+          .includes(candidate.operatorToken.kind) &&
+        ((ts.isIdentifier(candidate.left) && candidate.left.text === term) ||
+         (ts.isIdentifier(candidate.right) && candidate.right.text === term))) {
+      result.equality = true;
+    }
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        ["includes", "startsWith", "endsWith", "match", "indexOf"].includes(candidate.expression.name.text) &&
+        candidate.arguments.some(arg => ts.isIdentifier(unwrap(arg)) &&
+          (unwrap(arg) as ts.Identifier).text === term)) {
+      result.textMethod = true;
+    }
+    ts.forEachChild(candidate, scan);
+  };
+  scan(iterator.statement);
+  return result;
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -616,10 +726,15 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       /food|alimento|nutrition|ingredient|portion/i.test(decisionName)) && foodBehavior;
     const unrelated = /account|status|permission|userrole|exercise|activity/i.test(decisionName);
     const isNormalization = /\.replace(?:All)?\s*\(/.test(behaviorText);
-    if (!unrelated && isNormalization &&
+    const iterated = iteratedLexicalDecision(node, source);
+    const decision = isNormalization || iterated.equality || iterated.textMethod;
+    // A lexical map used by materiality or by an identity resolver is
+    // governed knowledge regardless of the spelling of individual food terms.
+    const materialityDecision = /material|nutrition|packag|commercial|qualifier/i.test(decisionText);
+    if (!unrelated && decision &&
         (rule.id === "11" ? channelContext && domainContext :
-          rule.id === "17" ? domainContext :
-          /material|nutrition|packag|commercial|qualifier/i.test(decisionText))) {
+          rule.id === "17" ? domainContext : materialityDecision) &&
+        (rule.id !== "18" || materialityDecision)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":iterated-lexical-dictionary",
         subject: node.getText(source) + " " + behaviorText };
     }

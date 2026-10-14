@@ -6,8 +6,21 @@ type Unwrap = (expr: ts.Expression) => ts.Expression;
 
 function isStaticNutritionNumber(expr: ts.Expression, unwrap: Unwrap): boolean {
   const value = unwrap(expr);
-  return ts.isNumericLiteral(value) ||
-    (ts.isPrefixUnaryExpression(value) && ts.isNumericLiteral(value.operand));
+  if (ts.isNumericLiteral(value)) return true;
+  if (ts.isPrefixUnaryExpression(value) &&
+      [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(value.operator)) {
+    return isStaticNutritionNumber(value.operand, unwrap);
+  }
+  if (ts.isBinaryExpression(value) &&
+      [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.AsteriskToken,
+        ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken, ts.SyntaxKind.AsteriskAsteriskToken]
+        .includes(value.operatorToken.kind)) {
+    const right = unwrap(value.right);
+    if (ts.isNumericLiteral(right) && Number(right.text) === 0 &&
+        [ts.SyntaxKind.SlashToken, ts.SyntaxKind.PercentToken].includes(value.operatorToken.kind)) return false;
+    return isStaticNutritionNumber(value.left, unwrap) && isStaticNutritionNumber(value.right, unwrap);
+  }
+  return false;
 }
 
 /** A food resolver must not hardcode macros merely by omitting foodId/name. */
