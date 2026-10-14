@@ -28,7 +28,9 @@
       ".ci/policy.json",
       ".ci/risk-profile.mjs",
       ".ci/repository-risk-policy.mjs",
-      "scripts/check-ci-gate-docs.ts"
+      "scripts/check-ci-gate-docs.ts",
+      "architecture-debt.json",
+      "docs/design-docs/food-architecture-owners-1300.json"
     ],
     "criticalRoots": [
       "drizzle",
