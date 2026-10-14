@@ -187,3 +187,13 @@ módulos `fs`/`node:fs` literais são seguidos; módulos terceiros, caminhos de
 `require()` dinâmicos e leituras voltadas a contas/status não são aprovados
 como violação por essa regra. Os testes positivos e negativos fazem parte da
 suíte Vitest executada na CI; análise dinâmica exige revisão separada.
+
+
+**Correção A1300-39 — verificação da origem do leitor `fs`:** os gates
+17/5 reconhecem apenas APIs provindas de `fs`/`node:fs` por import,
+`import = require` ou `require` literal. Um helper local homônimo
+(`readFileSync`), objeto `fs` falso, import de biblioteca terceira ou wrapper
+não comprovado não é um leitor do filesystem Node para fins do detector
+estático. Chamada CommonJS direta e alias legítimo permanecem bloqueados
+quando o JSON é usado como mapa alimentar. Isso evita falsos positivos sem
+certificar leitores dinâmicos nem dispensar a revisão de comportamento.

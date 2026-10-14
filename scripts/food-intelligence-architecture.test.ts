@@ -1356,4 +1356,33 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("A1300-39 requires a real filesystem provider rather than matching shadowed names", () => {
+    const source = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
+    const path = "server/foodItemResolution.ts";
+    const positive = [
+      "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs = require('node:fs'); const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('fs').readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const load = require('fs').readFileSync; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+    ];
+    for (const content of positive) {
+      const findings = findFoodStaticCandidates([source, { path, content }]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol === "json-food-catalog"),
+        content).toBe(true);
+      expect(findings.some(f => f.ruleId === "5" && f.symbol.includes("imported-numeric-food-map")),
+        content).toBe(true);
+    }
+    const negative = [
+      "const readFileSync = (_path: string) => '{\"arroz\":90}'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fs = { readFileSync: (_path: string) => '{\"arroz\":90}' }; const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs from 'fake-fs'; const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fs = require('my-fs-wrapper'); const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+    ];
+    for (const content of negative) {
+      const findings = findFoodStaticCandidates([source, { path, content }]);
+      expect(findings.filter(f => f.symbol === "json-food-catalog" ||
+        f.symbol.includes("imported-numeric-food-map")), content).toEqual([]);
+    }
+  });
+
 });

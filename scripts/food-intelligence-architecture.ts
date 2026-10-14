@@ -852,9 +852,11 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
 function filesystemReadBindings(source: ts.SourceFile): {
   sync: Set<string>; any: Set<string>;
 } {
-  const sync = new Set(["readFileSync", "fs.readFileSync"]);
-  const any = new Set([...sync, "readFile", "fs.readFile", "fs.promises.readFile"]);
-  const namespaces = new Set(["fs"]);
+  // Never infer a real filesystem reader from a bare variable name.
+  // `fs`/`readFileSync` can also name unrelated local helpers or third-party APIs.
+  const sync = new Set<string>();
+  const any = new Set<string>();
+  const namespaces = new Set<string>();
   const addNamespace = (name: string): void => {
     namespaces.add(name);
     sync.add(name + ".readFileSync");
@@ -896,6 +898,12 @@ function filesystemReadBindings(source: ts.SourceFile): {
           if (!element.isTypeOnly) addMember(element.name.text, element.propertyName?.text ?? element.name.text);
         }
       }
+    } else if (ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly &&
+        ts.isExternalModuleReference(statement.moduleReference) &&
+        statement.moduleReference.expression &&
+        ts.isStringLiteral(statement.moduleReference.expression) &&
+        fsModule(statement.moduleReference.expression.text)) {
+      addNamespace(statement.name.text);
     }
   }
   // Variable aliases in the same source may appear after their provider import.
@@ -915,8 +923,9 @@ function filesystemReadBindings(source: ts.SourceFile): {
       } else if (ts.isIdentifier(node.name) &&
           (ts.isPropertyAccessExpression(init) || ts.isElementAccessExpression(init))) {
         const invoked = filesystemExpressionName(init);
-        if (sync.has(invoked)) addMember(node.name.text, "readFileSync");
-        else if (any.has(invoked)) addMember(node.name.text, "readFile");
+        if (sync.has(invoked) || isDirectFilesystemSyncReader(init)) {
+          addMember(node.name.text, "readFileSync");
+        } else if (any.has(invoked)) addMember(node.name.text, "readFile");
       }
     }
     ts.forEachChild(node, collect);
@@ -947,6 +956,22 @@ function filesystemExpressionName(expression: ts.Node): string {
   return "";
 }
 
+/** A direct CommonJS fs call has provider evidence without a named binding.
+ * Requiring this identity avoids mistaking a local `fs` object for node:fs.
+ */
+function isDirectFilesystemSyncReader(expression: ts.Node): boolean {
+  if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return false;
+  const member = ts.isPropertyAccessExpression(expression) ? expression.name.text :
+    expression.argumentExpression && isStaticText(unwrap(expression.argumentExpression)) ?
+      (unwrap(expression.argumentExpression) as ts.StringLiteral).text : "";
+  if (member !== "readFileSync") return false;
+  const provider = expression.expression;
+  return ts.isCallExpression(provider) && ts.isIdentifier(provider.expression) &&
+    provider.expression.text === "require" && provider.arguments.length === 1 &&
+    ts.isStringLiteral(provider.arguments[0]) &&
+    (provider.arguments[0].text === "fs" || provider.arguments[0].text === "node:fs");
+}
+
 /** Resolve a parsed numeric JSON binding, not merely a filesystem dependency.
  * Unknown/dynamic paths stay outside the static proof and require separate review.
  */
@@ -957,7 +982,8 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
       parsed.arguments.length < 1) return null;
   const read = unwrap(parsed.arguments[0]);
   if (!ts.isCallExpression(read) ||
-      !bindings.sync.has(filesystemExpressionName(read.expression)) ||
+      !(bindings.sync.has(filesystemExpressionName(read.expression)) ||
+        isDirectFilesystemSyncReader(read.expression)) ||
       !read.arguments[0]) return null;
   const file = staticFilesystemPath(read.arguments[0]);
   return file && /\.json$/i.test(file) ? file : null;
@@ -1211,7 +1237,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         addDependency(node.arguments[0].text, node.getText(source));
       }
       if (ts.isCallExpression(node) &&
-          filesystemBindings.any.has(filesystemExpressionName(node.expression)) &&
+          (filesystemBindings.any.has(filesystemExpressionName(node.expression)) ||
+            isDirectFilesystemSyncReader(node.expression)) &&
           node.arguments[0]) {
         const staticPath = staticFilesystemPath(node.arguments[0]);
         if (staticPath) addDependency(staticPath, node.getText(source));
