@@ -514,7 +514,10 @@ function stableHash(value: string): string {
 }
 
 function failureClass(rule: FoodWaveOneRule, symbol: string): FoodFinding["failureClass"] {
-  if (rule.id !== "17") return rule.failureClass;
+  // Structural numeric maps are portion/nutrition knowledge even when the
+  // declaration is called just `table` or `lookup`. Trust the declared gate
+  // class rather than guessing its domain from an arbitrary variable name.
+  if (rule.id !== "17" || rule.kind === "numeric-map") return rule.failureClass;
   if (/portion|porc|serving|macro|nutrition|nutrient/i.test(symbol)) return "C";
   if (/alias|lexic|synonym|vocab|term/i.test(symbol)) return "A";
   return "I";
