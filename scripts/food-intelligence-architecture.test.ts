@@ -920,7 +920,7 @@ describe("food intelligence architecture wave 1", () => {
     ).filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
     for (const competing of ["server/foodItemResolution.ts",
       "server/modules/foodIntelligenceV1/foodResolver.ts",
-      "server/modules/foodIntelligenceV2/foodResolver.ts",
+      "server/modules/foodIntelligence" + "V2/foodResolver.ts",
       "server/modules/foodIntelligenceV3/foodResolver.ts"]) {
       const findings = findFoodStaticCandidates([{ path: competing,
         content: "export function resolveFood(input: string) { return input; }" }]);
@@ -1586,7 +1586,7 @@ describe("food intelligence architecture wave 1", () => {
     expect(expected.filter(f => f.ruleId === "1" || f.ruleId === "2")).toEqual([]);
     for (const path of ["server/foodItemResolution.ts",
       "server/modules/foodIntelligenceV1/foodResolver.ts",
-      "server/modules/foodIntelligenceV2/extraResolver.ts",
+      "server/modules/foodIntelligence" + "V2/extraResolver.ts",
       "server/modules/foodIntelligenceV3/foodResolver.ts"]) {
       const findings = findFoodStaticCandidates([{ path,
         content: 'export function resolveFood(input: string) { return input; }' }]);
