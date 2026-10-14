@@ -4,7 +4,7 @@ import { normalizeWhatsappInformalLanguage } from "../server/modules/whatsapp/in
 import { normalizeText } from "../server/mealTextParsing";
 import { findFoodStaticCandidates, isProductionFoodSource, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal } from "./food-architecture-debt";
-import { compareFoodArchitectureFindings } from "./food-architecture-baseline";
+import { compareFoodArchitectureFindings, isFoodArchitectureSourcePath } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
 const today = new Date("2026-10-12T12:00:00Z");
@@ -943,6 +943,78 @@ describe("food intelligence architecture wave 1", () => {
       expect(findFoodStaticCandidates([{ path: "server/inputParsing.ts", content }]
         ).filter(f => f.ruleId === "3")).toEqual([]);
     }
+  });
+
+
+  it("A1300-24 blocks exported generic numeric maps used as portions by another module", () => {
+    const producer = { path: "server/numbers.ts",
+      content: "export const table = { pao: 50, arroz: 90 };" };
+    const consumer = { path: "server/foodResolver.ts",
+      content: "import { table as portions } from './numbers'; function resolvePortion(foodName: string) { return portions[foodName]; }" };
+    const findings = findFoodStaticCandidates([producer, consumer]);
+    for (const ruleId of ["17", "5"]) {
+      expect(findings.some(f => f.ruleId === ruleId &&
+        f.symbol.includes("imported-numeric-food-map") && f.file === consumer.path)).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const account = { path: "server/account.ts",
+      content: "import { table as mapping } from './numbers'; function getRole(name: string) { return mapping[name]; }" };
+    expect(findFoodStaticCandidates([producer, account]).filter(f =>
+      f.symbol.includes("imported-numeric-food-map"))).toEqual([]);
+    const types = { path: "server/foodResolver.ts",
+      content: "import type { table } from './numbers';" };
+    expect(findFoodStaticCandidates([producer, types]).filter(f =>
+      f.symbol.includes("imported-numeric-food-map"))).toEqual([]);
+  });
+
+  it("A1300-25 treats filesystem-loaded fixtures as production data, but not isolated samples", () => {
+    const fixture = { path: "server/fixtures/foodPortions.json",
+      content: '{"pao":50,"arroz":90}' };
+    const readers = [
+      "import { readFileSync } from 'node:fs'; const rows = JSON.parse(readFileSync('./fixtures/foodPortions.json', 'utf8'));",
+      "import fs from 'node:fs'; const rows = JSON.parse(fs.readFileSync(new URL('./fixtures/foodPortions.json', import.meta.url), 'utf8'));",
+      "import { readFileSync } from 'node:fs'; const rows = JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'foodPortions.json'), 'utf8'));",
+    ];
+    for (const content of readers) {
+      const findings = findFoodStaticCandidates([fixture, { path: "server/foodResolver.ts", content }]);
+      expect(findings.some(f => f.file === fixture.path && f.ruleId === "17"), content).toBe(true);
+      expect(findings.some(f => f.file === fixture.path && f.ruleId === "5"), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    expect(findFoodStaticCandidates([fixture])).toEqual([]);
+    const accountData = { path: "server/fixtures/settings.json", content: '{"active":1,"disabled":0}' };
+    expect(findFoodStaticCandidates([accountData, { path: "server/account.ts",
+      content: "import fs from 'node:fs'; const config = fs.readFileSync('./fixtures/settings.json');" }])).toEqual([]);
+  });
+
+  it("A1300-26 excludes visual navigation only when it is not a food decision", () => {
+    const tabs = { path: "client/src/FoodsPage.tsx",
+      content: "const FOOD_TABS = ['pão', 'arroz']; export const Page = () => FOOD_TABS.map(label => label);" };
+    expect(findFoodStaticCandidates([tabs])).toEqual([]);
+    const deciding = { ...tabs, content:
+      "const FOOD_TABS = ['pão', 'arroz']; export const allowsFood = (foodName: string) => FOOD_TABS.includes(foodName);" };
+    const findings = findFoodStaticCandidates([deciding]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol === "FOOD_TABS")).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+  });
+
+  it("A1300-27 follows imported runtime modules outside server/shared/client-src", () => {
+    const packageData = { path: "packages/food-intelligence/knowledge.ts",
+      content: "export const FOOD_ALIASES = ['pão', 'paes'];" };
+    const entry = { path: "server/foodApi.ts",
+      content: "import { FOOD_ALIASES } from '../packages/food-intelligence/knowledge'; export const value = FOOD_ALIASES;" };
+    expect(isFoodArchitectureSourcePath(packageData.path)).toBe(true);
+    expect(isFoodArchitectureSourcePath(entry.path)).toBe(true);
+    expect(isFoodArchitectureSourcePath("docs/food-intelligence/knowledge.ts")).toBe(false);
+    expect(isFoodArchitectureSourcePath("scripts/food-intelligence-architecture.ts")).toBe(false);
+    const findings = findFoodStaticCandidates([packageData, entry].filter(file =>
+      isFoodArchitectureSourcePath(file.path)));
+    expect(findings.some(f => f.file === packageData.path && f.ruleId === "17")).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    expect(findFoodStaticCandidates([packageData])).toEqual([]);
+    const typeEntry = { path: "server/foodApi.ts",
+      content: "import type { FoodAlias } from '../packages/food-intelligence/knowledge';" };
+    expect(findFoodStaticCandidates([packageData, typeEntry])).toEqual([]);
   });
 
 });
