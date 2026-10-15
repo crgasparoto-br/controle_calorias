@@ -359,23 +359,49 @@ function hasLiteralRegex(expr: ts.Expression): boolean {
       !!value.arguments?.length && ts.isStringLiteral(unwrap(value.arguments[0])));
 }
 
-function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
-  if (hasLiteralRegex(target)) return true;
-  if (!ts.isIdentifier(target)) return false;
-  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+/** Resolve only immutable regex aliases in the lexical scope of the use.
+ * A parameter, mutable binding, shadowed name or cyclic chain is not proof
+ * that the runtime regular expression is the literal originally declared. */
+function resolveLiteralRegexPattern(
+  target: ts.Expression, use: ts.Node,
+  visited = new Set<ts.VariableDeclaration>(), depth = 0,
+): string | null {
+  if (depth > 12) return null;
+  const expr = unwrap(target);
+  if (ts.isRegularExpressionLiteral(expr)) return expr.getText();
+  if (ts.isNewExpression(expr) && expr.expression.getText() === "RegExp" &&
+      expr.arguments?.length && isStaticText(unwrap(expr.arguments[0]))) {
+    return (unwrap(expr.arguments[0]) as ts.StringLiteral).text;
+  }
+  if (!ts.isIdentifier(expr)) return null;
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+        ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+        scope.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+          parameter.name.text === expr.text)) return null;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        ts.isIdentifier(scope.variableDeclaration.name) &&
+        scope.variableDeclaration.name.text === expr.text) return null;
     if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
     for (const statement of scope.statements) {
       if (!ts.isVariableStatement(statement)) continue;
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && declaration.name.text === target.text) {
-          return !!declaration.initializer && hasLiteralRegex(declaration.initializer);
-        }
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+        if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+            !declaration.initializer || visited.has(declaration) ||
+            declaration.getStart() >= use.getStart()) return null;
+        const next = new Set(visited);
+        next.add(declaration);
+        return resolveLiteralRegexPattern(declaration.initializer, declaration, next, depth + 1);
       }
     }
   }
-  return false;
+  return null;
 }
 
+function referencesLiteralRegex(target: ts.Expression, node: ts.Node): boolean {
+  return resolveLiteralRegexPattern(target, node) !== null;
+}
 
 /**
  * Unwrap only transparent, bounded string normalizations when tracing an
@@ -474,30 +500,7 @@ function isFoodDomainSource(file: string): boolean {
  * numeric/input-format regexes in food modules are not food attributes.
  */
 function hasLexicalVocabularyRegex(target: ts.Expression, node: ts.Node): boolean {
-  const literalPattern = (value: ts.Expression): string | null => {
-    const expr = unwrap(value);
-    if (ts.isRegularExpressionLiteral(expr)) return expr.getText();
-    if (ts.isNewExpression(expr) && expr.expression.getText() === "RegExp" &&
-        expr.arguments?.length && ts.isStringLiteral(unwrap(expr.arguments[0]))) {
-      return (unwrap(expr.arguments[0]) as ts.StringLiteral).text;
-    }
-    return null;
-  };
-  let pattern = literalPattern(target);
-  if (pattern === null && ts.isIdentifier(target)) {
-    for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
-      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
-      for (const statement of scope.statements) {
-        if (!ts.isVariableStatement(statement)) continue;
-        for (const decl of statement.declarationList.declarations) {
-          if (ts.isIdentifier(decl.name) && decl.name.text === target.text && decl.initializer) {
-            pattern = literalPattern(decl.initializer);
-          }
-        }
-      }
-      if (pattern !== null) break;
-    }
-  }
+  const pattern = resolveLiteralRegexPattern(target, node);
   if (pattern === null) return false;
   return /[a-zA-ZÀ-ÿ]{3,}\|[a-zA-ZÀ-ÿ]{3,}|\\b[a-zA-ZÀ-ÿ]{3,}/.test(pattern);
 }
@@ -1304,7 +1307,8 @@ function resolveRuntimeDependencies(
 /** Resolve only statically knowable filesystem loads; unresolved paths are not exempted. */
 function staticFilesystemPath(argument: ts.Expression): string | null {
   const value = unwrap(argument);
-  if (isStaticText(value)) return value.text;
+  // Node filesystem paths without __dirname or import.meta.url are resolved from process.cwd().
+  if (isStaticText(value)) return path.posix.normalize("/" + value.text);
   if (ts.isNewExpression(value) && value.expression.getText() === "URL" &&
       value.arguments?.length === 2 && isStaticText(unwrap(value.arguments[0])) &&
       /import\.meta\.url/.test(value.arguments[1].getText())) {
@@ -1326,7 +1330,7 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
       // would otherwise turn data/food.json into server/data/food.json.
       if (args[0].getText() === "process.cwd()") return "/" + path.posix.join(...literal);
     }
-    return path.posix.join(...literal);
+    return path.posix.normalize("/" + path.posix.join(...literal));
   }
   return null;
 }
