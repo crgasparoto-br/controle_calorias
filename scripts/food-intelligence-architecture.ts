@@ -1938,6 +1938,56 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       }
     }
     if (imports.size === 0) continue;
+    // Track catalog provenance through row-preserving pipelines only.
+    const preservesJsonIdentity = (callback: ts.Expression | undefined, flatten: boolean): boolean => {
+      if (!callback) return false;
+      const fn = unwrap(callback);
+      if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
+      const parameter = fn.parameters[0]?.name;
+      if (!parameter || !ts.isIdentifier(parameter)) return false;
+      const name = parameter.text;
+      const returns = ts.isBlock(fn.body) ? fn.body.statements.filter(ts.isReturnStatement) : [];
+      const body = ts.isBlock(fn.body)
+        ? returns.length === 1 ? returns[0].expression : undefined : fn.body;
+      if (!body) return false;
+      const preserves = (candidate: ts.Expression): boolean => {
+        const expr = unwrap(candidate);
+        if (ts.isIdentifier(expr)) return expr.text === name;
+        if (!ts.isObjectLiteralExpression(expr)) return false;
+        return expr.properties.some(property => {
+          if (ts.isSpreadAssignment(property)) {
+            const spread = unwrap(property.expression);
+            return ts.isIdentifier(spread) && spread.text === name;
+          }
+          if (!ts.isPropertyAssignment(property)) return false;
+          const key = property.name.getText(source).replace(/^['"]|['"]$/g, "");
+          const value = unwrap(property.initializer);
+          return /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(key) &&
+            ts.isPropertyAccessExpression(value) && ts.isIdentifier(value.expression) &&
+            value.expression.text === name &&
+            /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(value.name.text);
+        });
+      };
+      const value = unwrap(body);
+      return flatten
+        ? ts.isArrayLiteralExpression(value) && value.elements.length > 0 &&
+          value.elements.every(element => preserves(element))
+        : preserves(value);
+    };
+    const resolveJsonExpression = (
+      expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
+      depth = 0,
+    ): string[] => {
+      if (depth > 12) return [];
+      const value = unwrap(expression);
+      if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1);
+      if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
+      const method = value.expression.name.text;
+      if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
+      if ((method === "map" || method === "flatMap") &&
+          !preservesJsonIdentity(value.arguments[0], method === "flatMap")) return [];
+      return resolveJsonExpression(value.expression.expression, use, visited, depth + 1);
+    };
     // AUD1300-F02: trace immutable aliases and transforms before the decision,
     // including .map()/.reduce(); module and local bindings must not be confused.
     const resolveJsonBinding = (
@@ -1959,32 +2009,57 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             seen.add(decl);
             let origin: ts.Expression = decl.initializer;
             let originNode: ts.Node = decl;
-            // AUD1300-20261015-F02: a mutable alias can cease to refer to the
-            // imported JSON. Follow its last unconditional, top-level write
-            // before this consumption, rather than trusting the initializer.
+            // Reads after conditional or nested reassignments must not inherit
+            // an outdated JSON import from the original initializer.
             const declarationList = decl.parent;
             if (ts.isVariableDeclarationList(declarationList) &&
                 !(declarationList.flags & ts.NodeFlags.Const)) {
-              for (const next of scope.statements) {
-                if (next.getStart(source) <= decl.getStart(source) ||
-                    next.getEnd() > use.getStart(source)) continue;
-                if (!ts.isExpressionStatement(next) ||
-                    !ts.isBinaryExpression(next.expression) ||
-                    next.expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken ||
-                    !ts.isIdentifier(next.expression.left) ||
-                    next.expression.left.text !== name) continue;
-                origin = next.expression.right;
-                originNode = next.expression.right;
+              type Write = { position: number; value?: ts.Expression; definite: boolean };
+              const writes: Write[] = [];
+              const useStart = use.getStart(source);
+              const containsUse = (node: ts.Node): boolean => {
+                for (let parent: ts.Node | undefined = use; parent; parent = parent.parent) {
+                  if (parent === node) return true;
+                }
+                return false;
+              };
+              const scanWrites = (candidate: ts.Node, definite: boolean): void => {
+                if (candidate.getStart(source) >= useStart) return;
+                if (ts.isFunctionLike(candidate)) return;
+                if (ts.isBlock(candidate) && candidate !== scope &&
+                    candidate.statements.some(statement => ts.isVariableStatement(statement) &&
+                      statement.declarationList.declarations.some(binding =>
+                        ts.isIdentifier(binding.name) && binding.name.text === name))) return;
+                if (ts.isBinaryExpression(candidate) &&
+                    ts.isIdentifier(candidate.left) && candidate.left.text === name) {
+                  const operator = candidate.operatorToken.getText(source);
+                  if (/=$/.test(operator)) {
+                    writes.push({ position: candidate.getStart(source),
+                      value: operator === "=" ? candidate.right : undefined, definite });
+                    return;
+                  }
+                }
+                const conditional = ts.isIfStatement(candidate) || ts.isSwitchStatement(candidate) ||
+                  ts.isTryStatement(candidate) || ts.isForStatement(candidate) ||
+                  ts.isForOfStatement(candidate) || ts.isForInStatement(candidate) ||
+                  ts.isWhileStatement(candidate) || ts.isDoStatement(candidate) ||
+                  ts.isConditionalExpression(candidate);
+                ts.forEachChild(candidate, child =>
+                  scanWrites(child, definite && (!conditional || containsUse(child))));
+              };
+              for (const statement of scope.statements) {
+                if (statement.getStart(source) <= decl.getStart(source) ||
+                    statement.getStart(source) >= useStart) continue;
+                scanWrites(statement, true);
+              }
+              const latest = writes.sort((a, b) => a.position - b.position).at(-1);
+              if (latest) {
+                if (!latest.definite || !latest.value) return [];
+                origin = latest.value;
+                originNode = latest.value;
               }
             }
-            const value = unwrap(origin);
-            if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, originNode, seen, depth + 1);
-            if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
-                /^(?:map|flatMap|filter|slice|reduce)$/.test(value.expression.name.text) &&
-                ts.isIdentifier(value.expression.expression)) {
-              return resolveJsonBinding(value.expression.expression.text, originNode, seen, depth + 1);
-            }
-            return [];
+            return resolveJsonExpression(origin, originNode, seen, depth + 1);
           }
         }
       }
@@ -2094,8 +2169,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const visitJsonUse = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
-          ts.isIdentifier(node.expression.expression) && node.arguments[0]) {
-        const targets = resolveJsonBinding(node.expression.expression.text, node);
+          node.arguments[0]) {
+        const targets = resolveJsonExpression(node.expression.expression, node);
         if (targets.length) {
           const predicateNode = node.arguments[0];
           const callback = resolveJsonCallback(predicateNode, node);
@@ -2112,15 +2187,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
         const declaration = node.initializer.declarations[0];
         const iterated = unwrap(node.expression);
-        const collection = ts.isIdentifier(iterated) ? iterated :
-          ts.isCallExpression(iterated) && ts.isPropertyAccessExpression(iterated.expression) &&
-          /^(?:map|filter|flatMap|slice)$/.test(iterated.expression.name.text) &&
-          ts.isIdentifier(iterated.expression.expression) ? iterated.expression.expression : null;
+        const targets = resolveJsonExpression(iterated, node);
         const identityUse = declaration && (ts.isIdentifier(declaration.name)
           ? isJsonIdentityDecision(node.statement.getText(source), declaration.name.text)
           : isDestructuredJsonIdentityDecision(declaration.name, node.statement));
-        if (collection && declaration && foodJsonDecisionContext(node) && identityUse) {
-          for (const target of resolveJsonBinding(collection.text, node)) {
+        if (targets.length && declaration && foodJsonDecisionContext(node) && identityUse) {
+          for (const target of targets) {
             jsonRecordsConsumedByFood.add(target);
           }
         }
