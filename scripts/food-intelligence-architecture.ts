@@ -2047,8 +2047,53 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       ts.forEachChild(source, scanStaticJsonLoader);
       if (!hasStaticJsonLoader) continue;
     }
+    // Preserve provenance for the identity field actually used by the consumer.
+    // An unrelated label override must not hide an original name decision.
+    const consumedRecordIdentityFields = (use: ts.Node): Set<string> => {
+      const fields = new Set<string>();
+      const argument = ts.isCallExpression(use) && ts.isPropertyAccessExpression(use.expression)
+        ? use.arguments[0] : undefined;
+      const callback = argument ? unwrap(argument) : undefined;
+      if (!callback || (!ts.isArrowFunction(callback) &&
+          !ts.isFunctionExpression(callback))) return fields;
+      const binding = callback.parameters[0]?.name;
+      if (!binding || !ts.isIdentifier(binding)) return fields;
+      const row = binding.text;
+      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      const collectFields = (node: ts.Node): void => {
+        if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) &&
+            node.expression.text === row && identity.test(node.name.text)) fields.add(node.name.text);
+        if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) &&
+            node.expression.text === row && node.argumentExpression) {
+          const key = unwrap(node.argumentExpression);
+          if ((ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) &&
+              identity.test(key.text)) fields.add(key.text);
+        }
+        ts.forEachChild(node, collectFields);
+      };
+      const visitDecision = (node: ts.Node): void => {
+        if (ts.isBinaryExpression(node) &&
+            [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+              ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+              .includes(node.operatorToken.kind)) {
+          collectFields(node.left);
+          collectFields(node.right);
+        } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+            /^(?:includes|startsWith|endsWith)$/.test(node.expression.name.text)) {
+          collectFields(node);
+        } else if (ts.isSwitchStatement(node)) {
+          collectFields(node.expression);
+        } else {
+          ts.forEachChild(node, visitDecision);
+        }
+      };
+      visitDecision(callback.body);
+      return fields;
+    };
     // Track catalog provenance through row-preserving pipelines only.
-    const preservesJsonIdentity = (callback: ts.Expression | undefined, flatten: boolean): boolean => {
+    const preservesJsonIdentity = (
+      callback: ts.Expression | undefined, flatten: boolean, consumerUse: ts.Node,
+    ): boolean => {
       if (!callback) return false;
       const fn = unwrap(callback);
       if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
@@ -2128,15 +2173,57 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           }
           const keyNode = property.name;
           if (!keyNode) continue;
-          const keyExpr = ts.isComputedPropertyName(keyNode) ? unwrap(keyNode.expression) : keyNode;
-          const key = ts.isIdentifier(keyExpr) || ts.isStringLiteral(keyExpr) ||
-            ts.isNoSubstitutionTemplateLiteral(keyExpr) ? keyExpr.text : "";
-          if (!identity.test(key)) continue;
+          // A computed identifier is not its property name. Resolve immutable
+          // lexical constants (also chained aliases), respecting shadowing.
+          const staticKey = (expr: ts.Expression, seen = new Set<string>(),
+            depth = 0): string | undefined => {
+            if (depth > 8) return undefined;
+            const value = unwrap(expr);
+            if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
+              return value.text;
+            }
+            if (!ts.isIdentifier(value) || seen.has(value.text)) return undefined;
+            const next = new Set(seen);
+            next.add(value.text);
+            for (let scope: ts.Node | undefined = keyNode; scope; scope = scope.parent) {
+              if (ts.isFunctionLike(scope) && scope.parameters.some(p =>
+                  ts.isIdentifier(p.name) && p.name.text === value.text)) return undefined;
+              if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+              for (const statement of scope.statements) {
+                if (!ts.isVariableStatement(statement)) continue;
+                for (const decl of statement.declarationList.declarations) {
+                  if (!ts.isIdentifier(decl.name) || decl.name.text !== value.text) continue;
+                  if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                      !decl.initializer || decl.getStart(source) >= keyNode.getStart(source)) {
+                    return undefined;
+                  }
+                  return staticKey(decl.initializer, next, depth + 1);
+                }
+              }
+            }
+            return undefined;
+          };
+          const key = ts.isComputedPropertyName(keyNode)
+            ? staticKey(keyNode.expression)
+            : ts.isIdentifier(keyNode) || ts.isStringLiteral(keyNode) ||
+              ts.isNoSubstitutionTemplateLiteral(keyNode) ? keyNode.text : undefined;
+          if (key === undefined && ts.isComputedPropertyName(keyNode)) {
+            // An unknown key can replace the consumed identity at runtime.
+            carriesSpread = false;
+            overrides.clear();
+            continue;
+          }
+          if (!key || !identity.test(key)) continue;
           // Accessors/methods also replace the preceding spread's identity.
           const value = ts.isPropertyAssignment(property)
             ? property.initializer : ts.isShorthandPropertyAssignment(property)
               ? property.name : undefined;
           overrides.set(key, !!value && carriesRecordIdentity(value));
+        }
+        const consumed = consumedRecordIdentityFields(consumerUse);
+        if (consumed.size > 0) {
+          return [...consumed].every(key => overrides.has(key)
+            ? overrides.get(key) === true : carriesSpread);
         }
         if ([...overrides.values()].some(Boolean)) return true;
         return carriesSpread && ![...overrides.values()].some(value => !value);
@@ -2258,15 +2345,24 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const parsedFile = parsedFilesystemJsonPath(value, filesystemBindings, use);
       if (parsedFile) return resolveRuntimeDependencies(consumer.path, parsedFile, indexed)
         .filter(target => /\.json$/i.test(target));
-      if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
-      const method = value.expression.name.text;
+      if (!ts.isCallExpression(value) ||
+          (!ts.isPropertyAccessExpression(value.expression) &&
+            !ts.isElementAccessExpression(value.expression))) return [];
+      const access = value.expression;
+      const method = ts.isPropertyAccessExpression(access)
+        ? access.name.text
+        : access.argumentExpression &&
+          (ts.isStringLiteral(unwrap(access.argumentExpression)) ||
+            ts.isNoSubstitutionTemplateLiteral(unwrap(access.argumentExpression)))
+          ? (unwrap(access.argumentExpression) as ts.StringLiteral).text : "";
+      const receiver = access.expression;
       // F13: Object.values(arrayOrRecord) preserves the records, unlike
       // Object.keys (indexes) or Object.entries (tuples). Only propagate record
       // provenance; treating an array of objects as projected identity strings
       // would incorrectly block inert .includes("name") checks.
       if (kind === "records" && method === "values" &&
-          ts.isIdentifier(value.expression.expression) &&
-          value.expression.expression.text === "Object" &&
+          ts.isIdentifier(receiver) &&
+          receiver.text === "Object" &&
           value.arguments.length === 1) {
         // A shadowed local/parameter/import named Object is not the intrinsic.
         const shadowsObject = (): boolean => {
@@ -2299,15 +2395,15 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (kind === "identity") {
         if (method === "map" || method === "flatMap") {
           if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true)) {
-            return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "records");
+            return resolveJsonExpression(receiver, use, visited, depth + 1, "records");
           }
           if (!callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", false)) return [];
         }
-        return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "identity");
+        return resolveJsonExpression(receiver, use, visited, depth + 1, "identity");
       }
       if ((method === "map" || method === "flatMap") &&
-          !preservesJsonIdentity(value.arguments[0], method === "flatMap")) return [];
-      return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "records");
+          !preservesJsonIdentity(value.arguments[0], method === "flatMap", use)) return [];
+      return resolveJsonExpression(receiver, use, visited, depth + 1, "records");
     };
     // AUD1300-F02: trace immutable aliases and transforms before the decision,
     // including .map()/.reduce(); module and local bindings must not be confused.

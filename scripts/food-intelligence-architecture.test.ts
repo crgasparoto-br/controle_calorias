@@ -3039,4 +3039,83 @@ describe("food intelligence architecture wave 1", () => {
     expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
   });
 
+  it("AUD1300-F15 traces the consumed identity field across unrelated overrides", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","label":"Pão","calories":90},{"name":"arroz","label":"Arroz","calories":130}]' };
+    const cases = [
+      { body: "return rows.map(row => ({ ...row, label: getOtherLabel() })).find(row => row.name === input);", expected: true },
+      { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(row => row.label === input);", expected: true },
+      { body: "return rows.map(row => ({ ...row, label: getOtherLabel(), name: row.name })).find(row => row.name === input);", expected: true },
+      { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(row => ({ ...row, label: getOtherLabel() })).find(row => row.label === input);", expected: false },
+      { body: "return rows.map(row => ({ name: getOtherName(), label: row.label })).find(row => row.name === input);", expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+          sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort(), sample.body).toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F16 resolves computed constant keys without inventing provenance", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const key = "name"; return rows.map(row => ({ ...row, [key]: row.name })).find(row => row.name === input);', expected: true },
+      { body: 'const key = "label"; return rows.map(row => ({ ...row, [key]: getOtherLabel() })).find(row => row.name === input);', expected: true },
+      { body: 'const key = "name"; const alias = key; return rows.map(row => ({ ...row, [alias]: row.name })).find(row => row.name === input);', expected: true },
+      { body: 'const key = "name"; return rows.map(row => ({ ...row, [key]: getOtherName() })).find(row => row.name === input);', expected: false },
+      { body: 'const key = "name"; const alias = key; return rows.map(row => ({ ...row, [alias]: getOtherName() })).find(row => row.name === input);', expected: false },
+      { body: 'let key = "name"; return rows.map(row => ({ ...row, [key]: getOtherName() })).find(row => row.name === input);', expected: false },
+      { body: 'return rows.map(row => { const key = "name"; return { ...row, [key]: getOtherName() }; }).find(row => row.name === input);', expected: false },
+      { body: 'return rows.map(row => ({ ...row, [getUnknownKey()]: getOtherName() })).find(row => row.name === input);', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+          sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort(), sample.body).toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F17 handles equivalent Object.values access with lexical controls", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'return Object["values"](rows).find(row => row.name === input);', expected: true },
+      { body: 'return Object["values"](rows).map(row => row.name).includes(input);', expected: true },
+      { body: 'const records = Object["values"](rows); return records.some(row => row.name === input);', expected: true },
+      { body: 'return Object["keys"](rows).find(key => key === input);', expected: false },
+      { body: 'return Object["entries"](rows).some(([key]) => key === input);', expected: false },
+      { body: 'const Object = { values: (_: unknown) => getOtherRecords() }; return Object["values"](rows).find(row => row.name === input);', expected: false },
+      { body: 'const method = getMethod(); return Object[method](rows).find(row => row.name === input);', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+          sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort(), sample.body).toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function selectActivity(input: string) {' +
+        'return Object["values"](rows).find(row => row.name === input); }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f => f.file === catalog.path)).toEqual([]);
+  });
+
 });
