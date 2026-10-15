@@ -2084,6 +2084,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
               };
               const guaranteedOverwrites = (candidate: ts.Statement): ts.Expression[] | undefined => {
                 if (ts.isBlock(candidate)) {
+                  // Inner redeclarations shadow the outer mutable alias; their
+                  // assignments cannot prove that its imported source was dropped.
+                  if (candidate.statements.some(statement => ts.isVariableStatement(statement) &&
+                      statement.declarationList.declarations.some(binding =>
+                        ts.isIdentifier(binding.name) && binding.name.text === name))) return undefined;
                   for (let i = candidate.statements.length - 1; i >= 0; i--) {
                     const statement = candidate.statements[i];
                     if (containsAliasWrite(statement)) return guaranteedOverwrites(statement);
