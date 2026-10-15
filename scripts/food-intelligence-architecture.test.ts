@@ -3252,6 +3252,8 @@ describe("food intelligence architecture wave 1", () => {
       { file: "server/foodService.ts", body: 'const noop = 0, other = 1, rows = require("./data/records.json"); function selectFood(input: string) { return rows.some(row => row.name === input); }', expected: true },
       { file: "server/exerciseService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function selectActivity(input: string) { return rows.find(row => row.name === input); }', expected: false },
       { file: "server/foodService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function showMenu() { return rows.map(row => row.name); }', expected: false },
+      { file: "server/foodService.ts", body: 'const require = (_path: string) => getOtherRows(); const noop = 0, rows = require("./data/records.json"); function selectFood(input: string) { return rows.find(row => row.name === input); }', expected: false },
+      { file: "server/foodService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function selectFood(input: string) { const rows = getOtherRows(); return rows.find(row => row.name === input); }', expected: false },
     ];
     for (const sample of cases) {
       const consumer = { path: sample.file, content: sample.body };
