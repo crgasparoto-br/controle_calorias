@@ -166,6 +166,78 @@ export function findImportedLexicalFoodFindings(
       return "";
     };
     const visit = (node: ts.Node): void => {
+    // AUD1300-F01: imported lexical tables consumed via Object.entries/keys
+    // must not evade the food/materiality gate just because the consumer does
+    // not call includes() on the table itself. Use the resolved source binding.
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.expression.getText(source) === "Object" &&
+        /^(?:entries|keys|values)$/.test(node.expression.name.text) &&
+        node.arguments.length === 1 && ts.isIdentifier(node.arguments[0])) {
+      const table = binding(node.arguments[0].text, node);
+      // Local declarations are covered by the ordinary lexical-lookup gate.
+      if (table && table.file !== file.path) {
+        const functionName = owner(node);
+        const domain = file.path + " " + functionName;
+        const food = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|material|qualifier|attribute/i.test(domain);
+        const decision = /classif|resolv|decid|normaliz|parse|match|identif|lookup|infer|select|find|detect|material|qualif/i.test(functionName);
+        const unrelated = /account|status|permission|role|exercise|activity|workout|fitness|navigation|render|display/i.test(functionName);
+        const method = node.expression.name.text;
+        let meaningfulUse = false;
+        const iterator = node.parent;
+        if (ts.isForOfStatement(iterator) && ts.isVariableDeclarationList(iterator.initializer)) {
+          const name = iterator.initializer.declarations[0]?.name;
+          const key = name && ts.isArrayBindingPattern(name) && method === "entries"
+            ? name.elements[0]?.name : name;
+          const word = key && ts.isIdentifier(key) ? key.text : "";
+          if (word) {
+            const scanDecision = (candidate: ts.Node): void => {
+              if (ts.isBinaryExpression(candidate) &&
+                  [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+                    ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+                    .includes(candidate.operatorToken.kind) &&
+                  ((ts.isIdentifier(candidate.left) && candidate.left.text === word) ||
+                   (ts.isIdentifier(candidate.right) && candidate.right.text === word))) meaningfulUse = true;
+              if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+                  /^(?:includes|startsWith|endsWith|match|indexOf|replace|replaceAll)$/.test(candidate.expression.name.text) &&
+                  candidate.arguments.some(arg => ts.isIdentifier(arg) && arg.text === word)) meaningfulUse = true;
+              ts.forEachChild(candidate, scanDecision);
+            };
+            scanDecision(iterator.statement);
+          }
+        }
+        // Object.entries(vocab).reduce((value, [from, to]) =>
+        //   value.replaceAll(from, to), input) is also a food decision.
+        if (ts.isPropertyAccessExpression(iterator) &&
+            iterator.name.text === "reduce" && ts.isCallExpression(iterator.parent)) {
+          const callback = iterator.parent.arguments[0];
+          if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+            const tuple = callback.parameters[1]?.name;
+            const key = tuple && ts.isArrayBindingPattern(tuple) ? tuple.elements[0]?.name : undefined;
+            const word = key && ts.isIdentifier(key) ? key.text : "";
+            meaningfulUse = !!word && new RegExp(
+              "\\.(?:replace|replaceAll|includes|startsWith|endsWith|indexOf)\\s*\\(\\s*" + word + "\\b"
+            ).test(callback.body.getText(source));
+          }
+        }
+        if (!unrelated && food && decision && meaningfulUse) {
+          const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(domain);
+          const channel = /whatsapp|inbound|audio|image|ocr|transcri/i.test(file.path);
+          const ruleId = materiality ? "18" : channel ? "11" : "17";
+          const symbol = "consumed-lexical-table:" + table.file + "#" + table.symbol;
+          findings.push({
+            ruleId, file: file.path,
+            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+            symbol,
+            fingerprint: ruleId + ":" + file.path + ":" + symbol + ":" +
+              stableHash(table.content + ":" + node.getText(source) + ":" +
+                (ts.isForOfStatement(iterator) ? iterator.statement.getText(source) : iterator.getText(source))),
+            failureClass: materiality ? "B" : "A",
+            description: "Vocabulário lexical importado usado em iteração decisória alimentar",
+          });
+        }
+      }
+    }
+
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:includes|has|indexOf|some|find|filter)$/.test(node.expression.name.text) &&
           node.arguments.length && ts.isIdentifier(node.expression.expression)) {

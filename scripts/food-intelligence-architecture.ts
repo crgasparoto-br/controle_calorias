@@ -1898,19 +1898,57 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       }
     }
     if (imports.size === 0) continue;
+    // AUD1300-F02: trace immutable aliases and transforms before the decision,
+    // including .map()/.reduce(); module and local bindings must not be confused.
+    const resolveJsonBinding = (
+      name: string, use: ts.Node, seen = new Set<ts.VariableDeclaration>(), depth = 0,
+    ): string[] => {
+      if (depth > 12) return [];
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+            ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+            scope.parameters.some(parameter =>
+              ts.isIdentifier(parameter.name) && parameter.name.text === name)) return [];
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const decl of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(decl.name) || decl.name.text !== name) continue;
+            if (!decl.initializer || seen.has(decl)) return [];
+            seen.add(decl);
+            const value = unwrap(decl.initializer);
+            if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, decl, seen, depth + 1);
+            if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+                /^(?:map|flatMap|filter|slice|reduce)$/.test(value.expression.name.text) &&
+                ts.isIdentifier(value.expression.expression)) {
+              return resolveJsonBinding(value.expression.expression.text, decl, seen, depth + 1);
+            }
+            return [];
+          }
+        }
+      }
+      return imports.get(name) ?? [];
+    };
     const visitJsonUse = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-          /^(?:find|filter|some)$/.test(node.expression.name.text) &&
-          ts.isIdentifier(node.expression.expression) &&
-          node.arguments[0] && imports.has(node.expression.expression.text)) {
-        const owner = enclosingDeclaration(node);
-        const context = consumer.path + " " + owner;
-        const predicate = node.arguments[0].getText(source);
-        const foodDecision = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
-          !/exercise|activity|workout|fitness|account|status/i.test(context) &&
-          /\.(?:name|foodName|foodId|alimento|productName)\b/.test(predicate) &&
-          /===?|\.includes\s*\(|\.startsWith\s*\(/.test(predicate);
-        if (foodDecision) for (const target of imports.get(node.expression.expression.text) ?? []) {
+          /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
+          ts.isIdentifier(node.expression.expression) && node.arguments[0]) {
+        const targets = resolveJsonBinding(node.expression.expression.text, node);
+        if (targets.length) {
+          const owner = enclosingDeclaration(node);
+          const context = consumer.path + " " + owner;
+          const predicate = node.arguments[0].getText(source);
+          const foodDecision = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
+            !/exercise|activity|workout|fitness|account|status/i.test(context) &&
+            /\.(?:name|foodName|foodId|alimento|productName)\b/.test(predicate) &&
+            (/===?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate) ||
+              /\[\s*\w+\.(?:name|foodName|foodId)\s*\]\s*=/.test(predicate));
+          if (foodDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
+        }
+      }
+      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) &&
+          node.argumentExpression && foodIndexContext(node.argumentExpression, node, source)) {
+        for (const target of resolveJsonBinding(node.expression.text, node)) {
           jsonRecordsConsumedByFood.add(target);
         }
       }

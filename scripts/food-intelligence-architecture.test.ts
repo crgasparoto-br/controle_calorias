@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { normalizeWhatsappInformalLanguage } from "../server/modules/whatsapp/informalLanguageNormalizer";
 import { normalizeText } from "../server/mealTextParsing";
 import { findFoodStaticCandidates, isProductionFoodSource, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
 import { assessFoodDebt, assessFoodDebtRenewal, assessReviewedFoodDebt } from "./food-architecture-debt";
-import { compareFoodArchitectureFindings, isFoodArchitectureSourcePath } from "./food-architecture-baseline";
+import { compareFoodArchitectureFindings, isFoodArchitectureSourcePath, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
 const today = new Date("2026-10-12T12:00:00Z");
@@ -2050,6 +2052,87 @@ describe("food intelligence architecture wave 1", () => {
     expect(administrative.filter(f => f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
     expect(findFoodStaticCandidates([{path:"server/fixtures/vocab.ts",
       content:'export const words = ["pão", "arroz"];'}])).toEqual([]);
+  });
+
+
+  it("AUD1300-F01 blocks imported food/materiality dictionaries consumed by Object.entries", () => {
+    const source = { path: "shared/lexical-tables.ts",
+      content: "export const terms = { integral: 'material', light: 'material' };" };
+    const barrel = { path: "shared/lexical-index.ts",
+      content: 'export { terms as catalog } from "./lexical-tables";' };
+    const positive = { path: "server/foodMateriality.ts",
+      content: 'import { catalog as words } from "../shared/lexical-index"; function decideMateriality(foodText: string) { for (const [term, value] of Object.entries(words)) { if (foodText.includes(term)) return value; } return "neutral"; }' };
+    const findings = findFoodStaticCandidates([source, barrel, positive]);
+    expect(findings.some(f => f.ruleId === "18" &&
+      f.symbol.includes("shared/lexical-tables.ts#terms"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const normalized = { path: "server/foodNormalizer.ts",
+      content: 'import { catalog } from "../shared/lexical-index"; function normalizeFood(input: string) { return Object.entries(catalog).reduce((text, [term, replacement]) => text.replaceAll(term, replacement), input); }' };
+    expect(findFoodStaticCandidates([source, barrel, normalized]).some(f =>
+      f.ruleId === "17" && f.symbol.includes("shared/lexical-tables.ts#terms"))).toBe(true);
+    const negative = { path: "server/accounts.ts",
+      content: 'import { catalog } from "../shared/lexical-index"; function normalizeStatus(status: string) { for (const [term, value] of Object.entries(catalog)) { if (status === term) return value; } return status; }' };
+    expect(findFoodStaticCandidates([source, barrel, negative]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
+  it("AUD1300-F02 follows generic JSON through map/reduce aliases before food decisions", () => {
+    const records = { path: "data/records.json",
+      content: JSON.stringify([{ name: "pão", calories: 90 }, { name: "arroz", calories: 140 }]) };
+    const throughMap = { path: "server/foodResolver.ts", content:
+      'import rows from "../data/records.json"; function resolveFood(foodName: string) { const mapped = rows.map(row => row); return mapped.find(row => row.name === foodName); }' };
+    const throughReduce = { path: "server/foodResolver.ts", content:
+      'import rows from "../data/records.json"; function resolveFood(foodName: string) { return rows.reduce((found, row) => row.name === foodName ? row : found, null); }' };
+    for (const consumer of [throughMap, throughReduce]) {
+      const findings = findFoodStaticCandidates([records, consumer]);
+      expect(findings.some(f => f.file === records.path && f.ruleId === "17"),
+        consumer.content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const exercise = { path: "server/exerciseResolver.ts", content:
+      'import rows from "../data/records.json"; function resolveExercise(activityName: string) { return rows.find(row => row.name === activityName); }' };
+    expect(findFoodStaticCandidates([records, exercise]).filter(f =>
+      f.file === records.path)).toEqual([]);
+    expect(findFoodStaticCandidates([records]).filter(f => f.file === records.path)).toEqual([]);
+  });
+
+  it("AUD1300-F03 inspects imported build/dist sources but leaves inert generated files alone", () => {
+    expect(isFoodArchitectureSourcePath("dist/foodRules.ts")).toBe(true);
+    expect(isFoodArchitectureSourcePath("build/foodRules.ts")).toBe(true);
+    expect(isFoodArchitectureSourcePath("node_modules/example/foodRules.ts")).toBe(false);
+    const root = mkdtempSync(path.join(tmpdir(), "food-architecture-1300-"));
+    try {
+      mkdirSync(path.join(root, "server"), { recursive: true });
+      mkdirSync(path.join(root, "dist"), { recursive: true });
+      mkdirSync(path.join(root, "build"), { recursive: true });
+      writeFileSync(path.join(root, "server/foodResolver.ts"),
+        'import { foodAliases } from "../dist/foodRules"; export const getFoodAliases = () => foodAliases;');
+      writeFileSync(path.join(root, "dist/foodRules.ts"),
+        "export const foodAliases = ['pão', 'arroz'];");
+      writeFileSync(path.join(root, "build/isolated.ts"),
+        "export const foodAliases = ['café'];");
+      const files = readFoodWorkingFiles(root);
+      expect(files.some(f => f.path === "dist/foodRules.ts")).toBe(true);
+      expect(files.some(f => f.path === "build/isolated.ts")).toBe(true);
+      const findings = findFoodStaticCandidates(files);
+      expect(findings.some(f => f.file === "dist/foodRules.ts" && f.ruleId === "17")).toBe(true);
+      expect(findings.some(f => f.file === "build/isolated.ts")).toBe(false);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("R1300-01 preserves each unreviewed legacy candidate as review-required, not debt", () => {
+    const source = { path: "server/foodNormalizer.ts",
+      content: "const foodAliases = ['pão', 'arroz'];" };
+    const findings = findFoodStaticCandidates([source]);
+    expect(findings.length).toBeGreaterThan(0);
+    const assessment = evaluateFoodArchitectureGate(findings, findings, [], today);
+    expect(assessment.errors).toEqual([]);
+    expect(assessment.legacyUncovered).toHaveLength(findings.length);
+    expect(assessment.warnings.some(message =>
+      message.includes("requires triage"))).toBe(true);
   });
 
 });

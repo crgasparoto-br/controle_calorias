@@ -47,7 +47,7 @@ export function isFoodArchitectureSourcePath(file: string): boolean {
   // loaded from runtime. Excluding its directory here would create an escape.
   const segments = normalized.split("/");
   return !segments.some(segment => ["node_modules", ".git", ".next", ".turbo",
-    "dist", "build", "coverage", "playwright-report", "test-results"].includes(segment));
+    "coverage", "playwright-report", "test-results"].includes(segment));
 }
 
 export function readFoodWorkingFiles(cwd: string): FoodArchitectureFile[] {
@@ -56,9 +56,9 @@ export function readFoodWorkingFiles(cwd: string): FoodArchitectureFile[] {
     for (const entry of readdirSync(path.join(cwd, directory), { withFileTypes: true })) {
       const location = path.posix.join(directory, entry.name);
       if (entry.isDirectory()) {
-        // Skip tooling/output trees before recursion; retain fixture/generated
-        // directories because a production module may load their contents.
-        if (["node_modules", ".git", ".next", ".turbo", "dist", "build", "coverage",
+        // Even dist/build can contain imported production code. Only inert paths
+        // may be skipped here; graph reachability decides the actual scope.
+        if (["node_modules", ".git", ".next", ".turbo", "coverage",
           "playwright-report", "test-results"].includes(entry.name)) continue;
         walk(location);
       } else if (entry.isFile() && isFoodArchitectureSourcePath(location)) {
