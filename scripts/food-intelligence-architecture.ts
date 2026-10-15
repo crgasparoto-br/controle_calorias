@@ -1966,10 +1966,54 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const parameter = fn.parameters[0]?.name;
       if (!parameter || !ts.isIdentifier(parameter)) return false;
       const name = parameter.text;
-      const returns = ts.isBlock(fn.body) ? fn.body.statements.filter(ts.isReturnStatement) : [];
+      const statements = ts.isBlock(fn.body) ? fn.body.statements : [];
+      const returns = statements.filter(ts.isReturnStatement);
       const body = ts.isBlock(fn.body)
         ? returns.length === 1 ? returns[0].expression : undefined : fn.body;
       if (!body) return false;
+      // F11: immutable callback-local aliases retain a record's food identity.
+      // Never infer provenance from an unrelated value, mutable alias, or an
+      // alias declared after its use.
+      const aliases = new Map<string, ts.VariableDeclaration>();
+      for (const statement of statements) {
+        if (!ts.isVariableStatement(statement) ||
+            !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+            aliases.set(declaration.name.text, declaration);
+          }
+        }
+      }
+      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      const carriesRecordIdentity = (candidate: ts.Expression, seen = new Set<string>(),
+        depth = 0): boolean => {
+        if (depth > 8) return false;
+        const value = unwrap(candidate);
+        if (ts.isIdentifier(value)) {
+          if (seen.has(value.text)) return false;
+          const alias = aliases.get(value.text);
+          if (!alias?.initializer || alias.getStart(source) >= value.getStart(source)) return false;
+          const next = new Set(seen);
+          next.add(value.text);
+          return carriesRecordIdentity(alias.initializer, next, depth + 1);
+        }
+        if (ts.isPropertyAccessExpression(value)) {
+          return ts.isIdentifier(value.expression) && value.expression.text === name &&
+            identity.test(value.name.text);
+        }
+        if (ts.isElementAccessExpression(value) && value.argumentExpression &&
+            isStaticText(unwrap(value.argumentExpression))) {
+          return ts.isIdentifier(value.expression) && value.expression.text === name &&
+            identity.test((unwrap(value.argumentExpression) as ts.StringLiteral).text);
+        }
+        if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+            /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+            value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+            value.arguments.every(arg => isStaticText(unwrap(arg)))) {
+          return carriesRecordIdentity(value.expression.expression, seen, depth + 1);
+        }
+        return false;
+      };
       const preserves = (candidate: ts.Expression): boolean => {
         const expr = unwrap(candidate);
         if (ts.isIdentifier(expr)) return expr.text === name;
@@ -1981,11 +2025,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           }
           if (!ts.isPropertyAssignment(property)) return false;
           const key = property.name.getText(source).replace(/^['"]|['"]$/g, "");
-          const value = unwrap(property.initializer);
-          return /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(key) &&
-            ts.isPropertyAccessExpression(value) && ts.isIdentifier(value.expression) &&
-            value.expression.text === name &&
-            /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(value.name.text);
+          return identity.test(key) && carriesRecordIdentity(property.initializer);
         });
       };
       const value = unwrap(body);
