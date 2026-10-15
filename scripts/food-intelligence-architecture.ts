@@ -2053,9 +2053,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const fields = new Set<string>();
       const argument = ts.isCallExpression(use) && ts.isPropertyAccessExpression(use.expression)
         ? use.arguments[0] : undefined;
-      const callback = argument ? unwrap(argument) : undefined;
-      if (!callback || (!ts.isArrowFunction(callback) &&
-          !ts.isFunctionExpression(callback))) return fields;
+      // F18: decisions may use a named function or an immutable callback alias.
+      // Resolve at the call site, honoring parameters, shadowing and const aliases.
+      const callback = argument ? resolveJsonCallback(argument, use) : undefined;
+      if (!callback?.body) return fields;
       const binding = callback.parameters[0]?.name;
       if (!binding || !ts.isIdentifier(binding)) return fields;
       const row = binding.text;
@@ -2222,7 +2223,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         }
         const consumed = consumedRecordIdentityFields(consumerUse);
         if (consumed.size > 0) {
-          return [...consumed].every(key => overrides.has(key)
+          // F19: a decision is catalog-driven if *any* identity field it
+          // actually reads still has catalog provenance. Other identity fields
+          // may have been overwritten without erasing that surviving source.
+          return [...consumed].some(key => overrides.has(key)
             ? overrides.get(key) === true : carriesSpread);
         }
         if ([...overrides.values()].some(Boolean)) return true;
