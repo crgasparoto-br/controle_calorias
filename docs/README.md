@@ -254,3 +254,16 @@ localização do dado não isenta decisão lexical alimentar produtiva.
 **AUD1300-20261015-F03/F04 — remediação da auditoria (#1300):** os gates 17/5 acompanham a proveniência de catálogos JSON genéricos por consultas encadeadas `filter`/`slice` e transformações `map`/`flatMap` que preservem a identidade alimentar, até o consumo decisório `find`/`some` ou `for...of`. Transformações que substituem a identidade por dados independentes não comprovam uso do catálogo de origem. Em aliases mutáveis, reatribuições anteriores dentro de blocos também são analisadas; escritas condicionais preservam a procedência possível quando algum ramo ainda utiliza o catálogo, enquanto uma reatribuição incondicional comprovada descarta a origem anterior. Os controles distinguem sombreamento, funções não executadas, decisões de exercícios e usos somente de apresentação. Testes adversariais: `AUD1300-20261015-F03/F04` em `scripts/food-intelligence-architecture.test.ts`.
 
 **AUD1300-20261015-F07/F08 — reforço dos gates JSON (#1300):** projeções `map`/`flatMap` de identidade alimentar agora preservam procedência quando o callback desestrutura `name`, `label` ou outro campo identificador, inclusive com renomeação e normalização textual transparente. Inicializações, reatribuições e consumidores diretos de expressões condicionais (`?:`) ou seleções lógicas (`||`, `&&`, `??`) conservam todas as origens possíveis do catálogo até uma decisão alimentar; apenas substituições comprovadamente definitivas retiram a fonte anterior. Regressões positivas/negativas cobrem decisões alimentares, projeções não consumidas, exercícios, atributos não identificadores e alternativas sem catálogo. Este rastreamento é estático e limitado: não certifica semântica dinâmica de funções arbitrárias nem revisão comportamental do legado.
+
+**Remediação AUD1300-F20–F23 (Issue #1300):** projeções de catálogos JSON
+usadas em decisões alimentares seguem funções nomeadas e aliases locais
+imutáveis, observando shadowing e mutabilidade. Decisões com parâmetro
+desestruturado (`{ label }` ou `{ label: key }`) preservam a
+proveniência do campo realmente consumido, mesmo quando outro identificador
+foi sobrescrito. Imports CommonJS com múltiplos declaradores e métodos de
+coleção por chave computada literal, como `rows["find"](...)`,
+passam pelo mesmo gate 17/5 das formas convencionais. Os testes distinguem
+consumo alimentar de exercícios, apresentação, aliases mutáveis/sombreados,
+métodos computados dinâmicos e campos substituídos independentemente. A
+cobertura AST não certifica transformações dinâmicas arbitrárias e não substitui
+a auditoria independente no SHA final.
