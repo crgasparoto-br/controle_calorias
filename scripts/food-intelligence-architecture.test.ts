@@ -2714,4 +2714,83 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+
+  it("AUD1300-20261015-F07 traces destructured JSON identity projections", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const positives = [
+      "return rows.map(({ name }) => name).includes(input);",
+      "return rows.map(({ name: key }) => key).some(value => value === input);",
+      "return rows.map(({ name: key }) => key.trim().toLowerCase()).includes(input);",
+      "const names = rows.map(({ name: key }) => key.normalize(\"NFD\")); return names.includes(input);",
+      "return rows.flatMap(({ name }) => [name]).includes(input);",
+      "return rows.filter(row => row.active).map(({ name: key }) => key).includes(input);",
+      'return rows.map(({ ["name"]: key }) => key).includes(input);',
+      "for (const name of rows.map(({ name: foodName }) => foodName)) { if (name === input) return true; } return false;",
+    ];
+    for (const body of positives) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const rules = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort();
+      expect(rules, body).toEqual(["17", "5"]);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, body)
+        .toBeGreaterThan(0);
+    }
+    const negatives = [
+      { path: "server/foodService.ts", body: "return rows.map(({ name }) => name);" },
+      { path: "server/foodService.ts", body:
+        "return rows.map(({ name, calories }) => calories).includes(90);" },
+      { path: "server/foodService.ts", body:
+        "return rows.map(({ name }) => getOtherName()).includes(input);" },
+      { path: "server/exerciseService.ts", body:
+        "return rows.map(({ name }) => name).includes(input);" },
+    ];
+    for (const sample of negatives) {
+      const consumer = { path: sample.path, content:
+        'import rows from "./data/records.json"; function ' +
+        (sample.path.includes("exercise") ? "selectActivity" : "selectFood") +
+        "(input: string) { " + sample.body + " }" };
+      expect(findFoodStaticCandidates([catalog, consumer])
+        .filter(f => f.file === catalog.path), sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-20261015-F08 preserves all possible JSON origins in expression branches", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: "const visible = flag ? rows : loadFromDatabase(); return visible.find(row => row.name === input);", expected: true },
+      { body: "const visible = flag ? loadFromDatabase() : rows; return visible.find(row => row.name === input);", expected: true },
+      { body: "const visible = flag ? (other ? rows : loadA()) : loadB(); return visible.find(row => row.name === input);", expected: true },
+      { body: "return (flag ? rows : loadFromDatabase()).find(row => row.name === input);", expected: true },
+      { body: "let visible = loadA(); visible = flag ? rows : loadB(); return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = rows; visible = flag ? loadA() : loadB(); return visible.find(row => row.name === input);", expected: false },
+      { body: "const visible = flag ? loadA() : loadB(); return visible.find(row => row.name === input);", expected: false },
+      { body: "const visible = rows || loadA(); return visible.find(row => row.name === input);", expected: true },
+      { body: "const visible = loadA() ?? rows; return visible.find(row => row.name === input);", expected: true },
+      { body: "const visible = flag && rows; return visible.find(row => row.name === input);", expected: true },
+      { body: "const names = flag ? rows.map(({ name }) => name) : loadNames(); return names.includes(input);", expected: true },
+      { body: "const names = flag ? rows.map(row => row.calories) : loadNames(); return names.includes(input);", expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string, flag: boolean, other: boolean) { ' +
+        sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const governed = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(governed.map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      if (sample.expected) {
+        expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, sample.body)
+          .toBeGreaterThan(0);
+      }
+    }
+    const exercise = { path: "server/exerciseService.ts", content:
+      'import rows from "./data/records.json"; function selectActivity(input: string, flag: boolean) {' +
+      ' const visible = flag ? rows : loadFromDatabase(); return visible.find(row => row.name === input); }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f => f.file === catalog.path)).toEqual([]);
+  });
+
 });
