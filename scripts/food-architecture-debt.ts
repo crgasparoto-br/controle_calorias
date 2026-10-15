@@ -8,6 +8,10 @@ export type FoodDebt = {
   reason: string;
   owner: string;
   issue: number;
+  /** Existing migration work owns replacing the legacy behavior. */
+  migrationIssue?: number;
+  /** Cutover work owns retiring the remaining legacy fingerprint. */
+  retirementIssue?: number;
   createdAt: string;
   expiresAt: string;
 };
@@ -119,7 +123,9 @@ export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[],
       continue; // actual repayment is allowed only after fixing the code
     }
     if (next.createdAt !== old.createdAt || next.expiresAt !== old.expiresAt ||
-        next.issue !== old.issue || next.owner !== old.owner) {
+        next.issue !== old.issue || next.owner !== old.owner ||
+        next.migrationIssue !== old.migrationIssue ||
+        next.retirementIssue !== old.retirementIssue) {
       errors.push("Architecture debt renewal or owner reassignment denied: " + old.fingerprint);
     }
   }
