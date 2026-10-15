@@ -199,6 +199,80 @@ export function findImportedLexicalFoodFindings(
       }
       return "";
     };
+    // AUD1300-LEX-CALLBACK-05: resolve immutable callback aliases at the use
+    // site. An opaque or shadowed predicate is not proof of a lexical decision.
+    const resolveDecisionCallback = (
+      value: ts.Expression, use: ts.Node,
+      seen = new Set<ts.VariableDeclaration>(), depth = 0,
+    ): ts.FunctionLikeDeclaration | undefined => {
+      if (depth > 12) return undefined;
+      const expr = unwrap(value);
+      if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) return expr;
+      if (!ts.isIdentifier(expr)) return undefined;
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+            ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+            scope.parameters.some(param => ts.isIdentifier(param.name) &&
+              param.name.text === expr.text)) return undefined;
+        if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+            ts.isIdentifier(scope.variableDeclaration.name) &&
+            scope.variableDeclaration.name.text === expr.text) return undefined;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (ts.isFunctionDeclaration(statement) && statement.name?.text === expr.text) return statement;
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const declaration of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+            if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                !declaration.initializer || seen.has(declaration) ||
+                declaration.getStart(source) >= use.getStart(source)) return undefined;
+            const next = new Set(seen);
+            next.add(declaration);
+            return resolveDecisionCallback(declaration.initializer, declaration, next, depth + 1);
+          }
+        }
+      }
+      return undefined;
+    };
+    const isTransparentWord = (value: ts.Expression, word: string, depth = 0): boolean => {
+      if (depth > 12) return false;
+      const expr = unwrap(value);
+      if (ts.isIdentifier(expr)) return expr.text === word;
+      if (!ts.isCallExpression(expr) || !ts.isPropertyAccessExpression(expr.expression)) return false;
+      if (!/^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase)$/.test(expr.expression.name.text) ||
+          expr.arguments.length !== 0) return false;
+      return isTransparentWord(expr.expression.expression, word, depth + 1);
+    };
+    const callbackHasDecision = (callback: ts.FunctionLikeDeclaration, method: string): boolean => {
+      const first = callback.parameters[0]?.name;
+      const identity = first && method === "entries" && ts.isArrayBindingPattern(first)
+        ? first.elements[0]?.name : first;
+      if (!identity || !ts.isIdentifier(identity) || !callback.body) return false;
+      const word = identity.text;
+      let decisive = false;
+      const scan = (candidate: ts.Node): void => {
+        if (decisive) return;
+        if (ts.isBinaryExpression(candidate) &&
+            [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+              ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+              .includes(candidate.operatorToken.kind) &&
+            (isTransparentWord(candidate.left, word) || isTransparentWord(candidate.right, word))) {
+          decisive = true;
+          return;
+        }
+        if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+            /^(?:includes|startsWith|endsWith|match|indexOf|replace|replaceAll)$/.test(candidate.expression.name.text) &&
+            (isTransparentWord(candidate.expression.expression, word) ||
+              candidate.arguments.some(arg => isTransparentWord(arg, word)))) {
+          decisive = true;
+          return;
+        }
+        ts.forEachChild(candidate, scan);
+      };
+      scan(callback.body);
+      return decisive;
+    };
+
     const visit = (node: ts.Node): void => {
     // AUD1300-F01: imported lexical tables consumed via Object.entries/keys
     // must not evade the food/materiality gate just because the consumer does
@@ -262,18 +336,8 @@ export function findImportedLexicalFoodFindings(
             /^(?:find|some|filter|every)$/.test(iterator.name.text) &&
             ts.isCallExpression(iterator.parent)) {
           const cb = iterator.parent.arguments[0];
-          if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) {
-            const first = cb.parameters[0]?.name;
-            const candidate = first && method === "entries" && ts.isArrayBindingPattern(first)
-              ? first.elements[0]?.name : first && ts.isIdentifier(first) ? first : undefined;
-            const name = candidate && ts.isIdentifier(candidate) ? candidate.text : "";
-            const code = cb.body.getText(source);
-            if (name) {
-              const compare = new RegExp("\\b" + name + "\\s*(?:===?|!==?)|(?:===?|!==?)\\s*\\b" + name + "\\b");
-              const textDecision = new RegExp("\\.(?:includes|startsWith|endsWith|match|indexOf|replace|replaceAll)\\s*\\(\\s*" + name + "\\b");
-              meaningfulUse = compare.test(code) || textDecision.test(code);
-            }
-          }
+          const predicate = cb ? resolveDecisionCallback(cb, node) : undefined;
+          if (predicate) meaningfulUse = callbackHasDecision(predicate, method);
         }
         if (!unrelated && food && decision && meaningfulUse) {
           const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(domain);

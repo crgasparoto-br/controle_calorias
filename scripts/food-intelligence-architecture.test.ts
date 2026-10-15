@@ -2424,4 +2424,59 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([records, exercise]).filter(f => f.file === records.path)).toEqual([]);
   });
 
+
+  it("AUD1300-LEX-CALLBACK-05 follows named lexical predicates and normalized aliases", () => {
+    const dictionary = { path: "shared/foodWords.ts",
+      content: 'export const words = { pao: "pão", arroz: "arroz" };' };
+    const cases = [
+      'const predicate = ([alias]: [string,string]) => alias.trim().toLowerCase() === input; return Object.entries(words).some(predicate);',
+      'function predicate([alias]: [string,string]) { return input === alias.toLowerCase(); } return Object.entries(words).find(predicate);',
+      'const first = ([alias]: [string,string]) => input.includes(alias.toLowerCase()); const match = first; return Object.entries(words).filter(match);',
+    ];
+    for (const body of cases) {
+      const consumer = { path: "server/foodClassifier.ts", content:
+        'import { words } from "../shared/foodWords"; function classifyFood(input: string) { ' + body + ' }' };
+      const findings = findFoodStaticCandidates([dictionary, consumer]);
+      expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("shared/foodWords.ts#words")),
+        body).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const opaquePredicate = { path: "server/foodClassifier.ts", content:
+      'import { words } from "../shared/foodWords"; function classifyFood(input: string, predicate: (v: any) => boolean) {' +
+      ' return Object.entries(words).some(predicate); }' };
+    expect(findFoodStaticCandidates([dictionary, opaquePredicate]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+    const admin = { path: "server/accounts.ts", content:
+      'import { words } from "../shared/foodWords"; function checkStatus(input: string) {' +
+      ' const predicate = ([alias]: [string,string]) => alias.toLowerCase() === input;' +
+      ' return Object.entries(words).some(predicate); }' };
+    expect(findFoodStaticCandidates([dictionary, admin]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
+  it("AUD1300-JSON-NORMALIZED-06 tracks destructured normalized food JSON identity", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"label":"pão","calories":90},{"label":"arroz","calories":130}]' };
+    const bodies = [
+      'return rows.find(({ label }) => label.trim().toLowerCase() === input);',
+      'const predicate = ({ label: raw }: { label: string }) => input === raw.normalize("NFD").toLowerCase(); return rows.some(predicate);',
+      'for (const { label: term } of rows) { if (term.toLowerCase() === input) return true; } return false;',
+    ];
+    for (const body of bodies) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + ' }' };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      for (const ruleId of ["17", "5"]) {
+        expect(findings.some(f => f.file === catalog.path && f.ruleId === ruleId),
+          ruleId + " " + body).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const exercise = { path: "server/exerciseService.ts", content:
+      'import rows from "./data/records.json"; function selectActivity(input: string) {' +
+      ' return rows.find(({ label }) => label.toLowerCase() === input); }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f =>
+      f.file === catalog.path)).toEqual([]);
+  });
+
 });
