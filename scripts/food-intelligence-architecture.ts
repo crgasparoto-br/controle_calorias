@@ -1994,8 +1994,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         for (const binding of parameter.elements) {
           if (!ts.isIdentifier(binding.name)) continue;
           const property = binding.propertyName ?? binding.name;
-          if ((ts.isIdentifier(property) || ts.isStringLiteral(property)) &&
-              identity.test(property.text)) identityBindings.add(binding.name.text);
+          const identityProperty = ts.isIdentifier(property) || ts.isStringLiteral(property)
+            ? property.text
+            : ts.isComputedPropertyName(property) && ts.isStringLiteral(property.expression)
+              ? property.expression.text : "";
+          if (identity.test(identityProperty)) identityBindings.add(binding.name.text);
         }
       }
       if (!name && identityBindings.size === 0) return false;
