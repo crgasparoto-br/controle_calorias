@@ -3279,8 +3279,9 @@ describe("food intelligence architecture wave 1", () => {
     ];
     for (const sample of cases) {
       const consumer = { path: sample.file, content:
-        'import rows from "./data/records.json"; function selectFood(input: string) { ' +
-        sample.body + " }" };
+        'import rows from "./data/records.json"; function ' +
+        (sample.file.includes("exercise") ? "selectActivity" : "selectFood") +
+        '(input: string) { ' + sample.body + " }" };
       const findings = findFoodStaticCandidates([catalog, consumer]);
       const matched = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
       expect(matched.map(f => f.ruleId).sort(), sample.body)
