@@ -1983,13 +1983,26 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const fn = unwrap(callback);
       if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
       const parameter = fn.parameters[0]?.name;
-      if (!parameter || !ts.isIdentifier(parameter)) return false;
-      const name = parameter.text;
+      if (!parameter) return false;
+      const name = ts.isIdentifier(parameter) ? parameter.text : "";
+      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      // AUD1300-20261015-F07: a record projection may destructure the
+      // identity field and rename it before applying a transparent normalizer.
+      // Only bindings of known identity properties carry JSON provenance.
+      const identityBindings = new Set<string>();
+      if (ts.isObjectBindingPattern(parameter)) {
+        for (const binding of parameter.elements) {
+          if (!ts.isIdentifier(binding.name)) continue;
+          const property = binding.propertyName ?? binding.name;
+          if ((ts.isIdentifier(property) || ts.isStringLiteral(property)) &&
+              identity.test(property.text)) identityBindings.add(binding.name.text);
+        }
+      }
+      if (!name && identityBindings.size === 0) return false;
       const body = ts.isBlock(fn.body) ? fn.body.statements : undefined;
       const returns = body?.filter(ts.isReturnStatement) ?? [];
       const result = body ? (returns.length === 1 ? returns[0].expression : undefined) : fn.body;
       if (!result) return false;
-      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
       const carriesIdentity = (candidate: ts.Expression, depth = 0): boolean => {
         if (depth > 8) return false;
         const value = unwrap(candidate);
@@ -1999,6 +2012,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
             value.arguments.every(arg => isStaticText(unwrap(arg))) &&
             carriesIdentity(value.expression.expression, depth + 1));
+        if (ts.isIdentifier(value)) return identityBindings.has(value.text);
         if (ts.isPropertyAccessExpression(value)) return ts.isIdentifier(value.expression) &&
           value.expression.text === name && identity.test(value.name.text);
         if (ts.isElementAccessExpression(value)) return ts.isIdentifier(value.expression) &&
@@ -2027,6 +2041,23 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (depth > 12) return [];
       const value = unwrap(expression);
       if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind);
+      // AUD1300-20261015-F08: a catalog is governed whenever any reachable
+      // expression branch can supply its records or projected identity.
+      // A conditional is a possible-origin union, not a definite overwrite.
+      if (ts.isConditionalExpression(value)) {
+        return [...new Set([
+          ...resolveJsonExpression(value.whenTrue, value.whenTrue, new Set(visited), depth + 1, kind),
+          ...resolveJsonExpression(value.whenFalse, value.whenFalse, new Set(visited), depth + 1, kind),
+        ])];
+      }
+      if (ts.isBinaryExpression(value) &&
+          [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.AmpersandAmpersandToken,
+            ts.SyntaxKind.QuestionQuestionToken].includes(value.operatorToken.kind)) {
+        return [...new Set([
+          ...resolveJsonExpression(value.left, value.left, new Set(visited), depth + 1, kind),
+          ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind),
+        ])];
+      }
       if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
       const method = value.expression.name.text;
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
