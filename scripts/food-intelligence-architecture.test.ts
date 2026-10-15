@@ -2208,4 +2208,53 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("AUD1300-JSON-01 governs generic JSON rows selected by label, slug or nome", () => {
+    for (const field of ["label", "slug", "nome"]) {
+      const catalog = { path: "server/data/records.json",
+        content: JSON.stringify([{ [field]: "pão", calories: 90 }, { [field]: "arroz", calories: 130 }]) };
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function select(input: string) { return rows.find(row => row.' +
+          field + " === input); }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      for (const gate of ["17", "5"]) {
+        expect(findings.some(f => f.file === catalog.path && f.ruleId === gate), field + gate).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const catalog = { path: "server/data/records.json",
+      content: '[{"label":"caminhada","calories":80}]' };
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function select(input: string) { return rows.find(row => row.label === input); }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f =>
+      f.file === catalog.path && (f.ruleId === "17" || f.ruleId === "5"))).toEqual([]);
+    expect(findFoodStaticCandidates([catalog])).toEqual([]);
+  });
+
+  it("AUD1300-JSON-02 governs JSON food rows selected through for-of loops", () => {
+    for (const field of ["name", "label", "nome"]) {
+      const catalog = { path: "server/data/records.json",
+        content: JSON.stringify([{ [field]: "pão", calories: 90 }, { [field]: "arroz", calories: 130 }]) };
+      for (const iterable of ["rows", "alias", "rows.map(row => row)"]) {
+        const alias = iterable === "alias" ? "const alias = rows;" : "";
+        const consumer = { path: "server/foodService.ts",
+          content: 'import rows from "./data/records.json"; function select(input: string) { ' +
+            alias + " for (const row of " + iterable + ") { if (row." + field +
+            " === input) return row; } return null; }" };
+        const findings = findFoodStaticCandidates([catalog, consumer]);
+        for (const gate of ["17", "5"]) {
+          expect(findings.some(f => f.file === catalog.path && f.ruleId === gate),
+            field + " " + iterable + " " + gate).toBe(true);
+        }
+        expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+      }
+    }
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"caminhada","calories":80}]' };
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function select(input: string) { for (const row of rows) { if (row.name === input) return row; } return null; }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f =>
+      f.file === catalog.path && (f.ruleId === "17" || f.ruleId === "5"))).toEqual([]);
+    expect(findFoodStaticCandidates([catalog])).toEqual([]);
+  });
+
 });

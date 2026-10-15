@@ -1933,21 +1933,50 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       }
       return imports.get(name) ?? [];
     };
+    // JSON with generic name/label/calories is governed once a productive
+    // food decision consumes its identity. Keep account/exercise decisions out.
+    const foodJsonDecisionContext = (node: ts.Node): boolean => {
+      const context = consumer.path + " " + enclosingDeclaration(node);
+      return /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
+        !/exercise|activity|workout|fitness|account|status/i.test(context);
+    };
+    const isJsonIdentityDecision = (predicate: string, receiver?: string): boolean => {
+      const identity = "(?:name|label|slug|nome|foodName|foodId|alimento|productName)";
+      const bound = receiver
+        ? "\\b" + receiver.replace(/[^A-Za-z0-9_]/g, "\\$&") + "\\s*"
+        : "[A-Za-z_$][\\w$]*\\s*";
+      const fieldAccess = new RegExp(bound +
+        "(?:\\.\\s*" + identity + "\\b|\\[\\s*['\"]" + identity + "['\"]\\s*\\])");
+      return fieldAccess.test(predicate) &&
+        /===?|!==?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate);
+    };
     const visitJsonUse = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
           ts.isIdentifier(node.expression.expression) && node.arguments[0]) {
         const targets = resolveJsonBinding(node.expression.expression.text, node);
         if (targets.length) {
-          const owner = enclosingDeclaration(node);
-          const context = consumer.path + " " + owner;
           const predicate = node.arguments[0].getText(source);
-          const foodDecision = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
-            !/exercise|activity|workout|fitness|account|status/i.test(context) &&
-            /\.(?:name|foodName|foodId|alimento|productName)\b/.test(predicate) &&
-            (/===?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate) ||
-              /\[\s*\w+\.(?:name|foodName|foodId)\s*\]\s*=/.test(predicate));
+          const foodDecision = foodJsonDecisionContext(node) &&
+            isJsonIdentityDecision(predicate);
           if (foodDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
+        }
+      }
+      // A loop deciding from a JSON row is equivalent to .find/.some. Without
+      // this edge an anonymous name+calories catalog escapes gate 17/5.
+      if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
+        const declaration = node.initializer.declarations[0];
+        const iterated = unwrap(node.expression);
+        const collection = ts.isIdentifier(iterated) ? iterated :
+          ts.isCallExpression(iterated) && ts.isPropertyAccessExpression(iterated.expression) &&
+          /^(?:map|filter|flatMap|slice)$/.test(iterated.expression.name.text) &&
+          ts.isIdentifier(iterated.expression.expression) ? iterated.expression.expression : null;
+        if (collection && declaration && ts.isIdentifier(declaration.name) &&
+            foodJsonDecisionContext(node) &&
+            isJsonIdentityDecision(node.statement.getText(source), declaration.name.text)) {
+          for (const target of resolveJsonBinding(collection.text, node)) {
+            jsonRecordsConsumedByFood.add(target);
+          }
         }
       }
       if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) &&

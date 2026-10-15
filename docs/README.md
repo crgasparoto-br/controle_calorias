@@ -219,3 +219,10 @@ certificar leitores dinâmicos nem dispensar a revisão de comportamento.
 **AUD1300-FS-PATH / AUD1300-REGEX-ALIAS (onda 1):** leituras Node `readFileSync('./data/...')` e `path.join('data', ...)` resolvem no `process.cwd()`, enquanto `new URL('./...', import.meta.url)` e `path.join(__dirname, ...)` permanecem relativos ao módulo; o grafo estático usa essa distinção para governar catálogos produtivos mesmo fora de `server/`. Regex decisórias alimentares com aliases `const` transitivos também geram achados nos gates 17/18; bindings mutáveis, parâmetros sombreados e decisões de status permanecem controles negativos. Limites de análise dinâmica continuam explícitos.
 
 **R1300-01 — baixa do legado:** cada entrada de `architecture-debt.json` preserva `issue: 1300` como origem auditável do gate e acrescenta `migrationIssue` para a substituição de conhecimento (catálogos em #1302, porções em #1305, léxico de canal em #1304, materialidade em #1306) e `retirementIssue: 1313` para a retirada após cutover. As ligações não autorizam prorrogação da dívida nem remoção antes de comprovar o pagamento; o CI rejeita dívida sem follow-up explícito.
+
+**Auditoria AUD1300-JSON-01/02 (2026-10-15):** a detecção de catálogos JSON de
+`name`/`label`/`slug`/`nome` e calorias segue decisões alimentares em
+`.find()` e iterações `for...of`, inclusive aliases locais e transformações
+transparentes de coleção. Catálogos isolados ou usados apenas para exercícios
+não recebem bloqueio por esse formato ambíguo. Gates 17/5 exigem testes
+positivos e negativos no HEAD publicado; a auditoria final permanece independente.
