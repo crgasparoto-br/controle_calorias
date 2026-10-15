@@ -2086,7 +2086,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           /^(?:map|filter|flatMap|slice)$/.test(iterated.expression.name.text) &&
           ts.isIdentifier(iterated.expression.expression) ? iterated.expression.expression : null;
         const identityUse = declaration && (ts.isIdentifier(declaration.name)
-          ? isJsonIdentityDecision(predicate, declaration.name.text)
+          ? isJsonIdentityDecision(node.statement.getText(source), declaration.name.text)
           : isDestructuredJsonIdentityDecision(declaration.name, node.statement));
         if (collection && declaration && foodJsonDecisionContext(node) && identityUse) {
           for (const target of resolveJsonBinding(collection.text, node)) {
