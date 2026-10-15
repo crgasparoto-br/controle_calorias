@@ -2511,4 +2511,69 @@ describe("food intelligence architecture wave 1", () => {
       f.file === catalog.path)).toEqual([]);
   });
 
+
+  it("AUD1300-20261015-F01 blocks food JSON decisions inside account paths", () => {
+    const catalog = { path: "server/account/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { path: "server/account/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) {' +
+        ' return rows.find(row => row.name === input); }' },
+      { path: "server/account/status.ts", content:
+        'import rows from "./data/records.json"; function checkStatus(status: string) {' +
+        ' return rows.find(row => row.name === status); }' },
+      { path: "server/account/exercise.ts", content:
+        'import rows from "./data/records.json"; function selectActivity(input: string) {' +
+        ' return rows.find(row => row.name === input); }' },
+    ];
+    for (const [index, consumer] of cases.entries()) {
+      const found = findFoodStaticCandidates([catalog, consumer]);
+      const jsonFindings = found.filter(f => f.file === catalog.path &&
+        (f.ruleId === "17" || f.ruleId === "5"));
+      if (index === 0) {
+        expect(jsonFindings.map(f => f.ruleId).sort()).toEqual(["17", "5"]);
+        expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length).toBeGreaterThan(0);
+      } else {
+        expect(jsonFindings, consumer.content).toEqual([]);
+      }
+    }
+  });
+
+  it("AUD1300-20261015-F02 follows last unconditional alias assignment", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'let visible = rows; visible = getRecords(); return visible.find(row => row.name === input);',
+        expected: false },
+      { body: 'let visible = rows; visible = [{ name: "item", calories: 10 }]; return visible.find(row => row.name === input);',
+        expected: false },
+      { body: 'let visible = getRecords(); visible = rows; return visible.find(row => row.name === input);',
+        expected: true },
+      { body: 'let visible = rows; return visible.find(row => row.name === input);',
+        expected: true },
+      { body: 'const visible = rows; return visible.find(row => row.name === input);',
+        expected: true },
+      { body: 'let visible = rows; const hit = visible.find(row => row.name === input); visible = getRecords(); return hit;',
+        expected: true },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' + sample.body + ' }' };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const governed = findings.filter(f => f.file === catalog.path &&
+        ["17", "5"].includes(f.ruleId));
+      expect(governed.some(f => f.ruleId === "17"), sample.body).toBe(sample.expected);
+      expect(governed.some(f => f.ruleId === "5"), sample.body).toBe(sample.expected);
+      if (sample.expected) {
+        expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+      } else if (!sample.body.includes('calories: 10')) {
+        expect(evaluateFoodArchitectureGate(findings, [], [], today).errors).toEqual([]);
+      }
+    }
+    const shadow = { path: "server/foodService.ts", content:
+      'import rows from "./data/records.json"; function selectFood(rows: any[], input: string) {' +
+      ' let visible = rows; return visible.find(row => row.name === input); }' };
+    expect(findFoodStaticCandidates([catalog, shadow]).filter(f => f.file === catalog.path)).toEqual([]);
+  });
+
 });

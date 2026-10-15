@@ -1954,14 +1954,35 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           if (!ts.isVariableStatement(statement)) continue;
           for (const decl of statement.declarationList.declarations) {
             if (!ts.isIdentifier(decl.name) || decl.name.text !== name) continue;
-            if (!decl.initializer || seen.has(decl)) return [];
+            if (!decl.initializer || seen.has(decl) ||
+                decl.getStart(source) >= use.getStart(source)) return [];
             seen.add(decl);
-            const value = unwrap(decl.initializer);
-            if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, decl, seen, depth + 1);
+            let origin: ts.Expression = decl.initializer;
+            let originNode: ts.Node = decl;
+            // AUD1300-20261015-F02: a mutable alias can cease to refer to the
+            // imported JSON. Follow its last unconditional, top-level write
+            // before this consumption, rather than trusting the initializer.
+            const declarationList = decl.parent;
+            if (ts.isVariableDeclarationList(declarationList) &&
+                !(declarationList.flags & ts.NodeFlags.Const)) {
+              for (const next of scope.statements) {
+                if (next.getStart(source) <= decl.getStart(source) ||
+                    next.getEnd() > use.getStart(source)) continue;
+                if (!ts.isExpressionStatement(next) ||
+                    !ts.isBinaryExpression(next.expression) ||
+                    next.expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken ||
+                    !ts.isIdentifier(next.expression.left) ||
+                    next.expression.left.text !== name) continue;
+                origin = next.expression.right;
+                originNode = next.expression.right;
+              }
+            }
+            const value = unwrap(origin);
+            if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, originNode, seen, depth + 1);
             if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
                 /^(?:map|flatMap|filter|slice|reduce)$/.test(value.expression.name.text) &&
                 ts.isIdentifier(value.expression.expression)) {
-              return resolveJsonBinding(value.expression.expression.text, decl, seen, depth + 1);
+              return resolveJsonBinding(value.expression.expression.text, originNode, seen, depth + 1);
             }
             return [];
           }
@@ -1972,9 +1993,16 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     // JSON with generic name/label/calories is governed once a productive
     // food decision consumes its identity. Keep account/exercise decisions out.
     const foodJsonDecisionContext = (node: ts.Node): boolean => {
-      const context = consumer.path + " " + enclosingDeclaration(node);
-      return /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i.test(context) &&
-        !/exercise|activity|workout|fitness|account|status/i.test(context);
+      const declaration = enclosingDeclaration(node);
+      const foodDomain = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving/i;
+      const unrelatedDecision = /exercise|activity|workout|fitness|account|status/i;
+      // AUD1300-20261015-F01: an account/ directory can contain a genuine
+      // food decision. Evaluate the decision before applying path heuristics;
+      // account/status/activity decisions are exempt, not entire directories.
+      if (foodDomain.test(declaration)) return true;
+      if (unrelatedDecision.test(declaration)) return false;
+      return foodDomain.test(consumer.path) &&
+        !unrelatedDecision.test(consumer.path);
     };
     const isJsonIdentityDecision = (predicate: string, receiver?: string): boolean => {
       const identity = "(?:name|label|slug|nome|foodName|foodId|alimento|productName)";
