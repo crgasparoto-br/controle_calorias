@@ -2257,4 +2257,34 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([catalog])).toEqual([]);
   });
 
+  it("AUD1300-LEX-ITER detects imported lexical Object iterator predicates", () => {
+    const dictionary = { path: "shared/terms.ts",
+      content: 'export const vocab = { pao: "pão", arroz: "arroz" };' };
+    const usages = [
+      'Object.entries(vocab).find(([raw]) => raw === input)',
+      'Object.entries(vocab).some(([raw]) => input === raw)',
+      'Object.keys(vocab).filter(raw => raw === input)',
+      'Object.values(vocab).every(value => value === input)',
+    ];
+    for (const usage of usages) {
+      const consumer = { path: "server/foodNormalization.ts",
+        content: 'import { vocab } from "../shared/terms"; function normalizeFood(input: string) { return ' +
+          usage + '; }' };
+      const findings = findFoodStaticCandidates([dictionary, consumer]);
+      expect(findings.some(f => f.ruleId === "17" &&
+        f.symbol.startsWith("consumed-lexical-table:")), usage).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const administrative = { path: "server/accounts.ts",
+      content: 'import { vocab } from "../shared/terms"; function checkStatus(input: string) {' +
+        ' return Object.entries(vocab).find(([raw]) => raw === input); }' };
+    expect(findFoodStaticCandidates([dictionary, administrative]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+    const presentation = { path: "server/foodNormalization.ts",
+      content: 'import { vocab } from "../shared/terms"; function renderFoodMenu(input: string) {' +
+        ' return Object.keys(vocab).some(raw => raw === input); }' };
+    expect(findFoodStaticCandidates([dictionary, presentation]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
 });

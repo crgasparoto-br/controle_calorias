@@ -219,6 +219,23 @@ export function findImportedLexicalFoodFindings(
             ).test(callback.body.getText(source));
           }
         }
+        if (ts.isPropertyAccessExpression(iterator) &&
+            /^(?:find|some|filter|every)$/.test(iterator.name.text) &&
+            ts.isCallExpression(iterator.parent)) {
+          const cb = iterator.parent.arguments[0];
+          if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) {
+            const first = cb.parameters[0]?.name;
+            const candidate = first && method === "entries" && ts.isArrayBindingPattern(first)
+              ? first.elements[0]?.name : first && ts.isIdentifier(first) ? first : undefined;
+            const name = candidate && ts.isIdentifier(candidate) ? candidate.text : "";
+            const code = cb.body.getText(source);
+            if (name) {
+              const compare = new RegExp("\\b" + name + "\\s*(?:===?|!==?)|(?:===?|!==?)\\s*\\b" + name + "\\b");
+              const textDecision = new RegExp("\\.(?:includes|startsWith|endsWith|match|indexOf|replace|replaceAll)\\s*\\(\\s*" + name + "\\b");
+              meaningfulUse = compare.test(code) || textDecision.test(code);
+            }
+          }
+        }
         if (!unrelated && food && decision && meaningfulUse) {
           const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(domain);
           const channel = /whatsapp|inbound|audio|image|ocr|transcri/i.test(file.path);

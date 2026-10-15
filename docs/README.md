@@ -226,3 +226,8 @@ certificar leitores dinâmicos nem dispensar a revisão de comportamento.
 transparentes de coleção. Catálogos isolados ou usados apenas para exercícios
 não recebem bloqueio por esse formato ambíguo. Gates 17/5 exigem testes
 positivos e negativos no HEAD publicado; a auditoria final permanece independente.
+
+**AUD1300-LEX-ITER:** listas lexicais importadas são inspecionadas também
+quando `Object.entries`, `Object.keys` ou `Object.values` abastecem
+`.find`, `.some`, `.filter` ou `.every` com comparações decisórias no domínio
+alimentar. Casos administrativos e apresentação são controles negativos.
