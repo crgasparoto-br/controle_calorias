@@ -236,3 +236,7 @@ alimentar. Casos administrativos e apresentação são controles negativos.
 iterações (`{ label }`, `{ label: alias }`) mantêm a proveniência de catálogo
 JSON produtivo, mesmo sem acesso `.label` explícito na comparação. Parâmetros
 sombreados e consumidores de exercícios não herdam conhecimento alimentar.
+
+**AUD1300-LEX-ITER-LOCAL:** o mesmo gate cobre comparações sobre
+`Object.entries/keys/values` de tabelas definidas no próprio módulo; a
+localização do dado não isenta decisão lexical alimentar produtiva.

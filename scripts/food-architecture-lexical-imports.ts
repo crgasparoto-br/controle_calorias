@@ -174,8 +174,12 @@ export function findImportedLexicalFoodFindings(
         /^(?:entries|keys|values)$/.test(node.expression.name.text) &&
         node.arguments.length === 1 && ts.isIdentifier(node.arguments[0])) {
       const table = binding(node.arguments[0].text, node);
-      // Local declarations are covered by the ordinary lexical-lookup gate.
-      if (table && table.file !== file.path) {
+      // Ordinary local loops are covered by lexical-lookup; local iterator
+      // predicates are not, so share this decision sink for both origins.
+      const predicateMethod = ts.isPropertyAccessExpression(node.parent) &&
+        /^(?:find|some|filter|every)$/.test(node.parent.name.text) &&
+        ts.isCallExpression(node.parent.parent);
+      if (table && (table.file !== file.path || predicateMethod)) {
         const functionName = owner(node);
         const domain = file.path + " " + functionName;
         const food = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|material|qualifier|attribute/i.test(domain);

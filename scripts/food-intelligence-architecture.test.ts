@@ -2314,4 +2314,21 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([records, exercise]).filter(f => f.file === records.path)).toEqual([]);
   });
 
+  it("AUD1300-LEX-ITER-LOCAL covers local dictionaries in Object iterator predicates", () => {
+    const local = { path: "server/foodNormalization.ts",
+      content: 'const dictionary = { pao: "pão", arroz: "arroz" };' +
+        ' function normalizeFood(input: string) {' +
+        ' return Object.entries(dictionary).find(([alias]) => alias === input); }' };
+    const findings = findFoodStaticCandidates([local]);
+    expect(findings.some(f => f.ruleId === "17" &&
+      f.symbol.startsWith("consumed-lexical-table:"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const admin = { path: "server/accounts.ts",
+      content: 'const dictionary = { active: "ativo", pending: "pendente" };' +
+        ' function checkStatus(input: string) {' +
+        ' return Object.entries(dictionary).find(([alias]) => alias === input); }' };
+    expect(findFoodStaticCandidates([admin]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
 });
