@@ -2331,4 +2331,97 @@ describe("food intelligence architecture wave 1", () => {
       f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
   });
 
+
+  it("AUD1300-NS-01 gates namespace-imported lexical tables and their aliases", () => {
+    const dictionary = { path: "shared/foodWords.ts",
+      content: 'export const words = ["pão", "arroz"]; export const terms = { integral: "material", light: "material" };' };
+    const food = { path: "server/foodClassifier.ts",
+      content: 'import * as vocab from "../shared/foodWords"; function classifyFood(foodName: string) { return vocab.words.includes(foodName); }' };
+    const findings = findFoodStaticCandidates([dictionary, food]);
+    expect(findings.some(f => f.ruleId === "17" && f.symbol.includes("shared/foodWords.ts#words"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const material = { path: "server/foodMateriality.ts",
+      content: 'import * as vocab from "../shared/foodWords"; function decideMateriality(foodText: string) { return Object.entries(vocab.terms).some(([term]) => foodText.includes(term)); }' };
+    expect(findFoodStaticCandidates([dictionary, material]).some(f =>
+      f.ruleId === "18" && f.symbol.includes("shared/foodWords.ts#terms"))).toBe(true);
+    const aliased = { ...food, content:
+      'import * as vocab from "../shared/foodWords"; function classifyFood(foodName: string) { const dictionary = vocab.words; return dictionary.includes(foodName); }' };
+    expect(findFoodStaticCandidates([dictionary, aliased]).some(f =>
+      f.ruleId === "17" && f.symbol.includes("shared/foodWords.ts#words"))).toBe(true);
+    const shadowed = { ...food, content:
+      'import * as vocab from "../shared/foodWords"; function classifyFood(vocab: { words: string[] }, foodName: string) { return vocab.words.includes(foodName); }' };
+    expect(findFoodStaticCandidates([dictionary, shadowed]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+    const admin = { path: "server/accounts.ts", content:
+      'import * as vocab from "../shared/foodWords"; function checkStatus(status: string) { return vocab.words.includes(status); }' };
+    expect(findFoodStaticCandidates([dictionary, admin]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
+  it("AUD1300-FROZEN-02 gates Object.freeze-wrapped lexical dictionaries", () => {
+    const frozen = { path: "shared/terms.ts", content:
+      'export const words = Object.freeze(["pão", "arroz"]);' };
+    const food = { path: "server/foodClassifier.ts", content:
+      'import { words } from "../shared/terms"; function classifyFood(foodName: string) { return words.includes(foodName); }' };
+    const findings = findFoodStaticCandidates([frozen, food]);
+    expect(findings.some(f => f.ruleId === "17" &&
+      f.symbol.includes("shared/terms.ts#words"))).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const admin = { path: "server/accounts.ts", content:
+      'import { words } from "../shared/terms"; function checkStatus(status: string) { return words.includes(status); }' };
+    expect(findFoodStaticCandidates([frozen, admin]).filter(f =>
+      f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
+  });
+
+  it("AUD1300-NS-NUMERIC-03 gates namespace numeric maps selected by food identity", () => {
+    const dictionary = { path: "shared/weights.ts", content:
+      'export const weights = { pao: 50, arroz: 90 };' };
+    const food = { path: "server/foodServing.ts", content:
+      'import * as catalog from "../shared/weights"; function portionForFood(foodName: string) { return catalog.weights[foodName]; }' };
+    const findings = findFoodStaticCandidates([dictionary, food]);
+    for (const rule of ["17", "5"]) {
+      expect(findings.some(f => f.ruleId === rule && f.file === food.path &&
+        f.symbol.includes("shared/weights.ts#weights")), rule).toBe(true);
+    }
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    const alias = { ...food, content:
+      'import * as catalog from "../shared/weights"; function portionForFood(foodName: string) { const table = catalog.weights; return table[foodName]; }' };
+    expect(findFoodStaticCandidates([dictionary, alias]).some(f =>
+      f.ruleId === "17" && f.symbol.includes("shared/weights.ts#weights"))).toBe(true);
+    const shadowed = { ...food, content:
+      'import * as catalog from "../shared/weights"; function portionForFood(catalog: any, foodName: string) { return catalog.weights[foodName]; }' };
+    expect(findFoodStaticCandidates([dictionary, shadowed]).filter(f =>
+      f.symbol.startsWith("imported-numeric-food-map:"))).toEqual([]);
+    const admin = { path: "server/accounts.ts", content:
+      'import * as catalog from "../shared/weights"; function checkStatus(status: string) { return catalog.weights[status]; }' };
+    expect(findFoodStaticCandidates([dictionary, admin]).filter(f =>
+      f.symbol.startsWith("imported-numeric-food-map:"))).toEqual([]);
+  });
+
+  it("AUD1300-JSON-CALLBACK-04 finds food JSON via named predicate and const aliases", () => {
+    const records = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const bodies = [
+      'const predicate = (row: {name:string}) => row.name === input; return rows.find(predicate);',
+      'const predicate = (row: {name:string}) => row.name === input; const match = predicate; return rows.some(match);',
+      'function predicate(row: {name:string}) { return row.name === input; } return rows.find(predicate);',
+    ];
+    for (const body of bodies) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + ' }' };
+      const findings = findFoodStaticCandidates([records, consumer]);
+      for (const rule of ["17", "5"]) {
+        expect(findings.some(f => f.ruleId === rule && f.file === records.path),
+          rule + " " + body).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const shadow = { path: "server/foodService.ts",
+      content: 'import rows from "./data/records.json"; function selectFood(predicate: (row:any) => boolean) { return rows.find(predicate); }' };
+    expect(findFoodStaticCandidates([records, shadow]).filter(f => f.file === records.path)).toEqual([]);
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function selectActivity(input: string) { const predicate = (row:any) => row.name === input; return rows.find(predicate); }' };
+    expect(findFoodStaticCandidates([records, exercise]).filter(f => f.file === records.path)).toEqual([]);
+  });
+
 });

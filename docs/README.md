@@ -240,3 +240,5 @@ sombreados e consumidores de exercícios não herdam conhecimento alimentar.
 **AUD1300-LEX-ITER-LOCAL:** o mesmo gate cobre comparações sobre
 `Object.entries/keys/values` de tabelas definidas no próprio módulo; a
 localização do dado não isenta decisão lexical alimentar produtiva.
+
+**AUD1300-NS-01/FROZEN-02/NS-NUMERIC-03/JSON-CALLBACK-04:** os verificadores da onda estática seguem importações `import * as`, aliases locais, coleções de léxico congeladas com `Object.freeze`, mapas numéricos importados por namespace e callbacks alimentares por referência em catálogos JSON. Escopos sombreados, contas, status e exercícios permanecem controles negativos; a auditoria independente deve ser repetida no novo HEAD após CI exato.

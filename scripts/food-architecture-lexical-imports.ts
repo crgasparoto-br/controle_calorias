@@ -13,6 +13,11 @@ type ResolveDeps = (from: string, specifier: string, indexed: Map<string, FoodAr
 function unwrap(value: ts.Expression): ts.Expression {
   while (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) ||
          ts.isSatisfiesExpression(value)) value = value.expression;
+  if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+      value.expression.expression.getText() === "Object" &&
+      value.expression.name.text === "freeze" && value.arguments.length === 1) {
+    return unwrap(value.arguments[0]);
+  }
   return value;
 }
 
@@ -117,6 +122,7 @@ export function findImportedLexicalFoodFindings(
     if (!modules.has(file.path)) continue;
     const source = sourceOf(file);
     const imports = new Map<string, LexicalTable>();
+    const namespaces = new Map<string, Map<string, LexicalTable>>();
     for (const stmt of source.statements) {
       if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier) ||
           stmt.importClause?.isTypeOnly) continue;
@@ -133,8 +139,32 @@ export function findImportedLexicalFoodFindings(
             if (table) imports.set(element.name.text, table);
           }
         }
+        if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+          namespaces.set(clause.namedBindings.name.text, available);
+        }
       }
     }
+    const namespaceTable = (value: ts.Expression, use: ts.Node): LexicalTable | undefined => {
+      const expr = unwrap(value);
+      if (!ts.isPropertyAccessExpression(expr) || !ts.isIdentifier(expr.expression)) return undefined;
+      const namespace = expr.expression.text;
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isArrowFunction(scope) ||
+             ts.isMethodDeclaration(scope) || ts.isFunctionExpression(scope)) &&
+            scope.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+              parameter.name.text === namespace)) return undefined;
+        if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+            ts.isIdentifier(scope.variableDeclaration.name) &&
+            scope.variableDeclaration.name.text === namespace) return undefined;
+        if (!ts.isSourceFile(scope) && !ts.isBlock(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          if (statement.declarationList.declarations.some(declaration =>
+            ts.isIdentifier(declaration.name) && declaration.name.text === namespace)) return undefined;
+        }
+      }
+      return namespaces.get(namespace)?.get(expr.name.text);
+    };
     const binding = (name: string, use: ts.Node, seen = new Set<ts.VariableDeclaration>()): LexicalTable | undefined => {
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
         if ((ts.isFunctionDeclaration(scope) || ts.isArrowFunction(scope) ||
@@ -151,11 +181,15 @@ export function findImportedLexicalFoodFindings(
               file: file.path, symbol: name, content: decl.initializer.getText(source),
             };
             const expr = unwrap(decl.initializer);
-            return ts.isIdentifier(expr) ? binding(expr.text, decl, seen) : undefined;
+            return ts.isIdentifier(expr) ? binding(expr.text, decl, seen) : namespaceTable(expr, decl);
           }
         }
       }
       return imports.get(name);
+    };
+    const tableOf = (value: ts.Expression, use: ts.Node): LexicalTable | undefined => {
+      const expr = unwrap(value);
+      return ts.isIdentifier(expr) ? binding(expr.text, use) : namespaceTable(expr, use);
     };
     const owner = (node: ts.Node): string => {
       for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
@@ -172,8 +206,9 @@ export function findImportedLexicalFoodFindings(
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
         node.expression.expression.getText(source) === "Object" &&
         /^(?:entries|keys|values)$/.test(node.expression.name.text) &&
-        node.arguments.length === 1 && ts.isIdentifier(node.arguments[0])) {
-      const table = binding(node.arguments[0].text, node);
+        node.arguments.length === 1 &&
+        (ts.isIdentifier(node.arguments[0]) || ts.isPropertyAccessExpression(node.arguments[0]))) {
+      const table = tableOf(node.arguments[0], node);
       // Ordinary local loops are covered by lexical-lookup; local iterator
       // predicates are not, so share this decision sink for both origins.
       const predicateMethod = ts.isPropertyAccessExpression(node.parent) &&
@@ -261,8 +296,10 @@ export function findImportedLexicalFoodFindings(
 
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:includes|has|indexOf|some|find|filter)$/.test(node.expression.name.text) &&
-          node.arguments.length && ts.isIdentifier(node.expression.expression)) {
-        const table = binding(node.expression.expression.text, node);
+          node.arguments.length &&
+          (ts.isIdentifier(node.expression.expression) ||
+            ts.isPropertyAccessExpression(node.expression.expression))) {
+        const table = tableOf(node.expression.expression, node);
         const functionName = owner(node);
         const context = file.path + " " + functionName + " " + node.arguments[0].getText(source);
         const food = /food|aliment|nutrition|nutrient|meal|ingredient|portion|porc|serving|material|qualifier|attribute/i.test(context);

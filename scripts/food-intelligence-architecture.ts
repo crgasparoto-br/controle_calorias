@@ -1691,7 +1691,9 @@ function findCrossModuleNumericFoodMaps(
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
     const filesystemBindings = filesystemReadBindings(source);
-    const importedBindings = new Map<string, { file: string; declaration: ExportedMap }>();
+    type Reference = { file: string; declaration: ExportedMap };
+    const importedBindings = new Map<string, Reference>();
+    const namespaceBindings = new Map<string, Map<string, Reference>>();
     const fromSpecifier = (specifier: string, exportedName = "default"):
       { file: string; declaration: ExportedMap } | undefined => {
       for (const dependency of resolveRuntimeDependencies(consumer.path, specifier, indexed)) {
@@ -1709,6 +1711,17 @@ function findCrossModuleNumericFoodMaps(
           if (match) importedBindings.set(statement.importClause.name.text, match);
         }
         const bindings = statement.importClause?.namedBindings;
+        if (bindings && ts.isNamespaceImport(bindings)) {
+          const exportedMembers = new Map<string, Reference>();
+          for (const dependency of resolveRuntimeDependencies(consumer.path, specifier, indexed)) {
+            for (const [name, declaration] of exported.get(dependency) ?? []) {
+              if (!exportedMembers.has(name)) {
+                exportedMembers.set(name, { file: dependency, declaration });
+              }
+            }
+          }
+          namespaceBindings.set(bindings.name.text, exportedMembers);
+        }
         if (bindings && ts.isNamedImports(bindings)) {
           for (const element of bindings.elements) {
             if (element.isTypeOnly) continue;
@@ -1727,11 +1740,29 @@ function findCrossModuleNumericFoodMaps(
     // Resolve each use at its lexical binding site. A local DB result or
     // parameter named like an imported JSON map must NOT inherit that import.
     // Likewise, a function-local alias cannot contaminate another function.
-    type Reference = { file: string; declaration: ExportedMap };
     const bindingNames = (name: ts.BindingName, target: string): boolean =>
       ts.isIdentifier(name) ? name.text === target :
         name.elements.some(element => ts.isBindingElement(element) &&
           bindingNames(element.name, target));
+    const namespaceReference = (value: ts.Expression, use: ts.Node): Reference | undefined => {
+      const expr = unwrap(value);
+      if (!ts.isPropertyAccessExpression(expr) || !ts.isIdentifier(expr.expression)) return undefined;
+      const namespace = expr.expression.text;
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+            ts.isFunctionExpression(scope) || ts.isArrowFunction(scope)) &&
+            scope.parameters.some(parameter => bindingNames(parameter.name, namespace))) return undefined;
+        if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+            bindingNames(scope.variableDeclaration.name, namespace)) return undefined;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          if (statement.declarationList.declarations.some(declaration =>
+            bindingNames(declaration.name, namespace))) return undefined;
+        }
+      }
+      return namespaceBindings.get(namespace)?.get(expr.name.text);
+    };
     const resolveReference = (name: string, use: ts.Node,
       visited = new Set<ts.VariableDeclaration>()): Reference | undefined => {
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -1759,6 +1790,7 @@ function findCrossModuleNumericFoodMaps(
             const parsedFile = parsedFilesystemJsonPath(initializer, filesystemBindings, declaration);
             if (parsedFile) return fromSpecifier(parsedFile);
             if (ts.isIdentifier(initializer)) return resolveReference(initializer.text, declaration, visited);
+            if (ts.isPropertyAccessExpression(initializer)) return namespaceReference(initializer, declaration);
             return undefined; // a shadowing declaration from another source
           }
         }
@@ -1766,17 +1798,21 @@ function findCrossModuleNumericFoodMaps(
       return importedBindings.get(name);
     };
     const visit = (node: ts.Node): void => {
-      let localName: string | undefined;
+      let collection: ts.Expression | undefined;
       let index: ts.Expression | undefined;
-      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression)) {
-        localName = node.expression.text;
+      if (ts.isElementAccessExpression(node) &&
+          (ts.isIdentifier(node.expression) || ts.isPropertyAccessExpression(node.expression))) {
+        collection = node.expression;
         index = node.argumentExpression;
       } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-          node.expression.name.text === "get" && ts.isIdentifier(node.expression.expression)) {
-        localName = node.expression.expression.text;
+          node.expression.name.text === "get" &&
+          (ts.isIdentifier(node.expression.expression) ||
+            ts.isPropertyAccessExpression(node.expression.expression))) {
+        collection = node.expression.expression;
         index = node.arguments[0];
       }
-      const reference = localName ? resolveReference(localName, node) : undefined;
+      const reference = collection ? (ts.isIdentifier(collection)
+        ? resolveReference(collection.text, node) : namespaceReference(collection, node)) : undefined;
       if (reference && index && foodIndexContext(index, node, source)) {
         if (/\.json$/i.test(reference.file)) foodIndexedJson.add(reference.file.replace(/\\/g, "/"));
         const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
@@ -1950,6 +1986,37 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       return fieldAccess.test(predicate) &&
         /===?|!==?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate);
     };
+    // Follow immutable callback aliases used by JSON collection decisions.
+    // A parameter or mutable binding must not inherit a similarly named predicate.
+    const resolveJsonCallback = (value: ts.Expression, use: ts.Node,
+      visited = new Set<ts.VariableDeclaration>(), depth = 0,
+    ): ts.FunctionLikeDeclaration | undefined => {
+      if (depth > 12) return undefined;
+      const expr = unwrap(value);
+      if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) return expr;
+      if (!ts.isIdentifier(expr)) return undefined;
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
+            ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+            scope.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+              parameter.name.text === expr.text)) return undefined;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (ts.isFunctionDeclaration(statement) && statement.name?.text === expr.text) return statement;
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const declaration of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+            if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                !declaration.initializer || visited.has(declaration) ||
+                declaration.getStart(source) >= use.getStart(source)) return undefined;
+            const next = new Set(visited);
+            next.add(declaration);
+            return resolveJsonCallback(declaration.initializer, declaration, next, depth + 1);
+          }
+        }
+      }
+      return undefined;
+    };
     // A destructured callback or for-of binding has no ".name" token in its
     // decision body, but the bound identity still originates from the JSON.
     const isDestructuredJsonIdentityDecision = (name: ts.BindingName, predicate: string): boolean => {
@@ -1959,7 +2026,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const property = (element.propertyName ?? element.name).getText(source)
           .replace(/^['"]|['"]$/g, "");
         if (!/^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(property)) return false;
-        const bound = element.name.text.replace(/[^A-Za-z0-9_]/g, "\\    const visitJsonUse = (node: ts.Node): void => {");
+        const bound = element.name.text.replace(/[^A-Za-z0-9_]/g, "\\$&");
         const comparison = new RegExp("\\b" + bound +
           "\\s*(?:===?|!==?)|(?:===?|!==?)\\s*\\b" + bound + "\\b");
         return comparison.test(predicate);
@@ -1972,9 +2039,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const targets = resolveJsonBinding(node.expression.expression.text, node);
         if (targets.length) {
           const predicateNode = node.arguments[0];
-          const predicate = predicateNode.getText(source);
-          const callback = ts.isArrowFunction(predicateNode) || ts.isFunctionExpression(predicateNode)
-            ? predicateNode : null;
+          const callback = resolveJsonCallback(predicateNode, node);
+          const predicate = callback?.getText(source) ?? predicateNode.getText(source);
           const destructured = callback && callback.parameters[0] &&
             isDestructuredJsonIdentityDecision(callback.parameters[0].name, predicate);
           const foodDecision = foodJsonDecisionContext(node) &&
