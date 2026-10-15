@@ -2579,4 +2579,67 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([catalog, shadow]).filter(f => f.file === catalog.path)).toEqual([]);
   });
 
+
+  it("AUD1300-20261015-F03 detects identity-preserving chained JSON lookups", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const positives = [
+      "return rows.map(row => row).find(row => row.name === input);",
+      "return rows.filter(row => row.active).find(row => row.name === input);",
+      "return rows.filter(row => row.active).map(row => ({ ...row })).some(row => row.name === input);",
+      "const selected = rows.filter(row => row.active).map(row => row); return selected.find(row => row.name === input);",
+      "for (const row of rows.filter(row => row.active).map(row => row)) { if (row.name === input) return row; }",
+    ];
+    for (const body of positives) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      for (const rule of ["17", "5"]) {
+        expect(findings.some(f => f.file === catalog.path && f.ruleId === rule), rule + body).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const negatives = [
+      { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) {' +
+          ' return rows.map(row => ({ name: "other", calories: 10 })).find(row => row.name === input); }' },
+      { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function displayFood() {' +
+          ' return rows.map(row => row).find(row => { console.log(row.name); return true; }); }' },
+      { path: "server/exerciseService.ts",
+        content: 'import rows from "./data/records.json"; function selectActivity(input: string) {' +
+          ' return rows.map(row => row).find(row => row.name === input); }' },
+    ];
+    for (const negative of negatives) {
+      expect(findFoodStaticCandidates([catalog, negative]).filter(f => f.file === catalog.path),
+        negative.content).toEqual([]);
+    }
+  });
+
+  it("AUD1300-20261015-F04 distinguishes nested writes from JSON provenance", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: "let visible = rows; { visible = loadOther(); } return visible.find(row => row.name === input);", expected: false },
+      { body: "let visible = rows; if (flag) { visible = loadOther(); } return visible.find(row => row.name === input);", expected: false },
+      { body: "let visible = rows; if (flag) { visible = loadOther(); return visible.find(row => row.name === input); } return null;", expected: false },
+      { body: "let visible = rows; { visible = loadOther(); } visible = rows; return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = loadOther(); { visible = rows; } return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = rows; { let visible = loadOther(); visible = loadOther(); } return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = rows; function later() { visible = loadOther(); } return visible.find(row => row.name === input);", expected: true },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string, flag = false) {' +
+          sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const matches = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(matches.some(f => f.ruleId === "17"), sample.body).toBe(sample.expected);
+      expect(matches.some(f => f.ruleId === "5"), sample.body).toBe(sample.expected);
+      if (sample.expected) {
+        expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
 });
