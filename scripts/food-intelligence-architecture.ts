@@ -2322,9 +2322,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           const method = node.expression.name.text;
           const callback = /^(?:find|some|every|filter)$/.test(method)
             ? resolveJsonCallback(node.arguments[0], node) : undefined;
+          const parameter = callback?.parameters[0]?.name;
           const identityDecision = /^(?:includes|indexOf|lastIndexOf)$/.test(method) ||
-            !!(callback && ts.isIdentifier(callback.parameters[0]?.name) && callback.body &&
-              projectedIdentityDecision(callback.parameters[0].name.text, callback.body));
+            !!(callback && parameter && ts.isIdentifier(parameter) && callback.body &&
+              projectedIdentityDecision(parameter.text, callback.body));
           if (identityDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
         }
       }
