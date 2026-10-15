@@ -158,6 +158,15 @@ if (!existsSync(path.join(root, debtPath)) || !existsSync(path.join(root, invent
       fail("Invalid food architecture baseline SHA");
     } else {
       const entries = (ledger as { entries: FoodDebt[] }).entries;
+      // R1300-01: retirement has a distinct work item from the gate-creation issue.
+      // Keep existing owner, issue, original expiry and fingerprint untouched.
+      for (const entry of entries) {
+        if (!Number.isInteger(entry.migrationIssue) || (entry.migrationIssue ?? 0) <= 0 ||
+            !Number.isInteger(entry.retirementIssue) || (entry.retirementIssue ?? 0) <= 0 ||
+            entry.retirementIssue === entry.issue) {
+          fail("Food architecture debt missing migration/retirement issue: " + entry.fingerprint);
+        }
+      }
       const baseSha = (inventory as { baseSha: string }).baseSha;
       // The SHA authorized before implementation #1300 cannot drift merely by
       // changing the inventory; future rebaselines require a reviewed migration.
