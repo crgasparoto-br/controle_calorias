@@ -2454,6 +2454,38 @@ describe("food intelligence architecture wave 1", () => {
       f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
   });
 
+  it("AUD1300-CI-01 governs for-of JSON row identity without an out-of-scope predicate", () => {
+    const records = { path: "server/data/records.json",
+      content: '[{"name":"pão","label":"pão","calories":90},{"name":"arroz","label":"arroz","calories":130}]' };
+    const decisions = [
+      'for (const item of rows) { if (item.name === input) return item; } return undefined;',
+      'for (const item of rows.map(row => row)) { if (item["name"].trim().toLowerCase() === input) return item; } return undefined;',
+      'for (const item of rows) { if (item.label !== input) continue; return item; } return undefined;',
+    ];
+    for (const body of decisions) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + ' }' };
+      const findings = findFoodStaticCandidates([records, consumer]);
+      for (const ruleId of ["17", "5"]) {
+        expect(findings.some(f => f.file === records.path && f.ruleId === ruleId),
+          ruleId + " " + body).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const controls = [
+      { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function showFoodNames() { for (const item of rows) { console.log(item.name); } }' },
+      { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(rows: any[], input: string) { for (const item of rows) { if (item.name === input) return item; } }' },
+      { path: "server/exerciseService.ts",
+        content: 'import rows from "./data/records.json"; function selectActivity(input: string) { for (const item of rows) { if (item.name === input) return item; } }' },
+    ];
+    for (const control of controls) {
+      expect(findFoodStaticCandidates([records, control]).filter(f => f.file === records.path),
+        control.content).toEqual([]);
+    }
+  });
+
   it("AUD1300-JSON-NORMALIZED-06 tracks destructured normalized food JSON identity", () => {
     const catalog = { path: "server/data/records.json",
       content: '[{"label":"pão","calories":90},{"label":"arroz","calories":130}]' };
