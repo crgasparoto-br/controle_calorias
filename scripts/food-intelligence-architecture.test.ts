@@ -161,6 +161,26 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessFoodDebt([finding], [debt], today).warnings).toHaveLength(1);
   });
 
+  it("R1300-01 tracks each approved debt to specific migration and retirement issues", () => {
+    const debtBook = JSON.parse(readFileSync("architecture-debt.json", "utf8")) as {
+      entries: Array<{ issue: number; migrationIssue: number; retirementIssue: number;
+        fingerprint: string; ruleId: string; file: string; reason: string; owner: string;
+        createdAt: string; expiresAt: string }>;
+    };
+    expect(debtBook.entries).toHaveLength(12);
+    for (const entry of debtBook.entries) {
+      expect(entry.issue).toBe(1300);
+      expect([1302, 1304, 1305, 1306]).toContain(entry.migrationIssue);
+      expect(entry.retirementIssue).toBe(1313);
+      expect(entry.retirementIssue).not.toBe(entry.issue);
+    }
+    const entry = debtBook.entries[0];
+    expect(assessFoodDebtRenewal([entry], [{ ...entry, retirementIssue: 1312 }]))
+      .toHaveLength(1);
+    expect(assessFoodDebtRenewal([entry], [{ ...entry, migrationIssue: 1303 }]))
+      .toHaveLength(1);
+  });
+
   it("denies renewal and owner reassignment but permits repayment", () => {
     const old = {
       ruleId: finding.ruleId, file: finding.file, fingerprint: finding.fingerprint,
