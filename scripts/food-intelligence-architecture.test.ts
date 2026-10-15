@@ -2793,4 +2793,74 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([catalog, exercise]).filter(f => f.file === catalog.path)).toEqual([]);
   });
 
+  it("AUD1300-20261015-F09 follows callback-local aliases of projected food identities", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const positives = [
+      "return rows.map(row => { const key = row.name; return key.trim().toLowerCase(); }).includes(input);",
+      "return rows.map(({ name }) => { const alias = name; const key = alias; return key; }).includes(input);",
+      "return rows.flatMap(row => { const key = row.name; return [key]; }).includes(input);",
+      "return rows.map(row => row.name).map(value => { const key = value; return key.toLowerCase(); }).includes(input);",
+      "return rows.map(row => { const key = row.name; return key; }).some(value => value === input);",
+    ];
+    for (const body of positives) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' + body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort(), body).toEqual(["17", "5"]);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, body)
+        .toBeGreaterThan(0);
+    }
+    const negatives = [
+      { file: "server/foodService.ts", fn: "selectFood",
+        body: "return rows.map(row => { const key = row.calories; return key; }).includes(90);" },
+      { file: "server/foodService.ts", fn: "selectFood",
+        body: "return rows.map(row => { const key = getOtherName(); return key; }).includes(input);" },
+      { file: "server/foodService.ts", fn: "selectFood",
+        body: "return rows.map(row => { const key = row.name; return getOtherName(); }).includes(input);" },
+      { file: "server/foodService.ts", fn: "selectFood",
+        body: "return rows.map(row => { const key = row.name; return key.replace(/pão/g, 'outro'); }).includes(input);" },
+      { file: "server/exerciseService.ts", fn: "selectActivity",
+        body: "return rows.map(row => { const key = row.name; return key; }).includes(input);" },
+    ];
+    for (const sample of negatives) {
+      const consumer = { path: sample.file, content:
+        'import rows from "./data/records.json"; function ' + sample.fn +
+        "(input: string) { " + sample.body + " }" };
+      expect(findFoodStaticCandidates([catalog, consumer]).filter(f => f.file === catalog.path),
+        sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-20261015-F10 follows static filesystem JSON into productive food decisions", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const positives = [
+      'import { readFileSync } from "node:fs"; const rows = JSON.parse(readFileSync("./server/data/records.json", "utf8")); function selectFood(input: string) { return rows.find(row => row.name === input); }',
+      'import { readFileSync } from "node:fs"; function selectFood(input: string) { const rows = JSON.parse(readFileSync(new URL("./data/records.json", import.meta.url), "utf8")); return rows.find(row => row.name === input); }',
+      'import * as fs from "node:fs"; const raw = fs.readFileSync("./server/data/records.json", "utf8"); const rows = JSON.parse(raw); function selectFood(input: string) { const keys = rows.map(({ name }) => name); return keys.includes(input); }',
+      'import { readFile } from "node:fs/promises"; async function selectFood(input: string) { const raw = await readFile("./server/data/records.json", "utf8"); const rows = JSON.parse(raw); return rows.some(row => row.name === input); }',
+    ];
+    for (const body of positives) {
+      const consumer = { path: "server/foodService.ts", content: body };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId))
+        .map(f => f.ruleId).sort(), body).toEqual(["17", "5"]);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, body)
+        .toBeGreaterThan(0);
+    }
+    const negatives = [
+      'import { readFileSync } from "node:fs"; const rows = JSON.parse(readFileSync("./server/data/records.json", "utf8")); function showFoods() { return rows.map(row => row.name); }',
+      'import { readFileSync } from "node:fs"; const rows = JSON.parse(readFileSync("./server/data/records.json", "utf8")); function checkStatus(status: string) { return rows.find(row => row.name === status); }',
+      'const readFileSync = (_path: string) => "[]"; const rows = JSON.parse(readFileSync("./server/data/records.json")); function selectFood(input: string) { return rows.find(row => row.name === input); }',
+      'import { readFileSync } from "node:fs"; const rows = JSON.parse(readFileSync("./server/data/records.json", "utf8")); function selectActivity(input: string) { return rows.find(row => row.name === input); }',
+    ];
+    for (const body of negatives) {
+      const consumer = { path: "server/foodService.ts", content: body };
+      expect(findFoodStaticCandidates([catalog, consumer]).filter(f => f.file === catalog.path),
+        body).toEqual([]);
+    }
+  });
+
 });

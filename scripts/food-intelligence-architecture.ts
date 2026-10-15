@@ -1911,6 +1911,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   for (const consumer of files) {
     if (!runtime.has(consumer.path.replace(/\\/g, "/")) || /\.json$/i.test(consumer.path)) continue;
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
+    const filesystemBindings = filesystemReadBindings(source);
     const imports = new Map<string, string[]>();
     for (const statement of source.statements) {
       let specifier: string | undefined;
@@ -1937,7 +1938,26 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         if (targets.length) imports.set(binding, targets);
       }
     }
-    if (imports.size === 0) continue;
+    // AUD1300-20261015-F10: JSON.parse of a proven, static Node fs path is
+    // equivalent to an import, including a raw readFile binding and a load in
+    // a local function. Do not activate tracking for unrelated parse calls.
+    let hasStaticJsonLoader = false;
+    const scanStaticJsonLoader = (node: ts.Node): void => {
+      if (hasStaticJsonLoader) return;
+      if (ts.isCallExpression(node)) {
+        const file = parsedFilesystemJsonPath(node, filesystemBindings, node);
+        if (file && resolveRuntimeDependencies(consumer.path, file, indexed)
+          .some(target => /\.json$/i.test(target))) {
+          hasStaticJsonLoader = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, scanStaticJsonLoader);
+    };
+    if (imports.size === 0) {
+      ts.forEachChild(source, scanStaticJsonLoader);
+      if (!hasStaticJsonLoader) continue;
+    }
     // Track catalog provenance through row-preserving pipelines only.
     const preservesJsonIdentity = (callback: ts.Expression | undefined, flatten: boolean): boolean => {
       if (!callback) return false;
@@ -2006,16 +2026,34 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const returns = body?.filter(ts.isReturnStatement) ?? [];
       const result = body ? (returns.length === 1 ? returns[0].expression : undefined) : fn.body;
       if (!result) return false;
+      // AUD1300-20261015-F09: callback-local immutable aliases of a JSON
+      // identity must retain provenance. Only top-level const bindings declared
+      // before their use qualify; calls and mutable/shadowed names are opaque.
+      const aliases = new Map<string, ts.VariableDeclaration>();
+      for (const statement of body ?? []) {
+        if (!ts.isVariableStatement(statement) ||
+            !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+            aliases.set(declaration.name.text, declaration);
+          }
+        }
+      }
       const carriesIdentity = (candidate: ts.Expression, depth = 0): boolean => {
         if (depth > 8) return false;
         const value = unwrap(candidate);
-        if (!fromRecords) return ts.isIdentifier(value) && value.text === name ||
-          (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
-            /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
-            value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
-            value.arguments.every(arg => isStaticText(unwrap(arg))) &&
-            carriesIdentity(value.expression.expression, depth + 1));
-        if (ts.isIdentifier(value)) return identityBindings.has(value.text);
+        if (ts.isIdentifier(value)) {
+          if (fromRecords ? identityBindings.has(value.text) : value.text === name) return true;
+          const alias = aliases.get(value.text);
+          return !!alias?.initializer && alias.getStart(source) < value.getStart(source) &&
+            carriesIdentity(alias.initializer, depth + 1);
+        }
+        if (!fromRecords) return ts.isCallExpression(value) &&
+          ts.isPropertyAccessExpression(value.expression) &&
+          /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+          value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+          value.arguments.every(arg => isStaticText(unwrap(arg))) &&
+          carriesIdentity(value.expression.expression, depth + 1);
         if (ts.isPropertyAccessExpression(value)) return ts.isIdentifier(value.expression) &&
           value.expression.text === name && identity.test(value.name.text);
         if (ts.isElementAccessExpression(value)) return ts.isIdentifier(value.expression) &&
@@ -2061,6 +2099,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind),
         ])];
       }
+      // A direct filesystem JSON parse can flow through aliases, projections
+      // and conditional origins using exactly the same decision-use analysis
+      // as an ES import. Unknown providers/paths are never treated as proof.
+      const parsedFile = parsedFilesystemJsonPath(value, filesystemBindings, use);
+      if (parsedFile) return resolveRuntimeDependencies(consumer.path, parsedFile, indexed)
+        .filter(target => /\.json$/i.test(target));
       if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
       const method = value.expression.name.text;
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
