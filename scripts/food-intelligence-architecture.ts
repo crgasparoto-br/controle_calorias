@@ -2107,15 +2107,36 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         const expr = unwrap(candidate);
         if (ts.isIdentifier(expr)) return expr.text === name;
         if (!ts.isObjectLiteralExpression(expr)) return false;
-        return expr.properties.some(property => {
+        // F14: evaluate object members in runtime order, not with .some().
+        // { ...row, name: other } no longer carries the row's name, while
+        // { name: other, ...row } and { ...row, name: row.name } still do.
+        // A later opaque spread may also replace the identity: do not infer
+        // provenance through it without another explicit identity assignment.
+        let carriesSpread = false;
+        const overrides = new Map<string, boolean>();
+        for (const property of expr.properties) {
           if (ts.isSpreadAssignment(property)) {
             const spread = unwrap(property.expression);
-            return ts.isIdentifier(spread) && spread.text === name;
+            if (ts.isIdentifier(spread) && spread.text === name) {
+              carriesSpread = true;
+              overrides.clear();
+            } else {
+              carriesSpread = false;
+              overrides.clear();
+            }
+            continue;
           }
-          if (!ts.isPropertyAssignment(property)) return false;
+          if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
+            continue;
+          }
           const key = property.name.getText(source).replace(/^['"]|['"]$/g, "");
-          return identity.test(key) && carriesRecordIdentity(property.initializer);
-        });
+          if (!identity.test(key)) continue;
+          const value = ts.isPropertyAssignment(property)
+            ? property.initializer : property.name;
+          overrides.set(key, carriesRecordIdentity(value));
+        }
+        if ([...overrides.values()].some(Boolean)) return true;
+        return carriesSpread && ![...overrides.values()].some(value => !value);
       };
       const value = unwrap(body);
       return flatten
@@ -2236,6 +2257,16 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         .filter(target => /\.json$/i.test(target));
       if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
       const method = value.expression.name.text;
+      // F13: Object.values(arrayOrRecord) preserves the records, unlike
+      // Object.keys (indexes) or Object.entries (tuples). Only propagate record
+      // provenance; treating an array of objects as projected identity strings
+      // would incorrectly block inert .includes("name") checks.
+      if (kind === "records" && method === "values" &&
+          ts.isIdentifier(value.expression.expression) &&
+          value.expression.expression.text === "Object" &&
+          value.arguments.length === 1) {
+        return resolveJsonExpression(value.arguments[0], use, visited, depth + 1, "records");
+      }
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
       if (kind === "identity") {
         if (method === "map" || method === "flatMap") {
