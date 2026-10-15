@@ -3324,8 +3324,9 @@ describe("food intelligence architecture wave 1", () => {
       const findings = findFoodStaticCandidates([fixture,
         { path: "server/foodService.ts", content: sample.body }]);
       expect(findings.some(f => f.file === fixture.path), sample.body).toBe(sample.expected);
-      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length > 0,
-        sample.body).toBe(sample.expected);
+      const fixtureErrors = evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(fixture.path));
+      expect(fixtureErrors.length > 0, sample.body).toBe(sample.expected);
     }
   });
 
