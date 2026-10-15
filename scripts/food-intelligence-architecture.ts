@@ -2365,6 +2365,48 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const parsedFile = parsedFilesystemJsonPath(value, filesystemBindings, use);
       if (parsedFile) return resolveRuntimeDependencies(consumer.path, parsedFile, indexed)
         .filter(target => /\.json$/i.test(target));
+      // AUD1300-F22: a JSON require is a source expression, including when
+      // its variable is not the first declarator of a statement. Binding
+      // lookup must resolve this origin before inspecting map/filter chains.
+      // A local require parameter/declaration never proves a Node JSON import.
+      if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
+          value.expression.text === "require" && value.arguments.length === 1 &&
+          ts.isStringLiteral(value.arguments[0])) {
+        let shadowed = false;
+        for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
+          if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+              ts.isIdentifier(param.name) && param.name.text === "require")) {
+            shadowed = true;
+            break;
+          }
+          if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+          for (const statement of scope.statements) {
+            if (ts.isVariableStatement(statement) &&
+                statement.declarationList.declarations.some(declaration =>
+                  ts.isIdentifier(declaration.name) && declaration.name.text === "require")) {
+              shadowed = true;
+              break;
+            }
+            if (ts.isFunctionDeclaration(statement) && statement.name?.text === "require") {
+              shadowed = true;
+              break;
+            }
+            if (ts.isImportDeclaration(statement) && statement.importClause &&
+                (statement.importClause.name?.text === "require" ||
+                  (statement.importClause.namedBindings &&
+                    (ts.isNamespaceImport(statement.importClause.namedBindings)
+                      ? statement.importClause.namedBindings.name.text === "require"
+                      : statement.importClause.namedBindings.elements.some(element =>
+                          element.name.text === "require"))))) {
+              shadowed = true;
+              break;
+            }
+          }
+          if (shadowed) break;
+        }
+        if (!shadowed) return resolveRuntimeDependencies(
+          consumer.path, value.arguments[0].text, indexed).filter(target => /\.json$/i.test(target));
+      }
       if (!ts.isCallExpression(value) ||
           (!ts.isPropertyAccessExpression(value.expression) &&
             !ts.isElementAccessExpression(value.expression))) return [];
