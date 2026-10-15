@@ -2126,14 +2126,17 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             }
             continue;
           }
-          if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
-            continue;
-          }
-          const key = property.name.getText(source).replace(/^['"]|['"]$/g, "");
+          const keyNode = property.name;
+          if (!keyNode) continue;
+          const keyExpr = ts.isComputedPropertyName(keyNode) ? unwrap(keyNode.expression) : keyNode;
+          const key = ts.isIdentifier(keyExpr) || ts.isStringLiteral(keyExpr) ||
+            ts.isNoSubstitutionTemplateLiteral(keyExpr) ? keyExpr.text : "";
           if (!identity.test(key)) continue;
+          // Accessors/methods also replace the preceding spread's identity.
           const value = ts.isPropertyAssignment(property)
-            ? property.initializer : property.name;
-          overrides.set(key, carriesRecordIdentity(value));
+            ? property.initializer : ts.isShorthandPropertyAssignment(property)
+              ? property.name : undefined;
+          overrides.set(key, !!value && carriesRecordIdentity(value));
         }
         if ([...overrides.values()].some(Boolean)) return true;
         return carriesSpread && ![...overrides.values()].some(value => !value);
@@ -2265,7 +2268,32 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ts.isIdentifier(value.expression.expression) &&
           value.expression.expression.text === "Object" &&
           value.arguments.length === 1) {
-        return resolveJsonExpression(value.arguments[0], use, visited, depth + 1, "records");
+        // A shadowed local/parameter/import named Object is not the intrinsic.
+        const shadowsObject = (): boolean => {
+          for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
+            if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+              ts.isIdentifier(param.name) && param.name.text === "Object")) return true;
+            if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+                ts.isIdentifier(scope.variableDeclaration.name) &&
+                scope.variableDeclaration.name.text === "Object") return true;
+            if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+            for (const statement of scope.statements) {
+              if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(decl =>
+                  ts.isIdentifier(decl.name) && decl.name.text === "Object")) return true;
+              if (ts.isFunctionDeclaration(statement) && statement.name?.text === "Object") return true;
+              if (ts.isImportDeclaration(statement) && statement.importClause &&
+                  (statement.importClause.name?.text === "Object" ||
+                    (statement.importClause.namedBindings &&
+                      (ts.isNamespaceImport(statement.importClause.namedBindings)
+                        ? statement.importClause.namedBindings.name.text === "Object"
+                        : statement.importClause.namedBindings.elements.some(binding =>
+                            binding.name.text === "Object"))))) return true;
+            }
+          }
+          return false;
+        };
+        if (!shadowsObject()) return resolveJsonExpression(
+          value.arguments[0], use, visited, depth + 1, "records");
       }
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
       if (kind === "identity") {
