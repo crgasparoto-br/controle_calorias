@@ -2002,29 +2002,27 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const source = ts.createSourceFile(consumer.path, consumer.content, ts.ScriptTarget.Latest, true);
     const filesystemBindings = filesystemReadBindings(source);
     const imports = new Map<string, string[]>();
+    const registerJsonImport = (specifier: string, binding: string): void => {
+      const targets = resolveRuntimeDependencies(consumer.path, specifier, indexed)
+        .filter(target => /\.json$/i.test(target));
+      if (targets.length) imports.set(binding, targets);
+    };
     for (const statement of source.statements) {
-      let specifier: string | undefined;
-      let binding: string | undefined;
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
           !statement.importClause?.isTypeOnly && statement.importClause?.name) {
-        specifier = statement.moduleSpecifier.text;
-        binding = statement.importClause.name.text;
+        registerJsonImport(statement.moduleSpecifier.text, statement.importClause.name.text);
       } else if (ts.isVariableStatement(statement)) {
-        const declaration = statement.declarationList.declarations[0];
-        if (declaration && ts.isIdentifier(declaration.name) && declaration.initializer &&
-            ts.isCallExpression(declaration.initializer) &&
-            ts.isIdentifier(declaration.initializer.expression) &&
-            declaration.initializer.expression.text === "require" &&
-            declaration.initializer.arguments[0] &&
-            ts.isStringLiteral(declaration.initializer.arguments[0])) {
-          specifier = declaration.initializer.arguments[0].text;
-          binding = declaration.name.text;
+        // F22: every declarator can import a JSON catalog, not just declarations[0].
+        for (const declaration of statement.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name) && declaration.initializer &&
+              ts.isCallExpression(declaration.initializer) &&
+              ts.isIdentifier(declaration.initializer.expression) &&
+              declaration.initializer.expression.text === "require" &&
+              declaration.initializer.arguments[0] &&
+              ts.isStringLiteral(declaration.initializer.arguments[0])) {
+            registerJsonImport(declaration.initializer.arguments[0].text, declaration.name.text);
+          }
         }
-      }
-      if (specifier && binding) {
-        const targets = resolveRuntimeDependencies(consumer.path, specifier, indexed)
-          .filter(target => /\.json$/i.test(target));
-        if (targets.length) imports.set(binding, targets);
       }
     }
     // AUD1300-20261015-F10: JSON.parse of a proven, static Node fs path is
@@ -2058,14 +2056,30 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const callback = argument ? resolveJsonCallback(argument, use) : undefined;
       if (!callback?.body) return fields;
       const binding = callback.parameters[0]?.name;
-      if (!binding || !ts.isIdentifier(binding)) return fields;
-      const row = binding.text;
+      if (!binding) return fields;
+      const row = ts.isIdentifier(binding) ? binding.text : undefined;
       const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      // F21: destructured predicates still read source identity fields.
+      const destructured = new Map<string, string>();
+      if (ts.isObjectBindingPattern(binding)) {
+        for (const element of binding.elements) {
+          if (!ts.isIdentifier(element.name) || element.dotDotDotToken) continue;
+          const key = element.propertyName ?? element.name;
+          if ((ts.isIdentifier(key) || ts.isStringLiteral(key)) &&
+              identity.test(key.text)) destructured.set(element.name.text, key.text);
+        }
+      }
+      if (!row && destructured.size === 0) return fields;
       const collectFields = (node: ts.Node): void => {
-        if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) &&
-            node.expression.text === row && identity.test(node.name.text)) fields.add(node.name.text);
-        if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) &&
-            node.expression.text === row && node.argumentExpression) {
+        if (ts.isIdentifier(node) && destructured.has(node.text)) {
+          fields.add(destructured.get(node.text)!);
+        }
+        if (row && ts.isPropertyAccessExpression(node) &&
+            ts.isIdentifier(node.expression) && node.expression.text === row &&
+            identity.test(node.name.text)) fields.add(node.name.text);
+        if (row && ts.isElementAccessExpression(node) &&
+            ts.isIdentifier(node.expression) && node.expression.text === row &&
+            node.argumentExpression) {
           const key = unwrap(node.argumentExpression);
           if ((ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) &&
               identity.test(key.text)) fields.add(key.text);
@@ -2096,8 +2110,9 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       callback: ts.Expression | undefined, flatten: boolean, consumerUse: ts.Node,
     ): boolean => {
       if (!callback) return false;
-      const fn = unwrap(callback);
-      if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
+      // F20: resolve named projections and immutable aliases at their consumer.
+      const fn = resolveJsonCallback(callback, consumerUse);
+      if (!fn?.body) return false;
       const parameter = fn.parameters[0]?.name;
       if (!parameter || !ts.isIdentifier(parameter)) return false;
       const name = parameter.text;
@@ -2242,10 +2257,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     // rows.map(row => row.name).includes(input) is still catalog-driven.
     const callbackProjectsJsonIdentity = (
       callback: ts.Expression | undefined, flatten: boolean, fromRecords: boolean,
+      consumerUse: ts.Node,
     ): boolean => {
       if (!callback) return false;
-      const fn = unwrap(callback);
-      if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
+      const fn = resolveJsonCallback(callback, consumerUse);
+      if (!fn?.body) return false;
       const parameter = fn.parameters[0]?.name;
       if (!parameter) return false;
       const name = ts.isIdentifier(parameter) ? parameter.text : "";
@@ -2398,10 +2414,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
       if (kind === "identity") {
         if (method === "map" || method === "flatMap") {
-          if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true)) {
+          if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true, decisionUse)) {
             return resolveJsonExpression(receiver, use, visited, depth + 1, "records", decisionUse);
           }
-          if (!callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", false)) return [];
+          if (!callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", false, decisionUse)) return [];
         }
         return resolveJsonExpression(receiver, use, visited, depth + 1, "identity", decisionUse);
       }
@@ -2667,12 +2683,21 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       return decision;
     };
     const visitJsonUse = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-          /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
-          node.arguments[0]) {
-        const targets = resolveJsonExpression(node.expression.expression, node);
+      // F23: property and literal-computed collection methods share one rule.
+      const call = ts.isCallExpression(node) ? node : undefined;
+      const access = call?.expression;
+      const receiver = access && (ts.isPropertyAccessExpression(access) ||
+        ts.isElementAccessExpression(access)) ? access.expression : undefined;
+      const computed = access && ts.isElementAccessExpression(access) &&
+        access.argumentExpression ? unwrap(access.argumentExpression) : undefined;
+      const method = access && ts.isPropertyAccessExpression(access) ? access.name.text :
+        computed && (ts.isStringLiteral(computed) || ts.isNoSubstitutionTemplateLiteral(computed))
+          ? computed.text : "";
+      if (call && receiver && /^(?:find|filter|some|map|reduce|forEach|every)$/.test(method) &&
+          call.arguments[0]) {
+        const targets = resolveJsonExpression(receiver, node);
         if (targets.length) {
-          const predicateNode = node.arguments[0];
+          const predicateNode = call.arguments[0];
           const callback = resolveJsonCallback(predicateNode, node);
           const predicate = callback?.getText(source) ?? predicateNode.getText(source);
           const destructured = callback && callback.parameters[0] &&
@@ -2684,15 +2709,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       }
       // Projected JSON identities are food knowledge only when actually used
       // in a productive decision. Pure display projections remain inert.
-      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-          /^(?:includes|indexOf|lastIndexOf|find|some|every|filter)$/.test(node.expression.name.text) &&
-          node.arguments[0] && foodJsonDecisionContext(node)) {
-        const targets = resolveJsonExpression(node.expression.expression, node,
+      if (call && receiver &&
+          /^(?:includes|indexOf|lastIndexOf|find|some|every|filter)$/.test(method) &&
+          call.arguments[0] && foodJsonDecisionContext(node)) {
+        const targets = resolveJsonExpression(receiver, node,
           new Set<ts.VariableDeclaration>(), 0, "identity");
         if (targets.length) {
-          const method = node.expression.name.text;
           const callback = /^(?:find|some|every|filter)$/.test(method)
-            ? resolveJsonCallback(node.arguments[0], node) : undefined;
+            ? resolveJsonCallback(call.arguments[0], node) : undefined;
           const parameter = callback?.parameters[0]?.name;
           const identityDecision = /^(?:includes|indexOf|lastIndexOf)$/.test(method) ||
             !!(callback && parameter && ts.isIdentifier(parameter) && callback.body &&
