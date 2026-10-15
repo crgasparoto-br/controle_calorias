@@ -89,6 +89,7 @@ const inventory = provisionalInventory.map(finding => {
       basis: confirmed ? seed!.review!.basis : "AST candidate: no validated source-specific behavioral decision",
       debt: activeDebt ? "timeboxed" : "none",
       ...(activeDebt ? { owner: activeDebt.owner, issue: activeDebt.issue,
+        migrationIssue: activeDebt.migrationIssue, retirementIssue: activeDebt.retirementIssue,
         expiresAt: activeDebt.expiresAt } : {}),
     },
   };
