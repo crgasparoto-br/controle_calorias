@@ -2695,6 +2695,7 @@ describe("food intelligence architecture wave 1", () => {
       { body: "let visible = rows; if (flag) { visible = rows; } else { visible = loadB(); } return visible.find(row => row.name === input);", governed: true },
       { body: "let visible = rows; if (flag) { visible = loadA(); } else { visible = loadB(); } visible = rows; return visible.find(row => row.name === input);", governed: true },
       { body: "let visible = rows; if (flag) { visible = loadA(); if (other) visible = rows; } else { visible = loadB(); } return visible.find(row => row.name === input);", governed: true },
+      { body: "let visible = rows; if (flag) { let visible = loadA(); visible = loadB(); } else { let visible = loadC(); visible = loadD(); } return visible.find(row => row.name === input);", governed: true },
     ];
     for (const sample of cases) {
       const consumer = { path: "server/foodService.ts", content:
