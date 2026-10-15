@@ -1974,24 +1974,80 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           value.elements.every(element => preserves(element))
         : preserves(value);
     };
+    // A projection can preserve the identity field without preserving its row:
+    // rows.map(row => row.name).includes(input) is still catalog-driven.
+    const callbackProjectsJsonIdentity = (
+      callback: ts.Expression | undefined, flatten: boolean, fromRecords: boolean,
+    ): boolean => {
+      if (!callback) return false;
+      const fn = unwrap(callback);
+      if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
+      const parameter = fn.parameters[0]?.name;
+      if (!parameter || !ts.isIdentifier(parameter)) return false;
+      const name = parameter.text;
+      const body = ts.isBlock(fn.body) ? fn.body.statements : undefined;
+      const returns = body?.filter(ts.isReturnStatement) ?? [];
+      const result = body ? (returns.length === 1 ? returns[0].expression : undefined) : fn.body;
+      if (!result) return false;
+      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      const carriesIdentity = (candidate: ts.Expression, depth = 0): boolean => {
+        if (depth > 8) return false;
+        const value = unwrap(candidate);
+        if (!fromRecords) return ts.isIdentifier(value) && value.text === name ||
+          (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+            /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+            value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+            value.arguments.every(arg => isStaticText(unwrap(arg))) &&
+            carriesIdentity(value.expression.expression, depth + 1));
+        if (ts.isPropertyAccessExpression(value)) return ts.isIdentifier(value.expression) &&
+          value.expression.text === name && identity.test(value.name.text);
+        if (ts.isElementAccessExpression(value)) return ts.isIdentifier(value.expression) &&
+          value.expression.text === name && value.argumentExpression &&
+          isStaticText(unwrap(value.argumentExpression)) &&
+          identity.test(value.argumentExpression.getText(source).replace(/^['"]|['"]$/g, ""));
+        if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+            /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+            value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+            value.arguments.every(arg => isStaticText(unwrap(arg)))) {
+          return carriesIdentity(value.expression.expression, depth + 1);
+        }
+        return false;
+      };
+      const value = unwrap(result);
+      return flatten
+        ? ts.isArrayLiteralExpression(value) && value.elements.length > 0 &&
+          value.elements.every(entry => carriesIdentity(entry))
+        : carriesIdentity(value);
+    };
+    type JsonTraceKind = "records" | "identity";
     const resolveJsonExpression = (
       expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
-      depth = 0,
+      depth = 0, kind: JsonTraceKind = "records",
     ): string[] => {
       if (depth > 12) return [];
       const value = unwrap(expression);
-      if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1);
+      if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind);
       if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression)) return [];
       const method = value.expression.name.text;
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
+      if (kind === "identity") {
+        if (method === "map" || method === "flatMap") {
+          if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true)) {
+            return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "records");
+          }
+          if (!callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", false)) return [];
+        }
+        return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "identity");
+      }
       if ((method === "map" || method === "flatMap") &&
           !preservesJsonIdentity(value.arguments[0], method === "flatMap")) return [];
-      return resolveJsonExpression(value.expression.expression, use, visited, depth + 1);
+      return resolveJsonExpression(value.expression.expression, use, visited, depth + 1, "records");
     };
     // AUD1300-F02: trace immutable aliases and transforms before the decision,
     // including .map()/.reduce(); module and local bindings must not be confused.
     const resolveJsonBinding = (
       name: string, use: ts.Node, seen = new Set<ts.VariableDeclaration>(), depth = 0,
+      kind: JsonTraceKind = "records",
     ): string[] => {
       if (depth > 12) return [];
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -2015,8 +2071,38 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             const declarationList = decl.parent;
             if (ts.isVariableDeclarationList(declarationList) &&
                 !(declarationList.flags & ts.NodeFlags.Const)) {
-              type Write = { position: number; value?: ts.Expression; definite: boolean };
+              type Write = { position: number; values: ts.Expression[]; definite: boolean };
               const writes: Write[] = [];
+              // Both arms of an exhaustive if/else can overwrite the import
+              // even though neither individual write is unconditionally run.
+              // Do not claim this for a single-arm if or a conditional last write.
+              const containsAliasWrite = (candidate: ts.Node): boolean => {
+                if (ts.isFunctionLike(candidate)) return false;
+                if (ts.isBinaryExpression(candidate) && ts.isIdentifier(candidate.left) &&
+                    candidate.left.text === name && /=$/.test(candidate.operatorToken.getText(source))) return true;
+                return ts.forEachChild(candidate, containsAliasWrite) ?? false;
+              };
+              const guaranteedOverwrites = (candidate: ts.Statement): ts.Expression[] | undefined => {
+                if (ts.isBlock(candidate)) {
+                  for (let i = candidate.statements.length - 1; i >= 0; i--) {
+                    const statement = candidate.statements[i];
+                    if (containsAliasWrite(statement)) return guaranteedOverwrites(statement);
+                  }
+                  return undefined;
+                }
+                if (ts.isExpressionStatement(candidate) && ts.isBinaryExpression(candidate.expression) &&
+                    ts.isIdentifier(candidate.expression.left) &&
+                    candidate.expression.left.text === name &&
+                    candidate.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+                  return [candidate.expression.right];
+                }
+                if (ts.isIfStatement(candidate) && candidate.elseStatement) {
+                  const left = guaranteedOverwrites(candidate.thenStatement);
+                  const right = guaranteedOverwrites(candidate.elseStatement);
+                  return left && right ? [...left, ...right] : undefined;
+                }
+                return undefined;
+              };
               const useStart = use.getStart(source);
               const containsUse = (node: ts.Node): boolean => {
                 for (let parent: ts.Node | undefined = use; parent; parent = parent.parent) {
@@ -2027,6 +2113,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
               const scanWrites = (candidate: ts.Node, definite: boolean): void => {
                 if (candidate.getStart(source) >= useStart) return;
                 if (ts.isFunctionLike(candidate)) return;
+                if (ts.isIfStatement(candidate) && candidate.elseStatement &&
+                    !containsUse(candidate) && candidate.end <= useStart) {
+                  const values = guaranteedOverwrites(candidate);
+                  if (values) {
+                    writes.push({ position: candidate.getStart(source), values, definite });
+                    return;
+                  }
+                }
                 if (ts.isBlock(candidate) && candidate !== scope &&
                     candidate.statements.some(statement => ts.isVariableStatement(statement) &&
                       statement.declarationList.declarations.some(binding =>
@@ -2036,7 +2130,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
                   const operator = candidate.operatorToken.getText(source);
                   if (/=$/.test(operator)) {
                     writes.push({ position: candidate.getStart(source),
-                      value: operator === "=" ? candidate.right : undefined, definite });
+                      values: operator === "=" ? [candidate.right] : [], definite });
                     return;
                   }
                 }
@@ -2054,13 +2148,13 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
                 scanWrites(statement, true);
               }
               for (const write of writes.sort((a, b) => a.position - b.position)) {
-                const replacement: Origin[] = write.value
-                  ? [{ value: write.value, location: write.value }] : [];
+                const replacement: Origin[] = write.values.map(value =>
+                  ({ value, location: value }));
                 origins = write.definite ? replacement : origins.concat(replacement);
               }
             }
             return [...new Set(origins.flatMap(origin =>
-              resolveJsonExpression(origin.value, origin.location, new Set(seen), depth + 1)))];
+              resolveJsonExpression(origin.value, origin.location, new Set(seen), depth + 1, kind)))];
           }
         }
       }
@@ -2167,6 +2261,40 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       scan(node);
       return decision;
     };
+    const projectedIdentityDecision = (name: string, predicate: ts.Node): boolean => {
+      const isIdentity = (candidate: ts.Expression, depth = 0): boolean => {
+        if (depth > 8) return false;
+        const value = unwrap(candidate);
+        if (ts.isIdentifier(value)) return value.text === name;
+        return ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+          value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+          value.arguments.every(arg => isStaticText(unwrap(arg))) &&
+          isIdentity(value.expression.expression, depth + 1);
+      };
+      let decision = false;
+      const scan = (candidate: ts.Node): void => {
+        if (decision) return;
+        if (ts.isBinaryExpression(candidate) &&
+            [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+              ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+              .includes(candidate.operatorToken.kind) &&
+            (isIdentity(candidate.left) || isIdentity(candidate.right))) {
+          decision = true;
+        } else if (ts.isSwitchStatement(candidate) && isIdentity(candidate.expression)) {
+          decision = true;
+        } else if (ts.isCallExpression(candidate) &&
+            ts.isPropertyAccessExpression(candidate.expression) &&
+            /^(?:includes|startsWith|endsWith)$/.test(candidate.expression.name.text) &&
+            isIdentity(candidate.expression.expression)) {
+          decision = true;
+        } else {
+          ts.forEachChild(candidate, scan);
+        }
+      };
+      scan(predicate);
+      return decision;
+    };
     const visitJsonUse = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
@@ -2183,6 +2311,23 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           if (foodDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
         }
       }
+      // Projected JSON identities are food knowledge only when actually used
+      // in a productive decision. Pure display projections remain inert.
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+          /^(?:includes|indexOf|lastIndexOf|find|some|every|filter)$/.test(node.expression.name.text) &&
+          node.arguments[0] && foodJsonDecisionContext(node)) {
+        const targets = resolveJsonExpression(node.expression.expression, node,
+          new Set<ts.VariableDeclaration>(), 0, "identity");
+        if (targets.length) {
+          const method = node.expression.name.text;
+          const callback = /^(?:find|some|every|filter)$/.test(method)
+            ? resolveJsonCallback(node.arguments[0], node) : undefined;
+          const identityDecision = /^(?:includes|indexOf|lastIndexOf)$/.test(method) ||
+            !!(callback && ts.isIdentifier(callback.parameters[0]?.name) && callback.body &&
+              projectedIdentityDecision(callback.parameters[0].name.text, callback.body));
+          if (identityDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
+        }
+      }
       // A loop deciding from a JSON row is equivalent to .find/.some. Without
       // this edge an anonymous name+calories catalog escapes gate 17/5.
       if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
@@ -2194,6 +2339,13 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           : isDestructuredJsonIdentityDecision(declaration.name, node.statement));
         if (targets.length && declaration && foodJsonDecisionContext(node) && identityUse) {
           for (const target of targets) {
+            jsonRecordsConsumedByFood.add(target);
+          }
+        }
+        if (declaration && ts.isIdentifier(declaration.name) && foodJsonDecisionContext(node) &&
+            projectedIdentityDecision(declaration.name.text, node.statement)) {
+          for (const target of resolveJsonExpression(iterated, node,
+            new Set<ts.VariableDeclaration>(), 0, "identity")) {
             jsonRecordsConsumedByFood.add(target);
           }
         }
