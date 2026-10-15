@@ -267,3 +267,16 @@ consumo alimentar de exercícios, apresentação, aliases mutáveis/sombreados,
 métodos computados dinâmicos e campos substituídos independentemente. A
 cobertura AST não certifica transformações dinâmicas arbitrárias e não substitui
 a auditoria independente no SHA final.
+
+
+**Remediação AUD1300-F24–F27 (Issue #1300):** a análise de catálogos JSON
+considera `import = require`, carregamento CommonJS direto e declaradores
+intermediários no mesmo contrato dos imports ESM. O `require` Node precisa
+ser comprovado no escopo da chamada: variáveis locais, parâmetros e
+sombreamento não tornam fixtures produtivas nem concedem procedência de
+`node:fs` a leitores falsos. Catálogos com registros aninhados (por exemplo
+`data.rows`) são rastreados por propriedades estáticas, colchetes literais e
+desestruturação; a propriedade selecionada deve existir e conter registros
+alimentares, enquanto logs, dados de exercício e projeções apenas visuais
+permanecem fora do bloqueio. Regressões executam `findFoodStaticCandidates`
+e `evaluateFoodArchitectureGate`, com positivos e negativos separados.

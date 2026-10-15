@@ -3294,4 +3294,81 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("AUD1300-F24 recognizes equivalent JSON CommonJS imports and direct consumers", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      'import rows = require("./data/records.json"); function selectFood(input: string) { return rows.find(row => row.name === input); }',
+      'function selectFood(input: string) { return require("./data/records.json").find((row: any) => row.name === input); }',
+      'const noop = 0, rows = require("./data/records.json"); function selectFood(input: string) { return rows.some(row => row.name === input); }',
+    ];
+    for (const body of cases) {
+      const findings = findFoodStaticCandidates([catalog, { path: "server/foodService.ts", content: body }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), body)
+        .toEqual(["17", "5"]);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, body).toBeGreaterThan(0);
+    }
+  });
+
+  it("AUD1300-F25 rejects shadowed require without activating runtime fixtures", () => {
+    const fixture = { path: "server/__fixtures__/foodCatalog.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const rows = require("./__fixtures__/foodCatalog.json"); function selectFood(input: string) { return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'function selectFood(input: string, require: any) { return require("./__fixtures__/foodCatalog.json").find((row: any) => row.name === input); }', expected: false },
+      { body: 'const require = (_source: string) => getOtherRows(); function selectFood(input: string) { return require("./__fixtures__/foodCatalog.json").find((row: any) => row.name === input); }', expected: false },
+      { body: 'function selectFood(input: string) { const { require } = getHelpers(); return require("./__fixtures__/foodCatalog.json").find((row: any) => row.name === input); }', expected: false },
+      { body: 'function selectFood(input: string) { const rows = getOtherRows(); return rows.find((row: any) => row.name === input); }', expected: false },
+    ];
+    for (const sample of cases) {
+      const findings = findFoodStaticCandidates([fixture,
+        { path: "server/foodService.ts", content: sample.body }]);
+      expect(findings.some(f => f.file === fixture.path), sample.body).toBe(sample.expected);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length > 0,
+        sample.body).toBe(sample.expected);
+    }
+  });
+
+  it("AUD1300-F26 resolves the real node:fs binding, not a similarly named require", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const fs = require("node:fs"); function selectFood(input: string) { const rows = JSON.parse(fs.readFileSync("./server/data/records.json", "utf8")); return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'function selectFood(input: string, require: any) { const fs = require("node:fs"); const rows = JSON.parse(fs.readFileSync("./server/data/records.json", "utf8")); return rows.find((row: any) => row.name === input); }', expected: false },
+      { body: 'const require = (_s: string) => ({ readFileSync: () => "[]" }); function selectFood(input: string) { const fs = require("node:fs"); const rows = JSON.parse(fs.readFileSync("./server/data/records.json", "utf8")); return rows.find((row: any) => row.name === input); }', expected: false },
+    ];
+    for (const sample of cases) {
+      const findings = findFoodStaticCandidates([catalog,
+        { path: "server/foodService.ts", content: sample.body }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length > 0,
+        sample.body).toBe(sample.expected);
+    }
+  });
+
+  it("AUD1300-F27 tracks nested JSON records through property paths and destructuring", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '{"data":{"rows":[{"name":"pão","calories":90},{"name":"arroz","calories":130}]},"logs":[{"name":"rendered"}]}' };
+    const cases = [
+      { body: 'import data from "./data/records.json"; function selectFood(input: string) { return data.data.rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import data from "./data/records.json"; function selectFood(input: string) { return data["data"]["rows"].some((row: any) => row.name === input); }', expected: true },
+      { body: 'import data from "./data/records.json"; const { data: { rows } } = data; function selectFood(input: string) { return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import data from "./data/records.json"; const { rows } = data.data; function selectFood(input: string) { return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'function selectFood(input: string) { return require("./data/records.json").data.rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import data from "./data/records.json"; function selectFood(input: string) { return data.logs.find((row: any) => row.name === input); }', expected: false },
+      { body: 'import data from "./data/records.json"; function selectFood(input: string) { return data.missing.find((row: any) => row.name === input); }', expected: false },
+      { body: 'import data from "./data/records.json"; function showFood() { return data.data.rows.map(row => row.name); }', expected: false },
+      { body: 'import data from "./data/records.json"; function selectActivity(input: string) { return data.data.rows.find((row: any) => row.name === input); }', expected: false, exercise: true },
+    ];
+    for (const sample of cases) {
+      const findings = findFoodStaticCandidates([catalog,
+        { path: sample.exercise ? "server/exerciseService.ts" : "server/foodService.ts", content: sample.body }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length > 0,
+        sample.body).toBe(sample.expected);
+    }
+  });
+
 });

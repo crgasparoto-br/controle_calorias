@@ -43,6 +43,36 @@ function unwrap(source: ts.Expression): ts.Expression {
   return source;
 }
 
+/** CommonJS loader is authoritative only when its lexical binding is Node's
+ * require, not a local parameter, function, import or variable. Reuse this
+ * proof for reachability and JSON/filesystem provenance alike. */
+function isNodeRequireCall(node: ts.CallExpression): boolean {
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== "require") return false;
+  const declaresRequire = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name) ? name.text === "require" :
+    name.elements.some(element => ts.isBindingElement(element) && declaresRequire(element.name));
+  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(param => declaresRequire(param.name))) return false;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        declaresRequire(scope.variableDeclaration.name)) return false;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (ts.isVariableStatement(statement) &&
+          statement.declarationList.declarations.some(decl => declaresRequire(decl.name))) return false;
+      if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+          statement.name?.text === "require") return false;
+      if (ts.isImportEqualsDeclaration(statement) && statement.name.text === "require") return false;
+      if (ts.isImportDeclaration(statement) && statement.importClause &&
+          (statement.importClause.name?.text === "require" ||
+            (statement.importClause.namedBindings &&
+              (ts.isNamespaceImport(statement.importClause.namedBindings)
+                ? statement.importClause.namedBindings.name.text === "require"
+                : statement.importClause.namedBindings.elements.some(el => el.name.text === "require"))))) return false;
+    }
+  }
+  return true;
+}
+
 function isLiteralCollection(expr: ts.Expression): boolean {
   const value = unwrap(expr);
   if (ts.isArrayLiteralExpression(value) || ts.isObjectLiteralExpression(value)) return true;
@@ -1233,6 +1263,9 @@ function findJsonFoodCatalog(
     // must come from a food/portion/catalog context, never a product name list.
     const foodNumericMap = entries.length > 0 &&
       entries.some(([key, entry]) => key.trim().length > 0 &&
+        // Nutrition fields belong to a record, not to a dictionary indexed
+        // by food identity. A sibling inert collection must not activate it.
+        !/^(?:calories|kcal|energyKcal|protein|carbs|fat|fiber|grams|portionGrams|portion_grams|servingGrams|serving_grams)$/i.test(key) &&
         isJsonNutritionValue(entry)) &&
       (indexedByFoodIdentity || (
         /(?:food|alimento).*(?:portion|porc|serving|gram|macro|nutri|catalog)|(?:portion|porc|serving|gram|macro|nutri|catalog).*(?:food|alimento)/i.test(context + " " + consumerEvidence) &&
@@ -1414,8 +1447,7 @@ function filesystemReadBindings(source: ts.SourceFile): {
   const collect = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && node.initializer) {
       const init = unwrap(node.initializer);
-      if (ts.isCallExpression(init) && ts.isIdentifier(init.expression) &&
-          init.expression.text === "require" && init.arguments[0] &&
+      if (ts.isCallExpression(init) && isNodeRequireCall(init) && init.arguments[0] &&
           ts.isStringLiteral(init.arguments[0]) &&
           (fsModule(init.arguments[0].text) || fsPromisesModule(init.arguments[0].text))) {
         collectBindings(node.name, fsPromisesModule(init.arguments[0].text));
@@ -1456,9 +1488,8 @@ function filesystemReadBindings(source: ts.SourceFile): {
     if (visited.has(value)) return undefined;
     const next = new Set(visited);
     next.add(value);
-    if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
-        value.expression.text === "require" && value.arguments.length === 1 &&
-        ts.isStringLiteral(value.arguments[0])) {
+    if (ts.isCallExpression(value) && isNodeRequireCall(value) &&
+        value.arguments.length === 1 && ts.isStringLiteral(value.arguments[0])) {
       return fsRole(value.arguments[0].text);
     }
     if (ts.isPropertyAccessExpression(value)) {
@@ -1541,8 +1572,8 @@ function filesystemExpressionName(expression: ts.Node): string {
   // intermediate namespace variable: require("node:fs").readFileSync(...).
   // Only a literal fs provider is trusted, never require(variable) or a
   // similarly named third-party module.
-  if (ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) &&
-      expression.expression.text === "require" && expression.arguments.length === 1 &&
+  if (ts.isCallExpression(expression) && isNodeRequireCall(expression) &&
+      expression.arguments.length === 1 &&
       ts.isStringLiteral(expression.arguments[0]) &&
       (expression.arguments[0].text === "fs" || expression.arguments[0].text === "node:fs")) {
     return "fs";
@@ -1567,8 +1598,8 @@ function isDirectFilesystemSyncReader(expression: ts.Node): boolean {
       (unwrap(expression.argumentExpression) as ts.StringLiteral).text : "";
   if (member !== "readFileSync") return false;
   const provider = expression.expression;
-  return ts.isCallExpression(provider) && ts.isIdentifier(provider.expression) &&
-    provider.expression.text === "require" && provider.arguments.length === 1 &&
+  return ts.isCallExpression(provider) && isNodeRequireCall(provider) &&
+    provider.arguments.length === 1 &&
     ts.isStringLiteral(provider.arguments[0]) &&
     (provider.arguments[0].text === "fs" || provider.arguments[0].text === "node:fs");
 }
@@ -1583,8 +1614,8 @@ function isDirectFilesystemAsyncReader(expression: ts.Node): boolean {
       (unwrap(expression.argumentExpression) as ts.StringLiteral).text : "";
   if (member !== "readFile") return false;
   const isRequireOf = (node: ts.Node, modules: string[]): boolean =>
-    ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
-    node.expression.text === "require" && node.arguments.length === 1 &&
+    ts.isCallExpression(node) && isNodeRequireCall(node) &&
+    node.arguments.length === 1 &&
     ts.isStringLiteral(node.arguments[0]) && modules.includes(node.arguments[0].text);
   const provider = expression.expression;
   return isRequireOf(provider, ["node:fs/promises", "fs/promises"]) ||
@@ -1981,7 +2012,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (ts.isCallExpression(node) && node.arguments.length > 0 &&
           ts.isStringLiteral(node.arguments[0]) &&
           (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-            (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+            (isNodeRequireCall(node)))) {
         addDependency(node.arguments[0].text, node.getText(source));
       }
       if (ts.isCallExpression(node) &&
@@ -2011,13 +2042,17 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
           !statement.importClause?.isTypeOnly && statement.importClause?.name) {
         registerJsonImport(statement.moduleSpecifier.text, statement.importClause.name.text);
+      } else if (ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly &&
+          ts.isExternalModuleReference(statement.moduleReference) &&
+          statement.moduleReference.expression &&
+          ts.isStringLiteral(statement.moduleReference.expression)) {
+        registerJsonImport(statement.moduleReference.expression.text, statement.name.text);
       } else if (ts.isVariableStatement(statement)) {
         // F22: every declarator can import a JSON catalog, not just declarations[0].
         for (const declaration of statement.declarationList.declarations) {
           if (ts.isIdentifier(declaration.name) && declaration.initializer &&
               ts.isCallExpression(declaration.initializer) &&
-              ts.isIdentifier(declaration.initializer.expression) &&
-              declaration.initializer.expression.text === "require" &&
+              isNodeRequireCall(declaration.initializer) &&
               declaration.initializer.arguments[0] &&
               ts.isStringLiteral(declaration.initializer.arguments[0])) {
             registerJsonImport(declaration.initializer.arguments[0].text, declaration.name.text);
@@ -2032,6 +2067,13 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const scanStaticJsonLoader = (node: ts.Node): void => {
       if (hasStaticJsonLoader) return;
       if (ts.isCallExpression(node)) {
+        if (isNodeRequireCall(node) && node.arguments.length === 1 &&
+            ts.isStringLiteral(node.arguments[0]) &&
+            resolveRuntimeDependencies(consumer.path, node.arguments[0].text, indexed)
+              .some(target => /\.json$/i.test(target))) {
+          hasStaticJsonLoader = true;
+          return;
+        }
         const file = parsedFilesystemJsonPath(node, filesystemBindings, node);
         if (file && resolveRuntimeDependencies(consumer.path, file, indexed)
           .some(target => /\.json$/i.test(target))) {
@@ -2045,6 +2087,54 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       ts.forEachChild(source, scanStaticJsonLoader);
       if (!hasStaticJsonLoader) continue;
     }
+    /** Prove that a member/destructuring path reaches actual JSON records.
+     * A name match alone never makes an inert sibling property productive. */
+    const jsonRecordPathExists = (filePath: string, keys: string[]): boolean => {
+      if (!keys.length) return true;
+      const file = indexed.get(filePath);
+      if (!file) return false;
+      let data: unknown;
+      try { data = JSON.parse(file.content); } catch { return false; }
+      for (const key of keys) {
+        if (!data || typeof data !== "object" || !(key in data)) return false;
+        data = (data as Record<string, unknown>)[key];
+      }
+      return Array.isArray(data) && data.some(row => {
+        if (!row || typeof row !== "object" || Array.isArray(row)) return false;
+        const keys = Object.keys(row);
+        // Generic JSON name-only rows (logs, status, accounts) must not be
+        // treated as food records merely because a food module reads them.
+        return keys.some(key => /^(?:foodName|foodId|food_id|food_name|productName|alimento|ingredient)$/i.test(key)) ||
+          keys.some(key => /^(?:calories|kcal|protein|carbs|fat|nutrition|nutrients|macros|portionGrams|gramsPerServing|processingLevel)$/i.test(key));
+      });
+    };
+    const jsonStaticAccess = (expr: ts.Expression): { root: ts.Expression; keys: string[] } | undefined => {
+      let root = unwrap(expr);
+      const keys: string[] = [];
+      while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root)) {
+        const key = ts.isPropertyAccessExpression(root) ? root.name.text :
+          root.argumentExpression && isStaticText(unwrap(root.argumentExpression))
+            ? (unwrap(root.argumentExpression) as ts.StringLiteral).text : undefined;
+        if (key === undefined) return undefined;
+        keys.unshift(key);
+        root = unwrap(root.expression);
+      }
+      return { root, keys };
+    };
+    const jsonBindingPath = (name: ts.BindingName, sought: string): string[] | undefined => {
+      if (ts.isIdentifier(name)) return name.text === sought ? [] : undefined;
+      if (!ts.isObjectBindingPattern(name)) return undefined;
+      for (const element of name.elements) {
+        if (element.dotDotDotToken) continue;
+        const keyNode = element.propertyName ?? element.name;
+        const key = ts.isIdentifier(keyNode) || ts.isStringLiteral(keyNode) ||
+          ts.isNoSubstitutionTemplateLiteral(keyNode) ? keyNode.text : undefined;
+        if (key === undefined) continue;
+        const nested = jsonBindingPath(element.name, sought);
+        if (nested) return [key, ...nested];
+      }
+      return undefined;
+    };
     // Preserve provenance for the identity field actually used by the consumer.
     // An unrelated label override must not hide an original name decision.
     const consumedRecordIdentityFields = (use: ts.Node): Set<string> => {
@@ -2369,43 +2459,18 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // its variable is not the first declarator of a statement. Binding
       // lookup must resolve this origin before inspecting map/filter chains.
       // A local require parameter/declaration never proves a Node JSON import.
-      if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
-          value.expression.text === "require" && value.arguments.length === 1 &&
-          ts.isStringLiteral(value.arguments[0])) {
-        let shadowed = false;
-        for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
-          if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
-              ts.isIdentifier(param.name) && param.name.text === "require")) {
-            shadowed = true;
-            break;
-          }
-          if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
-          for (const statement of scope.statements) {
-            if (ts.isVariableStatement(statement) &&
-                statement.declarationList.declarations.some(declaration =>
-                  ts.isIdentifier(declaration.name) && declaration.name.text === "require")) {
-              shadowed = true;
-              break;
-            }
-            if (ts.isFunctionDeclaration(statement) && statement.name?.text === "require") {
-              shadowed = true;
-              break;
-            }
-            if (ts.isImportDeclaration(statement) && statement.importClause &&
-                (statement.importClause.name?.text === "require" ||
-                  (statement.importClause.namedBindings &&
-                    (ts.isNamespaceImport(statement.importClause.namedBindings)
-                      ? statement.importClause.namedBindings.name.text === "require"
-                      : statement.importClause.namedBindings.elements.some(element =>
-                          element.name.text === "require"))))) {
-              shadowed = true;
-              break;
-            }
-          }
-          if (shadowed) break;
-        }
-        if (!shadowed) return resolveRuntimeDependencies(
-          consumer.path, value.arguments[0].text, indexed).filter(target => /\.json$/i.test(target));
+      if (ts.isCallExpression(value) && isNodeRequireCall(value) &&
+          value.arguments.length === 1 && ts.isStringLiteral(value.arguments[0])) {
+        return resolveRuntimeDependencies(consumer.path, value.arguments[0].text, indexed)
+          .filter(target => /\.json$/i.test(target));
+      }
+      // F27: a productive catalog may be nested under data.rows, including
+      // equivalent literal computed keys. Verify the complete JSON path.
+      if (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+        const access = jsonStaticAccess(value);
+        if (!access?.keys.length) return [];
+        return resolveJsonExpression(access.root, use, new Set(visited), depth + 1, kind, decisionUse)
+          .filter(target => jsonRecordPathExists(target, access.keys));
       }
       if (!ts.isCallExpression(value) ||
           (!ts.isPropertyAccessExpression(value.expression) &&
@@ -2483,7 +2548,18 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         for (const statement of scope.statements) {
           if (!ts.isVariableStatement(statement)) continue;
           for (const decl of statement.declarationList.declarations) {
-            if (!ts.isIdentifier(decl.name) || decl.name.text !== name) continue;
+            if (!ts.isIdentifier(decl.name)) {
+              const keys = jsonBindingPath(decl.name, name);
+              if (!keys?.length) continue;
+              if (!decl.initializer || seen.has(decl) ||
+                  decl.getStart(source) >= use.getStart(source)) return [];
+              const access = jsonStaticAccess(decl.initializer);
+              if (!access) return [];
+              const roots = resolveJsonExpression(access.root, decl, new Set(seen), depth + 1,
+                kind, decisionUse);
+              return roots.filter(target => jsonRecordPathExists(target, [...access.keys, ...keys]));
+            }
+            if (decl.name.text !== name) continue;
             if (!decl.initializer || seen.has(decl) ||
                 decl.getStart(source) >= use.getStart(source)) return [];
             seen.add(decl);
