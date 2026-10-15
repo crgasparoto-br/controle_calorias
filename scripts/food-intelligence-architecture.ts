@@ -1340,7 +1340,7 @@ function staticFilesystemPath(argument: ts.Expression): string | null {
  * provider would miss otherwise ordinary aliases such as `readFileSync as load`.
  */
 function filesystemReadBindings(source: ts.SourceFile): {
-  sync: Set<string>; any: Set<string>;
+  sync: Set<string>; any: Set<string>; isReader: (expression: ts.Expression) => boolean;
 } {
   // Never infer a real filesystem reader from a bare variable name.
   // `fs`/`readFileSync` can also name unrelated local helpers or third-party APIs.
@@ -1437,7 +1437,102 @@ function filesystemReadBindings(source: ts.SourceFile): {
     ts.forEachChild(node, collect);
   };
   collect(source);
-  return { sync, any };
+  // F12: filename-wide names are discovery hints, not proof of a filesystem
+  // provider. Resolve the lexical binding at the exact read call instead.
+  type Role = "namespace" | "promises" | "sync" | "async";
+  const fsRole = (specifier: string): Role | undefined =>
+    fsModule(specifier) ? "namespace" :
+      fsPromisesModule(specifier) ? "promises" : undefined;
+  const memberRole = (role: Role | undefined, member: string): Role | undefined => {
+    if (role === "namespace" && member === "promises") return "promises";
+    if (role === "namespace" && member === "readFileSync") return "sync";
+    if ((role === "namespace" || role === "promises") && member === "readFile") return "async";
+    return undefined;
+  };
+  const resolveRole = (candidate: ts.Expression, visited = new Set<ts.Node>(),
+    depth = 0): Role | undefined => {
+    if (depth > 12) return undefined;
+    const value = unwrap(candidate);
+    if (visited.has(value)) return undefined;
+    const next = new Set(visited);
+    next.add(value);
+    if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
+        value.expression.text === "require" && value.arguments.length === 1 &&
+        ts.isStringLiteral(value.arguments[0])) {
+      return fsRole(value.arguments[0].text);
+    }
+    if (ts.isPropertyAccessExpression(value)) {
+      return memberRole(resolveRole(value.expression, next, depth + 1), value.name.text);
+    }
+    if (ts.isElementAccessExpression(value) && value.argumentExpression &&
+        isStaticText(unwrap(value.argumentExpression))) {
+      return memberRole(resolveRole(value.expression, next, depth + 1),
+        (unwrap(value.argumentExpression) as ts.StringLiteral).text);
+    }
+    if (!ts.isIdentifier(value)) return undefined;
+    const name = value.text;
+    for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) &&
+          scope.parameters.some(param => ts.isIdentifier(param.name) &&
+            param.name.text === name)) return undefined;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === name) return undefined;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      // A mutable alias (or a declaration shadowing an import) is opaque.
+      for (const statement of scope.statements) {
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === name) return undefined;
+        if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations) {
+            const isConst = !!(statement.declarationList.flags & ts.NodeFlags.Const);
+            if (ts.isIdentifier(declaration.name) && declaration.name.text === name) {
+              return isConst && declaration.initializer
+                ? resolveRole(declaration.initializer, next, depth + 1) : undefined;
+            }
+            if (ts.isObjectBindingPattern(declaration.name)) {
+              for (const element of declaration.name.elements) {
+                if (!ts.isIdentifier(element.name) || element.name.text !== name) continue;
+                const property = element.propertyName ?? element.name;
+                const member = ts.isIdentifier(property) || ts.isStringLiteral(property)
+                  ? property.text : "";
+                return isConst && declaration.initializer
+                  ? memberRole(resolveRole(declaration.initializer, next, depth + 1), member)
+                  : undefined;
+              }
+            }
+          }
+        }
+      }
+      if (!ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) &&
+            !statement.importClause?.isTypeOnly) {
+          const role = fsRole(statement.moduleSpecifier.text);
+          if (!role) continue;
+          const clause = statement.importClause;
+          if (clause?.name?.text === name) return role;
+          if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings) &&
+              clause.namedBindings.name.text === name) return role;
+          if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+            for (const element of clause.namedBindings.elements) {
+              if (element.name.text !== name || element.isTypeOnly) continue;
+              return memberRole(role, element.propertyName?.text ?? element.name.text);
+            }
+          }
+        }
+        if (ts.isImportEqualsDeclaration(statement) && !statement.isTypeOnly &&
+            statement.name.text === name && ts.isExternalModuleReference(statement.moduleReference) &&
+            statement.moduleReference.expression &&
+            ts.isStringLiteral(statement.moduleReference.expression)) {
+          return fsRole(statement.moduleReference.expression.text);
+        }
+      }
+    }
+    return undefined;
+  };
+  return { sync, any, isReader: expression =>
+    ["sync", "async"].includes(resolveRole(expression) ?? "") };
 }
 
 function filesystemExpressionName(expression: ts.Node): string {
@@ -1526,9 +1621,7 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
     }
   }
   if (!ts.isCallExpression(read) ||
-      !(bindings.any.has(filesystemExpressionName(read.expression)) ||
-        isDirectFilesystemSyncReader(read.expression) ||
-        isDirectFilesystemAsyncReader(read.expression)) ||
+      !bindings.isReader(read.expression) ||
       !read.arguments[0]) return null;
   const file = staticFilesystemPath(read.arguments[0]);
   return file && /\.json$/i.test(file) ? file : null;
@@ -1564,9 +1657,7 @@ function isOpaqueFoodJsonLoad(node: ts.Node, source: ts.SourceFile,
     }
   }
   if (!ts.isCallExpression(read) || !read.arguments[0] ||
-      !(bindings.any.has(filesystemExpressionName(read.expression)) ||
-        isDirectFilesystemSyncReader(read.expression) ||
-        isDirectFilesystemAsyncReader(read.expression)) ||
+      !bindings.isReader(read.expression) ||
       staticFilesystemPath(read.arguments[0]) !== null) return false;
   const decision = enclosingDeclaration(node);
   const pathExpression = read.arguments[0].getText(source);
@@ -1894,9 +1985,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         addDependency(node.arguments[0].text, node.getText(source));
       }
       if (ts.isCallExpression(node) &&
-          (filesystemBindings.any.has(filesystemExpressionName(node.expression)) ||
-            isDirectFilesystemSyncReader(node.expression) ||
-            isDirectFilesystemAsyncReader(node.expression)) &&
+          filesystemBindings.isReader(node.expression) &&
           node.arguments[0]) {
         const staticPath = staticFilesystemPath(node.arguments[0]);
         if (staticPath) addDependency(staticPath, node.getText(source));
