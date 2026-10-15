@@ -2872,10 +2872,10 @@ describe("food intelligence architecture wave 1", () => {
       { body: "return rows.map(row => { const alias = row.name; const key = alias; return { name: key, calories: row.calories }; }).some(row => row.name === input);", expected: true },
       { body: "return rows.map(row => { const key = row['name']; return { name: key, calories: row.calories }; }).find(row => row.name === input);", expected: true },
       { body: "return rows.flatMap(row => { const key = row.name.trim(); return [{ name: key, calories: row.calories }]; }).find(row => row.name === input);", expected: true },
-      { body: "return rows.map(row => { const key = getOtherName(); return { name: key, calories: 10 }; }).find(row => row.name === input);", expected: false },
-      { body: "return rows.map(row => { const key = row.calories; return { name: key, calories: 10 }; }).find(row => row.name === input);", expected: false },
-      { body: "return rows.map(row => { let key = row.name; key = getOtherName(); return { name: key, calories: 10 }; }).find(row => row.name === input);", expected: false },
-      { body: "return rows.map(row => { const key = row.name; return { name: getOtherName(), calories: 10 }; }).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(row => { const key = getOtherName(); return { name: key, calories: row.calories }; }).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(row => { const key = row.calories; return { name: key, calories: row.calories }; }).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(row => { let key = row.name; key = getOtherName(); return { name: key, calories: row.calories }; }).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(row => { const key = row.name; return { name: getOtherName(), calories: row.calories }; }).find(row => row.name === input);", expected: false },
       { body: "return rows.map(row => { const key = row.name; return { name: key, calories: row.calories }; });", expected: false },
     ];
     for (const sample of cases) {
@@ -2890,6 +2890,21 @@ describe("food intelligence architecture wave 1", () => {
       if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
       else expect(errors, sample.body).toEqual([]);
     }
+    // A reconstructed record with unrelated identity must not be attributed to
+    // the imported JSON. This does NOT exempt independent nutritional hardcodes:
+    // a literal macro value is a separate violation of gate 17.
+    const hardcoded = { path: "server/foodService.ts", content:
+      'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+      'return rows.map(row => { const key = getOtherName(); return { name: key, calories: 10 }; })' +
+      '.find(row => row.name === input); }' };
+    const hardcodedFindings = findFoodStaticCandidates([catalog, hardcoded]);
+    expect(hardcodedFindings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId)))
+      .toEqual([]);
+    expect(hardcodedFindings.some(f => f.file === hardcoded.path &&
+      f.ruleId === "17" && f.symbol === "inline-food-knowledge")).toBe(true);
+    expect(evaluateFoodArchitectureGate(hardcodedFindings, [], [], today).errors)
+      .toEqual(expect.arrayContaining([expect.stringContaining("inline-food-knowledge")]));
+
     const nonFood = { path: "server/exerciseService.ts",
       content: 'import rows from "./data/records.json"; function selectActivity(input: string) { return rows.map(row => { const key = row.name; return { name: key, calories: row.calories }; }).find(row => row.name === input); }' };
     const findings = findFoodStaticCandidates([catalog, nonFood]);
