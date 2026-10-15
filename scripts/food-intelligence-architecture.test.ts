@@ -2621,7 +2621,9 @@ describe("food intelligence architecture wave 1", () => {
       content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
     const cases = [
       { body: "let visible = rows; { visible = loadOther(); } return visible.find(row => row.name === input);", expected: false },
-      { body: "let visible = rows; if (flag) { visible = loadOther(); } return visible.find(row => row.name === input);", expected: false },
+      { body: "let visible = rows; if (flag) { visible = loadOther(); } return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = loadOther(); if (flag) { visible = rows; } return visible.find(row => row.name === input);", expected: true },
+      { body: "let visible = rows; if (flag) { visible = loadOther(); } visible = loadOther(); return visible.find(row => row.name === input);", expected: false },
       { body: "let visible = rows; if (flag) { visible = loadOther(); return visible.find(row => row.name === input); } return null;", expected: false },
       { body: "let visible = rows; { visible = loadOther(); } visible = rows; return visible.find(row => row.name === input);", expected: true },
       { body: "let visible = loadOther(); { visible = rows; } return visible.find(row => row.name === input);", expected: true },
