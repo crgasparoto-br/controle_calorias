@@ -9,7 +9,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "5",
@@ -19,7 +21,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "17",
@@ -29,7 +33,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1305,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "5",
@@ -39,7 +45,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1305,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "18",
@@ -49,7 +57,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "17",
@@ -59,7 +69,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "18",
@@ -69,7 +81,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "11",
@@ -79,7 +93,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "11",
@@ -89,7 +105,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "17",
@@ -99,7 +117,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "17",
@@ -109,7 +129,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
     },
     {
       "ruleId": "5",
@@ -119,7 +141,9 @@
       "owner": "crgasparoto-br",
       "issue": 1300,
       "createdAt": "2026-10-13",
-      "expiresAt": "2027-01-11"
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
     }
   ]
 }
