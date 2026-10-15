@@ -3185,4 +3185,110 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([catalog, exercise]).filter(f => f.file === catalog.path)).toEqual([]);
   });
 
+
+
+  it("AUD1300-F20 follows named projection functions and aliases", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: "const project = (row: any) => ({ ...row }); return rows.map(project).find(row => row.name === input);", expected: true },
+      { body: "function project(row: any) { return { ...row }; } return rows.map(project).some(row => row.name === input);", expected: true },
+      { body: "const project = (row: any) => row.name; return rows.map(project).includes(input);", expected: true },
+      { body: "function project(row: any) { return row.name; } return rows.map(project).includes(input);", expected: true },
+      { body: "const project = (row: any) => row.name; const alias = project; return rows.map(alias).includes(input);", expected: true },
+      { body: "const project = (_row: any) => ({ name: getOtherName() }); return rows.map(project).find(row => row.name === input);", expected: false },
+      { body: "let project = (row: any) => ({ ...row }); return rows.map(project).find(row => row.name === input);", expected: false },
+      { body: "return rows.map(project).find(row => row.name === input);", expected: false, parameter: "project: (row: any) => any, " },
+      { body: "const project = (_row: any) => getOtherName(); return rows.map(project).includes(input);", expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(' +
+          (sample.parameter ?? "") + 'input: string) { ' + sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const matched = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(matched.map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function selectActivity(input: string) {' +
+        ' const project = (row: any) => ({ ...row }); return rows.map(project).find(row => row.name === input); }' };
+    expect(findFoodStaticCandidates([catalog, exercise]).filter(f => f.file === catalog.path)).toEqual([]);
+  });
+
+  it("AUD1300-F21 follows destructured fields actually read by a food decision", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","label":"Pão","calories":90},{"name":"arroz","label":"Arroz","calories":130}]' };
+    const cases = [
+      { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(({ label }) => label === input);", expected: true },
+      { body: "return rows.map(row => ({ ...row, name: getOtherName() })).some(({ label: key }) => key === input);", expected: true },
+      { body: "const predicate = ({ label: key }: any) => key.trim() === input; return rows.map(row => ({ ...row, name: getOtherName() })).find(predicate);", expected: true },
+      { body: "return rows.map(row => ({ ...row, label: getOtherLabel() })).find(({ label }) => label === input);", expected: false },
+      { body: "return rows.map(row => ({ ...row, name: getOtherName(), label: getOtherLabel() })).find(({ label }) => label === input);", expected: false },
+      { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(({ label }) => getOtherName() === input);", expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+          sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const matched = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(matched.map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F22 recognizes JSON require in every declaration position", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { file: "server/foodService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function selectFood(input: string) { return rows.find(row => row.name === input); }', expected: true },
+      { file: "server/foodService.ts", body: 'const noop = 0, other = 1, rows = require("./data/records.json"); function selectFood(input: string) { return rows.some(row => row.name === input); }', expected: true },
+      { file: "server/exerciseService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function selectActivity(input: string) { return rows.find(row => row.name === input); }', expected: false },
+      { file: "server/foodService.ts", body: 'const noop = 0, rows = require("./data/records.json"); function showMenu() { return rows.map(row => row.name); }', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: sample.file, content: sample.body };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const matched = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(matched.map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F23 handles literal computed methods without dynamic guessing", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { file: "server/foodService.ts", body: 'return rows["find"](row => row.name === input);', expected: true },
+      { file: "server/foodService.ts", body: 'return rows["some"](row => row.name === input);', expected: true },
+      { file: "server/foodService.ts", body: 'return rows["map"](row => row.name)["includes"](input);', expected: true },
+      { file: "server/foodService.ts", body: 'return rows["filter"](row => row.active)["find"](row => row.name === input);', expected: true },
+      { file: "server/foodService.ts", body: 'const method = getMethod(); return rows[method](row => row.name === input);', expected: false },
+      { file: "server/foodService.ts", body: 'return rows["map"](row => row.name);', expected: false },
+      { file: "server/exerciseService.ts", body: 'return rows["find"](row => row.name === input);', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: sample.file, content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+        sample.body + " }" };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      const matched = findings.filter(f => f.file === catalog.path && ["17", "5"].includes(f.ruleId));
+      expect(matched.map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors;
+      if (sample.expected) expect(errors.length, sample.body).toBeGreaterThan(0);
+      else expect(errors, sample.body).toEqual([]);
+    }
+  });
+
 });
