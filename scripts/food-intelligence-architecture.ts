@@ -1950,15 +1950,35 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       return fieldAccess.test(predicate) &&
         /===?|!==?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate);
     };
+    // A destructured callback or for-of binding has no ".name" token in its
+    // decision body, but the bound identity still originates from the JSON.
+    const isDestructuredJsonIdentityDecision = (name: ts.BindingName, predicate: string): boolean => {
+      if (!ts.isObjectBindingPattern(name)) return false;
+      return name.elements.some(element => {
+        if (!ts.isIdentifier(element.name)) return false;
+        const property = (element.propertyName ?? element.name).getText(source)
+          .replace(/^['"]|['"]$/g, "");
+        if (!/^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(property)) return false;
+        const bound = element.name.text.replace(/[^A-Za-z0-9_]/g, "\\    const visitJsonUse = (node: ts.Node): void => {");
+        const comparison = new RegExp("\\b" + bound +
+          "\\s*(?:===?|!==?)|(?:===?|!==?)\\s*\\b" + bound + "\\b");
+        return comparison.test(predicate);
+      });
+    };
     const visitJsonUse = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
           /^(?:find|filter|some|map|reduce|forEach|every)$/.test(node.expression.name.text) &&
           ts.isIdentifier(node.expression.expression) && node.arguments[0]) {
         const targets = resolveJsonBinding(node.expression.expression.text, node);
         if (targets.length) {
-          const predicate = node.arguments[0].getText(source);
+          const predicateNode = node.arguments[0];
+          const predicate = predicateNode.getText(source);
+          const callback = ts.isArrowFunction(predicateNode) || ts.isFunctionExpression(predicateNode)
+            ? predicateNode : null;
+          const destructured = callback && callback.parameters[0] &&
+            isDestructuredJsonIdentityDecision(callback.parameters[0].name, predicate);
           const foodDecision = foodJsonDecisionContext(node) &&
-            isJsonIdentityDecision(predicate);
+            (isJsonIdentityDecision(predicate) || !!destructured);
           if (foodDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);
         }
       }
@@ -1971,9 +1991,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ts.isCallExpression(iterated) && ts.isPropertyAccessExpression(iterated.expression) &&
           /^(?:map|filter|flatMap|slice)$/.test(iterated.expression.name.text) &&
           ts.isIdentifier(iterated.expression.expression) ? iterated.expression.expression : null;
-        if (collection && declaration && ts.isIdentifier(declaration.name) &&
-            foodJsonDecisionContext(node) &&
-            isJsonIdentityDecision(node.statement.getText(source), declaration.name.text)) {
+        const predicate = node.statement.getText(source);
+        const identityUse = declaration && (ts.isIdentifier(declaration.name)
+          ? isJsonIdentityDecision(predicate, declaration.name.text)
+          : isDestructuredJsonIdentityDecision(declaration.name, predicate));
+        if (collection && declaration && foodJsonDecisionContext(node) && identityUse) {
           for (const target of resolveJsonBinding(collection.text, node)) {
             jsonRecordsConsumedByFood.add(target);
           }

@@ -2287,4 +2287,31 @@ describe("food intelligence architecture wave 1", () => {
       f.symbol.startsWith("consumed-lexical-table:"))).toEqual([]);
   });
 
+  it("AUD1300-JSON-03 governs destructured JSON identity decisions", () => {
+    const records = { path: "server/data/records.json",
+      content: '[{"label":"pão","calories":90},{"label":"arroz","calories":130}]' };
+    const cases = [
+      'return rows.find(({ label }) => label === input);',
+      'return rows.some(({ label: alias }) => input === alias);',
+      'for (const { label } of rows) { if (label === input) return true; } return false;',
+      'for (const { label: alias } of rows) { if (input === alias) return true; } return false;',
+    ];
+    for (const body of cases) {
+      const consumer = { path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function select(input: string) { ' + body + ' }' };
+      const findings = findFoodStaticCandidates([records, consumer]);
+      for (const gate of ["17", "5"]) {
+        expect(findings.some(f => f.file === records.path && f.ruleId === gate),
+          body + " " + gate).toBe(true);
+      }
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+    }
+    const shadow = { path: "server/foodService.ts",
+      content: 'import rows from "./data/records.json"; function select(rows: unknown[], input: string) { return rows.find(({ label }: any) => label === input); }' };
+    expect(findFoodStaticCandidates([records, shadow]).filter(f => f.file === records.path)).toEqual([]);
+    const exercise = { path: "server/exerciseService.ts",
+      content: 'import rows from "./data/records.json"; function select(input: string) { return rows.find(({ label }) => label === input); }' };
+    expect(findFoodStaticCandidates([records, exercise]).filter(f => f.file === records.path)).toEqual([]);
+  });
+
 });

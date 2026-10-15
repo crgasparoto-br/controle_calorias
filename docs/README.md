@@ -231,3 +231,8 @@ positivos e negativos no HEAD publicado; a auditoria final permanece independent
 quando `Object.entries`, `Object.keys` ou `Object.values` abastecem
 `.find`, `.some`, `.filter` ou `.every` com comparações decisórias no domínio
 alimentar. Casos administrativos e apresentação são controles negativos.
+
+**AUD1300-JSON-03:** bindings de identidade desestruturados em callbacks e
+iterações (`{ label }`, `{ label: alias }`) mantêm a proveniência de catálogo
+JSON produtivo, mesmo sem acesso `.label` explícito na comparação. Parâmetros
+sombreados e consumidores de exercícios não herdam conhecimento alimentar.
