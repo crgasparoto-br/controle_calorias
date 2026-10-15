@@ -2007,10 +2007,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             if (!decl.initializer || seen.has(decl) ||
                 decl.getStart(source) >= use.getStart(source)) return [];
             seen.add(decl);
-            let origin: ts.Expression = decl.initializer;
-            let originNode: ts.Node = decl;
-            // Reads after conditional or nested reassignments must not inherit
-            // an outdated JSON import from the original initializer.
+            // Track *possible* provenance across conditional branches. A source
+            // is dropped only by a definite write before the decision; an if
+            // without else still leaves the imported value on its other path.
+            type Origin = { value: ts.Expression; location: ts.Node };
+            let origins: Origin[] = [{ value: decl.initializer, location: decl }];
             const declarationList = decl.parent;
             if (ts.isVariableDeclarationList(declarationList) &&
                 !(declarationList.flags & ts.NodeFlags.Const)) {
@@ -2052,14 +2053,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
                     statement.getStart(source) >= useStart) continue;
                 scanWrites(statement, true);
               }
-              const latest = writes.sort((a, b) => a.position - b.position).at(-1);
-              if (latest) {
-                if (!latest.definite || !latest.value) return [];
-                origin = latest.value;
-                originNode = latest.value;
+              for (const write of writes.sort((a, b) => a.position - b.position)) {
+                const replacement: Origin[] = write.value
+                  ? [{ value: write.value, location: write.value }] : [];
+                origins = write.definite ? replacement : origins.concat(replacement);
               }
             }
-            return resolveJsonExpression(origin, originNode, seen, depth + 1);
+            return [...new Set(origins.flatMap(origin =>
+              resolveJsonExpression(origin.value, origin.location, new Set(seen), depth + 1)))];
           }
         }
       }
