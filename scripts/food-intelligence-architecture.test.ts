@@ -979,7 +979,7 @@ describe("food intelligence architecture wave 1", () => {
     const fixture = { path: "server/fixtures/foodPortions.json",
       content: '{"pao":50,"arroz":90}' };
     const readers = [
-      "import { readFileSync } from 'node:fs'; const rows = JSON.parse(readFileSync('./fixtures/foodPortions.json', 'utf8'));",
+      "import { readFileSync } from 'node:fs'; const rows = JSON.parse(readFileSync(new URL('./fixtures/foodPortions.json', import.meta.url), 'utf8'));",
       "import fs from 'node:fs'; const rows = JSON.parse(fs.readFileSync(new URL('./fixtures/foodPortions.json', import.meta.url), 'utf8'));",
       "import { readFileSync } from 'node:fs'; const rows = JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'foodPortions.json'), 'utf8'));",
     ];
@@ -1242,8 +1242,8 @@ describe("food intelligence architecture wave 1", () => {
     const weights = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
     const foodPath = "server/foodItemResolution.ts";
     const positives = [
-      "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import fs from 'node:fs'; function resolvePortion(foodName: string) { const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); const sizes = weights; return sizes[foodName]; }",
+      "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs from 'node:fs'; function resolvePortion(foodName: string) { const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); const sizes = weights; return sizes[foodName]; }",
       "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(path.join(__dirname, 'weights.json'), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
       "import fs from 'node:fs'; const weights = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'server', 'weights.json'), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
     ];
@@ -1265,13 +1265,13 @@ describe("food intelligence architecture wave 1", () => {
       .some(f => f.file === fixture.path && f.ruleId === "17" && f.symbol === "json-food-catalog")).toBe(true);
     const negatives = [
       { path: "server/account.ts", content:
-        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function role(user: string) { return weights[user]; }" },
+        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function role(user: string) { return weights[user]; }" },
       { path: "server/exerciseService.ts", content:
-        "import fs from 'node:fs'; const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function exercise(foodName: string) { return weights[foodName]; }" },
+        "import fs from 'node:fs'; const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function exercise(foodName: string) { return weights[foodName]; }" },
       { path: foodPath, content:
-        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function status(value: string) { return weights[value]; }" },
+        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function status(value: string) { return weights[value]; }" },
       { path: foodPath, content:
-        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); const unused = weights;" },
+        "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); const unused = weights;" },
       { path: foodPath, content:
         "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(getPath(), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" },
     ];
@@ -1286,12 +1286,12 @@ describe("food intelligence architecture wave 1", () => {
     const weights = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
     const foodPath = "server/foodItemResolution.ts";
     const positives = [
-      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const { readFileSync: load } = require('node:fs'); const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const fileSystem = require('node:fs'); const weights = JSON.parse(fileSystem.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import fs from 'node:fs'; const weights = JSON.parse(fs['readFileSync']('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import { readFileSync as load } from 'node:fs'; const readAlias = load; const weights = JSON.parse(readAlias('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const { readFileSync: load } = require('node:fs'); const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fileSystem = require('node:fs'); const weights = JSON.parse(fileSystem.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs from 'node:fs'; const weights = JSON.parse(fs['readFileSync'](new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import { readFileSync as load } from 'node:fs'; const readAlias = load; const weights = JSON.parse(readAlias(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
     ];
     for (const content of positives) {
       const findings = findFoodStaticCandidates([weights, { path: foodPath, content }]);
@@ -1307,17 +1307,17 @@ describe("food intelligence architecture wave 1", () => {
     const fixture = { path: "server/fixtures/weights.json", content: weights.content };
     expect(findFoodStaticCandidates([fixture])).toEqual([]);
     expect(findFoodStaticCandidates([fixture, { path: foodPath, content:
-      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./fixtures/weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" }])
+      "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(new URL('./fixtures/weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" }])
       .some(f => f.file === fixture.path && f.ruleId === "17" && f.symbol === "json-food-catalog")).toBe(true);
     const negatives = [
       { path: "server/account.ts", content:
-        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); function role(user: string) { return weights[user]; }" },
+        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function role(user: string) { return weights[user]; }" },
       { path: "server/exerciseService.ts", content:
-        "const fileSystem = require('fs'); const weights = JSON.parse(fileSystem.readFileSync('./weights.json', 'utf8')); function exercise(foodName: string) { return weights[foodName]; }" },
+        "const fileSystem = require('fs'); const weights = JSON.parse(fileSystem.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function exercise(foodName: string) { return weights[foodName]; }" },
       { path: foodPath, content:
-        "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync('./weights.json', 'utf8')); function status(value: string) { return weights[value]; }" },
+        "import * as io from 'fs'; const weights = JSON.parse(io.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function status(value: string) { return weights[value]; }" },
       { path: foodPath, content:
-        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load('./weights.json', 'utf8')); const unused = weights;" },
+        "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); const unused = weights;" },
       { path: foodPath, content:
         "import { readFileSync as load } from 'node:fs'; const weights = JSON.parse(load(getPath(), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }" },
       { path: foodPath, content:
@@ -1335,10 +1335,10 @@ describe("food intelligence architecture wave 1", () => {
     const source = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
     const consumerPath = "server/foodItemResolution.ts";
     const positives = [
-      "const weights = JSON.parse(require('node:fs').readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const load = require('node:fs').readFileSync; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const weights = JSON.parse(require('fs')['readFileSync']('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const load = require('fs')['readFileSync']; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('node:fs').readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const load = require('node:fs').readFileSync; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('fs')['readFileSync'](new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const load = require('fs')['readFileSync']; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
     ];
     for (const content of positives) {
       const findings = findFoodStaticCandidates([source, { path: consumerPath, content }]);
@@ -1352,10 +1352,10 @@ describe("food intelligence architecture wave 1", () => {
         content).toBeGreaterThan(0);
     }
     const negatives = [
-      "const weights = JSON.parse(require('not-fs').readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const weights = JSON.parse(require(moduleName).readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const weights = JSON.parse(require('node:fs/promises').readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const weights = JSON.parse(require('node:fs').readFileSync('./weights.json', 'utf8')); function role(user: string) { return weights[user]; }",
+      "const weights = JSON.parse(require('not-fs').readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require(moduleName).readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('node:fs/promises').readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('node:fs').readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function role(user: string) { return weights[user]; }",
     ];
     for (const content of negatives) {
       const findings = findFoodStaticCandidates([source, { path: consumerPath, content }]);
@@ -1368,10 +1368,10 @@ describe("food intelligence architecture wave 1", () => {
     const source = { path: "server/weights.json", content: '{"arroz":90,"pao":50}' };
     const path = "server/foodItemResolution.ts";
     const positive = [
-      "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import fs = require('node:fs'); const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const weights = JSON.parse(require('fs').readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const load = require('fs').readFileSync; const weights = JSON.parse(load('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import { readFileSync } from 'node:fs'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs = require('node:fs'); const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const weights = JSON.parse(require('fs').readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const load = require('fs').readFileSync; const weights = JSON.parse(load(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
     ];
     for (const content of positive) {
       const findings = findFoodStaticCandidates([source, { path, content }]);
@@ -1381,10 +1381,10 @@ describe("food intelligence architecture wave 1", () => {
         content).toBe(true);
     }
     const negative = [
-      "const readFileSync = (_path: string) => '{\"arroz\":90}'; const weights = JSON.parse(readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const fs = { readFileSync: (_path: string) => '{\"arroz\":90}' }; const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "import fs from 'fake-fs'; const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
-      "const fs = require('my-fs-wrapper'); const weights = JSON.parse(fs.readFileSync('./weights.json', 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const readFileSync = (_path: string) => '{\"arroz\":90}'; const weights = JSON.parse(readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fs = { readFileSync: (_path: string) => '{\"arroz\":90}' }; const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "import fs from 'fake-fs'; const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
+      "const fs = require('my-fs-wrapper'); const weights = JSON.parse(fs.readFileSync(new URL('./weights.json', import.meta.url), 'utf8')); function resolvePortion(foodName: string) { return weights[foodName]; }",
     ];
     for (const content of negative) {
       const findings = findFoodStaticCandidates([source, { path, content }]);
@@ -1474,12 +1474,12 @@ describe("food intelligence architecture wave 1", () => {
   it("A1300-43 includes statically loaded async food JSON from fs/promises", () => {
     const json = { path: "server/weights.json", content: '{"pao":50,"arroz":90}' };
     const examples = [
-      "import { readFile } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "import * as io from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "import fs from 'node:fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await fs.promises.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "const io = require('node:fs/promises'); async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "async function resolvePortion(foodName: string) { const weights = JSON.parse(await require('node:fs/promises').readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "import { readFile as load } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const raw = await load('./weights.json', 'utf8'); const weights = JSON.parse(raw); return weights[foodName]; }",
+      "import { readFile } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "import * as io from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "import fs from 'node:fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await fs.promises.readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "const io = require('node:fs/promises'); async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "async function resolvePortion(foodName: string) { const weights = JSON.parse(await require('node:fs/promises').readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "import { readFile as load } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const raw = await load(new URL('./weights.json', import.meta.url), 'utf8'); const weights = JSON.parse(raw); return weights[foodName]; }",
     ];
     for (const content of examples) {
       const findings = findFoodStaticCandidates([json, { path: "server/foodItemResolution.ts", content }]);
@@ -1490,8 +1490,8 @@ describe("food intelligence architecture wave 1", () => {
       expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
     }
     for (const content of [
-      "import io from 'not-fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile('./weights.json', 'utf8')); return weights[foodName]; }",
-      "import { readFile } from 'node:fs/promises'; async function getRole(user: string) { const weights = JSON.parse(await readFile('./weights.json', 'utf8')); return weights[user]; }",
+      "import io from 'not-fs'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await io.readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[foodName]; }",
+      "import { readFile } from 'node:fs/promises'; async function getRole(user: string) { const weights = JSON.parse(await readFile(new URL('./weights.json', import.meta.url), 'utf8')); return weights[user]; }",
       "import { readFile } from 'node:fs/promises'; async function resolvePortion(foodName: string) { const weights = JSON.parse(await readFile(getPath(), 'utf8')); return weights[foodName]; }",
     ]) {
       const findings = findFoodStaticCandidates([json, { path: "server/foodItemResolution.ts", content }]);
@@ -2133,6 +2133,59 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessment.legacyUncovered).toHaveLength(findings.length);
     expect(assessment.warnings.some(message =>
       message.includes("requires triage"))).toBe(true);
+  });
+
+  it("AUD1300-FS-PATH resolves Node fs CWD paths separately from module imports", () => {
+    const rootCatalog = { path: "data/weights.json", content: '{"pao":50,"arroz":90}' };
+    const moduleCatalog = { path: "server/data/weights.json", content: '{"pao":120,"arroz":180}' };
+    const fromCwd = { path: "server/foodPortionService.ts", content:
+      'import { readFileSync } from "node:fs"; const weights = JSON.parse(readFileSync("./data/weights.json", "utf8")); function resolveFoodPortion(foodName: string) { return weights[foodName]; }' };
+    const findings = findFoodStaticCandidates([rootCatalog, moduleCatalog, fromCwd]);
+    for (const id of ["17", "5"]) {
+      expect(findings.some(f => f.file === rootCatalog.path && f.ruleId === id), id).toBe(true);
+      expect(findings.some(f => f.file === moduleCatalog.path && f.ruleId === id), id).toBe(false);
+    }
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length).toBeGreaterThan(0);
+
+    for (const specifier of [
+      'path.join(__dirname, "data", "weights.json")',
+      'new URL("./data/weights.json", import.meta.url)',
+    ]) {
+      const moduleReader = { ...fromCwd, content:
+        'import { readFileSync } from "node:fs"; const weights = JSON.parse(readFileSync(' +
+        specifier + ', "utf8")); function resolveFoodPortion(foodName: string) { return weights[foodName]; }' };
+      const scoped = findFoodStaticCandidates([rootCatalog, moduleCatalog, moduleReader]);
+      expect(scoped.some(f => f.file === moduleCatalog.path && f.ruleId === "17"), specifier).toBe(true);
+      expect(scoped.some(f => f.file === rootCatalog.path && f.ruleId === "17"), specifier).toBe(false);
+    }
+    const unrelated = { path: "server/accounts.ts", content:
+      'import { readFileSync } from "node:fs"; const weights = JSON.parse(readFileSync("./data/weights.json", "utf8")); function checkStatus(status: string) { return weights[status]; }' };
+    const negative = findFoodStaticCandidates([rootCatalog, unrelated]);
+    expect(negative.filter(f => f.file === rootCatalog.path)).toEqual([]);
+  });
+
+  it("AUD1300-REGEX-ALIAS follows immutable regex chains without shadowing or mutable false positives", () => {
+    const candidates = [
+      'const original = /pão|arroz/i; const regra = original; function resolveFood(foodName: string) { return regra.test(foodName); }',
+      'const original = new RegExp("pão|arroz", "i"); const one = original; const two = one; function resolveFood(foodName: string) { return foodName.match(two); }',
+      'function decideMateriality(attribute: string) { const original = /integral|light/; const copy = original; return copy.exec(attribute); }',
+    ];
+    for (const content of candidates) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodResolver.ts", content }]);
+      expect(findings.some(f => ["17", "18"].includes(f.ruleId) && f.symbol.includes("lexical-regex")), content).toBe(true);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors.length, content).toBeGreaterThan(0);
+    }
+    const negatives = [
+      'let original = /pão|arroz/i; const regra = original; function resolveFood(foodName: string) { return regra.test(foodName); }',
+      'const original = /pão|arroz/i; function resolveFood(foodName: string, original: RegExp) { return original.test(foodName); }',
+      'const original = /pão|arroz/i; function resolveFood(foodName: string) { const original = createRegex(); return original.test(foodName); }',
+      'const original = /pão|arroz/i; function resolveFood(foodName: string) { const regra = createRegex(); return regra.test(foodName); }',
+      'const original = /active|pending/i; const regra = original; function checkStatus(status: string) { return regra.test(status); }',
+    ];
+    for (const content of negatives) {
+      const findings = findFoodStaticCandidates([{ path: "server/foodResolver.ts", content }]);
+      expect(findings.filter(f => f.symbol.includes("lexical-regex")), content).toEqual([]);
+    }
   });
 
 });
