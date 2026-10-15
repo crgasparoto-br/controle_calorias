@@ -2317,26 +2317,26 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     type JsonTraceKind = "records" | "identity";
     const resolveJsonExpression = (
       expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
-      depth = 0, kind: JsonTraceKind = "records",
+      depth = 0, kind: JsonTraceKind = "records", decisionUse: ts.Node = use,
     ): string[] => {
       if (depth > 12) return [];
       const value = unwrap(expression);
-      if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind);
+      if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind, decisionUse);
       // AUD1300-20261015-F08: a catalog is governed whenever any reachable
       // expression branch can supply its records or projected identity.
       // A conditional is a possible-origin union, not a definite overwrite.
       if (ts.isConditionalExpression(value)) {
         return [...new Set([
-          ...resolveJsonExpression(value.whenTrue, value.whenTrue, new Set(visited), depth + 1, kind),
-          ...resolveJsonExpression(value.whenFalse, value.whenFalse, new Set(visited), depth + 1, kind),
+          ...resolveJsonExpression(value.whenTrue, value.whenTrue, new Set(visited), depth + 1, kind, decisionUse),
+          ...resolveJsonExpression(value.whenFalse, value.whenFalse, new Set(visited), depth + 1, kind, decisionUse),
         ])];
       }
       if (ts.isBinaryExpression(value) &&
           [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.AmpersandAmpersandToken,
             ts.SyntaxKind.QuestionQuestionToken].includes(value.operatorToken.kind)) {
         return [...new Set([
-          ...resolveJsonExpression(value.left, value.left, new Set(visited), depth + 1, kind),
-          ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind),
+          ...resolveJsonExpression(value.left, value.left, new Set(visited), depth + 1, kind, decisionUse),
+          ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind, decisionUse),
         ])];
       }
       // A direct filesystem JSON parse can flow through aliases, projections
@@ -2389,27 +2389,27 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           return false;
         };
         if (!shadowsObject()) return resolveJsonExpression(
-          value.arguments[0], use, visited, depth + 1, "records");
+          value.arguments[0], use, visited, depth + 1, "records", decisionUse);
       }
       if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
       if (kind === "identity") {
         if (method === "map" || method === "flatMap") {
           if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true)) {
-            return resolveJsonExpression(receiver, use, visited, depth + 1, "records");
+            return resolveJsonExpression(receiver, use, visited, depth + 1, "records", decisionUse);
           }
           if (!callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", false)) return [];
         }
-        return resolveJsonExpression(receiver, use, visited, depth + 1, "identity");
+        return resolveJsonExpression(receiver, use, visited, depth + 1, "identity", decisionUse);
       }
       if ((method === "map" || method === "flatMap") &&
-          !preservesJsonIdentity(value.arguments[0], method === "flatMap", use)) return [];
-      return resolveJsonExpression(receiver, use, visited, depth + 1, "records");
+          !preservesJsonIdentity(value.arguments[0], method === "flatMap", decisionUse)) return [];
+      return resolveJsonExpression(receiver, use, visited, depth + 1, "records", decisionUse);
     };
     // AUD1300-F02: trace immutable aliases and transforms before the decision,
     // including .map()/.reduce(); module and local bindings must not be confused.
     const resolveJsonBinding = (
       name: string, use: ts.Node, seen = new Set<ts.VariableDeclaration>(), depth = 0,
-      kind: JsonTraceKind = "records",
+      kind: JsonTraceKind = "records", decisionUse: ts.Node = use,
     ): string[] => {
       if (depth > 12) return [];
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -2521,7 +2521,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
               }
             }
             return [...new Set(origins.flatMap(origin =>
-              resolveJsonExpression(origin.value, origin.location, new Set(seen), depth + 1, kind)))];
+              resolveJsonExpression(origin.value, origin.location, new Set(seen), depth + 1, kind, decisionUse)))];
           }
         }
       }

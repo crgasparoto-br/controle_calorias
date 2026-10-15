@@ -3044,6 +3044,7 @@ describe("food intelligence architecture wave 1", () => {
       content: '[{"name":"pão","label":"Pão","calories":90},{"name":"arroz","label":"Arroz","calories":130}]' };
     const cases = [
       { body: "return rows.map(row => ({ ...row, label: getOtherLabel() })).find(row => row.name === input);", expected: true },
+      { body: "const visible = rows.map(row => ({ ...row, label: getOtherLabel() })); return visible.find(row => row.name === input);", expected: true },
       { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(row => row.label === input);", expected: true },
       { body: "return rows.map(row => ({ ...row, label: getOtherLabel(), name: row.name })).find(row => row.name === input);", expected: true },
       { body: "return rows.map(row => ({ ...row, name: getOtherName() })).find(row => row.name === input);", expected: false },
@@ -3071,6 +3072,7 @@ describe("food intelligence architecture wave 1", () => {
       { body: 'const key = "label"; return rows.map(row => ({ ...row, [key]: getOtherLabel() })).find(row => row.name === input);', expected: true },
       { body: 'const key = "name"; const alias = key; return rows.map(row => ({ ...row, [alias]: row.name })).find(row => row.name === input);', expected: true },
       { body: 'const key = "name"; return rows.map(row => ({ ...row, [key]: getOtherName() })).find(row => row.name === input);', expected: false },
+      { body: 'const key = "name"; const visible = rows.map(row => ({ ...row, [key]: getOtherName() })); return visible.find(row => row.name === input);', expected: false },
       { body: 'const key = "name"; const alias = key; return rows.map(row => ({ ...row, [alias]: getOtherName() })).find(row => row.name === input);', expected: false },
       { body: 'let key = "name"; return rows.map(row => ({ ...row, [key]: getOtherName() })).find(row => row.name === input);', expected: false },
       { body: 'return rows.map(row => { const key = "name"; return { ...row, [key]: getOtherName() }; }).find(row => row.name === input);', expected: false },
