@@ -2001,8 +2001,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // account/status/activity decisions are exempt, not entire directories.
       if (foodDomain.test(declaration)) return true;
       if (unrelatedDecision.test(declaration)) return false;
+      // Directory names alone are not exclusions: an account/foodService.ts
+      // may still make a food decision with an anonymous/generic handler.
+      const filename = consumer.path.split("/").pop() ?? "";
       return foodDomain.test(consumer.path) &&
-        !unrelatedDecision.test(consumer.path);
+        !unrelatedDecision.test(filename);
     };
     const isJsonIdentityDecision = (predicate: string, receiver?: string): boolean => {
       const identity = "(?:name|label|slug|nome|foodName|foodId|alimento|productName)";

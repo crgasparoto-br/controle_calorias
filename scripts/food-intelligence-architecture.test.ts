@@ -2519,6 +2519,9 @@ describe("food intelligence architecture wave 1", () => {
       { path: "server/account/foodService.ts", content:
         'import rows from "./data/records.json"; function selectFood(input: string) {' +
         ' return rows.find(row => row.name === input); }' },
+      { path: "server/account/foodService.ts", content:
+        'import rows from "./data/records.json"; function resolve(input: string) {' +
+        ' return rows.find(row => row.name === input); }' },
       { path: "server/account/status.ts", content:
         'import rows from "./data/records.json"; function checkStatus(status: string) {' +
         ' return rows.find(row => row.name === status); }' },
@@ -2530,7 +2533,7 @@ describe("food intelligence architecture wave 1", () => {
       const found = findFoodStaticCandidates([catalog, consumer]);
       const jsonFindings = found.filter(f => f.file === catalog.path &&
         (f.ruleId === "17" || f.ruleId === "5"));
-      if (index === 0) {
+      if (index < 2) {
         expect(jsonFindings.map(f => f.ruleId).sort()).toEqual(["17", "5"]);
         expect(evaluateFoodArchitectureGate(found, [], [], today).errors.length).toBeGreaterThan(0);
       } else {
