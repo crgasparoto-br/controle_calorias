@@ -49,3 +49,25 @@ Não registrar `confirmed_non_violation` por mera ausência de finding adicional
 ## Situação inicial (16/10/2026)
 
 HEAD `9a472bd286b2317aa1462f549d01d56202bf27ba`: artefato `food-architecture-inventory-9a472bd286b2317aa1462f549d01d56202bf27ba` (ID 12063105854; digest publicado `sha256:7b05f9016c9abfb82bf31f0e47d81d581f72f77f8ec45e47308f09eba964ece6`). O CI reportou 2.551 findings, 12 dívidas e 2.539 candidatos de triagem. **Não existe neste documento uma decisão independente por fingerprint.** A certificação permanece pendente.
+
+
+## Revisão comportamental por fonte — rodada 2026-10-16 (pré-auditoria)
+
+**Base de evidência:** inventário de `9a472bd286b2317aa1462f549d01d56202bf27ba`, artifact `12063105854`. Checkout de código recuperado do bundle `12063515538`. O código de produção não foi alterado entre esse SHA e a rodada inicial de triagem; mudanças posteriores nesta PR alteram somente os próprios verificadores, regressões e documentação. Revalidar as contagens no HEAD final.
+
+**Integridade independente das âncoras:** 2.539 de 2.539 hashes SHA-256 de linhas recalculados sobre os arquivos desse checkout, todos idênticos aos valores declarados em `triage.pending[].evidence.lineSha256`; nenhuma âncora ausente. Isto prova *procedência de fonte*, não certificação de comportamento.
+
+| Referência no código do SHA auditado | Resultado da leitura/execução isolada | Encaminhamento |
+| --- | --- | --- |
+| `client/src/components/admin/BillingGovernanceAdminPanel.tsx:27,104` | `SIGNAL_ALIASES` e `normalizeSignals` traduzem códigos de governança de uso/billing, não nomes de alimentos. Achados 17 são candidatos sem decisão alimentar demonstrada. | Falso positivo semântico na triagem; não isentar aliases alimentares em outros módulos. |
+| `server/modules/foodIntelligenceV2/contracts.ts:341` | `FOOD_CONTRACT_LIMITS` define limites de tamanho de schemas (`rawText`, `identifier`, `collection` etc.), não calorias por alimento. Histórico: três achados 17/5 no mesmo objeto. | Detector refinado para excluir somente limites estruturais sem indexação por identidade alimentar; regressões comprovam bloqueio para novos mapas nutricionais. |
+| `server/modules/whatsapp/testFixtures/countableFoodRegistrationParityCases.ts:14-67` | Oito achados de fixtures sintéticas importadas apenas por três arquivos `*.test.ts`, sem import produtivo identificado no grafo de fontes do checkout. | Corrigida exclusão de `testFixtures` isoladas; imports de fixtures por produção continuam bloqueantes, testados em controles positivos/negativos. |
+| `server/modules/onboarding/service.ts:64-65` | `resolveNutritionCalculationSex` compara `female`/`male` como sexo biológico, não materialidade de alimento. Dois fingerprints do gate 18 são candidatos indevidos. | Revisão de escopo por semântica; nenhum bypass de materialidade foi publicado. |
+| `client/src/features/meals/mealViewModels.ts:163-168` | `totals` inicializa o acumulador do relatório com zero para quatro métricas; não fornece tabela nutricional para alimento específico. | Candidato de apresentação/agrupamento, sem violação de conhecimento alimentar comprovada. |
+| `server/modules/whatsapp/foodClarificationContract.ts:77,110,126` | O mapa `SAFE_TYPO_REPLACEMENTS` é aplicado por `normalizeCandidate`; execução isolada do código retornou `iogurte banana` para `iorgute bananna`. | Léxico alimentar legado em canal comprovado por fonte e execução isolada. Migrar pela Issue #1304 (LCL governada); não remover dados do runtime na onda 1. |
+| `server/modules/whatsapp/intent/mealItemHelpers.ts:27,145-171` | Na ausência de referência de catálogo, `replaceMealItemFood` passa pelo mapa fixo 150/6/15/5 por 100 g. Execução isolada de ramo com 185 g retornou 277,5 kcal, P 11,1 g, C 27,8 g e G 9,3 g; `source='heuristic'`. Há chamadas produtivas em seleção e substituição de refeições pelo WhatsApp. | Fallback legado explícito, não prova de fallback silencioso. Migração do resolvedor e entrypoints: Issues #1305 e #1308; fora do escopo de remoção total de legado desta issue. |
+| `scripts/food-architecture-detector-helpers.ts:117-151` | 490 candidatos do gate 10 são **alcançabilidade transitiva de imports**, agrupados em quatro resolvers legados. O grafo não demonstra, sozinho, que uma chamada decisória usou esse resolver. | Manter pendente até prova de chamada e comparação com owner canônico; não converter automaticamente em 490 violações. |
+
+### Limite da rodada
+
+Não foi emitida disposição conclusiva para todos os 2.539 fingerprints. Os itens listados são revisões específicas, baseadas em fluxo do código, relações de import ou funções isoladas com dependências controladas; **não** equivalem a execução end-to-end em produção. Os candidatos remanescentes continuam `pending-evidence`, e qualquer aprovação independente requer o inventário recompilado no HEAD definitivo, testes e revisão externa à implementação.
