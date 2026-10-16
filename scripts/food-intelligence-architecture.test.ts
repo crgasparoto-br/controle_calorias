@@ -3518,4 +3518,28 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("AUD1300-opaque: administrative module naming cannot exempt food JSON reads", () => {
+    const examples = [
+      { path: "server/account/foodCatalog.ts", code: 'import fs from "node:fs"; function loadFoodCatalog(foodPath: string) { return JSON.parse(fs.readFileSync(foodPath, "utf8")); }' },
+      { path: "server/admin/foodCatalog.ts", code: 'async function loadFoodCatalog(foodPath: string) { return import(foodPath); }' },
+    ];
+    for (const example of examples) {
+      const detected = findFoodStaticCandidates([{ path: example.path, content: example.code }]);
+      expect(detected.some(item => item.file === example.path), example.path).toBe(true);
+      const evaluation = evaluateFoodArchitectureGate(detected, [], [], today);
+      expect(evaluation.errors.length, example.path).toBeGreaterThan(0);
+    }
+  });
+
+  it("AUD1300-opaque: nonfood administrative runtime loads remain outside food gates", () => {
+    const examples = [
+      { path: "server/account/settings.ts", content: 'import fs from "node:fs"; function getAccountSettings(filePath: string) { return JSON.parse(fs.readFileSync(filePath, "utf8")); }' },
+      { path: "server/admin/status.ts", content: 'async function getAdminStatus(filePath: string) { return import(filePath); }' },
+    ];
+    for (const example of examples) {
+      const detected = findFoodStaticCandidates([example]);
+      expect(detected.some(item => item.file === example.path && (item.ruleId === "17" || item.ruleId === "5")), example.path).toBe(false);
+    }
+  });
+
 });
