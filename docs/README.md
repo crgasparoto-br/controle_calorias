@@ -280,3 +280,17 @@ desestruturação; a propriedade selecionada deve existir e conter registros
 alimentares, enquanto logs, dados de exercício e projeções apenas visuais
 permanecem fora do bloqueio. Regressões executam `findFoodStaticCandidates`
 e `evaluateFoodArchitectureGate`, com positivos e negativos separados.
+
+**Remediação AUD1300-F28/F29 (Issue #1300):** o detector AST rastreia
+identidades de registros alimentares extraídos por desestruturação imutável de
+arrays, inclusive aliases locais, identidades desestruturadas e normalizações
+transparentes usadas em comparações ou decisões `switch`. A extração destinada
+apenas à apresentação, a fonte não alimentar e o parâmetro homônimo não
+autorizam imputar consumo produtivo ao catálogo. Na leitura JSON via `node:fs`,
+reatribuições incondicionais do conteúdo bruto antes de `JSON.parse` passam
+a substituir a fonte anterior na prova de proveniência; reatribuições
+condicionais preservam a origem possível, enquanto alterações depois do parse
+não alteram a origem já consumida. As regressões cobrem ambos os APIs
+`findFoodStaticCandidates` e `evaluateFoodArchitectureGate` com casos
+positivos e negativos. Esta verificação estática não equivale a certificação
+comportamental de owners nem autoriza exceções novas no livro de dívida.
