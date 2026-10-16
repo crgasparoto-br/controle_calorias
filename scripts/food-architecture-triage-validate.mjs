@@ -3,7 +3,6 @@
  * This tool never certifies runtime behavior by itself.
  */
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 
 const [inventoryFile, decisionsFile] = process.argv.slice(2);
 if (!inventoryFile || !decisionsFile) {
