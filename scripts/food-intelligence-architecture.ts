@@ -1795,8 +1795,8 @@ function isOpaqueFoodJsonLoad(node: ts.Node, source: ts.SourceFile,
       staticFilesystemPath(read.arguments[0]) !== null) return false;
   const decision = enclosingDeclaration(node);
   const pathExpression = read.arguments[0].getText(source);
-  if (/account|status|settings|featureflag|permission|admin|exercise|workout|activity/i.test(
-    decision + " " + pathExpression)) return false;
+  // Food evidence takes precedence over administrative naming: a catalog read
+  // inside an account module is still a productive food read.
   return /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i.test(
     source.fileName + " " + decision + " " + pathExpression);
 }
@@ -1806,10 +1806,9 @@ function isOpaqueFoodDynamicImport(node: ts.Node, source: ts.SourceFile): boolea
       !node.arguments[0] || isStaticText(unwrap(node.arguments[0]))) return false;
   const decision = enclosingDeclaration(node);
   const dynamicPath = node.arguments[0].getText(source);
+  // Administrative paths must not mask explicit food-domain evidence.
   return /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i.test(
-    source.fileName + " " + decision + " " + dynamicPath) &&
-    !/account|status|settings|featureflag|permission|admin|exercise|workout|activity/i.test(
-      decision + " " + dynamicPath);
+    source.fileName + " " + decision + " " + dynamicPath);
 }
 
 /** Follow named exported numeric dictionaries into a food-domain consumer. */
