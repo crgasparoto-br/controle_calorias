@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findFoodStaticCandidates } from "./food-intelligence-architecture";
-import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
+import { findFoodStaticCandidates } from "../../../scripts/food-intelligence-architecture";
+import { evaluateFoodArchitectureGate } from "../../../scripts/food-architecture-enforcement";
 
 /** Source-behavior controls: structural bounds must not be confused with
  * knowledge indexed by actual food identities (ADR §25.2, Issue #1300).
