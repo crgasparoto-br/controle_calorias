@@ -1795,10 +1795,14 @@ function isOpaqueFoodJsonLoad(node: ts.Node, source: ts.SourceFile,
       staticFilesystemPath(read.arguments[0]) !== null) return false;
   const decision = enclosingDeclaration(node);
   const pathExpression = read.arguments[0].getText(source);
-  // Food evidence takes precedence over administrative naming: a catalog read
-  // inside an account module is still a productive food read.
-  return /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i.test(
-    source.fileName + " " + decision + " " + pathExpression);
+  // Explicit food evidence in the consuming operation wins over an
+  // administrative directory name. A generic settings/config read inside a
+  // food-named module is not, by itself, a nutrition catalog load.
+  const foodEvidence = /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|catalog|lexic|alias|material/i;
+  if (foodEvidence.test(decision + " " + pathExpression)) return true;
+  if (/settings|config|status|featureflag|permission|account|admin|exercise|workout|activity/i.test(
+    decision + " " + pathExpression)) return false;
+  return foodEvidence.test(source.fileName);
 }
 
 function isOpaqueFoodDynamicImport(node: ts.Node, source: ts.SourceFile): boolean {
