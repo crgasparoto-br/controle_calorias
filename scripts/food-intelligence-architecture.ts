@@ -228,6 +228,22 @@ function isLiteralNumericFoodValue(value: ts.Expression): boolean {
   return staticNutritionNumber(expr) !== null || isLiteralNutritionRecord(expr);
 }
 
+/** Contract size limits are not per-food nutrition or portion knowledge.
+ * This exemption is narrow: food-indexed use or an unknown/nutrient key still
+ * remains eligible for the gate even when the symbol says "LIMITS". */
+function isPureContractSizeBounds(value: ts.Expression): boolean {
+  const object = unwrap(value);
+  if (!ts.isObjectLiteralExpression(object) || object.properties.length === 0) return false;
+  const structuralKeys = new Set([
+    "rawtext", "identifier", "shorttext", "nametext", "collection",
+    "qualifiers", "alternatives", "observations",
+  ]);
+  return object.properties.every(property =>
+    ts.isPropertyAssignment(property) &&
+    structuralKeys.has(property.name.getText().replace(/^['"]|['"]$/g, "").toLowerCase()) &&
+    staticNutritionNumber(property.initializer) !== null);
+}
+
 /** Domain-driven numeric maps need evidence of food identity, not food words
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
 function isLiteralNumericMap(value: ts.Expression): boolean {
@@ -318,7 +334,10 @@ function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile
   const symbol = node.name.text;
   const context = source.fileName + " " + enclosingDeclaration(node);
   if (/exercise|activity|workout|fitness|burnedcalories/i.test(context)) return false;
-  if (/food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog/i.test(symbol) &&
+  const structuralBounds = /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(symbol) &&
+    isPureContractSizeBounds(node.initializer);
+  if (!structuralBounds &&
+      /food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog/i.test(symbol) &&
       /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving/i.test(context)) {
     return true;
   }
@@ -847,7 +866,11 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
     if (rule.id === "17" &&
-        (isPresentationOnlyCollection(node, source) ||
+        ((ts.isIdentifier(node.name) &&
+          /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&
+          isPureContractSizeBounds(node.initializer) &&
+          !isFoodNumericMapUse(node, source)) ||
+          isPresentationOnlyCollection(node, source) ||
           isPresentationOnlyFilter(node, source, unwrap))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.
     // A generic { name: user.name, calories: 100 } collection must not be
