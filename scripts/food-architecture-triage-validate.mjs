@@ -3,6 +3,7 @@
  * This tool never certifies runtime behavior by itself.
  */
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const [inventoryFile, decisionsFile] = process.argv.slice(2);
 if (!inventoryFile || !decisionsFile) {
@@ -10,7 +11,9 @@ if (!inventoryFile || !decisionsFile) {
   process.exit(2);
 }
 const read = (file) => JSON.parse(readFileSync(file, "utf8"));
-const inventory = read(inventoryFile);
+const inventoryBytes = readFileSync(inventoryFile);
+const actualInventoryDigest = "sha256:" + createHash("sha256").update(inventoryBytes).digest("hex");
+const inventory = JSON.parse(inventoryBytes.toString("utf8"));
 const decisions = read(decisionsFile);
 const pending = inventory.triage?.pending;
 if (!Array.isArray(pending) || !Array.isArray(decisions.reviews)) {
@@ -22,7 +25,10 @@ if (!/^[a-f0-9]{40}$/.test(sha ?? "") || !/^[a-f0-9]{40}$/.test(baselineSha ?? "
   throw new Error("Inventory missing exact source and baseline SHA");
 }
 if (!/^sha256:[a-f0-9]{64}$/.test(decisions.inventoryDigest ?? "")) {
-  throw new Error("Decisions require a verifiable SHA-256 inventory artifact digest");
+  throw new Error("Decisions require a SHA-256 digest of the exact inventory JSON bytes");
+}
+if (decisions.inventoryDigest !== actualInventoryDigest) {
+  throw new Error("Inventory SHA-256 mismatch: supplied review does not bind to these inventory JSON bytes");
 }
 if (decisions.sourceSha !== sha || decisions.baselineSha !== baselineSha) {
   throw new Error("Stale or mismatched source/baseline SHA in decisions");
