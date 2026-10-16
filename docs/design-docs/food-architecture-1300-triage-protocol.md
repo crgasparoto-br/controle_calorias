@@ -71,3 +71,18 @@ HEAD `9a472bd286b2317aa1462f549d01d56202bf27ba`: artefato `food-architecture-inv
 ### Limite da rodada
 
 Não foi emitida disposição conclusiva para todos os 2.539 fingerprints. Os itens listados são revisões específicas, baseadas em fluxo do código, relações de import ou funções isoladas com dependências controladas; **não** equivalem a execução end-to-end em produção. Os candidatos remanescentes continuam `pending-evidence`, e qualquer aprovação independente requer o inventário recompilado no HEAD definitivo, testes e revisão externa à implementação.
+
+
+### Revisão semântica adicional — mapas numéricos e validação de formulário (16/10/2026)
+
+No inventário do SHA `9a472bd286b2317aa1462f549d01d56202bf27ba`, 12 registros estão no grupo de mapas numéricos de conhecimento alimentar. A leitura do consumo real distinguiu:
+
+- `server/modules/goals/nutritionGoalService.ts#PROTEIN_GRAMS_PER_KG`: fator por **objetivo pessoal de nutrição**, consultado com `input.objective`. Não é mapa por identidade alimentar.
+- `server/modules/whatsapp/personalFoodAliasStore.ts#PERSONAL_FOOD_ALIAS_POLICY`: limites de capacidade, TTL e precedência de aliases; não contém tabela de macros de alimentos.
+- `server/foodTextNormalization.ts#NUMBER_WORDS`: decisão de quantidade textual no fluxo alimentar; continua no gate.
+- `server/mealItemBuilders.ts#GENERIC_ESTIMATED_FOOD_REFERENCE` e `server/modules/whatsapp/intent/mealItemHelpers.ts#HEURISTIC_REPLACEMENT_NUTRITION_PER_100G`: referências nutricionais legadas; permanecem detectadas até migração governada.
+- `server/modules/foodIntelligenceV2/contracts.ts#FOOD_CONTRACT_LIMITS`: limites estruturais de schema; isenção estreita já coberta pelas regressões.
+
+Em `client/src/components/admin/NutritionLabelCandidateEditForm.tsx`, comparar `form[field].trim()` e `form.fiber.trim()` com string vazia é validação do formulário, não decisão de materialidade. O detector agora exige conteúdo lexical não vazio nesse tipo de comparação. Testes positivos preservam comparações de materialidade como `light`.
+
+**Escopo da evidência:** leitura de fluxo de fonte e testes adversariais locais sobre o detector; não atribui certificação independente nem elimina pendências não revisadas. Recontar inventário no HEAD final.

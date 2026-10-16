@@ -244,6 +244,25 @@ function isPureContractSizeBounds(value: ts.Expression): boolean {
     staticNutritionNumber(property.initializer) !== null);
 }
 
+/** Numeric policy metadata is not food knowledge: only known structural
+ * constraints qualify. An unknown key or food identity lookup stays gated. */
+function isPureFoodAdministrativePolicy(node: ts.VariableDeclaration): boolean {
+  if (!ts.isIdentifier(node.name) || !/(?:^|_)POLICY$/i.test(node.name.text) ||
+      !node.initializer) return false;
+  const value = unwrap(node.initializer);
+  if (!ts.isObjectLiteralExpression(value) || !value.properties.length) return false;
+  return value.properties.every(property =>
+    ts.isPropertyAssignment(property) &&
+    /^(?:max|min|ttl|persistence|precedence|localMapIsAuthoritative|directGlobalPromotionAllowed|enabled|retention|quota)/i
+      .test(property.name.getText().replace(/^['"]|['"]$/g, "")));
+}
+
+/** User goal multipliers keyed by a nominal NutritionObjective are not an
+ * item's food-specific macros. Imported/direct food-indexed use remains gated. */
+function isNominalNutritionGoalMap(node: ts.VariableDeclaration): boolean {
+  return !!node.type && /\bRecord\s*<\s*NutritionObjective\s*,\s*number\s*>/.test(node.type.getText());
+}
+
 /** Domain-driven numeric maps need evidence of food identity, not food words
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
 function isLiteralNumericMap(value: ts.Expression): boolean {
@@ -336,7 +355,9 @@ function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile
   if (/exercise|activity|workout|fitness|burnedcalories/i.test(context)) return false;
   const structuralBounds = /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(symbol) &&
     isPureContractSizeBounds(node.initializer);
-  if (!structuralBounds &&
+  const nonFoodMetadata = isPureFoodAdministrativePolicy(node) ||
+    isNominalNutritionGoalMap(node);
+  if (!structuralBounds && !nonFoodMetadata &&
       /food|alimento|portion|porc|serving|nutrition|nutrient|macro|gram|catalog/i.test(symbol) &&
       /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving/i.test(context)) {
     return true;
@@ -1160,6 +1181,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
       .includes(node.operatorToken.kind) &&
     (isStaticText(node.left) || isStaticText(node.right))) {
+    // Comparing with an empty form field is validation, not food lexicon.
+    const lexicalLiteral = isStaticText(node.left) ? node.left : node.right;
+    if (lexicalLiteral.text.length === 0) return null;
     let functionName = "";
     for (let parent = node.parent; parent; parent = parent.parent) {
       if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
