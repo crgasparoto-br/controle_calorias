@@ -48,3 +48,32 @@ describe("AUD1300 semantic food-map boundaries", () => {
     expect(result.errors.length).toBeGreaterThan(0);
   });
 });
+
+
+describe("AUD1300 isolated test-fixture reachability", () => {
+  const fixture = {
+    path: "server/modules/whatsapp/testFixtures/knownFood.ts",
+    content: "export const FOOD_ALIASES = ['pão', 'arroz'];",
+  };
+  it("does not treat an isolated testFixtures module as productive knowledge", () => {
+    expect(findFoodStaticCandidates([fixture])).toEqual([]);
+  });
+
+  it("does not count an import type as productive fixture reachability", () => {
+    const findings = findFoodStaticCandidates([
+      fixture, { path: "server/liveFoodHandler.ts",
+        content: 'import type { FoodRow } from "./modules/whatsapp/testFixtures/knownFood";' },
+    ]);
+    expect(findings.filter(f => f.file === fixture.path)).toEqual([]);
+  });
+
+  it("blocks food data in testFixtures actually imported at runtime", () => {
+    const findings = findFoodStaticCandidates([
+      fixture, { path: "server/liveFoodHandler.ts",
+        content: 'import { FOOD_ALIASES } from "./modules/whatsapp/testFixtures/knownFood"; export function listFoods(){return FOOD_ALIASES;}' },
+    ]);
+    expect(findings.some(f => f.file === fixture.path && f.ruleId === "17")).toBe(true);
+    expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-16T00:00:00Z"))
+      .errors.length).toBeGreaterThan(0);
+  });
+});
