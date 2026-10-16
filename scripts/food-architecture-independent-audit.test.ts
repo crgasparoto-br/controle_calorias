@@ -70,3 +70,52 @@ describe("AUD1300 independent adversarial architecture contract", () => {
       (f.ruleId === "17" || f.ruleId === "5"))).toBe(false);
   });
 });
+
+describe("AUD1300 cross-path provenance and lexical controls", () => {
+  const catalog = { path: "server/data/records.json", content: JSON.stringify([
+    { name: "pão", calories: 90 }, { name: "arroz", calories: 130 },
+  ]) };
+  const jsonDecision = (source: string) => assess([
+    catalog, { path: "server/foodService.ts", content: source },
+  ]);
+  const mustRejectJson = (source: string) => {
+    const result = jsonDecision(source);
+    expect(result.findings.some(f => f.file === catalog.path && (f.ruleId === "17" || f.ruleId === "5"))).toBe(true);
+    expect(result.verdict.errors.length).toBeGreaterThan(0);
+  };
+  const mustIgnoreJson = (source: string) => {
+    const result = jsonDecision(source);
+    expect(result.findings.some(f => f.file === catalog.path && (f.ruleId === "17" || f.ruleId === "5"))).toBe(false);
+  };
+
+  it("blocks JSON identity projected through map then includes", () => {
+    mustRejectJson('import rows from "./data/records.json"; function selectFood(input: string) { return rows.map(row => row.name).includes(input); }');
+  });
+  it("blocks JSON identity projected through map then some", () => {
+    mustRejectJson('import rows from "./data/records.json"; function selectFood(input: string) { return rows.map(row => row.name).some(name => name === input); }');
+  });
+  it("blocks reconstructed food records through const aliases", () => {
+    mustRejectJson('import rows from "./data/records.json"; function selectFood(input: string) { return rows.map(row => { const key = row.name; return {name: key, calories: row.calories}; }).find(row => row.name === input); }');
+  });
+  it("blocks JSON records after an optional rebind", () => {
+    mustRejectJson('import rows from "./data/records.json"; function selectFood(input: string, flag: boolean) { let visible = rows; if (flag) visible = getDatabaseRows(); return visible.find(row => row.name === input); }');
+  });
+  it("does not attribute JSON when exhaustive branches overwrite its origin", () => {
+    mustIgnoreJson('import rows from "./data/records.json"; function selectFood(input: string, flag: boolean) { let visible = rows; if (flag) { visible = getDatabaseRowsA(); } else { visible = getDatabaseRowsB(); } return visible.find(row => row.name === input); }');
+  });
+  it("does not attribute imported JSON when it is not consumed", () => {
+    mustIgnoreJson('import rows from "./data/records.json"; function selectFood(input: string) { return getDatabaseRows().find(row => row.name === input); }');
+  });
+  it("does not confuse shadowed fs with a genuine Node reader", () => {
+    mustIgnoreJson('import fs from "node:fs"; function selectFood(input: string) { const fs = { readFileSync: (_p: string, _e: string) => "[]" }; const rows = JSON.parse(fs.readFileSync("./server/data/records.json", "utf8")); return rows.find(row => row.name === input); }');
+  });
+  it("does detect genuine Node filesystem reading of food JSON", () => {
+    mustRejectJson('import fs from "node:fs"; function selectFood(input: string) { const rows = JSON.parse(fs.readFileSync("./server/data/records.json", "utf8")); return rows.find(row => row.name === input); }');
+  });
+  it("does not exempt food-specific regex by administrative directory", () => {
+    const result = assess([{ path: "server/account/foodNormalization.ts", content:
+      'function normalizeFood(input: string) { if (/pão|arroz/i.test(input)) return "pão"; return input; }' }]);
+    expect(result.findings.some(f => f.ruleId === "17" || f.ruleId === "18")).toBe(true);
+    expect(result.verdict.errors.length).toBeGreaterThan(0);
+  });
+});
