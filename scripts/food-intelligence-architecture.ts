@@ -3249,6 +3249,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   results.push(...findImportedLexicalFoodFindings(files, runtime, indexed, resolveRuntimeDependencies, stableHash));
   results.push(...findTransitiveAlternativeResolverFindings(
     dependencyGraph, runtime, isProductionFoodSource, stableHash,
+    files, resolveRuntimeDependencies,
   ));
   return results.sort((a, b) =>
     a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId));

@@ -1,6 +1,6 @@
 import ts from "typescript";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
-import type { FoodFinding } from "./food-intelligence-architecture";
+import type { FoodArchitectureFile, FoodFinding } from "./food-intelligence-architecture";
 
 type Unwrap = (expr: ts.Expression) => ts.Expression;
 
@@ -114,28 +114,101 @@ export function isPresentationOnlyFilter(node: ts.VariableDeclaration, source: t
 }
 
 
+/**
+ * Gate 10 is about a competing decision owner, not merely an imported filename.
+ * Exclude only a statically proven inert no-op edge. Unknown runtime bindings
+ * and side-effect imports remain fail-closed.
+ */
+function isProvenInertResolverEdge(
+  importerPath: string,
+  targetPath: string,
+  files: Map<string, FoodArchitectureFile>,
+  resolveDeps: (from: string, specifier: string, indexed: Map<string, FoodArchitectureFile>) => string[],
+): boolean {
+  const importer = files.get(importerPath);
+  const target = files.get(targetPath);
+  if (!importer || !target) return false;
+  const imported = ts.createSourceFile(importer.path, importer.content, ts.ScriptTarget.Latest, true);
+  const targetSource = ts.createSourceFile(target.path, target.content, ts.ScriptTarget.Latest, true);
+  const symbols: string[] = [];
+  let importsTarget = false;
+  for (const stmt of imported.statements) {
+    const literal = (ts.isImportDeclaration(stmt) || ts.isExportDeclaration(stmt)) &&
+      stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier)
+        ? stmt.moduleSpecifier.text : undefined;
+    if (!literal || !resolveDeps(importerPath, literal, files).includes(targetPath)) continue;
+    importsTarget = true;
+    if (ts.isImportDeclaration(stmt) && stmt.importClause &&
+        !stmt.importClause.isTypeOnly && !stmt.importClause.name &&
+        stmt.importClause.namedBindings && ts.isNamedImports(stmt.importClause.namedBindings)) {
+      for (const spec of stmt.importClause.namedBindings.elements) {
+        if (!spec.isTypeOnly) symbols.push(spec.propertyName?.text ?? spec.name.text);
+      }
+    } else if (ts.isExportDeclaration(stmt) && !stmt.isTypeOnly && stmt.exportClause &&
+               ts.isNamedExports(stmt.exportClause)) {
+      for (const spec of stmt.exportClause.elements) {
+        if (!spec.isTypeOnly) symbols.push(spec.propertyName?.text ?? spec.name.text);
+      }
+    } else {
+      // Namespace/default imports, export-star and unknown import shapes
+      // could reference a real resolver: do not grant an exemption.
+      return false;
+    }
+  }
+  if (!importsTarget || symbols.length === 0) return false;
+  // An imported module may execute work at import time even if the requested
+  // binding is inert. Conservatively reject the exemption in that case.
+  if (targetSource.statements.some(stmt =>
+    (ts.isImportDeclaration(stmt) && !stmt.importClause?.isTypeOnly) ||
+    (ts.isExportDeclaration(stmt) && !stmt.isTypeOnly && !!stmt.moduleSpecifier) ||
+    ts.isExpressionStatement(stmt) ||
+    (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some(decl =>
+      !!decl.initializer && ts.isCallExpression(decl.initializer))))) return false;
+  return symbols.every(symbol => {
+    if (!/^noop$/i.test(symbol)) return false;
+    const declaration = targetSource.statements.find(stmt =>
+      ts.isFunctionDeclaration(stmt) && stmt.name?.text === symbol);
+    if (!declaration || !ts.isFunctionDeclaration(declaration) ||
+        !declaration.body || declaration.body.statements.length !== 1) return false;
+    const only = declaration.body.statements[0];
+    return ts.isReturnStatement(only) && only.expression?.kind === ts.SyntaxKind.NullKeyword;
+  });
+}
+
 export function findTransitiveAlternativeResolverFindings(
   dependencyGraph: Map<string, Set<string>>,
   runtime: Set<string>,
   isProductionFoodSource: (file: string) => boolean,
   stableHash: (value: string) => string,
+  files: FoodArchitectureFile[],
+  resolveDeps: (from: string, specifier: string, indexed: Map<string, FoodArchitectureFile>) => string[],
 ): FoodFinding[] {
   // A neutral barrel module does not make an alternative resolver safe:
   // traverse import edges from channel entrypoints to legacy decision owners.
   const results: FoodFinding[] = [];
+  const filesByPath = new Map(files.map(file => [file.path.replace(/\\/g, "/"), file]));
+  const neutralEdgeCache = new Map<string, boolean>();
+  const neutralEdge = (from: string, to: string): boolean => {
+    const key = from + "\0" + to;
+    if (!neutralEdgeCache.has(key)) neutralEdgeCache.set(key,
+      isProvenInertResolverEdge(from, to, filesByPath, resolveDeps));
+    return neutralEdgeCache.get(key)!;
+  };
   const alternateResolver = /nutritionEngine|foodItemResolution|catalogMatching|foodSemanticCompatibility/i;
   const gate10 = FOOD_WAVE_ONE_RULES.find(rule => rule.id === "10" && rule.kind === "import");
   if (gate10) for (const origin of [...runtime].filter(file =>
     isProductionFoodSource(file) && (!gate10.pathPattern || new RegExp(gate10.pathPattern, "i").test(file)))) {
     const frontier: Array<{ file: string; depth: number }> = [{ file: origin, depth: 0 }];
     const visited = new Set<string>([origin]);
+    const emitted = new Set<string>();
     for (let i = 0; i < frontier.length; i++) {
       const { file, depth } = frontier[i];
       for (const dependency of dependencyGraph.get(file) ?? []) {
-        if (visited.has(dependency)) continue;
-        visited.add(dependency);
         const nextDepth = depth + 1;
-        if (nextDepth >= 2 && alternateResolver.test(dependency)) {
+        // Check every edge before the visited guard: another path might
+        // carry a real resolver while the first path was inert.
+        if (nextDepth >= 2 && alternateResolver.test(dependency) &&
+            !emitted.has(dependency) && !neutralEdge(file, dependency)) {
           const symbol = "transitive-import:" + dependency;
           results.push({
             ruleId: "10", file: origin, line: 1, symbol,
@@ -143,7 +216,10 @@ export function findTransitiveAlternativeResolverFindings(
             failureClass: "E",
             description: "Canal alcança resolvedor alimentar alternativo por importação indireta",
           });
+          emitted.add(dependency);
         }
+        if (visited.has(dependency)) continue;
+        visited.add(dependency);
         frontier.push({ file: dependency, depth: nextDepth });
       }
     }
