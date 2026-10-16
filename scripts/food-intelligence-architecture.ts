@@ -1653,6 +1653,8 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
         const mutable = ts.isVariableDeclarationList(declaration.parent) &&
           !(declaration.parent.flags & ts.NodeFlags.Const);
         if (mutable) {
+          // Compare source-order positions against this AST's own SourceFile.
+          const source = location.getSourceFile();
           for (const statement of scope.statements) {
             if (statement.getStart(source) <= declaration.getStart(source) ||
                 statement.getStart(source) >= location.getStart(source)) continue;
