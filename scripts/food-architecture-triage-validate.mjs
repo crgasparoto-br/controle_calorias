@@ -21,7 +21,7 @@ const baselineSha = inventory.enforcementBaselineSha;
 if (!/^[a-f0-9]{40}$/.test(sha ?? "") || !/^[a-f0-9]{40}$/.test(baselineSha ?? "")) {
   throw new Error("Inventory missing exact source and baseline SHA");
 }
-if (decisions.sourceSha !== sha || decisions.baselineSha !== baselineSha) {
+if (!/^sha256:[a-f0-9]{64}$/.test(decisions.inventoryDigest ?? "")) {\n  throw new Error("Decisions require a verifiable SHA-256 inventory artifact digest");\n}\nif (decisions.sourceSha !== sha || decisions.baselineSha !== baselineSha) {
   throw new Error("Stale or mismatched source/baseline SHA in decisions");
 }
 const errors = [];
@@ -50,7 +50,7 @@ for (const row of decisions.reviews) {
       !row.correctionReference) {
     errors.push("Confirmed violation requires correction or nominal debt: " + k);
   }
-  if (row.disposition === "unresolved" && !row.followUpIssue) {
+  if (row.disposition === "unresolved") {\n    errors.push("Unresolved candidate cannot be certified: " + k);\n  }\n  if (row.disposition === "unresolved" && !row.followUpIssue) {
     errors.push("Unresolved candidate lacks follow-up issue: " + k);
   }
 }
