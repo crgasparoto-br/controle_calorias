@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 
 const sha = "a".repeat(40);
 const baselineSha = "b".repeat(40);
@@ -13,7 +14,7 @@ const row = {
 };
 const inventory = { sourceSha: sha, enforcementBaselineSha: baselineSha, triage: { pending: [row] } };
 const decision = { ...row, disposition: "confirmed_non_violation", evidence: "Reviewed source and observed runtime non-food decision", reviewer: "independent-reviewer", reviewedAt: "2026-10-16T00:00:00Z", canonicalOwnerComparison: "No food resolution performed" };
-const base = { sourceSha: sha, baselineSha, inventoryDigest: "sha256:" + "c".repeat(64), reviews: [decision] };
+const base = { sourceSha: sha, baselineSha, inventoryDigest: "sha256:" + createHash("sha256").update(JSON.stringify(inventory)).digest("hex"), reviews: [decision] };
 function run(decisions) {
   const dir = mkdtempSync(join(tmpdir(), "food-architecture-triage-"));
   try {
@@ -43,4 +44,10 @@ test("never certifies unresolved candidates even when tracked", () => {
 test("requires evidence and artifact identity", () => {
   assert.notEqual(run({ ...base, inventoryDigest: undefined }).status, 0);
   assert.notEqual(run({ ...base, reviews: [{ ...decision, evidence: "" }] }).status, 0);
+});
+
+test("rejects a well-formed but incorrect inventory digest", () => {
+  const result = run({ ...base, inventoryDigest: "sha256:" + "d".repeat(64) });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Inventory SHA-256 mismatch/);
 });
