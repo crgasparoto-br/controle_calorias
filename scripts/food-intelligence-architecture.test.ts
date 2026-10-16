@@ -3420,4 +3420,102 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("AUD1300-F30 traces productive indexed JSON records without inventing mutable provenance", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const [row] = rows; return row.name === input;', expected: true },
+      { body: 'let [row] = rows; return row.name === input;', expected: true },
+      { body: 'var [row] = rows; return row.name === input;', expected: true },
+      { body: 'const row = rows[0]; return row.name === input;', expected: true },
+      { body: 'const row = rows["0"]; return row.name === input;', expected: true },
+      { body: 'const row = rows.at(0); return row.name === input;', expected: true },
+      { body: 'const {0: row} = rows; return row.name === input;', expected: true },
+      { body: 'const [,,row] = rows; return row.name === input;', expected: true },
+      { body: 'let [row] = rows; row = getOtherRow(); return row.name === input;', expected: false },
+      { body: 'let [row] = rows; if (input) { row = getOtherRow(); } return row.name === input;', expected: true },
+      { body: 'let [row] = rows; if (input) row = getOtherRow(); else row = getOtherRow(); return row.name === input;', expected: false },
+      { body: 'const row = getOtherRows()[0]; return row.name === input;', expected: false },
+      { body: 'const row = rows[4]; return row.name === input;', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: "server/foodService.ts", content:
+        'import rows from "./data/records.json"; function selectFood(input: string) { ' +
+        sample.body + ' }' };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const errors = evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path));
+      expect(errors.length > 0, sample.body).toBe(sample.expected);
+    }
+    for (const sample of [
+      { code: 'function showFood() { const row = rows.at(0); return row.name; }', path: "server/foodService.ts" },
+      { code: 'function selectActivity(input: string) { const row = rows[0]; return row.name === input; }', path: "server/exerciseService.ts" },
+      { code: 'function selectFood(row: {name:string}, input: string) { return row.name === input; }', path: "server/foodService.ts" },
+    ]) {
+      const findings = findFoodStaticCandidates([catalog, { path: sample.path,
+        content: 'import rows from "./data/records.json"; ' + sample.code }]);
+      expect(findings.filter(f => f.file === catalog.path), sample.code).toEqual([]);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path)), sample.code).toEqual([]);
+    }
+  });
+
+  it("AUD1300-F31 proves lexical native JSON binding instead of matching an impostor", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const rows = JSON.parse(raw); return rows.find(row => row.name === input);', expected: true },
+      { body: 'const JSON = {parse: (_s: string) => getOtherRows()}; const rows = JSON.parse(raw); return rows.find(row => row.name === input);', expected: false },
+      { body: 'const JSON = {parse: (_s: string) => getOtherRows()}; const rows = JSON["parse"](raw); return rows.find(row => row.name === input);', expected: false },
+      { body: 'const parse = (_s: string) => getOtherRows(); const rows = parse(raw); return rows.find(row => row.name === input);', expected: false },
+      { body: 'const parser = {parse: (_s: string) => getOtherRows()}; const rows = parser.parse(raw); return rows.find(row => row.name === input);', expected: false },
+    ];
+    for (const sample of cases) {
+      const content = 'import { readFileSync } from "node:fs"; function selectFood(input: string) {' +
+        'const raw = readFileSync("./server/data/records.json", "utf8"); ' + sample.body + ' }';
+      const findings = findFoodStaticCandidates([catalog, { path: "server/foodService.ts", content }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path)).length > 0, sample.body)
+        .toBe(sample.expected);
+    }
+    const parameter = 'import { readFileSync } from "node:fs"; ' +
+      'function selectFood(input: string, JSON: { parse: (s: string) => any }) {' +
+      'const raw = readFileSync("./server/data/records.json", "utf8"); ' +
+      'const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); }';
+    const findings = findFoodStaticCandidates([catalog, { path: "server/foodService.ts", content: parameter }]);
+    expect(findings.filter(f => f.file === catalog.path)).toEqual([]);
+    expect(evaluateFoodArchitectureGate(findings, [], [], today).errors
+      .filter(error => error.includes(catalog.path))).toEqual([]);
+  });
+
+  it("AUD1300-F32 follows computed and immutable aliases of the native JSON parser", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'const rows = JSON.parse(raw);', expected: true },
+      { body: 'const rows = JSON["parse"](raw);', expected: true },
+      { body: 'const parse = JSON.parse; const rows = parse(raw);', expected: true },
+      { body: 'const parse = JSON["parse"]; const decode = parse; const rows = decode(raw);', expected: true },
+      { body: 'const native = JSON; const parse = native.parse; const rows = parse(raw);', expected: true },
+      { body: 'const fake = {parse: (_s: string) => getOtherRows()}; const parse = fake.parse; const rows = parse(raw);', expected: false },
+      { body: 'let parse = JSON.parse; parse = (_s: string) => getOtherRows(); const rows = parse(raw);', expected: false },
+      { body: 'const rows = JSON.parse(getOtherJson());', expected: false },
+    ];
+    for (const sample of cases) {
+      const content = 'import { readFileSync } from "node:fs"; function selectFood(input: string) { ' +
+        'const raw = readFileSync("./server/data/records.json", "utf8"); ' + sample.body +
+        'return rows.find((row: any) => row.name === input); }';
+      const findings = findFoodStaticCandidates([catalog, { path: "server/foodService.ts", content }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      expect(evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path)).length > 0, sample.body)
+        .toBe(sample.expected);
+    }
+  });
+
 });

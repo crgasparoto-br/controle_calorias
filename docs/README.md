@@ -294,3 +294,16 @@ não alteram a origem já consumida. As regressões cobrem ambos os APIs
 `findFoodStaticCandidates` e `evaluateFoodArchitectureGate` com casos
 positivos e negativos. Esta verificação estática não equivale a certificação
 comportamental de owners nem autoriza exceções novas no livro de dívida.
+
+**Remediação AUD1300-F30/F31/F32 (Issue #1300):** os gates estáticos
+17/5 rastreiam a identidade decisória de registros JSON alimentares extraídos
+por `const`/`let`/`var` sem substituição definitiva, índice literal (`rows[0]`,
+`rows["0"]`), `rows.at(0)` e desestruturação numérica, sem confundir uma
+origem descartada, parâmetros homônimos, consumo de apresentação ou exercício
+com uma decisão alimentar. O rastreamento de JSON lido por `node:fs` distingue
+o `JSON.parse` nativo de objetos/argumentos locais chamados `JSON` ou `parse`
+e reconhece as formas equivalentes `JSON["parse"]` e aliases `const`
+encadeados. Casos positivos e negativos são exercitados pelos dois entrypoints
+`findFoodStaticCandidates` e `evaluateFoodArchitectureGate`. A identificação
+continua sendo estática: caminhos dinâmicos ou efeitos de mutação não provados
+exigem inspeção específica, sem permitir dívida automática.

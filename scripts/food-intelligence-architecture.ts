@@ -1623,6 +1623,89 @@ function isDirectFilesystemAsyncReader(expression: ts.Node): boolean {
       isRequireOf(provider.expression, ["node:fs", "fs"]));
 }
 
+/** Prove the *native* JSON parser at the call site. A textual `JSON.parse`
+ * match can refer to a local parameter or a shadowed parser; conversely
+ * bracket notation and immutable local aliases invoke the same intrinsic.
+ */
+function isNativeJsonParseCall(call: ts.CallExpression): boolean {
+  const source = call.getSourceFile();
+  const bindingContains = (name: ts.BindingName, sought: string): boolean =>
+    ts.isIdentifier(name) ? name.text === sought :
+      name.elements.some(element => ts.isBindingElement(element) &&
+        bindingContains(element.name, sought));
+  type Binding = { declaration?: ts.VariableDeclaration; shadowed: boolean };
+  const bindingAt = (name: string, use: ts.Node): Binding => {
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) &&
+          scope.parameters.some(param => bindingContains(param.name, name))) return { shadowed: true };
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          bindingContains(scope.variableDeclaration.name, name)) return { shadowed: true };
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === name)) return { shadowed: true };
+        if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations) {
+            if (bindingContains(declaration.name, name)) {
+              return { declaration, shadowed: true };
+            }
+          }
+        }
+        if (ts.isImportDeclaration(statement) && statement.importClause) {
+          const clause = statement.importClause;
+          if (clause.name?.text === name ||
+              (clause.namedBindings && (ts.isNamespaceImport(clause.namedBindings)
+                ? clause.namedBindings.name.text === name
+                : clause.namedBindings.elements.some(element => element.name.text === name)))) {
+            return { shadowed: true };
+          }
+        }
+        if (ts.isImportEqualsDeclaration(statement) && statement.name.text === name) {
+          return { shadowed: true };
+        }
+      }
+    }
+    return { shadowed: false };
+  };
+  const constantInitializer = (expr: ts.Identifier, use: ts.Node): ts.Expression | null => {
+    const { declaration } = bindingAt(expr.text, use);
+    if (!declaration || !declaration.initializer ||
+        !(ts.isVariableDeclarationList(declaration.parent) &&
+          (declaration.parent.flags & ts.NodeFlags.Const)) ||
+        declaration.getStart(source) >= use.getStart(source)) return null;
+    return declaration.initializer;
+  };
+  const nativeObject = (expression: ts.Expression, use: ts.Node,
+    visited = new Set<string>(), depth = 0): boolean => {
+    if (depth > 12) return false;
+    const value = unwrap(expression);
+    if (!ts.isIdentifier(value)) return false;
+    if (value.text === "JSON") return !bindingAt("JSON", use).shadowed;
+    if (visited.has(value.text)) return false;
+    const initializer = constantInitializer(value, use);
+    return !!initializer && nativeObject(initializer, initializer,
+      new Set([...visited, value.text]), depth + 1);
+  };
+  const parser = (expression: ts.Expression, use: ts.Node,
+    visited = new Set<string>(), depth = 0): boolean => {
+    if (depth > 12) return false;
+    const value = unwrap(expression);
+    if (ts.isPropertyAccessExpression(value) && value.name.text === "parse") {
+      return nativeObject(value.expression, use);
+    }
+    if (ts.isElementAccessExpression(value) && value.argumentExpression &&
+        isStaticText(unwrap(value.argumentExpression)) &&
+        (unwrap(value.argumentExpression) as ts.StringLiteral).text === "parse") {
+      return nativeObject(value.expression, use);
+    }
+    if (!ts.isIdentifier(value) || visited.has(value.text)) return false;
+    const initializer = constantInitializer(value, use);
+    return !!initializer && parser(initializer, initializer,
+      new Set([...visited, value.text]), depth + 1);
+  };
+  return parser(call.expression, call);
+}
+
 /** Resolve a parsed numeric JSON binding, including awaited fs/promises reads.
  * Unknown/dynamic paths stay outside the static proof and require separate review.
  */
@@ -1634,7 +1717,7 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
     return value;
   };
   const parsed = unwrapAwait(initializer);
-  if (!ts.isCallExpression(parsed) || parsed.expression.getText() !== "JSON.parse" ||
+  if (!ts.isCallExpression(parsed) || !isNativeJsonParseCall(parsed) ||
       parsed.arguments.length < 1) return null;
   let read = unwrapAwait(parsed.arguments[0]);
   // Common async pattern: const raw = await readFile(...); JSON.parse(raw).
@@ -1686,7 +1769,7 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
  */
 function isOpaqueFoodJsonLoad(node: ts.Node, source: ts.SourceFile,
   bindings: ReturnType<typeof filesystemReadBindings>): boolean {
-  if (!ts.isCallExpression(node) || node.expression.getText(source) !== "JSON.parse" ||
+  if (!ts.isCallExpression(node) || !isNativeJsonParseCall(node) ||
       !node.arguments[0]) return false;
   const unwrapAwait = (expr: ts.Expression): ts.Expression => {
     let result = unwrap(expr);
@@ -2851,6 +2934,77 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const isStableJsonBinding = (declaration: ts.VariableDeclaration): boolean =>
       ts.isVariableDeclarationList(declaration.parent) &&
       !!(declaration.parent.flags & ts.NodeFlags.Const) && !!declaration.initializer;
+    // Mutable extraction is still attributable until a definite overwrite.
+    // Ignore speculative branch writes: an original JSON record can survive.
+    const hasDefiniteRowOverwrite = (declaration: ts.VariableDeclaration, use: ts.Node,
+      sought: string): boolean => {
+      let scope: ts.Node | undefined = declaration;
+      while (scope && !ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      if (!scope) return true;
+      const replaces = (statement: ts.Statement): boolean => {
+        if (ts.isBlock(statement)) return statement.statements.some(replaces);
+        return ts.isExpressionStatement(statement) &&
+          ((ts.isBinaryExpression(statement.expression) &&
+            ts.isIdentifier(statement.expression.left) &&
+            statement.expression.left.text === sought &&
+            statement.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken) ||
+            (ts.isPrefixUnaryExpression(statement.expression) &&
+              ts.isIdentifier(statement.expression.operand) &&
+              statement.expression.operand.text === sought));
+      };
+      for (const statement of scope.statements) {
+        if (statement.getStart(source) <= declaration.getStart(source) ||
+            statement.getStart(source) >= use.getStart(source)) continue;
+        if (replaces(statement)) return true;
+        if (ts.isIfStatement(statement) && statement.elseStatement &&
+            replaces(statement.thenStatement) && replaces(statement.elseStatement)) return true;
+      }
+      return false;
+    };
+    const traceableRowBinding = (declaration: ts.VariableDeclaration, use: ts.Node,
+      sought: string): boolean =>
+      !!declaration.initializer && ts.isVariableDeclarationList(declaration.parent) &&
+      (!!(declaration.parent.flags & ts.NodeFlags.Const) ||
+        !hasDefiniteRowOverwrite(declaration, use, sought));
+    const staticIndex = (value: ts.Expression): string | null => {
+      const index = unwrap(value);
+      if (ts.isNumericLiteral(index) && /^\d+$/.test(index.text)) return index.text;
+      if (ts.isStringLiteral(index) && /^\d+$/.test(index.text)) return index.text;
+      return null;
+    };
+    const indexedFoodRecordExists = (target: string, index: string, receiver: ts.Expression): boolean => {
+      const file = indexed.get(target);
+      if (!file) return false;
+      let data: unknown;
+      try { data = JSON.parse(file.content); } catch { return false; }
+      const access = jsonStaticAccess(receiver);
+      for (const key of access?.keys ?? []) {
+        if (!data || typeof data !== "object" || !(key in data)) return false;
+        data = (data as Record<string, unknown>)[key];
+      }
+      if (!Array.isArray(data)) return false;
+      const record: unknown = data[Number(index)];
+      return !!record && typeof record === "object" && !Array.isArray(record) &&
+        Object.keys(record).some(key =>
+          /^(?:calories|kcal|protein|carbs|fat|nutrition|nutrients|macros|portionGrams|gramsPerServing|foodName|foodId|ingredient)$/i.test(key));
+    };
+    const indexedJsonRow = (expression: ts.Expression, use: ts.Node): string[] => {
+      const value = unwrap(expression);
+      let root: ts.Expression | null = null;
+      let index: string | null = null;
+      if (ts.isElementAccessExpression(value) && value.argumentExpression) {
+        root = value.expression;
+        index = staticIndex(value.argumentExpression);
+      } else if (ts.isCallExpression(value) &&
+          ts.isPropertyAccessExpression(value.expression) &&
+          value.expression.name.text === "at" && value.arguments.length === 1) {
+        root = value.expression.expression;
+        index = staticIndex(value.arguments[0]);
+      }
+      if (!root || index === null) return [];
+      return resolveJsonExpression(root, use).filter(target =>
+        indexedFoodRecordExists(target, index, root));
+    };
     const extractedJsonRow = (
       expression: ts.Expression, use: ts.Node, depth = 0,
     ): string[] => {
@@ -2858,7 +3012,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const value = unwrap(expression);
       if (!ts.isIdentifier(value)) return [];
       const declaration = findLexicalJsonBinding(value.text, use);
-      if (!declaration || !isStableJsonBinding(declaration)) return [];
+      if (!declaration || !traceableRowBinding(declaration, use, value.text)) return [];
       if (ts.isArrayBindingPattern(declaration.name)) {
         const extracted = declaration.name.elements.some(element =>
           ts.isBindingElement(element) && ts.isIdentifier(element.name) &&
@@ -2866,8 +3020,23 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         return extracted && declaration.initializer
           ? resolveJsonExpression(declaration.initializer, declaration) : [];
       }
-      return declaration.initializer && ts.isIdentifier(declaration.name)
-        ? extractedJsonRow(declaration.initializer, declaration, depth + 1) : [];
+      if (ts.isObjectBindingPattern(declaration.name)) {
+        const extracted = declaration.name.elements.find(element =>
+          ts.isIdentifier(element.name) && element.name.text === value.text &&
+          element.propertyName &&
+          (ts.isNumericLiteral(element.propertyName) ||
+            ts.isStringLiteral(element.propertyName)) &&
+          /^\d+$/.test(element.propertyName.text));
+        return extracted && declaration.initializer
+          ? resolveJsonExpression(declaration.initializer, declaration).filter(target =>
+            indexedFoodRecordExists(target,
+              extracted.propertyName!.getText(source).replace(/[\"']/g, ""),
+              declaration.initializer!)) : [];
+      }
+      if (!declaration.initializer || !ts.isIdentifier(declaration.name)) return [];
+      const indexed = indexedJsonRow(declaration.initializer, declaration);
+      return indexed.length ? indexed :
+        extractedJsonRow(declaration.initializer, declaration, depth + 1);
     };
     const extractedJsonIdentity = (
       expression: ts.Expression, use: ts.Node, depth = 0,
