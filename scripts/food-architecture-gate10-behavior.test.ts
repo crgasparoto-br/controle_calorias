@@ -83,4 +83,27 @@ describe("AUD1300 gate 10: proven inert edge vs competing resolver", () => {
     ]);
     expect(findings).toEqual([]);
   });
+
+  it("cannot exempt a constructor executed when an apparently neutral module loads", () => {
+    const findings = gate10([
+      {path:"server/modules/whatsapp/service.ts", content:"export { noop } from './bridge';"},
+      {path:"server/modules/whatsapp/bridge.ts", content:"export { noop } from '../../nutritionEngine';"},
+      {path:"server/nutritionEngine.ts",
+        content:"export function noop(){return null;} const activeFoodResolver = new FoodResolver();"},
+    ]);
+    expect(findings.some(f => f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol.includes("nutritionEngine.ts"))).toBe(true);
+  });
+
+  it("cannot exempt a noop with an executing default parameter", () => {
+    const findings = gate10([
+      {path:"server/modules/whatsapp/service.ts", content:"export { noop } from './bridge';"},
+      {path:"server/modules/whatsapp/bridge.ts", content:"export { noop } from '../../nutritionEngine';"},
+      {path:"server/nutritionEngine.ts",
+        content:"export function noop(value = initializeResolver()){return null;}"},
+    ]);
+    expect(findings.some(f => f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol.includes("nutritionEngine.ts"))).toBe(true);
+  });
+
 });

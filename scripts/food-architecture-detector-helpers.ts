@@ -158,18 +158,21 @@ function isProvenInertResolverEdge(
   if (!importsTarget || symbols.length === 0) return false;
   // An imported module may execute work at import time even if the requested
   // binding is inert. Conservatively reject the exemption in that case.
-  if (targetSource.statements.some(stmt =>
-    (ts.isImportDeclaration(stmt) && !stmt.importClause?.isTypeOnly) ||
-    (ts.isExportDeclaration(stmt) && !stmt.isTypeOnly && !!stmt.moduleSpecifier) ||
-    ts.isExpressionStatement(stmt) ||
-    (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some(decl =>
-      !!decl.initializer && ts.isCallExpression(decl.initializer))))) return false;
+  // Only declaration-only modules are provably inert. Constructors, static
+  // initializers, import-equals and unknown top-level code execute on import.
+  if (!targetSource.statements.every(stmt =>
+    ts.isFunctionDeclaration(stmt) || ts.isInterfaceDeclaration(stmt) ||
+    ts.isTypeAliasDeclaration(stmt) || ts.isEmptyStatement(stmt) ||
+    (ts.isImportDeclaration(stmt) && !!stmt.importClause?.isTypeOnly) ||
+    (ts.isExportDeclaration(stmt) && stmt.isTypeOnly))) return false;
   return symbols.every(symbol => {
     if (!/^noop$/i.test(symbol)) return false;
     const declaration = targetSource.statements.find(stmt =>
       ts.isFunctionDeclaration(stmt) && stmt.name?.text === symbol);
     if (!declaration || !ts.isFunctionDeclaration(declaration) ||
-        !declaration.body || declaration.body.statements.length !== 1) return false;
+        !declaration.body || declaration.body.statements.length !== 1 ||
+        declaration.parameters.some(parameter => !!parameter.initializer ||
+          !ts.isIdentifier(parameter.name))) return false;
     const only = declaration.body.statements[0];
     return ts.isReturnStatement(only) && only.expression?.kind === ts.SyntaxKind.NullKeyword;
   });
