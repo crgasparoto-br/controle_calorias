@@ -3372,4 +3372,52 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+
+  it("AUD1300-F28 traces identities extracted by immutable array destructuring", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'import rows from "./data/records.json"; function selectFood(input: string) { const [row] = rows; return row.name === input; }', expected: true },
+      { body: 'import rows from "./data/records.json"; function selectFood(input: string) { const [row] = rows; const alias = row; const key = alias.name.trim().toLowerCase(); return key === input; }', expected: true },
+      { body: 'import rows from "./data/records.json"; function selectFood(input: string) { const [{ name: identity }] = rows; return identity === input; }', expected: true },
+      { body: 'import rows from "./data/records.json"; function selectFood(input: string) { const [row] = rows; switch (row.name.toLowerCase()) { case input: return true; default: return false; } }', expected: true },
+      { body: 'import rows from "./data/records.json"; function showFood() { const [row] = rows; return row.name; }', expected: false },
+      { body: 'import rows from "./data/records.json"; function selectActivity(input: string) { const [row] = rows; return row.name === input; }', expected: false, exercise: true },
+      { body: 'import rows from "./data/records.json"; function selectFood(input: string) { const [row] = getOtherRows(); return row.name === input; }', expected: false },
+      { body: 'import rows from "./data/records.json"; const [row] = rows; function selectFood(row: { name: string }, input: string) { return row.name === input; }', expected: false },
+    ];
+    for (const sample of cases) {
+      const consumer = { path: sample.exercise ? "server/exerciseService.ts" : "server/foodService.ts",
+        content: sample.body };
+      const findings = findFoodStaticCandidates([catalog, consumer]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const catalogErrors = evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path));
+      expect(catalogErrors.length > 0, sample.body).toBe(sample.expected);
+    }
+  });
+
+  it("AUD1300-F29 attributes fs JSON only when raw bytes reach JSON.parse", () => {
+    const catalog = { path: "server/data/records.json",
+      content: '[{"name":"pão","calories":90},{"name":"arroz","calories":130}]' };
+    const cases = [
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string) { const raw = readFileSync("./server/data/records.json", "utf8"); const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string, other: string) { let raw = readFileSync("./server/data/records.json", "utf8"); raw = other; const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); }', expected: false },
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string, other: string, flag: boolean) { let raw = readFileSync("./server/data/records.json", "utf8"); if (flag) raw = other; const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string, other: string) { let raw = other; raw = readFileSync("./server/data/records.json", "utf8"); const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string, other: string) { let raw = readFileSync("./server/data/records.json", "utf8"); const rows = JSON.parse(raw); raw = other; return rows.find((row: any) => row.name === input); }', expected: true },
+      { body: 'import { readFileSync } from "node:fs"; function selectFood(input: string, other: string) { let raw = readFileSync("./server/data/records.json", "utf8"); { const raw = other; const rows = JSON.parse(raw); return rows.find((row: any) => row.name === input); } }', expected: false },
+    ];
+    for (const sample of cases) {
+      const findings = findFoodStaticCandidates([catalog,
+        { path: "server/foodService.ts", content: sample.body }]);
+      expect(findings.filter(f => f.file === catalog.path).map(f => f.ruleId).sort(), sample.body)
+        .toEqual(sample.expected ? ["17", "5"] : []);
+      const catalogErrors = evaluateFoodArchitectureGate(findings, [], [], today).errors
+        .filter(error => error.includes(catalog.path));
+      expect(catalogErrors.length > 0, sample.body).toBe(sample.expected);
+    }
+  });
+
 });
