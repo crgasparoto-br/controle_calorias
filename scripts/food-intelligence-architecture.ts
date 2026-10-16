@@ -27,7 +27,7 @@ export function isProductionFoodSource(file: string): boolean {
   const p = file.replace(/\\/g, "/");
   return (p.startsWith("server/") || p.startsWith("shared/") || p.startsWith("client/src/")) &&
     /\.(?:[cm]?[jt]sx?|json)$/.test(p) &&
-    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.(?:[cm]?[jt]sx?|json)$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
+    !/\.d\.ts$|\.(?:test|spec|fixture|fixtures|mock|stories|generated)\.(?:[cm]?[jt]sx?|json)$|(?:^|\/)(?:__tests__|__fixtures__|__mocks__|fixtures|testFixtures|test-fixtures|generated|__generated__|mocks|stories)(?:\/|$)/i.test(p);
 }
 
 function matches(pattern: string | undefined, value: string): boolean {
