@@ -1646,7 +1646,25 @@ function parsedFilesystemJsonPath(initializer: ts.Expression,
         .flatMap(statement => [...statement.declarationList.declarations])
         .find(decl => ts.isIdentifier(decl.name) && decl.name.text === target);
       if (declaration) {
-        read = declaration.initializer ? unwrapAwait(declaration.initializer) : read;
+        // AUD1300-F29: a definite assignment before JSON.parse replaces the
+        // original fs content. Do not attribute an abandoned read to the JSON.
+        // Conditional writes are not definite and preserve the possible source.
+        let current = declaration.initializer;
+        const mutable = ts.isVariableDeclarationList(declaration.parent) &&
+          !(declaration.parent.flags & ts.NodeFlags.Const);
+        if (mutable) {
+          for (const statement of scope.statements) {
+            if (statement.getStart(source) <= declaration.getStart(source) ||
+                statement.getStart(source) >= location.getStart(source)) continue;
+            if (!ts.isExpressionStatement(statement) ||
+                !ts.isBinaryExpression(statement.expression) ||
+                statement.expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken ||
+                !ts.isIdentifier(statement.expression.left) ||
+                statement.expression.left.text !== target) continue;
+            current = statement.expression.right;
+          }
+        }
+        read = current ? unwrapAwait(current) : read;
         break;
       }
     }
@@ -2800,7 +2818,110 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       scan(predicate);
       return decision;
     };
+    // AUD1300-F28: a JSON record remains productive when extracted with
+    // array destructuring and its identity is compared without .find/.some.
+    // Require an immutable lexical chain and an actual food decision; otherwise
+    // display-only or unrelated data could be incorrectly classified.
+    const jsonArrayIdentityFields = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+    const containsBinding = (pattern: ts.BindingName, sought: string): boolean => {
+      if (ts.isIdentifier(pattern)) return pattern.text === sought;
+      return pattern.elements.some(element =>
+        ts.isBindingElement(element) && containsBinding(element.name, sought));
+    };
+    const findLexicalJsonBinding = (
+      sought: string, use: ts.Node,
+    ): ts.VariableDeclaration | null => {
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if (ts.isFunctionLike(scope) &&
+            scope.parameters.some(parameter => containsBinding(parameter.name, sought))) return null;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (ts.isFunctionDeclaration(statement) && statement.name?.text === sought) return null;
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const declaration of statement.declarationList.declarations) {
+            if (!containsBinding(declaration.name, sought)) continue;
+            return declaration.getStart(source) < use.getStart(source) ? declaration : null;
+          }
+        }
+      }
+      return null;
+    };
+    const isStableJsonBinding = (declaration: ts.VariableDeclaration): boolean =>
+      ts.isVariableDeclarationList(declaration.parent) &&
+      !!(declaration.parent.flags & ts.NodeFlags.Const) && !!declaration.initializer;
+    const extractedJsonRow = (
+      expression: ts.Expression, use: ts.Node, depth = 0,
+    ): string[] => {
+      if (depth > 12) return [];
+      const value = unwrap(expression);
+      if (!ts.isIdentifier(value)) return [];
+      const declaration = findLexicalJsonBinding(value.text, use);
+      if (!declaration || !isStableJsonBinding(declaration)) return [];
+      if (ts.isArrayBindingPattern(declaration.name)) {
+        const extracted = declaration.name.elements.some(element =>
+          ts.isBindingElement(element) && ts.isIdentifier(element.name) &&
+          element.name.text === value.text);
+        return extracted && declaration.initializer
+          ? resolveJsonExpression(declaration.initializer, declaration) : [];
+      }
+      return declaration.initializer && ts.isIdentifier(declaration.name)
+        ? extractedJsonRow(declaration.initializer, declaration, depth + 1) : [];
+    };
+    const extractedJsonIdentity = (
+      expression: ts.Expression, use: ts.Node, depth = 0,
+    ): string[] => {
+      if (depth > 12) return [];
+      const value = unwrap(expression);
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          /^(?:trim|trimStart|trimEnd|toLowerCase|toUpperCase|normalize)$/.test(value.expression.name.text) &&
+          value.arguments.length <= (value.expression.name.text === "normalize" ? 1 : 0) &&
+          value.arguments.every(arg => isStaticText(unwrap(arg)))) {
+        return extractedJsonIdentity(value.expression.expression, use, depth + 1);
+      }
+      if ((ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value))) {
+        const field = ts.isPropertyAccessExpression(value) ? value.name.text :
+          value.argumentExpression && isStaticText(unwrap(value.argumentExpression))
+            ? (unwrap(value.argumentExpression) as ts.StringLiteral).text : "";
+        return jsonArrayIdentityFields.test(field)
+          ? extractedJsonRow(value.expression, use, depth + 1) : [];
+      }
+      if (!ts.isIdentifier(value)) return [];
+      const declaration = findLexicalJsonBinding(value.text, use);
+      if (!declaration || !isStableJsonBinding(declaration)) return [];
+      if (ts.isArrayBindingPattern(declaration.name)) {
+        const projected = declaration.name.elements.some(element =>
+          ts.isBindingElement(element) && ts.isObjectBindingPattern(element.name) &&
+          element.name.elements.some(field => {
+            if (!ts.isIdentifier(field.name) || field.name.text !== value.text) return false;
+            const key = field.propertyName ?? field.name;
+            return (ts.isIdentifier(key) || ts.isStringLiteral(key)) &&
+              jsonArrayIdentityFields.test(key.text);
+          }));
+        return projected && declaration.initializer
+          ? resolveJsonExpression(declaration.initializer, declaration) : [];
+      }
+      return declaration.initializer && ts.isIdentifier(declaration.name)
+        ? extractedJsonIdentity(declaration.initializer, declaration, depth + 1) : [];
+    };
+    const visitDestructuredJsonDecision = (node: ts.Node): void => {
+      if (!foodJsonDecisionContext(node)) return;
+      let targets: string[] = [];
+      if (ts.isBinaryExpression(node) &&
+          [ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+            ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken]
+            .includes(node.operatorToken.kind)) {
+        targets = [...extractedJsonIdentity(node.left, node),
+          ...extractedJsonIdentity(node.right, node)];
+      } else if (ts.isSwitchStatement(node)) {
+        targets = extractedJsonIdentity(node.expression, node);
+      } else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+          /^(?:includes|startsWith|endsWith)$/.test(node.expression.name.text)) {
+        targets = extractedJsonIdentity(node.expression.expression, node);
+      }
+      for (const target of targets) jsonRecordsConsumedByFood.add(target);
+    };
     const visitJsonUse = (node: ts.Node): void => {
+      visitDestructuredJsonDecision(node);
       // F23: property and literal-computed collection methods share one rule.
       const call = ts.isCallExpression(node) ? node : undefined;
       const access = call?.expression;
