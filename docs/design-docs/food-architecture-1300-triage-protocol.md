@@ -7,6 +7,7 @@
 - Repositório: `crgasparoto-br/controle_calorias`.
 - PR: #1324, base `develop`.
 - Registrar em cada execução: SHA integral da PR, SHA da baseline arquitetural, nome e digest SHA-256 do artefato `food-architecture-inventory-<SHA>`, data UTC, auditor e versão do detector.
+- Para executar `food-architecture-triage-validate.mjs`, o campo `decisions.inventoryDigest` deve ser o SHA-256 **dos bytes exatos do JSON de inventário extraído**, calculado por `sha256sum inventory.json` e prefixado com `sha256:`. O digest do ZIP publicado pelo GitHub Actions é diferente e não substitui o digest do JSON. Guarde ambos no registro de evidência.
 - Não reutilizar um inventário de outro HEAD. Um novo commit invalida o parecer sobre o HEAD anterior.
 - O inventário é um detector de candidatos, não uma prova de execução ou de ownership. CI verde não equivale a aprovação independente.
 
