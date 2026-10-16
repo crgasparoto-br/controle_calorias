@@ -53,7 +53,10 @@ for (const row of decisions.reviews) {
       !row.correctionReference) {
     errors.push("Confirmed violation requires correction or nominal debt: " + k);
   }
-  if (row.disposition === "unresolved") {\n    errors.push("Unresolved candidate cannot be certified: " + k);\n  }\n  if (row.disposition === "unresolved" && !row.followUpIssue) {
+  if (row.disposition === "unresolved") {
+    errors.push("Unresolved candidate cannot be certified: " + k);
+  }
+  if (row.disposition === "unresolved" && !row.followUpIssue) {
     errors.push("Unresolved candidate lacks follow-up issue: " + k);
   }
 }
