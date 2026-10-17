@@ -26,7 +26,9 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
     if (!ts.isPropertyAssignment(property)) return false;
     const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
       ? property.name.text : undefined;
-    if (!key || !mealKey.test(key)) return false;
+    // Structural shape only: a productive consumer, not a closed meal-key list,
+    // determines whether new contexts such as brunch are food knowledge.
+    if (!key?.trim()) return false;
     const options = unwrap(property.initializer);
     if (!ts.isArrayLiteralExpression(options) || options.elements.length === 0) return false;
     for (const element of options.elements) {
@@ -41,7 +43,8 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
 
 type Callable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | ts.MethodDeclaration;
 type Definition = { kind: "catalog" | "function" | "namespace"; file: string; id: string };
-type Catalog = { file: string; name: string; node: ts.VariableDeclaration; subject: string; hasMealContext: boolean };
+type Catalog = { file: string; name: string; node: ts.VariableDeclaration; subject: string;
+  keys: ReadonlySet<string>; hasMealContext: boolean };
 type NamedFunction = { file: string; name: string; node: Callable };
 
 export function findConsumedMealChoiceCatalogs(
@@ -72,8 +75,12 @@ export function findConsumedMealChoiceCatalogs(
               ? property.name.text : "";
             return key.toLowerCase() !== "general" && mealKey.test(key);
           });
+          const keys = new Set(literal.properties.map(property =>
+            ts.isPropertyAssignment(property) &&
+              (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+              ? property.name.text : "").filter(Boolean));
           catalogs.set(id, { file: location, name: node.name.text, node,
-            subject: node.initializer.getText(source), hasMealContext });
+            subject: node.initializer.getText(source), keys, hasMealContext });
           byDeclaration.set(node, { kind: "catalog", file: location, id });
         } else {
           const value = unwrap(node.initializer);
@@ -95,10 +102,11 @@ export function findConsumedMealChoiceCatalogs(
   // The canonical scanner already inspected all productive files. Parse only
   // plausible catalog sources first and avoid a second AST traversal of the
   // entire repository when the finding is already covered by the local gate.
-  const maybeMealKey = /breakfast|lunch|dinner|snack|supper|almoco|jantar|lanche|ceia|pre.?workout|post.?workout|cafe.?da.?manha|general["']?\s*:/i;
+  // Structural prefilter: do not gate on the vocabulary of meal contexts.
+  const maybeChoiceShape = /(?:[A-Za-z_$][\w$]*|["'][^"']+["'])\s*:\s*\[/;
   for (const file of files) {
     const location = file.path.replace(/\\/g, "/");
-    if (runtime.has(location) && !/\.json$/i.test(location) && maybeMealKey.test(file.content)) {
+    if (runtime.has(location) && !/\.json$/i.test(location) && maybeChoiceShape.test(file.content)) {
       register(file);
     }
   }
@@ -210,7 +218,7 @@ export function findConsumedMealChoiceCatalogs(
             const key = property.text;
             return resolveExpression(decl.initializer, decl, new Set(seen)).flatMap(ref =>
               ref.kind === "namespace" ? resolveExport(ref.file, key, new Set(seen)) :
-              ref.kind === "catalog" && mealKey.test(key) ? [ref] : []);
+              ref.kind === "catalog" && catalogs.get(ref.id)?.keys.has(key) ? [ref] : []);
           }
           if (ts.isArrayBindingPattern(decl.name)) {
             const element = decl.name.elements.find((item): item is ts.BindingElement =>
@@ -278,7 +286,7 @@ export function findConsumedMealChoiceCatalogs(
       const base = resolveExpression(value.expression, use, new Set(seen));
       return base.flatMap(ref => ref.kind === "namespace"
         ? resolveExport(ref.file, value.name.text, new Set(seen))
-        : ref.kind === "catalog" && mealKey.test(value.name.text) ? [ref] : []);
+        : ref.kind === "catalog" && catalogs.get(ref.id)?.keys.has(value.name.text) ? [ref] : []);
     }
     if (ts.isElementAccessExpression(value) && value.argumentExpression) {
       const index = unwrap(value.argumentExpression);
@@ -286,7 +294,7 @@ export function findConsumedMealChoiceCatalogs(
       const base = resolveExpression(value.expression, use, new Set(seen));
       return base.flatMap(ref => ref.kind === "namespace" && constant
         ? resolveExport(ref.file, index.text, new Set(seen))
-        : ref.kind === "catalog" && (!constant || mealKey.test(index.text)) ? [ref] : []);
+        : ref.kind === "catalog" && (!constant || catalogs.get(ref.id)?.keys.has(index.text)) ? [ref] : []);
     }
     if (ts.isCallExpression(value)) {
       const callee = value.expression;
