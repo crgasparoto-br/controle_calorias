@@ -16,6 +16,18 @@ const unwrap = (expr: ts.Expression): ts.Expression => {
   return expr;
 };
 
+/** Read both ordinary and computed property names without relying on a known
+ * vocabulary of meal contexts. A computed key may be chosen at runtime; its
+ * literal suggestion values still require a productive consumer before gating. */
+const mealChoicePropertyKey = (name: ts.PropertyName): string | undefined => {
+  const key = ts.isComputedPropertyName(name) ? unwrap(name.expression) : name;
+  if (ts.isIdentifier(key) || ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) {
+    return key.text;
+  }
+  if (ts.isComputedPropertyName(name)) return key.getText().trim() || undefined;
+  return undefined;
+};
+
 /** Shape only: neither a filename nor a fixed dictionary of foods proves use. */
 export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
   const object = unwrap(expression);
@@ -24,8 +36,7 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
   let actions = 0;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) return false;
-    const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
-      ? property.name.text : undefined;
+    const key = mealChoicePropertyKey(property.name);
     // Structural shape only: a productive consumer, not a closed meal-key list,
     // determines whether new contexts such as brunch are food knowledge.
     if (!key?.trim()) return false;
@@ -71,14 +82,12 @@ export function findConsumedMealChoiceCatalogs(
           const literal = unwrap(node.initializer) as ts.ObjectLiteralExpression;
           const hasMealContext = literal.properties.some(property => {
             if (!ts.isPropertyAssignment(property)) return false;
-            const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
-              ? property.name.text : "";
+            const key = mealChoicePropertyKey(property.name) ?? "";
             return key.toLowerCase() !== "general" && mealKey.test(key);
           });
           const keys = new Set(literal.properties.map(property =>
-            ts.isPropertyAssignment(property) &&
-              (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
-              ? property.name.text : "").filter(Boolean));
+            ts.isPropertyAssignment(property)
+              ? mealChoicePropertyKey(property.name) ?? "" : "").filter(Boolean));
           catalogs.set(id, { file: location, name: node.name.text, node,
             subject: node.initializer.getText(source), keys, hasMealContext });
           byDeclaration.set(node, { kind: "catalog", file: location, id });
@@ -103,7 +112,7 @@ export function findConsumedMealChoiceCatalogs(
   // plausible catalog sources first and avoid a second AST traversal of the
   // entire repository when the finding is already covered by the local gate.
   // Structural prefilter: do not gate on the vocabulary of meal contexts.
-  const maybeChoiceShape = /(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"']+["'])\s*:\s*\[/u;
+  const maybeChoiceShape = /(?:(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"']+["'])|\[[^\]\r\n]{1,80}\])\s*:\s*\[/u;
   for (const file of files) {
     const location = file.path.replace(/\\/g, "/");
     if (runtime.has(location) && !/\.json$/i.test(location) && maybeChoiceShape.test(file.content)) {
