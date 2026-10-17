@@ -7,7 +7,6 @@ import type { FoodArchitectureFile, FoodFinding } from "./food-intelligence-arch
 const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
 const uiAction = /^(?:editar|excluir|abrir|fechar|salvar|cancelar|copiar|visualizar|imprimir|selecionar|remover|apagar|voltar|proximo|próximo)\b/i;
 const foodDomain = /food|alimen|meal|nutri|ingred|recipe|receita/i;
-const recommending = /^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i;
 const unwrap = (expr: ts.Expression): ts.Expression => {
   if (ts.isParenthesizedExpression(expr) || ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr)) {
     return unwrap(expr.expression);
@@ -29,7 +28,7 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
       ? property.name.text : undefined;
     if (!key || !mealKey.test(key)) return false;
     const options = unwrap(property.initializer);
-    if (!ts.isArrayLiteralExpression(options) || options.elements.length < 2) return false;
+    if (!ts.isArrayLiteralExpression(options) || options.elements.length === 0) return false;
     for (const element of options.elements) {
       const value = unwrap(element);
       if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
@@ -37,12 +36,12 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
       if (uiAction.test(value.text)) actions++;
     }
   }
-  return values >= 2 && actions !== values;
+  return values > 0 && actions !== values;
 }
 
 type Callable = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | ts.MethodDeclaration;
 type Definition = { kind: "catalog" | "function" | "namespace"; file: string; id: string };
-type Catalog = { file: string; name: string; node: ts.VariableDeclaration; subject: string };
+type Catalog = { file: string; name: string; node: ts.VariableDeclaration; subject: string; hasMealContext: boolean };
 type NamedFunction = { file: string; name: string; node: Callable };
 
 export function findConsumedMealChoiceCatalogs(
@@ -66,8 +65,15 @@ export function findConsumedMealChoiceCatalogs(
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
         if (isLiteralMealChoiceData(node.initializer)) {
           const id = location + ":catalog:" + node.getStart(source);
+          const literal = unwrap(node.initializer) as ts.ObjectLiteralExpression;
+          const hasMealContext = literal.properties.some(property => {
+            if (!ts.isPropertyAssignment(property)) return false;
+            const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
+              ? property.name.text : "";
+            return key.toLowerCase() !== "general" && mealKey.test(key);
+          });
           catalogs.set(id, { file: location, name: node.name.text, node,
-            subject: node.initializer.getText(source) });
+            subject: node.initializer.getText(source), hasMealContext });
           byDeclaration.set(node, { kind: "catalog", file: location, id });
         } else {
           const value = unwrap(node.initializer);
@@ -194,8 +200,26 @@ export function findConsumedMealChoiceCatalogs(
           if (decl.getStart(source) > use.getStart(source)) return []; // TDZ is not a valid alias
           const binding = byDeclaration.get(decl);
           if (binding) return [binding];
-          if (!ts.isIdentifier(decl.name) || !decl.initializer ||
-              !(statement.declarationList.flags & ts.NodeFlags.Const)) return [];
+          if (!decl.initializer || !(statement.declarationList.flags & ts.NodeFlags.Const)) return [];
+          if (ts.isObjectBindingPattern(decl.name)) {
+            const element = decl.name.elements.find(item =>
+              ts.isIdentifier(item.name) && item.name.text === name);
+            if (!element || element.dotDotDotToken || element.initializer) return [];
+            const property = element.propertyName ?? element.name;
+            if (!ts.isIdentifier(property) && !ts.isStringLiteral(property)) return [];
+            const key = property.text;
+            return resolveExpression(decl.initializer, decl, new Set(seen)).flatMap(ref =>
+              ref.kind === "namespace" ? resolveExport(ref.file, key, new Set(seen)) :
+              ref.kind === "catalog" && mealKey.test(key) ? [ref] : []);
+          }
+          if (ts.isArrayBindingPattern(decl.name)) {
+            const element = decl.name.elements.find((item): item is ts.BindingElement =>
+              ts.isBindingElement(item) && ts.isIdentifier(item.name) && item.name.text === name);
+            return element && !element.dotDotDotToken && !element.initializer
+              ? resolveExpression(decl.initializer, decl, new Set(seen))
+                .filter(ref => ref.kind === "catalog") : [];
+          }
+          if (!ts.isIdentifier(decl.name)) return [];
           return resolveExpression(decl.initializer, decl, new Set(seen));
         }
       }
@@ -223,21 +247,74 @@ export function findConsumedMealChoiceCatalogs(
     }
     return [];
   };
+  /** Object.values() is transparent only when Object resolves to the native global.
+   * A local parameter, import, variable or class must not inherit JSON provenance. */
+  const isNativeObject = (use: ts.Node): boolean => {
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param => containsName(param.name, "Object"))) return false;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          containsName(scope.variableDeclaration.name, "Object")) return false;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(
+          decl => containsName(decl.name, "Object"))) return false;
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === "Object") return false;
+        if (ts.isImportEqualsDeclaration(statement) && statement.name.text === "Object") return false;
+        if (ts.isImportDeclaration(statement) && statement.importClause &&
+            (statement.importClause.name?.text === "Object" ||
+              (statement.importClause.namedBindings && (ts.isNamespaceImport(statement.importClause.namedBindings)
+                ? statement.importClause.namedBindings.name.text === "Object"
+                : statement.importClause.namedBindings.elements.some(el => el.name.text === "Object"))))) return false;
+      }
+    }
+    return true;
+  };
   const resolveExpression = (expr: ts.Expression, use: ts.Node, seen: Set<string>): Definition[] => {
+    if (seen.size > 90) return [];
     const value = unwrap(expr);
     if (ts.isIdentifier(value)) return resolveName(value.text, use, seen);
     if (ts.isPropertyAccessExpression(value)) {
-      return resolveExpression(value.expression, use, new Set(seen))
-        .filter(ref => ref.kind === "namespace")
-        .flatMap(ref => resolveExport(ref.file, value.name.text, new Set(seen)));
+      const base = resolveExpression(value.expression, use, new Set(seen));
+      return base.flatMap(ref => ref.kind === "namespace"
+        ? resolveExport(ref.file, value.name.text, new Set(seen))
+        : ref.kind === "catalog" && mealKey.test(value.name.text) ? [ref] : []);
     }
     if (ts.isElementAccessExpression(value) && value.argumentExpression) {
-      const arg = unwrap(value.argumentExpression);
-      if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
-        return resolveExpression(value.expression, use, new Set(seen))
-          .filter(ref => ref.kind === "namespace")
-          .flatMap(ref => resolveExport(ref.file, arg.text, new Set(seen)));
+      const index = unwrap(value.argumentExpression);
+      const constant = ts.isStringLiteral(index) || ts.isNoSubstitutionTemplateLiteral(index);
+      const base = resolveExpression(value.expression, use, new Set(seen));
+      return base.flatMap(ref => ref.kind === "namespace" && constant
+        ? resolveExport(ref.file, index.text, new Set(seen))
+        : ref.kind === "catalog" && (!constant || mealKey.test(index.text)) ? [ref] : []);
+    }
+    if (ts.isCallExpression(value)) {
+      const callee = value.expression;
+      const valuesReceiver = ts.isPropertyAccessExpression(callee) && callee.name.text === "values"
+        ? callee.expression
+        : ts.isElementAccessExpression(callee) && callee.argumentExpression &&
+          (ts.isStringLiteral(callee.argumentExpression) ||
+            ts.isNoSubstitutionTemplateLiteral(callee.argumentExpression)) &&
+          callee.argumentExpression.text === "values" ? callee.expression : null;
+      if (valuesReceiver && ts.isIdentifier(valuesReceiver) && valuesReceiver.text === "Object" &&
+          value.arguments.length === 1 && isNativeObject(value)) {
+        return resolveExpression(value.arguments[0], use, new Set(seen))
+          .filter(ref => ref.kind === "catalog");
       }
+      // These operations retain the source data; an opaque mapper does not.
+      if (ts.isPropertyAccessExpression(callee) && ["flat", "slice", "filter"].includes(callee.name.text)) {
+        return resolveExpression(callee.expression, use, new Set(seen))
+          .filter(ref => ref.kind === "catalog");
+      }
+    }
+    if (ts.isConditionalExpression(value)) {
+      return [...resolveExpression(value.whenTrue, use, new Set(seen)),
+        ...resolveExpression(value.whenFalse, use, new Set(seen))];
+    }
+    if (ts.isBinaryExpression(value) && (value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        value.operatorToken.kind === ts.SyntaxKind.BarBarToken)) {
+      return [...resolveExpression(value.left, use, new Set(seen)),
+        ...resolveExpression(value.right, use, new Set(seen))];
     }
     return [];
   };
@@ -246,8 +323,35 @@ export function findConsumedMealChoiceCatalogs(
   for (const [id, fn] of functions) {
     const direct = new Set<string>();
     const calls = new Set<string>();
+    const collect = (expression: ts.Expression): void => {
+      for (const reference of resolveExpression(expression, expression, new Set())) {
+        if (reference.kind === "catalog") direct.add(reference.id);
+      }
+      const value = unwrap(expression);
+      if (ts.isArrayLiteralExpression(value)) value.elements.forEach(element => {
+        if (ts.isSpreadElement(element)) collect(element.expression);
+        else if (ts.isExpression(element)) collect(element);
+      });
+      if (ts.isObjectLiteralExpression(value)) value.properties.forEach(property => {
+        if (ts.isPropertyAssignment(property)) collect(property.initializer);
+        if (ts.isShorthandPropertyAssignment(property)) collect(property.name);
+        if (ts.isSpreadAssignment(property)) collect(property.expression);
+      });
+      if (ts.isConditionalExpression(value)) {
+        collect(value.whenTrue);
+        collect(value.whenFalse);
+      }
+      if (ts.isBinaryExpression(value) && (value.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+          value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)) {
+        collect(value.left);
+        collect(value.right);
+      }
+    };
     const walk = (node: ts.Node): void => {
-      if (node !== fn.node && ts.isFunctionDeclaration(node)) return;
+      if (node !== fn.node && ts.isFunctionLike(node)) return;
+      if (ts.isReturnStatement(node) && node.expression) collect(node.expression);
+      // Preserve the pre-existing dynamic-index signal for a genuine local
+      // productive consumer, including indirect helper calls.
       if (ts.isElementAccessExpression(node) && node.argumentExpression) {
         const key = unwrap(node.argumentExpression);
         if (!ts.isStringLiteral(key) && !ts.isNoSubstitutionTemplateLiteral(key) &&
@@ -265,21 +369,42 @@ export function findConsumedMealChoiceCatalogs(
       }
       ts.forEachChild(node, walk);
     };
-    if (fn.node.body) walk(fn.node.body);
+    if (fn.node.body) {
+      if (ts.isBlock(fn.node.body)) walk(fn.node.body);
+      else collect(fn.node.body);
+    }
     references.set(id, { catalogs: direct, calls });
   }
-  const reachable = new Set<string>();
-  const walkCalls = (id: string, seen: Set<string>): void => {
-    if (seen.has(id)) return;
+  const walkCalls = (id: string, seen: Set<string>): Set<string> => {
+    if (seen.has(id)) return new Set();
     seen.add(id);
+    const found = new Set<string>();
     const proof = references.get(id);
-    if (!proof) return;
-    for (const candidate of proof.catalogs) reachable.add(candidate);
-    for (const next of proof.calls) walkCalls(next, seen);
+    if (!proof) return found;
+    for (const candidate of proof.catalogs) found.add(candidate);
+    for (const next of proof.calls) {
+      for (const candidate of walkCalls(next, seen)) found.add(candidate);
+    }
+    return found;
   };
+  const reachable = new Set<string>();
   for (const [id, fn] of functions) {
-    if (recommending.test(fn.name) && foodDomain.test(fn.name + " " + fn.file)) {
-      walkCalls(id, new Set());
+    const foodContext = foodDomain.test(fn.name + " " + fn.file);
+    const foodFunction = foodDomain.test(fn.name);
+    const declaration = fn.node.parent;
+    const exported = ts.isVariableDeclaration(declaration)
+      ? ts.isVariableStatement(declaration.parent.parent) &&
+        !!declaration.parent.parent.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword)
+      : !!fn.node.modifiers?.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+    // An uncalled local helper is not a productive consumer merely because
+    // its filename mentions meals. Exported handlers and reachable functions
+    // with food semantics remain roots regardless of their verb prefix.
+    if (!foodFunction && !(exported && /^(server|shared)\//.test(fn.file))) continue;
+    for (const candidate of walkCalls(id, new Set())) {
+      const catalog = catalogs.get(candidate);
+      // Generic 'general' settings/status dictionaries are not food knowledge
+      // without evidence that the consumer belongs to the food domain.
+      if (catalog && (foodContext || catalog.hasMealContext)) reachable.add(candidate);
     }
   }
   return [...reachable].flatMap(id => {
