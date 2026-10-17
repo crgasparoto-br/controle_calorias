@@ -86,3 +86,9 @@ No inventário do SHA `9a472bd286b2317aa1462f549d01d56202bf27ba`, 12 registros e
 Em `client/src/components/admin/NutritionLabelCandidateEditForm.tsx`, comparar `form[field].trim()` e `form.fiber.trim()` com string vazia é validação do formulário, não decisão de materialidade. O detector agora exige conteúdo lexical não vazio nesse tipo de comparação. Testes positivos preservam comparações de materialidade como `light`.
 
 **Escopo da evidência:** leitura de fluxo de fonte e testes adversariais locais sobre o detector; não atribui certificação independente nem elimina pendências não revisadas. Recontar inventário no HEAD final.
+
+## Identidade por ocorrência (revisão de 17/10/2026)
+- Uma fingerprint não é necessariamente uma ocorrência única: decisões iguais podem surgir várias vezes na mesma linha e o SHA da linha pode coincidir.
+- A fila `triage.pending` preserva cada entrada com `occurrenceIndex` (ordinal de 1 a N por fingerprint/arquivo/linha/regra/classe) e `occurrenceCount` (N).
+- A revisão deve indicar o mesmo `occurrenceIndex` e o campo `lineSha256` da respectiva entrada do inventário. O validador rejeita omissões, ordinais duplicados, sequência incompleta, digest incorreto e reutilização de uma única revisão para duas ocorrências.
+- Essa identidade resolve a rastreabilidade; **não comprova equivalência semântica ou comportamento**. A aprovação continua independente da implementação.

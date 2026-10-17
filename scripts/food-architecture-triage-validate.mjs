@@ -34,19 +34,41 @@ if (decisions.sourceSha !== sha || decisions.baselineSha !== baselineSha) {
   throw new Error("Stale or mismatched source/baseline SHA in decisions");
 }
 const errors = [];
-const key = (r) => [r.fingerprint, r.file, r.line, r.ruleId, r.failureClass].join("\0");
+const family = (r) => [r.fingerprint, r.file, r.line, r.ruleId, r.failureClass].join("\0");
+const key = (r) => family(r) + "\0" + r.occurrenceIndex;
 const queue = new Map();
+const families = new Map();
 for (const row of pending) {
+  const f = family(row);
+  families.set(f, [...(families.get(f) ?? []), row]);
+  if (!Number.isSafeInteger(row.occurrenceIndex) || row.occurrenceIndex < 1 ||
+      !Number.isSafeInteger(row.occurrenceCount) || row.occurrenceCount < 1) {
+    errors.push("Missing/invalid occurrence identity: " + f);
+    continue;
+  }
+  if (!/^[a-f0-9]{64}$/.test(row.evidence?.lineSha256 ?? "")) {
+    errors.push("Missing source line SHA-256: " + f);
+  }
   const k = key(row);
-  queue.set(k, (queue.get(k) ?? 0) + 1);
+  if (queue.has(k)) errors.push("Duplicate inventory occurrence: " + k);
+  queue.set(k, row);
 }
-const reviewed = new Map();
+for (const [f, rows] of families) {
+  const indices = rows.map(r => r.occurrenceIndex).sort((a, b) => a - b);
+  if (rows.some(r => r.occurrenceCount !== rows.length) ||
+      indices.some((index, position) => index !== position + 1)) {
+    errors.push("Invalid occurrence sequence in inventory: " + f);
+  }
+}
+const reviewed = new Set();
 for (const row of decisions.reviews) {
   const k = key(row);
-  const available = queue.get(k) ?? 0;
-  const used = reviewed.get(k) ?? 0;
-  if (used >= available) errors.push("Unknown or duplicate candidate: " + k.replaceAll("\0", " | "));
-  reviewed.set(k, used + 1);
+  const source = queue.get(k);
+  if (!source || reviewed.has(k)) errors.push("Unknown or duplicate candidate: " + k.replaceAll("\0", " | "));
+  reviewed.add(k);
+  if (source && row.lineSha256 !== source.evidence?.lineSha256) {
+    errors.push("Source line SHA-256 mismatch: " + k);
+  }
   if (!["confirmed_violation", "confirmed_non_violation", "unresolved"].includes(row.disposition)) {
     errors.push("Invalid disposition: " + k);
   }
@@ -66,7 +88,7 @@ for (const row of decisions.reviews) {
     errors.push("Unresolved candidate lacks follow-up issue: " + k);
   }
 }
-const unreviewed = [...queue].reduce((sum, [k, amount]) => sum + Math.max(0, amount - (reviewed.get(k) ?? 0)), 0);
+const unreviewed = [...queue.keys()].filter(k => !reviewed.has(k)).length;
 if (unreviewed) errors.push(unreviewed + " candidate occurrences lack a reviewed decision");
 const summary = {
   sourceSha: sha, baselineSha, pending: pending.length,

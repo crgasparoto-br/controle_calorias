@@ -118,12 +118,29 @@ try {
   baselineError = String(error);
 }
 const legacyFingerprints = new Set(enforced.delta.retained.map(item => item.fingerprint));
-const triageQueue = inventory.filter(item =>
+const rawTriageQueue = inventory.filter(item =>
   item.review.classification === "heuristic-candidate" &&
   legacyFingerprints.has(item.fingerprint)).map(item => ({
     fingerprint: item.fingerprint, ruleId: item.ruleId, failureClass: item.failureClass,
     file: item.file, line: item.line, status: "pending-evidence",
   }));
+// Two expressions may yield the same fingerprint even on one source line.
+// Preserve a distinct, deterministic review identity for each occurrence.
+const occurrenceKey = (item: (typeof rawTriageQueue)[number]) => JSON.stringify([
+  item.fingerprint, item.file, item.line, item.ruleId, item.failureClass,
+]);
+const occurrenceTotals = new Map<string, number>();
+const occurrenceSeen = new Map<string, number>();
+for (const item of rawTriageQueue) {
+  const key = occurrenceKey(item);
+  occurrenceTotals.set(key, (occurrenceTotals.get(key) ?? 0) + 1);
+}
+const triageQueue = rawTriageQueue.map(item => {
+  const key = occurrenceKey(item);
+  const occurrenceIndex = (occurrenceSeen.get(key) ?? 0) + 1;
+  occurrenceSeen.set(key, occurrenceIndex);
+  return { ...item, occurrenceIndex, occurrenceCount: occurrenceTotals.get(key)! };
+});
 // R1300-05: process *every* pending candidate rather than sampling. Prove
 // the source/line at this SHA, but never call source inspection a behavioral
 // certification of a competing owner or a nutrition rule.
@@ -187,6 +204,7 @@ const report = {
       sourceBaselineSha: pinned.baseSha,
       fingerprint: item.fingerprint, failureClass: item.failureClass,
       file: item.file, line: item.line, ruleId: item.ruleId,
+      occurrenceIndex: item.occurrenceIndex, occurrenceCount: item.occurrenceCount,
       evidence: item.evidence,
       status: "requires-behavioral-review" as const,
     })),
