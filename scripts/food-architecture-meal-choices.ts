@@ -34,23 +34,32 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
   if (!ts.isObjectLiteralExpression(object) || object.properties.length === 0) return false;
   let values = 0;
   let actions = 0;
-  for (const property of object.properties) {
-    // A mixed menu can spread governed choices or contain dynamic entries.
-    // Neither may hide another literal suggestion in the same object.
-    if (!ts.isPropertyAssignment(property)) continue;
-    const key = mealChoicePropertyKey(property.name);
-    // Structural shape only: productive consumption determines food knowledge,
-    // not a closed list of meal names or all-literal object properties.
-    if (!key?.trim()) continue;
-    const options = unwrap(property.initializer);
-    if (!ts.isArrayLiteralExpression(options)) continue;
-    for (const element of options.elements) {
-      const value = unwrap(element);
-      if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) continue;
-      values++;
-      if (uiAction.test(value.text)) actions++;
+  const collect = (literal: ts.ObjectLiteralExpression, depth: number): void => {
+    if (depth > 8) return;
+    for (const property of literal.properties) {
+      // A mixed menu can spread governed choices or contain dynamic entries.
+      // Neither may hide literal suggestions, including inline object spreads.
+      if (ts.isSpreadAssignment(property)) {
+        const spread = unwrap(property.expression);
+        if (ts.isObjectLiteralExpression(spread)) collect(spread, depth + 1);
+        continue;
+      }
+      if (!ts.isPropertyAssignment(property)) continue;
+      const key = mealChoicePropertyKey(property.name);
+      // Productive consumption determines food knowledge, not a closed list of
+      // meal names or a requirement that every property be literal.
+      if (!key?.trim()) continue;
+      const options = unwrap(property.initializer);
+      if (!ts.isArrayLiteralExpression(options)) continue;
+      for (const element of options.elements) {
+        const value = unwrap(element);
+        if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) continue;
+        values++;
+        if (uiAction.test(value.text)) actions++;
+      }
     }
-  }
+  };
+  collect(object, 0);
   return values > 0 && actions !== values;
 }
 
