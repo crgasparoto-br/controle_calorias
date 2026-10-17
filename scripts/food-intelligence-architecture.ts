@@ -83,7 +83,7 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
   const foodVocabulary = /\b(?:arroz|feijao|frango|ovo(?:s)?|iogurte|banana|aveia|pao|batata|salada|queijo|carne|peixe|fruta(?:s)?|proteina|carboidrato|legume(?:s)?|tapioca|leite)\b/i;
   const categories = new Set<string>();
   let foodExamples = 0;
-  let menuPhrases = 0;
+  let culinaryPhrases = 0;
   let optionCount = 0;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) return false;
@@ -98,7 +98,7 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
       const normalized = value.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       optionCount++;
       if (foodVocabulary.test(normalized)) foodExamples++;
-      if (normalized.trim().split(/\s+/).length >= 2) menuPhrases++;
+      if (/\b(?:com|grelhad[oa]s?|assad[oa]s?|cozid[oa]s?|refogad[oa]s?|tostad[oa]s?|frit[oa]s?|ao\s+molho|ensopad[oa]s?)\b/i.test(normalized)) culinaryPhrases++;
     }
   }
   if (categories.size >= 2 && foodExamples >= 3) return true;
@@ -107,7 +107,7 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
   const owner = enclosingDeclaration(node);
   if (!/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
       !ts.isIdentifier(node.name) || optionCount < 2 ||
-      !(foodExamples >= 2 || menuPhrases >= 2)) return false;
+      !(foodExamples >= 2 || culinaryPhrases >= 2)) return false;
   let consumedByContext = false;
   let functionParent: ts.Node | null = null;
   for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {

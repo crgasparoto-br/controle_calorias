@@ -45,6 +45,21 @@ describe("AUD1300 local food suggestion tables", () => {
     expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-16T00:00:00Z"))
       .errors.length).toBeGreaterThan(0);
   });
+  it("does not treat multiword menu actions as food suggestions even under suggestMeal", () => {
+    const findings = inspect(`export function suggestMeal(meal: string) {
+      const optionsByContext = { lunch: ["Editar item", "Excluir item"] };
+      return optionsByContext[meal as "lunch"];
+    }`);
+    expect(findings.filter(f => f.symbol.includes("meal-choice-catalog"))).toEqual([]);
+  });
+  it("still detects preparation-based suggestions without foods in the lexical seed", () => {
+    const findings = inspect(`export function suggestMeal(meal: string) {
+      const optionsByContext = { lunch: ["Quinoa com cogumelos", "Tofu grelhado com lentilhas"] };
+      return optionsByContext[meal as "lunch"];
+    }`);
+    expect(findings.some(f => f.ruleId === "17" &&
+      f.symbol.includes("meal-choice-catalog"))).toBe(true);
+  });
   it("does not classify single-context UI status choices as food knowledge", () => {
     const findings = inspect(`export function mealDashboard(meal: string) {
       const optionsByContext = { lunch: ["Editar item", "Excluir item"] };
