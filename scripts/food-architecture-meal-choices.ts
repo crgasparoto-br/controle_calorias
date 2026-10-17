@@ -35,16 +35,18 @@ export function isLiteralMealChoiceData(expression: ts.Expression): boolean {
   let values = 0;
   let actions = 0;
   for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property)) return false;
+    // A mixed menu can spread governed choices or contain dynamic entries.
+    // Neither may hide another literal suggestion in the same object.
+    if (!ts.isPropertyAssignment(property)) continue;
     const key = mealChoicePropertyKey(property.name);
-    // Structural shape only: a productive consumer, not a closed meal-key list,
-    // determines whether new contexts such as brunch are food knowledge.
-    if (!key?.trim()) return false;
+    // Structural shape only: productive consumption determines food knowledge,
+    // not a closed list of meal names or all-literal object properties.
+    if (!key?.trim()) continue;
     const options = unwrap(property.initializer);
-    if (!ts.isArrayLiteralExpression(options) || options.elements.length === 0) return false;
+    if (!ts.isArrayLiteralExpression(options)) continue;
     for (const element of options.elements) {
       const value = unwrap(element);
-      if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
+      if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) continue;
       values++;
       if (uiAction.test(value.text)) actions++;
     }
@@ -112,7 +114,7 @@ export function findConsumedMealChoiceCatalogs(
   // plausible catalog sources first and avoid a second AST traversal of the
   // entire repository when the finding is already covered by the local gate.
   // Structural prefilter: do not gate on the vocabulary of meal contexts.
-  const maybeChoiceShape = /(?:(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"']+["'])|\[[^\]\r\n]{1,80}\])\s*:\s*\[/u;
+  const maybeChoiceShape = /(?:(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"'\r\n]+["'])|\[[^\]]+\])\s*:\s*\[/u;
   for (const file of files) {
     const location = file.path.replace(/\\/g, "/");
     if (runtime.has(location) && !/\.json$/i.test(location) && maybeChoiceShape.test(file.content)) {
