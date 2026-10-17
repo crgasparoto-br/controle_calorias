@@ -349,3 +349,138 @@ describe("AUD1300 F42 computed meal context property names", () => {
       'return loadGovernedFoodData(context); }' }])).toEqual([]);
   });
 });
+
+/** AUD1300-F43/F44: mixed object shapes and multiline computed keys must not bypass gate 17. */
+describe("AUD1300 F43/F44 structural meal-choice detection", () => {
+  type File = { path: string; content: string };
+  const candidates = (files: File[], origin = files[0]!.path) =>
+    findFoodStaticCandidates(files).filter(f =>
+      f.ruleId === "17" && f.file === origin &&
+      f.symbol.endsWith(":meal-choice-catalog"));
+  const expectBlocked = (files: File[], origin = files[0]!.path) => {
+    const findings = candidates(files, origin);
+    expect(findings).toHaveLength(1);
+    expect(evaluateFoodArchitectureGate(findings, [], [],
+      new Date("2026-10-17T20:30:00Z")).errors.some(error =>
+        error.includes("New food architecture violation gate 17"))).toBe(true);
+  };
+
+  it("F43 blocks a literal suggestion alongside an imported spread and dynamic choice", () => {
+    expectBlocked([{ path: "server/mealService.ts", content: [
+      "export function recommendMeal(context: string) {",
+      "  const optionsByContext = {",
+      "    ...loadGovernedChoices(),",
+      "    brunch: [\"Ovos com abacate\"],",
+      "    ceiaDinamica: loadChoices(),",
+      "  };",
+      "  return optionsByContext[context];",
+      "}",
+    ].join("\n") }]);
+  });
+
+  it("F43 blocks an inline nested spread holding the only literal suggestion", () => {
+    expectBlocked([{ path: "server/mealService.ts", content: [
+      "export function recommendMeal(context: string) {",
+      "  const optionsByContext = {",
+      "    ...{ brunch: [\"Arroz com lentilhas\"] },",
+      "    other: loadGovernedChoices(),",
+      "  };",
+      "  return optionsByContext[context];",
+      "}",
+    ].join("\n") }]);
+  });
+
+  it("F43 blocks a partially dynamic suggestion array", () => {
+    expectBlocked([{ path: "server/mealService.ts", content: [
+      "export function recommendMeal(context: string) {",
+      "  const optionsByContext = {",
+      "    brunch: [\"Tofu com legumes\", ...getAdditionalChoices()],",
+      "  };",
+      "  return optionsByContext[context];",
+      "}",
+    ].join("\n") }]);
+  });
+
+  it("F43 follows an imported mixed catalog and attributes the source", () => {
+    expectBlocked([
+      { path: "server/menuConfig.ts", content:
+        'export const optionsByContext = { ...loadGovernedChoices(), brunch: ["Ovos com aveia"] };' },
+      { path: "server/mealService.ts", content:
+        'import { optionsByContext as choices } from "./menuConfig"; ' +
+        'export function recommendMeal(context: string) { return choices[context]; }' },
+    ], "server/menuConfig.ts");
+  });
+
+  it("F43 ignores a mixed catalog without static food suggestions", () => {
+    expect(candidates([{ path: "server/mealService.ts", content:
+      'export function recommendMeal(context: string) { ' +
+      'const optionsByContext = { ...loadGovernedChoices(), brunch: loadChoices() }; ' +
+      'return optionsByContext[context]; }' }])).toEqual([]);
+  });
+
+  it("F43 ignores presentation-only actions and spread metadata", () => {
+    expect(candidates([{ path: "server/mealService.ts", content:
+      'export function recommendMeal(context: string) { ' +
+      'const optionsByContext = { ...loadGovernedChoices(), brunch: ["Editar item", "Excluir item"] }; ' +
+      'return optionsByContext[context]; }' }])).toEqual([]);
+  });
+
+  it("F43 does not confuse administrative statuses with nutrition", () => {
+    expect(candidates([{ path: "server/account/status.ts", content:
+      'const optionsByContext = { ...loadStatus(), brunch: ["Ativo", "Pendente"] }; ' +
+      'export function recommendAccountStatus(context: string) { ' +
+      'return optionsByContext[context]; }' }])).toEqual([]);
+  });
+
+  it("F44 follows a multiline computed key across a named import", () => {
+    expectBlocked([
+      { path: "server/menuConfig.ts", content: [
+        "export const optionsByContext = {",
+        "  [",
+        '    "brunch"',
+        '  ]: ["Ovos com abacate"],',
+        "};",
+      ].join("\n") },
+      { path: "server/mealService.ts", content:
+        'import { optionsByContext as menu } from "./menuConfig"; ' +
+        'export function recommendMeal() { return menu["brunch"]; }' },
+    ], "server/menuConfig.ts");
+  });
+
+  it("F44 recognizes a computed property longer than the former 80-char cutoff", () => {
+    const mealName = "refeicaoEspecial" + "x".repeat(130);
+    expectBlocked([
+      { path: "server/menuConfig.ts", content:
+        'export const optionsByContext = { ["' + mealName + '"]: ["Quinoa com cogumelos"] };' },
+      { path: "server/mealService.ts", content:
+        'import { optionsByContext as menu } from "./menuConfig"; ' +
+        'export function recommendMeal() { return menu["' + mealName + '"]; }' },
+    ], "server/menuConfig.ts");
+  });
+
+  it("F44 preserves a negative control for a multiline unused menu", () => {
+    expect(candidates([{ path: "server/mealService.ts", content: [
+      "export function recommendMeal(context: string) {",
+      "  const optionsByContext = {",
+      "    [",
+      '      "brunch"',
+      '    ]: ["Ovos com aveia"],',
+      "  };",
+      "  return loadGovernedChoices(context);",
+      "}",
+    ].join("\n") }])).toEqual([]);
+  });
+
+  it("F44 does not block multiline computed UI action menus", () => {
+    expect(candidates([{ path: "server/mealService.ts", content: [
+      "export function recommendMeal(context: string) {",
+      "  const optionsByContext = {",
+      "    [",
+      '      "brunch"',
+      '    ]: ["Editar item", "Excluir item"],',
+      "  };",
+      "  return optionsByContext[context];",
+      "}",
+    ].join("\n") }])).toEqual([]);
+  });
+});
