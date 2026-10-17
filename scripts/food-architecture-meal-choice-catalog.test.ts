@@ -228,6 +228,13 @@ describe("AUD1300 F41 context-key independence", () => {
     }` }]);
   });
 
+  it("blocks a Unicode-only context identifier without known meal keys", () => {
+    block([{ path: "server/mealService.ts", content: `export function recommendMeal(context: string) {
+      const optionsByContext = { refeiçãoEspecial: ["Arroz com lentilhas"] };
+      return optionsByContext[context as "refeiçãoEspecial"];
+    }` }]);
+  });
+
   it("follows an imported catalog with previously unknown context names", () => {
     block([
       { path: "server/mealChoices.ts", content: `export const optionsByContext = {
