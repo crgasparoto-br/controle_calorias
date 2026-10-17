@@ -123,7 +123,6 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
   visit(functionParent);
   return consumedByContext;
 }
-}
 
 function isLiteralCollection(expr: ts.Expression): boolean {
   const value = unwrap(expr);
