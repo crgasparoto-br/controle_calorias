@@ -123,7 +123,9 @@ export function findConsumedMealChoiceCatalogs(
   // plausible catalog sources first and avoid a second AST traversal of the
   // entire repository when the finding is already covered by the local gate.
   // Structural prefilter: do not gate on the vocabulary of meal contexts.
-  const maybeChoiceShape = /(?:(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"'\r\n]+["'])|\[[^\]]+\])\s*:\s*\[/u;
+  // Match the closing bracket of a computed key. Never scan arbitrarily
+  // far from '[' to ']' or impose a key length/line limit: the AST validates it.
+  const maybeChoiceShape = /(?:[\p{ID_Start}_$][\p{ID_Continue}$]*|["'][^"'\r\n]+["']|\])\s*:\s*\[/u;
   for (const file of files) {
     const location = file.path.replace(/\\/g, "/");
     if (runtime.has(location) && !/\.json$/i.test(location) && maybeChoiceShape.test(file.content)) {
