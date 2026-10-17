@@ -484,3 +484,75 @@ describe("AUD1300 F43/F44 structural meal-choice detection", () => {
     ].join("\n") }])).toEqual([]);
   });
 });
+
+/** AUD1300-20261017-F45: syntax trivia must never bypass a productive gate 17
+ * catalog when the TypeScript AST still recognizes a literal array. */
+describe("AUD1300 F45 meal-choice token prefilter completeness", () => {
+  type File = { path: string; content: string };
+  const origin = "server/menuConfig.ts";
+  const scan = (files: File[]) => findFoodStaticCandidates(files).filter(f =>
+    f.ruleId === "17" && f.file === origin &&
+    f.symbol === "optionsByContext:meal-choice-catalog");
+  const consumer = (menu: string): File[] => [
+    { path: origin, content: menu },
+    { path: "server/mealService.ts", content:
+      'import { optionsByContext as choices } from "./menuConfig"; ' +
+      'export function recommendMeal(context: string) { return choices[context]; }' },
+  ];
+  const expectBlocked = (files: File[]) => {
+    const findings = scan(files);
+    expect(findings).toHaveLength(1);
+    expect(evaluateFoodArchitectureGate(findings, [], [],
+      new Date("2026-10-17T00:00:00Z")).errors.some(error =>
+        error.includes("New food architecture violation gate 17"))).toBe(true);
+  };
+
+  it("blocks a module-level suggestion array surrounded by parentheses", () => {
+    expectBlocked(consumer(
+      'export const optionsByContext = { breakfast: (["Tofu com legumes"]) };'));
+  });
+
+  it("blocks an imported suggestion array after an intervening comment", () => {
+    expectBlocked(consumer(
+      'export const optionsByContext = { brunch: /* validated by AST */ ["Ovos com abacate"] };'));
+  });
+
+  it("blocks computed-key suggestions with trivia and as const", () => {
+    expectBlocked(consumer([
+      "export const optionsByContext = {",
+      '  ["brunch"] /* key trivia */ : /* value trivia */ (["Arroz com lentilhas"] as const),',
+      "};",
+    ].join("\n")));
+  });
+
+  it("blocks an imported suggestion in a literal nested spread with trivia", () => {
+    expectBlocked(consumer(
+      'export const optionsByContext = { ...{ brunch: /* nested */ (["Aveia com banana"]) } };'));
+  });
+
+  it("does not block administrative status choices despite matching tokens", () => {
+    const findings = findFoodStaticCandidates([{ path: "server/account/status.ts", content:
+      'const optionsByContext = { brunch: /* comment */ (["Ativo", "Pendente"]) }; ' +
+      'export function recommendAccountStatus(context: string) { return optionsByContext[context]; }' }]);
+    expect(findings.filter(f => f.symbol.endsWith(":meal-choice-catalog"))).toEqual([]);
+    expect(evaluateFoodArchitectureGate(findings, [], [],
+      new Date("2026-10-17T00:00:00Z")).errors).toEqual([]);
+  });
+
+  it("does not block unconsumed food suggestions imported only as inert data", () => {
+    const files: File[] = [
+      { path: origin, content:
+        'export const optionsByContext = { breakfast: /* comment */ (["Tofu com legumes"]) };' },
+      { path: "server/mealService.ts", content:
+        'import { optionsByContext } from "./menuConfig"; ' +
+        'export function recommendMeal(context: string) { return fromFoodDatabase(context); }' },
+    ];
+    expect(scan(files)).toEqual([]);
+  });
+
+  it("does not interpret presentation-only actions as food suggestions", () => {
+    expect(scan(consumer(
+      'export const optionsByContext = { breakfast: /* comment */ (["Editar item", "Excluir item"]) };')))
+      .toEqual([]);
+  });
+});
