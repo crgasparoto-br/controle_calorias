@@ -73,6 +73,33 @@ function isNodeRequireCall(node: ts.CallExpression): boolean {
   return true;
 }
 
+/** Context-keyed meal suggestion catalogs are food knowledge even when a
+ * local identifier is simply "optionsByContext". Presentation-only status
+ * labels and unrelated arrays must not be treated as nutrition knowledge. */
+function isLiteralFoodMealChoiceCatalog(expr: ts.Expression): boolean {
+  const object = unwrap(expr);
+  if (!ts.isObjectLiteralExpression(object) || object.properties.length < 2) return false;
+  const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
+  const foodVocabulary = /\b(?:arroz|feijao|frango|ovo(?:s)?|iogurte|banana|aveia|pao|batata|salada|queijo|carne|peixe|fruta(?:s)?|proteina|carboidrato|legume(?:s)?|tapioca|leite)\b/i;
+  const categories = new Set<string>();
+  let foodExamples = 0;
+  for (const property of object.properties) {
+    if (!ts.isPropertyAssignment(property)) return false;
+    const key = property.name.getText().replace(/^['"]|['"]$/g, "");
+    if (!mealKey.test(key)) return false;
+    const options = unwrap(property.initializer);
+    if (!ts.isArrayLiteralExpression(options) || options.elements.length < 2) return false;
+    categories.add(key.toLowerCase());
+    for (const option of options.elements) {
+      const value = unwrap(option);
+      if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
+      const normalized = value.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      if (foodVocabulary.test(normalized)) foodExamples++;
+    }
+  }
+  return categories.size >= 2 && foodExamples >= 3;
+}
+
 function isLiteralCollection(expr: ts.Expression): boolean {
   const value = unwrap(expr);
   if (ts.isArrayLiteralExpression(value) || ts.isObjectLiteralExpression(value)) return true;
@@ -886,6 +913,11 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       // The path alone does not make an ordinary UI/status dictionary a food lexicon.
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
+    // Meal recommendations hardcoded in local dictionaries are actionable
+    // domain knowledge, not ordinary strings shown in a status widget.
+    if (rule.id === "17" && isLiteralFoodMealChoiceCatalog(node.initializer)) {
+      return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
+    }
     if (rule.id === "17" &&
         ((ts.isIdentifier(node.name) &&
           /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&

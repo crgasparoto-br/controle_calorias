@@ -92,3 +92,11 @@ Em `client/src/components/admin/NutritionLabelCandidateEditForm.tsx`, comparar `
 - A fila `triage.pending` preserva cada entrada com `occurrenceIndex` (ordinal de 1 a N por fingerprint/arquivo/linha/regra/classe) e `occurrenceCount` (N).
 - A revisão deve indicar o mesmo `occurrenceIndex` e o campo `lineSha256` da respectiva entrada do inventário. O validador rejeita omissões, ordinais duplicados, sequência incompleta, digest incorreto e reutilização de uma única revisão para duas ocorrências.
 - Essa identidade resolve a rastreabilidade; **não comprova equivalência semântica ou comportamento**. A aprovação continua independente da implementação.
+
+### Revisão do catálogo local de sugestões (17/10/2026)
+
+- **Fonte produtiva:** `server/modules/whatsapp/foodAssistant.ts#buildAssistantReply` no inventário da PR; o blob dessa fonte é idêntico ao do SHA-base arquitetural `0040adffc989d0b4d47e7cdc640ab9878e82c993`.
+- **Comportamento reproduzido:** `executeWhatsAppFoodAssistantIntent("o que posso comer no almoço?")` entrega lista estática de arroz, feijão, frango e salada; `"sugira um lanche"` entrega iogurte/fruta/pão; `"o que comi hoje?"` não entra nesse assistant. A escolha do cardápio é orientada por padrões regex de contexto e `optionsByContext`, sem consulta ao resolvedor V2.
+- **Escape observado:** os 60 findings prévios do arquivo eram apenas regex do gate 11/17/18. O catálogo `optionsByContext` era uma variável local de nome genérico e escapava do gate 17, embora a versão exportada com nome explícito fosse detectada.
+- **Correção estática:** agora o gate 17 detecta os menus fixos quando são mapas locais indexados por pelo menos dois contextos de refeição, contêm opções textuais e evidência de ingredientes. Testes negativos de UI/status e índices administrativos acompanham a correção.
+- **Escopo:** a detecção é retrospectiva no baseline e não remove listas legadas neste PR. Governar e migrar a geração de recomendações pela #1305/#1308. O achado requer triagem e parecer independente, não se torna dívida automaticamente.
