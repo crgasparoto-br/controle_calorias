@@ -204,6 +204,9 @@ export function findTransitiveAlternativeResolverFindings(
     const frontier: Array<{ file: string; depth: number }> = [{ file: origin, depth: 0 }];
     const visited = new Set<string>([origin]);
     const emitted = new Set<string>();
+    // A direct resolver import is already covered by gate 10. Do not emit a
+    // duplicate transitive finding when a longer route reaches that same owner.
+    const directDependencies = dependencyGraph.get(origin) ?? new Set<string>();
     for (let i = 0; i < frontier.length; i++) {
       const { file, depth } = frontier[i];
       for (const dependency of dependencyGraph.get(file) ?? []) {
@@ -211,6 +214,7 @@ export function findTransitiveAlternativeResolverFindings(
         // Check every edge before the visited guard: another path might
         // carry a real resolver while the first path was inert.
         if (nextDepth >= 2 && alternateResolver.test(dependency) &&
+            !directDependencies.has(dependency) &&
             !emitted.has(dependency) && !neutralEdge(file, dependency)) {
           const symbol = "transitive-import:" + dependency;
           results.push({

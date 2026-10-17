@@ -106,4 +106,33 @@ describe("AUD1300 gate 10: proven inert edge vs competing resolver", () => {
       f.symbol.includes("nutritionEngine.ts"))).toBe(true);
   });
 
+  it("does not duplicate a direct resolver as transitive through a second route", () => {
+    const findings = gate10([
+      {path: "server/modules/whatsapp/service.ts",
+        content: "import { lookup } from '../../nutritionEngine'; import { service } from './bridge'; export const result = service(lookup);"},
+      {path: "server/modules/whatsapp/bridge.ts",
+        content: "export { lookup as service } from '../../nutritionEngine';"},
+      {path: "server/nutritionEngine.ts", content: "export function lookup(){return null;}"},
+    ]);
+    expect(findings.some(f => f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol === "../../nutritionEngine")).toBe(true);
+    expect(findings.some(f => f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol.startsWith("transitive-import:"))).toBe(false);
+    expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-16T00:00:00Z"))
+      .errors.length).toBeGreaterThan(0);
+  });
+
+  it("preserves transitive detection for another owner even when an unrelated direct owner exists", () => {
+    const findings = gate10([
+      {path: "server/modules/whatsapp/service.ts",
+        content: "import { lookup } from '../../nutritionEngine'; export { lookup }; export { other } from './bridge';"},
+      {path: "server/modules/whatsapp/bridge.ts",
+        content: "export { other } from '../../foodItemResolution';"},
+      {path: "server/nutritionEngine.ts", content: "export function lookup(){return null;}"},
+      {path: "server/foodItemResolution.ts", content: "export function other(){return null;}"},
+    ]);
+    expect(findings.some(f => f.file === "server/modules/whatsapp/service.ts" &&
+      f.symbol.includes("transitive-import:server/foodItemResolution.ts"))).toBe(true);
+  });
+
 });
