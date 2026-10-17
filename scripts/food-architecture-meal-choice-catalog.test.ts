@@ -208,13 +208,13 @@ describe("AUD1300 F41 context-key independence", () => {
       .errors.some(error => error.includes("New food architecture violation gate 17"))).toBe(true);
   };
 
-  it("blocks a mixed traditional and novel context in a local food recommendation", () => {
-    block([{ path: "server/mealService.ts", content: `export function suggestMeal(context: string) {
-      const optionsByContext = {
+  it("blocks the exact audited typed menu with a known and unknown context", () => {
+    block([{ path: "server/modules/meals/service.ts", content: `export function recommendMeal(context: string) {
+      const optionsByContext: Record<string, string[]> = {
         breakfast: ["Aveia com banana"],
         brunch: ["Ovos com abacate"],
       };
-      return optionsByContext[context as "breakfast" | "brunch"];
+      return optionsByContext[context] ?? [];
     }` }]);
   });
 
