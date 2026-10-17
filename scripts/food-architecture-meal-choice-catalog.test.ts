@@ -194,3 +194,77 @@ describe("AUD1300 F36 module and function-level meal-choice provenance", () => {
     false, "server/mealService.ts");
   });
 });
+
+/** AUD1300-F41: novel context identifiers cannot bypass the productive food gate. */
+describe("AUD1300 F41 context-key independence", () => {
+  type File = { path: string; content: string };
+  const scan = (files: File[], origin = files[0]!.path) =>
+    findFoodStaticCandidates(files).filter(f => f.ruleId === "17" &&
+      f.file === origin && f.symbol.endsWith(":meal-choice-catalog"));
+  const block = (files: File[], origin = files[0]!.path) => {
+    const findings = scan(files, origin);
+    expect(findings).toHaveLength(1);
+    expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-17T12:00:00Z"))
+      .errors.some(error => error.includes("New food architecture violation gate 17"))).toBe(true);
+  };
+
+  it("blocks a mixed traditional and novel context in a local food recommendation", () => {
+    block([{ path: "server/mealService.ts", content: `export function suggestMeal(context: string) {
+      const optionsByContext = {
+        breakfast: ["Aveia com banana"],
+        brunch: ["Ovos com abacate"],
+      };
+      return optionsByContext[context as "breakfast" | "brunch"];
+    }` }]);
+  });
+
+  it("blocks catalogs containing only new context keys, including computed use", () => {
+    block([{ path: "server/mealService.ts", content: `export function suggestMeal(context: string) {
+      const optionsByContext = {
+        merenda: ["Pão com ricota"],
+        iftar: ["Grão-de-bico com arroz"],
+      };
+      return optionsByContext[context as "merenda" | "iftar"];
+    }` }]);
+  });
+
+  it("follows an imported catalog with previously unknown context names", () => {
+    block([
+      { path: "server/mealChoices.ts", content: `export const optionsByContext = {
+        brunch: ["Tofu com lentilhas"],
+        merenda: ["Iogurte com aveia"],
+      };` },
+      { path: "server/mealService.ts", content: `import { optionsByContext as choices } from "./mealChoices";
+        export function recommendMeal() { return choices["brunch"]; }` },
+    ], "server/mealChoices.ts");
+  });
+
+  it("follows destructured unknown keys through a productive import", () => {
+    block([
+      { path: "server/mealChoices.ts", content: `export const optionsByContext = {
+        brunch: ["Ovos com abacate"],
+      };` },
+      { path: "server/mealService.ts", content: `import { optionsByContext as choices } from "./mealChoices";
+        export function recommendMeal() { const { brunch } = choices; return brunch; }` },
+    ], "server/mealChoices.ts");
+  });
+
+  it("does not attribute novel-key administrative status data to food knowledge", () => {
+    expect(scan([{ path: "server/account.ts", content: `const optionsByContext = {
+      onboarding: ["Pendente", "Aprovado"],
+      cobrança: ["Pago", "Em aberto"],
+    };
+    export function recommendAccountStatus(context: string) { return optionsByContext[context]; }` }])).toEqual([]);
+  });
+
+  it("preserves negative controls for UI actions and unused catalogs", () => {
+    expect(scan([{ path: "server/mealService.ts", content: `export function suggestMeal(context: string) {
+      const optionsByContext = { brunch: ["Editar item", "Excluir item"] };
+      return optionsByContext[context as "brunch"];
+    }` }])).toEqual([]);
+    expect(scan([{ path: "server/mealService.ts", content: `export function suggestMeal() {
+      const optionsByContext = { brunch: ["Ovos com abacate"] };
+      return loadGovernedFoodData();
+    }` }])).toEqual([]);
+  });
+});
