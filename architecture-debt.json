@@ -144,6 +144,18 @@
       "expiresAt": "2027-01-11",
       "migrationIssue": 1302,
       "retirementIssue": 1313
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/foodClarificationContract.ts",
+      "fingerprint": "11:server/modules/whatsapp/foodClarificationContract.ts:SAFE_TYPO_REPLACEMENTS:8cc36d28",
+      "reason": "Correções lexicais específicas de alimentos no WhatsApp aplicadas por normalizeCandidate antes de parseCountedFoodRequest (AUD1300-20261017-F40)",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-17",
+      "expiresAt": "2027-01-15",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
     }
   ]
 }

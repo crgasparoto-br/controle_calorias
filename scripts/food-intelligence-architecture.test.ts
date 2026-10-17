@@ -167,7 +167,7 @@ describe("food intelligence architecture wave 1", () => {
         fingerprint: string; ruleId: string; file: string; reason: string; owner: string;
         createdAt: string; expiresAt: string }>;
     };
-    expect(debtBook.entries).toHaveLength(12);
+    expect(debtBook.entries).toHaveLength(13);
     for (const entry of debtBook.entries) {
       expect(entry.issue).toBe(1300);
       expect([1302, 1304, 1305, 1306]).toContain(entry.migrationIssue);

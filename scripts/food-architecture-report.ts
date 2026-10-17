@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
-import { assessReviewedFoodDebt, type FoodDebt } from "./food-architecture-debt";
+import { type FoodDebt } from "./food-architecture-debt";
 import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 import { findFoodBaselineDelta, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
@@ -102,10 +102,7 @@ if (inconsistentDebt.length) {
 }
 const enforced = evaluateFoodArchitectureGate(
   findings, frozenFindings,
-  ledger.entries, new Date(),
-);
-const reviewedDebtErrors = assessReviewedFoodDebt(
-  findings, frozenFindings, ledger.entries, pinned.observations,
+  ledger.entries, new Date(), pinned.observations,
 );
 const baselineRef = process.env.GITHUB_BASE_REF ? "origin/" + process.env.GITHUB_BASE_REF : "origin/develop";
 let baselineComparison: ReturnType<typeof findFoodBaselineDelta> | null = null;
@@ -187,7 +184,7 @@ const report = {
     removedLegacyCandidates: enforced.delta.removed.length,
     pendingLegacyTriage: triageQueue.length,
     activeDebt: enforced.assessment.active,
-    blockingErrors: enforced.errors.length + reviewedDebtErrors.length,
+    blockingErrors: enforced.errors.length,
     warnings: enforced.warnings.length,
     confirmedLegacyFindings: inventory.filter(item => item.review.classification === "confirmed-legacy-violation").length,
     heuristicCandidates: inventory.filter(item => item.review.classification === "heuristic-candidate").length,
@@ -234,11 +231,11 @@ const report = {
     pending: sourceAnchoredTriage,
   },
   enforcement: {
-    errors: [...enforced.errors, ...reviewedDebtErrors], activeDebtWarnings: enforced.assessment.warnings,
+    errors: enforced.errors, activeDebtWarnings: enforced.assessment.warnings,
     newViolations: enforced.delta.added,
   },
 };
 console.log(JSON.stringify(report, null, 2));
-if (process.argv.includes("--enforce") && enforced.errors.length + reviewedDebtErrors.length > 0) process.exitCode = 1;
+if (process.argv.includes("--enforce") && enforced.errors.length > 0) process.exitCode = 1;
 if (process.argv.includes("--fail-new") && enforced.delta.added.length > 0) process.exitCode = 1;
 if (process.argv.includes("--require-baseline") && !baselineComparison) process.exitCode = 1;
