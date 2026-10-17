@@ -1,0 +1,249 @@
+{
+  "schemaVersion": 1,
+  "repository": "crgasparoto-br/controle_calorias",
+  "baseRef": "develop",
+  "baseSha": "0040adffc989d0b4d47e7cdc640ab9878e82c993",
+  "method": "Targeted inventory of ADR §8.5 legacy owners at the exact develop SHA; use scripts/food-architecture-report.ts for exhaustive source-tree discovery. JSON produtivo incluído por varredura e fingerprint semântico do catálogo.",
+  "completeness": "targeted-seed-not-full-source-tree",
+  "observations": [
+    {
+      "file": "server/foodCatalogReference.ts",
+      "sourceBlobSha": "72496cae8eaa68231b17b15cc0adf2f5669ee74a",
+      "symbol": "FOOD_CATALOG_REFERENCE",
+      "concern": "legacy static catalog of food identities/macros",
+      "class": "I",
+      "rules": [
+        "17",
+        "5"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "legacy static catalog of food identities/macros",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "FOOD_CATALOG_REFERENCE: CatalogFoodReference[]",
+        "responsibility": "legacy-static-food-catalog",
+        "observedDecision": "Static reference data for identity, aliases, nutrition and serving quantities; no decision owner proven by this declaration",
+        "disposition": "data-source",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "CURATED_COMMON_COUNTABLE_PORTIONS",
+      "concern": "curated per-food countable portions in code",
+      "class": "C",
+      "rules": [
+        "17",
+        "5"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "curated per-food countable portions in code",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function findCuratedCommonPortion(foodName: string)",
+        "responsibility": "legacy-countable-portion-resolution",
+        "observedDecision": "findCuratedCommonPortion selects a hardcoded portion by normalized food identity",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "BROAD_COMMERCIAL_CATEGORY_TOKENS",
+      "concern": "lexical commercial identity categories",
+      "class": "B",
+      "rules": [
+        "18"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "lexical commercial identity categories",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function hasSpecificCommercialProductName(",
+        "responsibility": "legacy-commercial-identity-materiality",
+        "observedDecision": "hasSpecificCommercialProductName and decideCommercialNutritionPolicy consume these tokens to decide commercial identity",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/foodItemResolution.ts",
+      "sourceBlobSha": "da14159a41ceab9134a283ff70fbe0b1397429d9",
+      "symbol": "NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS",
+      "concern": "hardcoded nutritional materiality of packaging descriptors",
+      "class": "B",
+      "rules": [
+        "18",
+        "17"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "hardcoded nutritional materiality of packaging descriptors",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function categoryTokens(identitySource: string, brand: string)",
+        "responsibility": "legacy-packaging-materiality",
+        "observedDecision": "categoryTokens excludes packaging tokens when choosing identity-relevant category tokens",
+        "disposition": "domain-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "sourceBlobSha": "d6dedf3d9db08bee4e5cf236df56be33b04328a4",
+      "symbol": "BUILT_IN_REPLACEMENTS",
+      "concern": "WhatsApp-only lexical normalizations",
+      "class": "A",
+      "rules": [
+        "11"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "WhatsApp-only lexical normalizations",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function normalizeWhatsappInformalLanguage(",
+        "responsibility": "whatsapp-language-normalization",
+        "observedDecision": "normalizeWhatsappInformalLanguage applies channel-specific replacements before passing normalized text to consumers",
+        "disposition": "channel-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "sourceBlobSha": "d6dedf3d9db08bee4e5cf236df56be33b04328a4",
+      "symbol": "UNCERTAIN_PORTION_PATTERNS",
+      "concern": "WhatsApp-specific uncertain portion lexicon",
+      "class": "A",
+      "rules": [
+        "11",
+        "17"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "WhatsApp-specific uncertain portion lexicon",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function findUncertainTerms(value: string)",
+        "responsibility": "whatsapp-portion-clarification",
+        "observedDecision": "findUncertainTerms drives requiresClarification in WhatsApp language normalizer",
+        "disposition": "channel-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/modules/whatsapp/foodClarificationContract.ts",
+      "sourceBlobSha": "4a70e9a0d0bcdd70dfb19fe4c9019bfdd0a3cacb",
+      "symbol": "SAFE_TYPO_REPLACEMENTS",
+      "concern": "Léxico de correções de nomes de alimentos consumido pela identificação de alimentos no WhatsApp",
+      "class": "A",
+      "rules": [
+        "11"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "Fluxo produtivo confirmado por fonte: normalizeCandidate indexa SAFE_TYPO_REPLACEMENTS e parseCountedFoodRequest retorna a identidade transformada; fingerprint presente na baseline imutável e no inventário do SHA c0fc49a3 (F40)",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-15"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "function normalizeCandidate(value: string)",
+        "responsibility": "whatsapp-legacy-food-typo-normalization",
+        "observedDecision": "normalizeCandidate maps iorgute/yogurte to iogurte and bananna/banna to banana; parseCountedFoodRequest consumes this mapping for normalizedCandidate",
+        "disposition": "channel-decision-owner",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/mealTextParsing.ts",
+      "sourceBlobSha": "82c0cfb5388d315c97f80d1f7a297d159ef3ca00",
+      "symbol": "FOOD_NAME_LOWERCASE_CONNECTORS",
+      "concern": "text normalizer lexical set; requires review to distinguish S1 grammar from governed S2 lexicon",
+      "class": "A",
+      "rules": [
+        "17"
+      ],
+      "review": {
+        "classification": "heuristic-candidate",
+        "basis": "Possível gramática S1; não comprova léxico decisório S2 sem validação semântica"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "export function formatFoodNameTitleCase(",
+        "responsibility": "text-formatting-grammar",
+        "observedDecision": "Formatting title case with lowercase grammatical connectors is not by itself proof of separate food-identity resolution",
+        "disposition": "grammar-only",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    },
+    {
+      "file": "server/tacoCatalog.json",
+      "sourceBlobSha": "252631de8166a761b03e3573eb149eb0e34de136",
+      "symbol": "json-food-catalog",
+      "concern": "Catálogo TACO embarcado de 616 alimentos/porções/nutrientes em JSON produtivo (ADR §8.5)",
+      "class": "I",
+      "rules": [
+        "17",
+        "5"
+      ],
+      "review": {
+        "classification": "confirmed-legacy-violation",
+        "basis": "Fonte legada explicitamente identificada como catálogo produtivo a aposentar na ADR §8.5; SHA e conteúdo conferidos contra a base imutável",
+        "owner": "crgasparoto-br",
+        "issue": 1300,
+        "expiresAt": "2027-01-11"
+      },
+      "behavioralReview": {
+        "sourceAnchor": "\"source\": \"taco\"",
+        "responsibility": "legacy-taco-reference-data",
+        "observedDecision": "TACO JSON stores food identities, serving sizes and nutrition; dataset is not itself a resolver owner",
+        "disposition": "data-source",
+        "verification": "source-anchor-in-frozen-develop",
+        "runtimeEvidence": "not-executed",
+        "scope": "static-owner-role-triage"
+      }
+    }
+  ],
+  "reviewedAt": "2026-10-17",
+  "reviewMethod": "Inspeção independente dos trechos legados no SHA base; demais findings do inventário completo permanecem candidatos heurísticos até evidência discriminante. Owner source anchors are checked against the immutable baseline; these are source-trace reviews, not runtime equivalence certification. F40: confirmação adicional por fluxo de fonte imutável; não equivale a certificação de equivalência runtime nem dispensa auditoria independente.",
+  "totalFindingsSource": "CI food-architecture-inventory-092c9cfe2dbd44791593d26308304a277e950858 (468 findings antes desta correção); relatórios subsequentes classificam por ocorrência no HEAD. O catálogo JSON TACO é classificado por arquivo com fingerprint do conteúdo normalizado."
+}

@@ -1,0 +1,161 @@
+{
+  "$schema": "./docs/design-docs/food-architecture-debt.schema.json",
+  "entries": [
+    {
+      "ruleId": "17",
+      "file": "server/foodCatalogReference.ts",
+      "fingerprint": "17:server/foodCatalogReference.ts:FOOD_CATALOG_REFERENCE:1596dda8",
+      "reason": "Catálogo estático de identidades, porções e macronutrientes no runtime",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "5",
+      "file": "server/foodCatalogReference.ts",
+      "fingerprint": "5:server/foodCatalogReference.ts:FOOD_CATALOG_REFERENCE:1596dda8",
+      "reason": "Catálogo estático de identidades, porções e macronutrientes no runtime",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "17",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "17:server/foodItemResolution.ts:CURATED_COMMON_COUNTABLE_PORTIONS:8be6e8b6",
+      "reason": "Porções por alimento declaradas em código produtivo",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1305,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "5",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "5:server/foodItemResolution.ts:CURATED_COMMON_COUNTABLE_PORTIONS:8be6e8b6",
+      "reason": "Porções por alimento declaradas em código produtivo",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1305,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "18",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "18:server/foodItemResolution.ts:BROAD_COMMERCIAL_CATEGORY_TOKENS:14b7b989",
+      "reason": "Regras lexicais estáticas de categoria comercial",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "17",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "17:server/foodItemResolution.ts:NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS:1d192cc1",
+      "reason": "Materialidade nutricional fixada por tokens de embalagem",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "18",
+      "file": "server/foodItemResolution.ts",
+      "fingerprint": "18:server/foodItemResolution.ts:NUTRITIONALLY_NEUTRAL_PACKAGING_TOKENS:1d192cc1",
+      "reason": "Materialidade nutricional fixada por tokens de embalagem",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1306,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "11:server/modules/whatsapp/informalLanguageNormalizer.ts:BUILT_IN_REPLACEMENTS:57072000",
+      "reason": "Normalizações de vocabulário alimentar codificadas no canal WhatsApp",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "11:server/modules/whatsapp/informalLanguageNormalizer.ts:UNCERTAIN_PORTION_PATTERNS:cee8c11b",
+      "reason": "Léxico de porções incertas específico do canal",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "17",
+      "file": "server/modules/whatsapp/informalLanguageNormalizer.ts",
+      "fingerprint": "17:server/modules/whatsapp/informalLanguageNormalizer.ts:UNCERTAIN_PORTION_PATTERNS:cee8c11b",
+      "reason": "Léxico de porções incertas específico do canal",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "17",
+      "file": "server/tacoCatalog.json",
+      "fingerprint": "17:server/tacoCatalog.json:json-food-catalog:c1343774",
+      "reason": "Catálogo TACO JSON embarcado de identidade e macronutrientes, explicitamente listado como legado na ADR §8.5",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "5",
+      "file": "server/tacoCatalog.json",
+      "fingerprint": "5:server/tacoCatalog.json:json-food-catalog:c1343774",
+      "reason": "Catálogo TACO JSON embarcado de identidade e macronutrientes, explicitamente listado como legado na ADR §8.5",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-13",
+      "expiresAt": "2027-01-11",
+      "migrationIssue": 1302,
+      "retirementIssue": 1313
+    },
+    {
+      "ruleId": "11",
+      "file": "server/modules/whatsapp/foodClarificationContract.ts",
+      "fingerprint": "11:server/modules/whatsapp/foodClarificationContract.ts:SAFE_TYPO_REPLACEMENTS:8cc36d28",
+      "reason": "Correções lexicais específicas de alimentos no WhatsApp aplicadas por normalizeCandidate antes de parseCountedFoodRequest (AUD1300-20261017-F40)",
+      "owner": "crgasparoto-br",
+      "issue": 1300,
+      "createdAt": "2026-10-17",
+      "expiresAt": "2027-01-15",
+      "migrationIssue": 1304,
+      "retirementIssue": 1313
+    }
+  ]
+}

@@ -2837,7 +2837,7 @@ As seguintes decisões são consideradas parte estável deste ADR, salvo revisã
 
 ## 25. Questões abertas
 
-Este registro preserva os números das decisões para rastreabilidade. **Itens 1, 6, 12, 14, 16, 18 e 31 decididos em 2026-10-05** conforme aprovação do responsável pelo produto; os demais permanecem `OPEN` até a evidência e aprovação correspondentes. Contrato decidido não significa implementação validada. A fórmula de §14.2 não volta a ficar aberta por existir calibração futura.
+Este registro preserva os números das decisões para rastreabilidade. **Itens 1, 6, 12, 14, 16, 18 e 31 decididos em 2026-10-05; itens 25 e 26 decididos em 2026-10-12**, conforme aprovação do responsável pelo produto. Os demais permanecem `OPEN` até a evidência e aprovação correspondentes. Contrato decidido não significa implementação validada. A fórmula de §14.2 não volta a ficar aberta por existir calibração futura.
 
 1. **DECIDIDO — 2026-10-05:** nomes, campos, tipos e invariantes de `FoodObservation`/`FoodResolutionDecision` v2 em §4/§5. Implementar schemas e testes é entrega futura; calibração e ativação não foram comprovadas;
 2. thresholds numéricos de confiança e matriz final por tipo de fonte/campo;
@@ -2867,8 +2867,8 @@ Este registro preserva os números das decisões para rastreabilidade. **Itens 1
 23. percentual mínimo de cobertura do consumo real, janela de histórico e amostragem usados como critério bloqueante do Gate A;
 24. política de promoção de itens em quarentena e prazo para esvaziamento antes do Gate B.
 
-25. escopo efetivo por regra: tratamento de teste, fixture, arquivo gerado e documentação na definição de violação;
-26. critério e prazo para promover uma regra da camada de runtime de aviso para bloqueio.
+25. **DECIDIDO — 2026-10-12:** escopo por tipo de arquivo e regra, com código produtivo bloqueante para violações novas, testes/fixtures isoladas permitidas e validação da fonte de artefatos gerados, conforme §25.2;
+26. **DECIDIDO — 2026-10-12:** promoção individual dos gates de runtime 6, 8 e 15, após no mínimo sete dias consecutivos de observação válida, evidência técnica, aprovação explícita de Arquitetura e Qualidade e rollback testado; sem data automática de ativação (§25.3).
 
 27. definição do registro de operação de reclassificação retroativa: escopo, visibilidade para o usuário e reversão.
 
@@ -2894,11 +2894,42 @@ Cada item ainda aberto tem ownership pelo papel abaixo. Antes de iniciar seu rec
 | 11                   | Ativação                   | Qualidade e operações              | Canário produtivo e sua expansão                             | Amostra/janelas/limites aprovados, responsáveis nominais, telemetria e rollback exercitados.                                               |
 | 13, 20               | Retirada                   | Arquitetura e persistência         | Remoção dos owners/bridges                                   | Inventário final por SHA, consumidores migrados e gates de corte/rollback aprovados.                                                       |
 | 23, 24               | Calibração/corte           | Dados e domínio alimentar          | Gate A/shadow e Gate B/retirada, respectivamente             | Cobertura/janela/amostra aprovadas e política de quarentena com reconciliação.                                                             |
-| 25, 26               | Gate/ativação              | Arquitetura e qualidade            | Aceite do verificador e promoção de aviso para bloqueio      | Escopos de regra, positivos/negativos e data/critério de enforcement aprovados.                                                            |
+| 25, 26               | **Política decidida**      | Arquitetura e qualidade            | Aplicar §25.2 ao verificador; runtime só após homologação     | Escopo decidido; gates estáticos com testes de positivos/negativos; runtime: observação, responsáveis nominais, aprovação e rollback por gate (§25.3).                 |
 | 27                   | Contrato                   | Produto e persistência             | Operação de reclassificação retroativa                       | Autorização, conjunto afetado, visibilidade e reversão verificáveis.                                                                       |
 | 28, 29               | Calibração                 | Governança alimentar e operações   | Alegar calibração ou alterar parâmetros da fila              | Baseline de gravidade, alcance, frequência, envelhecimento e capacidade; política inicial de §14 permanece explícita até revisão aprovada. |
 
-Os itens 1, 6, 12, 14, 16, 18 e 31 têm decisão documentada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. Permanecem 24 itens com trabalho de definição/calibração/gate, incluindo o item 8 parcialmente decidido. O protocolo de §16.2 e o primeiro recorte de §21.1 não significam valores medidos nem liberação produtiva. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
+Os itens 1, 6, 12, 14, 16, 18 e 31 têm decisão documentada, mas seus testes, migrations/serviços e configurações ainda são entregas futuras. Permanecem 22 itens com trabalho de definição/calibração/gate, incluindo o item 8 parcialmente decidido. As políticas dos itens 25 e 26 estão decididas, mas sua execução e sua aprovação técnica ainda precisam ser comprovadas. O protocolo de §16.2 e o primeiro recorte de §21.1 não significam valores medidos nem liberação produtiva. A ativação da curadoria exige responsável nominal/destino de alerta de §14.5, e a execução de aprovação automática continua bloqueada pelos itens específicos; nenhum fechamento documental equivale a liberação produtiva.
+
+
+### 25.2. Decisão 25 — escopo dos gates estáticos (aprovada em 2026-10-12)
+
+**Política vinculante para a onda 1 (§19.0.5):** o detector examina declarações e decisões do **código executável de produção**, especialmente `server/` e quaisquer novos módulos de domínio realmente carregados no runtime. A regra efetiva não pode ser reduzida pelo nome do arquivo ou pela tecnologia da entrada (texto, áudio, imagem, WhatsApp ou web).
+
+| Tipo de fonte | Regra operacional |
+| --- | --- |
+| Produção | Gates 17, 18, 5, 11, 3, 10, 1, 2 e 4 bloqueiam **novas violações** confirmadas; sem allowlist implícita e sem exceção automática. |
+| Testes `*.test.*`/`*.spec.*` e diretórios de teste | Exemplos sintéticos não são violação por si sós; qualquer dependência ou importação produtiva dos exemplos permanece sujeita à verificação de produção. |
+| Fixtures isoladas | Dados sintéticos declarados para testes são aceitos somente quando não consumidos como conhecimento decisório produtivo. Fixtures consumidas em runtime devem ser tratadas como produção, independentemente do caminho. |
+| Arquivos gerados | Não penalizar código gerado inerte só por repetição do conteúdo; verificar fonte/template e todos os caminhos produtivos que carregam seus dados. Geração não permite escapar da regra. |
+| Documentação | Exemplos não executáveis são permitidos; snippets ou artefatos promovidos a código de produção voltam ao escopo de produção. |
+
+**Baseline e dívida:** o SHA da base `develop` é registrado junto do inventário. Uma violação existente e inalterada é reportada como legado, não justifica falhar toda a migração da onda 1. O legado **confirmado como violação** deve ser colocado no `architecture-debt.json` mediante revisão humana, com `ruleId`, arquivo, fingerprint, motivo, owner, issue e prazo máximo de 90 dias, sem prorrogação; a entrada vencida/órfã falha. Achado heurístico não confirmado é candidato de triagem, **não** dívida aprovada. Violação adicionada ou alterada desde a base falha mesmo que alguém tente criar uma exceção junto da PR. Um catálogo novo de alimentos/porções/classificação ou um novo léxico/materialidade específica de alimento em código produtivo sempre falha, independentemente do canal de entrada.
+
+A liberação do gate exige testes positivos e negativos em produção, testes, fixtures, documentação, código gerado e imports de tipos; um detector somente heurístico deve ser classificado explicitamente como candidato e refinado para não criar bloqueio falso. Toda alteração de escopo exige nova decisão versionada, e não inferência pelo desenvolvedor.
+
+### 25.3. Decisão 26 — promoção de guarda de runtime (aprovada em 2026-10-12)
+
+Aplica-se **somente aos gates da camada 3: 6, 8 e 15** (§19.0.1). Não adia o bloqueio dos gates estáticos da onda 1 e não converte automaticamente qualquer telemetry warning em erro.
+
+A passagem por gate segue este contrato:
+
+1. Ativar guarda observável em teste, desenvolvimento e `shadow mode`, com métricas por entrypoint, trace e cenários de violação explícitos; não interromper escrita produtiva durante a observação.
+2. Demonstrar cobertura dos caminhos relevantes (texto, áudio, imagem, WhatsApp e web conforme aplicável), testes positivos/negativos e ausência de violações não justificadas por **sete dias consecutivos completos** de observação válida após a instrumentação e correções. Lacunas de telemetria ou regressão relevante reiniciam a janela para o gate afetado.
+3. Homologar o comportamento seguro de erro/clarificação e exercitar a reversão por feature flag sem perda nem corrupção de dados, evitando fallback silencioso.
+4. Exigir aprovação **explícita por gate** de Arquitetura e Qualidade, com pessoa responsável, evidência, janela observada, data efetiva, plano de rollback e registro versionado. A data é definida após a aprovação: transcorrerem sete dias **não ativa nada automaticamente**.
+5. Habilitar o bloqueio gradualmente com telemetria, canário e rollback. Se houver regressão, retornar a `warning/shadow` e recomeçar a homologação.
+
+Essa política define os critérios e o **mínimo de observação**, não antecipa o rollout V2, não substitui o Gate A/B nem modifica as questões de ativação ainda abertas (§25 item 11).
 
 ## 26. Regra de evolução deste ADR
 
