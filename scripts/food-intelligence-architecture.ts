@@ -76,13 +76,15 @@ function isNodeRequireCall(node: ts.CallExpression): boolean {
 /** Context-keyed meal suggestion catalogs are food knowledge even when a
  * local identifier is simply "optionsByContext". Presentation-only status
  * labels and unrelated arrays must not be treated as nutrition knowledge. */
-function isLiteralFoodMealChoiceCatalog(expr: ts.Expression): boolean {
+function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDeclaration): boolean {
   const object = unwrap(expr);
-  if (!ts.isObjectLiteralExpression(object) || object.properties.length < 2) return false;
+  if (!ts.isObjectLiteralExpression(object) || object.properties.length === 0) return false;
   const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
   const foodVocabulary = /\b(?:arroz|feijao|frango|ovo(?:s)?|iogurte|banana|aveia|pao|batata|salada|queijo|carne|peixe|fruta(?:s)?|proteina|carboidrato|legume(?:s)?|tapioca|leite)\b/i;
   const categories = new Set<string>();
   let foodExamples = 0;
+  let menuPhrases = 0;
+  let optionCount = 0;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) return false;
     const key = property.name.getText().replace(/^['"]|['"]$/g, "");
@@ -94,10 +96,33 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression): boolean {
       const value = unwrap(option);
       if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
       const normalized = value.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      optionCount++;
       if (foodVocabulary.test(normalized)) foodExamples++;
+      if (normalized.trim().split(/\s+/).length >= 2) menuPhrases++;
     }
   }
-  return categories.size >= 2 && foodExamples >= 3;
+  if (categories.size >= 2 && foodExamples >= 3) return true;
+  // New menu items and brands need coverage even for a single meal context.
+  // Preserve ordinary UI status lists by requiring food suggestion selection.
+  const owner = enclosingDeclaration(node);
+  if (!/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
+      !ts.isIdentifier(node.name) || optionCount < 2 ||
+      !(foodExamples >= 2 || menuPhrases >= 2)) return false;
+  let consumedByContext = false;
+  let functionParent: ts.Node | null = null;
+  for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+    if (ts.isFunctionLike(parent)) { functionParent = parent; break; }
+  }
+  if (!functionParent) return false;
+  const visit = (child: ts.Node): void => {
+    if (ts.isElementAccessExpression(child) && ts.isIdentifier(child.expression) &&
+        child.expression.text === node.name.getText() && child.argumentExpression &&
+        !ts.isStringLiteral(child.argumentExpression)) consumedByContext = true;
+    ts.forEachChild(child, visit);
+  };
+  visit(functionParent);
+  return consumedByContext;
+}
 }
 
 function isLiteralCollection(expr: ts.Expression): boolean {
@@ -915,7 +940,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         symbol + " " + enclosingDeclaration(node));
     // Meal recommendations hardcoded in local dictionaries are actionable
     // domain knowledge, not ordinary strings shown in a status widget.
-    if (rule.id === "17" && isLiteralFoodMealChoiceCatalog(node.initializer)) {
+    if (rule.id === "17" && isLiteralFoodMealChoiceCatalog(node.initializer, node)) {
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
     }
     if (rule.id === "17" &&
