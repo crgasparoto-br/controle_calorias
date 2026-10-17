@@ -83,6 +83,7 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
   const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
   const categories = new Set<string>();
   let optionCount = 0;
+  let uiActionCount = 0;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) return false;
     const key = property.name.getText().replace(/^['"]|['"]$/g, "");
@@ -94,13 +95,14 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
       const value = unwrap(option);
       if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
       optionCount++;
+      if (/^(?:editar|excluir|abrir|fechar|salvar|cancelar|copiar|visualizar|imprimir|selecionar|remover|apagar|voltar|proximo|próximo)\b/i.test(value.text)) uiActionCount++;
     }
   }
   // Food knowledge is determined by the consumer, not a fixed vocabulary of meals.
   const owner = enclosingDeclaration(node);
   const foodDecision = /food|alimen|meal|nutri|ingred|recipe|receita/i.test(owner + " " + node.getSourceFile().fileName) ||
     /^(?:buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner);
-  if (categories.size >= 2 && foodDecision) return true;
+  if (uiActionCount === optionCount) return false;
   if (!foodDecision || !/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
       !ts.isIdentifier(node.name) || optionCount < 2) return false;
   let consumedByContext = false;

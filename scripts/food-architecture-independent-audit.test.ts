@@ -173,3 +173,16 @@ describe("AUD1300-20261017 independent audit remediations", () => {
       .toBe(expected.length > 0);
   });
 });
+
+describe("AUD1300-F33 UI menu controls remain presentation-only", () => {
+  it("does not block UI actions even in food suggestion contexts", () => {
+    for (const code of [
+      'export function suggestMeal(meal:string){const optionsByContext={lunch:["Editar item","Excluir item"]};return optionsByContext[meal]??[]}',
+      'const optionsByContext={breakfast:["Editar","Excluir"],lunch:["Abrir","Fechar"]};',
+    ]) {
+      const path = code.startsWith("export") ? "server/foodAssistant.ts" : "client/src/features/mealDashboard.tsx";
+      const findings = findFoodStaticCandidates([{ path, content: code }]);
+      expect(findings.filter(f => f.symbol.includes("meal-choice-catalog"))).toEqual([]);
+    }
+  });
+});
