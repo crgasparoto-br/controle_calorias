@@ -725,7 +725,7 @@ describe("food intelligence architecture wave 1", () => {
 
   it("R1300-03 records source-backed responsibilities without falsely certifying runtime owner equivalence", () => {
     const pinned = JSON.parse(readFileSync("docs/design-docs/food-architecture-owners-1300.json", "utf8"));
-    expect(pinned.observations).toHaveLength(8);
+    expect(pinned.observations).toHaveLength(9);
     const dispositions = new Set<string>();
     for (const item of pinned.observations) {
       const review = item.behavioralReview;
