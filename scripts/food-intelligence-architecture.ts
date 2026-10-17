@@ -5,6 +5,7 @@
  */
 import ts from "typescript";
 import path from "node:path";
+import { isImmutableNumericSpread } from "./food-architecture-numeric-spreads";
 import { findImportedLexicalFoodFindings } from "./food-architecture-lexical-imports";
 import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRuleId, type FoodWaveOneRule } from "./food-architecture-rules";
 import {
@@ -80,10 +81,7 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
   const object = unwrap(expr);
   if (!ts.isObjectLiteralExpression(object) || object.properties.length === 0) return false;
   const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
-  const foodVocabulary = /\b(?:arroz|feijao|frango|ovo(?:s)?|iogurte|banana|aveia|pao|batata|salada|queijo|carne|peixe|fruta(?:s)?|proteina|carboidrato|legume(?:s)?|tapioca|leite)\b/i;
   const categories = new Set<string>();
-  let foodExamples = 0;
-  let culinaryPhrases = 0;
   let optionCount = 0;
   for (const property of object.properties) {
     if (!ts.isPropertyAssignment(property)) return false;
@@ -95,19 +93,16 @@ function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDe
     for (const option of options.elements) {
       const value = unwrap(option);
       if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
-      const normalized = value.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
       optionCount++;
-      if (foodVocabulary.test(normalized)) foodExamples++;
-      if (/\b(?:com|grelhad[oa]s?|assad[oa]s?|cozid[oa]s?|refogad[oa]s?|tostad[oa]s?|frit[oa]s?|ao\s+molho|ensopad[oa]s?)\b/i.test(normalized)) culinaryPhrases++;
     }
   }
-  if (categories.size >= 2 && foodExamples >= 3) return true;
-  // New menu items and brands need coverage even for a single meal context.
-  // Preserve ordinary UI status lists by requiring food suggestion selection.
+  // Food knowledge is determined by the consumer, not a fixed vocabulary of meals.
   const owner = enclosingDeclaration(node);
-  if (!/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
-      !ts.isIdentifier(node.name) || optionCount < 2 ||
-      !(foodExamples >= 2 || culinaryPhrases >= 2)) return false;
+  const foodDecision = /food|alimen|meal|nutri|ingred|recipe|receita/i.test(owner + " " + node.getSourceFile().fileName) ||
+    /^(?:buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner);
+  if (categories.size >= 2 && foodDecision) return true;
+  if (!foodDecision || !/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
+      !ts.isIdentifier(node.name) || optionCount < 2) return false;
   let consumedByContext = false;
   let functionParent: ts.Node | null = null;
   for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
@@ -316,7 +311,7 @@ function isNominalNutritionGoalMap(node: ts.VariableDeclaration): boolean {
 
 /** Domain-driven numeric maps need evidence of food identity, not food words
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
-function isLiteralNumericMap(value: ts.Expression): boolean {
+function isLiteralNumericMap(value: ts.Expression, use?: ts.Node, visited = new Set<ts.VariableDeclaration>()): boolean {
   const object = unwrap(value);
   if (ts.isNewExpression(object) && ts.isIdentifier(object.expression) &&
       object.expression.text === "Map" && object.arguments?.length === 1) {
@@ -333,6 +328,8 @@ function isLiteralNumericMap(value: ts.Expression): boolean {
   }
   return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
     object.properties.some(property => {
+      if (ts.isSpreadAssignment(property)) return !!use && isImmutableNumericSpread(property.expression, use, visited,
+        (expr, at, seen) => isLiteralNumericMap(expr, at, seen));
       if (!ts.isPropertyAssignment(property)) return false;
       if (!ts.isIdentifier(property.name) &&
           !ts.isStringLiteral(property.name) &&
@@ -400,7 +397,7 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
 
 function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
   if (!node.initializer || !ts.isIdentifier(node.name) ||
-      !isLiteralNumericMap(node.initializer)) return false;
+      !isLiteralNumericMap(node.initializer, node)) return false;
   const symbol = node.name.text;
   const context = source.fileName + " " + enclosingDeclaration(node);
   if (/exercise|activity|workout|fitness|burnedcalories/i.test(context)) return false;
@@ -936,13 +933,13 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
     // Avoid evasion by returning an indexed inline numeric object directly.
     if (ts.isElementAccessExpression(node) && node.argumentExpression &&
-        isLiteralNumericMap(node.expression) &&
+        isLiteralNumericMap(node.expression, node) &&
         foodIndexContext(node.argumentExpression, node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
     }
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
         node.expression.name.text === "get" && node.arguments[0] &&
-        isLiteralNumericMap(node.expression.expression) &&
+        isLiteralNumericMap(node.expression.expression, node) &&
         foodIndexContext(node.arguments[0], node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
     }
@@ -1112,8 +1109,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ts.isPropertyAccessExpression(node.expression) && node.arguments.length > 0 &&
       (/^(?:test|exec)$/.test(node.expression.name.text) &&
         referencesLiteralRegex(node.expression.expression, node) ||
-       /^(?:match|matchAll|search)$/.test(node.expression.name.text) &&
-        referencesLiteralRegex(node.arguments[0], node))) {
+       /^(?:match|matchAll|search|replace|replaceAll)$/.test(node.expression.name.text) &&
+        referencesLiteralRegex(node.arguments[0], node) ||
+       /^(?:replace|replaceAll)$/.test(node.expression.name.text) &&
+        isStaticText(unwrap(node.arguments[0])) &&
+        /[a-zA-ZÀ-ÿ]{3,}/.test(node.arguments[0].getText(source)) &&
+        isFoodDomainSource(source.fileName))) {
     const regexSource = /^(?:test|exec)$/.test(node.expression.name.text)
       ? node.expression.expression : node.arguments[0];
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source) +

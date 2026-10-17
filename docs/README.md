@@ -307,3 +307,14 @@ encadeados. Casos positivos e negativos são exercitados pelos dois entrypoints
 `findFoodStaticCandidates` e `evaluateFoodArchitectureGate`. A identificação
 continua sendo estática: caminhos dinâmicos ou efeitos de mutação não provados
 exigem inspeção específica, sem permitir dívida automática.
+
+**Remediação AUD1300-20261017-F33/F34/F35 (Issue #1300):** o gate 17
+reconhece catálogos de sugestões em decisões de refeição pelo consumidor
+produtivo, sem depender dos nomes específicos dos alimentos. Os gates 17/5
+acompanham mapas nutricionais literais que atravessam spreads e aliases
+`const` com escopo léxico demonstrável, sem imputar origem estática a aliases
+mutáveis ou parâmetros homônimos. Os gates 17/18 também verificam
+substituições lexicais por `replace`/`replaceAll` com regex, `RegExp`
+estático ou texto literal em normalizadores alimentares. Testes positivos,
+negativos administrativos e de apresentação verificam detecção e bloqueio;
+esses controles não certificam dinamicamente os owners legados.

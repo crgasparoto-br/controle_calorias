@@ -119,3 +119,57 @@ describe("AUD1300 cross-path provenance and lexical controls", () => {
     expect(result.verdict.errors.length).toBeGreaterThan(0);
   });
 });
+
+describe("AUD1300-20261017 independent audit remediations", () => {
+  const cases = [
+    { id: "F33 unknown meal choices", path: "server/mealSuggestion.ts",
+      code: 'function suggestMealForUser(meal:string){ const optionsByContext={breakfast:["pitaya", "cupuaçu"]}; return optionsByContext[meal] ?? []; }',
+      expected: ["17"] },
+    { id: "F33 unknown brands", path: "server/mealSuggestion.ts",
+      code: 'function recommendMeal(meal:string){ const choices={dinner:["Açaí Puro", "Graviola Natural"]}; return choices[meal] ?? []; }',
+      expected: ["17"] },
+    { id: "F33 unrelated admin status", path: "server/admin/status.ts",
+      code: 'function suggestUserAction(action:string){ const optionsByContext={general:["Abrir conta", "Salvar fatura"]}; return optionsByContext[action] ?? []; }',
+      expected: [] },
+    { id: "F33 UI labels", path: "client/src/components/MealTabs.tsx",
+      code: 'const optionsByContext={breakfast:["Abrir", "Fechar"]}; export function MealTabs(){return <nav>{optionsByContext.breakfast.map(x=><span>{x}</span>)}</nav>}',
+      expected: [] },
+    { id: "F34 spread map", path: "server/foodRules.ts",
+      code: 'const base={pitaya:43,cupuacu:80}; const values={...base}; function getFoodCalories(foodName:string){return values[foodName]??0}',
+      expected: ["17", "5"] },
+    { id: "F34 nested alias spread", path: "server/foodRules.ts",
+      code: 'const base={pitaya:43,cupuacu:80}; const alias=base; const values={...alias}; function getFoodCalories(foodName:string){return values[foodName]??0}',
+      expected: ["17", "5"] },
+    { id: "F34 inline spread map", path: "server/foodRules.ts",
+      code: 'const base={pitaya:43}; function getFoodCalories(foodName:string){return ({...base})[foodName]??0}',
+      expected: ["17", "5"] },
+    { id: "F34 mutable source is not proved immutable", path: "server/foodRules.ts",
+      code: 'let base={pitaya:43}; base=getFoodFromDB(); const values={...base}; function getFoodCalories(foodName:string){return values[foodName]??0}',
+      expected: [] },
+    { id: "F34 parameter shadowing", path: "server/foodRules.ts",
+      code: 'const base={pitaya:43}; function getFoodCalories(foodName:string, base: Record<string,number>){const values={...base}; return values[foodName]??0}',
+      expected: [] },
+    { id: "F34 nonfood account", path: "server/account/fees.ts",
+      code: 'const base={basic:43,premium:80}; const values={...base}; function getAccountFees(plan:string){return values[plan]??0}',
+      expected: [] },
+    { id: "F35 regex replace", path: "server/foodNormalization.ts",
+      code: 'function normalizeFood(input:string){return input.replace(/pão|arroz/gi, "alimento");}',
+      expected: ["17", "18"] },
+    { id: "F35 replaceAll constructor", path: "server/foodNormalization.ts",
+      code: 'const words=new RegExp("pão|arroz", "gi"); function normalizeFood(input:string){return input.replaceAll(words, "alimento");}',
+      expected: ["17", "18"] },
+    { id: "F35 lexical string replacement", path: "server/foodNormalization.ts",
+      code: 'function normalizeFood(input:string){return input.replace("pitaya", "fruta");}',
+      expected: ["17", "18"] },
+    { id: "F35 nonfood administrative regex", path: "server/account/status.ts",
+      code: 'function normalizeAccountStatus(input:string){return input.replace(/pending|paid/gi, "status");}',
+      expected: [] },
+  ];
+  it.each(cases)("$id", ({ code, path, expected }) => {
+    const findings = findFoodStaticCandidates([{ path, content: code }]);
+    const actual = [...new Set(findings.map(f => f.ruleId))].sort();
+    expect(actual).toEqual([...expected].sort());
+    expect(evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-17T12:00:00Z")).errors.length > 0)
+      .toBe(expected.length > 0);
+  });
+});
