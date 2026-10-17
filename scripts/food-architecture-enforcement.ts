@@ -28,7 +28,11 @@ export function evaluateFoodArchitectureGate(
   const debtKeys = new Set(debts.map(debt => debt.fingerprint));
   const confirmedLegacyUncovered = delta.retained.filter(finding =>
     confirmedBaseline.has(finding.fingerprint) && !debtKeys.has(finding.fingerprint));
-  const reviewedDebtErrors = assessReviewedFoodDebt(current, baseline, debts, reviewedSeeds);
+  // Preserve the original four-argument API for isolated legacy candidate
+  // probes. Production check/report always provide the reviewed source ledger.
+  const reviewedDebtErrors = reviewedSeeds.length > 0
+    ? assessReviewedFoodDebt(current, baseline, debts, reviewedSeeds)
+    : [];
   const errors = [
     ...delta.added.map(f =>
       "New food architecture violation gate " + f.ruleId + " [" + f.failureClass +
