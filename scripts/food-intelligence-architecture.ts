@@ -6,6 +6,7 @@
 import ts from "typescript";
 import path from "node:path";
 import { isImmutableNumericSpread } from "./food-architecture-numeric-spreads";
+import { isLiteralMealChoiceData, findConsumedMealChoiceCatalogs } from "./food-architecture-meal-choices";
 import { findImportedLexicalFoodFindings } from "./food-architecture-lexical-imports";
 import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRuleId, type FoodWaveOneRule } from "./food-architecture-rules";
 import {
@@ -78,33 +79,13 @@ function isNodeRequireCall(node: ts.CallExpression): boolean {
  * local identifier is simply "optionsByContext". Presentation-only status
  * labels and unrelated arrays must not be treated as nutrition knowledge. */
 function isLiteralFoodMealChoiceCatalog(expr: ts.Expression, node: ts.VariableDeclaration): boolean {
-  const object = unwrap(expr);
-  if (!ts.isObjectLiteralExpression(object) || object.properties.length === 0) return false;
-  const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
-  const categories = new Set<string>();
-  let optionCount = 0;
-  let uiActionCount = 0;
-  for (const property of object.properties) {
-    if (!ts.isPropertyAssignment(property)) return false;
-    const key = property.name.getText().replace(/^['"]|['"]$/g, "");
-    if (!mealKey.test(key)) return false;
-    const options = unwrap(property.initializer);
-    if (!ts.isArrayLiteralExpression(options) || options.elements.length < 2) return false;
-    categories.add(key.toLowerCase());
-    for (const option of options.elements) {
-      const value = unwrap(option);
-      if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) return false;
-      optionCount++;
-      if (/^(?:editar|excluir|abrir|fechar|salvar|cancelar|copiar|visualizar|imprimir|selecionar|remover|apagar|voltar|proximo|próximo)\b/i.test(value.text)) uiActionCount++;
-    }
-  }
+  if (!isLiteralMealChoiceData(expr)) return false;
   // Food knowledge is determined by the consumer, not a fixed vocabulary of meals.
   const owner = enclosingDeclaration(node);
   const foodDecision = /food|alimen|meal|nutri|ingred|recipe|receita/i.test(owner + " " + node.getSourceFile().fileName) ||
     /^(?:buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner);
-  if (uiActionCount === optionCount) return false;
   if (!foodDecision || !/^(?:suggest|recommend|buildAssistantReply|buildMealSuggestions|buildFoodPlan)/i.test(owner) ||
-      !ts.isIdentifier(node.name) || optionCount < 2) return false;
+      !ts.isIdentifier(node.name)) return false;
   let consumedByContext = false;
   let functionParent: ts.Node | null = null;
   for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
@@ -3344,6 +3325,19 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       ts.forEachChild(node, visit);
     }
     visit(source);
+  }
+  // F36: follow productive consumers through lexical bindings, sibling functions,
+  // helpers and runtime imports. A declaration is reported at its source so a
+  // formerly inert catalog that becomes productive cannot be silently exempted.
+  const consumedMealChoices = findConsumedMealChoiceCatalogs(
+    files, runtime, indexed, resolveRuntimeDependencies, stableHash,
+    dependencyGraph, results,
+  );
+  for (const candidate of consumedMealChoices) {
+    // Local recommendations already detected above must keep one finding only.
+    if (!results.some(existing => existing.ruleId === "17" &&
+        existing.file === candidate.file && existing.line === candidate.line &&
+        existing.symbol === candidate.symbol)) results.push(candidate);
   }
   results.push(...importedNumericMaps.findings);
   results.push(...findImportedLexicalFoodFindings(files, runtime, indexed, resolveRuntimeDependencies, stableHash));
