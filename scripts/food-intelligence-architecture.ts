@@ -910,6 +910,23 @@ function isCanonicalFoodResolverDelegate(
       argument.text === callable.parameters[index].name.text);
 }
 
+/** Match a resolver's actual call target, never names inside a receiver object.
+ * A Zod schema may contain a field called resolveFood but only invokes superRefine. */
+function callTargetName(expression: ts.Expression): string {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) {
+    const receiver = callTargetName(expression.expression);
+    return receiver ? receiver + "." + expression.name.text : expression.name.text;
+  }
+  if (ts.isElementAccessExpression(expression) && expression.argumentExpression &&
+      isStaticText(unwrap(expression.argumentExpression))) {
+    const receiver = callTargetName(expression.expression);
+    const member = (unwrap(expression.argumentExpression) as ts.StringLiteral).text;
+    return receiver ? receiver + "." + member : member;
+  }
+  return "";
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -1265,7 +1282,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
   }
   if (rule.kind === "call" && ts.isCallExpression(node)) {
-    const symbol = node.expression.getText(source);
+    const symbol = callTargetName(node.expression);
     const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
     const provenance = rule.id === "3" ?
       node.arguments.map(arg => localDecisionEvidence(arg, node, source)).join(" ") : "";
