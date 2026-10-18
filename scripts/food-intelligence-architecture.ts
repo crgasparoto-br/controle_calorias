@@ -426,7 +426,7 @@ function isFoodNumericProjectionDecision(
           for (const decl of statement.declarationList.declarations) {
             if (!ts.isIdentifier(decl.name) || decl.name.text !== expr.text) continue;
             return (statement.declarationList.flags & ts.NodeFlags.Const) && decl.initializer &&
-              decl.getStart(source) < use.getSe.nat(source)
+              decl.getStart(source) < use.getStart(source)
               ? projection(decl.initializer, decl, depth + 1) : null;
           }
         }
