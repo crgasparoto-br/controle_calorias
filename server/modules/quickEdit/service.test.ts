@@ -101,10 +101,14 @@ describe("quickEdit service", () => {
     const { createQuickEditLinkForMeal } = await import("./service");
     const link = await createQuickEditLinkForMeal({ userId: 123, mealId: 456 });
 
-    expect(link.url).toMatch(/^https:\/\/app\.example\.com\/quick-edit\//);
-    expect(link.url).not.toContain("123");
-    expect(link.url).not.toContain("456");
-    expect(link.token.length).toBeGreaterThanOrEqual(32);
+    const url = new URL(link.url);
+    expect(url.origin).toBe("https://app.example.com");
+    expect(url.pathname).toBe(`/quick-edit/${link.token}`);
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+    // Random token bytes can coincidentally contain the digits of an ID.
+    // Verify the opaque token format and URL structure, not random substrings.
+    expect(link.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(new Date(link.expiresAt).getTime()).toBeGreaterThan(Date.now());
   });
 
