@@ -410,9 +410,13 @@ function isFoodNumericProjectionDecision(
   candidate: ts.CallExpression, source: ts.SourceFile,
   matchesMap: (value: ts.Expression, use: ts.Node) => boolean,
 ): boolean {
-  if (!ts.isPropertyAccessExpression(candidate.expression)) return false;
-  const method = candidate.expression.name.text;
-  if (!["find", "filter", "some", "every", "includes", "indexOf"].includes(method)) return false;
+  const outerCall = candidate.expression;
+  if (!ts.isPropertyAccessExpression(outerCall) && !ts.isElementAccessExpression(outerCall)) return false;
+  const method = ts.isPropertyAccessExpression(outerCall) ? outerCall.name.text :
+    outerCall.argumentExpression && isStaticText(unwrap(outerCall.argumentExpression))
+      ? unwrap(outerCall.argumentExpression).getText(source).slice(1, -1) : "";
+  if (!["find", "filter", "some", "every", "includes", "indexOf", "has",
+      "keys", "entries", "ownKeys", "getOwnPropertyNames"].includes(method)) return false;
   type Projection = "keys" | "entries";
   const unshadowedGlobal = (name: string, use: ts.Node): boolean => {
     for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -443,13 +447,17 @@ function isFoodNumericProjectionDecision(
   const enumerationMethod = (value: ts.Expression, use: ts.Node, depth = 0): Projection | null => {
     if (depth > 10) return null;
     const expr = unwrap(value);
-    if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.expression) &&
-        ((expr.expression.text === "Object" &&
-          ["keys", "entries", "getOwnPropertyNames"].includes(expr.name.text) &&
-          unshadowedGlobal("Object", use)) ||
-         (expr.expression.text === "Reflect" && expr.name.text === "ownKeys" &&
-          unshadowedGlobal("Reflect", use)))) {
-      return expr.name.text === "entries" ? "entries" : "keys";
+    if ((ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) &&
+        ts.isIdentifier(expr.expression)) {
+      const member = ts.isPropertyAccessExpression(expr) ? expr.name.text :
+        expr.argumentExpression && isStaticText(unwrap(expr.argumentExpression))
+          ? (unwrap(expr.argumentExpression) as ts.StringLiteral).text : "";
+      if (((expr.expression.text === "Object" &&
+              ["keys", "entries", "getOwnPropertyNames"].includes(member)) ||
+            (expr.expression.text === "Reflect" && member === "ownKeys")) &&
+          unshadowedGlobal(expr.expression.text, use)) {
+        return member === "entries" ? "entries" : "keys";
+      }
     }
     if (!ts.isIdentifier(expr)) return null;
     for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -526,12 +534,34 @@ function isFoodNumericProjectionDecision(
         ts.isSpreadElement(expr.elements[0])) {
       return projection(expr.elements[0].expression, use, depth + 1);
     }
+    // A native Set retains its iterable's members. An unrelated object or
+    // shadowed Set does not prove that the projected food keys survive.
+    if (ts.isNewExpression(expr) && ts.isIdentifier(expr.expression) &&
+        expr.expression.text === "Set" && unshadowedGlobal("Set", expr) &&
+        expr.arguments?.length === 1) {
+      return projection(expr.arguments[0], expr, depth + 1) === "keys" ? "keys" : null;
+    }
     if (!ts.isCallExpression(expr)) return null;
     const enumeration = enumerationMethod(expr.expression, expr, depth + 1);
     if (enumeration && expr.arguments.length === 1 && matchesMap(expr.arguments[0], expr))
       return enumeration;
     if (!ts.isPropertyAccessExpression(expr.expression)) return null;
     const callee = expr.expression;
+    // join/split with the same static separator round-trips projected keys.
+    // A change of separator, opaque callback or nonliteral delimiter stops tracing.
+    if (callee.name.text === "split" && expr.arguments.length === 1 &&
+        ts.isCallExpression(unwrap(callee.expression))) {
+      const joined = unwrap(callee.expression) as ts.CallExpression;
+      if (ts.isPropertyAccessExpression(joined.expression) &&
+          joined.expression.name.text === "join" && joined.arguments.length <= 1) {
+        const separator = immutableDecisionString(expr.arguments[0], expr, source);
+        const joinedSeparator = joined.arguments.length
+          ? immutableDecisionString(joined.arguments[0], joined, source) : ",";
+        if (separator !== null && separator === joinedSeparator) {
+          return projection(joined.expression.expression, joined, depth + 1);
+        }
+      }
+    }
     if (ts.isIdentifier(callee.expression) && callee.expression.text === "Array" &&
         callee.name.text === "from" && expr.arguments.length === 1 &&
         unshadowedGlobal("Array", expr)) {
@@ -553,12 +583,56 @@ function isFoodNumericProjectionDecision(
     const projected = unwrapFoodIdentityNormalization(cb.body);
     return ts.isIdentifier(projected) && projected.text === key ? "keys" : null;
   };
-  const kind = projection(candidate.expression.expression, candidate);
+  // A const tuple destructuring from Object.keys() preserves the extracted
+  // key, even when a later comparison is no longer a collection method call.
+  if (["keys", "entries", "ownKeys", "getOwnPropertyNames"].includes(method)) {
+    const declared = candidate.parent;
+    if (!ts.isVariableDeclaration(declared) || !ts.isArrayBindingPattern(declared.name) ||
+        !ts.isVariableDeclarationList(declared.parent) ||
+        !(declared.parent.flags & ts.NodeFlags.Const) || projection(candidate, candidate) !== "keys")
+      return false;
+    const first = declared.name.elements[0];
+    if (!first || !ts.isBindingElement(first) || !ts.isIdentifier(first.name)) return false;
+    const key = first.name.text;
+    let boundary: ts.Node = source;
+    for (let parent: ts.Node | undefined = declared.parent; parent; parent = parent.parent) {
+      if (ts.isFunctionLike(parent)) { boundary = parent; break; }
+    }
+    let consumed = false;
+    const compare = (node: ts.Node): void => {
+      if (consumed) return;
+      if (ts.isFunctionLike(node) && node !== boundary) return;
+      if (ts.isBlock(node) && node.statements.some(stmt => ts.isVariableStatement(stmt) &&
+          stmt.declarationList.declarations.some(binding =>
+            ts.isIdentifier(binding.name) && binding.name.text === key))) {
+        let parent: ts.Node | undefined = declared;
+        while (parent && parent !== node) parent = parent.parent;
+        if (!parent) return; // Nested shadowing is not a use of this tuple binding.
+      }
+      if (ts.isBinaryExpression(node) && node.getStart(source) > declared.getStart(source) &&
+          [ts.SyntaxKind.EqualsEqualsToken,
+          ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) {
+        const left = unwrapFoodIdentityNormalization(node.left);
+        const right = unwrapFoodIdentityNormalization(node.right);
+        consumed = ts.isIdentifier(left) && left.text === key &&
+          (foodIndexContext(node.right, node, source) ||
+            hasGenericFoodIdentityDecisionContext(node.right, node, source)) ||
+          ts.isIdentifier(right) && right.text === key &&
+          (foodIndexContext(node.left, node, source) ||
+            hasGenericFoodIdentityDecisionContext(node.left, node, source));
+      }
+      if (!consumed) ts.forEachChild(node, compare);
+    };
+    ts.forEachChild(boundary, compare);
+    return consumed;
+  }
+  const kind = projection(outerCall.expression, candidate);
   if (!kind) return false;
   const inFoodContext = (expression: ts.Expression): boolean =>
     foodIndexContext(expression, candidate, source) ||
     hasGenericFoodIdentityDecisionContext(expression, candidate, source);
-  if (method === "includes" || method === "indexOf") {
+  if (method === "includes" || method === "indexOf" || method === "has") {
     return kind === "keys" && candidate.arguments.length === 1 &&
       inFoodContext(candidate.arguments[0]);
   }
@@ -689,6 +763,13 @@ function intrinsicRegExpFactory(value: ts.Expression, use: ts.Node,
   seen = new Set<ts.Node>(), depth = 0): boolean {
   if (depth > 12) return false;
   const expr = unwrap(value);
+  if (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) {
+    const member = ts.isPropertyAccessExpression(expr) ? expr.name.text :
+      expr.argumentExpression && isStaticText(unwrap(expr.argumentExpression))
+        ? (unwrap(expr.argumentExpression) as ts.StringLiteral).text : "";
+    return member === "RegExp" && ts.isIdentifier(expr.expression) &&
+      expr.expression.text === "globalThis" && unshadowedIntrinsic("globalThis", use);
+  }
   if (!ts.isIdentifier(expr)) return false;
   if (expr.text === "RegExp") return unshadowedIntrinsic("RegExp", use);
   for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -701,6 +782,18 @@ function intrinsicRegExpFactory(value: ts.Expression, use: ts.Node,
     for (const stmt of scope.statements) {
       if (!ts.isVariableStatement(stmt)) continue;
       for (const decl of stmt.declarationList.declarations) {
+        if (ts.isObjectBindingPattern(decl.name) && decl.name.elements.some(element =>
+            ts.isIdentifier(element.name) && element.name.text === expr.text)) {
+          if (!(stmt.declarationList.flags & ts.NodeFlags.Const) || !decl.initializer ||
+              decl.getStart() >= use.getStart() || !ts.isIdentifier(unwrap(decl.initializer)) ||
+              unwrap(decl.initializer).getText() !== "globalThis" ||
+              !unshadowedIntrinsic("globalThis", decl)) return false;
+          const element = decl.name.elements.find(element =>
+            ts.isIdentifier(element.name) && element.name.text === expr.text);
+          const field = element?.propertyName ?? element?.name;
+          return !!field && (ts.isIdentifier(field) || ts.isStringLiteral(field)) &&
+            field.text === "RegExp";
+        }
         if (!ts.isIdentifier(decl.name) || decl.name.text !== expr.text) continue;
         if (!(stmt.declarationList.flags & ts.NodeFlags.Const) || !decl.initializer ||
             seen.has(decl) || decl.getStart() >= use.getStart()) return false;
@@ -1221,9 +1314,12 @@ function immutableDecisionString(expression: ts.Expression, use: ts.Node, source
     return left !== null && right !== null ? left + right : null;
   }
   if (ts.isTaggedTemplateExpression(value) &&
-      ts.isPropertyAccessExpression(value.tag) &&
+      (ts.isPropertyAccessExpression(value.tag) || ts.isElementAccessExpression(value.tag)) &&
       ts.isIdentifier(value.tag.expression) && value.tag.expression.text === "String" &&
-      value.tag.name.text === "raw" && unshadowedIntrinsic("String", value)) {
+      (ts.isPropertyAccessExpression(value.tag) ? value.tag.name.text === "raw" :
+        !!value.tag.argumentExpression && isStaticText(unwrap(value.tag.argumentExpression)) &&
+        (unwrap(value.tag.argumentExpression) as ts.StringLiteral).text === "raw") &&
+      unshadowedIntrinsic("String", value)) {
     const template = value.template;
     if (ts.isNoSubstitutionTemplateLiteral(template))
       return template.rawText ?? template.text;
@@ -1536,7 +1632,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       matches(rule.evidencePattern,
         localDecisionEvidence(regexSource, node, source));
     const unrelated = /status|account|permission|role|exercise|activity|workout|fitness|render|display/i
-      .test(enclosingDeclaration(node));
+      .test(enclosingDeclaration(node)) ||
+      /^(?:status|account|permission|role|username|userName)\b/i.test(
+        node.arguments[0].getText(source));
     if (!unrelated && (matches(rule.symbolPattern, context) || sourceDecision || materialityLexeme)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-regex",
         subject: node.getText(source) };
@@ -3106,6 +3204,15 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const carriesIdentity = (candidate: ts.Expression, depth = 0): boolean => {
         if (depth > 8) return false;
         const value = unwrap(candidate);
+        if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+          const left = unwrap(value.left);
+          const right = unwrap(value.right);
+          if (ts.isStringLiteral(left) && left.text === "") return carriesIdentity(value.right, depth + 1);
+          if (ts.isStringLiteral(right) && right.text === "") return carriesIdentity(value.left, depth + 1);
+        }
+        if (ts.isCallExpression(value) && ts.isIdentifier(value.expression) &&
+            value.expression.text === "String" && unshadowedIntrinsic("String", value) &&
+            value.arguments.length === 1) return carriesIdentity(value.arguments[0], depth + 1);
         if (ts.isIdentifier(value)) {
           if (fromRecords ? identityBindings.has(value.text) : value.text === name) return true;
           const alias = aliases.get(value.text);
@@ -3162,6 +3269,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ...resolveJsonExpression(value.left, value.left, new Set(visited), depth + 1, kind, decisionUse),
           ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind, decisionUse),
         ])];
+      }
+      // Native Set keeps the members of an identity projection; a shadowed
+      // Set or a Set built from unrelated data cannot certify JSON consumption.
+      if (kind === "identity" && ts.isNewExpression(value) &&
+          ts.isIdentifier(value.expression) && value.expression.text === "Set" &&
+          unshadowedIntrinsic("Set", value) && value.arguments?.length === 1) {
+        return resolveJsonExpression(value.arguments[0], value, visited, depth + 1,
+          "identity", decisionUse);
       }
       // F41: array spread does not discard provenance of its constituent
       // records. Treat only actual SpreadElements as source expressions.
@@ -3768,7 +3883,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // Projected JSON identities are food knowledge only when actually used
       // in a productive decision. Pure display projections remain inert.
       if (call && receiver &&
-          /^(?:includes|indexOf|lastIndexOf|find|some|every|filter)$/.test(method) &&
+          /^(?:includes|indexOf|lastIndexOf|has|find|some|every|filter)$/.test(method) &&
           call.arguments[0] && foodJsonDecisionContext(node)) {
         const targets = resolveJsonExpression(receiver, node,
           new Set<ts.VariableDeclaration>(), 0, "identity");
@@ -3776,7 +3891,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           const callback = /^(?:find|some|every|filter)$/.test(method)
             ? resolveJsonCallback(call.arguments[0], node) : undefined;
           const parameter = callback?.parameters[0]?.name;
-          const identityDecision = /^(?:includes|indexOf|lastIndexOf)$/.test(method) ||
+          const identityDecision = /^(?:includes|indexOf|lastIndexOf|has)$/.test(method) ||
             !!(callback && parameter && ts.isIdentifier(parameter) && callback.body &&
               projectedIdentityDecision(parameter.text, callback.body));
           if (identityDecision) for (const target of targets) jsonRecordsConsumedByFood.add(target);

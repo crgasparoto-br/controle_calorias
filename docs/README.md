@@ -367,3 +367,20 @@ consumidos, fixtures isoladas, aliases mutáveis e APIs sombreadas permanecem
 controles benignos. `scripts/food-architecture-f49-f50-remediation.test.ts`
 fixa cenários metamórficos e negativos nos gates e no enforcement. Não há
 rebaseline, autorização de dívida nova ou promoção dos gates de runtime.
+
+**Remediação AUD1300-20261018-F51/F52/F53 (Issue #1300):** os gates 17/5
+acompanham chaves de mapas nutricionais obtidas por acessos computados
+literais (`Object["keys"]`, `Reflect["ownKeys"]` e
+`Object["getOwnPropertyNames"]`), projeções em `Set`, `join/split` estáticos
+e desestruturação `const` até uma decisão alimentar. Os gates 17/18
+acompanham `globalThis.RegExp`/`globalThis["RegExp"]`, seus aliases imutáveis
+e `String["raw"]` em expressões regulares estáticas. Catálogos JSON que
+projetam a identidade por `map/flatMap`, coerções transparentes de string ou
+`Set.has` também permanecem governados por consumo produtivo. Parâmetros
+sombreados, intrínsecos substituídos, projeções de identidade descartadas,
+dados administrativos e importações não consumidas não recebem autorização
+ou bloqueio por heurística de caminho. A suíte
+`scripts/food-architecture-f51-f53-remediation.test.ts` verifica casos
+positivos, negativos e combinações entre origem, binding e consumidor via
+`findFoodStaticCandidates` e `evaluateFoodArchitectureGate`. A correção não
+altera o baseline histórico, o livro de dívida nem os gates de runtime.
