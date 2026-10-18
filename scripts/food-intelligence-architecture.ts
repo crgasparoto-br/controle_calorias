@@ -4102,12 +4102,35 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // specific food field, not when a type merely declares foodName.
       if (/\b(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)\b/i
         .test(node.getText(source))) return true;
-      // A food-specific input is decisive even in generic helper functions.
+      // A typed food parameter must actually reach the current decision.
+      // Its mere presence must not taint a sibling status lookup.
       for (let parent: ts.Node | undefined = node; parent; parent = parent.parent) {
         if (!ts.isFunctionLike(parent)) continue;
-        if (parent.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+        const decision = node.getText(source);
+        const candidates = parent.parameters.filter(parameter => ts.isIdentifier(parameter.name) &&
           /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i
-            .test(parameter.name.text))) return true;
+            .test(parameter.name.text));
+        for (const parameter of candidates) {
+          const parameterName = (parameter.name as ts.Identifier).text;
+          if (new RegExp("\\b" + parameterName + "\\b").test(decision)) return true;
+          if (parent.body && ts.isBlock(parent.body)) {
+            for (const statement of parent.body.statements) {
+              if (!ts.isVariableStatement(statement) ||
+                  !(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                  statement.getStart(source) >= node.getStart(source)) continue;
+              for (const declaration of statement.declarationList.declarations) {
+                if (!ts.isIdentifier(declaration.name) || !declaration.initializer ||
+                    !ts.isIdentifier(unwrap(declaration.initializer)) ||
+                    (unwrap(declaration.initializer) as ts.Identifier).text !== parameterName) continue;
+                const alias = declaration.name.text;
+                if (new RegExp("\\b" + alias + "\\b").test(decision) &&
+                    !(ts.isCallExpression(node) && node.arguments.some(argument =>
+                      (ts.isArrowFunction(argument) || ts.isFunctionExpression(argument)) &&
+                      argument.parameters.some(p => ts.isIdentifier(p.name) && p.name.text === alias)))) return true;
+              }
+            }
+          }
+        }
         break;
       }
       if (unrelatedDecision.test(declaration)) return false;

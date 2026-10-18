@@ -111,6 +111,10 @@ push("X07-structured-index-origin",[
   {path:"server/constants.ts",content:"export const table={pitaya:91,arroz:130};"},
   {path:"server/helpers.ts",content:'import {table} from "./constants";function check(input:{foodName:string}){return table[input.foodName]}'}
 ],"server/constants.ts",true,["17","5"]);
+push("X08-unused-food-param",[
+  records,{path:"server/helpers.ts",
+  content:'import rows from "./data/records.json";function check(foodName:string,status:string){return rows.some(r=>r.name===status)}'}
+],"server/data/records.json",false,["17","5"]);
 describe("AUD1300 F66 F67 F68 semantic consumption and source attribution", () => {
   for (const item of cases) it(item.id, () => {
     for (const file of item.files.filter(f=>/\.[cm]?[jt]sx?$/.test(f.path))) {
