@@ -38,7 +38,15 @@ Produzir um registro verificável por fingerprint com:
 
 Não registrar `confirmed_non_violation` por mera ausência de finding adicional ou por nome de diretório. Não registrar `confirmed_violation` apenas porque a heurística reportou um candidato.
 
-## Critérios de conclusão
+## Separação de escopos: gates da onda 1 e certificação integral
+
+A Issue #1300 (onda 1) exige gates estáticos capazes de rejeitar novos hardcodes, livro de dívida nominal e **inventário inicial reproduzível por SHA**. Esse contrato não exige retirar todo o legado ou declarar equivalência de runtime de cada candidato heurístico. Sua aprovação depende da bateria adversarial independente, dos controles positivos/negativos, da reconciliação do inventário exact-head e de não existirem violações novas nem dívidas confirmadas órfãs/vencidas/sem rastreio.
+
+A certificação comportamental **integral** de cada candidato é um objetivo de triagem e migração subsequente, separado da implementação do detector. Nenhum candidato não revisado se torna `confirmed_non_violation`, dívida aprovada ou owner certificado por omissão. Manter a fila completa, com identidade individual, evidência disponível, estado `unresolved` explícito e issue de acompanhamento atribuída antes de considerá-lo encaminhado. Um candidato que revele violação nova real ou legado confirmado sem dívida nominal bloqueia a #1300 até remediação.
+
+Para a aprovação de escopo #1300, registrar no parecer o total de candidatos, a parcela revisada e a parcela `unresolved`, sem afirmar saturação da triagem. A separação não é isenção dos gates 17/18/5 nem autorização para reduzir a cobertura da auditoria independente. Caso um critério explícito da ADR exija prova de owner em uma superfície específica da onda 1, a prova continua bloqueante.
+
+## Critérios de certificação integral da triagem
 
 - Inventário integral do **HEAD final** lido e reconciliado; nenhum fingerprint fica sem disposition e evidência.
 - Todas as violações confirmadas têm correção ou dívida pré-existente nominal vigente e rastreável; nenhuma violação nova passa.
