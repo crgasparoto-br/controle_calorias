@@ -2967,7 +2967,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const fieldAccess = new RegExp(bound +
         "(?:\\.\\s*" + identity + "\\b|\\[\\s*['\"]" + identity + "['\"]\\s*\\])");
       return fieldAccess.test(predicate) &&
-        /===?|!==?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(/.test(predicate);
+        /===?|!==?|\.includes\s*\(|\.startsWith\s*\(|\.endsWith\s*\(|\.test\s*\(/.test(predicate);
     };
     // Follow immutable callback aliases used by JSON collection decisions.
     // A parameter or mutable binding must not inherit a similarly named predicate.
@@ -3184,6 +3184,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     ): string[] => {
       if (depth > 12) return [];
       const value = unwrap(expression);
+      // A direct array-index or .at() access is the same JSON record as an
+      // indexed local alias. Require a real indexed nutrition row.
+      const direct = indexedJsonRow(value, use);
+      if (direct.length) return direct;
       if (!ts.isIdentifier(value)) return [];
       const declaration = findLexicalJsonBinding(value.text, use);
       if (!declaration || !traceableRowBinding(declaration, use, value.text)) return [];
