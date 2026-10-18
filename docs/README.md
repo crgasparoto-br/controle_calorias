@@ -354,3 +354,16 @@ A regressão de `scripts/food-architecture-f46-f48-remediation.test.ts`
 verifica detecção e enforcement no mesmo conjunto de cenários. Essas correções
 não alteram a dívida, o baseline pré-migração nem a decisão de ativação
 independente dos gates de runtime 6/8/15.
+
+**Remediação AUD1300-20261018-F49/F50 (Issue #1300):** os gates 17/18
+reconhecem decisões lexicais com `RegExp(...)` sem `new`, inclusive aliases
+imutáveis de construtor, expressões condicionais/lógicas e templates estáticos
+`String.raw`, sem confiar em parâmetros ou intrínsecos sombreados. Os gates
+17/5 reconhecem a projeção de chaves de tabelas nutricionais por
+`Reflect.ownKeys` e `Object.getOwnPropertyNames`, inclusive aliases `const`,
+desestruturação, seleções condicionais e imports produtivos. Somente consumo
+por identidade alimentar gera bloqueio; mapas administrativos, dados não
+consumidos, fixtures isoladas, aliases mutáveis e APIs sombreadas permanecem
+controles benignos. `scripts/food-architecture-f49-f50-remediation.test.ts`
+fixa cenários metamórficos e negativos nos gates e no enforcement. Não há
+rebaseline, autorização de dívida nova ou promoção dos gates de runtime.

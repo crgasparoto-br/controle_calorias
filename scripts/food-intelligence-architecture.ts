@@ -45,6 +45,31 @@ function unwrap(source: ts.Expression): ts.Expression {
   return source;
 }
 
+/** Only treat platform intrinsics as such when no lexical declaration shadows them. */
+function unshadowedIntrinsic(name: string, use: ts.Node): boolean {
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+        ts.isIdentifier(param.name) && param.name.text === name)) return false;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        ts.isIdentifier(scope.variableDeclaration.name) &&
+        scope.variableDeclaration.name.text === name) return false;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const stmt of scope.statements) {
+      if (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some(decl =>
+          ts.isIdentifier(decl.name) && decl.name.text === name)) return false;
+      if ((ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) &&
+          stmt.name?.text === name) return false;
+      if (ts.isImportDeclaration(stmt) && stmt.importClause &&
+          (stmt.importClause.name?.text === name ||
+            (stmt.importClause.namedBindings &&
+              (ts.isNamespaceImport(stmt.importClause.namedBindings)
+                ? stmt.importClause.namedBindings.name.text === name
+                : stmt.importClause.namedBindings.elements.some(el => el.name.text === name))))) return false;
+    }
+  }
+  return true;
+}
+
 /** CommonJS loader is authoritative only when its lexical binding is Node's
  * require, not a local parameter, function, import or variable. Reuse this
  * proof for reachability and JSON/filesystem provenance alike. */
@@ -419,8 +444,13 @@ function isFoodNumericProjectionDecision(
     if (depth > 10) return null;
     const expr = unwrap(value);
     if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.expression) &&
-        expr.expression.text === "Object" && ["keys", "entries"].includes(expr.name.text) &&
-        unshadowedGlobal("Object", use)) return expr.name.text as Projection;
+        ((expr.expression.text === "Object" &&
+          ["keys", "entries", "getOwnPropertyNames"].includes(expr.name.text) &&
+          unshadowedGlobal("Object", use)) ||
+         (expr.expression.text === "Reflect" && expr.name.text === "ownKeys" &&
+          unshadowedGlobal("Reflect", use)))) {
+      return expr.name.text === "entries" ? "entries" : "keys";
+    }
     if (!ts.isIdentifier(expr)) return null;
     for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
       if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
@@ -441,12 +471,17 @@ function isFoodNumericProjectionDecision(
               (statement.declarationList.flags & ts.NodeFlags.Const) &&
               decl.getStart(source) < use.getStart(source) &&
               ts.isIdentifier(unwrap(decl.initializer)) &&
-              unwrap(decl.initializer).getText(source) === "Object" &&
-              unshadowedGlobal("Object", decl)) {
+              ["Object", "Reflect"].includes(unwrap(decl.initializer).getText(source)) &&
+              unshadowedGlobal(unwrap(decl.initializer).getText(source), decl)) {
             const binding = decl.name.elements.find(el => ts.isIdentifier(el.name) &&
               el.name.text === expr.text);
             const member = binding?.propertyName?.getText(source) || expr.text;
-            if (binding && ["keys", "entries"].includes(member)) return member as Projection;
+            if (binding && (member === "keys" || member === "entries" ||
+                member === "getOwnPropertyNames" || member === "ownKeys") &&
+                ((unwrap(decl.initializer).getText(source) === "Reflect")
+                  ? member === "ownKeys"
+                  : member !== "ownKeys"))
+              return member === "entries" ? "entries" : "keys";
           }
         }
       }
@@ -648,6 +683,36 @@ function hasLiteralRegex(expr: ts.Expression): boolean {
       !!value.arguments?.length && ts.isStringLiteral(unwrap(value.arguments[0])));
 }
 
+/** A RegExp call and new RegExp create the same regular expression. Follow
+ * immutable constructor aliases but never guess through mutable or shadowed bindings. */
+function intrinsicRegExpFactory(value: ts.Expression, use: ts.Node,
+  seen = new Set<ts.Node>(), depth = 0): boolean {
+  if (depth > 12) return false;
+  const expr = unwrap(value);
+  if (!ts.isIdentifier(expr)) return false;
+  if (expr.text === "RegExp") return unshadowedIntrinsic("RegExp", use);
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(parameter =>
+        ts.isIdentifier(parameter.name) && parameter.name.text === expr.text)) return false;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        ts.isIdentifier(scope.variableDeclaration.name) &&
+        scope.variableDeclaration.name.text === expr.text) return false;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const stmt of scope.statements) {
+      if (!ts.isVariableStatement(stmt)) continue;
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name) || decl.name.text !== expr.text) continue;
+        if (!(stmt.declarationList.flags & ts.NodeFlags.Const) || !decl.initializer ||
+            seen.has(decl) || decl.getStart() >= use.getStart()) return false;
+        const next = new Set(seen);
+        next.add(decl);
+        return intrinsicRegExpFactory(decl.initializer, decl, next, depth + 1);
+      }
+    }
+  }
+  return false;
+}
+
 /** Resolve only immutable regex aliases in the lexical scope of the use.
  * A parameter, mutable binding, shadowed name or cyclic chain is not proof
  * that the runtime regular expression is the literal originally declared. */
@@ -658,8 +723,18 @@ function resolveLiteralRegexPattern(
   if (depth > 12) return null;
   const expr = unwrap(target);
   if (ts.isRegularExpressionLiteral(expr)) return expr.getText();
-  if (ts.isNewExpression(expr) && expr.expression.getText() === "RegExp" &&
-      expr.arguments?.length) {
+  if (ts.isConditionalExpression(expr)) {
+    return resolveLiteralRegexPattern(expr.whenTrue, expr, new Set(visited), depth + 1) ??
+      resolveLiteralRegexPattern(expr.whenFalse, expr, new Set(visited), depth + 1);
+  }
+  if (ts.isBinaryExpression(expr) && [ts.SyntaxKind.BarBarToken,
+      ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.QuestionQuestionToken]
+      .includes(expr.operatorToken.kind)) {
+    return resolveLiteralRegexPattern(expr.left, expr, new Set(visited), depth + 1) ??
+      resolveLiteralRegexPattern(expr.right, expr, new Set(visited), depth + 1);
+  }
+  if ((ts.isNewExpression(expr) || ts.isCallExpression(expr)) &&
+      intrinsicRegExpFactory(expr.expression, expr) && expr.arguments?.length) {
     // The constructor argument can be an immutable literal alias (possibly a
     // chain). The lexical resolver rejects mutable and shadowed bindings.
     const pattern = immutableDecisionString(expr.arguments[0], expr, expr.getSourceFile());
@@ -1144,6 +1219,21 @@ function immutableDecisionString(expression: ts.Expression, use: ts.Node, source
     const left = immutableDecisionString(value.left, value, source, depth + 1, new Set(seen));
     const right = immutableDecisionString(value.right, value, source, depth + 1, new Set(seen));
     return left !== null && right !== null ? left + right : null;
+  }
+  if (ts.isTaggedTemplateExpression(value) &&
+      ts.isPropertyAccessExpression(value.tag) &&
+      ts.isIdentifier(value.tag.expression) && value.tag.expression.text === "String" &&
+      value.tag.name.text === "raw" && unshadowedIntrinsic("String", value)) {
+    const template = value.template;
+    if (ts.isNoSubstitutionTemplateLiteral(template))
+      return template.rawText ?? template.text;
+    let result = template.head.rawText ?? template.head.text;
+    for (const span of template.templateSpans) {
+      const part = immutableDecisionString(span.expression, span, source, depth + 1, new Set(seen));
+      if (part === null) return null;
+      result += part + (span.literal.rawText ?? span.literal.text);
+    }
+    return result;
   }
   if (ts.isTemplateExpression(value)) {
     let result = value.head.text;
@@ -2534,7 +2624,8 @@ function findCrossModuleNumericFoodMaps(
                 expr.expression.expression.text === "Array" && expr.arguments[0]) {
               return projection(expr.arguments[0], depth + 1);
             }
-            if (["keys", "entries"].includes(expr.expression.name.text) && expr.arguments[0]) {
+            if (["keys", "entries", "ownKeys", "getOwnPropertyNames"].includes(
+                expr.expression.name.text) && expr.arguments[0]) {
               const item = unwrap(expr.arguments[0]);
               return ts.isIdentifier(item) ? resolveReference(item.text, expr) :
                 namespaceReference(item, expr);
