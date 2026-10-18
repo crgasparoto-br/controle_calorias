@@ -3316,32 +3316,6 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           value.elements.every(entry => carriesIdentity(entry))
         : carriesIdentity(value);
     };
-    // F54: A split(join(names, separator), separator) round-trip is
-    // identity preserving only if a nonempty delimiter cannot occur in a
-    // catalog identity. Reject uncertain values rather than guessing.
-    const jsonIdentityDelimiterSafe = (target: string, separator: string): boolean => {
-      if (!separator) return false;
-      const file = indexed.get(target);
-      if (!file) return false;
-      let parsed: unknown;
-      try { parsed = JSON.parse(file.content); } catch { return false; }
-      let found = false;
-      let collision = false;
-      const scan = (value: unknown): void => {
-        if (collision || !value || typeof value !== "object") return;
-        if (Array.isArray(value)) { for (const row of value) scan(row); return; }
-        for (const [key, item] of Object.entries(value)) {
-          if (/^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/i.test(key) &&
-              (typeof item === "string" || typeof item === "number")) {
-            found = true;
-            if (String(item).includes(separator)) collision = true;
-          }
-          scan(item);
-        }
-      };
-      scan(parsed);
-      return found && !collision;
-    };
     type JsonTraceKind = "records" | "identity";
     const resolveJsonExpression = (
       expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
@@ -3436,9 +3410,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             ts.isNoSubstitutionTemplateLiteral(unwrap(access.argumentExpression)))
           ? (unwrap(access.argumentExpression) as ts.StringLiteral).text : "";
       const receiver = access.expression;
-      // F54: follow a safe and statically provable join/split of projected
-      // JSON identities. Divergent delimiters and opaque transformations do not
-      // establish provenance.
+      // F56: matched, nonempty join/split delimiters keep catalog provenance.
+      // A collision in one name may split that name, but other identities still
+      // survive and influence the food decision. Never discard the entire
+      // catalog because one record contains the delimiter.
+      // Mismatched/empty delimiters and opaque transformations remain excluded.
       if (kind === "identity" && method === "split" && value.arguments.length === 1 &&
           ts.isCallExpression(receiver)) {
         const joined = receiver;
@@ -3456,8 +3432,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           if (splitSeparator !== null && splitSeparator.length > 0 &&
               splitSeparator === joinSeparator) {
             return resolveJsonExpression(joinAccess.expression, joined,
-              new Set(visited), depth + 1, "identity", decisionUse)
-              .filter(target => jsonIdentityDelimiterSafe(target, splitSeparator));
+              new Set(visited), depth + 1, "identity", decisionUse);
           }
         }
       }
