@@ -399,8 +399,10 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
   const domain = source.fileName + " " + enclosingDeclaration(node);
   // An explicitly typed food identifier is domain evidence even in helpers.ts.
   const explicitIdentity = /(?:^|\.|\[["'])(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)(?:$|\b)/i.test(name);
-  if ((!explicitIdentity && !/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain)) ||
-      /exercise|activity|workout|fitness|burnedcalories/i.test(domain) && !explicitIdentity) return false;
+  // The active decision's domain wins over a parameter's incidental name.
+  // e.g. exercise(foodName) must not turn exercise weights into food macros.
+  if (/exercise|activity|workout|fitness|burnedcalories/i.test(domain) ||
+      (!explicitIdentity && !/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain))) return false;
   return /food|aliment|ingredient|product|portion|porc|serving|recipe|receita/i.test(name) ||
     /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
 }
@@ -4098,6 +4100,9 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // food decision. Evaluate the decision before applying path heuristics;
       // account/status/activity decisions are exempt, not entire directories.
       if (foodDomain.test(declaration)) return true;
+      // Exempt unrelated named decisions before identity-field heuristics.
+      // Otherwise exercise(foodName) taints imported JSON with false debts.
+      if (unrelatedDecision.test(declaration)) return false;
       // Structured input fields count only when the decision consumes that
       // specific food field, not when a type merely declares foodName.
       if (/\b(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)\b/i
@@ -4133,7 +4138,6 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         }
         break;
       }
-      if (unrelatedDecision.test(declaration)) return false;
       // Directory names alone are not exclusions: an account/foodService.ts
       // may still make a food decision with an anonymous/generic handler.
       const filename = consumer.path.split("/").pop() ?? "";

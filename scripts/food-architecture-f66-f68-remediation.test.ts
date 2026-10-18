@@ -115,6 +115,16 @@ push("X08-unused-food-param",[
   records,{path:"server/helpers.ts",
   content:'import rows from "./data/records.json";function check(foodName:string,status:string){return rows.some(r=>r.name===status)}'}
 ],"server/data/records.json",false,["17","5"]);
+push("X09-exercise-param-cannot-taint-import",[
+  {path:"server/weights.json",content:'{"arroz":90,"pao":50}'},
+  {path:"server/exerciseService.ts",
+    content:'import weights from "./weights.json";function exercise(foodName:string){return weights[foodName]}'}
+],"server/weights.json",false,["17","5"]);
+push("X10-exercise-foodName-is-not-a-food-decision",[
+  {path:"server/weights.json",content:'{"arroz":90,"pao":50}'},
+  {path:"server/exerciseService.ts",
+    content:'const weights=require("./weights.json");function exercise(foodName:string){return weights[foodName]}'}
+],"server/weights.json",false,["17","5"]);
 describe("AUD1300 F66 F67 F68 semantic consumption and source attribution", () => {
   for (const item of cases) it(item.id, () => {
     for (const file of item.files.filter(f=>/\.[cm]?[jt]sx?$/.test(f.path))) {
