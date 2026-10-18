@@ -403,6 +403,51 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
     /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
 }
 
+/** Follow a const alias to an intrinsic namespace without trusting shadows. */
+function resolvesIntrinsicNamespace(
+  target: ts.Expression, use: ts.Node, intrinsic: "Object" | "Reflect" | "globalThis",
+  seen = new Set<ts.VariableDeclaration>(), depth = 0,
+): boolean {
+  if (depth > 12) return false;
+  const expr = unwrap(target);
+  if (!ts.isIdentifier(expr)) return false;
+  const name = expr.text;
+  if (name === intrinsic) return unshadowedIntrinsic(intrinsic, use);
+  const declares = (binding: ts.BindingName): boolean => ts.isIdentifier(binding)
+    ? binding.text === name
+    : binding.elements.some(e => ts.isBindingElement(e) && declares(e.name));
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(p => declares(p.name))) return false;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        declares(scope.variableDeclaration.name)) return false;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+          statement.name?.text === name) return false;
+      if (ts.isImportDeclaration(statement) && statement.importClause &&
+          (statement.importClause.name?.text === name ||
+            (statement.importClause.namedBindings &&
+              (ts.isNamespaceImport(statement.importClause.namedBindings)
+                ? statement.importClause.namedBindings.name.text === name
+                : statement.importClause.namedBindings.elements.some(e => e.name.text === name)))))
+        return false;
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!declares(declaration.name)) continue;
+        if (!ts.isIdentifier(declaration.name) ||
+            !(statement.declarationList.flags & ts.NodeFlags.Const) ||
+            !declaration.initializer || declaration.getStart() >= use.getStart() ||
+            seen.has(declaration)) return false;
+        const next = new Set(seen);
+        next.add(declaration);
+        return resolvesIntrinsicNamespace(declaration.initializer, declaration, intrinsic,
+          next, depth + 1);
+      }
+    }
+  }
+  return false;
+}
+
 /** Track *identity-preserving* projections of numeric food maps through
  * Object.keys/entries. UI enumerations, substituted keys and shadowed globals
  * never become productive knowledge merely because a map exists. */
@@ -447,15 +492,14 @@ function isFoodNumericProjectionDecision(
   const enumerationMethod = (value: ts.Expression, use: ts.Node, depth = 0): Projection | null => {
     if (depth > 10) return null;
     const expr = unwrap(value);
-    if ((ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) &&
-        ts.isIdentifier(expr.expression)) {
+    if (ts.isPropertyAccessExpression(expr) || ts.isElementAccessExpression(expr)) {
       const member = ts.isPropertyAccessExpression(expr) ? expr.name.text :
         expr.argumentExpression && isStaticText(unwrap(expr.argumentExpression))
           ? (unwrap(expr.argumentExpression) as ts.StringLiteral).text : "";
-      if (((expr.expression.text === "Object" &&
-              ["keys", "entries", "getOwnPropertyNames"].includes(member)) ||
-            (expr.expression.text === "Reflect" && member === "ownKeys")) &&
-          unshadowedGlobal(expr.expression.text, use)) {
+      if ((["keys", "entries", "getOwnPropertyNames"].includes(member) &&
+            resolvesIntrinsicNamespace(expr.expression, use, "Object")) ||
+          (member === "ownKeys" &&
+            resolvesIntrinsicNamespace(expr.expression, use, "Reflect"))) {
         return member === "entries" ? "entries" : "keys";
       }
     }
@@ -767,8 +811,8 @@ function intrinsicRegExpFactory(value: ts.Expression, use: ts.Node,
     const member = ts.isPropertyAccessExpression(expr) ? expr.name.text :
       expr.argumentExpression && isStaticText(unwrap(expr.argumentExpression))
         ? (unwrap(expr.argumentExpression) as ts.StringLiteral).text : "";
-    return member === "RegExp" && ts.isIdentifier(expr.expression) &&
-      expr.expression.text === "globalThis" && unshadowedIntrinsic("globalThis", use);
+    return member === "RegExp" &&
+      resolvesIntrinsicNamespace(expr.expression, use, "globalThis");
   }
   if (!ts.isIdentifier(expr)) return false;
   if (expr.text === "RegExp") return unshadowedIntrinsic("RegExp", use);
@@ -3272,6 +3316,32 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           value.elements.every(entry => carriesIdentity(entry))
         : carriesIdentity(value);
     };
+    // F54: A split(join(names, separator), separator) round-trip is
+    // identity preserving only if a nonempty delimiter cannot occur in a
+    // catalog identity. Reject uncertain values rather than guessing.
+    const jsonIdentityDelimiterSafe = (target: string, separator: string): boolean => {
+      if (!separator) return false;
+      const file = indexed.get(target);
+      if (!file) return false;
+      let parsed: unknown;
+      try { parsed = JSON.parse(file.content); } catch { return false; }
+      let found = false;
+      let collision = false;
+      const scan = (value: unknown): void => {
+        if (collision || !value || typeof value !== "object") return;
+        if (Array.isArray(value)) { for (const row of value) scan(row); return; }
+        for (const [key, item] of Object.entries(value)) {
+          if (/^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/i.test(key) &&
+              (typeof item === "string" || typeof item === "number")) {
+            found = true;
+            if (String(item).includes(separator)) collision = true;
+          }
+          scan(item);
+        }
+      };
+      scan(parsed);
+      return found && !collision;
+    };
     type JsonTraceKind = "records" | "identity";
     const resolveJsonExpression = (
       expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
@@ -3366,6 +3436,31 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             ts.isNoSubstitutionTemplateLiteral(unwrap(access.argumentExpression)))
           ? (unwrap(access.argumentExpression) as ts.StringLiteral).text : "";
       const receiver = access.expression;
+      // F54: follow a safe and statically provable join/split of projected
+      // JSON identities. Divergent delimiters and opaque transformations do not
+      // establish provenance.
+      if (kind === "identity" && method === "split" && value.arguments.length === 1 &&
+          ts.isCallExpression(receiver)) {
+        const joined = receiver;
+        const joinAccess = joined.expression;
+        const joinMethod = ts.isPropertyAccessExpression(joinAccess) ? joinAccess.name.text :
+          ts.isElementAccessExpression(joinAccess) && joinAccess.argumentExpression &&
+            isStaticText(unwrap(joinAccess.argumentExpression))
+            ? (unwrap(joinAccess.argumentExpression) as ts.StringLiteral).text : "";
+        if (joinMethod === "join" && joined.arguments.length <= 1 &&
+            (ts.isPropertyAccessExpression(joinAccess) ||
+              ts.isElementAccessExpression(joinAccess))) {
+          const splitSeparator = immutableDecisionString(value.arguments[0], value, source);
+          const joinSeparator = joined.arguments.length
+            ? immutableDecisionString(joined.arguments[0], joined, source) : ",";
+          if (splitSeparator !== null && splitSeparator.length > 0 &&
+              splitSeparator === joinSeparator) {
+            return resolveJsonExpression(joinAccess.expression, joined,
+              new Set(visited), depth + 1, "identity", decisionUse)
+              .filter(target => jsonIdentityDelimiterSafe(target, splitSeparator));
+          }
+        }
+      }
       // F13: Object.values(arrayOrRecord) preserves the records, unlike
       // Object.keys (indexes) or Object.entries (tuples). Only propagate record
       // provenance; treating an array of objects as projected identity strings
