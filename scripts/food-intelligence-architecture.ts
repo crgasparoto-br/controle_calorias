@@ -378,10 +378,9 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
     /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
 }
 
-/** Numeric food maps retain provenance when keys or entries drive a food
- * identity decision. Plain enumeration, display, and shadowed Object are inert.
- * The source lookup is injected so local declarations and imported maps obey
- * the same consumer oracle without guessing from literal food names. */
+/** Track *identity-preserving* projections of numeric food maps through
+ * Object.keys/entries. UI enumerations, substituted keys and shadowed globals
+ * never become productive knowledge merely because a map exists. */
 function isFoodNumericProjectionDecision(
   candidate: ts.CallExpression, source: ts.SourceFile,
   matchesMap: (value: ts.Expression, use: ts.Node) => boolean,
@@ -389,73 +388,99 @@ function isFoodNumericProjectionDecision(
   if (!ts.isPropertyAccessExpression(candidate.expression)) return false;
   const method = candidate.expression.name.text;
   if (!["find", "filter", "some", "every", "includes", "indexOf"].includes(method)) return false;
-  const unwrapProjection = (value: ts.Expression, use: ts.Node, depth = 0): boolean => {
-    if (depth > 10) return false;
+  type Projection = "keys" | "entries";
+  const unshadowedGlobal = (name: string, use: ts.Node): boolean => {
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          ts.isIdentifier(param.name) && param.name.text === name)) return false;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === name) return false;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(decl =>
+            ts.isIdentifier(decl.name) && decl.name.text === name)) return false;
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === name) return false;
+        if (ts.isImportDeclaration(statement) && statement.importClause &&
+            (statement.importClause.name?.text === name ||
+              (statement.importClause.namedBindings &&
+                (ts.isNamespaceImport(statement.importClause.namedBindings)
+                  ? statement.importClause.namedBindings.name.text === name
+                  : statement.importClause.namedBindings.elements.some(el =>
+                      el.name.text === name))))) return false;
+      }
+    }
+    return true;
+  };
+  const projection = (value: ts.Expression, use: ts.Node, depth = 0): Projection | null => {
+    if (depth > 10) return null;
     const expr = unwrap(value);
     if (ts.isIdentifier(expr)) {
-      // A constant projection can be used by a later consumer. Resolve only
-      // the nearest lexical binding, rejecting parameters and mutable aliases.
       for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
         if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
-            ts.isIdentifier(param.name) && param.name.text === expr.text)) return false;
+            ts.isIdentifier(param.name) && param.name.text === expr.text)) return null;
         if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
         for (const statement of scope.statements) {
           if (!ts.isVariableStatement(statement)) continue;
           for (const decl of statement.declarationList.declarations) {
             if (!ts.isIdentifier(decl.name) || decl.name.text !== expr.text) continue;
-            return !!(statement.declarationList.flags & ts.NodeFlags.Const) &&
-              !!decl.initializer && decl.getStart(source) < use.getStart(source) &&
-              unwrapProjection(decl.initializer, decl, depth + 1);
+            return (statement.declarationList.flags & ts.NodeFlags.Const) && decl.initializer &&
+              decl.getStart(source) < use.getSe.nat(source)
+              ? projection(decl.initializer, decl, depth + 1) : null;
           }
         }
       }
-      return false;
+      return null;
     }
-    if (!ts.isCallExpression(expr) || !ts.isPropertyAccessExpression(expr.expression)) return false;
+    if (ts.isArrayLiteralExpression(expr) && expr.elements.length === 1 &&
+        ts.isSpreadElement(expr.elements[0])) {
+      return projection(expr.elements[0].expression, use, depth + 1);
+    }
+    if (!ts.isCallExpression(expr) || !ts.isPropertyAccessExpression(expr.expression)) return null;
     const callee = expr.expression;
-    if (["slice", "toSorted", "toReversed", "filter"].includes(callee.name.text)) {
-      return unwrapProjection(callee.expression, use, depth + 1);
+    if (["keys", "entries"].includes(callee.name.text) &&
+        ts.isIdentifier(callee.expression) && callee.expression.text === "Object" &&
+        expr.arguments.length === 1 && unshadowedGlobal("Object", expr) &&
+        matchesMap(expr.arguments[0], expr)) return callee.name.text as Projection;
+    if (ts.isIdentifier(callee.expression) && callee.expression.text === "Array" &&
+        callee.name.text === "from" && expr.arguments.length === 1 &&
+        unshadowedGlobal("Array", expr)) {
+      return projection(expr.arguments[0], use, depth + 1);
     }
-    if (!["keys", "entries"].includes(callee.name.text) ||
-        !ts.isIdentifier(callee.expression) || callee.expression.text !== "Object" ||
-        expr.arguments.length !== 1) return false;
-    // Do not confuse a local parameter/import named Object with the intrinsic.
-    for (let scope: ts.Node | undefined = expr; scope; scope = scope.parent) {
-      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
-          ts.isIdentifier(param.name) && param.name.text === "Object")) return false;
-      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
-          ts.isIdentifier(scope.variableDeclaration.name) &&
-          scope.variableDeclaration.name.text === "Object") return false;
-      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
-      for (const statement of scope.statements) {
-        if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(decl =>
-            ts.isIdentifier(decl.name) && decl.name.text === "Object")) return false;
-        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
-            statement.name?.text === "Object") return false;
-        if (ts.isImportDeclaration(statement) && statement.importClause &&
-            (statement.importClause.name?.text === "Object" ||
-              (statement.importClause.namedBindings &&
-                (ts.isNamespaceImport(statement.importClause.namedBindings)
-                  ? statement.importClause.namedBindings.name.text === "Object"
-                  : statement.importClause.namedBindings.elements.some(el =>
-                      el.name.text === "Object"))))) return false;
-      }
-    }
-    return matchesMap(expr.arguments[0], expr);
+    const previous = projection(callee.expression, use, depth + 1);
+    if (!previous) return null;
+    if (["slice", "toSorted", "toReversed", "sort", "reverse", "filter"].includes(callee.name.text))
+      return previous;
+    if (callee.name.text !== "map" || expr.arguments.length !== 1) return null;
+    const cb = expr.arguments[0];
+    if (!ts.isArrowFunction(cb) && !ts.isFunctionExpression(cb)) return null;
+    const first = cb.parameters[0]?.name;
+    const head = first && ts.isArrayBindingPattern(first) ? first.elements[0] : undefined;
+    const key = previous === "keys" && first && ts.isIdentifier(first) ? first.text :
+      previous === "entries" && head && ts.isBindingElement(head) &&
+        ts.isIdentifier(head.name) ? head.name.text : null;
+    if (!key || !cb.body || ts.isBlock(cb.body)) return null;
+    const projected = unwrapFoodIdentityNormalization(cb.body);
+    return ts.isIdentifier(projected) && projected.text === key ? "keys" : null;
   };
-  if (!unwrapProjection(candidate.expression.expression, candidate)) return false;
+  const kind = projection(candidate.expression.expression, candidate);
+  if (!kind) return false;
+  const inFoodContext = (expression: ts.Expression): boolean =>
+    foodIndexContext(expression, candidate, source) ||
+    hasGenericFoodIdentityDecisionContext(expression, candidate, source);
   if (method === "includes" || method === "indexOf") {
-    return candidate.arguments.length === 1 &&
-      (foodIndexContext(candidate.arguments[0], candidate, source) ||
-        hasGenericFoodIdentityDecisionContext(candidate.arguments[0], candidate, source));
+    return kind === "keys" && candidate.arguments.length === 1 &&
+      inFoodContext(candidate.arguments[0]);
   }
-  const callback = candidate.arguments[0];
-  if (!callback || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback))) return false;
-  const first = callback.parameters[0]?.name;
+  const cb = candidate.arguments[0];
+  if (!cb || (!ts.isArrowFunction(cb) && !ts.isFunctionExpression(cb))) return false;
+  const first = cb.parameters[0]?.name;
   const head = first && ts.isArrayBindingPattern(first) ? first.elements[0] : undefined;
-  const key = first && ts.isIdentifier(first) ? first.text :
-    head && ts.isBindingElement(head) && ts.isIdentifier(head.name) ? head.name.text : null;
-  if (!key || !callback.body) return false;
+  const key = kind === "keys" && first && ts.isIdentifier(first) ? first.text :
+    kind === "entries" && head && ts.isBindingElement(head) &&
+      ts.isIdentifier(head.name) ? head.name.text : null;
+  if (!key || !cb.body) return false;
   const isKey = (value: ts.Expression): boolean => {
     const expr = unwrapFoodIdentityNormalization(value);
     return ts.isIdentifier(expr) && expr.text === key;
@@ -467,16 +492,16 @@ function isFoodNumericProjectionDecision(
       ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
       ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
     ].includes(node.operatorToken.kind) &&
-        ((isKey(node.left) && (foodIndexContext(node.right, candidate, source) ||
-          hasGenericFoodIdentityDecisionContext(node.right, candidate, source))) ||
-          (isKey(node.right) && (foodIndexContext(node.left, candidate, source) ||
-            hasGenericFoodIdentityDecisionContext(node.left, candidate, source))))) {
-      decision = true;
-      return;
-    }
-    ts.forEachChild(node, visit);
+        ((isKey(node.left) && inFoodContext(node.right)) ||
+          (isKey(node.right) && inFoodContext(node.left)))) decision = true;
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        ["includes", "startsWith", "endsWith", "localeCompare", "indexOf"].includes(node.expression.name.text) &&
+        node.arguments[0] &&
+        ((isKey(node.expression.expression) && inFoodContext(node.arguments[0])) ||
+          (isKey(node.arguments[0]) && inFoodContext(node.expression.expression)))) decision = true;
+    if (!decision) ts.forEachChild(node, visit);
   };
-  visit(callback.body);
+  visit(cb.body);
   return decision;
 }
 
@@ -2335,13 +2360,22 @@ function findCrossModuleNumericFoodMaps(
         const projection = (value: ts.Expression, depth = 0): Reference | undefined => {
           if (depth > 10) return undefined;
           const expr = unwrap(value);
+          if (ts.isArrayLiteralExpression(expr) && expr.elements.length === 1 &&
+              ts.isSpreadElement(expr.elements[0])) {
+            return projection(expr.elements[0].expression, depth + 1);
+          }
           if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
+            if (expr.expression.name.text === "from" &&
+                ts.isIdentifier(expr.expression.expression) &&
+                expr.expression.expression.text === "Array" && expr.arguments[0]) {
+              return projection(expr.arguments[0], depth + 1);
+            }
             if (["keys", "entries"].includes(expr.expression.name.text) && expr.arguments[0]) {
               const item = unwrap(expr.arguments[0]);
               return ts.isIdentifier(item) ? resolveReference(item.text, expr) :
                 namespaceReference(item, expr);
             }
-            if (["slice", "filter", "toSorted", "toReversed"].includes(expr.expression.name.text))
+            if (["slice", "filter", "map", "sort", "reverse", "toSorted", "toReversed"].includes(expr.expression.name.text))
               return projection(expr.expression.expression, depth + 1);
           }
           if (ts.isIdentifier(expr)) {
