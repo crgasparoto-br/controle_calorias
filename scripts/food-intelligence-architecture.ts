@@ -452,9 +452,9 @@ function isFoodNumericProjectionDecision(
   const callback = candidate.arguments[0];
   if (!callback || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback))) return false;
   const first = callback.parameters[0]?.name;
+  const head = first && ts.isArrayBindingPattern(first) ? first.elements[0] : undefined;
   const key = first && ts.isIdentifier(first) ? first.text :
-    first && ts.isArrayBindingPattern(first) && first.elements[0] &&
-      ts.isIdentifier(first.elements[0].name) ? first.elements[0].name.text : null;
+    head && ts.isBindingElement(head) && ts.isIdentifier(head.name) ? head.name.text : null;
   if (!key || !callback.body) return false;
   const isKey = (value: ts.Expression): boolean => {
     const expr = unwrapFoodIdentityNormalization(value);
