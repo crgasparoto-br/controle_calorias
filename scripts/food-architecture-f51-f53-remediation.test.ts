@@ -59,6 +59,23 @@ add('C-JSON-field-provenance','C-09-changing-identity',js('return rows.map(r=>r.
 add('C-JSON-field-provenance','C-10-Set-shadow', 'import rows from "./data/records.json";function selectFood(input:string,Set: new(input:any)=>Set<string>){return new Set(rows.map(r=>r.name)).has(input)}',false,['17','5'],[catalog]);
 add('C-JSON-field-provenance','C-11-Set-non-food-consumer', 'import rows from "./data/records.json";function checkStatus(status:string){return new Set(rows.map(r=>r.name)).has(status)}',false,['17','5'],[catalog]);
 
+// Cross-module maps must obey the same projection policy as local maps.
+const crossModule = [
+  ["X-01 imported direct", "Object.keys(table).includes(foodName)", true],
+  ["X-02 imported computed", "Object['keys'](table).includes(foodName)", true],
+  ["X-03 imported Set", "new Set(Object.keys(table)).has(foodName)", true],
+  ["X-04 imported computed Set", "new Set(Object['keys'](table)).has(foodName)", true],
+  ["X-05 imported alias Set", "new Set(keys(table)).has(foodName)", true],
+  ["X-06 imported ownKeys", "Reflect.ownKeys(table).includes(foodName)", true],
+  ["X-07 imported join-split", "Object.keys(table).join(',').split(',').includes(foodName)", true],
+] as const;
+for (const [id, expression, expected] of crossModule) {
+  const alias = id.includes("alias") ? "const keys=Object['keys'];" : "";
+  add("A-imported-numeric-map", id,
+    `import { table } from './nutrition';${alias}function check(foodName:string){return ${expression}}`,
+    expected, ["17", "5"], [{path:"server/nutrition.ts", content:"export const table={pitaya:91,arroz:130};"}]);
+}
+
 describe("AUD1300-F51/F52/F53 regression and pairwise controls", () => {
   for (const c of tests) it(`${c.group}: ${c.id}`, () => {
     const path = "server/foodService.ts";
@@ -67,7 +84,7 @@ describe("AUD1300-F51/F52/F53 regression and pairwise controls", () => {
     expect(parsed.diagnostics ?? [], `TS input must be valid: ${c.id}`).toHaveLength(0);
     const files: FoodArchitectureFile[] = [...c.extra, {path, content: c.source}];
     const findings = findFoodStaticCandidates(files);
-    const target = c.extra.length ? c.extra[0].path : path;
+    const target = c.group === "C-JSON-field-provenance" ? c.extra[0].path : path;
     const recognized = findings.some(f => f.file === target && c.rule.includes(f.ruleId));
     const errors = evaluateFoodArchitectureGate(findings, [], [], new Date("2026-10-18T12:00:00Z")).errors;
     expect(recognized, JSON.stringify(findings)).toBe(c.expected);

@@ -2716,6 +2716,19 @@ function findCrossModuleNumericFoodMaps(
               ts.isSpreadElement(expr.elements[0])) {
             return projection(expr.elements[0].expression, depth + 1);
           }
+          if (ts.isNewExpression(expr) && ts.isIdentifier(expr.expression) &&
+              expr.expression.text === "Set" && unshadowedIntrinsic("Set", expr) &&
+              expr.arguments?.length === 1) return projection(expr.arguments[0], depth + 1);
+          if (ts.isCallExpression(expr) && ts.isElementAccessExpression(expr.expression) &&
+              expr.expression.argumentExpression &&
+              isStaticText(unwrap(expr.expression.argumentExpression)) &&
+              ["keys", "entries", "ownKeys", "getOwnPropertyNames"].includes(
+                (unwrap(expr.expression.argumentExpression) as ts.StringLiteral).text) &&
+              expr.arguments.length === 1) {
+            const arg = unwrap(expr.arguments[0]);
+            return ts.isIdentifier(arg) ? resolveReference(arg.text, expr) :
+              ts.isPropertyAccessExpression(arg) ? namespaceReference(arg, expr) : undefined;
+          }
           if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
             if (expr.expression.name.text === "from" &&
                 ts.isIdentifier(expr.expression.expression) &&
@@ -2727,6 +2740,18 @@ function findCrossModuleNumericFoodMaps(
               const item = unwrap(expr.arguments[0]);
               return ts.isIdentifier(item) ? resolveReference(item.text, expr) :
                 namespaceReference(item, expr);
+            }
+            if (expr.expression.name.text === "split" && expr.arguments.length === 1 &&
+                ts.isCallExpression(unwrap(expr.expression.expression))) {
+              const joined = unwrap(expr.expression.expression) as ts.CallExpression;
+              if (ts.isPropertyAccessExpression(joined.expression) &&
+                  joined.expression.name.text === "join" && joined.arguments.length <= 1) {
+                const separator = immutableDecisionString(expr.arguments[0], expr, source);
+                const joinedSeparator = joined.arguments.length
+                  ? immutableDecisionString(joined.arguments[0], joined, source) : ",";
+                if (separator !== null && separator === joinedSeparator)
+                  return projection(joined.expression.expression, depth + 1);
+              }
             }
             if (["slice", "filter", "map", "sort", "reverse", "toSorted", "toReversed"].includes(expr.expression.name.text))
               return projection(expr.expression.expression, depth + 1);
@@ -2746,7 +2771,9 @@ function findCrossModuleNumericFoodMaps(
           }
           return undefined;
         };
-        const reference = projection(node.expression.expression);
+        const sourceProjection = ts.isVariableDeclaration(node.parent) &&
+          ts.isArrayBindingPattern(node.parent.name) ? node : node.expression.expression;
+        const reference = projection(sourceProjection);
         if (reference) {
           const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
           for (const ruleId of ["17", "5"] as const) {
