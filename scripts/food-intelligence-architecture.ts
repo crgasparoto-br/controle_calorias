@@ -1599,15 +1599,40 @@ function isConsumedSerializedFoodValue(node: ts.VariableDeclaration, source: ts.
   const parameters = ts.isFunctionLike(boundary) ? boundary.parameters.map(p => p.name.getText(source)).join(" ") : "";
   const foodDomain = /food|alimento|nutri|meal|portion|ingredient|productName/i.test(
     name + " " + parameters + " " + source.fileName);
-  if (!foodDomain || /exercise|activity|workout|fitness|account|status/i.test(name)) return false;
+  // A module-level literal can be consumed by a later function. A local
+  // literal, by contrast, must not inherit uses from another function.
+  if ((boundary !== source && !foodDomain) ||
+      /exercise|activity|workout|fitness|account|status/i.test(name)) return false;
+  const foodQuery = /\b(?:foodName|foodId|foodLabel|foodKey|alimento|ingredientName|productName)\b/i;
+  const shadowedAt = (candidate: ts.Node): boolean => {
+    if (boundary !== source) return false;
+    for (let scope: ts.Node | undefined = candidate; scope && scope !== source; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(parameter =>
+        ts.isIdentifier(parameter.name) && parameter.name.text === variable)) return true;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === variable) return true;
+      if (!ts.isBlock(scope)) continue;
+      if (scope.statements.some(statement =>
+        (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(declaration =>
+          ts.isIdentifier(declaration.name) && declaration.name.text === variable)) ||
+        (ts.isFunctionDeclaration(statement) && statement.name?.text === variable))) return true;
+    }
+    return false;
+  };
   let consumed = false;
   const visit = (candidate: ts.Node): void => {
-    if (consumed || (ts.isFunctionLike(candidate) && candidate !== boundary)) return;
-    const foodQuery = /\b(?:foodName|foodId|foodLabel|foodKey|alimento|ingredientName|productName)\b/i;
+    if (consumed || (ts.isFunctionLike(candidate) && candidate !== boundary && boundary !== source) ||
+        shadowedAt(candidate)) return;
+    // A foodName parameter in an exercise/status decision is not proof of
+    // a food catalog; the active consumer's domain takes precedence.
+    const consumer = enclosingDeclaration(candidate);
+    if (/exercise|activity|workout|fitness|account|status/i.test(consumer)) return;
     if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
         /^(?:includes|indexOf|lastIndexOf|has|find|filter|some|every)$/.test(candidate.expression.name.text) &&
         candidate.expression.expression.getText(source) === variable &&
-        (foodQuery.test(candidate.getText(source)) || /food|meal|nutri|alimento/i.test(name))) {
+        (foodQuery.test(candidate.getText(source)) || foodDomain ||
+          /food|meal|nutri|alimento/i.test(consumer))) {
       consumed = true;
     }
     if (ts.isElementAccessExpression(candidate) &&
@@ -2231,6 +2256,27 @@ function resolveRuntimeDependencies(
     candidates.push(stem + ".ts", stem + ".tsx", stem + ".mts", stem + ".cts");
   }
   return [...new Set(candidates)].filter(candidate => indexed.has(candidate));
+}
+
+/** Vite serves client/public at the client URL root, not the module root.
+ * Only statically addressed assets in that configured directory are provable.
+ * Resolving a public URL as an ordinary absolute import would incorrectly
+ * attribute it to a repository-root module, or ignore it altogether.
+ */
+function resolveVitePublicAsset(
+  importer: string, specifier: string, indexed: Map<string, FoodArchitectureFile>,
+): string[] {
+  if (!importer.startsWith("client/src/") || !specifier.startsWith("/") ||
+      specifier.startsWith("//") || /[?#\\]/.test(specifier)) return [];
+  const candidate = path.posix.normalize("client/public/" + specifier.slice(1));
+  return candidate.startsWith("client/public/") && indexed.has(candidate) ? [candidate] : [];
+}
+
+/** Distinguish the unshadowed browser fetch from a local function with that name. */
+function isNativeViteFetch(node: ts.CallExpression): boolean {
+  return ts.isIdentifier(node.expression) && node.expression.text === "fetch" &&
+    unshadowedIntrinsic("fetch", node) && node.arguments.length >= 1 &&
+    isStaticText(unwrap(node.arguments[0]));
 }
 
 /** Resolve only statically knowable filesystem loads; unresolved paths are not exempted. */
@@ -3089,8 +3135,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     if (/\.json$/i.test(file.path)) continue;
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const filesystemBindings = filesystemReadBindings(source);
-    const addDependency = (specifier: string, importSource = ""): void => {
-      for (const candidate of resolveRuntimeDependencies(file.path, specifier, indexed)) {
+    const addDependency = (specifier: string, importSource = "", publicUrl = false): void => {
+      for (const candidate of (publicUrl
+        ? resolveVitePublicAsset(file.path, specifier, indexed)
+        : resolveRuntimeDependencies(file.path, specifier, indexed))) {
         const direct = dependencyGraph.get(file.path) ?? new Set<string>();
         direct.add(candidate);
         dependencyGraph.set(file.path, direct);
@@ -3131,6 +3179,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
             (isNodeRequireCall(node)))) {
         addDependency(node.arguments[0].text, node.getText(source));
+      }
+      if (ts.isCallExpression(node) && node.arguments[0] &&
+          isStaticText(unwrap(node.arguments[0])) &&
+          (isNativeViteFetch(node) || node.expression.kind === ts.SyntaxKind.ImportKeyword)) {
+        addDependency((unwrap(node.arguments[0]) as ts.StringLiteral).text,
+          node.getText(source), true);
       }
       if (ts.isCallExpression(node) &&
           filesystemBindings.isReader(node.expression) &&
@@ -3188,6 +3242,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             ts.isStringLiteral(node.arguments[0]) &&
             resolveRuntimeDependencies(consumer.path, node.arguments[0].text, indexed)
               .some(target => /\.json$/i.test(target))) {
+          hasStaticJsonLoader = true;
+          return;
+        }
+        if (isNativeViteFetch(node) && resolveVitePublicAsset(consumer.path,
+          (unwrap(node.arguments[0]) as ts.StringLiteral).text, indexed)
+          .some(target => /\.json$/i.test(target))) {
           hasStaticJsonLoader = true;
           return;
         }
@@ -3658,7 +3718,72 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     ): string[] => {
       if (depth > 12) return [];
       const value = unwrap(expression);
+      if (ts.isAwaitExpression(value)) return resolveJsonExpression(
+        value.expression, use, visited, depth + 1, kind, decisionUse);
       if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind, decisionUse);
+      // fetch('/catalog.json').then(response => response.json()) is the same
+      // local source as await fetch('/catalog.json'); response.json().
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          value.expression.name.text === "then" && value.arguments.length >= 1) {
+        const origin = unwrap(value.expression.expression);
+        const callback = unwrap(value.arguments[0]);
+        if (ts.isCallExpression(origin) && isNativeViteFetch(origin) &&
+            (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
+            callback.parameters.length === 1 && ts.isIdentifier(callback.parameters[0].name)) {
+          const output = ts.isBlock(callback.body) && callback.body.statements.length === 1 &&
+            ts.isReturnStatement(callback.body.statements[0])
+            ? callback.body.statements[0].expression :
+            ts.isBlock(callback.body) ? undefined : callback.body;
+          const call = output && unwrap(output);
+          if (call && ts.isCallExpression(call) && ts.isPropertyAccessExpression(call.expression) &&
+              call.expression.name.text === "json" && call.arguments.length === 0 &&
+              ts.isIdentifier(call.expression.expression) &&
+              call.expression.expression.text === callback.parameters[0].name.text) {
+            const targets = resolveVitePublicAsset(consumer.path,
+              (unwrap(origin.arguments[0]) as ts.StringLiteral).text, indexed)
+              .filter(target => /\.json$/i.test(target));
+            if (targets.length) return targets;
+          }
+        }
+      }
+      // Browser response.json() preserves the identity of a Vite public JSON
+      // asset when its response is proven to originate from a static fetch.
+      // Only immutable lexical response bindings may carry that provenance.
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          value.expression.name.text === "json" && value.arguments.length === 0) {
+        const response = unwrap(value.expression.expression);
+        const fetchOrigin = (candidate: ts.Expression, location: ts.Node,
+          seen = new Set<ts.VariableDeclaration>(), steps = 0): string[] => {
+          if (steps > 8) return [];
+          const origin = unwrap(candidate);
+          if (ts.isAwaitExpression(origin)) return fetchOrigin(origin.expression, location, seen, steps + 1);
+          if (ts.isCallExpression(origin) && isNativeViteFetch(origin)) {
+            return resolveVitePublicAsset(consumer.path,
+              (unwrap(origin.arguments[0]) as ts.StringLiteral).text, indexed)
+              .filter(target => /\.json$/i.test(target));
+          }
+          if (!ts.isIdentifier(origin)) return [];
+          for (let scope: ts.Node | undefined = location; scope; scope = scope.parent) {
+            if (ts.isFunctionLike(scope) && scope.parameters.some(parameter =>
+              ts.isIdentifier(parameter.name) && parameter.name.text === origin.text)) return [];
+            if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+            for (const statement of scope.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              for (const declaration of statement.declarationList.declarations) {
+                if (!ts.isIdentifier(declaration.name) || declaration.name.text !== origin.text) continue;
+                if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                    !declaration.initializer || seen.has(declaration) ||
+                    declaration.getStart(source) >= location.getStart(source)) return [];
+                seen.add(declaration);
+                return fetchOrigin(declaration.initializer, declaration, seen, steps + 1);
+              }
+            }
+          }
+          return [];
+        };
+        const targets = fetchOrigin(response, value);
+        if (targets.length) return targets;
+      }
       if (ts.isCallExpression(value)) {
         const fn = jsonCallable(value.expression, use);
         const returned = fn && jsonReturn(fn);
@@ -4543,6 +4668,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     if (/\.json$/i.test(file.path)) {
+      // Merely downloading a public asset (for status/diagnostics/display)
+      // is not proof that its contents govern a food decision. Unlike a
+      // code import, an HTTP fetch does not itself read the JSON records.
+      if (file.path.startsWith("client/public/") &&
+          !jsonRecordsConsumedByFood.has(file.path) &&
+          !importedNumericMaps.foodIndexedJson.has(file.path)) continue;
       results.push(...findJsonFoodCatalog(file,
         [...(importerContext.get(file.path) ?? [])].join(" "),
         importedNumericMaps.foodIndexedJson.has(file.path.replace(/\\/g, "/")),
