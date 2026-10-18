@@ -398,7 +398,7 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
   const name = foodIndexOrigin(index, node, source);
   const domain = source.fileName + " " + enclosingDeclaration(node);
   // An explicitly typed food identifier is domain evidence even in helpers.ts.
-  const explicitIdentity = /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i.test(name);
+  const explicitIdentity = /(?:^|\.|\[["'])(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)(?:$|\b)/i.test(name);
   if ((!explicitIdentity && !/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain)) ||
       /exercise|activity|workout|fitness|burnedcalories/i.test(domain) && !explicitIdentity) return false;
   return /food|aliment|ingredient|product|portion|porc|serving|recipe|receita/i.test(name) ||
@@ -2939,7 +2939,7 @@ function findCrossModuleNumericFoodMaps(
         const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
         // A generic consumer using a typed food identifier attributes the
         // hardcoded knowledge to the source table, never its helper name.
-        const genericFoodInput = /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i
+        const genericFoodInput = /(?:^|\.|\[["'])(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)(?:$|\b)/i
           .test(foodIndexOrigin(index, node, source)) &&
           !/food|alimen|nutrition|meal|portion|serving|ingredient/i.test(
             consumer.path + " " + enclosingDeclaration(node));
@@ -4097,6 +4097,10 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // food decision. Evaluate the decision before applying path heuristics;
       // account/status/activity decisions are exempt, not entire directories.
       if (foodDomain.test(declaration)) return true;
+      // Structured input fields count only when the decision consumes that
+      // specific food field, not when a type merely declares foodName.
+      if (/\b(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)\b/i
+        .test(node.getText(source))) return true;
       // A food-specific input is decisive even in generic helper functions.
       for (let parent: ts.Node | undefined = node; parent; parent = parent.parent) {
         if (!ts.isFunctionLike(parent)) continue;
