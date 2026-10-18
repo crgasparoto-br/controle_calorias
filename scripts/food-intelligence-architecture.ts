@@ -1136,23 +1136,78 @@ function isPresentationOnlyScalar(symbol: string, value: string, file: string): 
   return viewOnly || instructionalCopy;
 }
 
-function referencesLiteralWords(target: ts.Expression, node: ts.Node): boolean {
-  if (hasLiteralWords(target)) return true;
-  if (!ts.isIdentifier(target)) return false;
-  // Resolve a lexical declaration in the closest enclosing scope. Unknown
-  // external/generated values are not assumed to be literal vocabulary.
-  for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
-    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
-    for (const statement of scope.statements) {
-      if (!ts.isVariableStatement(statement)) continue;
-      for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name) && declaration.name.text === target.text) {
-          return !!declaration.initializer && hasLiteralWords(declaration.initializer);
+/** Trace literal collections through ordered local updates, not just their initializer.
+ * This is deliberately restricted to immutable bindings and synchronous,
+ * statement-level mutations before a decision; unknown writes cannot certify
+ * that the resulting vocabulary is static. */
+function referencesLiteralWords(target: ts.Expression, use: ts.Node): boolean {
+  const source = use.getSourceFile();
+  const resolve = (expression: ts.Expression, site: ts.Node, depth = 0,
+    seen = new Set<ts.VariableDeclaration>()): string[] | null => {
+    if (depth > 10) return null;
+    const value = unwrap(expression);
+    if (ts.isArrayLiteralExpression(value)) {
+      if (value.elements.some(item => !isStaticText(unwrap(item)))) return null;
+      return value.elements.map(item => (unwrap(item) as ts.StringLiteral).text);
+    }
+    if (ts.isNewExpression(value) && ts.isIdentifier(value.expression) &&
+        value.expression.text === "Set" && unshadowedIntrinsic("Set", value) &&
+        (value.arguments?.length ?? 0) <= 1) {
+      return value.arguments?.length ? resolve(value.arguments[0], value, depth + 1, seen) : [];
+    }
+    if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+        value.expression.name.text === "split" && value.arguments.length === 1) {
+      const input = immutableDecisionString(value.expression.expression, value, source);
+      const separator = immutableDecisionString(value.arguments[0], value, source);
+      return input !== null && separator !== null && separator.length > 0
+        ? input.split(separator) : null;
+    }
+    if (!ts.isIdentifier(value)) return null;
+    for (let scope: ts.Node | undefined = site; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          ts.isIdentifier(param.name) && param.name.text === value.text)) return null;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === value.text) return null;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name) || declaration.name.text !== value.text) continue;
+          if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+              !declaration.initializer || seen.has(declaration) ||
+              declaration.getStart(source) >= site.getStart(source)) return null;
+          const visited = new Set(seen); visited.add(declaration);
+          const initial = resolve(declaration.initializer, declaration, depth + 1, visited);
+          if (initial === null) return null;
+          const values = [...initial];
+          for (const operation of scope.statements) {
+            if (operation.getStart(source) <= declaration.getStart(source) ||
+                operation.getStart(source) >= site.getStart(source)) continue;
+            if (!ts.isExpressionStatement(operation)) continue;
+            const effect = operation.expression;
+            if (!ts.isCallExpression(effect) || !ts.isPropertyAccessExpression(effect.expression) ||
+                !ts.isIdentifier(effect.expression.expression) ||
+                effect.expression.expression.text !== value.text) continue;
+            const method = effect.expression.name.text;
+            if (!(["push", "unshift", "add"] as string[]).includes(method)) return null;
+            const isSet = ts.isNewExpression(unwrap(declaration.initializer)) &&
+              ts.isIdentifier((unwrap(declaration.initializer) as ts.NewExpression).expression) &&
+              ((unwrap(declaration.initializer) as ts.NewExpression).expression as ts.Identifier).text === "Set";
+            if ((method === "add") !== isSet || effect.arguments.length === 0 ||
+                effect.arguments.some(argument => !isStaticText(unwrap(argument)))) return null;
+            const items = effect.arguments.map(argument => (unwrap(argument) as ts.StringLiteral).text);
+            if (method === "unshift") values.unshift(...items);
+            else values.push(...items);
+          }
+          return values;
         }
       }
     }
-  }
-  return false;
+    return null;
+  };
+  const words = resolve(target, use);
+  return words !== null && words.length > 0 && words.every(word => word.length > 0);
 }
 
 function stableHash(value: string): string {
@@ -1645,8 +1700,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       node.arguments.length > 0 &&
       referencesLiteralWords(node.expression.expression, node)) {
     const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
-    const sourceDecision = rule.id === "18" && isFoodDomainSource(source.fileName);
-    if (matches(rule.symbolPattern, context) || sourceDecision) {
+    // A file may contain food and administrative consumers together. Its path
+    // alone never turns active/pending account statuses into materiality.
+    if (matches(rule.symbolPattern, context)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
         subject: node.getText(source) };
     }
@@ -3317,6 +3373,93 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         : carriesIdentity(value);
     };
     type JsonTraceKind = "records" | "identity";
+    // Only single-return local helpers are transparent. Parameter bindings are
+    // tied to their exact declaration and original call-site, not textual names.
+    // This prevents shadowed or independently sourced data from inheriting JSON.
+    const jsonCallFrames: Array<Map<ts.ParameterDeclaration, { value: ts.Expression; use: ts.Node }>> = [];
+    const jsonReturn = (fn: ts.FunctionLikeDeclaration): ts.Expression | undefined => {
+      if (!fn.body) return undefined;
+      if (!ts.isBlock(fn.body)) return fn.body;
+      const returns = fn.body.statements.filter(ts.isReturnStatement);
+      return returns.length === 1 ? returns[0].expression : undefined;
+    };
+    const jsonCallable = (expression: ts.Expression, site: ts.Node,
+      depth = 0): ts.FunctionLikeDeclaration | undefined => {
+      if (depth > 10) return undefined;
+      const value = unwrap(expression);
+      if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
+      if (ts.isCallExpression(value)) {
+        const outer = jsonCallable(value.expression, site, depth + 1);
+        const result = outer && jsonReturn(outer);
+        return result && (ts.isArrowFunction(unwrap(result)) ||
+          ts.isFunctionExpression(unwrap(result)))
+          ? unwrap(result) as ts.FunctionLikeDeclaration : undefined;
+      }
+      if (!ts.isIdentifier(value)) return undefined;
+      for (let scope: ts.Node | undefined = site; scope; scope = scope.parent) {
+        if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+            ts.isIdentifier(param.name) && param.name.text === value.text)) return undefined;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (ts.isFunctionDeclaration(statement) && statement.name?.text === value.text) return statement;
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const declaration of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(declaration.name) || declaration.name.text !== value.text) continue;
+            return statement.declarationList.flags & ts.NodeFlags.Const &&
+              declaration.initializer && declaration.getStart(source) < site.getStart(source)
+              ? jsonCallable(declaration.initializer, declaration, depth + 1) : undefined;
+          }
+        }
+      }
+      return undefined;
+    };
+    const jsonLocalProperty = (expression: ts.Expression, keys: string[], site: ts.Node,
+      depth = 0): { expression: ts.Expression; use: ts.Node } | undefined => {
+      if (!keys.length || depth > 10) return undefined;
+      const value = unwrap(expression);
+      if (ts.isIdentifier(value)) {
+        for (let scope: ts.Node | undefined = site; scope; scope = scope.parent) {
+          if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+              ts.isIdentifier(param.name) && param.name.text === value.text)) return undefined;
+          if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+          for (const statement of scope.statements) {
+            if (!ts.isVariableStatement(statement)) continue;
+            for (const declaration of statement.declarationList.declarations) {
+              if (!ts.isIdentifier(declaration.name) || declaration.name.text !== value.text) continue;
+              if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                  !declaration.initializer || declaration.getStart(source) >= site.getStart(source))
+                return undefined;
+              // A const object can still have its fields reassigned. A definite
+              // top-level write before the decision replaces the old source;
+              // conditional writes leave the imported source possible.
+              let assignment: { expression: ts.Expression; use: ts.Node } | undefined;
+              for (const operation of scope.statements) {
+                if (operation.getStart(source) <= declaration.getStart(source) ||
+                    operation.getStart(source) >= site.getStart(source) ||
+                    !ts.isExpressionStatement(operation) ||
+                    !ts.isBinaryExpression(operation.expression) ||
+                    operation.expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) continue;
+                const access = jsonStaticAccess(operation.expression.left);
+                if (access && ts.isIdentifier(access.root) && access.root.text === value.text &&
+                    access.keys.join(".") === keys.join(".")) {
+                  assignment = { expression: operation.expression.right, use: operation };
+                }
+              }
+              return assignment ?? jsonLocalProperty(declaration.initializer, keys,
+                declaration, depth + 1);
+            }
+          }
+        }
+      }
+      if (!ts.isObjectLiteralExpression(value)) return undefined;
+      const key = keys[0];
+      const property = value.properties.find(prop => ts.isPropertyAssignment(prop) &&
+        (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ||
+          ts.isNumericLiteral(prop.name)) && prop.name.text === key);
+      if (!property || !ts.isPropertyAssignment(property)) return undefined;
+      if (keys.length === 1) return { expression: property.initializer, use: property };
+      return jsonLocalProperty(property.initializer, keys.slice(1), property, depth + 1);
+    };
     const resolveJsonExpression = (
       expression: ts.Expression, use: ts.Node, visited = new Set<ts.VariableDeclaration>(),
       depth = 0, kind: JsonTraceKind = "records", decisionUse: ts.Node = use,
@@ -3324,6 +3467,19 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (depth > 12) return [];
       const value = unwrap(expression);
       if (ts.isIdentifier(value)) return resolveJsonBinding(value.text, use, visited, depth + 1, kind, decisionUse);
+      if (ts.isCallExpression(value)) {
+        const fn = jsonCallable(value.expression, use);
+        const returned = fn && jsonReturn(fn);
+        if (fn && returned && fn.parameters.length === value.arguments.length) {
+          const frame = new Map<ts.ParameterDeclaration, { value: ts.Expression; use: ts.Node }>();
+          fn.parameters.forEach((parameter, index) =>
+            frame.set(parameter, { value: value.arguments[index], use }));
+          jsonCallFrames.push(frame);
+          try {
+            return resolveJsonExpression(returned, returned, new Set(visited), depth + 1, kind, decisionUse);
+          } finally { jsonCallFrames.pop(); }
+        }
+      }
       // AUD1300-20261015-F08: a catalog is governed whenever any reachable
       // expression branch can supply its records or projected identity.
       // A conditional is a possible-origin union, not a definite overwrite.
@@ -3396,6 +3552,9 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
         const access = jsonStaticAccess(value);
         if (!access?.keys.length) return [];
+        const local = jsonLocalProperty(access.root, access.keys, use);
+        if (local) return resolveJsonExpression(local.expression, local.use,
+          new Set(visited), depth + 1, kind, decisionUse);
         return resolveJsonExpression(access.root, use, new Set(visited), depth + 1, kind, decisionUse)
           .filter(target => jsonRecordPathExists(target, access.keys));
       }
@@ -3502,7 +3661,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         if ((ts.isFunctionDeclaration(scope) || ts.isMethodDeclaration(scope) ||
             ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
             scope.parameters.some(parameter =>
-              ts.isIdentifier(parameter.name) && parameter.name.text === name)) return [];
+              ts.isIdentifier(parameter.name) && parameter.name.text === name)) {
+          const param = scope.parameters.find(parameter =>
+            ts.isIdentifier(parameter.name) && parameter.name.text === name)!;
+          const binding = [...jsonCallFrames].reverse().map(frame => frame.get(param))
+            .find(Boolean);
+          return binding ? resolveJsonExpression(binding.value, binding.use,
+            new Set(seen), depth + 1, kind, decisionUse) : [];
+        }
         if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
         for (const statement of scope.statements) {
           if (!ts.isVariableStatement(statement)) continue;
@@ -3514,6 +3680,9 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
                   decl.getStart(source) >= use.getStart(source)) return [];
               const access = jsonStaticAccess(decl.initializer);
               if (!access) return [];
+              const local = jsonLocalProperty(access.root, [...access.keys, ...keys], decl);
+              if (local) return resolveJsonExpression(local.expression, local.use,
+                new Set(seen), depth + 1, kind, decisionUse);
               const roots = resolveJsonExpression(access.root, decl, new Set(seen), depth + 1,
                 kind, decisionUse);
               return roots.filter(target => jsonRecordPathExists(target, [...access.keys, ...keys]));
