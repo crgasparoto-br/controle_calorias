@@ -397,8 +397,10 @@ function foodIndexOrigin(value: ts.Expression, use: ts.Node, source: ts.SourceFi
 function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.SourceFile): boolean {
   const name = foodIndexOrigin(index, node, source);
   const domain = source.fileName + " " + enclosingDeclaration(node);
-  if (!/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain) ||
-      /exercise|activity|workout|fitness|burnedcalories/i.test(domain)) return false;
+  // An explicitly typed food identifier is domain evidence even in helpers.ts.
+  const explicitIdentity = /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i.test(name);
+  if ((!explicitIdentity && !/food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(domain)) ||
+      /exercise|activity|workout|fitness|burnedcalories/i.test(domain) && !explicitIdentity) return false;
   return /food|aliment|ingredient|product|portion|porc|serving|recipe|receita/i.test(name) ||
     /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
 }
@@ -1160,6 +1162,19 @@ function referencesLiteralWords(target: ts.Expression, use: ts.Node): string[] {
       return words;
     }
     if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression)) {
+      // A statically serialized lexical array cannot bypass the same rules
+      // applied to a TypeScript array. Only unshadowed native JSON qualifies.
+      if (value.expression.name.text === "parse" &&
+          ts.isIdentifier(value.expression.expression) &&
+          value.expression.expression.text === "JSON" &&
+          unshadowedIntrinsic("JSON", value) && value.arguments.length === 1 &&
+          isStaticText(unwrap(value.arguments[0]))) {
+        try {
+          const parsed: unknown = JSON.parse((unwrap(value.arguments[0]) as ts.StringLiteral).text);
+          return Array.isArray(parsed) && parsed.length > 0 && parsed.every(item =>
+            typeof item === "string" && item.trim().length > 0) ? parsed as string[] : null;
+        } catch { return null; }
+      }
       const method = value.expression.name.text;
       const receiver = value.expression.expression;
       if ((method === "reverse" || method === "toReversed") && value.arguments.length === 0) {
@@ -1558,6 +1573,50 @@ function isLexicalNumericComparison(call: ts.CallExpression): boolean {
   return false;
 }
 
+/** Only an unshadowed native JSON.parse with literal input is static. */
+function parsedStaticFoodJson(node: ts.Expression): unknown | undefined {
+  const value = unwrap(node);
+  if (!ts.isCallExpression(value) || !ts.isPropertyAccessExpression(value.expression) ||
+      !ts.isIdentifier(value.expression.expression) ||
+      value.expression.expression.text !== "JSON" || value.expression.name.text !== "parse" ||
+      !unshadowedIntrinsic("JSON", value) || value.arguments.length !== 1 ||
+      !isStaticText(unwrap(value.arguments[0]))) return undefined;
+  try { return JSON.parse((unwrap(value.arguments[0]) as ts.StringLiteral).text); }
+  catch { return undefined; }
+}
+
+/** A parsed literal is a violation only when used in a real food decision. */
+function isConsumedSerializedFoodValue(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
+  if (!ts.isIdentifier(node.name)) return false;
+  const variable = node.name.text;
+  let boundary: ts.Node = source;
+  for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+    if (ts.isFunctionLike(parent)) { boundary = parent; break; }
+  }
+  const name = enclosingDeclaration(node);
+  const parameters = ts.isFunctionLike(boundary) ? boundary.parameters.map(p => p.name.getText(source)).join(" ") : "";
+  const foodDomain = /food|alimento|nutri|meal|portion|ingredient|productName/i.test(
+    name + " " + parameters + " " + source.fileName);
+  if (!foodDomain || /exercise|activity|workout|fitness|account|status/i.test(name)) return false;
+  let consumed = false;
+  const visit = (candidate: ts.Node): void => {
+    if (consumed || (ts.isFunctionLike(candidate) && candidate !== boundary)) return;
+    const foodQuery = /\b(?:foodName|foodId|foodLabel|foodKey|alimento|ingredientName|productName)\b/i;
+    if (ts.isCallExpression(candidate) && ts.isPropertyAccessExpression(candidate.expression) &&
+        /^(?:includes|indexOf|lastIndexOf|has|find|filter|some|every)$/.test(candidate.expression.name.text) &&
+        candidate.expression.expression.getText(source) === variable &&
+        (foodQuery.test(candidate.getText(source)) || /food|meal|nutri|alimento/i.test(name))) {
+      consumed = true;
+    }
+    if (ts.isElementAccessExpression(candidate) &&
+        candidate.expression.getText(source) === variable && candidate.argumentExpression &&
+        foodQuery.test(candidate.argumentExpression.getText(source))) consumed = true;
+    ts.forEachChild(candidate, visit);
+  };
+  ts.forEachChild(boundary, visit);
+  return consumed;
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -1577,6 +1636,26 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         isLiteralNumericMap(node.expression.expression, node) &&
         foodIndexContext(node.arguments[0], node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
+    }
+  }
+  if (rule.kind === "collection" && (rule.id === "17" || rule.id === "5") &&
+      ts.isVariableDeclaration(node) && node.initializer &&
+      isConsumedSerializedFoodValue(node, source)) {
+    const parsed = parsedStaticFoodJson(node.initializer);
+    const lexical = Array.isArray(parsed) && parsed.length > 0 &&
+      parsed.every(item => typeof item === "string" && item.trim().length > 0);
+    const numericRows = Array.isArray(parsed) && parsed.some(item =>
+      item !== null && typeof item === "object" && !Array.isArray(item) &&
+      (typeof item.name === "string" || typeof item.foodName === "string") &&
+      ["calories", "kcal", "protein", "carbs", "fat", "nutrition"].some(key =>
+        typeof item[key] === "number" || item[key] !== null && typeof item[key] === "object"));
+    const numericMap = parsed !== null && typeof parsed === "object" &&
+      !Array.isArray(parsed) && Object.keys(parsed).length > 0 &&
+      Object.values(parsed).every(value => typeof value === "number" && Number.isFinite(value));
+    if ((rule.id === "17" && (lexical || numericRows || numericMap)) ||
+        (rule.id === "5" && (numericRows || numericMap))) {
+      return { symbol: node.name.getText(source) + ":serialized-food-knowledge",
+        subject: node.initializer.getText(source) };
     }
   }
   if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
@@ -2025,6 +2104,9 @@ function findJsonFoodCatalog(
   let lexicalRows = 0;
   function walk(value: unknown, context: string): void {
     if (Array.isArray(value)) {
+      // Productive food selection is sufficient without a special alias key.
+      if (usedAsFoodRecords && value.length > 0 && value.every(entry =>
+          typeof entry === "string" && entry.trim().length > 0)) lexicalRows++;
       // A plain array of governed food aliases is itself lexical knowledge.
       // Keep inert fixtures and account/status dictionaries out of scope.
       if (value.length > 0 && value.every(entry =>
@@ -2855,12 +2937,26 @@ function findCrossModuleNumericFoodMaps(
       if (reference && index && foodIndexContext(index, node, source)) {
         if (/\.json$/i.test(reference.file)) foodIndexedJson.add(reference.file.replace(/\\/g, "/"));
         const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
+        // A generic consumer using a typed food identifier attributes the
+        // hardcoded knowledge to the source table, never its helper name.
+        const genericFoodInput = /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i
+          .test(foodIndexOrigin(index, node, source)) &&
+          !/food|alimen|nutrition|meal|portion|serving|ingredient/i.test(
+            consumer.path + " " + enclosingDeclaration(node));
+        const originFile = indexed.get(reference.file);
+        const attributed = genericFoodInput && originFile && !/.json$/i.test(reference.file);
+        const originSource = attributed ? ts.createSourceFile(reference.file, originFile.content,
+          ts.ScriptTarget.Latest, true) : undefined;
+        const originOffset = attributed ? Math.max(0, originFile.content.indexOf(reference.declaration.source)) : 0;
+        const findingFile = attributed ? reference.file : consumer.path;
+        const findingLine = originSource ? originSource.getLineAndCharacterOfPosition(originOffset).line + 1 :
+          source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
         for (const ruleId of ["17", "5"] as const) {
           const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
           results.push({
-            ruleId, file: consumer.path,
-            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
-            symbol, fingerprint: ruleId + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
+            ruleId, file: findingFile,
+            line: findingLine,
+            symbol, fingerprint: ruleId + ":" + findingFile + ":" + symbol + ":" + stableHash(subject),
             failureClass: "C", description: "Mapa numerico de alimento/porcao vindo de outro modulo",
           });
         }
@@ -3117,6 +3213,9 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         if (!data || typeof data !== "object" || !(key in data)) return false;
         data = (data as Record<string, unknown>)[key];
       }
+      // Identity vocabularies may be plain JSON arrays rather than nutrition rows.
+      if (Array.isArray(data) && data.length > 0 && data.every(row =>
+          typeof row === "string" && row.trim().length > 0)) return true;
       return Array.isArray(data) && data.some(row => {
         if (!row || typeof row !== "object" || Array.isArray(row)) return false;
         const keys = Object.keys(row);
@@ -3998,6 +4097,14 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       // food decision. Evaluate the decision before applying path heuristics;
       // account/status/activity decisions are exempt, not entire directories.
       if (foodDomain.test(declaration)) return true;
+      // A food-specific input is decisive even in generic helper functions.
+      for (let parent: ts.Node | undefined = node; parent; parent = parent.parent) {
+        if (!ts.isFunctionLike(parent)) continue;
+        if (parent.parameters.some(parameter => ts.isIdentifier(parameter.name) &&
+          /^(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)$/i
+            .test(parameter.name.text))) return true;
+        break;
+      }
       if (unrelatedDecision.test(declaration)) return false;
       // Directory names alone are not exclusions: an account/foodService.ts
       // may still make a food decision with an anonymous/generic handler.

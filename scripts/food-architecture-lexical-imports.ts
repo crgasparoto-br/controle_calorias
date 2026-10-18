@@ -370,15 +370,28 @@ export function findImportedLexicalFoodFindings(
         const decision = /classif|resolv|decid|normaliz|parse|match|identif|lookup|infer|select|find|detect|material|qualif/i.test(functionName);
         const channel = /whatsapp|inbound|audio|image|ocr|transcri/i.test(file.path);
         const unrelated = /account|status|permission|role|exercise|activity|workout|fitness|navigation|render|display/i.test(functionName);
-        if (table && !unrelated && food && (decision || channel)) {
+        // The domain-typed consumer argument is proof even when a helper is
+        // called check() and both file and function have generic names.
+        const semanticFoodArgument = /\b(?:foodName|foodId|foodLabel|foodKey|alimento|alimentoId|ingredientName|productName)\b/i
+          .test(node.arguments[0].getText(source));
+        if (table && !unrelated && food && (decision || channel || semanticFoodArgument)) {
+          const sourceAttribution = semanticFoodArgument && !decision && !channel &&
+            !/food|alimen|meal|nutrition|portion|serving|ingredient/i.test(file.path) &&
+            table.file !== file.path;
+          const tableSource = sourceAttribution ? indexed.get(table.file) : undefined;
+          const tableLine = tableSource ? ts.createSourceFile(table.file, tableSource.content,
+            ts.ScriptTarget.Latest, true).getLineAndCharacterOfPosition(
+              Math.max(0, tableSource.content.indexOf(table.content))).line + 1 :
+            source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+          const findingFile = sourceAttribution ? table.file : file.path;
           const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(context);
           const ruleId = materiality ? "18" : channel ? "11" : "17";
           const symbol = "consumed-lexical-table:" + table.file + "#" + table.symbol;
           findings.push({
-            ruleId, file: file.path,
-            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+            ruleId, file: findingFile,
+            line: tableLine,
             symbol,
-            fingerprint: ruleId + ":" + file.path + ":" + symbol + ":" +
+            fingerprint: ruleId + ":" + findingFile + ":" + symbol + ":" +
               stableHash(table.content + ":" + node.getText(source)),
             failureClass: materiality ? "B" : "A",
             description: "Vocabulário lexical literal consumido por decisão alimentar produtiva",
