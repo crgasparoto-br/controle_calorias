@@ -906,6 +906,37 @@ function callTargetName(expression: ts.Expression): string {
   return "";
 }
 
+/** Resolve only lexically visible const string aliases; never treat mutable values,
+ * shadowed parameters or unrelated expression text as hardcoded vocabulary. */
+function immutableDecisionString(expression: ts.Expression, use: ts.Node, source: ts.SourceFile,
+  depth = 0, seen = new Set<ts.Node>()): string | null {
+  if (depth > 8) return null;
+  const value = unwrap(expression);
+  if (isStaticText(value)) return value.text;
+  if (!ts.isIdentifier(value)) return null;
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+      ts.isIdentifier(param.name) && param.name.text === value.text)) return null;
+    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+        ts.isIdentifier(scope.variableDeclaration.name) &&
+        scope.variableDeclaration.name.text === value.text) return null;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (ts.isFunctionDeclaration(statement) && statement.name?.text === value.text) return null;
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== value.text) continue;
+        if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+            !declaration.initializer || declaration.getStart(source) >= use.getStart(source) ||
+            seen.has(declaration)) return null;
+        seen.add(declaration);
+        return immutableDecisionString(declaration.initializer, declaration, source, depth + 1, seen);
+      }
+    }
+  }
+  return null;
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -1237,10 +1268,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
       ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
       .includes(node.operatorToken.kind) &&
-    (isStaticText(node.left) || isStaticText(node.right))) {
-    // Comparing with an empty form field is validation, not food lexicon.
-    const lexicalLiteral = isStaticText(node.left) ? node.left : node.right;
-    if (lexicalLiteral.text.length === 0) return null;
+    (immutableDecisionString(node.left, node, source) !== null ||
+      immutableDecisionString(node.right, node, source) !== null)) {
+    // Preserve the distinction between a fixed decision and a mutable alias.
+    const leftLiteral = immutableDecisionString(node.left, node, source);
+    const rightLiteral = immutableDecisionString(node.right, node, source);
+    if ((leftLiteral ?? rightLiteral ?? "").length === 0) return null;
     let functionName = "";
     for (let parent = node.parent; parent; parent = parent.parent) {
       if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
@@ -1253,11 +1286,12 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         break;
       }
     }
-    const operand = isStaticText(node.left) ? node.right.getText(source) : node.left.getText(source);
+    const identity = leftLiteral !== null ? node.right : node.left;
+    const operand = identity.getText(source);
     const relevant = rule.id === "17"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
-        isStaticText(node.left) ? node.right : node.left, node, source) ||
-        hasGenericFoodIdentityDecisionContext(isStaticText(node.left) ? node.right : node.left, node, source)
+        identity, node, source) ||
+        hasGenericFoodIdentityDecisionContext(identity, node, source)
       : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
     if (relevant) {
       return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
@@ -2659,6 +2693,33 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind, decisionUse),
         ])];
       }
+      // F41: array spread does not discard provenance of its constituent
+      // records. Treat only actual SpreadElements as source expressions.
+      if (ts.isArrayLiteralExpression(value)) {
+        return [...new Set(value.elements.flatMap(element => ts.isSpreadElement(element)
+          ? resolveJsonExpression(element.expression, use, new Set(visited), depth + 1, kind, decisionUse)
+          : []))];
+      }
+      // F41: Array.from(iterable) copies records unchanged only without a
+      // mapper. A shadowed Array is not the JavaScript intrinsic.
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          value.expression.expression.getText(source) === "Array" &&
+          value.expression.name.text === "from" && value.arguments.length === 1) {
+        let shadowed = false;
+        for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
+          if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+            ts.isIdentifier(param.name) && param.name.text === "Array")) { shadowed = true; break; }
+          if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+          if (scope.statements.some(statement =>
+            ts.isVariableStatement(statement) && statement.declarationList.declarations.some(decl =>
+              ts.isIdentifier(decl.name) && decl.name.text === "Array") ||
+            ts.isImportDeclaration(statement) && statement.importClause?.name?.text === "Array")) {
+            shadowed = true; break;
+          }
+        }
+        if (!shadowed) return resolveJsonExpression(
+          value.arguments[0], use, visited, depth + 1, kind, decisionUse);
+      }
       // A direct filesystem JSON parse can flow through aliases, projections
       // and conditional origins using exactly the same decision-use analysis
       // as an ES import. Unknown providers/paths are never treated as proof.
@@ -2728,7 +2789,13 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         if (!shadowsObject()) return resolveJsonExpression(
           value.arguments[0], use, visited, depth + 1, "records", decisionUse);
       }
-      if (!/^(?:map|flatMap|filter|slice)$/.test(method)) return [];
+      if (!/^(?:map|flatMap|filter|slice|toSorted|toReversed|toSpliced|sort|reverse|copyWithin|concat)$/.test(method)) return [];
+      // concat can carry records from either side; changes in ordering and
+      // shallow copying never alter the origin of a record.
+      if (method === "concat") {
+        return [...new Set([receiver, ...value.arguments].flatMap(item =>
+          resolveJsonExpression(item, use, new Set(visited), depth + 1, kind, decisionUse)))];
+      }
       if (kind === "identity") {
         if (method === "map" || method === "flatMap") {
           if (callbackProjectsJsonIdentity(value.arguments[0], method === "flatMap", true, decisionUse)) {
