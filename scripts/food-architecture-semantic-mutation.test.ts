@@ -88,6 +88,31 @@ describe("AUD1300 F41: JSON provenance metamorphic matrix", () => {
   });
 });
 
+describe("AUD1300 additional row/regex adversarial siblings", () => {
+  for (const [id, body] of [
+    ["direct index", 'return rows[0].name === input;'],
+    ["at index", 'return rows.at(0)?.name === input;'],
+    ["regex predicate", 'return rows.find(row => /pão/.test(row.name));'],
+  ] as const) {
+    it("blocks real catalog identity in " + id, () => {
+      const result = audit([catalog, {
+        path: "server/foodService.ts",
+        content: 'import rows from "./data/records.json"; function selectFood(input:string) {' +
+          body + "}",
+      }]);
+      expect(result.findings.some(f => f.file === catalog.path && f.ruleId === "17")).toBe(true);
+      expect(result.verdict.errors.length).toBeGreaterThan(0);
+    });
+  }
+  it("does not classify a non-existent indexed record as food data use", () => {
+    const result = audit([catalog, {
+      path: "server/foodService.ts",
+      content: 'import rows from "./data/records.json"; function selectFood(input:string) {return rows[99]?.name === input;}',
+    }]);
+    expect(result.findings.some(f => f.file === catalog.path)).toBe(false);
+  });
+});
+
 describe("AUD1300 F42: immutable lexical aliases and decision scope", () => {
   const cases: ReadonlyArray<{ name: string; content: string; shouldBlock: boolean; file?: string }> = [
     { name: "literal baseline", shouldBlock: true,
