@@ -60,7 +60,7 @@ describe("Issue 1300 F54/F55 regressions and controls",()=>{
       compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}});
     expect(transpiled.diagnostics ?? [],"invalid probe: "+p.id).toHaveLength(0);
     const current=findFoodStaticCandidates([...(p.extra??[]),{path,content:p.code}]);
-    const target=p.id.startsWith("F54")?p.extra![0].path:path;
+    const target=(p.id.startsWith("F54") || p.id.startsWith("F56")) ? p.extra![0].path : path;
     const seen=current.some(f=>f.file===target&&p.rules.includes(f.ruleId));
     const errors=evaluateFoodArchitectureGate(current,[],[],new Date("2026-10-18T12:00:00Z")).errors;
     expect(seen,JSON.stringify(current)).toBe(p.expected);
