@@ -26,6 +26,11 @@ describe("AUD1300-20261018-F43 numeric-map key/entry projections", () => {
     ["keys.every", 'Object.keys(table).every(key => key !== foodName)'],
     ["keys.some", 'Object.keys(table).some(key => key === foodName)'],
     ["keys.includes", 'Object.keys(table).includes(foodName)'],
+    ["entries.map(key).includes", 'Object.entries(table).map(([key]) => key).includes(foodName)'],
+    ["entries.map(key).find", 'Object.entries(table).map(([key]) => key).find(key => key === foodName)'],
+    ["keys.map(identity).some", 'Object.keys(table).map(key => key).some(key => key === foodName)'],
+    ["keys Array.from", 'Array.from(Object.keys(table)).some(key => key === foodName)'],
+    ["keys spread", '[...Object.keys(table)].some(key => key === foodName)'],
     ["keys.indexOf", 'Object.keys(table).indexOf(foodName) >= 0'],
     ["keys.slice().some", 'Object.keys(table).slice().some(key => key === foodName)'],
     ["entries.toReversed().find", 'Object.entries(table).toReversed().find(([key]) => key === foodName)'],
@@ -47,6 +52,14 @@ describe("AUD1300-20261018-F43 numeric-map key/entry projections", () => {
     assertDecision([src(`${localMap} export function estimateFood(foodName:string) {
       const projected = Object.keys(table);
       return projected.some(key => key === foodName); }`)], true, ["17", "5"]);
+  });
+  it("does not preserve identity through an unrelated map callback", () => {
+    assertDecision([src(`${localMap} export function estimateFood(foodName:string) {
+      return Object.entries(table).map(([key]) => "result-" + key).includes(foodName); }`)], false, ["17", "5"]);
+  });
+  it("does not treat entries tuples as key strings", () => {
+    assertDecision([src(`${localMap} export function estimateFood(foodName:string) {
+      return Object.entries(table).includes(foodName); }`)], false, ["17", "5"]);
   });
   it("leaves enumeration without a decision inert", () => {
     assertDecision([src(`${localMap} export function estimateFood() {
