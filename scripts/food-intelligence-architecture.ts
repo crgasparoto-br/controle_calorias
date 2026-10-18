@@ -413,6 +413,52 @@ function isFoodNumericProjectionDecision(
     }
     return true;
   };
+  // An immutable alias of Object.keys/entries is the same intrinsic, but a
+  // shadowed Object, reassigned binding or user-defined function is not.
+  const enumerationMethod = (value: ts.Expression, use: ts.Node, depth = 0): Projection | null => {
+    if (depth > 10) return null;
+    const expr = unwrap(value);
+    if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.expression) &&
+        expr.expression.text === "Object" && ["keys", "entries"].includes(expr.name.text) &&
+        unshadowedGlobal("Object", use)) return expr.name.text as Projection;
+    if (!ts.isIdentifier(expr)) return null;
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          ts.isIdentifier(param.name) && param.name.text === expr.text)) return null;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === expr.text) return null;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const decl of statement.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.name.text === expr.text) {
+            return (statement.declarationList.flags & ts.NodeFlags.Const) && decl.initializer &&
+              decl.getStart(source) < use.getStart(source)
+              ? enumerationMethod(decl.initializer, decl, depth + 1) : null;
+          }
+          if (ts.isObjectBindingPattern(decl.name) && decl.initializer &&
+              (statement.declarationList.flags & ts.NodeFlags.Const) &&
+              decl.getStart(source) < use.getStart(source) &&
+              ts.isIdentifier(unwrap(decl.initializer)) &&
+              unwrap(decl.initializer).getText(source) === "Object" &&
+              unshadowedGlobal("Object", decl)) {
+            const binding = decl.name.elements.find(el => ts.isIdentifier(el.name) &&
+              el.name.text === expr.text);
+            const member = binding?.propertyName?.getText(source) || expr.text;
+            if (binding && ["keys", "entries"].includes(member)) return member as Projection;
+          }
+        }
+      }
+    }
+    return null;
+  };
+  const alternativeProjection = (left: ts.Expression, right: ts.Expression,
+    use: ts.Node, depth: number): Projection | null => {
+    const a = projection(left, use, depth + 1);
+    const b = projection(right, use, depth + 1);
+    return a && b && a !== b ? null : a || b;
+  };
   const projection = (value: ts.Expression, use: ts.Node, depth = 0): Projection | null => {
     if (depth > 10) return null;
     const expr = unwrap(value);
@@ -433,16 +479,24 @@ function isFoodNumericProjectionDecision(
       }
       return null;
     }
+    if (ts.isConditionalExpression(expr)) {
+      return alternativeProjection(expr.whenTrue, expr.whenFalse, use, depth);
+    }
+    if (ts.isBinaryExpression(expr) && [ts.SyntaxKind.BarBarToken,
+        ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.QuestionQuestionToken]
+        .includes(expr.operatorToken.kind)) {
+      return alternativeProjection(expr.left, expr.right, use, depth);
+    }
     if (ts.isArrayLiteralExpression(expr) && expr.elements.length === 1 &&
         ts.isSpreadElement(expr.elements[0])) {
       return projection(expr.elements[0].expression, use, depth + 1);
     }
-    if (!ts.isCallExpression(expr) || !ts.isPropertyAccessExpression(expr.expression)) return null;
+    if (!ts.isCallExpression(expr)) return null;
+    const enumeration = enumerationMethod(expr.expression, expr, depth + 1);
+    if (enumeration && expr.arguments.length === 1 && matchesMap(expr.arguments[0], expr))
+      return enumeration;
+    if (!ts.isPropertyAccessExpression(expr.expression)) return null;
     const callee = expr.expression;
-    if (["keys", "entries"].includes(callee.name.text) &&
-        ts.isIdentifier(callee.expression) && callee.expression.text === "Object" &&
-        expr.arguments.length === 1 && unshadowedGlobal("Object", expr) &&
-        matchesMap(expr.arguments[0], expr)) return callee.name.text as Projection;
     if (ts.isIdentifier(callee.expression) && callee.expression.text === "Array" &&
         callee.name.text === "from" && expr.arguments.length === 1 &&
         unshadowedGlobal("Array", expr)) {
@@ -1043,6 +1097,42 @@ function callTargetName(expression: ts.Expression): string {
   return "";
 }
 
+/** Only a literal array, or a lexically resolved const array, can provide a
+ * compile-time regex vocabulary to Array.join. Dynamic arrays stay unknown. */
+function immutableDecisionStringArray(expression: ts.Expression, use: ts.Node,
+  source: ts.SourceFile, depth: number, seen: Set<ts.Node>): string[] | null {
+  if (depth > 8) return null;
+  const expr = unwrap(expression);
+  if (ts.isArrayLiteralExpression(expr)) {
+    const values: string[] = [];
+    for (const element of expr.elements) {
+      if (ts.isSpreadElement(element) || ts.isOmittedExpression(element)) return null;
+      const resolved = immutableDecisionString(element, element, source, depth + 1, new Set(seen));
+      if (resolved === null) return null;
+      values.push(resolved);
+    }
+    return values;
+  }
+  if (!ts.isIdentifier(expr)) return null;
+  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+        ts.isIdentifier(param.name) && param.name.text === expr.text)) return null;
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== expr.text) continue;
+        if (!(statement.declarationList.flags & ts.NodeFlags.Const) || !declaration.initializer ||
+            seen.has(declaration) || declaration.getStart(source) >= use.getStart(source)) return null;
+        const next = new Set(seen);
+        next.add(declaration);
+        return immutableDecisionStringArray(declaration.initializer, declaration, source, depth + 1, next);
+      }
+    }
+  }
+  return null;
+}
+
 /** Resolve only lexically visible const string aliases; never treat mutable values,
  * shadowed parameters or unrelated expression text as hardcoded vocabulary. */
 function immutableDecisionString(expression: ts.Expression, use: ts.Node, source: ts.SourceFile,
@@ -1050,6 +1140,27 @@ function immutableDecisionString(expression: ts.Expression, use: ts.Node, source
   if (depth > 8) return null;
   const value = unwrap(expression);
   if (isStaticText(value)) return value.text;
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = immutableDecisionString(value.left, value, source, depth + 1, new Set(seen));
+    const right = immutableDecisionString(value.right, value, source, depth + 1, new Set(seen));
+    return left !== null && right !== null ? left + right : null;
+  }
+  if (ts.isTemplateExpression(value)) {
+    let result = value.head.text;
+    for (const span of value.templateSpans) {
+      const replacement = immutableDecisionString(span.expression, span, source, depth + 1, new Set(seen));
+      if (replacement === null) return null;
+      result += replacement + span.literal.text;
+    }
+    return result;
+  }
+  if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+      value.expression.name.text === "join" && value.arguments.length <= 1) {
+    const separator = value.arguments.length
+      ? immutableDecisionString(value.arguments[0], value, source, depth + 1, new Set(seen)) : ",";
+    const items = immutableDecisionStringArray(value.expression.expression, value, source, depth + 1, new Set(seen));
+    return items && separator !== null ? items.join(separator) : null;
+  }
   if (!ts.isIdentifier(value)) return null;
   for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
     if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
@@ -1077,20 +1188,55 @@ function immutableDecisionString(expression: ts.Expression, use: ts.Node, source
 /** Numeric results from indexOf/localeCompare are decisions only when
  * used as predicates; diagnostic ordering/display calls stay out of scope. */
 function isLexicalNumericComparison(call: ts.CallExpression): boolean {
-  const parent = call.parent;
-  if (ts.isPrefixUnaryExpression(parent) && parent.operator === ts.SyntaxKind.ExclamationToken) return true;
-  if (!ts.isBinaryExpression(parent)) return false;
-  if (![ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
-    ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
-    ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.GreaterThanEqualsToken,
-    ts.SyntaxKind.LessThanToken, ts.SyntaxKind.LessThanEqualsToken]
-    .includes(parent.operatorToken.kind)) return false;
-  const other = parent.left === call ? parent.right : parent.right === call ? parent.left : null;
-  if (!other) return false;
-  const value = unwrap(other);
-  return ts.isNumericLiteral(value) ||
-    (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.MinusToken &&
-      ts.isNumericLiteral(value.operand));
+  let current: ts.Node = call;
+  for (let depth = 0; depth < 8; depth++) {
+    const parent = current.parent;
+    if (!parent) return false;
+    if ((ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) ||
+         ts.isSatisfiesExpression(parent)) && parent.expression === current) {
+      current = parent;
+      continue;
+    }
+    if (ts.isPrefixUnaryExpression(parent) && parent.operand === current &&
+        [ts.SyntaxKind.ExclamationToken, ts.SyntaxKind.TildeToken].includes(parent.operator)) {
+      current = parent;
+      continue;
+    }
+    if (ts.isBinaryExpression(parent) &&
+        (parent.left === current || parent.right === current)) {
+      const operator = parent.operatorToken.kind;
+      if ([ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+          ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+          ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.GreaterThanEqualsToken,
+          ts.SyntaxKind.LessThanToken, ts.SyntaxKind.LessThanEqualsToken].includes(operator)) {
+        const other = parent.left === current ? parent.right : parent.left;
+        const value = unwrap(other);
+        return ts.isNumericLiteral(value) ||
+          (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.MinusToken &&
+            ts.isNumericLiteral(value.operand));
+      }
+      // indexOf + 1 is a boolean membership predicate only if consumed as
+      // a predicate. Do not turn arithmetic used for display into knowledge.
+      if (operator === ts.SyntaxKind.PlusToken &&
+          ts.isPropertyAccessExpression(call.expression) &&
+          call.expression.name.text === "indexOf" &&
+          ts.isNumericLiteral(unwrap(parent.left === current ? parent.right : parent.left))) {
+        current = parent;
+        continue;
+      }
+      return false;
+    }
+    if (ts.isCallExpression(parent) && ts.isIdentifier(parent.expression) &&
+        parent.expression.text === "Boolean" && parent.arguments.length === 1 &&
+        parent.arguments[0] === current) return true;
+    if ((ts.isIfStatement(parent) || ts.isWhileStatement(parent) ||
+         ts.isDoStatement(parent) || ts.isConditionalExpression(parent)) &&
+        parent.expression === current) return true;
+    if (ts.isPrefixUnaryExpression(current) &&
+        current.operator === ts.SyntaxKind.ExclamationToken) return true;
+    return false;
+  }
+  return false;
 }
 
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
@@ -1309,7 +1455,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "literal-string-method" && ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       ["includes", "startsWith", "endsWith", "indexOf", "localeCompare"].includes(node.expression.name.text) &&
-      node.arguments.length === 1 && isStaticText(unwrap(node.arguments[0])) &&
+      node.arguments.length >= 1 &&
+      (node.expression.name.text === "localeCompare" ? node.arguments.length <= 3 : node.arguments.length === 1) &&
+      isStaticText(unwrap(node.arguments[0])) &&
       (!["indexOf", "localeCompare"].includes(node.expression.name.text) ||
         isLexicalNumericComparison(node))) {
     const literal = (unwrap(node.arguments[0]) as ts.StringLiteral).text;
@@ -2360,6 +2508,22 @@ function findCrossModuleNumericFoodMaps(
         const projection = (value: ts.Expression, depth = 0): Reference | undefined => {
           if (depth > 10) return undefined;
           const expr = unwrap(value);
+          if (ts.isConditionalExpression(expr)) {
+            return projection(expr.whenTrue, depth + 1) || projection(expr.whenFalse, depth + 1);
+          }
+          if (ts.isBinaryExpression(expr) && [ts.SyntaxKind.BarBarToken,
+              ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.QuestionQuestionToken]
+              .includes(expr.operatorToken.kind)) {
+            return projection(expr.left, depth + 1) || projection(expr.right, depth + 1);
+          }
+          // The caller has already verified the builtin alias using lexical
+          // scope. Recover the imported map behind this approved invocation.
+          if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) &&
+              expr.arguments.length === 1) {
+            const arg = unwrap(expr.arguments[0]);
+            if (ts.isIdentifier(arg)) return resolveReference(arg.text, expr);
+            if (ts.isPropertyAccessExpression(arg)) return namespaceReference(arg, expr);
+          }
           if (ts.isArrayLiteralExpression(expr) && expr.elements.length === 1 &&
               ts.isSpreadElement(expr.elements[0])) {
             return projection(expr.elements[0].expression, depth + 1);

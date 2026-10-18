@@ -339,3 +339,18 @@ recebem bloqueio por mera semelhança textual. A matriz de regressão em
 `scripts/food-architecture-f43-f45-remediation.test.ts` valida os gates
 estáticos; equivalência comportamental de owners continua sujeita à
 certificação independente prevista na ADR.
+
+**Remediação AUD1300-20261018-F46/F47/F48 (Issue #1300):** a proveniência
+de mapas alimentares numéricos consultados por `Object.keys/entries` segue
+aliases `const` (inclusive desestruturação e imports entre módulos), ternários
+e alternativas lógicas até o consumidor decisório. Expressões `RegExp`
+construídas pela composição determinística de literais, templates interpolados
+e arrays constantes com `.join` permanecem sujeitas aos gates 17/18.
+Predicados lexicais por `indexOf` (inclusive normalização numérica/`~`) e
+`localeCompare` com locale/opções são verificados quando efetivamente decidem
+identidade alimentar. Controles negativos cobrem status administrativos,
+fontes inertes, escopos sombreados, aliases mutáveis e uso apenas diagnóstico.
+A regressão de `scripts/food-architecture-f46-f48-remediation.test.ts`
+verifica detecção e enforcement no mesmo conjunto de cenários. Essas correções
+não alteram a dívida, o baseline pré-migração nem a decisão de ativação
+independente dos gates de runtime 6/8/15.
