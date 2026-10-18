@@ -384,3 +384,14 @@ ou bloqueio por heurística de caminho. A suíte
 positivos, negativos e combinações entre origem, binding e consumidor via
 `findFoodStaticCandidates` e `evaluateFoodArchitectureGate`. A correção não
 altera o baseline histórico, o livro de dívida nem os gates de runtime.
+
+**Remediação AUD1300-20261018-F56 (Issue #1300):** uma colisão do
+delimitador em um nome de catálogo JSON não elimina a proveniência dos outros
+nomes ainda consumidos por decisão alimentar em um `join/split` com
+separadores estáticos, não vazios e coincidentes. Mesmo fragmentos derivados
+de uma identidade continuam sendo dados lexicais do catálogo; não há
+isenção automática dos gates 17/5. Permanecem negativos: separadores
+incompatíveis/vazios, uso meramente de apresentação, contexto administrativo
+e projeção de campos não identificadores. Os controles positivos e negativos
+estão em `scripts/food-architecture-f54-f55-remediation.test.ts`.
+A baseline, o livro de dívida e os gates de runtime não foram alterados.
