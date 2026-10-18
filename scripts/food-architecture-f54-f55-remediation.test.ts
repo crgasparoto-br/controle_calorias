@@ -22,7 +22,18 @@ add("F54-computed",json('return rows.map(r=>r.name)["join"]("|")["split"]("|").i
 add("F54-flatmap",json('return new Set(rows.flatMap(r=>[r.name]).join("|").split("|")).has(input)'),true,["17","5"],[catalog()]);
 add("F54-static-alias-separator",json('const sep="|";return rows.map(r=>r.name).join(sep).split(sep).includes(input)'),true,["17","5"],[catalog()]);
 add("F54-different-separator",json('return rows.map(r=>r.name).join("|").split(":").includes(input)'),false,["17","5"],[catalog()]);
-add("F54-collision",json('return rows.map(r=>r.name).join("|").split("|").includes(input)'),false,["17","5"],[catalog("pita|ya")]);
+add("F54-collision",json('return rows.map(r=>r.name).join("|").split("|").includes(input)'),true,["17","5"],[catalog("pita|ya")]);
+// F56: a collision only affects one name. Other names remain decisive; the
+// catalog must be governed, even when ALL names become derived fragments.
+add("F56-collision-computed",json('return rows.map(r=>r.name)["join"]("|")["split"]("|").includes(input)'),true,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-flatmap-set",json('return new Set(rows.flatMap(r=>[r.name]).join("|").split("|")).has(input)'),true,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-const-separator",json('const sep="|";return rows.map(r=>r.name).join(sep).split(sep).includes(input)'),true,["17","5"],[catalog("pita|ya")]);
+add("F56-all-identities-collide",json('return rows.map(r=>r.name).join("|").split("|").includes(input)'),true,["17","5"],[{path:"server/data/records.json",content:JSON.stringify([{name:"pita|ya",calories:91},{name:"ar|roz",calories:130}])}]);
+add("F56-collision-admin", 'import rows from "./data/records.json";function checkStatus(status:string){return rows.map(r=>r.name).join("|").split("|").includes(status)}',false,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-inert",json('const names=rows.map(r=>r.name).join("|").split("|");return false'),false,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-mismatch",json('return rows.map(r=>r.name).join("|").split(":").includes(input)'),false,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-empty",json('return rows.map(r=>r.name).join("").split("").includes(input)'),false,["17","5"],[catalog("pita|ya")]);
+add("F56-collision-nonidentity",json('return rows.map(r=>r.calories).join("|").split("|").includes(input)'),false,["17","5"],[catalog("pita|ya")]);
 add("F54-empty",json('return rows.map(r=>r.name).join("").split("").includes(input)'),false,["17","5"],[catalog()]);
 add("F54-inert",json('const names=rows.map(r=>r.name).join("|").split("|");return false'),false,["17","5"],[catalog()]);
 add("F54-admin", 'import rows from "./data/records.json";function checkStatus(status:string){return rows.map(r=>r.name).join("|").split("|").includes(status)}', false, ["17","5"],[catalog()]);
