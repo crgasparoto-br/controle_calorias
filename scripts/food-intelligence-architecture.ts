@@ -378,6 +378,108 @@ function foodIndexContext(index: ts.Expression, node: ts.Node, source: ts.Source
     /^(?:name|nome|item\.name|item\[['"]name['"]\])$/.test(name);
 }
 
+/** Numeric food maps retain provenance when keys or entries drive a food
+ * identity decision. Plain enumeration, display, and shadowed Object are inert.
+ * The source lookup is injected so local declarations and imported maps obey
+ * the same consumer oracle without guessing from literal food names. */
+function isFoodNumericProjectionDecision(
+  candidate: ts.CallExpression, source: ts.SourceFile,
+  matchesMap: (value: ts.Expression, use: ts.Node) => boolean,
+): boolean {
+  if (!ts.isPropertyAccessExpression(candidate.expression)) return false;
+  const method = candidate.expression.name.text;
+  if (!["find", "filter", "some", "every", "includes", "indexOf"].includes(method)) return false;
+  const unwrapProjection = (value: ts.Expression, use: ts.Node, depth = 0): boolean => {
+    if (depth > 10) return false;
+    const expr = unwrap(value);
+    if (ts.isIdentifier(expr)) {
+      // A constant projection can be used by a later consumer. Resolve only
+      // the nearest lexical binding, rejecting parameters and mutable aliases.
+      for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+        if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+            ts.isIdentifier(param.name) && param.name.text === expr.text)) return false;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const decl of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(decl.name) || decl.name.text !== expr.text) continue;
+            return !!(statement.declarationList.flags & ts.NodeFlags.Const) &&
+              !!decl.initializer && decl.getStart(source) < use.getStart(source) &&
+              unwrapProjection(decl.initializer, decl, depth + 1);
+          }
+        }
+      }
+      return false;
+    }
+    if (!ts.isCallExpression(expr) || !ts.isPropertyAccessExpression(expr.expression)) return false;
+    const callee = expr.expression;
+    if (["slice", "toSorted", "toReversed", "filter"].includes(callee.name.text)) {
+      return unwrapProjection(callee.expression, use, depth + 1);
+    }
+    if (!["keys", "entries"].includes(callee.name.text) ||
+        !ts.isIdentifier(callee.expression) || callee.expression.text !== "Object" ||
+        expr.arguments.length !== 1) return false;
+    // Do not confuse a local parameter/import named Object with the intrinsic.
+    for (let scope: ts.Node | undefined = expr; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          ts.isIdentifier(param.name) && param.name.text === "Object")) return false;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === "Object") return false;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some(decl =>
+            ts.isIdentifier(decl.name) && decl.name.text === "Object")) return false;
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === "Object") return false;
+        if (ts.isImportDeclaration(statement) && statement.importClause &&
+            (statement.importClause.name?.text === "Object" ||
+              (statement.importClause.namedBindings &&
+                (ts.isNamespaceImport(statement.importClause.namedBindings)
+                  ? statement.importClause.namedBindings.name.text === "Object"
+                  : statement.importClause.namedBindings.elements.some(el =>
+                      el.name.text === "Object"))))) return false;
+      }
+    }
+    return matchesMap(expr.arguments[0], expr);
+  };
+  if (!unwrapProjection(candidate.expression.expression, candidate)) return false;
+  if (method === "includes" || method === "indexOf") {
+    return candidate.arguments.length === 1 &&
+      (foodIndexContext(candidate.arguments[0], candidate, source) ||
+        hasGenericFoodIdentityDecisionContext(candidate.arguments[0], candidate, source));
+  }
+  const callback = candidate.arguments[0];
+  if (!callback || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback))) return false;
+  const first = callback.parameters[0]?.name;
+  const key = first && ts.isIdentifier(first) ? first.text :
+    first && ts.isArrayBindingPattern(first) && first.elements[0] &&
+      ts.isIdentifier(first.elements[0].name) ? first.elements[0].name.text : null;
+  if (!key || !callback.body) return false;
+  const isKey = (value: ts.Expression): boolean => {
+    const expr = unwrapFoodIdentityNormalization(value);
+    return ts.isIdentifier(expr) && expr.text === key;
+  };
+  let decision = false;
+  const visit = (node: ts.Node): void => {
+    if (decision) return;
+    if (ts.isBinaryExpression(node) && [
+      ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+      ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+    ].includes(node.operatorToken.kind) &&
+        ((isKey(node.left) && (foodIndexContext(node.right, candidate, source) ||
+          hasGenericFoodIdentityDecisionContext(node.right, candidate, source))) ||
+          (isKey(node.right) && (foodIndexContext(node.left, candidate, source) ||
+            hasGenericFoodIdentityDecisionContext(node.left, candidate, source))))) {
+      decision = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(callback.body);
+  return decision;
+}
+
 function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
   if (!node.initializer || !ts.isIdentifier(node.name) ||
       !isLiteralNumericMap(node.initializer, node)) return false;
@@ -419,6 +521,13 @@ function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile
         ts.isIdentifier(candidate.expression.expression) &&
         candidate.expression.expression.text === symbol &&
         candidate.arguments[0] && foodIndexContext(candidate.arguments[0], candidate, source)) {
+      consumed = true;
+      return;
+    }
+    if (ts.isCallExpression(candidate) && isFoodNumericProjectionDecision(
+      candidate, source, (value) => ts.isIdentifier(unwrap(value)) &&
+        (unwrap(value) as ts.Identifier).text === symbol,
+    )) {
       consumed = true;
       return;
     }
@@ -471,8 +580,11 @@ function resolveLiteralRegexPattern(
   const expr = unwrap(target);
   if (ts.isRegularExpressionLiteral(expr)) return expr.getText();
   if (ts.isNewExpression(expr) && expr.expression.getText() === "RegExp" &&
-      expr.arguments?.length && isStaticText(unwrap(expr.arguments[0]))) {
-    return (unwrap(expr.arguments[0]) as ts.StringLiteral).text;
+      expr.arguments?.length) {
+    // The constructor argument can be an immutable literal alias (possibly a
+    // chain). The lexical resolver rejects mutable and shadowed bindings.
+    const pattern = immutableDecisionString(expr.arguments[0], expr, expr.getSourceFile());
+    if (pattern !== null) return pattern;
   }
   if (!ts.isIdentifier(expr)) return null;
   for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
@@ -937,6 +1049,25 @@ function immutableDecisionString(expression: ts.Expression, use: ts.Node, source
   return null;
 }
 
+/** Numeric results from indexOf/localeCompare are decisions only when
+ * used as predicates; diagnostic ordering/display calls stay out of scope. */
+function isLexicalNumericComparison(call: ts.CallExpression): boolean {
+  const parent = call.parent;
+  if (ts.isPrefixUnaryExpression(parent) && parent.operator === ts.SyntaxKind.ExclamationToken) return true;
+  if (!ts.isBinaryExpression(parent)) return false;
+  if (![ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.EqualsEqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken,
+    ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.GreaterThanEqualsToken,
+    ts.SyntaxKind.LessThanToken, ts.SyntaxKind.LessThanEqualsToken]
+    .includes(parent.operatorToken.kind)) return false;
+  const other = parent.left === call ? parent.right : parent.right === call ? parent.left : null;
+  if (!other) return false;
+  const value = unwrap(other);
+  return ts.isNumericLiteral(value) ||
+    (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.MinusToken &&
+      ts.isNumericLiteral(value.operand));
+}
+
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
@@ -1152,8 +1283,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   }
   if (rule.kind === "literal-string-method" && ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
-      ["includes", "startsWith", "endsWith"].includes(node.expression.name.text) &&
-      node.arguments.length === 1 && isStaticText(unwrap(node.arguments[0]))) {
+      ["includes", "startsWith", "endsWith", "indexOf", "localeCompare"].includes(node.expression.name.text) &&
+      node.arguments.length === 1 && isStaticText(unwrap(node.arguments[0])) &&
+      (!["indexOf", "localeCompare"].includes(node.expression.name.text) ||
+        isLexicalNumericComparison(node))) {
     const literal = (unwrap(node.arguments[0]) as ts.StringLiteral).text;
     const receiver = node.expression.expression.getText(source);
     const owner = enclosingDeclaration(node);
@@ -2190,6 +2323,54 @@ function findCrossModuleNumericFoodMaps(
             symbol, fingerprint: ruleId + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
             failureClass: "C", description: "Mapa numerico de alimento/porcao vindo de outro modulo",
           });
+        }
+      }
+      if (ts.isCallExpression(node) && isFoodNumericProjectionDecision(
+        node, source, (value, use) => {
+          const expr = unwrap(value);
+          return ts.isIdentifier(expr) ? !!resolveReference(expr.text, use) :
+            !!namespaceReference(expr, use);
+        },
+      )) {
+        const projection = (value: ts.Expression, depth = 0): Reference | undefined => {
+          if (depth > 10) return undefined;
+          const expr = unwrap(value);
+          if (ts.isCallExpression(expr) && ts.isPropertyAccessExpression(expr.expression)) {
+            if (["keys", "entries"].includes(expr.expression.name.text) && expr.arguments[0]) {
+              const item = unwrap(expr.arguments[0]);
+              return ts.isIdentifier(item) ? resolveReference(item.text, expr) :
+                namespaceReference(item, expr);
+            }
+            if (["slice", "filter", "toSorted", "toReversed"].includes(expr.expression.name.text))
+              return projection(expr.expression.expression, depth + 1);
+          }
+          if (ts.isIdentifier(expr)) {
+            for (let scope: ts.Node | undefined = node; scope; scope = scope.parent) {
+              if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+              for (const stmt of scope.statements) {
+                if (!ts.isVariableStatement(stmt) || !(stmt.declarationList.flags & ts.NodeFlags.Const)) continue;
+                for (const decl of stmt.declarationList.declarations) {
+                  if (ts.isIdentifier(decl.name) && decl.name.text === expr.text &&
+                      decl.initializer && decl.getStart(source) < node.getStart(source))
+                    return projection(decl.initializer, depth + 1);
+                }
+              }
+            }
+          }
+          return undefined;
+        };
+        const reference = projection(node.expression.expression);
+        if (reference) {
+          const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
+          for (const ruleId of ["17", "5"] as const) {
+            const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
+            results.push({
+              ruleId, file: consumer.path,
+              line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+              symbol, fingerprint: ruleId + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
+              failureClass: "C", description: "Mapa numerico alimentar projetado de outro modulo",
+            });
+          }
         }
       }
       ts.forEachChild(node, visit);
