@@ -324,3 +324,18 @@ substituições lexicais por `replace`/`replaceAll` com regex, `RegExp`
 estático ou texto literal em normalizadores alimentares. Testes positivos,
 negativos administrativos e de apresentação verificam detecção e bloqueio;
 esses controles não certificam dinamicamente os owners legados.
+
+**Remediação AUD1300-20261018-F43/F44/F45 (Issue #1300):** consultas
+nutricionais de mapas numéricos por `Object.keys`/`Object.entries` seguidas
+por `find`, `filter`, `some`, `every`, `includes` ou `indexOf` conservam a
+procedência do mapa na decisão por identidade alimentar, inclusive com
+projeção `const`, transformações transparentes e importações produtivas entre
+módulos. Comparações lexicais por `indexOf`/`localeCompare` entram nos gates
+17/18 quando utilizadas como predicados alimentares, incluindo qualificadores
+de materialidade. O construtor `RegExp` resolve aliases `const` imutáveis de
+padrões literais respeitando escopo, mutabilidade e sombreamento. Listagem
+inerte, dados administrativos, `Object` sombreado e aliases dinâmicos não
+recebem bloqueio por mera semelhança textual. A matriz de regressão em
+`scripts/food-architecture-f43-f45-remediation.test.ts` valida os gates
+estáticos; equivalência comportamental de owners continua sujeita à
+certificação independente prevista na ADR.
