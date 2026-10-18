@@ -1140,7 +1140,7 @@ function isPresentationOnlyScalar(symbol: string, value: string, file: string): 
  * This is deliberately restricted to immutable bindings and synchronous,
  * statement-level mutations before a decision; unknown writes cannot certify
  * that the resulting vocabulary is static. */
-function referencesLiteralWords(target: ts.Expression, use: ts.Node): boolean {
+function referencesLiteralWords(target: ts.Expression, use: ts.Node): string[] {
   const source = use.getSourceFile();
   const resolve = (expression: ts.Expression, site: ts.Node, depth = 0,
     seen = new Set<ts.VariableDeclaration>()): string[] | null => {
@@ -1207,7 +1207,7 @@ function referencesLiteralWords(target: ts.Expression, use: ts.Node): boolean {
     return null;
   };
   const words = resolve(target, use);
-  return words !== null && words.length > 0 && words.every(word => word.length > 0);
+  return words !== null && words.length > 0 && words.every(word => word.length > 0) ? words : [];
 }
 
 function stableHash(value: string): string {
@@ -1697,14 +1697,20 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "literal-membership" && ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
-      node.arguments.length > 0 &&
-      referencesLiteralWords(node.expression.expression, node)) {
-    const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
-    // A file may contain food and administrative consumers together. Its path
-    // alone never turns active/pending account statuses into materiality.
-    if (matches(rule.symbolPattern, context)) {
-      return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
-        subject: node.getText(source) };
+      node.arguments.length > 0) {
+    const words = referencesLiteralWords(node.expression.expression, node);
+    if (words.length > 0) {
+      const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
+      // The source path alone cannot make administrative status values food
+      // materiality. Anonymous consumers still need domain-specific lexical
+      // evidence declared in the rule registry (ADR gate 18).
+      const anonymousMateriality = rule.id === "18" &&
+        isFoodDomainSource(source.fileName) && !!rule.evidencePattern &&
+        matches(rule.evidencePattern, words.join(" "));
+      if (matches(rule.symbolPattern, context) || anonymousMateriality) {
+        return { symbol: (enclosingDeclaration(node) || "expression") + ":lexical-membership",
+          subject: node.getText(source) };
+      }
     }
   }
   if (rule.kind === "literal-regex-test" && ts.isCallExpression(node) &&

@@ -108,6 +108,8 @@ export const FOOD_WAVE_ONE_RULES: readonly FoodWaveOneRule[] = [
     failureClass: "B", kind: "literal-membership",
     // Semantic food/materiality context, regardless of source filename.
     symbolPattern: "material|neutral|nutrition|packag|commercial|attribute|qualifier|food|alimento|ingredient",
+    // Reuse the declarative lexical materiality evidence used by regex gates.
+    evidencePattern: "integral|light|diet|desnatad|sem[\\s_-]*a[cç][uú]car|zero[\\s_-]*(?:acucar|a[cç][uú]car|lactose)|sem[\\s_-]*lactose",
     description: "Materialidade alimentar decidida por consulta a coleção lexical inline",
   },
   {

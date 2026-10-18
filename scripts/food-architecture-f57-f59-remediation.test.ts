@@ -47,6 +47,8 @@ const tests: Probe[] = [
  {id:'F58-mutation-after-use',file:'server/foodService.ts',code:food('const names:string[]=[];const answer=names.includes(foodName);names.push("pitaya");return answer'),expectedBlock:false},
  {id:'F58-shadowed-Set',file:'server/foodService.ts',code:'function checkName(input:string,Set:any){const names=new Set(["pitaya","arroz"]);return names.has(input)}',expectedBlock:false},
  {id:'F59-admin-split',file:'server/foodService.ts',code:'function checkStatus(status:string){const values="active|pending".split("|");return values.includes(status)}',expectedBlock:false},
+ {id:'F59-anonymous-materiality-lexeme',file:'server/foodItemResolution.ts',code:'function decide(value:string){const words=["integral","light"];return words.includes(value)}',expectedBlock:true},
+ {id:'F59-administrative-lexeme-in-food-module',file:'server/foodItemResolution.ts',code:'function checkStatus(status:string){const words=["active","pending"];return words.includes(status)}',expectedBlock:false},
 ];
 describe("F57/F58/F59 independent architectural regressions", () => {
   for (const item of tests) {
