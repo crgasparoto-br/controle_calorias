@@ -1640,6 +1640,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   }
   if (rule.kind === "collection" && (rule.id === "17" || rule.id === "5") &&
       ts.isVariableDeclaration(node) && node.initializer &&
+      parsedStaticFoodJson(node.initializer) !== undefined &&
       isConsumedSerializedFoodValue(node, source)) {
     const parsed = parsedStaticFoodJson(node.initializer);
     const lexical = Array.isArray(parsed) && parsed.length > 0 &&
