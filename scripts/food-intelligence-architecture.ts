@@ -1147,8 +1147,42 @@ function referencesLiteralWords(target: ts.Expression, use: ts.Node): string[] {
     if (depth > 10) return null;
     const value = unwrap(expression);
     if (ts.isArrayLiteralExpression(value)) {
-      if (value.elements.some(item => !isStaticText(unwrap(item)))) return null;
-      return value.elements.map(item => (unwrap(item) as ts.StringLiteral).text);
+      const words: string[] = [];
+      for (const element of value.elements) {
+        if (ts.isSpreadElement(element)) {
+          const spread = resolve(element.expression, element, depth + 1, new Set(seen));
+          if (spread === null) return null;
+          words.push(...spread);
+        } else if (isStaticText(unwrap(element))) {
+          words.push((unwrap(element) as ts.StringLiteral).text);
+        } else return null;
+      }
+      return words;
+    }
+    if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression)) {
+      const method = value.expression.name.text;
+      const receiver = value.expression.expression;
+      if ((method === "reverse" || method === "toReversed") && value.arguments.length === 0) {
+        const items = resolve(receiver, value, depth + 1, new Set(seen));
+        return items === null ? null : [...items].reverse();
+      }
+      if (method === "filter" && value.arguments.length === 1 &&
+          ts.isIdentifier(value.arguments[0]) && value.arguments[0].text === "Boolean" &&
+          unshadowedIntrinsic("Boolean", value)) {
+        const items = resolve(receiver, value, depth + 1, new Set(seen));
+        return items === null ? null : items.filter(Boolean);
+      }
+      if (method === "concat") {
+        const initial = resolve(receiver, value, depth + 1, new Set(seen));
+        if (initial === null) return null;
+        const result = [...initial];
+        for (const argument of value.arguments) {
+          const items = resolve(argument, value, depth + 1, new Set(seen));
+          if (items === null) return null;
+          result.push(...items);
+        }
+        return result;
+      }
     }
     if (ts.isNewExpression(value) && ts.isIdentifier(value.expression) &&
         value.expression.text === "Set" && unshadowedIntrinsic("Set", value) &&
@@ -1696,8 +1730,17 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   }
   if (rule.kind === "literal-membership" && ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
-      ["includes", "has", "indexOf"].includes(node.expression.name.text) &&
+      ["includes", "has", "indexOf", "some", "find", "every"].includes(node.expression.name.text) &&
       node.arguments.length > 0) {
+    const method = node.expression.name.text;
+    const predicate = node.arguments[0];
+    const callback = (ts.isArrowFunction(predicate) || ts.isFunctionExpression(predicate)) ? predicate : null;
+    const comparison = callback && callback.parameters[0] && ts.isIdentifier(callback.parameters[0].name) &&
+      /(?:===|==|!==|!=)/.test(callback.body.getText(source)) &&
+      callback.body.getText(source).includes(callback.parameters[0].name.text) &&
+      /food|alimento|material|attribute|qualifier|ingredient|portion|nutrition/i.test(
+        callback.body.getText(source) + " " + enclosingDeclaration(node));
+    if (["some", "find", "every"].includes(method) && !comparison) return null;
     const words = referencesLiteralWords(node.expression.expression, node);
     if (words.length > 0) {
       const context = enclosingDeclaration(node) + " " + node.arguments[0].getText(source);
@@ -1867,13 +1910,43 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "literal-branch" && ts.isBinaryExpression(node) &&
     [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken,
       ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken]
-      .includes(node.operatorToken.kind) &&
-    (immutableDecisionString(node.left, node, source) !== null ||
-      immutableDecisionString(node.right, node, source) !== null)) {
-    // Preserve the distinction between a fixed decision and a mutable alias.
-    const leftLiteral = immutableDecisionString(node.left, node, source);
-    const rightLiteral = immutableDecisionString(node.right, node, source);
-    if ((leftLiteral ?? rightLiteral ?? "").length === 0) return null;
+      .includes(node.operatorToken.kind)) {
+    // Only const-bound alternatives proven static on every branch count;
+    // mutable variables and unknown branches never become literal evidence.
+    const alternatives = (expression: ts.Expression, at: ts.Node, depth = 0,
+      seen = new Set<ts.VariableDeclaration>()): string[] => {
+      if (depth > 8) return [];
+      const value = unwrap(expression);
+      if (ts.isConditionalExpression(value)) {
+        const yes = alternatives(value.whenTrue, value, depth + 1, new Set(seen));
+        const no = alternatives(value.whenFalse, value, depth + 1, new Set(seen));
+        return yes.length && no.length ? [...new Set([...yes, ...no])] : [];
+      }
+      const direct = immutableDecisionString(value, at, source);
+      if (direct !== null) return direct.length ? [direct] : [];
+      if (!ts.isIdentifier(value)) return [];
+      for (let scope: ts.Node | undefined = at; scope; scope = scope.parent) {
+        if (ts.isFunctionLike(scope) && scope.parameters.some(parameter =>
+          ts.isIdentifier(parameter.name) && parameter.name.text === value.text)) return [];
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (!ts.isVariableStatement(statement)) continue;
+          for (const decl of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(decl.name) || decl.name.text !== value.text) continue;
+            if (!(statement.declarationList.flags & ts.NodeFlags.Const) || !decl.initializer ||
+                seen.has(decl) || decl.getStart(source) >= at.getStart(source)) return [];
+            const next = new Set(seen); next.add(decl);
+            return alternatives(decl.initializer, decl, depth + 1, next);
+          }
+        }
+      }
+      return [];
+    };
+    const leftLiterals = alternatives(node.left, node);
+    const rightLiterals = alternatives(node.right, node);
+    if (!leftLiterals.length && !rightLiterals.length) return null;
+    const leftLiteral = leftLiterals[0] ?? null;
+    const rightLiteral = rightLiterals[0] ?? null;
     let functionName = "";
     for (let parent = node.parent; parent; parent = parent.parent) {
       if (ts.isFunctionDeclaration(parent) || ts.isMethodDeclaration(parent)) {
@@ -3093,7 +3166,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       const binding = callback.parameters[0]?.name;
       if (!binding) return fields;
       const row = ts.isIdentifier(binding) ? binding.text : undefined;
-      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      const identity = /^(?:name|title|label|slug|nome|foodName|foodId|alimento|productName)$/;
       // F21: destructured predicates still read source identity fields.
       const destructured = new Map<string, string>();
       if (ts.isObjectBindingPattern(binding)) {
@@ -3169,7 +3242,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           }
         }
       }
-      const identity = /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/;
+      const identity = /^(?:name|title|label|slug|nome|foodName|foodId|alimento|productName)$/;
       const carriesRecordIdentity = (candidate: ts.Expression, seen = new Set<string>(),
         depth = 0): boolean => {
         if (depth > 8) return false;
@@ -3457,6 +3530,17 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           }
         }
       }
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          ts.isIdentifier(value.expression.expression) && value.expression.expression.text === "Object" &&
+          value.expression.name.text === "assign" && unshadowedIntrinsic("Object", value) &&
+          value.arguments.length >= 2 && value.arguments.every(argument =>
+            ts.isObjectLiteralExpression(unwrap(argument)))) {
+        for (const argument of [...value.arguments].reverse()) {
+          const member = jsonLocalProperty(argument, keys, site, depth + 1);
+          if (member) return member;
+        }
+        return undefined;
+      }
       if (!ts.isObjectLiteralExpression(value)) return undefined;
       const key = keys[0];
       const property = value.properties.find(prop => ts.isPropertyAssignment(prop) &&
@@ -3503,13 +3587,47 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ...resolveJsonExpression(value.right, value.right, new Set(visited), depth + 1, kind, decisionUse),
         ])];
       }
-      // Native Set keeps the members of an identity projection; a shadowed
-      // Set or a Set built from unrelated data cannot certify JSON consumption.
+      // Set copies the same records or identity values without changing their provenance.
+      if (ts.isNewExpression(value) && ts.isIdentifier(value.expression) &&
+          value.expression.text === "Set" && unshadowedIntrinsic("Set", value) &&
+          value.arguments?.length === 1) {
+        return resolveJsonExpression(value.arguments[0], value, visited, depth + 1, kind, decisionUse);
+      }
+      // Map keyed by a projected food identity carries that key to .has().
       if (kind === "identity" && ts.isNewExpression(value) &&
-          ts.isIdentifier(value.expression) && value.expression.text === "Set" &&
-          unshadowedIntrinsic("Set", value) && value.arguments?.length === 1) {
-        return resolveJsonExpression(value.arguments[0], value, visited, depth + 1,
-          "identity", decisionUse);
+          ts.isIdentifier(value.expression) && value.expression.text === "Map" &&
+          unshadowedIntrinsic("Map", value) && value.arguments?.length === 1) {
+        const entries = unwrap(value.arguments[0]);
+        if (ts.isCallExpression(entries) && ts.isPropertyAccessExpression(entries.expression) &&
+            entries.expression.name.text === "map" && entries.arguments.length === 1) {
+          const fn = resolveJsonCallback(entries.arguments[0], entries);
+          const result = fn && jsonReturn(fn);
+          const row = fn?.parameters[0]?.name;
+          const pair = result && unwrap(result);
+          if (row && ts.isIdentifier(row) && pair && ts.isArrayLiteralExpression(pair) &&
+              pair.elements.length === 2 && ts.isPropertyAccessExpression(unwrap(pair.elements[0])) &&
+              ts.isIdentifier((unwrap(pair.elements[0]) as ts.PropertyAccessExpression).expression) &&
+              ((unwrap(pair.elements[0]) as ts.PropertyAccessExpression).expression as ts.Identifier).text === row.text &&
+              /^(?:name|label|slug|nome|foodName|foodId|alimento|productName)$/.test(
+                (unwrap(pair.elements[0]) as ts.PropertyAccessExpression).name.text)) {
+            return resolveJsonExpression(entries.expression.expression, entries, visited,
+              depth + 1, "records", decisionUse);
+          }
+        }
+      }
+      // JSON round-trip carries records only if both calls use the unshadowed intrinsic.
+      if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
+          value.expression.expression.getText(source) === "JSON" &&
+          value.expression.name.text === "parse" && value.arguments.length === 1 &&
+          unshadowedIntrinsic("JSON", value)) {
+        const encoded = unwrap(value.arguments[0]);
+        if (ts.isCallExpression(encoded) && ts.isPropertyAccessExpression(encoded.expression) &&
+            encoded.expression.expression.getText(source) === "JSON" &&
+            encoded.expression.name.text === "stringify" && encoded.arguments.length === 1 &&
+            unshadowedIntrinsic("JSON", encoded)) {
+          return resolveJsonExpression(encoded.arguments[0], encoded, visited, depth + 1,
+            kind, decisionUse);
+        }
       }
       // F41: array spread does not discard provenance of its constituent
       // records. Treat only actual SpreadElements as source expressions.
@@ -3518,11 +3636,11 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           ? resolveJsonExpression(element.expression, use, new Set(visited), depth + 1, kind, decisionUse)
           : []))];
       }
-      // F41: Array.from(iterable) copies records unchanged only without a
-      // mapper. A shadowed Array is not the JavaScript intrinsic.
+      // Array.from may copy records or project the food identity through a mapper.
       if (ts.isCallExpression(value) && ts.isPropertyAccessExpression(value.expression) &&
           value.expression.expression.getText(source) === "Array" &&
-          value.expression.name.text === "from" && value.arguments.length === 1) {
+          value.expression.name.text === "from" &&
+          (value.arguments.length === 1 || value.arguments.length === 2)) {
         let shadowed = false;
         for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
           if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
@@ -3535,8 +3653,16 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             shadowed = true; break;
           }
         }
-        if (!shadowed) return resolveJsonExpression(
-          value.arguments[0], use, visited, depth + 1, kind, decisionUse);
+        if (!shadowed) {
+          if (value.arguments.length === 1) return resolveJsonExpression(
+            value.arguments[0], use, visited, depth + 1, kind, decisionUse);
+          if (kind === "identity" && callbackProjectsJsonIdentity(value.arguments[1], false,
+              true, decisionUse)) return resolveJsonExpression(value.arguments[0], use,
+                visited, depth + 1, "records", decisionUse);
+          if (kind === "records" && preservesJsonIdentity(value.arguments[1], false,
+              decisionUse)) return resolveJsonExpression(value.arguments[0], use,
+                visited, depth + 1, "records", decisionUse);
+        }
       }
       // A direct filesystem JSON parse can flow through aliases, projections
       // and conditional origins using exactly the same decision-use analysis
@@ -3552,6 +3678,39 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           value.arguments.length === 1 && ts.isStringLiteral(value.arguments[0])) {
         return resolveRuntimeDependencies(consumer.path, value.arguments[0].text, indexed)
           .filter(target => /\.json$/i.test(target));
+      }
+      // Object.values({ items: rows })[0] preserves rows. Only a statically
+      // proven single property is safe; do not misattribute another index.
+      if (kind === "records" && ts.isElementAccessExpression(value) &&
+          value.argumentExpression && ts.isNumericLiteral(unwrap(value.argumentExpression)) &&
+          (unwrap(value.argumentExpression) as ts.NumericLiteral).text === "0" &&
+          ts.isCallExpression(value.expression) &&
+          ts.isPropertyAccessExpression(value.expression.expression) &&
+          ts.isIdentifier(value.expression.expression.expression) &&
+          value.expression.expression.expression.text === "Object" &&
+          value.expression.expression.name.text === "values" &&
+          value.expression.arguments.length === 1 && unshadowedIntrinsic("Object", value)) {
+        const target = unwrap(value.expression.arguments[0]);
+        const object = ts.isIdentifier(target) ? (() => {
+          for (let scope: ts.Node | undefined = value; scope; scope = scope.parent) {
+            if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+            for (const statement of scope.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              for (const decl of statement.declarationList.declarations) {
+                if (ts.isIdentifier(decl.name) && decl.name.text === target.text) {
+                  return statement.declarationList.flags & ts.NodeFlags.Const && decl.initializer &&
+                    decl.getStart(source) < value.getStart(source) ? unwrap(decl.initializer) : null;
+                }
+              }
+            }
+          }
+          return null;
+        })() : target;
+        if (object && ts.isObjectLiteralExpression(object) && object.properties.length === 1 &&
+            ts.isPropertyAssignment(object.properties[0])) {
+          return resolveJsonExpression(object.properties[0].initializer, object.properties[0],
+            visited, depth + 1, "records", decisionUse);
+        }
       }
       // F27: a productive catalog may be nested under data.rows, including
       // equivalent literal computed keys. Verify the complete JSON path.
@@ -3635,6 +3794,36 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         };
         if (!shadowsObject()) return resolveJsonExpression(
           value.arguments[0], use, visited, depth + 1, "records", decisionUse);
+      }
+      if (method === "reduce" && kind === "records" && value.arguments.length === 2 &&
+          ts.isArrayLiteralExpression(unwrap(value.arguments[1])) &&
+          (unwrap(value.arguments[1]) as ts.ArrayLiteralExpression).elements.length === 0) {
+        const fn = resolveJsonCallback(value.arguments[0], value);
+        const accumulator = fn?.parameters[0]?.name;
+        const row = fn?.parameters[1]?.name;
+        if (fn && accumulator && row && ts.isIdentifier(accumulator) && ts.isIdentifier(row)) {
+          const result = jsonReturn(fn);
+          const isAcc = (x: ts.Expression) => ts.isIdentifier(unwrap(x)) &&
+            (unwrap(x) as ts.Identifier).text === accumulator.text;
+          const isRow = (x: ts.Expression) => ts.isIdentifier(unwrap(x)) &&
+            (unwrap(x) as ts.Identifier).text === row.text;
+          const spreadResult = result && ts.isArrayLiteralExpression(unwrap(result)) &&
+            (unwrap(result) as ts.ArrayLiteralExpression).elements.some(e =>
+              ts.isSpreadElement(e) && isAcc(e.expression)) &&
+            (unwrap(result) as ts.ArrayLiteralExpression).elements.some(e => isRow(e));
+          const block = fn.body && ts.isBlock(fn.body) ? fn.body : undefined;
+          const pushed = block && block.statements.length === 2 && result && isAcc(result) &&
+            ts.isExpressionStatement(block.statements[0]) &&
+            ts.isCallExpression(block.statements[0].expression) &&
+            ts.isPropertyAccessExpression(block.statements[0].expression.expression) &&
+            block.statements[0].expression.expression.name.text === "push" &&
+            isAcc(block.statements[0].expression.expression.expression) &&
+            block.statements[0].expression.arguments.length === 1 &&
+            isRow(block.statements[0].expression.arguments[0]);
+          if (spreadResult || pushed) return resolveJsonExpression(receiver, use, visited,
+            depth + 1, "records", decisionUse);
+        }
+        return [];
       }
       if (!/^(?:map|flatMap|filter|slice|toSorted|toReversed|toSpliced|sort|reverse|copyWithin|concat)$/.test(method)) return [];
       // concat can carry records from either side; changes in ordering and
@@ -3817,7 +4006,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
         !unrelatedDecision.test(filename);
     };
     const isJsonIdentityDecision = (predicate: string, receiver?: string): boolean => {
-      const identity = "(?:name|label|slug|nome|foodName|foodId|alimento|productName)";
+      const identity = "(?:name|title|label|slug|nome|foodName|foodId|alimento|productName)";
       const bound = receiver
         ? "\\b" + receiver.replace(/[^A-Za-z0-9_]/g, "\\$&") + "\\s*"
         : "[A-Za-z_$][\\w$]*\\s*";
@@ -4094,6 +4283,16 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
       if (!ts.isIdentifier(value)) return [];
       const declaration = findLexicalJsonBinding(value.text, use);
       if (!declaration || !isStableJsonBinding(declaration)) return [];
+      if (ts.isObjectBindingPattern(declaration.name)) {
+        const field = declaration.name.elements.find(element => ts.isIdentifier(element.name) &&
+          element.name.text === value.text &&
+          (ts.isIdentifier(element.propertyName ?? element.name) ||
+            ts.isStringLiteral(element.propertyName ?? element.name)) &&
+          jsonArrayIdentityFields.test((element.propertyName ?? element.name).getText(source)
+            .replace(/^["']|["']$/g, "")));
+        return field && declaration.initializer
+          ? indexedJsonRow(declaration.initializer, declaration) : [];
+      }
       if (ts.isArrayBindingPattern(declaration.name)) {
         const projected = declaration.name.elements.some(element =>
           ts.isBindingElement(element) && ts.isObjectBindingPattern(element.name) &&
