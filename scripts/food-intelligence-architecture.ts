@@ -4,7 +4,7 @@
  * registry blocks NEW findings after item 25 approval; existing legacy stays visible.
  */
 import ts from "typescript";
-import { unshadowedIntrinsic, isNativeViteFetchTarget } from "./food-architecture-native-fetch";
+import { unshadowedIntrinsic, isNativeViteFetchTarget, hasStaticNativeFetchRequestInit } from "./food-architecture-native-fetch";
 import path from "node:path";
 import { isImmutableNumericSpread } from "./food-architecture-numeric-spreads";
 import { isLiteralMealChoiceData, findConsumedMealChoiceCatalogs } from "./food-architecture-meal-choices";
@@ -2258,7 +2258,8 @@ function resolveVitePublicAsset(
  * evidence that client/public supplied food knowledge.
  */
 function staticViteFetchUrl(node: ts.CallExpression): string | null {
-  if (!node.arguments[0] || !isNativeViteFetchTarget(node.expression, node)) return null;
+  if (!node.arguments[0] || !hasStaticNativeFetchRequestInit(node) ||
+      !isNativeViteFetchTarget(node.expression, node)) return null;
 
   const resolve = (
     expression: ts.Expression, use: ts.Node,
