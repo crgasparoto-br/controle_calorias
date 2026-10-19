@@ -78,6 +78,29 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
   // containers separately: putting a RequestInit in an array does not mutate
   // it, but a subsequent write/escape through that array invalidates the proof.
   const containers = new Set<string>();
+  // Preserve the specific array indexes/object keys containing the options.
+  // Mutating an unrelated sibling must not invalidate a safe GET.
+  const containerPaths = new Map<string, string[][]>();
+  const containedPaths = (expr: ts.Expression, depth = 0): string[][] => {
+    if (depth > 10) return [["*"]];
+    const value = unwrap(expr);
+    if (ts.isIdentifier(value) && references(value)) return [[]];
+    if (ts.isIdentifier(value) && containers.has(value.text) && sameBinding(value, value.text))
+      return containerPaths.get(value.text) || [["*"]];
+    if (ts.isArrayLiteralExpression(value)) return value.elements.flatMap((e, index) =>
+      ts.isSpreadElement(e) ? (containedPaths(e.expression, depth + 1).length ? [["*"]] : []) :
+      ts.isExpression(e) ? containedPaths(e, depth + 1).map(path => [String(index), ...path]) : []);
+    if (ts.isObjectLiteralExpression(value)) return value.properties.flatMap(p => {
+      if (ts.isShorthandPropertyAssignment(p)) return containedPaths(p.name, depth + 1)
+        .map(path => [p.name.text, ...path]);
+      if (ts.isSpreadAssignment(p)) return containedPaths(p.expression, depth + 1).length ? [["*"]] : [];
+      if (!ts.isPropertyAssignment(p)) return [];
+      const key = ts.isIdentifier(p.name) || ts.isStringLiteral(p.name) ||
+        ts.isNumericLiteral(p.name) ? p.name.text : "*";
+      return containedPaths(p.initializer, depth + 1).map(path => [key, ...path]);
+    });
+    return [];
+  };
   const containsOption = (expr: ts.Expression, depth = 0): boolean => {
     if (depth > 10) return false;
     const value = unwrap(expr);
@@ -93,8 +116,22 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     return false;
   };
   const isContainerReference = (expr: ts.Expression): boolean => {
-    const id = root(unwrap(expr));
-    return !!id && containers.has(id.text) && sameBinding(id, id.text);
+    const accessed: string[] = [];
+    let value = unwrap(expr);
+    while (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+      const key = ts.isPropertyAccessExpression(value) ? value.name.text :
+        value.argumentExpression &&
+        (isStaticText(unwrap(value.argumentExpression)) ||
+          ts.isNumericLiteral(unwrap(value.argumentExpression)))
+          ? (unwrap(value.argumentExpression) as ts.StringLiteral | ts.NumericLiteral).text : "*";
+      accessed.unshift(key);
+      value = unwrap(value.expression);
+    }
+    if (!ts.isIdentifier(value) || !containers.has(value.text) ||
+        !sameBinding(value, value.text)) return false;
+    return (containerPaths.get(value.text) || [["*"]]).some(path =>
+      accessed.slice(0, Math.min(accessed.length, path.length)).every((key, index) =>
+        key === path[index] || key === "*" || path[index] === "*"));
   };
   const immutable = (node: ts.VariableDeclaration): boolean =>
     ts.isVariableDeclarationList(node.parent) && !!(node.parent.flags & ts.NodeFlags.Const);
@@ -156,7 +193,9 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
             aliases.add(node.name.text); changed = true;
           } else if (containsOption(node.initializer) && !references(unwrap(node.initializer)) &&
               !primitiveRead(node.initializer) && !containers.has(node.name.text)) {
-            containers.add(node.name.text); changed = true;
+            containers.add(node.name.text);
+            containerPaths.set(node.name.text, containedPaths(node.initializer));
+            changed = true;
           }
         } else if (ts.isArrayBindingPattern(node.name) &&
             ts.isArrayLiteralExpression(unwrap(node.initializer))) {
@@ -206,10 +245,12 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     }
     if (ts.isCallExpression(node)) {
       if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) &&
-          (references(node.expression.expression) || isContainerReference(node.expression.expression))) {
+          (references(node.expression.expression) && !primitiveRead(node.expression.expression) ||
+            isContainerReference(node.expression.expression))) {
         unsafe = true; return;
       }
       for (const [i, arg] of node.arguments.entries()) {
+        if (primitiveRead(arg)) continue;
         if (!references(arg) && !isContainerReference(arg) && !containsOption(arg)) continue;
         // Native fetch is the only trusted external consumer of RequestInit.
         if (i === 1 && references(arg) && (node === use ||
