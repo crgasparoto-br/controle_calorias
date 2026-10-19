@@ -1,20 +1,44 @@
 /** ADR §19.0.3: architecture debt is an expiring, fingerprint-bound exception. */
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import Ajv2020 from "ajv/dist/2020.js";
 import type { FoodFinding } from "./food-intelligence-architecture";
+import { FOOD_WAVE_ONE_IDS, type FoodWaveOneRuleId } from "./food-architecture-rules";
 
 export type FoodDebt = {
-  ruleId: string;
+  ruleId: FoodWaveOneRuleId;
   file: string;
   fingerprint: string;
   reason: string;
   owner: string;
   issue: number;
   /** Existing migration work owns replacing the legacy behavior. */
-  migrationIssue?: number;
+  migrationIssue: number;
   /** Cutover work owns retiring the remaining legacy fingerprint. */
-  retirementIssue?: number;
+  retirementIssue: number;
   createdAt: string;
   expiresAt: string;
 };
+
+export type FoodDebtLedger = { $schema?: string; entries: FoodDebt[] };
+
+/** The JSON schema is executable at every consumer boundary, before casting. */
+export function validateFoodDebtLedger(value: unknown, cwd = process.cwd()): FoodDebtLedger {
+  const schemaPath = path.join(cwd, "docs/design-docs/food-architecture-debt.schema.json");
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as object;
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  if (!validate(value)) {
+    throw new Error("Invalid architecture debt ledger: " +
+      ajv.errorsText(validate.errors, { separator: "; " }));
+  }
+  const ledger = value as FoodDebtLedger;
+  const known = new Set<string>(FOOD_WAVE_ONE_IDS);
+  const unknown = ledger.entries.filter(entry => !known.has(entry.ruleId));
+  if (unknown.length) throw new Error("Unknown architecture debt ruleId: " +
+    unknown.map(entry => entry.ruleId).join(", "));
+  return ledger;
+}
 
 export function assessFoodDebt(findings: FoodFinding[], debts: FoodDebt[], today: Date) {
   const errors: string[] = [];
@@ -104,15 +128,27 @@ export function assessReviewedFoodDebt(
   return errors;
 }
 
-export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[], currentFindings: FoodFinding[] = []) {
+export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[], currentFindings: FoodFinding[]) {
   const errors: string[] = [];
+  const rejectDuplicates = (items: FoodDebt[], label: string): void => {
+    const seen = new Set<string>();
+    for (const item of items) {
+      if (seen.has(item.fingerprint)) {
+        errors.push(`Duplicate ${label} food architecture debt: ${item.fingerprint}`);
+      }
+      seen.add(item.fingerprint);
+    }
+  };
+  rejectDuplicates(previous, "previous");
+  rejectDuplicates(current, "current");
   const indexed = new Map(current.map(item => [item.fingerprint, item]));
   for (const old of previous) {
     const next = indexed.get(old.fingerprint);
     if (!next) {
       const base = old.ruleId + ":" + old.file + ":";
       const oldSymbol = old.fingerprint.slice(base.length).split(":")[0];
-      const reissued = current.find(item => item.ruleId === old.ruleId && item.file === old.file &&
+      const reissued = current.find(item => item.fingerprint !== old.fingerprint &&
+        item.ruleId === old.ruleId && item.file === old.file &&
         item.fingerprint.startsWith(base + oldSymbol + ":"));
       if (reissued) errors.push("Architecture debt cannot be reissued under a new fingerprint: " + old.fingerprint);
       // Repayment requires removing the underlying violation, not just the

@@ -6,11 +6,12 @@ import { findTimeZoneArchitectureViolations } from "./timezone-architecture";
 import { findFoodStaticCandidates } from "./food-intelligence-architecture";
 import { compareFoodArchitectureFindings, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
-import { assessFoodDebtRenewal, type FoodDebt, type ReviewedFoodDebtSeed } from "./food-architecture-debt";
-import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
+import { assessFoodDebtRenewal, validateFoodDebtLedger, type FoodDebt, type ReviewedFoodDebtSeed } from "./food-architecture-debt";
+import { FOOD_WAVE_ONE_RULES, validateFoodWaveOneRegistry } from "./food-architecture-rules";
 
 const root = process.cwd();
 const failures: string[] = [];
+for (const error of validateFoodWaveOneRegistry()) fail(error);
 
 function fail(message: string) {
   failures.push(message);
@@ -150,14 +151,19 @@ if (!existsSync(path.join(root, debtPath)) || !existsSync(path.join(root, invent
   try {
     const ledger: unknown = JSON.parse(read(debtPath));
     const inventory: unknown = JSON.parse(read(inventoryPath));
-    if (!ledger || typeof ledger !== "object" || !("entries" in ledger) ||
-        !Array.isArray((ledger as { entries: unknown }).entries)) {
-      fail("Invalid food architecture debt ledger: entries array required");
+    let validatedLedger: { entries: FoodDebt[] } | undefined;
+    try {
+      validatedLedger = validateFoodDebtLedger(ledger, root);
+    } catch (error) {
+      fail(String(error));
+    }
+    if (!validatedLedger) {
+      // Schema errors are already recorded above and must not be hidden by a cast.
     } else if (!inventory || typeof inventory !== "object" || !("baseSha" in inventory) ||
         !/^[0-9a-f]{40}$/.test(String((inventory as { baseSha: unknown }).baseSha))) {
       fail("Invalid food architecture baseline SHA");
     } else {
-      const entries = (ledger as { entries: FoodDebt[] }).entries;
+      const entries = validatedLedger.entries;
       // R1300-01: retirement has a distinct work item from the gate-creation issue.
       // Keep existing owner, issue, original expiry and fingerprint untouched.
       for (const entry of entries) {

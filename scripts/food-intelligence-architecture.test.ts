@@ -175,9 +175,9 @@ describe("food intelligence architecture wave 1", () => {
       expect(entry.retirementIssue).not.toBe(entry.issue);
     }
     const entry = debtBook.entries[0];
-    expect(assessFoodDebtRenewal([entry], [{ ...entry, retirementIssue: 1312 }]))
+    expect(assessFoodDebtRenewal([entry], [{ ...entry, retirementIssue: 1312 }], []) )
       .toHaveLength(1);
-    expect(assessFoodDebtRenewal([entry], [{ ...entry, migrationIssue: 1303 }]))
+    expect(assessFoodDebtRenewal([entry], [{ ...entry, migrationIssue: 1303 }], []) )
       .toHaveLength(1);
   });
 
@@ -187,12 +187,12 @@ describe("food intelligence architecture wave 1", () => {
       reason: "migration", owner: "food-team", issue: 1300,
       createdAt: "2026-10-01", expiresAt: "2026-12-01",
     };
-    expect(assessFoodDebtRenewal([old], [{ ...old, expiresAt: "2027-01-01" }])).toHaveLength(1);
-    expect(assessFoodDebtRenewal([old], [{ ...old, createdAt: "2026-10-10" }])).toHaveLength(1);
-    expect(assessFoodDebtRenewal([old], [{ ...old, owner: "different" }])).toHaveLength(1);
-    expect(assessFoodDebtRenewal([old], [{ ...old, fingerprint: old.fingerprint.replace(/:[^:]+$/, ":newhash") }])).toHaveLength(1);
-    expect(assessFoodDebtRenewal([old], [])).toEqual([]);
-    expect(assessFoodDebtRenewal([old], [old])).toEqual([]);
+    expect(assessFoodDebtRenewal([old], [{ ...old, expiresAt: "2027-01-01" }], [])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, createdAt: "2026-10-10" }], [])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, owner: "different" }], [])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [{ ...old, fingerprint: old.fingerprint.replace(/:[^:]+$/, ":newhash") }], [])).toHaveLength(1);
+    expect(assessFoodDebtRenewal([old], [], [])).toEqual([]);
+    expect(assessFoodDebtRenewal([old], [old], [])).toEqual([]);
   });
 
   it("fails expired, over-90-day and unowned debt", () => {

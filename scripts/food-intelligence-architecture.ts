@@ -213,6 +213,11 @@ function staticNutritionNumber(
     return null;
   }
   if (ts.isNumericLiteral(expr)) return Number(expr.text);
+  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) &&
+      expr.expression.text === "Number" && expr.arguments.length === 1 &&
+      unshadowedIntrinsic("Number", expr)) {
+    return staticNutritionNumber(expr.arguments[0], visited, depth + 1);
+  }
   if (ts.isPrefixUnaryExpression(expr) &&
       [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(expr.operator)) {
     const operand = staticNutritionNumber(expr.operand, visited, depth + 1);
@@ -295,7 +300,7 @@ function isNominalNutritionGoalMap(node: ts.VariableDeclaration): boolean {
 
 /** Domain-driven numeric maps need evidence of food identity, not food words
  * inside their arbitrary keys. Reuse the same rule for collections and lookups. */
-function isLiteralNumericMap(value: ts.Expression, use?: ts.Node, visited = new Set<ts.VariableDeclaration>()): boolean {
+function isLiteralNumericMap(value: ts.Expression, use?: ts.Node, visited = new Set<ts.VariableDeclaration>(), source?: ts.SourceFile): boolean {
   const object = unwrap(value);
   if (ts.isNewExpression(object) && ts.isIdentifier(object.expression) &&
       object.expression.text === "Map" && object.arguments?.length === 1) {
@@ -306,16 +311,20 @@ function isLiteralNumericMap(value: ts.Expression, use?: ts.Node, visited = new 
         if (!ts.isArrayLiteralExpression(pair) || pair.elements.length !== 2) return false;
         const key = unwrap(pair.elements[0]);
         const number = unwrap(pair.elements[1]);
-        return (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) &&
-          isLiteralNumericFoodValue(number);
+        const staticKey = source
+          ? immutableDecisionString(key, pair, source) !== null
+          : ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key);
+        return staticKey && isLiteralNumericFoodValue(number);
       });
   }
   return ts.isObjectLiteralExpression(object) && object.properties.length > 0 &&
     object.properties.some(property => {
       if (ts.isSpreadAssignment(property)) return !!use && isImmutableNumericSpread(property.expression, use, visited,
-        (expr, at, seen) => isLiteralNumericMap(expr, at, seen));
+        (expr, at, seen) => isLiteralNumericMap(expr, at, seen, source));
       if (!ts.isPropertyAssignment(property)) return false;
-      if (!ts.isIdentifier(property.name) &&
+      if (ts.isComputedPropertyName(property.name)) {
+        if (!source || immutableDecisionString(property.name.expression, property, source) === null) return false;
+      } else if (!ts.isIdentifier(property.name) &&
           !ts.isStringLiteral(property.name) &&
           !ts.isNumericLiteral(property.name)) return false;
       return isLiteralNumericFoodValue(property.initializer);
@@ -694,7 +703,7 @@ function isFoodNumericProjectionDecision(
 
 function isFoodNumericMapUse(node: ts.VariableDeclaration, source: ts.SourceFile): boolean {
   if (!node.initializer || !ts.isIdentifier(node.name) ||
-      !isLiteralNumericMap(node.initializer, node)) return false;
+      !isLiteralNumericMap(node.initializer, node, new Set<ts.VariableDeclaration>(), source)) return false;
   const symbol = node.name.text;
   const context = source.fileName + " " + enclosingDeclaration(node);
   if (/exercise|activity|workout|fitness|burnedcalories/i.test(context)) return false;
@@ -1255,10 +1264,12 @@ function stableHash(value: string): string {
 }
 
 function failureClass(rule: FoodWaveOneRule, symbol: string): FoodFinding["failureClass"] {
+  if (rule.kind === "domain-field" || rule.kind === "numeric-map" ||
+      rule.detectorKey === "food-static-table" || rule.ownerFunction ||
+      rule.failureClass === "B" || rule.failureClass === "C") return rule.failureClass;
   // Structural numeric maps are portion/nutrition knowledge even when the
   // declaration is called just `table` or `lookup`. Trust the declared gate
   // class rather than guessing its domain from an arbitrary variable name.
-  if (rule.id !== "17" || rule.kind === "numeric-map") return rule.failureClass;
   if (/portion|porc|serving|macro|nutrition|nutrient/i.test(symbol)) return "C";
   if (/alias|lexic|synonym|vocab|term/i.test(symbol)) return "A";
   return "I";
@@ -1623,6 +1634,53 @@ function isConsumedSerializedFoodValue(node: ts.VariableDeclaration, source: ts.
 function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRule): {
   symbol: string; subject: string;
 } | null {
+  if (rule.kind === "domain-field") {
+    const field = (candidate: ts.Node): { name: string; value?: ts.Expression; owner: ts.Node } | null => {
+      if (ts.isPropertyAssignment(candidate)) {
+        const name = ts.isComputedPropertyName(candidate.name)
+          ? immutableDecisionString(candidate.name.expression, candidate, source)
+          : candidate.name.getText(source).replace(/^['"]|['"]$/g, "");
+        return name ? { name, value: candidate.initializer, owner: candidate.parent } : null;
+      }
+      if (ts.isPropertyDeclaration(candidate) && candidate.initializer &&
+          candidate.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.StaticKeyword)) {
+        const name = ts.isComputedPropertyName(candidate.name)
+          ? immutableDecisionString(candidate.name.expression, candidate, source)
+          : candidate.name.getText(source).replace(/^['"]|['"]$/g, "");
+        return name ? { name, value: candidate.initializer, owner: candidate.parent } : null;
+      }
+      if (ts.isEnumMember(candidate) && candidate.initializer) {
+        const name = ts.isComputedPropertyName(candidate.name)
+          ? immutableDecisionString(candidate.name.expression, candidate, source)
+          : candidate.name.getText(source).replace(/^['"]|['"]$/g, "");
+        return name ? { name, value: candidate.initializer, owner: candidate.parent } : null;
+      }
+      return null;
+    };
+    const candidate = field(node);
+    if (!candidate || !rule.fieldPattern || !matches(rule.fieldPattern, candidate.name)) return null;
+    const context = [source.fileName, enclosingDeclaration(node), candidate.owner.getText(source)].join(" ");
+    const unrelated = /account|status|permission|role|config|setting|ui|exercise|activity|workout|fitness|burnedcalories/i.test(context);
+    const domainEvidence = rule.contextPattern ? matches(rule.contextPattern, context) : false;
+    if (unrelated || !domainEvidence) return null;
+    const value = candidate.value;
+    if (!value) return null;
+    const validValue = rule.valueKind === "numeric"
+      ? staticNutritionNumber(value) !== null || isLiteralNutritionRecord(value)
+      : rule.valueKind === "collection"
+        ? immutableDecisionString(value, node, source) !== null ||
+          immutableDecisionStringArray(value, node, source, 0, new Set()) !== null ||
+          (ts.isNewExpression(unwrap(value)) && ts.isIdentifier(unwrap(value).expression) &&
+            unwrap(value).expression.text === "Set" && unshadowedIntrinsic("Set", unwrap(value)) &&
+            !!unwrap(value).arguments?.[0] &&
+            immutableDecisionStringArray(unwrap(value).arguments![0], node, source, 0, new Set()) !== null)
+        : false;
+    if (!validValue) return null;
+    return {
+      symbol: (enclosingDeclaration(node) || "domain") + "." + candidate.name + ":domain-field",
+      subject: value.getText(source),
+    };
+  }
   if (rule.kind === "numeric-map") {
     if (ts.isVariableDeclaration(node) && isFoodNumericMapUse(node, source)) {
       return { symbol: node.name.getText(source) + ":numeric-food-map",
@@ -1630,18 +1688,18 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
     // Avoid evasion by returning an indexed inline numeric object directly.
     if (ts.isElementAccessExpression(node) && node.argumentExpression &&
-        isLiteralNumericMap(node.expression, node) &&
+        isLiteralNumericMap(node.expression, node, new Set<ts.VariableDeclaration>(), source) &&
         foodIndexContext(node.argumentExpression, node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
     }
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
         node.expression.name.text === "get" && node.arguments[0] &&
-        isLiteralNumericMap(node.expression.expression, node) &&
+        isLiteralNumericMap(node.expression.expression, node, new Set<ts.VariableDeclaration>(), source) &&
         foodIndexContext(node.arguments[0], node, source)) {
       return { symbol: "inline-numeric-food-map", subject: node.getText(source) };
     }
   }
-  if (rule.kind === "collection" && (rule.id === "17" || rule.id === "5") &&
+  if ((rule.detectorKey === "food-static-collection" || rule.detectorKey === "food-static-table") &&
       ts.isVariableDeclaration(node) && node.initializer &&
       parsedStaticFoodJson(node.initializer) !== undefined &&
       isConsumedSerializedFoodValue(node, source)) {
@@ -1656,8 +1714,8 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const numericMap = parsed !== null && typeof parsed === "object" &&
       !Array.isArray(parsed) && Object.keys(parsed).length > 0 &&
       Object.values(parsed).every(value => typeof value === "number" && Number.isFinite(value));
-    if ((rule.id === "17" && (lexical || numericRows || numericMap)) ||
-        (rule.id === "5" && (numericRows || numericMap))) {
+    if ((rule.failureClass === "I" && (lexical || numericRows || numericMap)) ||
+        (rule.failureClass === "C" && (numericRows || numericMap))) {
       return { symbol: node.name.getText(source) + ":serialized-food-knowledge",
         subject: node.initializer.getText(source) };
     }
@@ -1665,16 +1723,17 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "collection" && ts.isVariableDeclaration(node) &&
     node.initializer && isLiteralCollection(node.initializer)) {
     const symbol = node.name.getText(source);
-    const mappedLexicon = rule.id === "11" && isLexicalMap(node.initializer, unwrap) &&
+    const mappedLexicon = rule.ownerFunction === "lexical-knowledge" && isLexicalMap(node.initializer, unwrap) &&
       // The path alone does not make an ordinary UI/status dictionary a food lexicon.
       /food|alimento|lexic|normaliz|language|vocab|synonym|alias/i.test(
         symbol + " " + enclosingDeclaration(node));
     // Meal recommendations hardcoded in local dictionaries are actionable
     // domain knowledge, not ordinary strings shown in a status widget.
-    if (rule.id === "17" && isLiteralFoodMealChoiceCatalog(node.initializer, node)) {
+    if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
+        isLiteralFoodMealChoiceCatalog(node.initializer, node)) {
       return { symbol: symbol + ":meal-choice-catalog", subject: node.initializer.getText(source) };
     }
-    if (rule.id === "17" &&
+    if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
         ((ts.isIdentifier(node.name) &&
           /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&
           isPureContractSizeBounds(node.initializer) &&
@@ -1689,7 +1748,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       return { symbol, subject: node.initializer.getText(source) };
     }
   }
-  if (rule.kind === "collection" && rule.id === "17" &&
+  if (rule.detectorKey === "food-static-collection" && rule.failureClass === "I" &&
       ts.isObjectLiteralExpression(node) && isInlineFoodKnowledge(node)) {
     return { symbol: "inline-food-knowledge", subject: node.getText(source) };
   }
@@ -1701,7 +1760,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         !isDecisionBearingFoodScalar(node, source)) return null;
     const numericLiteral = staticNutritionNumber(value) !== null;
     const scalarDomain = source.fileName + " " + enclosingDeclaration(node);
-    const domainNumericFoodValue = rule.id === "17" && numericFoodField &&
+    const domainNumericFoodValue = rule.kind === "scalar" && numericFoodField &&
       numericLiteral &&
       /food|aliment|meal|nutrition|nutrient|ingredient|portion|porc|serving|recipe|receita/i.test(scalarDomain) &&
       !/exercise|activity|workout|fitness|burnedcalories/i.test(scalarDomain) &&
@@ -1788,9 +1847,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     // governed knowledge regardless of the spelling of individual food terms.
     const materialityDecision = /material|nutrition|packag|commercial|qualifier/i.test(decisionText);
     if (!unrelated && decision &&
-        (rule.id === "11" ? channelContext && domainContext :
-          rule.id === "17" ? domainContext : materialityDecision) &&
-        (rule.id !== "18" || materialityDecision)) {
+        (rule.ownerFunction === "lexical-knowledge" ? channelContext && domainContext :
+          !rule.ownerFunction ? domainContext : materialityDecision) &&
+        (rule.ownerFunction !== "attribute-materiality" || materialityDecision)) {
       return { symbol: (enclosingDeclaration(node) || "expression") + ":iterated-lexical-dictionary",
         subject: node.getText(source) + " " + behaviorText };
     }
@@ -1801,9 +1860,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const context = node.expression.getText(source) + " " +
       node.argumentExpression.getText(source) + " " + enclosingDeclaration(node);
     const unrelated = /status|account|user|profile|role|permission|featureflag|config|setting/i.test(context);
-    const relevant = rule.id === "11"
+    const relevant = rule.ownerFunction === "lexical-knowledge"
       ? /normaliz|language|lexic|food|aliment|word|term|input|text|token/i.test(context)
-      : rule.id === "18"
+      : rule.ownerFunction === "attribute-materiality"
         ? matches(rule.symbolPattern, context + " " + source.fileName)
         : isFoodDomainSource(source.fileName) || matches(rule.symbolPattern, context);
     if (!unrelated && relevant) {
@@ -1830,7 +1889,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       // The source path alone cannot make administrative status values food
       // materiality. Anonymous consumers still need domain-specific lexical
       // evidence declared in the rule registry (ADR gate 18).
-      const anonymousMateriality = rule.id === "18" &&
+      const anonymousMateriality = rule.ownerFunction === "attribute-materiality" &&
         isFoodDomainSource(source.fileName) && !!rule.evidencePattern &&
         matches(rule.evidencePattern, words.join(" "));
       if (matches(rule.symbolPattern, context) || anonymousMateriality) {
@@ -1857,7 +1916,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       hasLexicalVocabularyRegex(regexSource, node);
     // Materiality vocabulary in the registry is evidence for this detector,
     // not a product-level nutrition or identity decision.
-    const materialityLexeme = rule.id === "18" && !!rule.evidencePattern &&
+    const materialityLexeme = rule.ownerFunction === "attribute-materiality" && !!rule.evidencePattern &&
       (isFoodDomainSource(source.fileName) ||
         (rule.lexicalEvidencePathPattern !== undefined &&
           matches(rule.lexicalEvidencePathPattern, source.fileName))) &&
@@ -1877,10 +1936,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ["includes", "startsWith", "endsWith", "indexOf", "localeCompare"].includes(node.expression.name.text) &&
       node.arguments.length >= 1 &&
       (node.expression.name.text === "localeCompare" ? node.arguments.length <= 3 : node.arguments.length === 1) &&
-      isStaticText(unwrap(node.arguments[0])) &&
+      immutableDecisionString(unwrap(node.arguments[0]), node, source) !== null &&
       (!["indexOf", "localeCompare"].includes(node.expression.name.text) ||
         isLexicalNumericComparison(node))) {
-    const literal = (unwrap(node.arguments[0]) as ts.StringLiteral).text;
+    const literal = immutableDecisionString(unwrap(node.arguments[0]), node, source)!;
     const receiver = node.expression.expression.getText(source);
     const owner = enclosingDeclaration(node);
     const context = source.fileName + " " + owner + " " + receiver;
@@ -1891,10 +1950,10 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const word = /[a-zA-ZÀ-ÿ]{2,}/.test(literal);
     const semanticOwner = /food|aliment|nutrition|meal|ingredient|portion|porc|serving|recipe|lexic|alias|normaliz/i.test(owner + " " + receiver);
     const decidingFunction = /classif|resolv|normaliz|parse|identif|detect|decid|qualif|match|infer|select|extract/i.test(owner);
-    const relevant = rule.id === "18"
+    const relevant = rule.ownerFunction === "attribute-materiality"
       ? matches(rule.evidencePattern, literal) ||
         /material|qualifier|attribute|packag|commercial/i.test(owner + " " + receiver)
-      : rule.id === "11"
+      : rule.ownerFunction === "lexical-knowledge"
         ? /food|aliment|normaliz|lexic|alias|synonym|input/i.test(owner + " " + receiver)
         : semanticOwner || (isFoodDomainSource(source.fileName) && decidingFunction);
     if (word && domain && !unrelated && relevant) {
@@ -1958,12 +2017,13 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
         /food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(body) &&
         /\[[^\]]+\]|\.get\s*\(|\.find\s*\(|\.filter\s*\(|resolve|select|decide|match|lookup|return\s*\{/i.test(body);
       const namedRule = matches(rule.symbolPattern, symbol);
-      if (!namedRule && !(rule.id === "2" &&
+      const genericOwnerRule = !rule.pathPattern;
+      if (!namedRule && !(genericOwnerRule &&
           /resolv|select|identify|infer|classif|lookup|match|choose|decid|pick|find/i.test(symbol) &&
           foodBodyDecision)) return null;
       // Account/status resolvers without food-specific decisions stay outside
       // gate 2 even if they have a generic resolver-like name.
-      if (rule.id === "2" &&
+      if (genericOwnerRule &&
           !/food|alimento|nutrition|nutrient|portion|porc|serving|ingredient|meal/i.test(signature) &&
           !foodBodyDecision) return null;
       // A pure delegation to the real canonical import is not a competing
@@ -1979,7 +2039,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       ? block.parent : null;
     if (!branch) return null;
     const operand = branch.expression.getText(source);
-    const relevant = rule.id === "17"
+    const relevant = rule.ownerFunction !== "attribute-materiality"
       ? matches(rule.symbolPattern, operand) ||
         hasFoodNameDecisionContext(branch.expression, node, source) ||
         hasGenericFoodIdentityDecisionContext(branch.expression, node, source)
@@ -2044,7 +2104,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     }
     const identity = leftLiteral !== null ? node.right : node.left;
     const operand = identity.getText(source);
-    const relevant = rule.id === "17"
+    const relevant = rule.ownerFunction !== "attribute-materiality"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
         identity, node, source) ||
         hasGenericFoodIdentityDecisionContext(identity, node, source)
@@ -2057,7 +2117,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
   if (rule.kind === "call" && ts.isCallExpression(node)) {
     const symbol = callTargetName(node.expression);
     const argumentsText = node.arguments.map(a => a.getText(source)).join(" ");
-    const provenance = rule.id === "3" ?
+    const provenance = rule.ownerFunction === "decision-roundtrip" ?
       node.arguments.map(arg => localDecisionEvidence(arg, node, source)).join(" ") : "";
     if (matches(rule.symbolPattern, symbol) &&
         matches(rule.evidencePattern, argumentsText + " " + provenance)) {
@@ -2184,11 +2244,20 @@ function findJsonFoodCatalog(
     hash = Math.imul(hash, 16777619);
   }
   const digest = (hash >>> 0).toString(16).padStart(8, "0");
-  const rules: Array<{ id: FoodWaveOneRuleId; failureClass: FoodFinding["failureClass"] }> =
-    foodRows ? [{ id: "17", failureClass: "I" }, { id: "5", failureClass: "C" }] :
-      [{ id: "17", failureClass: "A" }];
-  if (lexicalRows && channelSource && !rules.some(rule => rule.id === "11")) {
-    rules.push({ id: "11", failureClass: "A" });
+  const foodCatalogRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.detectorKey === "food-static-collection" && rule.failureClass === "I");
+  const numericPortionRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.detectorKey === "food-numeric-map-portions");
+  const lexicalRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.kind === "lexical-lookup" && !rule.ownerFunction);
+  const channelLexicalRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.ownerFunction === "lexical-knowledge");
+  const rules = foodRows
+    ? [foodCatalogRule, numericPortionRule].filter((rule): rule is FoodWaveOneRule => !!rule)
+    : [lexicalRule].filter((rule): rule is FoodWaveOneRule => !!rule);
+  if (lexicalRows && channelSource && channelLexicalRule &&
+      !rules.some(rule => rule.ownerFunction === channelLexicalRule.ownerFunction)) {
+    rules.push(channelLexicalRule);
   }
   return rules.map(rule => ({
     ruleId: rule.id, file: file.path, line: 1,
@@ -2196,8 +2265,7 @@ function findJsonFoodCatalog(
     fingerprint: rule.id + ":" + file.path + ":" +
       (foodRows ? "json-food-catalog:" : "json-food-lexicon:") + digest,
     failureClass: rule.failureClass,
-    description: foodRows ? "Catálogo alimentar JSON em fonte produtiva (" + foodRows + " registros)" :
-      "Léxico alimentar JSON governável em fonte produtiva (" + lexicalRows + " mapas)",
+    description: rule.description,
   }));
 }
 
@@ -2822,7 +2890,7 @@ function findCrossModuleNumericFoodMaps(
       const isExported = statement.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
       for (const declaration of statement.declarationList.declarations) {
         if (!ts.isIdentifier(declaration.name) || !declaration.initializer ||
-            !isLiteralNumericMap(declaration.initializer)) continue;
+            !isLiteralNumericMap(declaration.initializer, declaration, new Set<ts.VariableDeclaration>(), source)) continue;
         const record = { symbol: declaration.name.text, source: declaration.initializer.getText(source) };
         localNumericMaps.set(declaration.name.text, record);
         if (isExported) maps.set(declaration.name.text, record);
@@ -2832,7 +2900,8 @@ function findCrossModuleNumericFoodMaps(
       if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
         const value = unwrap(statement.expression);
         const record = ts.isIdentifier(value) ? localNumericMaps.get(value.text) :
-          isLiteralNumericMap(value) ? { symbol: "default", source: value.getText(source) } : undefined;
+          isLiteralNumericMap(value, statement, new Set<ts.VariableDeclaration>(), source)
+            ? { symbol: "default", source: value.getText(source) } : undefined;
         if (record) maps.set("default", record);
       }
     }
@@ -4707,6 +4776,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     ts.forEachChild(source, visitJsonUse);
   }
   const importedNumericMaps = findCrossModuleNumericFoodMaps(files, runtime, indexed);
+  const staticCollectionRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.detectorKey === "food-static-collection" && rule.failureClass === "I");
   for (const file of files) {
     if (!runtime.has(file.path.replace(/\\/g, "/"))) continue;
     if (/\.json$/i.test(file.path)) {
@@ -4725,22 +4796,22 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
     const source = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true);
     const filesystemBindings = filesystemReadBindings(source);
     function visit(node: ts.Node): void {
-      if (isOpaqueFoodJsonLoad(node, source, filesystemBindings) ||
-          isOpaqueFoodDynamicImport(node, source)) {
+      if (staticCollectionRule && (isOpaqueFoodJsonLoad(node, source, filesystemBindings) ||
+          isOpaqueFoodDynamicImport(node, source))) {
         const symbol = "opaque-runtime-food-data-load";
         results.push({
-          ruleId: "17", file: file.path,
+          ruleId: staticCollectionRule.id, file: file.path,
           line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
           symbol,
-          fingerprint: "17:" + file.path + ":" + symbol + ":" + stableHash(node.getText(source)),
-          failureClass: "I",
-          description: "Fonte alimentar dinamica em runtime sem prova estatica do catalogo",
+          fingerprint: staticCollectionRule.id + ":" + file.path + ":" + symbol + ":" + stableHash(node.getText(source)),
+          failureClass: staticCollectionRule.failureClass,
+          description: staticCollectionRule.description,
         });
       }
       for (const rule of FOOD_WAVE_ONE_RULES) {
         // New channel names must never bypass the single food decision owner.
-        const ownerDeclaration = (rule.id === "1" || rule.id === "2") &&
-          rule.kind === "function";
+        const ownerDeclaration = rule.kind === "function" &&
+          rule.ownerFunction === "food-resolution";
         // Exemption is the currently published owner contract, not a folder
         // or an arbitrary version name. New V1/V2/V3 resolver entrypoints must
         // be audited even if colocated with Food Intelligence modules.
@@ -4774,7 +4845,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
   );
   for (const candidate of consumedMealChoices) {
     // Local recommendations already detected above must keep one finding only.
-    if (!results.some(existing => existing.ruleId === "17" &&
+    if (!results.some(existing => existing.ruleId === candidate.ruleId &&
         existing.file === candidate.file && existing.line === candidate.line &&
         existing.symbol === candidate.symbol)) results.push(candidate);
   }
@@ -4793,11 +4864,8 @@ type FoodOwnerFunction = "lexical-knowledge" | "attribute-materiality" |
   "decision-roundtrip" | "nutrition-source-selection";
 
 function ownerFunction(finding: FoodFinding): FoodOwnerFunction {
-  if (finding.ruleId === "18") return "attribute-materiality";
-  if (finding.ruleId === "11") return "lexical-knowledge";
-  if (finding.ruleId === "3") return "decision-roundtrip";
-  if (finding.ruleId === "4") return "nutrition-source-selection";
-  if (["1", "2", "10"].includes(finding.ruleId)) return "food-resolution";
+  const declared = FOOD_WAVE_ONE_RULES.find(rule => rule.id === finding.ruleId && rule.ownerFunction);
+  if (declared?.ownerFunction) return declared.ownerFunction;
   if (/alias|lexic|vocab|synonym|normaliz|replacement|token/i.test(finding.symbol)) {
     return "lexical-knowledge";
   }
@@ -4851,5 +4919,9 @@ export function groupCompetingFoodOwners(inventory: ReturnType<typeof findCompet
 
 /** The non-lexicon, non-materiality wave-one detectors. */
 export function findFoodIntelligenceViolations(files: FoodArchitectureFile[]) {
-  return findFoodStaticCandidates(files).filter(finding => finding.ruleId !== "11" && finding.ruleId !== "18");
+  const lexicalRuleIds = new Set(FOOD_WAVE_ONE_RULES
+    .filter(rule => rule.ownerFunction === "lexical-knowledge" ||
+      rule.ownerFunction === "attribute-materiality")
+    .map(rule => rule.id));
+  return findFoodStaticCandidates(files).filter(finding => !lexicalRuleIds.has(finding.ruleId));
 }

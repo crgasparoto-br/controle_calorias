@@ -40,6 +40,12 @@ const probes: readonly (readonly [string, string, boolean])[] = [
   ["F76 logical and mutation","const opts={method:'GET'};const alias=true&&opts;alias.method='POST';",false],
   ["F76 logical or mutation","const opts={method:'GET'};const alias=false||opts;alias.method='POST';",false],
   ["F76 arrow unrelated reference","const opts={method:'GET'};const other={method:'POST'};const alias=(()=>other)();alias.method='GET';",true],
+  ["F77 property write stores RequestInit","const opts={method:'GET'};const holder:any={};holder.options=opts;holder.options.method='POST';",false],
+  ["F77 computed property write stores RequestInit","const opts={method:'GET'};const holder:any={};holder['options']=opts;holder.options.method='POST';",false],
+  ["F78 named transparent wrapper mutation","const opts={method:'GET'};const expose=()=>opts;const alias=expose();alias.method='POST';",false],
+  ["F78 named block wrapper mutation","const opts={method:'GET'};const expose=()=>{return opts};const alias=expose();alias.method='POST';",false],
+  ["F78 opaque named wrapper mutation","const opts={method:'GET'};const expose=()=>{sideEffect();return opts};const alias=expose();alias.method='POST';",false],
+  ["F78 named transparent wrapper read","const opts={method:'GET'};const expose=()=>opts;const alias=expose();const method=alias.method;",true],
 ];
 
 const consumer = `export async function check(foodName:string){

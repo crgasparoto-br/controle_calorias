@@ -7,12 +7,14 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { findFoodStaticCandidates, findCompetingOwnerInventory, groupCompetingFoodOwners } from "./food-intelligence-architecture";
-import { type FoodDebt } from "./food-architecture-debt";
-import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
+import { validateFoodDebtLedger } from "./food-architecture-debt";
+import { FOOD_WAVE_ONE_RULES, validateFoodWaveOneRegistry } from "./food-architecture-rules";
 import { findFoodBaselineDelta, readFoodFilesAtGitRef, readFoodWorkingFiles } from "./food-architecture-baseline";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 
 const root = process.cwd();
+const registryErrors = validateFoodWaveOneRegistry();
+if (registryErrors.length) throw new Error(registryErrors.join("; "));
 function walk(dir: string): string[] {
   const base = path.join(root, dir);
   if (!existsSync(base)) return [];
@@ -25,14 +27,29 @@ function walk(dir: string): string[] {
 function sha(): string {
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 }
+function digest(entries: Array<{ path: string; content: string }>): string {
+  const hash = createHash("sha256");
+  for (const entry of [...entries].sort((left, right) => left.path.localeCompare(right.path))) {
+    hash.update(entry.path).update("\0").update(entry.content).update("\0");
+  }
+  return hash.digest("hex");
+}
+function gitBlobSha(baseSha: string, file: string): string {
+  return execFileSync("git", ["rev-parse", `${baseSha}:${file}`], { cwd: root, encoding: "utf8" }).trim();
+}
+const sourceSha = sha();
+const workingTreeClean = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+  cwd: root, encoding: "utf8",
+}).trim().length === 0;
 const files = readFoodWorkingFiles(root);
 const findings = findFoodStaticCandidates(files);
 const provisionalInventory = findCompetingOwnerInventory(files);
-const ledger = JSON.parse(readFileSync(path.join(root, "architecture-debt.json"), "utf8")) as { entries: FoodDebt[] };
-if (!Array.isArray(ledger.entries)) throw new Error("Invalid architecture debt ledger: entries array required");
+const ledger = validateFoodDebtLedger(
+  JSON.parse(readFileSync(path.join(root, "architecture-debt.json"), "utf8")), root,
+);
 const pinned = JSON.parse(readFileSync(path.join(root, "docs/design-docs/food-architecture-owners-1300.json"), "utf8")) as {
   baseSha: string;
-  observations: Array<{ file: string; symbol: string; rules: string[];
+  observations: Array<{ file: string; sourceBlobSha: string; symbol: string; rules: string[];
     review?: { classification: string; basis: string };
     behavioralReview?: {
       sourceAnchor: string; responsibility: string; observedDecision: string;
@@ -48,6 +65,13 @@ if (pinned.baseSha !== "0040adffc989d0b4d47e7cdc640ab9878e82c993") {
 const frozenSourceFiles = readFoodFilesAtGitRef(pinned.baseSha, root);
 const frozenFindings = findFoodStaticCandidates(frozenSourceFiles);
 const frozenSourceIndex = new Map(frozenSourceFiles.map(file => [file.path, file.content]));
+for (const observation of pinned.observations) {
+  const actualBlob = gitBlobSha(pinned.baseSha, observation.file);
+  if (actualBlob !== observation.sourceBlobSha) {
+    throw new Error("Stale owner sourceBlobSha at immutable develop SHA: " +
+      observation.file + " expected=" + observation.sourceBlobSha + " actual=" + actualBlob);
+  }
+}
 const reviewedOwnerResponsibilities = pinned.observations.map(item => {
   const review = item.behavioralReview;
   const source = frozenSourceIndex.get(item.file);
@@ -141,7 +165,6 @@ const triageQueue = rawTriageQueue.map(item => {
 // R1300-05: process *every* pending candidate rather than sampling. Prove
 // the source/line at this SHA, but never call source inspection a behavioral
 // certification of a competing owner or a nutrition rule.
-const sourceSha = sha();
 const sourceLines = new Map(files.map(file => [file.path, file.content.split(/\r?\n/)]));
 const sourceAnchoredTriage = triageQueue.map(item => {
   const lines = sourceLines.get(item.file);
@@ -162,6 +185,12 @@ const sourceAnchoredTriage = triageQueue.map(item => {
 });
 const report = {
   sourceSha,
+  workingTreeClean,
+  sourceTreeSha: digest(files),
+  ledgerSha256: createHash("sha256").update(readFileSync(path.join(root, "architecture-debt.json"))).digest("hex"),
+  ownersSha256: createHash("sha256").update(
+    readFileSync(path.join(root, "docs/design-docs/food-architecture-owners-1300.json")),
+  ).digest("hex"),
   enforcementBaselineSha: pinned.baseSha,
   baselineRef,
   baselineSha,
@@ -191,7 +220,7 @@ const report = {
   },
   inventory,
   ownerInventory: {
-    sourceSha: sha(),
+    sourceSha,
     reviewPolicy: "AST owner candidates grouped by domain decision; competing responsibility requires runtime review",
     byDecisionFunction: groupCompetingFoodOwners(provisionalInventory),
     reviewedLegacyResponsibilities: reviewedOwnerResponsibilities,
@@ -239,3 +268,4 @@ console.log(JSON.stringify(report, null, 2));
 if (process.argv.includes("--enforce") && enforced.errors.length > 0) process.exitCode = 1;
 if (process.argv.includes("--fail-new") && enforced.delta.added.length > 0) process.exitCode = 1;
 if (process.argv.includes("--require-baseline") && !baselineComparison) process.exitCode = 1;
+if (process.argv.includes("--enforce") && !workingTreeClean) process.exitCode = 1;

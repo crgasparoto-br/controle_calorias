@@ -198,7 +198,7 @@ export function findTransitiveAlternativeResolverFindings(
     return neutralEdgeCache.get(key)!;
   };
   const alternateResolver = /nutritionEngine|foodItemResolution|catalogMatching|foodSemanticCompatibility/i;
-  const gate10 = FOOD_WAVE_ONE_RULES.find(rule => rule.id === "10" && rule.kind === "import");
+  const gate10 = FOOD_WAVE_ONE_RULES.find(rule => rule.detectorKey === "alternative-resolver-import");
   if (gate10) for (const origin of [...runtime].filter(file =>
     isProductionFoodSource(file) && (!gate10.pathPattern || new RegExp(gate10.pathPattern, "i").test(file)))) {
     const frontier: Array<{ file: string; depth: number }> = [{ file: origin, depth: 0 }];
@@ -218,10 +218,10 @@ export function findTransitiveAlternativeResolverFindings(
             !emitted.has(dependency) && !neutralEdge(file, dependency)) {
           const symbol = "transitive-import:" + dependency;
           results.push({
-            ruleId: "10", file: origin, line: 1, symbol,
-            fingerprint: "10:" + origin + ":" + symbol + ":" + stableHash(symbol),
-            failureClass: "E",
-            description: "Canal alcança resolvedor alimentar alternativo por importação indireta",
+            ruleId: gate10.id, file: origin, line: 1, symbol,
+            fingerprint: gate10.id + ":" + origin + ":" + symbol + ":" + stableHash(symbol),
+            failureClass: gate10.failureClass,
+            description: gate10.description,
           });
           emitted.add(dependency);
         }

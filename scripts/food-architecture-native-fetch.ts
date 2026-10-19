@@ -77,6 +77,41 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     const id = root(node);
     return !!id && aliases.has(id.text) && sameBinding(id, id.text);
   };
+  const resolveClosure = (callee: ts.Expression, location: ts.Node): ts.FunctionLikeDeclaration | undefined => {
+    const value = unwrap(callee);
+    if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
+    if (!ts.isIdentifier(value)) return undefined;
+    for (let scope: ts.Node | undefined = location; scope; scope = scope.parent) {
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name?.text === value.text) return statement;
+        if (!ts.isVariableStatement(statement) ||
+            !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+        const declaration = statement.declarationList.declarations.find(item =>
+          ts.isIdentifier(item.name) && item.name.text === value.text && item.initializer &&
+          item.getStart() < location.getStart());
+        const initializer = declaration?.initializer && unwrap(declaration.initializer);
+        if (initializer && (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))) return initializer;
+      }
+    }
+    return undefined;
+  };
+  const closureReturn = (fn: ts.FunctionLikeDeclaration): ts.Expression | undefined => {
+    if (fn.parameters.length > 0) return undefined;
+    if (!fn.body) return undefined;
+    if (!ts.isBlock(fn.body)) return fn.body;
+    if (fn.body.statements.length !== 1 || !ts.isReturnStatement(fn.body.statements[0])) return undefined;
+    return fn.body.statements[0].expression;
+  };
+  const closureCapturesOptions = (fn: ts.FunctionLikeDeclaration): boolean => {
+    let captured = false;
+    const scan = (node: ts.Node): void => {
+      if (node !== fn && references(node)) captured = true;
+      if (!captured) ts.forEachChild(node, scan);
+    };
+    if (fn.body) scan(fn.body);
+    return captured;
+  };
   // Object identity can propagate through aliases and inert containers. Track
   // containers separately: putting a RequestInit in an array does not mutate
   // it, but a subsequent write/escape through that array invalidates the proof.
@@ -139,7 +174,16 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
         const body = ts.isBlock(fn.body) ?
           fn.body.statements.length === 1 && ts.isReturnStatement(fn.body.statements[0])
             ? fn.body.statements[0].expression : undefined : fn.body;
-        return body ? containedPaths(body, depth + 1) : [];
+        return body ? containedPaths(body, depth + 1) :
+          closureCapturesOptions(fn) ? [["*"]] : [];
+      }
+      if (value.arguments.length === 0) {
+        const closure = resolveClosure(value.expression, value);
+        if (closure) {
+          const returned = closureReturn(closure);
+          if (returned) return containedPaths(returned, depth + 1);
+          if (closureCapturesOptions(closure)) return [["*"]];
+        }
       }
     }
     return [];
@@ -319,6 +363,13 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
   let unsafe = false;
   const visit = (node: ts.Node): void => {
     if (unsafe || node === declaration) return;
+    if (ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+        (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left)) &&
+        containedPaths(node.right).length > 0) {
+      unsafe = true; return;
+    }
     if (ts.isBinaryExpression(node) &&
         node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
         node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
@@ -621,4 +672,3 @@ export function isNativeViteFetchTarget(
   }
   return value.text === "fetch" && unshadowedIntrinsic("fetch", use);
 }
-

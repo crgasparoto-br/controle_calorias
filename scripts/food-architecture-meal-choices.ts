@@ -3,6 +3,7 @@
  * Trace lexical bindings instead of guessing food names or filename exemptions. */
 import ts from "typescript";
 import type { FoodArchitectureFile, FoodFinding } from "./food-intelligence-architecture";
+import { FOOD_WAVE_ONE_RULES } from "./food-architecture-rules";
 
 const mealKey = /^(?:breakfast|lunch|dinner|snack|supper|general|pre[_-]?workout|post[_-]?workout|cafe[_ -]?da[_ -]?manha|almoco|jantar|lanche|ceia)$/i;
 const uiAction = /^(?:editar|excluir|abrir|fechar|salvar|cancelar|copiar|visualizar|imprimir|selecionar|remover|apagar|voltar|proximo|próximo)\b/i;
@@ -134,7 +135,10 @@ export function findConsumedMealChoiceCatalogs(
       register(file);
     }
   }
-  const alreadyFlagged = new Set(previousFindings.filter(f => f.ruleId === "17")
+  const mealChoiceRule = FOOD_WAVE_ONE_RULES.find(rule =>
+    rule.detectorKey === "food-static-collection" && rule.failureClass === "I");
+  if (!mealChoiceRule) return [];
+  const alreadyFlagged = new Set(previousFindings.filter(f => f.ruleId === mealChoiceRule.id)
     .map(f => f.file + ":" + f.line + ":" + f.symbol));
   for (const [id, catalog] of catalogs) {
     const source = sources.get(catalog.file)!;
@@ -445,11 +449,11 @@ export function findConsumedMealChoiceCatalogs(
     const source = sources.get(catalog.file)!;
     const symbol = catalog.name + ":meal-choice-catalog";
     return [{
-      ruleId: "17", file: catalog.file,
+      ruleId: mealChoiceRule.id, file: catalog.file,
       line: source.getLineAndCharacterOfPosition(catalog.node.getStart(source)).line + 1,
       symbol,
-      fingerprint: "17:" + catalog.file + ":" + symbol + ":" + hash(catalog.subject),
-      failureClass: "I", description: "Catálogo estático de sugestões alimentares consumido em decisão produtiva",
+      fingerprint: mealChoiceRule.id + ":" + catalog.file + ":" + symbol + ":" + hash(catalog.subject),
+      failureClass: mealChoiceRule.failureClass, description: mealChoiceRule.description,
     }];
   });
 }
