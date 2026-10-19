@@ -2267,8 +2267,12 @@ function resolveVitePublicAsset(
   importer: string, specifier: string, indexed: Map<string, FoodArchitectureFile>,
 ): string[] {
   if (!importer.startsWith("client/src/") || !specifier.startsWith("/") ||
-      specifier.startsWith("//") || /[?#\\]/.test(specifier)) return [];
-  const candidate = path.posix.normalize("client/public/" + specifier.slice(1));
+      specifier.startsWith("//") || /\\/.test(specifier)) return [];
+  // Browser search parameters and fragments do not change the public asset.
+  // Keep the proven local source even when the URL uses a cache-busting suffix.
+  const pathname = specifier.split(/[?#]/, 1)[0];
+  if (!pathname || pathname === "/") return [];
+  const candidate = path.posix.normalize("client/public/" + pathname.slice(1));
   return candidate.startsWith("client/public/") && indexed.has(candidate) ? [candidate] : [];
 }
 
@@ -4088,8 +4092,21 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             ts.isIdentifier(parameter.name) && parameter.name.text === name)!;
           const binding = [...jsonCallFrames].reverse().map(frame => frame.get(param))
             .find(Boolean);
-          return binding ? resolveJsonExpression(binding.value, binding.use,
-            new Set(seen), depth + 1, kind, decisionUse) : [];
+          if (binding) return resolveJsonExpression(binding.value, binding.use,
+            new Set(seen), depth + 1, kind, decisionUse);
+          // A Promise.then callback receives the resolved value of the previous
+          // promise. Follow only the parameter bound directly to that callback.
+          const parent = ts.isParenthesizedExpression(scope.parent)
+            ? scope.parent.parent : scope.parent;
+          if ((ts.isArrowFunction(scope) || ts.isFunctionExpression(scope)) &&
+              ts.isCallExpression(parent) && parent.arguments[0] &&
+              unwrap(parent.arguments[0]) === scope &&
+              ts.isPropertyAccessExpression(parent.expression) &&
+              parent.expression.name.text === "then" && scope.parameters.length === 1) {
+            return resolveJsonExpression(parent.expression.expression, parent,
+              new Set(seen), depth + 1, kind, decisionUse);
+          }
+          return [];
         }
         if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
         for (const statement of scope.statements) {
