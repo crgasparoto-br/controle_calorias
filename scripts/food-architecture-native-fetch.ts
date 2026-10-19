@@ -89,9 +89,11 @@ export function isNativeViteFetchTarget(
     // A bound global must be provably the same intrinsic receiver.
     const boundReceiver = ts.isPropertyAccessExpression(native) || ts.isElementAccessExpression(native)
       ? unwrap(native.expression) : null;
-    return !!boundReceiver && ts.isIdentifier(boundReceiver) && ts.isIdentifier(receiver) &&
-      receiver.text === boundReceiver.text &&
+    return ts.isIdentifier(receiver) &&
+      (receiver.text === "window" || receiver.text === "globalThis") &&
       unshadowedIntrinsic(receiver.text, use) &&
+      (!boundReceiver || (ts.isIdentifier(boundReceiver) &&
+        boundReceiver.text === receiver.text)) &&
       isNativeViteFetchTarget(native, use, visited, depth + 1);
   }
   if (!ts.isIdentifier(value)) return false;
