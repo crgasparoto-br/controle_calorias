@@ -85,7 +85,12 @@ describe("AUD1300 F80 — executable debt schema", () => {
   });
 
   it("keeps productive finding dispatches declarative", () => {
-    for (const file of ["scripts/food-intelligence-architecture.ts", "scripts/food-architecture-lexical-imports.ts"]) {
+    for (const file of [
+      "scripts/food-intelligence-architecture.ts",
+      "scripts/food-architecture-lexical-imports.ts",
+      "scripts/food-lexicon-architecture.ts",
+      "scripts/food-materiality-architecture.ts",
+    ]) {
       const source = readFileSync(file, "utf8");
       expect(source, file).not.toMatch(/for \(const ruleId of \[\"(?:5|11|17|18)\"/);
       expect(source, file).not.toMatch(/const ruleId = (?:materiality|channel)/);
