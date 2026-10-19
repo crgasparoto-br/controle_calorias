@@ -45,30 +45,67 @@ export function unshadowedIntrinsic(name: string, use: ts.Node): boolean {
 /** Only a statically inert GET RequestInit proves the same local resource.
  * Calls, spreads, accessors, dynamic options and non-GET requests are unknown
  * rather than silently attributed to a food JSON catalog. */
-function isStaticGetRequestInit(input: ts.Expression): boolean {
-  const literal = (expression: ts.Expression, depth = 0): boolean => {
-    if (depth > 8) return false;
+function isStaticGetRequestInit(input: ts.Expression, use: ts.Node): boolean {
+  const seen = new Set<ts.VariableDeclaration>();
+  const literal = (expression: ts.Expression, location: ts.Node, depth = 0,
+    requireObject = false, topLevel = false): boolean => {
+    if (depth > 10) return false;
     const value = unwrap(expression);
-    if (isStaticText(value) || ts.isNumericLiteral(value) ||
+    if (ts.isIdentifier(value)) {
+      // A statically known, lexically scoped const is as safe as an inline
+      // RequestInit. Mutable/shadowed/dynamic options are intentionally unknown.
+      for (let scope: ts.Node | undefined = location; scope; scope = scope.parent) {
+        if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          declaresBinding(param.name, value.text))) return false;
+        if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          declaresBinding(scope.variableDeclaration.name, value.text)) return false;
+        if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+        for (const statement of scope.statements) {
+          if (ts.isVariableStatement(statement)) for (const declaration of statement.declarationList.declarations) {
+            if (!declaresBinding(declaration.name, value.text)) continue;
+            if (!ts.isIdentifier(declaration.name) ||
+                !(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                !declaration.initializer || seen.has(declaration) ||
+                declaration.getStart() >= location.getStart()) return false;
+            seen.add(declaration);
+            try {
+              return literal(declaration.initializer, declaration, depth + 1, requireObject, topLevel);
+            } finally { seen.delete(declaration); }
+          }
+          if ((ts.isClassDeclaration(statement) || ts.isFunctionDeclaration(statement)) &&
+              statement.name?.text === value.text) return false;
+          if (ts.isImportDeclaration(statement) && statement.importClause &&
+              (statement.importClause.name?.text === value.text ||
+                (statement.importClause.namedBindings &&
+                  (ts.isNamespaceImport(statement.importClause.namedBindings)
+                    ? statement.importClause.namedBindings.name.text === value.text
+                    : statement.importClause.namedBindings.elements.some(el => el.name.text === value.text)))))
+            return false;
+        }
+      }
+      return false;
+    }
+    if (!requireObject && (isStaticText(value) || ts.isNumericLiteral(value) ||
         value.kind === ts.SyntaxKind.TrueKeyword ||
         value.kind === ts.SyntaxKind.FalseKeyword ||
-        value.kind === ts.SyntaxKind.NullKeyword) return true;
-    if (ts.isArrayLiteralExpression(value)) return value.elements.every(element =>
-      !ts.isSpreadElement(element) && literal(element, depth + 1));
+        value.kind === ts.SyntaxKind.NullKeyword)) return true;
+    if (!requireObject && ts.isArrayLiteralExpression(value)) return value.elements.every(element =>
+      !ts.isSpreadElement(element) && literal(element, element, depth + 1));
     if (!ts.isObjectLiteralExpression(value)) return false;
     return value.properties.every(property => {
       if (!ts.isPropertyAssignment(property)) return false;
       const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
         ? property.name.text : null;
-      if (key === null || key === "body" || key === "duplex") return false;
-      if (key === "method") {
+      if (key === null) return false;
+      if (topLevel && (key === "body" || key === "duplex")) return false;
+      if (topLevel && key === "method") {
         const method = unwrap(property.initializer);
         if (!isStaticText(method) || method.text.toUpperCase() !== "GET") return false;
       }
-      return literal(property.initializer, depth + 1);
+      return literal(property.initializer, property, depth + 1);
     });
   };
-  return ts.isObjectLiteralExpression(unwrap(input)) && literal(input);
+  return literal(input, use, 0, true, true);
 }
 
 /** Accept a wrapper only when it forwards its sole URL argument without
