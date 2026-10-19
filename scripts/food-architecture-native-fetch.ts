@@ -118,16 +118,29 @@ function forwardsNativeFetch(
   if (depth > 12 || fn.parameters.length !== 1 ||
       !ts.isIdentifier(fn.parameters[0].name) || fn.parameters[0].dotDotDotToken || !fn.body)
     return false;
-  const body = ts.isBlock(fn.body) && fn.body.statements.length === 1 &&
-      ts.isReturnStatement(fn.body.statements[0])
-    ? fn.body.statements[0].expression :
-    ts.isBlock(fn.body) ? undefined : fn.body;
+  // A wrapper may prepare a literal RequestInit in local const statements.
+  // Only permit side-effect-free, statically proven GET options before return.
+  const body = ts.isBlock(fn.body)
+    ? (() => {
+        const statements = fn.body.statements;
+        const last = statements[statements.length - 1];
+        if (!last || !ts.isReturnStatement(last)) return undefined;
+        if (!statements.slice(0, -1).every(statement =>
+          ts.isVariableStatement(statement) &&
+          !!(statement.declarationList.flags & ts.NodeFlags.Const) &&
+          statement.declarationList.declarations.every(declaration =>
+            ts.isIdentifier(declaration.name) && !!declaration.initializer &&
+            isStaticGetRequestInit(declaration.initializer, declaration))))
+          return undefined;
+        return last.expression;
+      })()
+    : fn.body;
   if (!body) return false;
   const result = unwrap(body);
   const call = ts.isAwaitExpression(result) ? unwrap(result.expression) : result;
   return ts.isCallExpression(call) &&
     (call.arguments.length === 1 ||
-      (call.arguments.length === 2 && isStaticGetRequestInit(call.arguments[1]))) &&
+      (call.arguments.length === 2 && isStaticGetRequestInit(call.arguments[1], call))) &&
     ts.isIdentifier(unwrap(call.arguments[0])) &&
     (unwrap(call.arguments[0]) as ts.Identifier).text === fn.parameters[0].name.text &&
     isNativeViteFetchTarget(call.expression, call, visited, depth + 1);
