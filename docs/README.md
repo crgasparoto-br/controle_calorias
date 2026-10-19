@@ -421,3 +421,5 @@ bloqueios automáticos. `scripts/food-architecture-audit1300-f69-f70.test.ts`
 contém controles positivos/negativos do detector e do enforcement; a semântica
 canônica permanece na ADR §§19 e 25.2, sem alterar `architecture-debt.json`,
 a baseline histórica ou os gates runtime 6/8/15.
+
+**Issue #1300 — remediação AUD1300-20261019-F71 (19/10/2026):** wrappers transparentes de um único argumento de URL, com chamada nativa `fetch(url, RequestInit)`, mantêm a proveniência do catálogo JSON Vite quando a configuração GET é literal, estática e sem efeitos de avaliação (por exemplo `cache` e `headers`). O rastreamento preserva aliases imutáveis, chamadas com `await` e cadeias `.then`; continua conservador diante de URL alterada, `method` diferente de GET, `body`, parâmetros dinâmicos, spreads, chamadas com efeitos, globals sombreados, provedores não nativos, exercícios e usos apenas de apresentação. Os controles F71 positivos/negativos estão em `scripts/food-architecture-audit1300-f69-f70.test.ts` e exercitam `findFoodStaticCandidates()` e `evaluateFoodArchitectureGate()`; o baseline, `architecture-debt.json` e gates runtime 6/8/15 permanecem intactos.

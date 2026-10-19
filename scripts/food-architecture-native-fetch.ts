@@ -42,8 +42,38 @@ export function unshadowedIntrinsic(name: string, use: ts.Node): boolean {
   return true;
 }
 
-/** Accept a wrapper only when it forwards its sole argument without
- * rewriting the resource, choosing another provider or performing side effects. */
+/** Only a statically inert GET RequestInit proves the same local resource.
+ * Calls, spreads, accessors, dynamic options and non-GET requests are unknown
+ * rather than silently attributed to a food JSON catalog. */
+function isStaticGetRequestInit(input: ts.Expression): boolean {
+  const literal = (expression: ts.Expression, depth = 0): boolean => {
+    if (depth > 8) return false;
+    const value = unwrap(expression);
+    if (isStaticText(value) || ts.isNumericLiteral(value) ||
+        value.kind === ts.SyntaxKind.TrueKeyword ||
+        value.kind === ts.SyntaxKind.FalseKeyword ||
+        value.kind === ts.SyntaxKind.NullKeyword) return true;
+    if (ts.isArrayLiteralExpression(value)) return value.elements.every(element =>
+      !ts.isSpreadElement(element) && literal(element, depth + 1));
+    if (!ts.isObjectLiteralExpression(value)) return false;
+    return value.properties.every(property => {
+      if (!ts.isPropertyAssignment(property)) return false;
+      const key = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
+        ? property.name.text : null;
+      if (key === null || key === "body" || key === "duplex") return false;
+      if (key === "method") {
+        const method = unwrap(property.initializer);
+        if (!isStaticText(method) || method.text.toUpperCase() !== "GET") return false;
+      }
+      return literal(property.initializer, depth + 1);
+    });
+  };
+  return ts.isObjectLiteralExpression(unwrap(input)) && literal(input);
+}
+
+/** Accept a wrapper only when it forwards its sole URL argument without
+ * rewriting the resource, choosing another provider or performing side effects.
+ * An inert, statically known GET RequestInit does not rewrite that URL. */
 function forwardsNativeFetch(
   fn: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration,
   visited: Set<ts.VariableDeclaration>, depth: number,
@@ -58,7 +88,9 @@ function forwardsNativeFetch(
   if (!body) return false;
   const result = unwrap(body);
   const call = ts.isAwaitExpression(result) ? unwrap(result.expression) : result;
-  return ts.isCallExpression(call) && call.arguments.length === 1 &&
+  return ts.isCallExpression(call) &&
+    (call.arguments.length === 1 ||
+      (call.arguments.length === 2 && isStaticGetRequestInit(call.arguments[1]))) &&
     ts.isIdentifier(unwrap(call.arguments[0])) &&
     (unwrap(call.arguments[0]) as ts.Identifier).text === fn.parameters[0].name.text &&
     isNativeViteFetchTarget(call.expression, call, visited, depth + 1);
