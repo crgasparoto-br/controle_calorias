@@ -2,7 +2,9 @@
 import ts from "typescript";
 
 function unwrap(expr: ts.Expression): ts.Expression {
-  if (ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr) || ts.isParenthesizedExpression(expr))
+  if (ts.isAsExpression(expr) || ts.isSatisfiesExpression(expr) ||
+      ts.isParenthesizedExpression(expr) || ts.isNonNullExpression(expr) ||
+      ts.isTypeAssertionExpression(expr))
     return unwrap(expr.expression);
   return expr;
 }
@@ -47,6 +49,7 @@ export function unshadowedIntrinsic(name: string, use: ts.Node): boolean {
  * declared (the wrapper can be invoked later). Keep lexical shadowing distinct. */
 function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node): boolean {
   if (!ts.isIdentifier(declaration.name)) return false;
+  const optionName = declaration.name.text;
   let owner: ts.Node | undefined = declaration;
   while (owner && !ts.isBlock(owner) && !ts.isSourceFile(owner)) owner = owner.parent;
   if (!owner) return false;
@@ -81,12 +84,22 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
   // Preserve the specific array indexes/object keys containing the options.
   // Mutating an unrelated sibling must not invalidate a safe GET.
   const containerPaths = new Map<string, string[][]>();
+  // Paths locate the original RequestInit identity inside a value. An empty
+  // path means the value itself is the options object. Project only through
+  // transparent operations: a sibling field is never an alias to options.
   const containedPaths = (expr: ts.Expression, depth = 0): string[][] => {
     if (depth > 10) return [["*"]];
     const value = unwrap(expr);
     if (ts.isIdentifier(value) && references(value)) return [[]];
     if (ts.isIdentifier(value) && containers.has(value.text) && sameBinding(value, value.text))
       return containerPaths.get(value.text) || [["*"]];
+    if (ts.isConditionalExpression(value)) return [
+      ...containedPaths(value.whenTrue, depth + 1),
+      ...containedPaths(value.whenFalse, depth + 1),
+    ];
+    if (ts.isBinaryExpression(value) && [ts.SyntaxKind.QuestionQuestionToken,
+      ts.SyntaxKind.BarBarToken, ts.SyntaxKind.AmpersandAmpersandToken].includes(value.operatorToken.kind))
+      return [...containedPaths(value.left, depth + 1), ...containedPaths(value.right, depth + 1)];
     if (ts.isArrayLiteralExpression(value)) return value.elements.flatMap((e, index) =>
       ts.isSpreadElement(e) ? (containedPaths(e.expression, depth + 1).length ? [["*"]] : []) :
       ts.isExpression(e) ? containedPaths(e, depth + 1).map(path => [String(index), ...path]) : []);
@@ -99,22 +112,39 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
         ts.isNumericLiteral(p.name) ? p.name.text : "*";
       return containedPaths(p.initializer, depth + 1).map(path => [key, ...path]);
     });
+    // An element/property of a container preserves the stored identity only
+    // when its path actually reaches that identity.
+    if (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+      const key = ts.isPropertyAccessExpression(value) ? value.name.text :
+        value.argumentExpression && (isStaticText(unwrap(value.argumentExpression)) ||
+          ts.isNumericLiteral(unwrap(value.argumentExpression)))
+          ? (unwrap(value.argumentExpression) as ts.StringLiteral | ts.NumericLiteral).text : "*";
+      return containedPaths(value.expression, depth + 1).flatMap(path =>
+        path.length && (path[0] === key || path[0] === "*" || key === "*")
+          ? [path.slice(1)] : []);
+    }
+    if (ts.isCallExpression(value)) {
+      // Safe projection of an existing array, not an arbitrary method call.
+      if (ts.isPropertyAccessExpression(value.expression) && value.expression.name.text === "at" &&
+          value.arguments.length === 1 && ts.isNumericLiteral(unwrap(value.arguments[0]))) {
+        const index = (unwrap(value.arguments[0]) as ts.NumericLiteral).text;
+        return containedPaths(value.expression.expression, depth + 1).flatMap(path =>
+          path.length && (path[0] === index || path[0] === "*") ? [path.slice(1)] : []);
+      }
+      // A zero-argument arrow returning a reference is a transparent wrapper.
+      if (value.arguments.length === 0 &&
+          (ts.isArrowFunction(unwrap(value.expression)) || ts.isFunctionExpression(unwrap(value.expression)))) {
+        const fn = unwrap(value.expression) as ts.ArrowFunction | ts.FunctionExpression;
+        if (fn.parameters.length) return [];
+        const body = ts.isBlock(fn.body) ?
+          fn.body.statements.length === 1 && ts.isReturnStatement(fn.body.statements[0])
+            ? fn.body.statements[0].expression : undefined : fn.body;
+        return body ? containedPaths(body, depth + 1) : [];
+      }
+    }
     return [];
   };
-  const containsOption = (expr: ts.Expression, depth = 0): boolean => {
-    if (depth > 10) return false;
-    const value = unwrap(expr);
-    if (references(value)) return true;
-    if (ts.isIdentifier(value)) return containers.has(value.text) && sameBinding(value, value.text);
-    if (ts.isArrayLiteralExpression(value)) return value.elements.some(e =>
-      (ts.isSpreadElement(e) ? containsOption(e.expression, depth + 1) :
-        ts.isExpression(e) && containsOption(e, depth + 1)));
-    if (ts.isObjectLiteralExpression(value)) return value.properties.some(p =>
-      ts.isPropertyAssignment(p) ? containsOption(p.initializer, depth + 1) :
-      ts.isShorthandPropertyAssignment(p) ? containsOption(p.name, depth + 1) :
-      ts.isSpreadAssignment(p) && containsOption(p.expression, depth + 1));
-    return false;
-  };
+  const containsOption = (expr: ts.Expression): boolean => containedPaths(expr).length > 0;
   const isContainerReference = (expr: ts.Expression): boolean => {
     const accessed: string[] = [];
     let value = unwrap(expr);
@@ -137,10 +167,7 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     ts.isVariableDeclarationList(node.parent) && !!(node.parent.flags & ts.NodeFlags.Const);
   const isOptionAlias = (node: ts.VariableDeclaration): boolean =>
     ts.isIdentifier(node.name) && !!node.initializer && immutable(node) &&
-    (ts.isIdentifier(unwrap(node.initializer)) && references(unwrap(node.initializer)) ||
-      (ts.isPropertyAccessExpression(unwrap(node.initializer)) ||
-        ts.isElementAccessExpression(unwrap(node.initializer))) &&
-        isContainerReference(unwrap(node.initializer)));
+    containedPaths(node.initializer).some(path => path.length === 0);
   // A scalar read cannot leak the RequestInit identity. Check that the
   // accessed value in the original static object is a primitive, rather than
   // treating every property access (including headers) as a safe read.
@@ -172,6 +199,16 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
       leaf.kind === ts.SyntaxKind.TrueKeyword || leaf.kind === ts.SyntaxKind.FalseKeyword ||
       leaf.kind === ts.SyntaxKind.NullKeyword;
   };
+  const scalarFromAlias = (expr: ts.Expression): boolean => {
+    const value = unwrap(expr);
+    if (!ts.isPropertyAccessExpression(value) && !ts.isElementAccessExpression(value)) return false;
+    const key = ts.isPropertyAccessExpression(value) ? value.name.text :
+      value.argumentExpression && isStaticText(unwrap(value.argumentExpression))
+        ? (unwrap(value.argumentExpression) as ts.StringLiteral).text : null;
+    return !!key && containedPaths(value.expression).some(path => path.length === 0) &&
+      primitiveRead(ts.factory.createPropertyAccessExpression(
+        ts.factory.createIdentifier(optionName), key));
+  };
   const scalarDestructuring = (node: ts.VariableDeclaration): boolean => {
     if (!node.initializer || !ts.isObjectBindingPattern(node.name) ||
         !ts.isIdentifier(unwrap(node.initializer)) || !references(unwrap(node.initializer))) return false;
@@ -183,31 +220,82 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
         ts.factory.createIdentifier(declaration.name.getText()), key.text));
     });
   };
+  // Preserve the exact identity path across immutable declarations and
+  // destructuring, including nested bindings and assignments into local lets.
+  const registerAlias = (name: ts.Identifier, paths: string[][]): boolean => {
+    if (!paths.length || !sameBinding(name, name.text)) return false;
+    if (paths.some(path => path.length === 0)) {
+      if (aliases.has(name.text)) return false;
+      aliases.add(name.text);
+      return true;
+    }
+    const prior = containerPaths.get(name.text) || [];
+    const keys = new Set(prior.map(path => JSON.stringify(path)));
+    const next = [...prior];
+    for (const path of paths) if (!keys.has(JSON.stringify(path))) {
+      next.push(path); keys.add(JSON.stringify(path));
+    }
+    if (next.length === prior.length) return false;
+    containers.add(name.text);
+    containerPaths.set(name.text, next);
+    return true;
+  };
+  const bindPattern = (pattern: ts.BindingName, paths: string[][]): boolean => {
+    if (ts.isIdentifier(pattern)) return registerAlias(pattern, paths);
+    let added = false;
+    pattern.elements.forEach((element, index) => {
+      if (ts.isOmittedExpression(element) || element.dotDotDotToken) return;
+      const key = ts.isArrayBindingPattern(pattern) ? String(index) :
+        element.propertyName && (ts.isIdentifier(element.propertyName) ||
+          ts.isStringLiteral(element.propertyName) || ts.isNumericLiteral(element.propertyName))
+          ? element.propertyName.text : ts.isIdentifier(element.name) ? element.name.text : "*";
+      const selected = paths.flatMap(path =>
+        path.length && (path[0] === key || path[0] === "*" || key === "*")
+          ? [path.slice(1)] : []);
+      if (selected.length && bindPattern(element.name, selected)) added = true;
+    });
+    return added;
+  };
+  // Assignment destructuring is represented by object/array *literals* in
+  // the AST rather than binding patterns. Only trace statically named members.
+  const bindAssignment = (lhs: ts.Expression, paths: string[][]): boolean => {
+    const target = unwrap(lhs);
+    if (ts.isIdentifier(target)) return registerAlias(target, paths);
+    const members = ts.isObjectLiteralExpression(target) ? target.properties :
+      ts.isArrayLiteralExpression(target) ? target.elements : undefined;
+    if (!members) return false;
+    let added = false;
+    members.forEach((member, index) => {
+      let key: string;
+      let child: ts.Expression;
+      if (ts.isPropertyAssignment(member)) {
+        key = ts.isIdentifier(member.name) || ts.isStringLiteral(member.name) ||
+          ts.isNumericLiteral(member.name) ? member.name.text : "*";
+        child = member.initializer;
+      } else if (ts.isShorthandPropertyAssignment(member)) {
+        key = member.name.text; child = member.name;
+      } else if (ts.isExpression(member)) {
+        key = String(index); child = member;
+      } else return;
+      const selected = paths.flatMap(path =>
+        path.length && (path[0] === key || path[0] === "*" || key === "*")
+          ? [path.slice(1)] : []);
+      if (selected.length && bindAssignment(child, selected)) added = true;
+    });
+    return added;
+  };
   let changed = true;
   while (changed) {
     changed = false;
     const collect = (node: ts.Node): void => {
-      if (ts.isVariableDeclaration(node) && node !== declaration && node.initializer && immutable(node)) {
-        if (ts.isIdentifier(node.name)) {
-          if (isOptionAlias(node) && !aliases.has(node.name.text)) {
-            aliases.add(node.name.text); changed = true;
-          } else if (containsOption(node.initializer) && !references(unwrap(node.initializer)) &&
-              !primitiveRead(node.initializer) && !containers.has(node.name.text)) {
-            containers.add(node.name.text);
-            containerPaths.set(node.name.text, containedPaths(node.initializer));
-            changed = true;
-          }
-        } else if (ts.isArrayBindingPattern(node.name) &&
-            ts.isArrayLiteralExpression(unwrap(node.initializer))) {
-          const elements = (unwrap(node.initializer) as ts.ArrayLiteralExpression).elements;
-          for (const [index, el] of node.name.elements.entries()) {
-            if (ts.isBindingElement(el) && ts.isIdentifier(el.name) &&
-                index < elements.length && ts.isExpression(elements[index]) &&
-                containsOption(elements[index]) && !aliases.has(el.name.text)) {
-              aliases.add(el.name.text); changed = true;
-            }
-          }
-        }
+      if (ts.isVariableDeclaration(node) && node !== declaration && node.initializer &&
+          (immutable(node) || ts.isIdentifier(node.name))) {
+        if (bindPattern(node.name, containedPaths(node.initializer))) changed = true;
+      }
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        // Local assignments may carry the reference to an otherwise untracked
+        // binding. The later write/escape through that binding is not benign.
+        if (bindAssignment(node.left, containedPaths(node.right))) changed = true;
       }
       ts.forEachChild(node, collect);
     };
@@ -234,7 +322,10 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     if (ts.isBinaryExpression(node) &&
         node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
         node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
-        references(node.left)) { unsafe = true; return; }
+        references(node.left) && !(node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          ts.isIdentifier(node.left) && containedPaths(node.right).some(path => path.length === 0))) {
+      unsafe = true; return;
+    }
     if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
         (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
         references(node.operand)) { unsafe = true; return; }
@@ -245,12 +336,14 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     }
     if (ts.isCallExpression(node)) {
       if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) &&
-          (references(node.expression.expression) && !primitiveRead(node.expression.expression) ||
-            isContainerReference(node.expression.expression))) {
+          (references(node.expression.expression) && !primitiveRead(node.expression.expression) &&
+            !scalarFromAlias(node.expression.expression) ||
+            isContainerReference(node.expression.expression) &&
+            !scalarFromAlias(node.expression.expression))) {
         unsafe = true; return;
       }
       for (const [i, arg] of node.arguments.entries()) {
-        if (primitiveRead(arg)) continue;
+        if (primitiveRead(arg) || scalarFromAlias(arg)) continue;
         if (!references(arg) && !isContainerReference(arg) && !containsOption(arg)) continue;
         // Native fetch is the only trusted external consumer of RequestInit.
         if (i === 1 && references(arg) && (node === use ||
@@ -263,8 +356,11 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
           containsOption(node.initializer))) {
       // Reading a proven scalar is not a mutable alias/escape. Keep containers
       // in local immutable declarations, then reject their actual mutations.
-      if (!primitiveRead(node.initializer) && !scalarDestructuring(node) &&
+      if (!primitiveRead(node.initializer) && !scalarFromAlias(node.initializer) && !scalarDestructuring(node) &&
           !isOptionAlias(node) &&
+          !(containedPaths(node.initializer).some(path => path.length === 0) &&
+            ts.isIdentifier(node.name) && references(node.name)) &&
+          !(immutable(node) && containedPaths(node.initializer).length > 0) &&
           !(immutable(node) && (ts.isArrayLiteralExpression(unwrap(node.initializer)) ||
             ts.isObjectLiteralExpression(unwrap(node.initializer)) ||
             ts.isIdentifier(unwrap(node.initializer)) && isContainerReference(unwrap(node.initializer)) ||
@@ -274,7 +370,7 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
       }
     }
     if (ts.isReturnStatement(node) && node.expression &&
-        !primitiveRead(node.expression) &&
+        !primitiveRead(node.expression) && !scalarFromAlias(node.expression) &&
         (references(node.expression) || isContainerReference(node.expression) ||
           containsOption(node.expression))) { unsafe = true; return; }
     if ((ts.isSpreadElement(node) || ts.isSpreadAssignment(node)) &&
