@@ -61,6 +61,9 @@ const probes: Probe[] = [
   ["R03-nested-escape", `const opts={method:'GET'};const ref={opts};ref.opts.method='POST';const load=(url:string)=>fetch(url,opts);` + decision("load('/foods.json')"), false],
   ["R03-destructured-escape", `const opts={headers:{Accept:'application/json'}};const {headers}=opts;headers.Accept='text/html';const load=(url:string)=>fetch(url,opts);` + decision("load('/foods.json')"), false],
   ["R03-dynamic-property-write", `const opts={method:'GET'};opts['method']='POST';const load=(url:string)=>fetch(url,opts);` + decision("load('/foods.json')"), false],
+  ["R03-reused-native-reads", `const opts={method:'GET'};export async function check(foodName:string){const first=await fetch('/foods.json',opts);await fetch('/foods.json',opts);const rows=await first.json();return rows.some((r:any)=>r.name===foodName)}`, true],
+  ["R03-reused-mixed-native-reads", `const opts={method:'GET'};export async function check(foodName:string){const first=await window.fetch('/foods.json',opts);await globalThis['fetch']('/foods.json',opts);const rows=await first.json();return rows.some((r:any)=>r.name===foodName)}`, true],
+  ["R03-reused-unsafe-provider", `const opts={method:'GET'};unknownProvider(opts);` + decision("fetch('/foods.json',opts)"), false],
   ["R03-alias-unmodified", `const opts={method:'GET'};const alias=opts;const load=(url:string)=>window.fetch(url,alias);` + decision("load('/foods.json')"), true],
   ["R03-shadowed-unrelated-options", `const opts={method:'GET'};function irrelevant(){const opts={method:'POST'};opts.method='GET'}const load=(url:string)=>window.fetch(url,opts);` + decision("load('/foods.json')"), true],
 ];

@@ -91,6 +91,21 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     };
     collect(owner);
   }
+  // Native fetch reads RequestInit without mutating it. Reusing the same
+  // statically proven object in several native reads is not an escape.
+  const nativeRead = (call: ts.CallExpression): boolean => {
+    const target = unwrap(call.expression);
+    if (ts.isIdentifier(target)) return target.text === "fetch" &&
+      unshadowedIntrinsic("fetch", call);
+    if (!ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target)) return false;
+    const receiver = unwrap(target.expression);
+    const property = ts.isPropertyAccessExpression(target) ? target.name.text :
+      target.argumentExpression && isStaticText(unwrap(target.argumentExpression))
+        ? (unwrap(target.argumentExpression) as ts.StringLiteral).text : null;
+    return property === "fetch" && ts.isIdentifier(receiver) &&
+      (receiver.text === "window" || receiver.text === "globalThis") &&
+      unshadowedIntrinsic(receiver.text, call);
+  };
   let unsafe = false;
   const visit = (node: ts.Node): void => {
     if (unsafe || node === declaration) return;
@@ -109,7 +124,7 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
         if (!references(arg)) continue;
         // The actual native fetch's second argument is the only approved
         // external use; arbitrary APIs may mutate or retain the options.
-        if (node === use && i === 1) continue;
+        if (i === 1 && (node === use || (node.arguments.length === 2 && nativeRead(node)))) continue;
         unsafe = true; return;
       }
     }
