@@ -407,3 +407,17 @@ A baseline, o livro de dívida e os gates de runtime não foram alterados.
 **Issue #1300 — remediação AUD1300-C03/C04 (19/10/2026):** o rastreamento de catálogos estáticos de `client/public` preserva o mesmo recurso quando a URL local possui query (`?v=...`) ou fragmento (`#...`), sem confundir URLs externas, caminhos inválidos ou fontes não consumidas. A proveniência de `response.json()` atravessa o parâmetro de callbacks `Promise.then` encadeados quando o JSON é efetivamente utilizado para decidir identidade alimentar. Leitura administrativa, exercícios, dados de exibição, parâmetros sombreados e resultados não JSON são controles negativos. `scripts/food-architecture-audit1300-c03-c04.test.ts` cobre detecção e enforcement dos gates 17/5. Permanecem inalterados o baseline, `architecture-debt.json` e os gates runtime 6/8/15.
 
 **Issue #1300 — remediação AUD1300-C05 (19/10/2026):** chamadas nativas equivalentes `fetch`, `window.fetch`, `globalThis.fetch` e acessos computados `['fetch']` no frontend Vite reconhecem URLs locais provadas por literais ou aliases imutáveis `const` (inclusive sequências de aliases, `as const`, query e fragmento). O grafo de importações, o consumo `response.json()` com `await` e as cadeias `.then()` compartilham a mesma resolução de URL. O gate 17/5 só bloqueia conhecimento alimentar de `client/public` consumido produtivamente; parâmetros/variáveis sombreados, URLs dinâmicas, bindings mutáveis, provedores externos, catálogos não utilizados, dados de UI/exercício e chamadas não JSON são controles benignos. Há 30 controles positivos/negativos em `scripts/food-architecture-audit1300-c05.test.ts`; baseline, livro de dívida e gates runtime 6/8/15 não foram alterados.
+
+
+**Issue #1300 — remediação F69/F70 (19/10/2026):** o gate arquitetural
+reconhece a procedência de catálogos Vite obtidos por `fetch` nativo direto,
+por aliases `const`, `.bind` do mesmo global e wrappers de argumento único
+transparentes, incluindo funções declaradas e aliases desestruturados de
+`window`/`globalThis`. O alcance vale para o grafo de dependências, `await`
+`response.json()` e cadeias `.then`, com decisão alimentar produtiva. Bindings
+sombreados por parâmetros, desestruturação local/imports, aliases mutáveis,
+wrappers que alteram a URL, recursos externos e leitura não decisória não geram
+bloqueios automáticos. `scripts/food-architecture-audit1300-f69-f70.test.ts`
+contém controles positivos/negativos do detector e do enforcement; a semântica
+canônica permanece na ADR §§19 e 25.2, sem alterar `architecture-debt.json`,
+a baseline histórica ou os gates runtime 6/8/15.

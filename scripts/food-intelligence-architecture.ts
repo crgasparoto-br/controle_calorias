@@ -4,6 +4,7 @@
  * registry blocks NEW findings after item 25 approval; existing legacy stays visible.
  */
 import ts from "typescript";
+import { unshadowedIntrinsic, isNativeViteFetchTarget } from "./food-architecture-native-fetch";
 import path from "node:path";
 import { isImmutableNumericSpread } from "./food-architecture-numeric-spreads";
 import { isLiteralMealChoiceData, findConsumedMealChoiceCatalogs } from "./food-architecture-meal-choices";
@@ -43,31 +44,6 @@ function unwrap(source: ts.Expression): ts.Expression {
   if (ts.isCallExpression(source) && source.expression.getText() === "Object.freeze" &&
     source.arguments.length === 1) return unwrap(source.arguments[0]);
   return source;
-}
-
-/** Only treat platform intrinsics as such when no lexical declaration shadows them. */
-function unshadowedIntrinsic(name: string, use: ts.Node): boolean {
-  for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
-    if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
-        ts.isIdentifier(param.name) && param.name.text === name)) return false;
-    if (ts.isCatchClause(scope) && scope.variableDeclaration &&
-        ts.isIdentifier(scope.variableDeclaration.name) &&
-        scope.variableDeclaration.name.text === name) return false;
-    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
-    for (const stmt of scope.statements) {
-      if (ts.isVariableStatement(stmt) && stmt.declarationList.declarations.some(decl =>
-          ts.isIdentifier(decl.name) && decl.name.text === name)) return false;
-      if ((ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) &&
-          stmt.name?.text === name) return false;
-      if (ts.isImportDeclaration(stmt) && stmt.importClause &&
-          (stmt.importClause.name?.text === name ||
-            (stmt.importClause.namedBindings &&
-              (ts.isNamespaceImport(stmt.importClause.namedBindings)
-                ? stmt.importClause.namedBindings.name.text === name
-                : stmt.importClause.namedBindings.elements.some(el => el.name.text === name))))) return false;
-    }
-  }
-  return true;
 }
 
 /** CommonJS loader is authoritative only when its lexical binding is Node's
@@ -2282,21 +2258,7 @@ function resolveVitePublicAsset(
  * evidence that client/public supplied food knowledge.
  */
 function staticViteFetchUrl(node: ts.CallExpression): string | null {
-  if (!node.arguments[0]) return null;
-  const target = unwrap(node.expression);
-  let browserFetch = ts.isIdentifier(target) &&
-    target.text === "fetch" && unshadowedIntrinsic("fetch", node);
-  if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) {
-    const receiver = unwrap(target.expression);
-    const member = ts.isPropertyAccessExpression(target)
-      ? target.name.text
-      : target.argumentExpression && isStaticText(unwrap(target.argumentExpression))
-        ? (unwrap(target.argumentExpression) as ts.StringLiteral).text : null;
-    browserFetch = member === "fetch" && ts.isIdentifier(receiver) &&
-      (receiver.text === "window" || receiver.text === "globalThis") &&
-      unshadowedIntrinsic(receiver.text, node);
-  }
-  if (!browserFetch) return null;
+  if (!node.arguments[0] || !isNativeViteFetchTarget(node.expression, node)) return null;
 
   const resolve = (
     expression: ts.Expression, use: ts.Node,
