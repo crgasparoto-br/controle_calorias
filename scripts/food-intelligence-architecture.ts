@@ -2276,11 +2276,72 @@ function resolveVitePublicAsset(
   return candidate.startsWith("client/public/") && indexed.has(candidate) ? [candidate] : [];
 }
 
-/** Distinguish the unshadowed browser fetch from a local function with that name. */
+/**
+ * Resolve statically proven Vite fetch URLs. Keep aliases local and immutable:
+ * a runtime URL, local fetch implementation, or shadowed browser global is not
+ * evidence that client/public supplied food knowledge.
+ */
+function staticViteFetchUrl(node: ts.CallExpression): string | null {
+  if (!node.arguments[0]) return null;
+  const target = unwrap(node.expression);
+  let browserFetch = ts.isIdentifier(target) &&
+    target.text === "fetch" && unshadowedIntrinsic("fetch", node);
+  if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) {
+    const receiver = unwrap(target.expression);
+    const member = ts.isPropertyAccessExpression(target)
+      ? target.name.text
+      : target.argumentExpression && isStaticText(unwrap(target.argumentExpression))
+        ? (unwrap(target.argumentExpression) as ts.StringLiteral).text : null;
+    browserFetch = member === "fetch" && ts.isIdentifier(receiver) &&
+      (receiver.text === "window" || receiver.text === "globalThis") &&
+      unshadowedIntrinsic(receiver.text, node);
+  }
+  if (!browserFetch) return null;
+
+  const resolve = (
+    expression: ts.Expression, use: ts.Node,
+    seen = new Set<ts.VariableDeclaration>(), depth = 0,
+  ): string | null => {
+    if (depth > 10) return null;
+    const value = unwrap(expression);
+    if (isStaticText(value)) return value.text;
+    if (!ts.isIdentifier(value)) return null;
+    for (let scope: ts.Node | undefined = use; scope; scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some(param =>
+          ts.isIdentifier(param.name) && param.name.text === value.text)) return null;
+      if (ts.isCatchClause(scope) && scope.variableDeclaration &&
+          ts.isIdentifier(scope.variableDeclaration.name) &&
+          scope.variableDeclaration.name.text === value.text) return null;
+      if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+      for (const statement of scope.statements) {
+        if (ts.isVariableStatement(statement)) {
+          for (const declaration of statement.declarationList.declarations) {
+            if (!ts.isIdentifier(declaration.name) || declaration.name.text !== value.text) continue;
+            if (!(statement.declarationList.flags & ts.NodeFlags.Const) ||
+                !declaration.initializer || seen.has(declaration) ||
+                declaration.getStart() >= use.getStart()) return null;
+            seen.add(declaration);
+            return resolve(declaration.initializer, declaration, seen, depth + 1);
+          }
+        }
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === value.text) return null;
+        if (ts.isImportDeclaration(statement) && statement.importClause &&
+            (statement.importClause.name?.text === value.text ||
+              (statement.importClause.namedBindings &&
+                (ts.isNamespaceImport(statement.importClause.namedBindings)
+                  ? statement.importClause.namedBindings.name.text === value.text
+                  : statement.importClause.namedBindings.elements.some(el => el.name.text === value.text)))))
+          return null;
+      }
+    }
+    return null;
+  };
+  return resolve(node.arguments[0], node);
+}
+
 function isNativeViteFetch(node: ts.CallExpression): boolean {
-  return ts.isIdentifier(node.expression) && node.expression.text === "fetch" &&
-    unshadowedIntrinsic("fetch", node) && node.arguments.length >= 1 &&
-    isStaticText(unwrap(node.arguments[0]));
+  return staticViteFetchUrl(node) !== null;
 }
 
 /** Resolve only statically knowable filesystem loads; unresolved paths are not exempted. */
@@ -3184,11 +3245,12 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
             (isNodeRequireCall(node)))) {
         addDependency(node.arguments[0].text, node.getText(source));
       }
-      if (ts.isCallExpression(node) && node.arguments[0] &&
-          isStaticText(unwrap(node.arguments[0])) &&
-          (isNativeViteFetch(node) || node.expression.kind === ts.SyntaxKind.ImportKeyword)) {
-        addDependency((unwrap(node.arguments[0]) as ts.StringLiteral).text,
-          node.getText(source), true);
+      if (ts.isCallExpression(node) && node.arguments[0]) {
+        const publicUrl = node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+          isStaticText(unwrap(node.arguments[0]))
+          ? (unwrap(node.arguments[0]) as ts.StringLiteral).text
+          : staticViteFetchUrl(node);
+        if (publicUrl !== null) addDependency(publicUrl, node.getText(source), true);
       }
       if (ts.isCallExpression(node) &&
           filesystemBindings.isReader(node.expression) &&
@@ -3249,8 +3311,8 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           hasStaticJsonLoader = true;
           return;
         }
-        if (isNativeViteFetch(node) && resolveVitePublicAsset(consumer.path,
-          (unwrap(node.arguments[0]) as ts.StringLiteral).text, indexed)
+        const fetchUrl = staticViteFetchUrl(node);
+        if (fetchUrl !== null && resolveVitePublicAsset(consumer.path, fetchUrl, indexed)
           .some(target => /\.json$/i.test(target))) {
           hasStaticJsonLoader = true;
           return;
@@ -3744,7 +3806,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
               ts.isIdentifier(call.expression.expression) &&
               call.expression.expression.text === callback.parameters[0].name.text) {
             const targets = resolveVitePublicAsset(consumer.path,
-              (unwrap(origin.arguments[0]) as ts.StringLiteral).text, indexed)
+              staticViteFetchUrl(origin)!, indexed)
               .filter(target => /\.json$/i.test(target));
             if (targets.length) return targets;
           }
@@ -3763,7 +3825,7 @@ export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFin
           if (ts.isAwaitExpression(origin)) return fetchOrigin(origin.expression, location, seen, steps + 1);
           if (ts.isCallExpression(origin) && isNativeViteFetch(origin)) {
             return resolveVitePublicAsset(consumer.path,
-              (unwrap(origin.arguments[0]) as ts.StringLiteral).text, indexed)
+              staticViteFetchUrl(origin)!, indexed)
               .filter(target => /\.json$/i.test(target));
           }
           if (!ts.isIdentifier(origin)) return [];
