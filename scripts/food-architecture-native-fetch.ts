@@ -360,7 +360,14 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
           !isOptionAlias(node) &&
           !(containedPaths(node.initializer).some(path => path.length === 0) &&
             ts.isIdentifier(node.name) && references(node.name)) &&
-          !(immutable(node) && containedPaths(node.initializer).length > 0) &&
+          !(immutable(node) && ts.isIdentifier(node.name) &&
+            containedPaths(node.initializer).length > 0) &&
+          !(immutable(node) && (ts.isObjectBindingPattern(node.name) ||
+            ts.isArrayBindingPattern(node.name)) &&
+            node.name.elements.every(element => ts.isOmittedExpression(element) ||
+              (!element.dotDotDotToken && !element.initializer)) &&
+            containedPaths(node.initializer).length > 0 &&
+            containedPaths(node.initializer).every(path => path.length > 0)) &&
           !(immutable(node) && (ts.isArrayLiteralExpression(unwrap(node.initializer)) ||
             ts.isObjectLiteralExpression(unwrap(node.initializer)) ||
             ts.isIdentifier(unwrap(node.initializer)) && isContainerReference(unwrap(node.initializer)) ||
