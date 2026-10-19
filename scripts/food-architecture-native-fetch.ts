@@ -74,18 +74,101 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
     const id = root(node);
     return !!id && aliases.has(id.text) && sameBinding(id, id.text);
   };
-  // A plain immutable alias preserves object identity. A mutable alias or
-  // destructuring/assignment to an unknown consumer relinquishes the proof.
-  const isAliasDeclaration = (node: ts.Node): node is ts.VariableDeclaration =>
-    ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && !!node.initializer &&
-    ts.isIdentifier(unwrap(node.initializer)) && references(unwrap(node.initializer)) &&
+  // Object identity can propagate through aliases and inert containers. Track
+  // containers separately: putting a RequestInit in an array does not mutate
+  // it, but a subsequent write/escape through that array invalidates the proof.
+  const containers = new Set<string>();
+  const containsOption = (expr: ts.Expression, depth = 0): boolean => {
+    if (depth > 10) return false;
+    const value = unwrap(expr);
+    if (references(value)) return true;
+    if (ts.isIdentifier(value)) return containers.has(value.text) && sameBinding(value, value.text);
+    if (ts.isArrayLiteralExpression(value)) return value.elements.some(e =>
+      (ts.isSpreadElement(e) ? containsOption(e.expression, depth + 1) :
+        ts.isExpression(e) && containsOption(e, depth + 1)));
+    if (ts.isObjectLiteralExpression(value)) return value.properties.some(p =>
+      ts.isPropertyAssignment(p) ? containsOption(p.initializer, depth + 1) :
+      ts.isShorthandPropertyAssignment(p) ? containsOption(p.name, depth + 1) :
+      ts.isSpreadAssignment(p) && containsOption(p.expression, depth + 1));
+    return false;
+  };
+  const isContainerReference = (expr: ts.Expression): boolean => {
+    const id = root(unwrap(expr));
+    return !!id && containers.has(id.text) && sameBinding(id, id.text);
+  };
+  const immutable = (node: ts.VariableDeclaration): boolean =>
     ts.isVariableDeclarationList(node.parent) && !!(node.parent.flags & ts.NodeFlags.Const);
+  const isOptionAlias = (node: ts.VariableDeclaration): boolean =>
+    ts.isIdentifier(node.name) && !!node.initializer && immutable(node) &&
+    (ts.isIdentifier(unwrap(node.initializer)) && references(unwrap(node.initializer)) ||
+      (ts.isPropertyAccessExpression(unwrap(node.initializer)) ||
+        ts.isElementAccessExpression(unwrap(node.initializer))) &&
+        isContainerReference(unwrap(node.initializer)));
+  // A scalar read cannot leak the RequestInit identity. Check that the
+  // accessed value in the original static object is a primitive, rather than
+  // treating every property access (including headers) as a safe read.
+  const primitiveRead = (expression: ts.Expression): boolean => {
+    const keys: string[] = [];
+    let current = unwrap(expression);
+    while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+      const key = ts.isPropertyAccessExpression(current) ? current.name.text :
+        current.argumentExpression && isStaticText(unwrap(current.argumentExpression))
+          ? (unwrap(current.argumentExpression) as ts.StringLiteral).text : null;
+      if (key === null) return false;
+      keys.unshift(key);
+      current = unwrap(current.expression);
+    }
+    if (!ts.isIdentifier(current) || !references(current) || !keys.length) return false;
+    let value: ts.Expression | undefined = declaration.initializer;
+    for (const key of keys) {
+      if (!value || !ts.isObjectLiteralExpression(unwrap(value))) return false;
+      const property: ts.ObjectLiteralElementLike | undefined =
+        (unwrap(value) as ts.ObjectLiteralExpression).properties.find(p =>
+          ts.isPropertyAssignment(p) &&
+          (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === key);
+      if (!property || !ts.isPropertyAssignment(property)) return false;
+      value = property.initializer;
+    }
+    if (!value) return false;
+    const leaf = unwrap(value);
+    return isStaticText(leaf) || ts.isNumericLiteral(leaf) ||
+      leaf.kind === ts.SyntaxKind.TrueKeyword || leaf.kind === ts.SyntaxKind.FalseKeyword ||
+      leaf.kind === ts.SyntaxKind.NullKeyword;
+  };
+  const scalarDestructuring = (node: ts.VariableDeclaration): boolean => {
+    if (!node.initializer || !ts.isObjectBindingPattern(node.name) ||
+        !ts.isIdentifier(unwrap(node.initializer)) || !references(unwrap(node.initializer))) return false;
+    return node.name.elements.every(element => {
+      if (element.dotDotDotToken || element.initializer) return false;
+      const key = element.propertyName || element.name;
+      if (!ts.isIdentifier(key) && !ts.isStringLiteral(key)) return false;
+      return primitiveRead(ts.factory.createPropertyAccessExpression(
+        ts.factory.createIdentifier(declaration.name.getText()), key.text));
+    });
+  };
   let changed = true;
   while (changed) {
     changed = false;
     const collect = (node: ts.Node): void => {
-      if (isAliasDeclaration(node) && ts.isIdentifier(node.name) && !aliases.has(node.name.text)) {
-        aliases.add(node.name.text); changed = true;
+      if (ts.isVariableDeclaration(node) && node !== declaration && node.initializer && immutable(node)) {
+        if (ts.isIdentifier(node.name)) {
+          if (isOptionAlias(node) && !aliases.has(node.name.text)) {
+            aliases.add(node.name.text); changed = true;
+          } else if (containsOption(node.initializer) && !references(unwrap(node.initializer)) &&
+              !primitiveRead(node.initializer) && !containers.has(node.name.text)) {
+            containers.add(node.name.text); changed = true;
+          }
+        } else if (ts.isArrayBindingPattern(node.name) &&
+            ts.isArrayLiteralExpression(unwrap(node.initializer))) {
+          const elements = (unwrap(node.initializer) as ts.ArrayLiteralExpression).elements;
+          for (const [index, el] of node.name.elements.entries()) {
+            if (ts.isBindingElement(el) && ts.isIdentifier(el.name) &&
+                index < elements.length && ts.isExpression(elements[index]) &&
+                containsOption(elements[index]) && !aliases.has(el.name.text)) {
+              aliases.add(el.name.text); changed = true;
+            }
+          }
+        }
       }
       ts.forEachChild(node, collect);
     };
@@ -117,27 +200,52 @@ function stableOptionBinding(declaration: ts.VariableDeclaration, use: ts.Node):
         (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) &&
         references(node.operand)) { unsafe = true; return; }
     if (ts.isDeleteExpression(node) && references(node.expression)) { unsafe = true; return; }
+    if (ts.isNewExpression(node) && node.arguments?.some(arg =>
+        references(arg) || isContainerReference(arg) || containsOption(arg))) {
+      unsafe = true; return;
+    }
     if (ts.isCallExpression(node)) {
       if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) &&
-          references(node.expression.expression)) { unsafe = true; return; }
+          (references(node.expression.expression) || isContainerReference(node.expression.expression))) {
+        unsafe = true; return;
+      }
       for (const [i, arg] of node.arguments.entries()) {
-        if (!references(arg)) continue;
-        // The actual native fetch's second argument is the only approved
-        // external use; arbitrary APIs may mutate or retain the options.
-        if (i === 1 && (node === use || (node.arguments.length === 2 && nativeRead(node)))) continue;
+        if (!references(arg) && !isContainerReference(arg) && !containsOption(arg)) continue;
+        // Native fetch is the only trusted external consumer of RequestInit.
+        if (i === 1 && references(arg) && (node === use ||
+            (node.arguments.length === 2 && nativeRead(node)))) continue;
         unsafe = true; return;
       }
     }
     if (ts.isVariableDeclaration(node) && node !== declaration && node.initializer &&
-        references(node.initializer) && !isAliasDeclaration(node)) { unsafe = true; return; }
-    if (ts.isReturnStatement(node) && node.expression && references(node.expression)) { unsafe = true; return; }
-    // Putting options inside another object/array makes an alias that could be
-    // mutated through that container. A proven static GET cannot rely on it.
-    if ((ts.isPropertyAssignment(node) && references(node.initializer)) ||
-        (ts.isShorthandPropertyAssignment(node) && references(node.name)) ||
-        (ts.isSpreadElement(node) && references(node.expression)) ||
-        (ts.isSpreadAssignment(node) && references(node.expression)) ||
-        (ts.isBindingElement(node) && references(node.parent.parent))) {
+        (references(node.initializer) || isContainerReference(node.initializer) ||
+          containsOption(node.initializer))) {
+      // Reading a proven scalar is not a mutable alias/escape. Keep containers
+      // in local immutable declarations, then reject their actual mutations.
+      if (!primitiveRead(node.initializer) && !scalarDestructuring(node) &&
+          !isOptionAlias(node) &&
+          !(immutable(node) && (ts.isArrayLiteralExpression(unwrap(node.initializer)) ||
+            ts.isObjectLiteralExpression(unwrap(node.initializer)) ||
+            ts.isIdentifier(unwrap(node.initializer)) && isContainerReference(unwrap(node.initializer)) ||
+            (ts.isArrayBindingPattern(node.name) &&
+              ts.isArrayLiteralExpression(unwrap(node.initializer)))))) {
+        unsafe = true; return;
+      }
+    }
+    if (ts.isReturnStatement(node) && node.expression &&
+        !primitiveRead(node.expression) &&
+        (references(node.expression) || isContainerReference(node.expression) ||
+          containsOption(node.expression))) { unsafe = true; return; }
+    if ((ts.isSpreadElement(node) || ts.isSpreadAssignment(node)) &&
+        references(node.expression)) { unsafe = true; return; }
+    if (ts.isBinaryExpression(node) &&
+        node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+        isContainerReference(node.left)) { unsafe = true; return; }
+    if (ts.isDeleteExpression(node) && isContainerReference(node.expression)) {
+      unsafe = true; return;
+    }
+    if (ts.isPrefixUnaryExpression(node) && isContainerReference(node.operand)) {
       unsafe = true; return;
     }
     ts.forEachChild(node, visit);
