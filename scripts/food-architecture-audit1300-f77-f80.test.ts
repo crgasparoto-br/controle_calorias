@@ -1,5 +1,6 @@
 /** Issue #1300: declarative domain fields, static map keys and lexical aliases. */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { findFoodStaticCandidates, type FoodArchitectureFile } from "./food-intelligence-architecture";
 import { evaluateFoodArchitectureGate } from "./food-architecture-enforcement";
 import { validateFoodDebtLedger } from "./food-architecture-debt";
@@ -46,7 +47,6 @@ describe("AUD1300 F77/F78 — declarative domain fields", () => {
       const makeKey = () => "pao";
       const Number = (value: unknown) => value;
       const portions = { [makeKey()]: Number(50) };
-      export function resolvePortion(foodName: string) { return portions[foodName]; }
     `);
     expect(findings.filter(f => f.symbol.includes("numeric-food-map"))).toEqual([]);
   });
@@ -82,5 +82,13 @@ describe("AUD1300 F80 — executable debt schema", () => {
     });
     expect(ledger.entries).toEqual([]);
     expect(() => validateFoodDebtLedger({ entries: [{ ruleId: "unknown" }] })).toThrow(/Invalid|Unknown/);
+  });
+
+  it("keeps productive finding dispatches declarative", () => {
+    for (const file of ["scripts/food-intelligence-architecture.ts", "scripts/food-architecture-lexical-imports.ts"]) {
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toMatch(/for \(const ruleId of \[\"(?:5|11|17|18)\"/);
+      expect(source, file).not.toMatch(/const ruleId = (?:materiality|channel)/);
+    }
   });
 });

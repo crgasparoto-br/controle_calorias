@@ -191,6 +191,12 @@ describe("food intelligence architecture wave 1", () => {
     expect(assessFoodDebtRenewal([old], [{ ...old, createdAt: "2026-10-10" }], [])).toHaveLength(1);
     expect(assessFoodDebtRenewal([old], [{ ...old, owner: "different" }], [])).toHaveLength(1);
     expect(assessFoodDebtRenewal([old], [{ ...old, fingerprint: old.fingerprint.replace(/:[^:]+$/, ":newhash") }], [])).toHaveLength(1);
+    const renamedFinding = findFoodStaticCandidates([{
+      path: old.file,
+      content: "const FOOD_ALIASES_RENAMED = ['pao', 'pão'];",
+    }])[0];
+    expect(assessFoodDebtRenewal([old], [{ ...old, fingerprint: renamedFinding.fingerprint }],
+      [renamedFinding]).some(message => message.includes("reissued"))).toBe(true);
     expect(assessFoodDebtRenewal([old], [], [])).toEqual([]);
     expect(assessFoodDebtRenewal([old], [old], [])).toEqual([]);
   });

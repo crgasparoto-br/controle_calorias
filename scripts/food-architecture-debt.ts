@@ -142,15 +142,23 @@ export function assessFoodDebtRenewal(previous: FoodDebt[], current: FoodDebt[],
   rejectDuplicates(previous, "previous");
   rejectDuplicates(current, "current");
   const indexed = new Map(current.map(item => [item.fingerprint, item]));
+  const sameDebtLineage = (left: FoodDebt, right: FoodDebt): boolean =>
+    left.reason === right.reason && left.owner === right.owner && left.issue === right.issue &&
+    left.createdAt === right.createdAt && left.expiresAt === right.expiresAt &&
+    left.migrationIssue === right.migrationIssue && left.retirementIssue === right.retirementIssue;
   for (const old of previous) {
     const next = indexed.get(old.fingerprint);
     if (!next) {
-      const base = old.ruleId + ":" + old.file + ":";
-      const oldSymbol = old.fingerprint.slice(base.length).split(":")[0];
+      const oldFingerprintStem = old.fingerprint.slice(0, old.fingerprint.lastIndexOf(":") + 1);
+      const sameSymbolReissue = current.find(item => item.fingerprint !== old.fingerprint &&
+        item.fingerprint.startsWith(oldFingerprintStem));
       const reissued = current.find(item => item.fingerprint !== old.fingerprint &&
-        item.ruleId === old.ruleId && item.file === old.file &&
-        item.fingerprint.startsWith(base + oldSymbol + ":"));
-      if (reissued) errors.push("Architecture debt cannot be reissued under a new fingerprint: " + old.fingerprint);
+        sameDebtLineage(item, old) &&
+        currentFindings.some(finding => finding.fingerprint === item.fingerprint &&
+          finding.ruleId === item.ruleId && finding.file === item.file));
+      if (sameSymbolReissue || reissued) {
+        errors.push("Architecture debt cannot be reissued under a new fingerprint: " + old.fingerprint);
+      }
       // Repayment requires removing the underlying violation, not just the
       // ledger entry. Without this check debt can be dropped and renewed later.
       if (currentFindings.some(f => f.fingerprint === old.fingerprint && f.ruleId === old.ruleId && f.file === old.file)) {

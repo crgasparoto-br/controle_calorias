@@ -5,10 +5,18 @@
  */
 import ts from "typescript";
 import type { FoodArchitectureFile, FoodFinding } from "./food-intelligence-architecture";
+import { FOOD_WAVE_ONE_RULES, type FoodWaveOneRule } from "./food-architecture-rules";
 
 type LexicalTable = { file: string; symbol: string; content: string };
 type ModuleTables = { locals: Map<string, LexicalTable>; exports: Map<string, LexicalTable> };
 type ResolveDeps = (from: string, specifier: string, indexed: Map<string, FoodArchitectureFile>) => string[];
+
+function lexicalConsumptionRule(materiality: boolean, channel: boolean): FoodWaveOneRule | undefined {
+  const ownerFunction = materiality ? "attribute-materiality" :
+    channel ? "lexical-knowledge" : undefined;
+  return FOOD_WAVE_ONE_RULES.find(rule => rule.kind === "lexical-lookup" &&
+    rule.ownerFunction === ownerFunction && (!channel || !!rule.pathPattern));
+}
 
 function unwrap(value: ts.Expression): ts.Expression {
   while (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) ||
@@ -342,17 +350,18 @@ export function findImportedLexicalFoodFindings(
         if (!unrelated && food && decision && meaningfulUse) {
           const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(domain);
           const channel = /whatsapp|inbound|audio|image|ocr|transcri/i.test(file.path);
-          const ruleId = materiality ? "18" : channel ? "11" : "17";
+          const rule = lexicalConsumptionRule(materiality, channel);
+          if (!rule) return;
           const symbol = "consumed-lexical-table:" + table.file + "#" + table.symbol;
           findings.push({
-            ruleId, file: file.path,
+            ruleId: rule.id, file: file.path,
             line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
             symbol,
-            fingerprint: ruleId + ":" + file.path + ":" + symbol + ":" +
+            fingerprint: rule.id + ":" + file.path + ":" + symbol + ":" +
               stableHash(table.content + ":" + node.getText(source) + ":" +
                 (ts.isForOfStatement(iterator) ? iterator.statement.getText(source) : iterator.getText(source))),
-            failureClass: materiality ? "B" : "A",
-            description: "Vocabulário lexical importado usado em iteração decisória alimentar",
+            failureClass: rule.failureClass,
+            description: rule.description,
           });
         }
       }
@@ -385,16 +394,17 @@ export function findImportedLexicalFoodFindings(
             source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
           const findingFile = sourceAttribution ? table.file : file.path;
           const materiality = /material|neutral|attribute|qualifier|packag|commercial/i.test(context);
-          const ruleId = materiality ? "18" : channel ? "11" : "17";
+          const rule = lexicalConsumptionRule(materiality, channel);
+          if (!rule) return;
           const symbol = "consumed-lexical-table:" + table.file + "#" + table.symbol;
           findings.push({
-            ruleId, file: findingFile,
+            ruleId: rule.id, file: findingFile,
             line: tableLine,
             symbol,
-            fingerprint: ruleId + ":" + findingFile + ":" + symbol + ":" +
+            fingerprint: rule.id + ":" + findingFile + ":" + symbol + ":" +
               stableHash(table.content + ":" + node.getText(source)),
-            failureClass: materiality ? "B" : "A",
-            description: "Vocabulário lexical literal consumido por decisão alimentar produtiva",
+            failureClass: rule.failureClass,
+            description: rule.description,
           });
         }
       }

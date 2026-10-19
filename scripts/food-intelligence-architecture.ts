@@ -114,7 +114,6 @@ function isLiteralCollection(expr: ts.Expression): boolean {
   return false;
 }
 
-
 /** A literal nutrition row is a rule even when returned without a named table. */
 function isInlineFoodKnowledge(node: ts.ObjectLiteralExpression): boolean {
   const fields = new Map<string, ts.Expression>();
@@ -296,6 +295,12 @@ function isPureFoodAdministrativePolicy(node: ts.VariableDeclaration): boolean {
  * item's food-specific macros. Imported/direct food-indexed use remains gated. */
 function isNominalNutritionGoalMap(node: ts.VariableDeclaration): boolean {
   return !!node.type && /\bRecord\s*<\s*NutritionObjective\s*,\s*number\s*>/.test(node.type.getText());
+}
+
+function importedNumericMapRules(): FoodWaveOneRule[] {
+  return FOOD_WAVE_ONE_RULES.filter(rule =>
+    rule.detectorKey === "food-numeric-map-food" ||
+    rule.detectorKey === "food-numeric-map-portions");
 }
 
 /** Domain-driven numeric maps need evidence of food identity, not food words
@@ -3097,13 +3102,13 @@ function findCrossModuleNumericFoodMaps(
         const findingFile = attributed ? reference.file : consumer.path;
         const findingLine = originSource ? originSource.getLineAndCharacterOfPosition(originOffset).line + 1 :
           source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-        for (const ruleId of ["17", "5"] as const) {
+        for (const rule of importedNumericMapRules()) {
           const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
           results.push({
-            ruleId, file: findingFile,
+            ruleId: rule.id, file: findingFile,
             line: findingLine,
-            symbol, fingerprint: ruleId + ":" + findingFile + ":" + symbol + ":" + stableHash(subject),
-            failureClass: "C", description: "Mapa numerico de alimento/porcao vindo de outro modulo",
+            symbol, fingerprint: rule.id + ":" + findingFile + ":" + symbol + ":" + stableHash(subject),
+            failureClass: rule.failureClass, description: rule.description,
           });
         }
       }
@@ -3197,13 +3202,13 @@ function findCrossModuleNumericFoodMaps(
         const reference = projection(sourceProjection);
         if (reference) {
           const subject = reference.file + ":" + reference.declaration.source + ":" + node.getText(source);
-          for (const ruleId of ["17", "5"] as const) {
+          for (const rule of importedNumericMapRules()) {
             const symbol = "imported-numeric-food-map:" + reference.file + "#" + reference.declaration.symbol;
             results.push({
-              ruleId, file: consumer.path,
+              ruleId: rule.id, file: consumer.path,
               line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
-              symbol, fingerprint: ruleId + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
-              failureClass: "C", description: "Mapa numerico alimentar projetado de outro modulo",
+              symbol, fingerprint: rule.id + ":" + consumer.path + ":" + symbol + ":" + stableHash(subject),
+              failureClass: rule.failureClass, description: rule.description,
             });
           }
         }
