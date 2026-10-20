@@ -49,7 +49,7 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:bigint|boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
