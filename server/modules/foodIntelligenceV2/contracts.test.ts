@@ -711,6 +711,8 @@ describe("FoodResolutionDecision v2", () => {
 
   it("A-1298-002: serving explícito só escala com base serving", () => {
     const directServing = buildFoodResolutionDecisionFixture({
+      // A evidência verificada deve corresponder à nova base sintética.
+      evidence: [{}, {}, { value: 81 }],
       quantity: { value: 1, unit: "serving", grams: null, milliliters: null },
       nutrition: {
         basis: {
@@ -724,6 +726,8 @@ describe("FoodResolutionDecision v2", () => {
     });
     expect(parseFoodResolutionDecision(directServing).ok).toBe(true);
     const ambiguousServing = buildFoodResolutionDecisionFixture({
+      // Manter a evidência coerente para testar somente a unidade "fatia".
+      evidence: [{}, {}, { value: 81 }],
       quantity: { value: 1, unit: "fatia", grams: null, milliliters: null },
       nutrition: {
         basis: {
