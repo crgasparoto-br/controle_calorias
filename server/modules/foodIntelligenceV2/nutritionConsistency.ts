@@ -2,6 +2,8 @@
 import { z } from "zod";
 import {
   FOOD_QUANTITY_EPSILON,
+  FOOD_MASS_UNITS,
+  FOOD_VOLUME_UNITS,
   isMassUnit,
   isVolumeUnit,
   normalizeUnitToken,
@@ -10,26 +12,95 @@ import type { FoodEvidence } from "./schemaShared";
 import type { FoodResolutionDecision } from "./decisionSchemas";
 
 /**
- * A relação entre base e consumo só é demonstrável para medidas diretamente
- * compatíveis. Nunca deduz densidade, tamanho de porção nem converte fatia em g.
+ * A tabela usa o vocabulário governado e obriga escala explícita para qualquer
+ * unidade física nova. Não equipara serving a fatia nem infere densidade.
  */
+const DECLARED_UNIT_SCALES = {
+  g: { basis: "g", factor: 1 },
+  grama: { basis: "g", factor: 1 },
+  gramas: { basis: "g", factor: 1 },
+  gram: { basis: "g", factor: 1 },
+  grams: { basis: "g", factor: 1 },
+  kg: { basis: "g", factor: 1000 },
+  quilo: { basis: "g", factor: 1000 },
+  quilos: { basis: "g", factor: 1000 },
+  kilogram: { basis: "g", factor: 1000 },
+  kilograms: { basis: "g", factor: 1000 },
+  ml: { basis: "ml", factor: 1 },
+  mililitro: { basis: "ml", factor: 1 },
+  mililitros: { basis: "ml", factor: 1 },
+  milliliter: { basis: "ml", factor: 1 },
+  milliliters: { basis: "ml", factor: 1 },
+  l: { basis: "ml", factor: 1000 },
+  litro: { basis: "ml", factor: 1000 },
+  litros: { basis: "ml", factor: 1000 },
+  liter: { basis: "ml", factor: 1000 },
+  liters: { basis: "ml", factor: 1000 },
+  serving: { basis: "serving", factor: 1 },
+} as const satisfies Record<
+  (typeof FOOD_MASS_UNITS)[number] | (typeof FOOD_VOLUME_UNITS)[number] | "serving",
+  { basis: "g" | "ml" | "serving"; factor: number }
+>;
+
+type PhysicalBasis = "g" | "ml" | "serving";
+
+function declaredPhysicalAmount(
+  value: number | null,
+  unit: string | null
+): { basis: PhysicalBasis; amount: number } | null {
+  if (value === null) return null;
+  const mapping = (
+    DECLARED_UNIT_SCALES as Readonly<
+      Record<string, { basis: PhysicalBasis; factor: number }>
+    >
+  )[normalizeUnitToken(unit)];
+  return mapping ? { basis: mapping.basis, amount: value * mapping.factor } : null;
+}
+
+/** A quantidade declarada e a resolvida devem concordar na mesma dimensão. */
+export function assertDeclaredPhysicalConsistency(
+  decision: FoodResolutionDecision,
+  ctx: z.RefinementCtx
+) {
+  const { quantity } = decision;
+  const declared = declaredPhysicalAmount(quantity.value, quantity.unit);
+  if (!declared) return;
+  const physicalByBasis = {
+    g: quantity.grams,
+    ml: quantity.milliliters,
+    serving: null,
+  } satisfies Record<PhysicalBasis, number | null>;
+  const resolved = physicalByBasis[declared.basis];
+  if (
+    resolved !== null &&
+    (!Number.isFinite(declared.amount) ||
+      Math.abs(resolved - declared.amount) > FOOD_QUANTITY_EPSILON)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Quantidade física contradiz value/unit declarados na mesma dimensão; macros não podem usar massa/volume conflitante.",
+      path: ["quantity"],
+    });
+  }
+}
+
+/** Somente uma relação física comprovável autoriza escalar nutrition.consumed. */
 function comparableNutritionAmount(
   decision: FoodResolutionDecision
 ): number | null {
   const basis = decision.nutrition.basis;
   if (!basis) return null;
-  const quantity = decision.quantity;
-  // O schema governa as unidades de base; valores físicos já resolvidos têm
-  // prioridade sobre a unidade declarada, sem inferir densidade ou porção.
-  const physicalAmountByBasis = {
+  const { quantity } = decision;
+  const physicalByBasis = {
     g: quantity.grams,
     ml: quantity.milliliters,
     serving: null,
-  } satisfies Record<typeof basis.unit, number | null>;
-  return (
-    physicalAmountByBasis[basis.unit] ??
-    (normalizeUnitToken(quantity.unit) === basis.unit ? quantity.value : null)
-  );
+  } satisfies Record<PhysicalBasis, number | null>;
+  const physical = physicalByBasis[basis.unit];
+  if (physical !== null) return physical;
+  const declared = declaredPhysicalAmount(quantity.value, quantity.unit);
+  return declared?.basis === basis.unit ? declared.amount : null;
 }
 
 /** Resolução decimal do número informado (não é threshold nutricional). */
@@ -52,9 +123,16 @@ export function assertNutritionScaleConsistency(
   if (!basis || !consumed) return;
 
   const amount = comparableNutritionAmount(decision);
-  // Sem medida diretamente comparável, o contrato não inventa conversão;
-  // o harness de calibração continua responsável por avaliar esses casos.
-  if (amount === null) return;
+  // Sem relação física comparável, valores consumidos não são utilizáveis.
+  if (amount === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "nutrition.consumed exige relação física comprovável entre quantidade e base g/ml/serving; porção ou densidade não são inferidas.",
+      path: ["nutrition", "consumed"],
+    });
+    return;
+  }
 
   const factor = amount / basis.quantity;
   if (!Number.isFinite(factor) || factor <= 0) {
@@ -105,6 +183,28 @@ export function assertPhysicalBasisProvenance(
 ) {
   const quantity = decision.quantity;
   const basisUnit = decision.nutrition.basis?.unit ?? null;
+  const declared = declaredPhysicalAmount(quantity.value, quantity.unit);
+  // Quantidade caseira convertida em massa/volume exige prova do valor físico.
+  // A mera presença de grams ou milliliters não comprova uma conversão.
+  if (decision.nutrition.consumed !== null && quantity.value !== null && !declared) {
+    const converted = [
+      { field: "quantity.grams", value: quantity.grams, path: "grams" },
+      { field: "quantity.milliliters", value: quantity.milliliters, path: "milliliters" },
+    ] as const;
+    for (const { field, value, path } of converted) {
+      if (
+        value !== null &&
+        !isProvenConversion(quantity.evidenceIds, field, value, evidenceById)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Conversão de medida caseira exige evidência verificada do valor físico; quantidade sem lastro não fundamenta macros.",
+          path: ["quantity", path],
+        });
+      }
+    }
+  }
   const claimVolumeToMass =
     quantity.grams !== null &&
     (isVolumeUnit(quantity.unit) ||
