@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           docker run -d --name food-v2-persistence-tidb -p 4000:4000 pingcap/tidb:v8.5.1
           for attempt in $(seq 1 90); do
-            if node --input-type=module -e 'import mysql from "mysql2/promise"; const c=await mysql.createConnection({host:"127.0.0.1",port:4000,user:"root"}); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_upgrade"); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_rollback"); await c.end()'; then
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const c=await mysql.createConnection({host:"127.0.0.1",port:4000,user:"root"}); await c.query("SET GLOBAL tidb_enable_check_constraint=ON"); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_upgrade"); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_rollback"); await c.end()'; then
               exit 0
             fi
             sleep 2
