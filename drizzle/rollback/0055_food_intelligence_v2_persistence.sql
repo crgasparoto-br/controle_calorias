@@ -1,21 +1,21 @@
 -- #1301 PRE-CUTOVER rollback only. Never execute after V2 data is accepted.
 -- Operator MUST take/verify backup, prove zero V2 references/writes, and disable V2 writers.
 -- MySQL/TiDB DDL is not transactionally rolled back: run on disposable validation DB first.
-ALTER TABLE `food_aliases` DROP FOREIGN KEY `v2_food_aliases_food_variant_id_fk`;
-ALTER TABLE `food_portions` DROP FOREIGN KEY `v2_food_portion_food_variant_id_fk`;
-ALTER TABLE `food_portions` DROP FOREIGN KEY `v2_food_portion_evidence_id_fk`;
-ALTER TABLE `user_food_favorites` DROP FOREIGN KEY `v2_user_food_fa_food_variant_id_fk`;
-ALTER TABLE `user_food_usage_stats` DROP FOREIGN KEY `v2_user_food_us_food_variant_id_fk`;
-ALTER TABLE `mealItems` DROP FOREIGN KEY `v2_mealItems_foodVariantId_fk`;
-ALTER TABLE `mealItems` DROP FOREIGN KEY `v2_mealItems_nutritionProfileId_fk`;
-ALTER TABLE `mealItems` DROP FOREIGN KEY `v2_mealItems_foodPortionId_fk`;
+ALTER TABLE `food_aliases` DROP FOREIGN KEY `food_aliases_food_variant_id_food_variants_id_fk`;
+ALTER TABLE `food_portions` DROP FOREIGN KEY `food_portions_food_variant_id_food_variants_id_fk`;
+ALTER TABLE `food_portions` DROP FOREIGN KEY `food_portions_evidence_id_food_evidence_id_fk`;
+ALTER TABLE `user_food_favorites` DROP FOREIGN KEY `user_food_favorites_food_variant_id_food_variants_id_fk`;
+ALTER TABLE `user_food_usage_stats` DROP FOREIGN KEY `user_food_usage_stats_food_variant_id_food_variants_id_fk`;
+ALTER TABLE `mealItems` DROP FOREIGN KEY `mealItems_foodVariantId_food_variants_id_fk`;
+ALTER TABLE `mealItems` DROP FOREIGN KEY `mealItems_nutritionProfileId_food_nutrition_profiles_id_fk`;
+ALTER TABLE `mealItems` DROP FOREIGN KEY `mealItems_foodPortionId_food_portions_id_fk`;
 DROP INDEX `v2_foods_u0` ON `foods`;
 DROP INDEX `v2_food_aliases_u0` ON `food_aliases`;
 DROP INDEX `v2_food_aliases_i0` ON `food_aliases`;
 DROP INDEX `v2_food_portions_u0` ON `food_portions`;
 DROP INDEX `v2_food_portions_i0` ON `food_portions`;
-DROP INDEX `v2_user_food_favori_u0` ON `user_food_favorites`;
-DROP INDEX `v2_user_food_usage__u0` ON `user_food_usage_stats`;
+DROP INDEX `v2_user_food_favorit_u0` ON `user_food_favorites`;
+DROP INDEX `v2_user_food_usage_s_u0` ON `user_food_usage_stats`;
 DROP INDEX `v2_mealItems_i0` ON `mealItems`;
 DROP INDEX `v2_mealItems_i1` ON `mealItems`;
 DROP INDEX `v2_mealItems_i2` ON `mealItems`;
