@@ -550,14 +550,12 @@ describe("efeito idempotente e sobrevivência a restart", () => {
           effect: { effectId: "eff-1", appliedAt, mealItemId: "item-1" },
         })
       );
-      const restarted = createInMemoryPendingOperationStore(store.exportState());
-      const result = applyEffect(restarted);
-      expect(result, appliedAt).toMatchObject({
-        applied: false,
-        duplicate: false,
-        reason: "invalid-pending-time",
-      });
-      expect(restarted.get("op-1")?.effect?.appliedAt).toBe(appliedAt);
+      const state = store.exportState();
+      // A restauração agora rejeita o estado inválido antes de qualquer retry.
+      expect(() => createInMemoryPendingOperationStore(state)).toThrow(
+        "Pendência V2 persistida inválida; restauração recusada."
+      );
+      expect(state.operations[0].effect?.appliedAt).toBe(appliedAt);
     }
   });
 
