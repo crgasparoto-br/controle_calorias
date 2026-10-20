@@ -37,8 +37,6 @@ DROP INDEX `v2_mealItems_i1` ON `mealItems`;
 --> statement-breakpoint
 DROP INDEX `v2_mealItems_i2` ON `mealItems`;
 --> statement-breakpoint
-ALTER TABLE `foods` DROP CHECK `v2_foods_ck0`;
---> statement-breakpoint
 ALTER TABLE `food_aliases` DROP CHECK `v2_food_aliases_ck0`;
 --> statement-breakpoint
 ALTER TABLE `foods` DROP COLUMN `scope`;
