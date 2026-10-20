@@ -400,7 +400,7 @@
           "name": "locale",
           "type": "varchar(20)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'pt-BR'"
         },
@@ -408,7 +408,7 @@
           "name": "status",
           "type": "enum('active','deprecated')",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'active'"
         },
@@ -416,7 +416,7 @@
           "name": "governance_status",
           "type": "enum('provisional','pending_review','verified','rejected','revoked')",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'provisional'"
         },
@@ -424,7 +424,7 @@
           "name": "revision",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 1
         },
@@ -432,7 +432,7 @@
           "name": "updated_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "(now())",
           "onUpdate": true
@@ -1162,7 +1162,7 @@
           "name": "measure_kind",
           "type": "enum('exact','usual_average','contextual_estimate')",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'usual_average'"
         },
@@ -1184,7 +1184,7 @@
           "name": "status",
           "type": "enum('provisional','pending_review','verified','rejected','revoked')",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'provisional'"
         },
@@ -16797,8 +16797,8 @@
         }
       },
       "indexes": {
-        "food_attribute_mater_u0": {
-          "name": "food_attribute_mater_u0",
+        "food_attr_override_u0": {
+          "name": "food_attr_override_u0",
           "columns": [
             "food_id",
             "attribute_id",
@@ -16808,8 +16808,8 @@
         }
       },
       "foreignKeys": {
-        "food_attribute_mat_food_id_fk": {
-          "name": "food_attribute_mat_food_id_fk",
+        "food_attr_override_food_fk": {
+          "name": "food_attr_override_food_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "foods",
           "columnsFrom": [
@@ -16821,8 +16821,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attribute_mat_attribute_id_fk": {
-          "name": "food_attribute_mat_attribute_id_fk",
+        "food_attr_override_attribute_fk": {
+          "name": "food_attr_override_attribute_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "food_attributes",
           "columnsFrom": [
@@ -16834,8 +16834,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attribute_mat_evidence_id_fk": {
-          "name": "food_attribute_mat_evidence_id_fk",
+        "food_attr_override_evidence_fk": {
+          "name": "food_attr_override_evidence_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -16858,8 +16858,8 @@
       },
       "uniqueConstraints": {},
       "checkConstraint": {
-        "food_attribute_material_ck0": {
-          "name": "food_attribute_material_ck0",
+        "food_attr_override_ck0": {
+          "name": "food_attr_override_ck0",
           "value": "(status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)"
         }
       }
