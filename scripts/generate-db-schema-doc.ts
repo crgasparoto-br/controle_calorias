@@ -87,7 +87,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts` `drizzle/usage-governance-schema.ts` e `drizzle/food-intelligence-v2-schema.ts`.",
+    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts`, `drizzle/usage-governance-schema.ts` e `drizzle/food-intelligence-v2-schema.ts`.",
     "",
     "## Tabelas",
     "",
