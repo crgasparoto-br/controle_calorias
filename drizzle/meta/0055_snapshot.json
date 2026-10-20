@@ -1902,12 +1902,7 @@
         }
       },
       "uniqueConstraints": {},
-      "checkConstraint": {
-        "v2_foods_ck0": {
-          "name": "v2_foods_ck0",
-          "value": "scope='global' OR owner_user_id IS NOT NULL"
-        }
-      }
+      "checkConstraint": {}
     },
     "habitMemories": {
       "name": "habitMemories",
@@ -15120,12 +15115,7 @@
         }
       },
       "uniqueConstraints": {},
-      "checkConstraint": {
-        "food_evidence_ck0": {
-          "name": "food_evidence_ck0",
-          "value": "owner_user_id IS NULL OR retention_until IS NOT NULL"
-        }
-      }
+      "checkConstraint": {}
     },
     "food_review_cases": {
       "name": "food_review_cases",
@@ -15398,10 +15388,6 @@
         "food_review_cases_ck2": {
           "name": "food_review_cases_ck2",
           "value": "(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)"
-        },
-        "food_review_cases_ck3": {
-          "name": "food_review_cases_ck3",
-          "value": "outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL"
         }
       }
     },
