@@ -558,8 +558,6 @@ ALTER TABLE `mealItems` ADD CONSTRAINT `mealItems_foodPortionId_food_portions_id
 --> statement-breakpoint
 ALTER TABLE `food_variants` ADD CONSTRAINT `food_variants_ck0` CHECK (revision > 0);
 --> statement-breakpoint
-ALTER TABLE `food_variants` ADD CONSTRAINT `food_variants_ck1` CHECK (merged_into_variant_id IS NULL OR merged_into_variant_id <> id);
---> statement-breakpoint
 ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_ck0` CHECK (version > 0);
 --> statement-breakpoint
 ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_ck1` CHECK (basis_quantity > 0);
@@ -591,8 +589,6 @@ ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck1` CHECK (st
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck2` CHECK ((status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL));
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck3` CHECK (outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL);
---> statement-breakpoint
-ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck4` CHECK (superseded_by_case_id IS NULL OR superseded_by_case_id <> id);
 --> statement-breakpoint
 ALTER TABLE `food_review_events` ADD CONSTRAINT `food_review_events_ck0` CHECK (review_cycle > 0);
 --> statement-breakpoint
