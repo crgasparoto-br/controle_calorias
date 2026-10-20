@@ -2955,6 +2955,10 @@ O primeiro entregável autorizável de §21.1 existe como módulo `server/module
 - `adapters.ts` implementa a invariante de que `MealSemanticContract` V1 é resultado pós-resolução (não observação pré-resolução), a projeção V2 → DTO V1 com fidelidade declarada, a leitura de snapshot histórico pela versão conhecida e a preservação de origem por campo.
 - `pendingOperation.ts` implementa a pendência versionada da tabela de §21.1 (versão fixada, retomada sem troca de resolvedor, efeito idempotente e pendência legada no handler compatível).
 
+- A compatibilidade nutricional exige relação física verificável entre quantidade e base `g`/`ml`/`serving`. `porção` genérica pode ser representada na base `serving`, mas `fatia` e outras medidas caseiras não são equivalentes a `serving` sem evidência de conversão; nenhuma densidade é inferida.
+- IDs opacos de operação, observação, revisão e efeito são validados sem normalização silenciosa de whitespace externo, tanto na criação quanto na retomada e no retry.
+- O resolvedor de referência do Golden Food Corpus é um **duplo exclusivamente sintético**, com grandezas físicas e valores nutricionais coerentes entre si. As suas medições artificiais não representam composição verificada de alimento real nem autorizam promover conhecimento/threshold operacional.
+
 Nenhum entrypoint produtivo foi migrado: `noProductionConsumer.test.ts` trava a fronteira enquanto o cutover (Fase D) não acontecer. Cutover, retirada do legado, persistência durável (issue #1301), corpus/calibração, console administrativa e thresholds permanecem fora desta entrega, e nenhum item de §25 foi fechado por ela.
 
 ### 27.2. Golden Food Corpus e harness de calibração (issue #1299)
