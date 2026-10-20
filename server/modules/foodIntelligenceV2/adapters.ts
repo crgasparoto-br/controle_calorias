@@ -40,56 +40,203 @@ import type {
   FoodResolutionDecision,
 } from "./schemas";
 
-const historicalMealItemSchema = z
-  .object({
-    foodName: z.string(),
-    canonicalName: z.string(),
-    quantity: z.number().finite(),
-    unit: z.string(),
-    portionText: z.string(),
-    servings: z.number().finite(),
-    estimatedGrams: z.number().finite(),
+const historicalProcessingLevelSchema = z.enum([
+  "natural_or_minimally_processed",
+  "processed_culinary_ingredient",
+  "processed",
+  "ultra_processed",
+]);
+
+const historicalEvidenceOriginSchema = z.enum([
+  "text",
+  "transcription",
+  "ocr",
+  "vision",
+  "memory",
+  "catalog",
+  "web_research",
+  "nutrition_label",
+  "provisional_estimate",
+  "ai_estimate",
+  "heuristic",
+  "unavailable",
+]);
+
+const historicalClarificationCodeSchema = z.enum([
+  "brand_variant_unresolved",
+  "commercial_identity_unverified",
+  "commercial_nutrition_unverified",
+  "image_identity_unresolved",
+]);
+
+const historicalSemanticAlternativeSchema = z.strictObject({
+  name: z.string(),
+  brand: z.string().nullable(),
+  productVariant: z.string().nullable(),
+  servingLabel: z.string(),
+  gramsPerServing: z.number().finite(),
+});
+
+const historicalSemanticEvidenceMetaSchema = z.strictObject({
+  origin: historicalEvidenceOriginSchema,
+  confidence: z.number().finite().min(0).max(1),
+  verified: z.boolean(),
+});
+
+const historicalSemanticStringEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.string() });
+const historicalSemanticNullableStringEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.string().nullable() });
+const historicalSemanticNumberEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.number().finite() });
+const historicalSemanticNutritionEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({
+    value: z.strictObject({
+      calories: z.number().finite(),
+      protein: z.number().finite(),
+      carbs: z.number().finite(),
+      fat: z.number().finite(),
+      sourceUrls: z.array(z.string()),
+      sourceEvidence: z.string().nullable(),
+      sourceVerifiedAt: z.string().nullable(),
+    }),
+  });
+
+const historicalSemanticItemSchema = z.strictObject({
+  itemIndex: z.number().int().nonnegative(),
+  originalText: z.string(),
+  normalizedText: z.string(),
+  commercialName: z.string(),
+  category: historicalProcessingLevelSchema.nullable(),
+  brand: z.string().nullable(),
+  productVariant: z.string().nullable(),
+  barcode: z.string().nullable(),
+  quantity: z.number().finite(),
+  unit: z.string(),
+  portionText: z.string(),
+  estimatedGrams: z.number().finite(),
+  confidence: z.strictObject({
+    identity: z.number().finite().min(0).max(1),
+    quantity: z.number().finite().min(0).max(1),
+    source: z.number().finite().min(0).max(1),
+  }),
+  evidence: z.strictObject({
+    identity: historicalSemanticStringEvidenceSchema,
+    brand: historicalSemanticNullableStringEvidenceSchema,
+    variant: historicalSemanticNullableStringEvidenceSchema,
+    quantity: historicalSemanticNumberEvidenceSchema,
+    estimatedGrams: historicalSemanticNumberEvidenceSchema,
+    nutrition: historicalSemanticNutritionEvidenceSchema,
+  }),
+  alternatives: z.array(historicalSemanticAlternativeSchema),
+  needsClarification: z.boolean(),
+  clarificationReason: z
+    .strictObject({
+      code: historicalClarificationCodeSchema,
+      message: z.string(),
+    })
+    .nullable(),
+});
+
+const historicalSemanticClarificationSchema = z.strictObject({
+  itemIndex: z.number().int().nonnegative(),
+  code: historicalClarificationCodeSchema,
+  message: z.string(),
+  alternatives: z.array(historicalSemanticAlternativeSchema),
+});
+
+const historicalSemanticContractSchema = z.strictObject({
+  version: z.literal(MEAL_SEMANTIC_CONTRACT_VERSION),
+  originalText: z.string(),
+  normalizedText: z.string(),
+  inputType: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  intent: z.string(),
+  items: z.array(historicalSemanticItemSchema),
+  needsClarification: z.boolean(),
+  clarifications: z.array(historicalSemanticClarificationSchema),
+});
+
+const historicalClassificationSchema = z.strictObject({
+  processingLevel: historicalProcessingLevelSchema,
+  isFruit: z.boolean(),
+  isVegetable: z.boolean(),
+  fiberGrams: z.number().finite(),
+  isPlainWater: z.boolean().nullable().optional(),
+});
+
+const historicalMeasureResolutionSchema = z.strictObject({
+  kind: z.string(),
+  grams: z.number().finite(),
+  requestedQuantity: z.number().finite(),
+  requestedUnit: z.string(),
+  sourceUrls: z.array(z.string()),
+  sourceEvidence: z.string().nullable(),
+  referenceCount: z.number().int().nonnegative(),
+  verified: z.boolean(),
+});
+
+const historicalResolutionSchema = z.strictObject({
+  productVariant: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  nutritionOrigin: historicalEvidenceOriginSchema,
+  nutritionVerified: z.boolean(),
+  sourceUrls: z.array(z.string()).optional(),
+  sourceEvidence: z.string().nullable().optional(),
+  sourceVerifiedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  sourceConfidence: z.number().finite().min(0).max(1).nullable().optional(),
+  measureResolution: historicalMeasureResolutionSchema.nullable().optional(),
+  ambiguity: z
+    .strictObject({
+      reason: historicalClarificationCodeSchema,
+      alternatives: z.array(historicalSemanticAlternativeSchema),
+    })
+    .nullable()
+    .optional(),
+});
+
+const historicalMealItemSchema = z.strictObject({
+  foodId: z.number().int().positive().optional(),
+  foodCatalogId: z.number().int().positive().nullable().optional(),
+  portionId: z.number().int().positive().optional(),
+  portionQuantity: z.number().finite().positive().optional(),
+  foodName: z.string(),
+  canonicalName: z.string(),
+  brand: z.string().nullable().optional(),
+  productVariant: z.string().nullable().optional(),
+  quantity: z.number().finite(),
+  unit: z.string(),
+  portionText: z.string(),
+  servings: z.number().finite(),
+  estimatedGrams: z.number().finite(),
+  calories: z.number().finite(),
+  protein: z.number().finite(),
+  carbs: z.number().finite(),
+  fat: z.number().finite(),
+  confidence: z.number().finite().min(0).max(1),
+  source: z.enum(["catalog", "hybrid", "heuristic"]),
+  sourceMediaStorageKey: z.string().optional(),
+  classification: historicalClassificationSchema.nullable().optional(),
+  resolution: historicalResolutionSchema.optional(),
+});
+
+const historicalMealSnapshotSchema = z.strictObject({
+  detectedMealLabel: z.string(),
+  sourceText: z.string(),
+  imageUrl: z.string().optional(),
+  audioUrl: z.string().optional(),
+  transcript: z.string().optional(),
+  confidence: z.number().finite().min(0).max(1),
+  needsConfirmation: z.boolean(),
+  reasoning: z.string(),
+  items: z.array(historicalMealItemSchema),
+  totals: z.strictObject({
     calories: z.number().finite(),
     protein: z.number().finite(),
     carbs: z.number().finite(),
     fat: z.number().finite(),
-    confidence: z.number().finite().min(0).max(1),
-    source: z.enum(["catalog", "hybrid", "heuristic"]),
-  })
-  .passthrough();
-
-const historicalSemanticContractSchema = z
-  .object({
-    version: z.literal(MEAL_SEMANTIC_CONTRACT_VERSION),
-    originalText: z.string(),
-    normalizedText: z.string(),
-    inputType: z.enum(["text", "audio_transcript", "image", "multimodal"]),
-    intent: z.string(),
-    items: z.array(z.unknown()),
-    needsClarification: z.boolean(),
-    clarifications: z.array(z.unknown()),
-  })
-  .passthrough();
-
-const historicalMealSnapshotSchema = z
-  .object({
-    detectedMealLabel: z.string(),
-    sourceText: z.string(),
-    confidence: z.number().finite().min(0).max(1),
-    needsConfirmation: z.boolean(),
-    reasoning: z.string(),
-    items: z.array(historicalMealItemSchema),
-    totals: z
-      .object({
-        calories: z.number().finite(),
-        protein: z.number().finite(),
-        carbs: z.number().finite(),
-        fat: z.number().finite(),
-      })
-      .passthrough(),
-    semanticContract: historicalSemanticContractSchema.nullable().optional(),
-  })
-  .passthrough();
+  }),
+  semanticContract: historicalSemanticContractSchema.nullable().optional(),
+});
 
 /** Origens de evidência do vocabulário V1 (tudo exceto `barcode`). */
 export const V1_EVIDENCE_ORIGINS = [

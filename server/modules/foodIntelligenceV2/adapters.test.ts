@@ -332,4 +332,30 @@ describe("snapshot histórico V1", () => {
     if (result.ok) throw new Error("esperada recusa");
     expect(result.reason).toBe("invalid-snapshot");
   });
+
+  it("recusa subestruturas V1 conhecidas malformadas sem passthrough permissivo", () => {
+    const invalidSnapshots = [
+      buildV1HistoricalSnapshotFixture({ imageUrl: { url: "bad" } }),
+      buildV1HistoricalSnapshotFixture({ audioUrl: ["bad"] }),
+      buildV1HistoricalSnapshotFixture({ transcript: 42 }),
+      buildV1HistoricalSnapshotFixture({ items: [{ brand: { name: "bad" } }] }),
+      buildV1HistoricalSnapshotFixture({
+        items: [{ resolution: { nutritionVerified: "yes" } }],
+      }),
+      buildV1HistoricalSnapshotFixture({ semanticContract: { items: [null] } }),
+      buildV1HistoricalSnapshotFixture({
+        semanticContract: { clarifications: [null] },
+      }),
+      buildV1HistoricalSnapshotFixture({
+        totals: { fat: { value: 6.9 } },
+      }),
+    ];
+
+    for (const snapshot of invalidSnapshots) {
+      const result = readHistoricalV1MealSnapshot(snapshot);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("esperada recusa de snapshot malformado");
+      expect(result.reason).toBe("invalid-snapshot");
+    }
+  });
 });
