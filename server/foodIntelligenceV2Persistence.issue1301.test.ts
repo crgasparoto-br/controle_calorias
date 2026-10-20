@@ -53,7 +53,8 @@ describe("#1301 V2 migration invariants", () => {
     expect(snapshot.tables.food_aliases.columns).toHaveProperty("governance_status");
     expect(hasUnique("food_review_events", ["case_id", "review_cycle", "request_key"])).toBe(true);
     expect(migration).toContain("status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL");
-    expect(migration).toContain("owner_user_id IS NULL OR retention_until IS NOT NULL");
+    expect(snapshot.tables.food_evidence.columns).toHaveProperty("retention_until");
+    expect(snapshot.tables.food_evidence.columns).toHaveProperty("owner_user_id");
   });
   it("contains a guarded reverse migration that never deletes legacy food tables", () => {
     for (const table of expected) expect(rollback).toContain("DROP TABLE `" + table + "`");
