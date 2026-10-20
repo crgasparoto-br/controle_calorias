@@ -219,12 +219,44 @@ export function createPendingOperationV2(input: {
     };
   }
 
-  if (input.question !== null && !REASON_CODE_SET.has(input.question.code)) {
+  // O tipo TS não garante que o payload JSON de runtime contenha code/ref.
+  // Apenas null representa a ausência da pergunta; undefined não é aceito.
+  const question: unknown = input.question;
+  if (
+    question !== null &&
+    (!question || typeof question !== "object" || Array.isArray(question))
+  ) {
     return {
       ok: false,
-      reason: "invalid-reason-code",
-      detail: `Motivo ${String(input.question.code)} não pertence ao registro tipado do domínio.`,
+      reason: "invalid-pending-operation",
+      detail: "question deve ser null ou objeto estruturado com code e ref.",
     };
+  }
+  if (question !== null) {
+    const candidate = question as Partial<{ code: FoodReasonCode; ref: string }>;
+    if (
+      typeof candidate.code !== "string" ||
+      !REASON_CODE_SET.has(candidate.code)
+    ) {
+      return {
+        ok: false,
+        reason: "invalid-reason-code",
+        detail: `Motivo ${String(candidate.code)} não pertence ao registro tipado do domínio.`,
+      };
+    }
+    if (
+      typeof candidate.ref !== "string" ||
+      candidate.ref.length === 0 ||
+      candidate.ref.length > 200 ||
+      candidate.ref !== candidate.ref.trim() ||
+      Object.keys(question).some(key => key !== "code" && key !== "ref")
+    ) {
+      return {
+        ok: false,
+        reason: "invalid-pending-operation",
+        detail: "question exige ref opaca válida, sem whitespace externo ou campos extras.",
+      };
+    }
   }
 
   if (Date.parse(input.expiresAt) <= Date.parse(input.createdAt)) {
