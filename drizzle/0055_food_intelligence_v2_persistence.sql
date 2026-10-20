@@ -8,27 +8,27 @@ ALTER TABLE `foods` ADD COLUMN `canonical_key` varchar(191) NULL;
 --> statement-breakpoint
 ALTER TABLE `food_aliases` ADD COLUMN `food_variant_id` int NULL;
 --> statement-breakpoint
-ALTER TABLE `food_aliases` ADD COLUMN `locale` varchar(20) NULL DEFAULT 'pt-BR';
+ALTER TABLE `food_aliases` ADD COLUMN `locale` varchar(20) NOT NULL DEFAULT 'pt-BR';
 --> statement-breakpoint
-ALTER TABLE `food_aliases` ADD COLUMN `status` enum('active','deprecated') NULL DEFAULT 'active';
+ALTER TABLE `food_aliases` ADD COLUMN `status` enum('active','deprecated') NOT NULL DEFAULT 'active';
 --> statement-breakpoint
-ALTER TABLE `food_aliases` ADD COLUMN `governance_status` enum('provisional','pending_review','verified','rejected','revoked') NULL DEFAULT 'provisional';
+ALTER TABLE `food_aliases` ADD COLUMN `governance_status` enum('provisional','pending_review','verified','rejected','revoked') NOT NULL DEFAULT 'provisional';
 --> statement-breakpoint
-ALTER TABLE `food_aliases` ADD COLUMN `revision` int NULL DEFAULT 1;
+ALTER TABLE `food_aliases` ADD COLUMN `revision` int NOT NULL DEFAULT 1;
 --> statement-breakpoint
-ALTER TABLE `food_aliases` ADD COLUMN `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `food_aliases` ADD COLUMN `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
 --> statement-breakpoint
 ALTER TABLE `food_portions` ADD COLUMN `food_variant_id` int NULL;
 --> statement-breakpoint
 ALTER TABLE `food_portions` ADD COLUMN `milliliters` double NULL;
 --> statement-breakpoint
-ALTER TABLE `food_portions` ADD COLUMN `measure_kind` enum('exact','usual_average','contextual_estimate') NULL DEFAULT 'usual_average';
+ALTER TABLE `food_portions` ADD COLUMN `measure_kind` enum('exact','usual_average','contextual_estimate') NOT NULL DEFAULT 'usual_average';
 --> statement-breakpoint
 ALTER TABLE `food_portions` ADD COLUMN `evidence_id` int NULL;
 --> statement-breakpoint
 ALTER TABLE `food_portions` ADD COLUMN `confidence` double NULL;
 --> statement-breakpoint
-ALTER TABLE `food_portions` ADD COLUMN `status` enum('provisional','pending_review','verified','rejected','revoked') NULL DEFAULT 'provisional';
+ALTER TABLE `food_portions` ADD COLUMN `status` enum('provisional','pending_review','verified','rejected','revoked') NOT NULL DEFAULT 'provisional';
 --> statement-breakpoint
 ALTER TABLE `food_portions` ADD COLUMN `valid_from` timestamp NULL;
 --> statement-breakpoint
@@ -452,7 +452,7 @@ CREATE TABLE `food_attribute_materiality_overrides` (
   PRIMARY KEY (`id`)
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `food_attribute_mater_u0` ON `food_attribute_materiality_overrides` (`food_id`,`attribute_id`,`current_slot`);
+CREATE UNIQUE INDEX `food_attr_override_u0` ON `food_attribute_materiality_overrides` (`food_id`,`attribute_id`,`current_slot`);
 --> statement-breakpoint
 ALTER TABLE `food_variants` ADD CONSTRAINT `food_variants_food_id_fk` FOREIGN KEY (`food_id`) REFERENCES `foods`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -534,11 +534,11 @@ ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_mat_evid
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_mat_supersedes_id_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `food_attribute_materiality`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_mat_food_id_fk` FOREIGN KEY (`food_id`) REFERENCES `foods`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_food_fk` FOREIGN KEY (`food_id`) REFERENCES `foods`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_mat_attribute_id_fk` FOREIGN KEY (`attribute_id`) REFERENCES `food_attributes`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_attribute_fk` FOREIGN KEY (`attribute_id`) REFERENCES `food_attributes`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_mat_evidence_id_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_evidence_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_aliases` ADD CONSTRAINT `v2_food_aliases_food_variant_id_fk` FOREIGN KEY (`food_variant_id`) REFERENCES `food_variants`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -604,7 +604,7 @@ ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `food_variant_attributes_ck
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_material_ck0` CHECK (current_slot IS NULL OR current_slot = 1);
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_material_ck0` CHECK ((status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL));
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_ck0` CHECK ((status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL));
 --> statement-breakpoint
 ALTER TABLE `foods` ADD CONSTRAINT `v2_foods_ck0` CHECK (scope='global' OR owner_user_id IS NOT NULL);
 --> statement-breakpoint
