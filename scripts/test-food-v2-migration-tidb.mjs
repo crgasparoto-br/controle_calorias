@@ -67,6 +67,30 @@ const mustReject = async (promise, label) => {
     /duplicate|check constraint|foreign key/i.test(String(error.message))
   , label);
 };
+// Negative regression control: V1 continues creating foods after B1 without V2 fields.
+// Unreconciled V1 records must remain explicitly unscoped and ineligible for V2.
+const assertLegacyWritesAfterMigration = async f => {
+  const insertSql = "INSERT INTO foods (owner_user_id, name, normalized_name, calories_kcal_per_100g, protein_grams_per_100g, carbs_grams_per_100g, fat_grams_per_100g) VALUES (?, ?, ?, 250, 9, 48, 3)";
+  const [first] = await connection.query(insertSql, [f.userId, "Pão legado novo A", "pao legado novo a"]);
+  const [second] = await connection.query(insertSql, [f.userId, "Pão legado novo B", "pao legado novo b"]);
+  const rows = await queryRows("SELECT id, owner_user_id, scope, canonical_name, canonical_key FROM foods WHERE id IN (?, ?) ORDER BY id", [first.insertId, second.insertId]);
+  assert.equal(rows.length, 2, "V1 must accept two legacy inserts after the V2 migration");
+  for (const row of rows) {
+    assert.equal(row.owner_user_id, f.userId);
+    assert.equal(row.scope, null, "unreconciled personal records must not be implicitly global");
+    assert.equal(row.canonical_name, null, "legacy identity must not be fabricated");
+    assert.equal(row.canonical_key, null, "legacy records must not impersonate V2 canonical identities");
+  }
+  if (mode === "upgrade") {
+    await connection.query("UPDATE foods SET scope='user', canonical_name='Pão legado novo A', canonical_key='ci-foodv2:reconciled' WHERE id=?", [first.insertId]);
+    await mustReject(
+      connection.query("UPDATE foods SET scope='user', canonical_name='Pão legado novo B', canonical_key='ci-foodv2:reconciled' WHERE id=?", [second.insertId]),
+      "explicitly reconciled V2 canonical keys must still be unique"
+    );
+  }
+  await assertLegacy(f, true);
+};
+
 const testUpgrade = async f => {
   const [v] = await connection.query(
     "INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key, status) VALUES (?, 'branded', 'Pão integral', 'pao integral', 'ci-foodv2:variant', 'active')",
@@ -175,6 +199,7 @@ try {
   await assertLegacy(fixture, false);
   const forwardStatements = await applyFile("../drizzle/0055_food_intelligence_v2_persistence.sql");
   await assertLegacy(fixture, true);
+  await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
