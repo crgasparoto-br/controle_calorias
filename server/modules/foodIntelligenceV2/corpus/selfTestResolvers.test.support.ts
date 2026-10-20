@@ -8,14 +8,13 @@
  * reprovar (§4.1.8, §16.1, §18).
  */
 import {
-  toCorpusCaseInput,
-  type CorpusCaseInput,
   type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type ExpectedDecision,
   type GoldenCorpus,
   type GoldenCorpusCase,
 } from "./contracts";
+import { lookupBoundCorpusCaseId } from "./internalCaseBinding.test.support";
 import {
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
   isGroundedEvidenceOrigin,
@@ -349,35 +348,12 @@ function resultFor(
   return { decisions, operation: operationFor(caseEntry) };
 }
 
-/**
- * Os doubles precisam localizar a expectativa para montar saídas sintéticas,
- * mas não podem depender do identificador estável exposto ao resolvedor. O
- * índice interno usa somente a superfície observada que o harness entrega.
- */
-function inputKey(input: CorpusCaseInput): string {
-  return JSON.stringify({
-    modality: input.modality,
-    input: input.input,
-    mealOperation: input.mealOperation,
-    scenario: {
-      ownerRef: input.scenario.ownerRef,
-      conversationRef: input.scenario.conversationRef,
-      providerAvailability: input.scenario.providerAvailability,
-    },
-  });
-}
-
-function corpusInputIndex(corpus: GoldenCorpus) {
-  return new Map(
-    corpus.cases.map(entry => [inputKey(toCorpusCaseInput(entry)), entry])
-  );
-}
-
 function sourceForInput(
   corpus: GoldenCorpus,
-  input: CorpusCaseInput
+  input: Parameters<CorpusResolverUnderTest["resolve"]>[0]["case"]
 ): GoldenCorpusCase {
-  const source = corpusInputIndex(corpus).get(inputKey(input));
+  const caseId = lookupBoundCorpusCaseId(input);
+  const source = corpus.cases.find(entry => entry.caseId === caseId);
   if (!source) throw new Error("superfície sanitizada desconhecida");
   return source;
 }
@@ -394,26 +370,24 @@ export function createReferenceResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
-  const byInput = corpusInputIndex(corpus);
   return {
     id: "self-test:reference-oracle",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byInput.get(inputKey(entry));
-      if (!source) throw new Error("superfície sanitizada desconhecida");
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
       // §16.1 exige efeito observável: a fase de aquisição registra a chave e
       // os passos posteriores a **consultam**. Um resolvedor que devolve o
       // resultado por caseId sem consultar a fachada não prova aprendizado e
       // reprova na cadeia causal do harness.
       if (allowLearning && knowledge.mode === "acquisition") {
         await knowledge.write(
-          `${entry.scenario.ownerRef}:${ALIAS_KEY}`,
+          `${input.scenario.ownerRef}:${ALIAS_KEY}`,
           ALIAS_VALUE
         );
         return resultFor(source);
       }
       const learned = await knowledge.read(
-        `${entry.scenario.ownerRef}:${ALIAS_KEY}`
+        `${input.scenario.ownerRef}:${ALIAS_KEY}`
       );
       // Contra-factual declarado: dentro de um cenário, quando o alias não
       // existe na fachada, o resultado correto é o do estado anterior à
@@ -421,7 +395,7 @@ export function createReferenceResolver(
       // e não um rótulo devolvido por `caseId`.
       const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       if (
-        entry.scenario.phase !== null &&
+        input.scenario.phase !== null &&
         ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         learned === null &&
         before
@@ -444,16 +418,14 @@ export function createLearningResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
-  const byInput = corpusInputIndex(corpus);
   const acquiredCaseId = "c-aprendizado-alias-definido";
 
   return {
     id: "self-test:learning-resolver",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byInput.get(inputKey(entry));
-      if (!source) throw new Error("superfície sanitizada desconhecida");
-      const ownerRef = entry.scenario.ownerRef;
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
+      const ownerRef = input.scenario.ownerRef;
       const key = `${ownerRef}:${ALIAS_KEY}`;
 
       if (allowLearning && knowledge.mode === "acquisition") {
@@ -465,7 +437,7 @@ export function createLearningResolver(
       const acquired = byCaseId.get(acquiredCaseId);
       const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       const appliesToSurface =
-        entry.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+        input.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
         "cafe da firma";
       if (learned !== null && appliesToSurface && acquired) {
         return resultFor(source, acquired);
@@ -474,7 +446,7 @@ export function createLearningResolver(
       // resultado correto é o do estado anterior à aquisição.
       if (
         learned === null &&
-        entry.scenario.phase !== null &&
+        input.scenario.phase !== null &&
         ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         before
       ) {
@@ -495,17 +467,15 @@ export function createCacheIgnoringRevocationResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
-  const byInput = corpusInputIndex(corpus);
   const acquiredCaseId = "c-aprendizado-alias-definido";
   const cache = new Map<string, string>();
 
   return {
     id: "self-test:cache-ignoring-revocation",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byInput.get(inputKey(entry));
-      if (!source) throw new Error("superfície sanitizada desconhecida");
-      const key = `${entry.scenario.ownerRef}:${ALIAS_KEY}`;
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
+      const key = `${input.scenario.ownerRef}:${ALIAS_KEY}`;
 
       if (allowLearning && knowledge.mode === "acquisition") {
         await knowledge.write(key, ALIAS_VALUE);
@@ -515,7 +485,7 @@ export function createCacheIgnoringRevocationResolver(
 
       const acquired = byCaseId.get(acquiredCaseId);
       const appliesToSurface =
-        entry.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+        input.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
         "cafe da firma";
       // Cache obsoleto: nunca consulta a fachada depois da aquisição.
       if (cache.has(key) && appliesToSurface && acquired) {

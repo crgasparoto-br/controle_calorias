@@ -31,6 +31,7 @@ import {
   type FoodReasonCode,
 } from "../contracts";
 import type { FoodResolutionDecision, MealOperation } from "../schemas";
+import { bindCorpusCaseInput } from "./internalCaseBinding.test.support";
 
 /** `schemaVersion` aceito pelo corpus. Versão desconhecida é rejeitada. */
 export const GOLDEN_CORPUS_SCHEMA_VERSION = 1;
@@ -798,6 +799,7 @@ export function toCorpusCaseInput(
       phase,
     }),
   };
+  bindCorpusCaseInput(input, entry);
   return Object.freeze(input);
 }
 
