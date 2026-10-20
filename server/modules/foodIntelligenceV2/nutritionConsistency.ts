@@ -19,14 +19,17 @@ function comparableNutritionAmount(
   const basis = decision.nutrition.basis;
   if (!basis) return null;
   const quantity = decision.quantity;
-  const unit = normalizeUnitToken(quantity.unit);
-  if (basis.unit === "g") {
-    return quantity.grams ?? (unit === "g" ? quantity.value : null);
-  }
-  if (basis.unit === "ml") {
-    return quantity.milliliters ?? (unit === "ml" ? quantity.value : null);
-  }
-  return unit === "serving" ? quantity.value : null;
+  // O schema governa as unidades de base; valores físicos já resolvidos têm
+  // prioridade sobre a unidade declarada, sem inferir densidade ou porção.
+  const physicalAmountByBasis = {
+    g: quantity.grams,
+    ml: quantity.milliliters,
+    serving: null,
+  } satisfies Record<typeof basis.unit, number | null>;
+  return (
+    physicalAmountByBasis[basis.unit] ??
+    (normalizeUnitToken(quantity.unit) === basis.unit ? quantity.value : null)
+  );
 }
 
 /** Resolução decimal do número informado (não é threshold nutricional). */
@@ -63,16 +66,11 @@ export function assertNutritionScaleConsistency(
     return;
   }
 
-  const nutrients = [
-    "calories",
-    "protein",
-    "carbs",
-    "fat",
-    "fiber",
-    "sugar",
-    "sodiumMg",
-  ] as const;
-  for (const nutrient of nutrients) {
+  // Iterar sobre o contrato nutricional validado evita enumerar ou perder
+  // nutrientes quando a versão do schema evoluir.
+  for (const nutrient of Object.keys(basis.values) as Array<
+    keyof typeof basis.values
+  >) {
     const baseValue = basis.values[nutrient];
     const consumedValue = consumed[nutrient];
     if (baseValue === null || consumedValue === null) continue;
