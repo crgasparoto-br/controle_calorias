@@ -171,7 +171,7 @@ export const foodEvidence = mysqlTable("food_evidence", {
   i0: index("food_evidence_i0").on(table.subjectKey),
   i1: index("food_evidence_i1").on(table.contentHash),
   i2: index("food_evidence_i2").on(table.retentionUntil),
-  ck0: check("food_evidence_ck0", sql`owner_user_id IS NULL OR retention_until IS NOT NULL`),
+
 }));
 
 export const foodReviewCases = mysqlTable("food_review_cases", {
@@ -208,7 +208,7 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
   ck0: check("food_review_cases_ck0", sql`review_cycle > 0`),
   ck1: check("food_review_cases_ck1", sql`state_version > 0`),
   ck2: check("food_review_cases_ck2", sql`(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)`),
-  ck3: check("food_review_cases_ck3", sql`outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL`),
+
 
 }));
 
