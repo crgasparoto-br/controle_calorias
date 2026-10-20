@@ -150,7 +150,7 @@ export const foods = mysqlTable("foods", {
   scopeSearchIdx: index("foods_scope_search_idx").on(table.ownerUserId, table.normalizedName),
   statusIdx: index("foods_status_idx").on(table.status),
   canonicalKeyUnique: uniqueIndex("v2_foods_u0").on(table.canonicalKey),
-  scopeOwnerCheck: check("v2_foods_ck0", sql`scope = 'global' OR owner_user_id IS NOT NULL`),
+  scopeOwnerCheck: check("v2_foods_ck0", sql`scope='global' OR owner_user_id IS NOT NULL`),
   mergedIntoFoodIdIdx: index("foods_merged_into_food_id_idx").on(table.mergedIntoFoodId),
   sourceCodeUnique: uniqueIndex("foods_source_code_unique").on(table.sourceId, table.sourceFoodCode),
 }));
