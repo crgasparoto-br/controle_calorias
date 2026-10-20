@@ -379,6 +379,34 @@ function sourceForInput(
   return source;
 }
 
+/**
+ * Explicitly fixture-aware resolver double for harness SELF-TESTS only.
+ *
+ * The fixture is supplied by the synthetic double through the private WeakMap;
+ * the public CorpusResolverRequest never exposes it. This factory must never
+ * be used to claim productive resolver accuracy, or as an adapter for a
+ * productive candidate. No generic caseId/fixture lookup is exported.
+ */
+export function createSyntheticScenarioResolver(
+  corpus: GoldenCorpus,
+  testDouble: {
+    readonly id: string;
+    readonly revision: string;
+    resolve(
+      request: Parameters<CorpusResolverUnderTest["resolve"]>[0],
+      fixture: Readonly<GoldenCorpusCase>
+    ): ReturnType<CorpusResolverUnderTest["resolve"]>;
+  }
+): CorpusResolverUnderTest {
+  return {
+    id: testDouble.id,
+    revision: testDouble.revision,
+    resolve(request) {
+      return testDouble.resolve(request, sourceForInput(corpus, request.case));
+    },
+  };
+}
+
 function corpusIndex(corpus: GoldenCorpus) {
   return new Map(corpus.cases.map(entry => [entry.caseId, entry]));
 }
