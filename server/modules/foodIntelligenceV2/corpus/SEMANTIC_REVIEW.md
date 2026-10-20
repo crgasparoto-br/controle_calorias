@@ -23,6 +23,25 @@ The harness is a test/calibration tool: its 95% match-rate calculation, metamorp
 
 A new external audit must still verify that the individual evidence records actually substantiate the labels, and separately check the changed harness implementation on the current exact HEAD. An empty review backlog is not an automatic auditor approval. Do not claim end-to-end accuracy or authorize merge from these counts alone.
 
+## Synthetic test identity boundary (AUD-1327-001)
+
+The self-test resolvers deliberately consult fixtures through a private
+`WeakMap<CorpusCaseInput, caseId>` to inject good and bad decisions. A
+test-only `createSyntheticScenarioResolver` adapter supplies a fixture
+**only to explicit synthetic test callbacks**. The ordinary
+`CorpusResolverRequest` contains neither `caseId` nor an expected decision,
+and the binding facade exports registration only. The adversarial test uses
+two cases with identical observable input but distinct internal identities:
+JSON/surface equality cannot safely identify a fixture; an unbound clone
+is rejected by the synthetic adapter.
+
+This is an API and harness self-test boundary, **not** a security sandbox
+against arbitrary code executing in the same process with repository access.
+A production candidate that imports test fixture modules can still cheat,
+and a green synthetic test cannot certify actual recognition accuracy.
+Production evaluation must use an independently isolated resolver and
+holdout source not available to the candidate under test.
+
 ## Required evidence artifact for a new independent sign-off
 
 For every newly approved case, add a distinct JSON file at
