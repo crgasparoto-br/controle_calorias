@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  assertDeclaredPhysicalConsistency,
   assertNutritionScaleConsistency,
   assertPhysicalBasisProvenance,
 } from "./nutritionConsistency";
@@ -426,6 +427,7 @@ export const foodResolutionDecisionSchema = z
         }
       }
     }
+    assertDeclaredPhysicalConsistency(decision, ctx);
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
     assertNutritionScaleConsistency(decision, ctx);
     const barcodeEvidence = decision.evidence.some(
