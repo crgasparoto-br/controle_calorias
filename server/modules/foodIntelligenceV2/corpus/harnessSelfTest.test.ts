@@ -98,6 +98,51 @@ function withVerifiedPhysicalQuantity(
   };
 }
 
+/**
+ * Ao variar macros sintéticos, atualizar também a evidência numérica vinculada.
+ * Isto isola o cenário exercitado, sem enfraquecer o schema V2 fail-closed.
+ */
+function withCoherentNutritionEvidence(
+  decision: FoodResolutionDecision
+): FoodResolutionDecision {
+  const basis = decision.nutrition.basis;
+  if (!basis) return decision;
+  const evidenceIds = new Set(decision.nutrition.evidenceIds);
+  return {
+    ...decision,
+    evidence: decision.evidence.map(evidence => {
+      if (!evidenceIds.has(evidence.evidenceId) ||
+          !evidence.field.startsWith("nutrition.")) return evidence;
+      const nutrient = evidence.field.slice("nutrition.".length) as keyof typeof basis.values;
+      if (!(nutrient in basis.values)) return evidence;
+      const value = basis.values[nutrient];
+      if (value === null) return evidence;
+      return {
+        ...evidence,
+        value,
+        unit: nutrient === "calories" ? "kcal" : nutrient === "sodiumMg" ? "mg" : "g",
+      };
+    }),
+  };
+}
+
+/** Altera somente o valor nutricional sintético, mantendo base e consumo coerentes. */
+function withSyntheticCalories(
+  decision: FoodResolutionDecision,
+  calories: number
+): FoodResolutionDecision {
+  const { basis, consumed } = decision.nutrition;
+  if (!basis || !consumed) return decision;
+  return withCoherentNutritionEvidence({
+    ...decision,
+    nutrition: {
+      ...decision.nutrition,
+      basis: { ...basis, values: { ...basis.values, calories } },
+      consumed: { ...consumed, calories },
+    },
+  });
+}
+
 // Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
 // fixa explicitamente a versão do SUT realmente exercitado. O teste adversarial
 // abaixo invoca executeCorpus diretamente para provar a recusa de pino falso.
@@ -980,7 +1025,7 @@ describe("autoverificação do harness", () => {
             ...result,
             decisions: result.decisions.map(decision => {
               const supported = withVerifiedPhysicalQuantity(decision, "g", 50);
-              return {
+              return withCoherentNutritionEvidence({
               ...supported,
               nutrition: {
                 ...supported.nutrition,
@@ -998,7 +1043,7 @@ describe("autoverificação do harness", () => {
                   fiber: 1, sugar: 2, sodiumMg: 40,
                 },
               },
-              };
+              });
             }),
           };
         },
@@ -1007,15 +1052,14 @@ describe("autoverificação do harness", () => {
     expect(valid.gate.status).toBe("passed");
     expect(valid.overall.matchRate).toBe(1);
     const invalid = await calculated(true);
-    expect(invalid.failures.flatMap(failure => failure.codes))
-      .toContain("nutrition_calculation_mismatch");
-    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
-    expect(invalid.gate.status).toBe("blocked");
-    expect(invalid.overall.families.nutritionFailures).toBe(1);
+    // A validação contratual detecta a proporção inválida antes do harness.
+    expect(allCodes(invalid)).toContain("decision_invalid");
+    expect(invalid.gate.status).toBe("failed");
+    expect(invalid.overall.matchRate).toBe(0);
     expect(selected.cases[0].metamorphicGroup).toBeNull();
   });
 
-  it("AUD-1316-018: bloqueia erro nutricional idêntico em todos os membros de um grupo", async () => {
+  it("AUD-1316-018: recusa erro nutricional compartilhado antes de agregar o grupo", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const members = new Set(corpus.cases
       .filter(entry => entry.metamorphicGroup === groupId)
@@ -1031,7 +1075,7 @@ describe("autoverificação do harness", () => {
           ...result,
           decisions: result.decisions.map(decision => {
             const supported = withVerifiedPhysicalQuantity(decision, "g", 50);
-            return {
+            return withCoherentNutritionEvidence({
             ...supported,
             nutrition: {
               ...supported.nutrition,
@@ -1047,17 +1091,16 @@ describe("autoverificação do harness", () => {
                 fiber: 1, sugar: 2, sodiumMg: 40,
               },
             },
-            };
+            });
           }),
         };
       },
     }), pinned);
     expect(members.size).toBeGreaterThanOrEqual(2);
-    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBe(true);
-    expect(report.failures.flatMap(failure => failure.codes))
-      .toContain("nutrition_calculation_mismatch");
-    expect(report.gate.blockReasons).toContain("nutrition_calculation_mismatch");
-    expect(report.gate.status).toBe("blocked");
+    // Decisões inválidas não entram no agregado nem simulam equivalência.
+    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBeNull();
+    expect(allCodes(report)).toContain("decision_invalid");
+    expect(report.gate.status).toBe("failed");
   });
 
   it("AUD-1316-018: compara mililitros diretamente, sem inventar densidade para gramas", async () => {
@@ -1073,7 +1116,7 @@ describe("autoverificação do harness", () => {
             ...result,
             decisions: result.decisions.map(decision => {
               const supported = withVerifiedPhysicalQuantity(decision, "ml", 200);
-              return {
+              return withCoherentNutritionEvidence({
               ...supported,
               nutrition: {
                 ...supported.nutrition,
@@ -1089,19 +1132,19 @@ describe("autoverificação do harness", () => {
                   fiber: null, sugar: 2, sodiumMg: 20,
                 },
               },
-              };
+              });
             }),
           };
         },
       }, pinned);
     const invalid = await measured("ml");
-    expect(invalid.gate.status).toBe("blocked");
-    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    expect(invalid.gate.status).toBe("failed");
+    expect(allCodes(invalid)).toContain("decision_invalid");
     const incomparable = await measured("g");
     // Sem densidade comprovada, não se calcula proporção massa/volume:
     // outros critérios podem reprovar o caso, sem criar conversão fictícia.
-    expect(incomparable.failures.flatMap(failure => failure.codes))
-      .not.toContain("nutrition_calculation_mismatch");
+    expect(allCodes(incomparable)).toContain("decision_invalid");
+    expect(allCodes(incomparable)).not.toContain("nutrition_calculation_mismatch");
   });
 
   it.each([
@@ -1147,7 +1190,7 @@ describe("autoverificação do harness", () => {
             const result = await reference.resolve(request);
             return {
               ...result,
-              decisions: result.decisions.map(decision => ({
+              decisions: result.decisions.map(decision => withCoherentNutritionEvidence({
                 ...decision,
                 quantity: {
                   ...decision.quantity,
@@ -1330,10 +1373,9 @@ describe("autoverificação do harness", () => {
                   decision.identity.canonicalName === "feijão" &&
                   decision.nutrition.consumed
                 ) {
-                  decision.nutrition.consumed.calories =
-                    drift && fixture.caseId === "c-pontuacao-sem-virgula"
-                      ? 201
-                      : 200;
+                  const calories = drift && fixture.caseId === "c-pontuacao-sem-virgula"
+                    ? 201 : 200;
+                  Object.assign(decision, withSyntheticCalories(decision, calories));
                 }
               }
               if (fixture.caseId === "c-pontuacao-sem-virgula")
@@ -1388,7 +1430,7 @@ describe("autoverificação do harness", () => {
           const result = structuredClone(await reference.resolve(request));
           result.decisions.forEach((decision, index) => {
             if (decision.nutrition.consumed)
-              decision.nutrition.consumed.calories = 100 + index;
+              Object.assign(decision, withSyntheticCalories(decision, 100 + index));
           });
           if (fixture.caseId === "c-pontuacao-sem-virgula")
             result.decisions.reverse();
