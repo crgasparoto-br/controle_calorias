@@ -157,6 +157,40 @@ describe("criação da pendência versionada", () => {
     if (accepted.ok) expect(accepted.pending.question).toStrictEqual(validQuestion);
   });
 
+  it("R-1298-001: rejeita IDs/revisoes com whitespace externo sem mutacao", () => {
+    const base = {
+      operationKey: "op-1",
+      ownerUserId: 7,
+      createdAt: "2026-10-05T12:00:00.000Z",
+      expiresAt: "2026-10-05T12:30:00.000Z",
+      observationIds: ["obs-1"],
+      target: { mealLabel: "almoço", date: "2026-10-05" },
+      question: null,
+      versionTag: VERSIONS,
+    };
+    const cases = [
+      { operationKey: " op-1 " },
+      { observationIds: [" obs-1"] },
+      { observationIds: ["obs-1 "] },
+      { versionTag: { ...VERSIONS, resolverVersion: " resolver-v2.0.0" } },
+      { versionTag: { ...VERSIONS, policyVersion: "pol-2026-10-05 " } },
+      { versionTag: { ...VERSIONS, lexiconRevision: " lex-2026-10-05" } },
+      { versionTag: { ...VERSIONS, knowledgeRevision: "kn-2026-10-05 " } },
+    ];
+    for (const patch of cases) {
+      const input = { ...base, ...patch };
+      const untouched = structuredClone(input);
+      const result = createPendingOperationV2(input);
+      expect(result.ok).toBe(false);
+      expect(input).toStrictEqual(untouched);
+    }
+
+    const persisted = buildOperation({ observationIds: [" obs-1"] });
+    const resumed = resumePendingOperation(persisted, buildRequest());
+    expect(resumed.resumed).toBe(false);
+    if (!resumed.resumed) expect(resumed.reason).toBe("invalid-pending-operation");
+  });
+
   it("recusa motivo fora do registro tipado e alvo sem data explícita", () => {
     const reason = createPendingOperationV2({
       operationKey: "op-1",

@@ -37,8 +37,11 @@ const DECLARED_UNIT_SCALES = {
   liter: { basis: "ml", factor: 1000 },
   liters: { basis: "ml", factor: 1000 },
   serving: { basis: "serving", factor: 1 },
+  servings: { basis: "serving", factor: 1 },
+  porcao: { basis: "serving", factor: 1 },
+  porção: { basis: "serving", factor: 1 },
 } as const satisfies Record<
-  (typeof FOOD_MASS_UNITS)[number] | (typeof FOOD_VOLUME_UNITS)[number] | "serving",
+  (typeof FOOD_MASS_UNITS)[number] | (typeof FOOD_VOLUME_UNITS)[number] | "serving" | "servings" | "porcao" | "porção",
   { basis: "g" | "ml" | "serving"; factor: number }
 >;
 

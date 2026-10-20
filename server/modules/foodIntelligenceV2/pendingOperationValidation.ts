@@ -8,6 +8,11 @@ export function isNonEmpty(value: unknown, max = 200): value is string {
   );
 }
 
+/** IDs sao opacos: rejeitar whitespace externo, jamais normalizar em silencio. */
+export function isOpaqueIdentifier(value: unknown, max = 200): value is string {
+  return isNonEmpty(value, max) && value === value.trim();
+}
+
 export function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
@@ -18,9 +23,9 @@ export function isValidPendingOperationEffect(
   if (!value || typeof value !== "object") return false;
   const effect = value as Partial<PendingOperationEffect>;
   return (
-    isNonEmpty(effect.effectId) &&
+    isOpaqueIdentifier(effect.effectId) &&
     isValidIsoInstant(effect.appliedAt) &&
-    isNonEmpty(effect.mealItemId)
+    isOpaqueIdentifier(effect.mealItemId)
   );
 }
 

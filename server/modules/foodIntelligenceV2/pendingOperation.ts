@@ -26,6 +26,7 @@ import {
 import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
 import {
   isNonEmpty,
+  isOpaqueIdentifier,
   isPositiveInteger,
   isValidPendingOperationEffect,
 } from "./pendingOperationValidation";
@@ -93,6 +94,7 @@ export type PendingOperationResumeResult =
         | "owner-mismatch"
         | "invalid-request-time"
         | "invalid-pending-time"
+        | "invalid-pending-operation"
         | "expired"
         | "authorization-invalid"
         | "resolver-version-changed"
@@ -196,20 +198,20 @@ export function createPendingOperationV2(input: {
   }
 
   if (
-    !isNonEmpty(input.operationKey) ||
+    !isOpaqueIdentifier(input.operationKey) ||
     !isPositiveInteger(input.ownerUserId) ||
     !isValidIsoInstant(input.createdAt) ||
     !isValidIsoInstant(input.expiresAt) ||
     !Array.isArray(input.observationIds) ||
     input.observationIds.length === 0 ||
-    input.observationIds.some(id => !isNonEmpty(id)) ||
+    input.observationIds.some(id => !isOpaqueIdentifier(id)) ||
     new Set(input.observationIds).size !== input.observationIds.length ||
     !isNonEmpty(input.target.mealLabel, 80) ||
     !isValidIsoDate(input.target.date) ||
-    !isNonEmpty(versionTag.resolverVersion, 120) ||
-    !isNonEmpty(versionTag.policyVersion, 120) ||
-    !isNonEmpty(versionTag.lexiconRevision, 120) ||
-    !isNonEmpty(versionTag.knowledgeRevision, 120)
+    !isOpaqueIdentifier(versionTag.resolverVersion, 120) ||
+    !isOpaqueIdentifier(versionTag.policyVersion, 120) ||
+    !isOpaqueIdentifier(versionTag.lexiconRevision, 120) ||
+    !isOpaqueIdentifier(versionTag.knowledgeRevision, 120)
   ) {
     return {
       ok: false,
@@ -245,10 +247,7 @@ export function createPendingOperationV2(input: {
       };
     }
     if (
-      typeof candidate.ref !== "string" ||
-      candidate.ref.length === 0 ||
-      candidate.ref.length > 200 ||
-      candidate.ref !== candidate.ref.trim() ||
+      !isOpaqueIdentifier(candidate.ref) ||
       Object.keys(question).some(key => key !== "code" && key !== "ref")
     ) {
       return {
@@ -344,6 +343,23 @@ export function resumePendingOperation(
       reason: "pending-version-missing",
       detail:
         "Pendência sem versão fixada não pode ser retomada pelo resolvedor V2.",
+    };
+  }
+
+  if (
+    !isOpaqueIdentifier(pending.operationKey) ||
+    !Array.isArray(pending.observationIds) ||
+    pending.observationIds.length === 0 ||
+    pending.observationIds.some(id => !isOpaqueIdentifier(id)) ||
+    !isOpaqueIdentifier(pinned.resolverVersion, 120) ||
+    !isOpaqueIdentifier(pinned.policyVersion, 120) ||
+    !isOpaqueIdentifier(pinned.lexiconRevision, 120) ||
+    !isOpaqueIdentifier(pinned.knowledgeRevision, 120)
+  ) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Identificadores ou revisoes da pendencia persistida sao invalidos; retry bloqueado.",
     };
   }
 
