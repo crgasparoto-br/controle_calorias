@@ -468,15 +468,15 @@ ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_fo
 --> statement-breakpoint
 ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_source_id_food_sources_id_fk` FOREIGN KEY (`source_id`) REFERENCES `food_sources`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_food_variant_source_id_food_variant_sources_id_fk` FOREIGN KEY (`food_variant_source_id`) REFERENCES `food_variant_sources`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `fnp_variant_source_fk` FOREIGN KEY (`food_variant_source_id`) REFERENCES `food_variant_sources`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `food_nutrition_profiles_supersedes_profile_id_food_nutrition_profiles_id_fk` FOREIGN KEY (`supersedes_profile_id`) REFERENCES `food_nutrition_profiles`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_nutrition_profiles` ADD CONSTRAINT `fnp_supersedes_fk` FOREIGN KEY (`supersedes_profile_id`) REFERENCES `food_nutrition_profiles`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `food_variant_classifications_food_variant_id_food_variants_id_fk` FOREIGN KEY (`food_variant_id`) REFERENCES `food_variants`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `food_variant_classifications_source_id_food_sources_id_fk` FOREIGN KEY (`source_id`) REFERENCES `food_sources`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `food_variant_classifications_supersedes_classification_id_food_variant_classifications_id_fk` FOREIGN KEY (`supersedes_classification_id`) REFERENCES `food_variant_classifications`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `fvc_supersedes_fk` FOREIGN KEY (`supersedes_classification_id`) REFERENCES `food_variant_classifications`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `user_food_aliases` ADD CONSTRAINT `user_food_aliases_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -504,7 +504,7 @@ ALTER TABLE `food_resolution_events` ADD CONSTRAINT `food_resolution_events_user
 --> statement-breakpoint
 ALTER TABLE `food_resolution_events` ADD CONSTRAINT `food_resolution_events_food_variant_id_food_variants_id_fk` FOREIGN KEY (`food_variant_id`) REFERENCES `food_variants`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_resolution_events` ADD CONSTRAINT `food_resolution_events_nutrition_profile_id_food_nutrition_profiles_id_fk` FOREIGN KEY (`nutrition_profile_id`) REFERENCES `food_nutrition_profiles`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_resolution_events` ADD CONSTRAINT `fre_nutrition_profile_fk` FOREIGN KEY (`nutrition_profile_id`) REFERENCES `food_nutrition_profiles`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_resolution_events` ADD CONSTRAINT `food_resolution_events_food_portion_id_food_portions_id_fk` FOREIGN KEY (`food_portion_id`) REFERENCES `food_portions`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -524,7 +524,7 @@ ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `food_variant_attributes_so
 --> statement-breakpoint
 ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `food_variant_attributes_evidence_id_food_evidence_id_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `food_variant_attributes_supersedes_id_food_variant_attributes_id_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `food_variant_attributes`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `fva_supersedes_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `food_variant_attributes`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_materiality_food_id_foods_id_fk` FOREIGN KEY (`food_id`) REFERENCES `foods`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -532,13 +532,13 @@ ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_material
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_materiality_evidence_id_food_evidence_id_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_materiality_supersedes_id_food_attribute_materiality_id_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `food_attribute_materiality`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `fam_supersedes_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `food_attribute_materiality`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_materiality_overrides_food_id_foods_id_fk` FOREIGN KEY (`food_id`) REFERENCES `foods`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_materiality_overrides_attribute_id_food_attributes_id_fk` FOREIGN KEY (`attribute_id`) REFERENCES `food_attributes`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `famo_attribute_fk` FOREIGN KEY (`attribute_id`) REFERENCES `food_attributes`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attribute_materiality_overrides_evidence_id_food_evidence_id_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `famo_evidence_fk` FOREIGN KEY (`evidence_id`) REFERENCES `food_evidence`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
 ALTER TABLE `food_aliases` ADD CONSTRAINT `food_aliases_food_variant_id_food_variants_id_fk` FOREIGN KEY (`food_variant_id`) REFERENCES `food_variants`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
