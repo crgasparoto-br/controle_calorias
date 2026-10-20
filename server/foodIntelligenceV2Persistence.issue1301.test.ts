@@ -39,8 +39,8 @@ describe("#1301 V2 migration invariants", () => {
       expect(foodColumns[column].notNull).toBe(false);
     }
     expect(foodColumns.scope).not.toHaveProperty("default");
-    expect(migration).not.toMatch(/MODIFY COLUMN \`canonical_(?:name|key)\`[^;]*NOT NULL/i);
-    expect(migration).toContain("UPDATE \`foods\` SET \`canonical_name\`=\`name\`");
+    expect(migration).not.toMatch(/MODIFY COLUMN `canonical_(?:name|key)`[^;]*NOT NULL/i);
+    expect(migration).toContain("UPDATE `foods` SET `canonical_name`=`name`");
     expect(hasUnique("foods", ["canonical_key"])).toBe(true);
   });
   it("prevents duplicate canonical variants and current nutrient/profile revisions", () => {
