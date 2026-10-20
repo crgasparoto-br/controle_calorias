@@ -9,6 +9,7 @@ import {
   type GoldenCorpus,
   toCorpusCaseInput,
 } from "./contracts";
+import { lookupBoundCorpusCaseId } from "./internalCaseBinding.test.support";
 import { goldenFoodCorpus } from "./data";
 import {
   createKnowledgeStore,
@@ -49,25 +50,13 @@ const PINNED_REVISIONS: CorpusRevisions = {
 const pinned = { revisions: PINNED_REVISIONS };
 const corpus = goldenFoodCorpus;
 
-function inputSurfaceKey(input: CorpusCaseInput): string {
-  return JSON.stringify({
-    modality: input.modality,
-    input: input.input,
-    mealOperation: input.mealOperation,
-    scenario: {
-      ownerRef: input.scenario.ownerRef,
-      conversationRef: input.scenario.conversationRef,
-      providerAvailability: input.scenario.providerAvailability,
-    },
-  });
-}
-
-function caseIdFor(corpusUnderTest: GoldenCorpus, input: CorpusCaseInput): string {
-  const source = corpusUnderTest.cases.find(
-    entry => inputSurfaceKey(toCorpusCaseInput(entry)) === inputSurfaceKey(input)
-  );
-  if (!source) throw new Error("superfície sanitizada desconhecida");
-  return source.caseId;
+function boundCaseIdFor(
+  _corpusUnderTest: GoldenCorpus,
+  input: CorpusCaseInput
+): string {
+  const caseId = lookupBoundCorpusCaseId(input);
+  if (!caseId) throw new Error("associação privada de fixture ausente");
+  return caseId;
 }
 
 // Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
@@ -329,7 +318,7 @@ describe("autoverificação do harness", () => {
           try {
             await request.knowledge.write("alias:x", "y");
           } catch {
-            rejected.push(caseIdFor(corpus, request.case));
+            rejected.push(boundCaseIdFor(corpus, request.case));
           }
           return { decisions: [] };
         },
@@ -613,7 +602,7 @@ describe("autoverificação do harness", () => {
         revision: "1",
         async resolve(request) {
           const result = await reference.resolve(request);
-          if (caseIdFor(corpus, request.case) !== target) return result;
+          if (boundCaseIdFor(corpus, request.case) !== target) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -766,7 +755,7 @@ describe("autoverificação do harness", () => {
           async resolve(request) {
             const result = await reference.resolve(request);
             if (
-              caseIdFor(corpus, request.case) !== "c-aprendizado-precedencia-explicita" ||
+              boundCaseIdFor(corpus, request.case) !== "c-aprendizado-precedencia-explicita" ||
               request.case.scenario.phase !== "explicit_override"
             ) {
               return result;
@@ -809,7 +798,7 @@ describe("autoverificação do harness", () => {
         async resolve(request) {
           const result = await reference.resolve(request);
           if (
-            caseIdFor(corpus, request.case) !== "c-aprendizado-alias-reuso" ||
+            boundCaseIdFor(corpus, request.case) !== "c-aprendizado-alias-reuso" ||
             request.case.scenario.phase !== "reserved_measurement"
           ) {
             return result;
@@ -845,7 +834,7 @@ describe("autoverificação do harness", () => {
         revision: "1",
         async resolve(request) {
           const result = await reference.resolve(request);
-          if (caseIdFor(corpus, request.case) !== "c-panco-pao-forma") return result;
+          if (boundCaseIdFor(corpus, request.case) !== "c-panco-pao-forma") return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -925,7 +914,7 @@ describe("autoverificação do harness", () => {
       revision: "1",
       async resolve(request) {
         const result = await reference.resolve(request);
-        if (!members.has(caseIdFor(corpus, request.case))) return result;
+        if (!members.has(boundCaseIdFor(corpus, request.case))) return result;
         return {
           ...result,
           decisions: result.decisions.map(decision => ({
@@ -1097,7 +1086,7 @@ describe("autoverificação do harness", () => {
         revision: "1",
         async resolve(request) {
           const result = await reference.resolve(request);
-          if (!members.has(caseIdFor(corpus, request.case))) return result;
+          if (!members.has(boundCaseIdFor(corpus, request.case))) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -1126,7 +1115,7 @@ describe("autoverificação do harness", () => {
         revision: "1",
         async resolve(request) {
           const result = await reference.resolve(request);
-          if (caseIdFor(corpus, request.case) !== target) return result;
+          if (boundCaseIdFor(corpus, request.case) !== target) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -1164,7 +1153,7 @@ describe("autoverificação do harness", () => {
           revision: "1",
           async resolve(request) {
             const result = structuredClone(await reference.resolve(request));
-            if (caseIdFor(corpus, request.case) === "c-acento-ausente") {
+            if (boundCaseIdFor(corpus, request.case) === "c-acento-ausente") {
               const decision = result.decisions[0];
               if (mutation === "identity") {
                 decision.identity.canonicalName = "pão integral";
@@ -1209,7 +1198,7 @@ describe("autoverificação do harness", () => {
             const result = structuredClone(await reference.resolve(request));
             if (
               ["c-pontuacao-com-virgula", "c-pontuacao-sem-virgula"].includes(
-                caseIdFor(corpus, request.case)
+                boundCaseIdFor(corpus, request.case)
               )
             ) {
               for (const decision of result.decisions) {
@@ -1218,12 +1207,12 @@ describe("autoverificação do harness", () => {
                   decision.nutrition.consumed
                 ) {
                   decision.nutrition.consumed.calories =
-                    drift && caseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula"
+                    drift && boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula"
                       ? 201
                       : 200;
                 }
               }
-              if (caseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
+              if (boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
                 result.decisions.reverse();
             }
             return result;
@@ -1277,7 +1266,7 @@ describe("autoverificação do harness", () => {
             if (decision.nutrition.consumed)
               decision.nutrition.consumed.calories = 100 + index;
           });
-          if (caseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
+          if (boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
             result.decisions.reverse();
           return result;
         },
@@ -1487,7 +1476,7 @@ describe("autoverificação do harness", () => {
         resolve: request => ({
           decisions: [],
           metrics: { latencyMs: -1, costUsd: Number.NaN },
-          caseId: caseIdFor(corpus, request.case),
+          caseId: boundCaseIdFor(corpus, request.case),
         }),
       },
       pinned
@@ -1572,7 +1561,7 @@ describe("autoverificação do harness", () => {
         revision: "1",
         async resolve(request) {
           const result = await reference.resolve(request);
-          if (!targets.has(caseIdFor(corpus, request.case))) return result;
+          if (!targets.has(boundCaseIdFor(corpus, request.case))) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -2047,7 +2036,7 @@ describe("autoverificação do harness", () => {
             await knowledge.read("owner-b:alias:cafe-da-firma");
           }
           const source = corpus.cases.find(
-            item => item.caseId === caseIdFor(corpus, entry)
+            item => item.caseId === boundCaseIdFor(corpus, entry)
           )!;
           return {
             decisions: source.expected.decisions.map((decision, index) =>
@@ -2113,7 +2102,7 @@ describe("autoverificação do harness", () => {
           const ablated = calls > corpus.cases.length;
           if (!ablated) return reference.resolve(request);
           const source = corpus.cases.find(
-            item => item.caseId === caseIdFor(corpus, request.case)
+            item => item.caseId === boundCaseIdFor(corpus, request.case)
           )!;
           const counterfactual = corpus.cases.find(
             item => item.caseId === "c-aprendizado-alias-antes"
@@ -2141,7 +2130,7 @@ describe("autoverificação do harness", () => {
         id: "test:escrita-fora-da-aquisicao",
         revision: "1",
         async resolve(request) {
-          if (caseIdFor(corpus, request.case) === "c-panco-pao-forma") {
+          if (boundCaseIdFor(corpus, request.case) === "c-panco-pao-forma") {
             try {
               await request.knowledge.write("indevido", "x");
             } catch {
@@ -2192,7 +2181,7 @@ describe("autoverificação do harness", () => {
         id: "test:escrita-e-erro",
         revision: "1",
         async resolve(request) {
-          if (caseIdFor(corpus, request.case) === "c-panco-pao-forma") {
+          if (boundCaseIdFor(corpus, request.case) === "c-panco-pao-forma") {
             try {
               await request.knowledge.write("indevido", "x");
             } catch {
@@ -2947,7 +2936,7 @@ describe("autoverificação do harness", () => {
             await knowledge.write("chave-inutil", "x");
           }
           const source = corpus.cases.find(
-            item => item.caseId === caseIdFor(corpus, entry)
+            item => item.caseId === boundCaseIdFor(corpus, entry)
           )!;
           return {
             decisions: source.expected.decisions.map((decision, index) =>
