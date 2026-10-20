@@ -291,6 +291,28 @@ export function buildDecisionForExpected(
     });
   }
 
+  // Apenas o oraculo sintetico conhece a expectativa rotulada do corpus.
+  // "non_food" exige prova negativa explicita; a ausencia no catalogo nao
+  // autoriza uma rejeicao nem equivale a evidência verificada em producao.
+  if (expected.reasonCodes.includes("non_food")) {
+    evidence.push({
+      evidenceId: `ev-non-food-${suffix}`,
+      field: "classification.isFood",
+      origin:
+        entry.modality === "audio_transcript"
+          ? "transcription"
+          : entry.modality === "image"
+            ? "vision"
+            : "text",
+      value: false,
+      unit: null,
+      confidence: 1,
+      verified: true,
+      anchor: anchor(`turn:${suffix}`),
+      sourceId: null,
+    });
+  }
+
   const alternatives: FoodResolutionDecision["alternatives"] = [];
   expected.alternatives.forEach((alternative, alternativeIndex) => {
     const alternativeEvidenceId = `ev-alt-${suffix}-${alternativeIndex}`;
