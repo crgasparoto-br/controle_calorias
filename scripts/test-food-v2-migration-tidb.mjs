@@ -112,7 +112,7 @@ const testUpgrade = async f => {
   );
   const outcomes = await Promise.allSettled(profiles.map(addProfile));
   assert.equal(outcomes.filter(x => x.status === "fulfilled").length, 1, "only one current profile per key");
-  const [profile] = await queryRows("SELECT id FROM food_nutrition_profiles WHERE profile_key='ci-foodv2:profile'");
+  const [profile] = await queryRows("SELECT id, version FROM food_nutrition_profiles WHERE profile_key='ci-foodv2:profile'");
   await connection.query("UPDATE mealItems SET foodVariantId=?, nutritionProfileId=? WHERE id=?", [variantId, profile.id, f.mealItemId]);
   await mustReject(connection.query("DELETE FROM food_nutrition_profiles WHERE id=?", [profile.id]), "referenced nutrition profile cannot disappear");
   await assertLegacy(f, true);
@@ -136,10 +136,13 @@ const testUpgrade = async f => {
   await mustReject(connection.query(eventSql, eventArgs), "review event retry must be idempotent");
   const [events] = await queryRows("SELECT COUNT(*) AS c FROM food_review_events WHERE case_id=?", [c.insertId]);
   assert.equal(Number(events.c), 1);
+  // Supersession must follow the committed winner, not assume which racing version won.
+  const successorVersion = Number(profile.version) + 1;
+  assert.ok(successorVersion > Number(profile.version));
   // Explicit profile supersession is transactional; historical meal references stay pinned.
   const [replacement] = await connection.query(
-    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'ci-foodv2:profile', 2, 100, 'g', 260, 10, 48, 3, ?, ?)",
-    [variantId, f.sourceId, "c".repeat(64), profile.id]
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'ci-foodv2:profile', ?, 100, 'g', 260, 10, 48, 3, ?, ?)",
+    [variantId, f.sourceId, successorVersion, "c".repeat(64), profile.id]
   );
   await connection.beginTransaction();
   try {
