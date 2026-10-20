@@ -15101,7 +15101,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -15114,7 +15114,12 @@
         }
       },
       "uniqueConstraints": {},
-      "checkConstraint": {}
+      "checkConstraint": {
+        "food_evidence_ck0": {
+          "name": "food_evidence_ck0",
+          "value": "owner_user_id IS NULL OR retention_until IS NOT NULL"
+        }
+      }
     },
     "food_review_cases": {
       "name": "food_review_cases",
@@ -15362,7 +15367,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -15387,6 +15392,10 @@
         "food_review_cases_ck2": {
           "name": "food_review_cases_ck2",
           "value": "(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)"
+        },
+        "food_review_cases_ck3": {
+          "name": "food_review_cases_ck3",
+          "value": "outcome IS NULL OR outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL"
         }
       }
     },

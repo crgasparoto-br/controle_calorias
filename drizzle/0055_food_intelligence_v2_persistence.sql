@@ -492,11 +492,11 @@ ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_food_variant_id_food_v
 --> statement-breakpoint
 ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_source_id_food_sources_id_fk` FOREIGN KEY (`source_id`) REFERENCES `food_sources`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_owner_user_id_users_id_fk` FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_owner_user_id_users_id_fk` FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON DELETE NO ACTION;
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_assigned_reviewer_id_users_id_fk` FOREIGN KEY (`assigned_reviewer_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
-ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_superseded_by_case_id_food_review_cases_id_fk` FOREIGN KEY (`superseded_by_case_id`) REFERENCES `food_review_cases`(`id`) ON DELETE RESTRICT;
+ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_superseded_by_case_id_food_review_cases_id_fk` FOREIGN KEY (`superseded_by_case_id`) REFERENCES `food_review_cases`(`id`) ON DELETE NO ACTION;
 --> statement-breakpoint
 ALTER TABLE `food_review_events` ADD CONSTRAINT `food_review_events_case_id_food_review_cases_id_fk` FOREIGN KEY (`case_id`) REFERENCES `food_review_cases`(`id`) ON DELETE RESTRICT;
 --> statement-breakpoint
@@ -580,11 +580,15 @@ ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `food_variant_classifi
 --> statement-breakpoint
 ALTER TABLE `user_food_aliases` ADD CONSTRAINT `user_food_aliases_ck0` CHECK ((status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL));
 --> statement-breakpoint
+ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_ck0` CHECK (owner_user_id IS NULL OR retention_until IS NOT NULL);
+--> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck0` CHECK (review_cycle > 0);
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck1` CHECK (state_version > 0);
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck2` CHECK ((status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL));
+--> statement-breakpoint
+ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck3` CHECK (outcome IS NULL OR outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL);
 --> statement-breakpoint
 ALTER TABLE `food_review_events` ADD CONSTRAINT `food_review_events_ck0` CHECK (review_cycle > 0);
 --> statement-breakpoint

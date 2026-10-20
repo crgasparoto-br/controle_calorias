@@ -91,7 +91,33 @@ const assertLegacyWritesAfterMigration = async f => {
   await assertLegacy(f, true);
 };
 
+
+const assertEvidenceRetention = async f => {
+  const sql = "INSERT INTO food_evidence (subject_key, evidence_type, owner_user_id, content_hash, payload_json, retention_until) VALUES (?, 'user_correction', ?, ?, '{}', ?)";
+  await mustReject(connection.query(sql, ["ci-foodv2:missing-retention", f.userId, "a".repeat(64), null]), "personal evidence without TTL must be rejected by database");
+  await connection.query(sql, ["ci-foodv2:personal-retained", f.userId, "b".repeat(64), new Date(Date.now() + 86400000)]);
+  const [personal] = await queryRows("SELECT owner_user_id, retention_until FROM food_evidence WHERE subject_key='ci-foodv2:personal-retained'");
+  assert.equal(Number(personal.owner_user_id), f.userId);
+  assert.ok(personal.retention_until);
+  await connection.query("INSERT INTO food_evidence (subject_key, evidence_type, content_hash, payload_json) VALUES ('ci-foodv2:global-source', 'official_source', ?, '{}')", ["c".repeat(64)]);
+  const [global] = await queryRows("SELECT owner_user_id, retention_until FROM food_evidence WHERE subject_key='ci-foodv2:global-source'");
+  assert.equal(global.owner_user_id, null);
+  assert.equal(global.retention_until, null);
+};
+const assertSupersededReview = async f => {
+  const baseSql = "INSERT INTO food_review_cases (case_key, case_type, status, outcome, closed_at, superseded_by_case_id, target_artifact_type, target_artifact_id, target_revision, target_content_hash) VALUES (?, 'profile', 'closed', 'superseded', NOW(), ?, 'nutrition_profile', ?, 1, ?)";
+  await mustReject(connection.query(baseSql, ["ci-foodv2:orphan-superseded", null, String(f.foodId), "a".repeat(64)]), "superseded case without successor must fail");
+  const [next] = await connection.query("INSERT INTO food_review_cases (case_key, case_type, target_artifact_type, target_artifact_id, target_revision, target_content_hash) VALUES ('ci-foodv2:successor', 'profile', 'nutrition_profile', ?, 1, ?)", [String(f.foodId), "a".repeat(64)]);
+  const [prior] = await connection.query(baseSql, ["ci-foodv2:superseded", next.insertId, String(f.foodId), "a".repeat(64)]);
+  await mustReject(connection.query("UPDATE food_review_cases SET superseded_by_case_id=NULL WHERE id=?", [prior.insertId]), "superseded case cannot lose successor during update");
+  const [read] = await queryRows("SELECT outcome, superseded_by_case_id FROM food_review_cases WHERE id=?", [prior.insertId]);
+  assert.equal(read.outcome, "superseded");
+  assert.equal(Number(read.superseded_by_case_id), next.insertId);
+};
+
 const testUpgrade = async f => {
+  await assertEvidenceRetention(f);
+  await assertSupersededReview(f);
   const [v] = await connection.query(
     "INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key, status) VALUES (?, 'branded', 'Pão integral', 'pao integral', 'ci-foodv2:variant', 'active')",
     [f.foodId]
