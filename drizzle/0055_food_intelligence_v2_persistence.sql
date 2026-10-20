@@ -304,7 +304,7 @@ CREATE UNIQUE INDEX `food_review_events_u0` ON `food_review_events` (`case_id`,`
 CREATE INDEX `food_review_events_i0` ON `food_review_events` (`case_id`,`review_cycle`,`occurred_at`);
 --> statement-breakpoint
 CREATE TABLE `food_resolution_events` (
-  `id` int AUTO_INCREMENT NOT NULL,
+  `id` bigint AUTO_INCREMENT NOT NULL,
   `trace_id` varchar(120) NOT NULL,
   `user_id` int NULL,
   `modality` varchar(40) NOT NULL,
