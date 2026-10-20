@@ -372,6 +372,13 @@
       "when": 1790694000000,
       "tag": "0054_meal_item_media_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1792454400000,
+      "tag": "0055_food_intelligence_v2_persistence",
+      "breakpoints": true
     }
   ]
 }
