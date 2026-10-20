@@ -1503,6 +1503,8 @@ O legado só pode ser removido quando todos os itens abaixo forem verdadeiros:
 
 Depois do aceite do cutover, remover bridges e tabelas legadas numa migration separada. Não manter dual-write como estado final.
 
+> **Compatibilidade física TiDB/MySQL na Fase B1 (#1301):** a migração V2 aditiva depende de `CHECK` efetivamente habilitados no TiDB (`tidb_enable_check_constraint=ON`); a instalação padrão pode aceitar a definição sem impor sua validação. A verificação de estado global é *fail-closed* antes do aceite, e sua alteração em cluster compartilhado exige decisão administrativa explícita. Restrições que consultam diretamente a própria chave `AUTO_INCREMENT` são rejeitadas pelo TiDB: prevenção de autoassociação e ciclos de supersessão será validada transacionalmente pela camada de escrita/governança, com testes negativos, antes de habilitar promoção. **Não se declara esse invariante já garantido pela migration.** Esta observação não resolve nem fecha itens `OPEN` de promoção, autorização ou cutover.
+
 ### 8.14. Contrato de leitura e inventário de consumidores
 
 O desenho acima define com rigor o caminho de **escrita** — observação, resolução, decisão e snapshot. Ele quase não define o caminho de **leitura**, e é por ali que o legado sobrevive.
