@@ -101,7 +101,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodEvidence` | `food_evidence` | 14 | Baixa |
 | `foodReviewCases` | `food_review_cases` | 27 | Baixa |
 | `foodReviewEvents` | `food_review_events` | 20 | Baixa |
-| `foodResolutionEvents` | `food_resolution_events` | 19 | Baixa |
+| `foodResolutionEvents` | `food_resolution_events` | 18 | Baixa |
 | `foodLexiconEntries` | `food_lexicon_entries` | 19 | Baixa |
 | `userFoodLexiconEntries` | `user_food_lexicon_entries` | 16 | Requer atenção |
 | `foodAttributes` | `food_attributes` | 8 | Baixa |
