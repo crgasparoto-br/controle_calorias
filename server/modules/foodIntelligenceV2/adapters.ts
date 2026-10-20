@@ -436,6 +436,20 @@ function collectBlockers(
     });
   }
 
+  if (decision.nutrition.verified && !nutritionEvidence.some(evidence =>
+    evidence.verified === true && typeof evidence.value === "number" && evidence.value >= 0
+  )) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail: "Nutrição verificada sem prova numérica e verificada nos IDs declarados não pode ser projetada fielmente para V1.",
+    });
+  }
+  if (decision.nutrition.verified && nutritionEvidence.some(evidence => !evidence.verified)) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail: "Fonte nutricional não verificada não pode herdar verified=true do envelope V2.",
+    });
+  }
   const originKinds = [
     ...new Set(nutritionEvidence.map(evidence => evidence.origin)),
   ];
