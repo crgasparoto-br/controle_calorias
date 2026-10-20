@@ -21,6 +21,7 @@
  * Nada neste módulo é consumido por entrypoint produtivo (Fase A1, item 1 de
  * §21.1). As dependências de V1 são apenas de tipo.
  */
+import { z } from "zod";
 import type {
   FoodClassificationEstimate,
   MealProcessingResult,
@@ -30,7 +31,6 @@ import type {
 } from "../../nutritionEngineTypes";
 import {
   MEAL_SEMANTIC_CONTRACT_VERSION,
-  isGroundedEvidenceOrigin,
   isVolumeUnit,
   type FoodEvidenceOrigin,
 } from "./contracts";
@@ -39,6 +39,57 @@ import type {
   FoodNutritionValues,
   FoodResolutionDecision,
 } from "./schemas";
+
+const historicalMealItemSchema = z
+  .object({
+    foodName: z.string(),
+    canonicalName: z.string(),
+    quantity: z.number().finite(),
+    unit: z.string(),
+    portionText: z.string(),
+    servings: z.number().finite(),
+    estimatedGrams: z.number().finite(),
+    calories: z.number().finite(),
+    protein: z.number().finite(),
+    carbs: z.number().finite(),
+    fat: z.number().finite(),
+    confidence: z.number().finite().min(0).max(1),
+    source: z.enum(["catalog", "hybrid", "heuristic"]),
+  })
+  .passthrough();
+
+const historicalSemanticContractSchema = z
+  .object({
+    version: z.literal(MEAL_SEMANTIC_CONTRACT_VERSION),
+    originalText: z.string(),
+    normalizedText: z.string(),
+    inputType: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+    intent: z.string(),
+    items: z.array(z.unknown()),
+    needsClarification: z.boolean(),
+    clarifications: z.array(z.unknown()),
+  })
+  .passthrough();
+
+const historicalMealSnapshotSchema = z
+  .object({
+    detectedMealLabel: z.string(),
+    sourceText: z.string(),
+    confidence: z.number().finite().min(0).max(1),
+    needsConfirmation: z.boolean(),
+    reasoning: z.string(),
+    items: z.array(historicalMealItemSchema),
+    totals: z
+      .object({
+        calories: z.number().finite(),
+        protein: z.number().finite(),
+        carbs: z.number().finite(),
+        fat: z.number().finite(),
+      })
+      .passthrough(),
+    semanticContract: historicalSemanticContractSchema.nullable().optional(),
+  })
+  .passthrough();
 
 /** Origens de evidência do vocabulário V1 (tudo exceto `barcode`). */
 export const V1_EVIDENCE_ORIGINS = [
@@ -109,6 +160,7 @@ export const V1_PROJECTION_BLOCKERS = [
   "nutrition-state-not-representable",
   "evidence-origin-not-representable",
   "classification-not-representable",
+  "v1-required-fields-not-supplied",
 ] as const;
 export type V1ProjectionBlocker = (typeof V1_PROJECTION_BLOCKERS)[number];
 
@@ -165,6 +217,14 @@ function collectBlockers(
   const identity = decision.identity;
   const quantity = decision.quantity;
 
+  if (V1_FIELDS_NOT_SUPPLIED.length > 0) {
+    blockers.push({
+      code: "v1-required-fields-not-supplied",
+      detail:
+        `A decisão V2 não fornece sem invenção os campos obrigatórios do DTO V1: ${V1_FIELDS_NOT_SUPPLIED.join(", ")}. A projeção não pode materializar um item nem declarar faithful=true.`,
+    });
+  }
+
   if (decision.status !== "resolved") {
     blockers.push({
       code: "decision-not-resolved",
@@ -214,6 +274,7 @@ function collectBlockers(
 
   const nutritionEvidence = decision.evidence.filter(
     evidence =>
+      decision.nutrition.evidenceIds.includes(evidence.evidenceId) &&
       evidence.field.startsWith("nutrition.") &&
       V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition"
   );
@@ -225,13 +286,32 @@ function collectBlockers(
     });
   }
 
-  const nutritionOrigin = nutritionEvidence
-    .map(evidence => evidence.origin)
-    .find(origin => isGroundedEvidenceOrigin(origin));
-  if (nutritionOrigin && toV1EvidenceOrigin(nutritionOrigin) === null) {
+  const originKinds = [
+    ...new Set(nutritionEvidence.map(evidence => evidence.origin)),
+  ];
+  if (originKinds.length > 1) {
     blockers.push({
       code: "evidence-origin-not-representable",
-      detail: `Origem de evidência ${nutritionOrigin} não existe no vocabulário V1; ela não é colapsada em outra origem.`,
+      detail:
+        "O DTO V1 possui um único slot de origem nutricional e não representa origens distintas por campo; nenhuma origem é escolhida pela ordem do array.",
+    });
+  }
+  for (const originKind of originKinds) {
+    if (toV1EvidenceOrigin(originKind) === null) {
+      blockers.push({
+        code: "evidence-origin-not-representable",
+        detail: `Origem de evidência ${originKind} não existe no vocabulário V1; ela não é colapsada em outra origem.`,
+      });
+    }
+  }
+  if (
+    decision.nutrition.provisional &&
+    decision.nutrition.consumed !== null
+  ) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail:
+        "O DTO V1 não possui campo de provisoriedade nutricional; estimativa provisória não pode ser materializada como item fiel.",
     });
   }
 
@@ -279,16 +359,21 @@ export function projectDecisionV2ToV1(
     }
   }
 
-  const nutritionEvidence = decision.evidence.find(
+  const referencedNutritionEvidence = decision.evidence.filter(
     evidence =>
-      V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition" &&
-      isGroundedEvidenceOrigin(evidence.origin)
+      decision.nutrition.evidenceIds.includes(evidence.evidenceId) &&
+      V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition"
   );
-  const projectedNutritionOrigin = nutritionEvidence
-    ? toV1EvidenceOrigin(nutritionEvidence.origin)
-    : null;
+  const originKinds = [
+    ...new Set(referencedNutritionEvidence.map(evidence => evidence.origin)),
+  ];
+  const projectedNutritionOrigin =
+    originKinds.length === 1
+      ? toV1EvidenceOrigin(originKinds[0])
+      : null;
 
   const itemRepresentable =
+    blockers.length === 0 &&
     decision.status === "resolved" &&
     identity.canonicalName !== null &&
     quantity.value !== null &&
@@ -452,7 +537,17 @@ export function readHistoricalV1MealSnapshot(
       reason: "unsupported-schema-version",
       detail:
         `Snapshot declara MealSemanticContract versão ${String(declaredVersion)}, ` +
-        "desconhecida por este leitor. Nenhuma leitura destrutiva ou migração implícita é aplicada.",
+      "desconhecida por este leitor. Nenhuma leitura destrutiva ou migração implícita é aplicada.",
+    };
+  }
+
+  const validated = historicalMealSnapshotSchema.safeParse(snapshot);
+  if (!validated.success) {
+    return {
+      ok: false,
+      reason: "invalid-snapshot",
+      detail:
+        "Snapshot histórico não corresponde à estrutura V1 conhecida; nenhuma inferência, recálculo ou normalização foi aplicada.",
     };
   }
 

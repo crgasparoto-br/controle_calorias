@@ -11,13 +11,42 @@ export const nullablePositiveInt = positiveInt.nullable();
 export const confidence = z.number().finite().min(0).max(1).nullable();
 export const nonEmptyText = z.string().trim().min(1);
 export const opaqueId = (max: number = FOOD_CONTRACT_LIMITS.identifier) =>
-  nonEmptyText.max(max);
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine(
+      value => value === value.trim(),
+      "Identificador opaco não aceita whitespace externo."
+    );
 export const nullableText = (max: number) =>
   z.string().trim().min(1).max(max).nullable();
 export const finiteNumber = z.number().finite();
 export const nonNegativeNumber = z.number().finite().min(0);
 export const nullableNonNegativeNumber = z.number().finite().min(0).nullable();
 export const evidenceIdList = z.array(opaqueId()).max(FOOD_CONTRACT_LIMITS.collection);
+
+export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export function isValidIsoInstant(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.includes("T") &&
+    isValidIsoDate(value.slice(0, 10)) &&
+    !Number.isNaN(Date.parse(value))
+  );
+}
 
 /** Span usa offsets UTF-16 `[start, end)` do texto original referenciado. */
 const foodSpanSchema = z

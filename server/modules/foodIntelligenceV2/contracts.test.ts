@@ -140,6 +140,21 @@ describe("FoodObservation v2", () => {
     expectInvalid(
       parseFoodObservation(
         buildFoodObservationFixture({
+          rawInput: "arroz",
+          surfaceSpan: { span: { start: 4, end: 6 } },
+        })
+      )
+    );
+    expectInvalid(
+      parseFoodObservation(
+        buildFoodObservationFixture({
+          surfaceSpan: { sourceRef: " turn:1:text " },
+        })
+      )
+    );
+    expectInvalid(
+      parseFoodObservation(
+        buildFoodObservationFixture({
           surfaceSpan: {
             span: null,
             region: { x: 0.5, y: 0.5, width: 0.8, height: 0.2 },
@@ -233,6 +248,15 @@ describe("FoodObservation v2", () => {
       })
     );
     expect(unsupportedOk.ok).toBe(true);
+
+    expectInvalid(
+      parseFoodObservation(
+        buildFoodObservationFixture({
+          locale: { requested: "pt-BR", effective: null, status: "unsupported" },
+          unresolvedReason: "unsupported_locale",
+        })
+      )
+    );
 
     expectInvalid(
       parseFoodObservation(
@@ -457,6 +481,9 @@ describe("FoodResolutionDecision v2", () => {
                 status,
                 nextAction,
                 reasonCodes: ["unknown_surface"],
+                ...(status === "partially_resolved"
+                  ? { unresolvedFields: ["quantity"] }
+                  : {}),
                 ...(status === "unknown"
                   ? {
                       identity: {
@@ -470,12 +497,14 @@ describe("FoodResolutionDecision v2", () => {
                   ? {
                       alternatives: [
                         buildFoodAlternativeFixture({
-                          candidateKey: "a",
+                        candidateKey: "a",
                           name: "A",
+                          evidenceIds: ["ev-ident"],
                         }),
                         buildFoodAlternativeFixture({
                           candidateKey: "b",
                           name: "B",
+                          evidenceIds: ["ev-ident"],
                         }),
                       ],
                     }
@@ -603,6 +632,67 @@ describe("FoodResolutionDecision v2", () => {
     );
   });
 
+  it("rejeita estados semanticamente incoerentes e alternativas sem grounding", () => {
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          status: "partially_resolved",
+          nextAction: "clarify",
+          reasonCodes: ["unknown_surface"],
+          unresolvedFields: [],
+        })
+      )
+    );
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          status: "unknown",
+          nextAction: "clarify",
+          reasonCodes: ["unknown_surface"],
+          identity: {
+            canonicalName: null,
+            candidateKey: null,
+            foodEntityId: 42,
+          },
+        })
+      )
+    );
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          status: "ambiguous",
+          nextAction: "clarify",
+          reasonCodes: ["source_conflict"],
+          alternatives: [
+            buildFoodAlternativeFixture({ candidateKey: "same", evidenceIds: [] }),
+            buildFoodAlternativeFixture({ candidateKey: "same", evidenceIds: [] }),
+          ],
+        })
+      )
+    );
+  });
+
+  it("exige evidência verificada para nutrição marcada como verified", () => {
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          nutrition: {
+            verified: true,
+            provisional: false,
+            evidenceIds: ["ev-nutrition"],
+          },
+          evidence: [
+            {
+              evidenceId: "ev-nutrition",
+              origin: "ai_estimate",
+              verified: false,
+            },
+          ],
+        })
+      )
+    );
+  });
+
   it("rejeita bases físicas ambíguas e valor sem unidade", () => {
     expectInvalid(
       parseFoodResolutionDecision(
@@ -667,6 +757,29 @@ describe("FoodResolutionDecision v2", () => {
       ],
     });
     expect(parseFoodResolutionDecision(withDensity).ok).toBe(true);
+
+    const incompatibleUnit = buildFoodResolutionDecisionFixture({
+      quantity: {
+        value: 240,
+        unit: "ml",
+        grams: 240,
+        milliliters: null,
+        evidenceIds: ["ev-density"],
+      },
+      identity: { evidenceIds: [] },
+      nutrition: { basis: { unit: "ml" } },
+      evidence: [
+        {
+          evidenceId: "ev-density",
+          field: "quantity.grams",
+          origin: "catalog",
+          value: 240,
+          unit: "ml",
+          verified: true,
+        },
+      ],
+    });
+    expectInvalid(parseFoodResolutionDecision(incompatibleUnit));
   });
 
   it("exige evidência barcode para barcode exato (precedência não vira fuzzy match)", () => {

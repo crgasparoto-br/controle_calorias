@@ -193,6 +193,11 @@ export const foodResolutionDecisionSchema = z
     const identitySustained =
       identity.canonicalName !== null &&
       (identity.foodEntityId !== null || identity.candidateKey !== null);
+    const identityReferencePresent =
+      identity.canonicalName !== null ||
+      identity.candidateKey !== null ||
+      identity.foodEntityId !== null ||
+      identity.variantId !== null;
     if (decision.status === "resolved") {
       if (decision.unresolvedFields.length > 0) {
         ctx.addIssue({
@@ -231,12 +236,23 @@ export const foodResolutionDecisionSchema = z
         });
       }
     }
-    if (decision.status === "unknown" && identitySustained) {
+    if (decision.status === "unknown" && identityReferencePresent) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
           "status=unknown significa que nenhuma identidade foi sustentada; use partially_resolved/ambiguous quando houver identidade.",
         path: ["status"],
+      });
+    }
+    if (
+      decision.status === "partially_resolved" &&
+      decision.unresolvedFields.length === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "status=partially_resolved exige ao menos um campo material em unresolvedFields.",
+        path: ["unresolvedFields"],
       });
     }
     if (decision.status !== "resolved" && decision.reasonCodes.length === 0) {
@@ -252,6 +268,23 @@ export const foodResolutionDecisionSchema = z
         message:
           "status=ambiguous exige alternativas materialmente concorrentes rastreáveis.",
         path: ["alternatives"],
+      });
+    }
+    if (decision.status === "ambiguous") {
+      rejectDuplicates(
+        decision.alternatives.map(alternative => alternative.candidateKey),
+        ctx,
+        ["alternatives"]
+      );
+      decision.alternatives.forEach((alternative, index) => {
+        if (alternative.evidenceIds.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Cada alternativa ambígua exige ao menos uma evidência rastreável.",
+            path: ["alternatives", index, "evidenceIds"],
+          });
+        }
       });
     }
     if (
@@ -346,6 +379,19 @@ export const foodResolutionDecisionSchema = z
             code: z.ZodIssueCode.custom,
             message: `Evidência ${id} de ${evidence.field} não pertence ao proprietário ${ownerLabel}; referência cruzada entre domínios é inválida.`,
             path,
+          });
+        }
+      }
+    }
+    if (nutrition.verified) {
+      for (const evidenceId of nutrition.evidenceIds) {
+        const evidence = evidenceById.get(evidenceId);
+        if (evidence?.verified !== true) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Nutrição verificada exige que toda evidência nutricional referenciada seja verificada e grounded; confiança de IA não substitui verificação.",
+            path: ["nutrition", "evidenceIds"],
           });
         }
       }
@@ -456,6 +502,8 @@ function isProvenConversion(
     if (!evidence) return false;
     if (evidence.field !== field) return false;
     if (evidence.verified !== true) return false;
+    const expectedUnit = field === "quantity.grams" ? "g" : "ml";
+    if (evidence.unit !== expectedUnit) return false;
     return (
       typeof evidence.value === "number" &&
       Math.abs(evidence.value - expected) <= FOOD_QUANTITY_EPSILON

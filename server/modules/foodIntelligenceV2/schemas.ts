@@ -15,20 +15,25 @@ import {
   type FoodDecisionStatus,
   type FoodEvidenceOrigin,
 } from "./contracts";
-import { nonEmptyText, nullableText, opaqueId, positiveInt } from "./schemaShared";
+import {
+  isValidIsoDate,
+  nonEmptyText,
+  nullableText,
+  opaqueId,
+  positiveInt,
+} from "./schemaShared";
 import { foodObservationSchema, type FoodObservation } from "./observationSchemas";
 import { foodResolutionDecisionSchema, type FoodResolutionDecision } from "./decisionSchemas";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const foodMealOperationSchema = z.strictObject({
   action: nonEmptyText.max(60),
   targetMeal: nonEmptyText.max(80),
   date: z
     .string()
     .trim()
-    .regex(
-      ISO_DATE,
-      "MealOperation.date exige data explícita ISO (YYYY-MM-DD)."
+    .refine(
+      isValidIsoDate,
+      "MealOperation.date exige data calendárica ISO válida (YYYY-MM-DD)."
     ),
 });
 

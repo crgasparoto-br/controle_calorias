@@ -247,7 +247,7 @@ describe("autoverificação do harness", () => {
       createNutritionOriginDriftResolver(corpus),
       pinned
     );
-    expect(allCodes(report)).toContain("nutrition_origin_forbidden");
+    expect(allCodes(report)).toContain("decision_invalid");
     expect(report.gate.status).toBe("blocked");
   });
 

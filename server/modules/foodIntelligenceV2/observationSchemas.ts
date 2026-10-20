@@ -102,6 +102,11 @@ export const foodLocaleSchema = z
   .refine(
     locale => locale.status !== "unsupported" || locale.requested !== null,
     "Locale não suportado só existe quando houve locale explícito do usuário."
+  )
+  .refine(
+    locale =>
+      locale.status !== "unsupported" || locale.requested !== DEFAULT_FOOD_LOCALE,
+    "pt-BR é suportado no recorte atual e não pode ser marcado como unsupported."
   );
 
 export const foodObservationSchema = z
@@ -208,6 +213,35 @@ export const foodObservationSchema = z
           "Observação textual/voz preserva âncora de texto: surfaceSpan.region deve ser null.",
         path: ["surfaceSpan", "region"],
       });
+    }
+
+    if (observation.rawInput !== null) {
+      const localSourceRef = observation.surfaceSpan.sourceRef;
+      const anchors = [
+        { path: ["surfaceSpan"], anchor: observation.surfaceSpan },
+        ...observation.evidence.map((evidence, index) => ({
+          path: ["evidence", index, "anchor"],
+          anchor: evidence.anchor,
+        })),
+        ...observation.normalizationPath.map((step, index) => ({
+          path: ["normalizationPath", index, "anchor"],
+          anchor: step.anchor,
+        })),
+      ];
+      for (const { path, anchor } of anchors) {
+        if (
+          anchor.sourceRef === localSourceRef &&
+          anchor.span !== null &&
+          anchor.span.end > observation.rawInput.length
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Anchor.span excede o tamanho UTF-16 de rawInput; a evidência não pode apontar fora da superfície original.",
+            path: [...path, "span", "end"],
+          });
+        }
+      }
     }
   });
 

@@ -23,6 +23,7 @@ import {
   FOOD_REASON_CODES,
   type FoodReasonCode,
 } from "./contracts";
+import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
 
 /** Versão de contrato/resolvedor fixada com a pendência. */
 export type PendingOperationVersionTag = {
@@ -85,6 +86,7 @@ export type PendingOperationResumeResult =
       reason:
         | "operation-key-mismatch"
         | "owner-mismatch"
+        | "invalid-request-time"
         | "expired"
         | "authorization-invalid"
         | "resolver-version-changed"
@@ -96,7 +98,13 @@ export type PendingOperationResumeResult =
 
 export type PendingOperationEffectResult =
   | { applied: true; duplicate: false; effect: PendingOperationEffect }
-  | { applied: false; duplicate: true; effect: PendingOperationEffect };
+  | { applied: false; duplicate: true; effect: PendingOperationEffect }
+  | {
+      applied: false;
+      duplicate: false;
+      reason: Extract<PendingOperationResumeResult, { resumed: false }>["reason"];
+      detail: string;
+    };
 
 const REASON_CODE_SET = new Set<string>(FOOD_REASON_CODES);
 
@@ -108,14 +116,6 @@ function isNonEmpty(value: unknown, max = 200): value is string {
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
-
-function isIsoInstant(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    !Number.isNaN(Date.parse(value)) &&
-    value.includes("T")
-  );
 }
 
 /**
@@ -164,7 +164,30 @@ export function createPendingOperationV2(input: {
   question: { code: FoodReasonCode; ref: string } | null;
   versionTag: PendingOperationVersionTag;
 }): PendingOperationCreationResult {
+  if (!input || typeof input !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 deve ser um objeto estruturado.",
+    };
+  }
   const { versionTag } = input;
+
+  if (!versionTag || typeof versionTag !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 exige versionTag estruturado; nenhuma versão é inferida.",
+    };
+  }
+
+  if (!input.target || typeof input.target !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 exige target estruturado com refeição e data explícitas.",
+    };
+  }
 
   if (versionTag.contractVersion !== FOOD_OBSERVATION_SCHEMA_VERSION) {
     return {
@@ -179,14 +202,14 @@ export function createPendingOperationV2(input: {
   if (
     !isNonEmpty(input.operationKey) ||
     !isPositiveInteger(input.ownerUserId) ||
-    !isIsoInstant(input.createdAt) ||
-    !isIsoInstant(input.expiresAt) ||
+    !isValidIsoInstant(input.createdAt) ||
+    !isValidIsoInstant(input.expiresAt) ||
     !Array.isArray(input.observationIds) ||
     input.observationIds.length === 0 ||
     input.observationIds.some(id => !isNonEmpty(id)) ||
     new Set(input.observationIds).size !== input.observationIds.length ||
     !isNonEmpty(input.target.mealLabel, 80) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(input.target.date) ||
+    !isValidIsoDate(input.target.date) ||
     !isNonEmpty(versionTag.resolverVersion, 120) ||
     !isNonEmpty(versionTag.policyVersion, 120) ||
     !isNonEmpty(versionTag.lexiconRevision, 120) ||
@@ -256,6 +279,14 @@ export function resumePendingOperation(
       resumed: false,
       reason: "owner-mismatch",
       detail: "Pendência pertence a outro proprietário autenticado.",
+    };
+  }
+
+  if (!isValidIsoInstant(request.now)) {
+    return {
+      resumed: false,
+      reason: "invalid-request-time",
+      detail: "Instante de retomada inválido; a expiração não pode ser ignorada por data ilegível.",
     };
   }
 
@@ -331,17 +362,25 @@ export function resumePendingOperation(
 export function applyPendingOperationEffect(
   store: PendingOperationStore,
   input: {
-    operationKey: string;
-    ownerUserId: number;
+    request: PendingOperationRequest;
     effect: PendingOperationEffect;
   }
 ): PendingOperationEffectResult {
-  const pending = store.get(input.operationKey);
-  if (!pending || pending.ownerUserId !== input.ownerUserId) {
+  const pending = store.get(input.request.operationKey);
+  if (!pending || pending.ownerUserId !== input.request.ownerUserId) {
     throw new Error("Pendência não encontrada para aplicação de efeito.");
   }
   if (pending.effect) {
     return { applied: false, duplicate: true, effect: pending.effect };
+  }
+  const resumed = resumePendingOperation(pending, input.request);
+  if (!resumed.resumed) {
+    return {
+      applied: false,
+      duplicate: false,
+      reason: resumed.reason,
+      detail: resumed.detail,
+    };
   }
   const applied: PendingOperationEffect = { ...input.effect };
   store.save({ ...pending, effect: applied });

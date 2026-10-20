@@ -6,6 +6,7 @@ import {
   createPendingOperationV2,
   resumePendingOperation,
   type PendingOperation,
+  type PendingOperationEffect,
   type PendingOperationRequest,
   type PendingOperationVersionTag,
 } from "./pendingOperation";
@@ -50,6 +51,22 @@ function buildRequest(
     now: "2026-10-05T12:05:00.000Z",
     ...overrides,
   };
+}
+
+function applyEffect(
+  store: ReturnType<typeof createInMemoryPendingOperationStore>,
+  effect: Partial<PendingOperationEffect> = {},
+  request: Partial<PendingOperationRequest> = {}
+) {
+  return applyPendingOperationEffect(store, {
+    request: buildRequest(request),
+    effect: {
+      effectId: "eff-1",
+      appliedAt: "2026-10-05T12:06:00.000Z",
+      mealItemId: "item-1",
+      ...effect,
+    },
+  });
 }
 
 describe("criação da pendência versionada", () => {
@@ -168,6 +185,7 @@ describe("retomada da pendência", () => {
       [{ operationKey: "op-2" }, "operation-key-mismatch"],
       [{ ownerUserId: 8 }, "owner-mismatch"],
       [{ now: "2026-10-05T12:30:00.000Z" }, "expired"],
+      [{ now: "invalid" }, "invalid-request-time"],
       [{ authorization: "revoked" }, "authorization-invalid"],
       [{ authorization: "restricted" }, "authorization-invalid"],
       [{ authorization: "expired" }, "authorization-invalid"],
@@ -213,27 +231,42 @@ describe("retomada da pendência", () => {
 });
 
 describe("efeito idempotente e sobrevivência a restart", () => {
+  it("não aplica efeito sem retomada V2 válida", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation({ versionTag: null }));
+
+    const result = applyEffect(store);
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "legacy-handler-required",
+    });
+    expect(store.get("op-1")?.effect).toBeNull();
+  });
+
+  it("não aceita pendência com calendário impossível", () => {
+    const result = createPendingOperationV2({
+      operationKey: "op-invalid-date",
+      ownerUserId: 7,
+      createdAt: "2026-10-05T12:00:00.000Z",
+      expiresAt: "2026-10-05T12:30:00.000Z",
+      observationIds: ["obs-1"],
+      target: { mealLabel: "almoço", date: "2026-02-31" },
+      question: null,
+      versionTag: VERSIONS,
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
   it("aplica uma única vez e devolve o mesmo efeito em retry", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation());
 
-    const first = applyPendingOperationEffect(store, {
-      operationKey: "op-1",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-1",
-        appliedAt: "2026-10-05T12:06:00.000Z",
-        mealItemId: "item-1",
-      },
-    });
-    const second = applyPendingOperationEffect(store, {
-      operationKey: "op-1",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-1",
-        appliedAt: "2026-10-05T12:07:00.000Z",
-        mealItemId: "item-1",
-      },
+    const first = applyEffect(store);
+    const second = applyEffect(store, {
+      appliedAt: "2026-10-05T12:07:00.000Z",
     });
 
     expect(first).toMatchObject({ applied: true, duplicate: false });
@@ -249,15 +282,7 @@ describe("efeito idempotente e sobrevivência a restart", () => {
   it("sobrevive a restart com versão fixada e sem efeito duplicado", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation());
-    applyPendingOperationEffect(store, {
-      operationKey: "op-1",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-1",
-        appliedAt: "2026-10-05T12:06:00.000Z",
-        mealItemId: "item-1",
-      },
-    });
+    applyEffect(store);
 
     // Reinício do processo: estado serializado, nova instância do store.
     const restarted = createInMemoryPendingOperationStore(store.exportState());
@@ -269,14 +294,8 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     const resume = resumePendingOperation(pending, buildRequest());
     expect(resume.resumed).toBe(true);
 
-    const replayed = applyPendingOperationEffect(restarted, {
-      operationKey: "op-1",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-1",
-        appliedAt: "2026-10-05T12:40:00.000Z",
-        mealItemId: "item-1",
-      },
+    const replayed = applyEffect(restarted, {
+      appliedAt: "2026-10-05T12:40:00.000Z",
     });
     expect(replayed).toMatchObject({ applied: false, duplicate: true });
   });
@@ -286,24 +305,12 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     store.save(buildOperation());
     store.save(buildOperation({ operationKey: "op-2" }));
 
-    const first = applyPendingOperationEffect(store, {
-      operationKey: "op-1",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-1",
-        appliedAt: "2026-10-05T12:06:00.000Z",
-        mealItemId: "item-1",
-      },
-    });
-    const other = applyPendingOperationEffect(store, {
-      operationKey: "op-2",
-      ownerUserId: 7,
-      effect: {
-        effectId: "eff-2",
-        appliedAt: "2026-10-05T12:06:00.000Z",
-        mealItemId: "item-2",
-      },
-    });
+    const first = applyEffect(store);
+    const other = applyEffect(
+      store,
+      { effectId: "eff-2", mealItemId: "item-2" },
+      { operationKey: "op-2" }
+    );
 
     expect(first).toMatchObject({ applied: true, duplicate: false });
     expect(other).toMatchObject({ applied: true, duplicate: false });
