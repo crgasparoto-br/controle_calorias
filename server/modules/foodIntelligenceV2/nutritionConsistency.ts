@@ -242,6 +242,17 @@ export function assertPhysicalBasisProvenance(
       path: ["nutrition", "basis", "unit"],
     });
   }
+  if (claimVolumeToMass || claimMassToVolume) {
+    const volumeMl = declared?.basis === "ml" ? declared.amount : quantity.milliliters;
+    const massGrams = declared?.basis === "g" ? declared.amount : quantity.grams;
+    if (!hasProvenDensity(quantity.evidenceIds, evidenceById, volumeMl, massGrams)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Conversão g↔ml exige densidade verificada (g/ml), com procedência e correspondência aritmética entre massa e volume.",
+        path: ["quantity"],
+      });
+    }
+  }
   if (claimVolumeToMass) {
     if (
       !isProvenConversion(
@@ -277,6 +288,27 @@ export function assertPhysicalBasisProvenance(
     }
   }
 }
+/** A densidade é um fato físico independente, não o próprio valor convertido. */
+function hasProvenDensity(
+  evidenceIds: readonly string[],
+  evidenceById: Map<string, FoodEvidence>,
+  volumeMl: number | null,
+  massGrams: number | null
+): boolean {
+  if (volumeMl === null || massGrams === null || volumeMl <= 0 || massGrams <= 0) return false;
+  return evidenceIds.some(evidenceId => {
+    const evidence = evidenceById.get(evidenceId);
+    return evidence?.field === "quantity.density" &&
+      evidence.verified === true &&
+      evidence.unit === "g/ml" &&
+      typeof evidence.value === "number" &&
+      Number.isFinite(evidence.value) &&
+      evidence.value > 0 &&
+      Number.isFinite(volumeMl * evidence.value) &&
+      Math.abs(volumeMl * evidence.value - massGrams) <= FOOD_QUANTITY_EPSILON;
+  });
+}
+
 function isProvenConversion(
   evidenceIds: readonly string[],
   field: "quantity.grams" | "quantity.milliliters",
