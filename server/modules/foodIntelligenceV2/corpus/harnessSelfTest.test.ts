@@ -9,7 +9,7 @@ import {
   type GoldenCorpus,
   toCorpusCaseInput,
 } from "./contracts";
-import { lookupBoundCorpusCaseId } from "./internalCaseBinding.test.support";
+import * as fixtureBinding from "./internalCaseBinding.test.support";
 import { goldenFoodCorpus } from "./data";
 import {
   createKnowledgeStore,
@@ -50,13 +50,26 @@ const PINNED_REVISIONS: CorpusRevisions = {
 const pinned = { revisions: PINNED_REVISIONS };
 const corpus = goldenFoodCorpus;
 
+/**
+ * Local assertion helper used by adversarial self-tests. It compares only the
+ * observable input and is intentionally NOT exported to candidate resolvers.
+ * Fixture-backed reference doubles keep their own private WeakMap lookup.
+ */
 function boundCaseIdFor(
-  _corpusUnderTest: GoldenCorpus,
+  corpusUnderTest: GoldenCorpus,
   input: CorpusCaseInput
 ): string {
-  const caseId = lookupBoundCorpusCaseId(input);
-  if (!caseId) throw new Error("associação privada de fixture ausente");
-  return caseId;
+  const observed = JSON.stringify(input);
+  const candidates = corpusUnderTest.cases.filter(
+    entry =>
+      JSON.stringify(toCorpusCaseInput(entry, input.scenario.phase)) === observed
+  );
+  if (candidates.length !== 1) {
+    throw new Error(
+      `fixture input is not uniquely identifiable by public data (${candidates.length})`
+    );
+  }
+  return candidates[0].caseId;
 }
 
 // Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
@@ -119,6 +132,37 @@ function allCodes(report: Awaited<ReturnType<typeof runGoldenFoodCorpus>>) {
 }
 
 describe("autoverificação do harness", () => {
+  it("recusa um resolvedor que tente recuperar caseId pela API de fixture", async () => {
+    // AUD-1327-001: acesso ao objeto de request nunca concede o oráculo
+    // via um leitor público do WeakMap. O ataque deve falhar mesmo quando
+    // recebe uma entrada válida e um corpus com expectativa rotulada.
+    expect(Object.keys(fixtureBinding).sort()).toEqual(["bindCorpusCaseInput"]);
+    const candidate = subCorpus(["c-panco-pao-forma"]);
+    const report = await runCorpus(
+      candidate,
+      {
+        id: "test:forbidden-oracle-lookup",
+        revision: "1",
+        resolve(request) {
+          const input = request.case as unknown as Record<string, unknown>;
+          expect(Object.hasOwn(input, "caseId")).toBe(false);
+          const unauthorizedLookup = (
+            fixtureBinding as unknown as Record<string, unknown>
+          )["lookupBoundCorpusCaseId"];
+          if (typeof unauthorizedLookup !== "function") {
+            throw new Error("fixture identity accessor unavailable");
+          }
+          throw new Error("fixture identity accessor unexpectedly exported");
+        },
+      },
+      pinned
+    );
+    expect(report.resolveCalls).toBe(1);
+    expect(report.gate.status).toBe("blocked");
+    expect(report.failures.some(failure => failure.codes.includes("resolver_error"))).toBe(true);
+  });
+
+
   it("mantém a linha de base: a referência independente aprova", async () => {
     const report = await runGoldenFoodCorpus(
       createReferenceResolver(corpus),
@@ -308,7 +352,7 @@ describe("autoverificação do harness", () => {
   });
 
   it("mantém o ledger de conhecimento como evidência primária de efeito", async () => {
-    const rejected: string[] = [];
+    const rejected: CorpusCaseInput[] = [];
     await runCorpus(
       corpus,
       {
@@ -318,7 +362,7 @@ describe("autoverificação do harness", () => {
           try {
             await request.knowledge.write("alias:x", "y");
           } catch {
-            rejected.push(boundCaseIdFor(corpus, request.case));
+            rejected.push(request.case);
           }
           return { decisions: [] };
         },
@@ -327,10 +371,8 @@ describe("autoverificação do harness", () => {
     );
     // Toda tentativa fora da aquisição é rejeitada pela fachada, e o resolvedor
     // não tem outro caminho para escrever conhecimento.
-    const rejectedIds = new Set(rejected);
-    for (const entry of corpus.cases) {
-      expect(rejectedIds.has(entry.caseId)).toBe(true);
-    }
+    expect(rejected).toHaveLength(corpus.cases.length);
+    expect(rejected.every(input => Object.isFrozen(input))).toBe(true);
   });
 
   it("trata denominador zero como amostra ausente, nunca como zero", async () => {

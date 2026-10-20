@@ -8,13 +8,13 @@
  * reprovar (§4.1.8, §16.1, §18).
  */
 import {
+  type CorpusCaseInput,
   type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type ExpectedDecision,
   type GoldenCorpus,
   type GoldenCorpusCase,
 } from "./contracts";
-import { lookupBoundCorpusCaseId } from "./internalCaseBinding.test.support";
 import {
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
   isGroundedEvidenceOrigin,
@@ -29,6 +29,27 @@ import type {
   FoodResolutionDecision,
   MealOperation,
 } from "../schemas";
+
+/**
+ * Private fixture identity channel for synthetic harness self-tests only.
+ * The normal CorpusResolverRequest never contains caseId, and no generic
+ * identifier reader is exported from this module or its binding facade.
+ *
+ * Synthetic oracle resolvers deliberately know the fixtures; they are not
+ * evidence of production Food Intelligence V2 resolution accuracy.
+ */
+const BOUND_CASES = new WeakMap<CorpusCaseInput, string>();
+
+export function bindCorpusCaseInput(
+  input: CorpusCaseInput,
+  source: GoldenCorpusCase
+): void {
+  BOUND_CASES.set(input, source.caseId);
+}
+
+function lookupBoundCorpusCaseId(input: CorpusCaseInput): string | undefined {
+  return BOUND_CASES.get(input);
+}
 
 const PREFERRED_ORIGINS: readonly FoodEvidenceOrigin[] = [
   "nutrition_label",
