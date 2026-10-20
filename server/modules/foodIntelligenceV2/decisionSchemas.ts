@@ -21,30 +21,21 @@ import {
   confidence,
   evidenceIdList,
   foodEvidenceSchema,
+  foodNutrientKeyByEvidenceField,
+  foodNutritionValuesSchema,
   foodQualifierSchema,
   nonEmptyText,
-  nonNegativeNumber,
   nullableOpaqueId,
-  nullableNonNegativeNumber,
   nullablePositiveInt,
   nullableText,
   opaqueId,
   positiveInt,
   rejectDuplicates,
 } from "./schemaShared";
-export const foodNutritionValuesSchema = z.strictObject({
-  calories: nonNegativeNumber,
-  protein: nonNegativeNumber,
-  carbs: nonNegativeNumber,
-  fat: nonNegativeNumber,
-  fiber: nullableNonNegativeNumber,
-  sugar: nullableNonNegativeNumber,
-  sodiumMg: nullableNonNegativeNumber,
-});
-/** Nutrientes do contrato, derivados do schema canônico (não dos IDs de fonte/perfil). */
-const NUTRIENT_EVIDENCE_FIELDS = new Set(
-  Object.keys(foodNutritionValuesSchema.shape).map(field => `nutrition.${field}`)
-);
+// Preserva a superfície pública enquanto os metadados vivem no schema compartilhado.
+export { foodNutritionValuesSchema } from "./schemaShared";
+/** Nutrientes derivam do schema canônico, nunca de nomes de alimento. */
+const NUTRIENT_EVIDENCE_FIELDS = new Set(foodNutrientKeyByEvidenceField.keys());
 export const foodNutritionBasisSchema = z.strictObject({
   quantity: z.number().finite().positive(),
   unit: z.enum(FOOD_NUTRITION_BASE_UNITS),
