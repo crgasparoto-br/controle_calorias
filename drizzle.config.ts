@@ -255,6 +255,7 @@ export default defineConfig({
     "./drizzle/schema.ts",
     "./drizzle/whatsapp-processing-schema.ts",
     "./drizzle/food-signals-schema.ts",
+    "./drizzle/food-intelligence-v2-schema.ts",
     "./drizzle/professional-schema.ts",
     "./drizzle/billing-schema.ts",
     "./drizzle/billing-subscription-lifecycle-schema.ts",
