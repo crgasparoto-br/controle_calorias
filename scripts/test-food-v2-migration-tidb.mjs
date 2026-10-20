@@ -63,8 +63,8 @@ const applyFile = async path => {
 };
 const mustReject = async (promise, label) => {
   await assert.rejects(promise, error =>
-    ["ER_DUP_ENTRY", "ER_CHECK_CONSTRAINT_VIOLATED", "ER_ROW_IS_REFERENCED_2", "ER_NO_REFERENCED_ROW_2"].includes(error.code) ||
-    /duplicate|check constraint|foreign key/i.test(String(error.message))
+    ["ER_DUP_ENTRY", "ER_CHECK_CONSTRAINT_VIOLATED", "ER_ROW_IS_REFERENCED_2", "ER_NO_REFERENCED_ROW_2", "ER_BAD_NULL_ERROR", "ER_NO_DEFAULT_FOR_FIELD"].includes(error.code) ||
+    /duplicate|check constraint|foreign key|cannot be null|doesn't have a default/i.test(String(error.message))
   , label);
 };
 // Negative regression control: V1 continues creating foods after B1 without V2 fields.
@@ -96,9 +96,10 @@ const assertEvidenceRetention = async f => {
   const sql = "INSERT INTO food_evidence (subject_key, evidence_type, owner_user_id, content_hash, payload_json, retention_until) VALUES (?, 'user_correction', ?, ?, '{}', ?)";
   await mustReject(connection.query(sql, ["ci-foodv2:missing-retention", f.userId, "a".repeat(64), null]), "personal evidence without TTL must be rejected by database");
   await connection.query(sql, ["ci-foodv2:personal-retained", f.userId, "b".repeat(64), new Date(Date.now() + 86400000)]);
-  const [personal] = await queryRows("SELECT owner_user_id, retention_until FROM food_evidence WHERE subject_key='ci-foodv2:personal-retained'");
+  const [personal] = await queryRows("SELECT owner_user_id, retention_until, retention_guard FROM food_evidence WHERE subject_key='ci-foodv2:personal-retained'");
   assert.equal(Number(personal.owner_user_id), f.userId);
   assert.ok(personal.retention_until);
+  assert.equal(Number(personal.retention_guard), 1);
   await connection.query("INSERT INTO food_evidence (subject_key, evidence_type, content_hash, payload_json) VALUES ('ci-foodv2:global-source', 'official_source', ?, '{}')", ["c".repeat(64)]);
   const [global] = await queryRows("SELECT owner_user_id, retention_until FROM food_evidence WHERE subject_key='ci-foodv2:global-source'");
   assert.equal(global.owner_user_id, null);
@@ -110,9 +111,10 @@ const assertSupersededReview = async f => {
   const [next] = await connection.query("INSERT INTO food_review_cases (case_key, case_type, target_artifact_type, target_artifact_id, target_revision, target_content_hash) VALUES ('ci-foodv2:successor', 'profile', 'nutrition_profile', ?, 1, ?)", [String(f.foodId), "a".repeat(64)]);
   const [prior] = await connection.query(baseSql, ["ci-foodv2:superseded", next.insertId, String(f.foodId), "a".repeat(64)]);
   await mustReject(connection.query("UPDATE food_review_cases SET superseded_by_case_id=NULL WHERE id=?", [prior.insertId]), "superseded case cannot lose successor during update");
-  const [read] = await queryRows("SELECT outcome, superseded_by_case_id FROM food_review_cases WHERE id=?", [prior.insertId]);
+  const [read] = await queryRows("SELECT outcome, superseded_by_case_id, supersession_guard FROM food_review_cases WHERE id=?", [prior.insertId]);
   assert.equal(read.outcome, "superseded");
   assert.equal(Number(read.superseded_by_case_id), next.insertId);
+  assert.equal(Number(read.supersession_guard), 1);
 };
 
 const testUpgrade = async f => {

@@ -15023,6 +15023,18 @@
           "notNull": false,
           "autoincrement": false
         },
+        "retention_guard": {
+          "name": "retention_guard",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "generated": {
+            "as": "CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END",
+            "type": "always",
+            "mode": "virtual"
+          }
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -15101,7 +15113,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -15114,12 +15126,7 @@
         }
       },
       "uniqueConstraints": {},
-      "checkConstraint": {
-        "food_evidence_ck0": {
-          "name": "food_evidence_ck0",
-          "value": "owner_user_id IS NULL OR retention_until IS NOT NULL"
-        }
-      }
+      "checkConstraint": {}
     },
     "food_review_cases": {
       "name": "food_review_cases",
@@ -15204,6 +15211,18 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "supersession_guard": {
+          "name": "supersession_guard",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "generated": {
+            "as": "CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END",
+            "type": "always",
+            "mode": "virtual"
+          }
         },
         "priority_score": {
           "name": "priority_score",
@@ -15367,7 +15386,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -15392,10 +15411,6 @@
         "food_review_cases_ck2": {
           "name": "food_review_cases_ck2",
           "value": "(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)"
-        },
-        "food_review_cases_ck3": {
-          "name": "food_review_cases_ck3",
-          "value": "outcome IS NULL OR outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL"
         }
       }
     },

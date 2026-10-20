@@ -27,8 +27,8 @@ test("exclusividade por versão e escopo não depende de memória de processo", 
  for(const token of ["fnp_one_current_uq","case_id` ,","v2_user_food_favorit_u0"]){ /* explicit indexes validated below */ }
  for(const compound of ["profile_key`,`version","profile_key`,`current_slot","user_id`,`normalized_alias`,`current_slot","user_id`,`locale`,`normalized_term`,`kind`,`current_slot","case_id`,`review_cycle`,`request_key"]){assert.ok(migration.includes(compound), compound);}
  assert.match(migration,/CHECK \(\(status='closed' AND outcome IS NOT NULL/);
- assert.match(migration,/food_evidence_ck0` CHECK \(owner_user_id IS NULL OR retention_until IS NOT NULL\)/);
- assert.match(migration,/food_review_cases_ck3` CHECK \(outcome IS NULL OR outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL\)/);
+ assert.match(migration,/`retention_guard` int GENERATED ALWAYS AS \(CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END\) VIRTUAL NOT NULL/);
+ assert.match(migration,/`supersession_guard` int GENERATED ALWAYS AS \(CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END\) VIRTUAL NOT NULL/);
  assert.match(migration,/FOREIGN KEY \(`foodVariantId`\) REFERENCES `food_variants`\(`id`\) ON DELETE RESTRICT/);
 });
 test("script de rollback reverte apenas estruturas novas",()=>{

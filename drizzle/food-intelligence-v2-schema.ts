@@ -158,20 +158,20 @@ export const foodEvidence = mysqlTable("food_evidence", {
   foodVariantId: int("food_variant_id").references(() => foodVariants.id, { onDelete: "restrict" }),
   evidenceType: mysqlEnum("evidence_type", ["nutrition_label", "ocr", "barcode", "manufacturer", "official_source", "external_source", "user_correction", "image"]).notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "restrict" }),
-  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "no action" }),
+  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "restrict" }),
   sourceReference: varchar("source_reference", { length: 500 }),
   contentHash: varchar("content_hash", { length: 64 }).notNull(),
   payloadJson: text("payload_json").notNull(),
   confidence: double("confidence"),
   capturedAt: timestamp("captured_at").notNull().defaultNow(),
   retentionUntil: timestamp("retention_until"),
+  retentionGuard: int("retention_guard").notNull().generatedAlwaysAs(sql`CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END`, { mode: "virtual" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 }, table => ({
   i0: index("food_evidence_i0").on(table.subjectKey),
   i1: index("food_evidence_i1").on(table.contentHash),
   i2: index("food_evidence_i2").on(table.retentionUntil),
-  ck0: check("food_evidence_ck0", sql`owner_user_id IS NULL OR retention_until IS NOT NULL`),
 }));
 
 export const foodReviewCases = mysqlTable("food_review_cases", {
@@ -185,7 +185,8 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
   cycleOpenedAt: timestamp("cycle_opened_at").notNull().defaultNow(),
   closedAt: timestamp("closed_at"),
   assignedReviewerId: int("assigned_reviewer_id").references(() => users.id, { onDelete: "restrict" }),
-  supersededByCaseId: int("superseded_by_case_id").references((): AnyMySqlColumn => foodReviewCases.id, { onDelete: "no action" }),
+  supersededByCaseId: int("superseded_by_case_id").references((): AnyMySqlColumn => foodReviewCases.id, { onDelete: "restrict" }),
+  supersessionGuard: int("supersession_guard").notNull().generatedAlwaysAs(sql`CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END`, { mode: "virtual" }),
   priorityScore: double("priority_score").notNull().default(0),
   prioritySnapshotJson: text("priority_snapshot_json"),
   policyVersion: varchar("policy_version", { length: 100 }),
@@ -208,7 +209,6 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
   ck0: check("food_review_cases_ck0", sql`review_cycle > 0`),
   ck1: check("food_review_cases_ck1", sql`state_version > 0`),
   ck2: check("food_review_cases_ck2", sql`(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)`),
-  ck3: check("food_review_cases_ck3", sql`outcome IS NULL OR outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL`),
 
 
 }));

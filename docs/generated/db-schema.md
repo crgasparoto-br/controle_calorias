@@ -98,8 +98,8 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodVariantClassifications` | `food_variant_classifications` | 15 | Baixa |
 | `userFoodAliases` | `user_food_aliases` | 13 | Requer atenção |
 | `foodBarcodes` | `food_barcodes` | 10 | Baixa |
-| `foodEvidence` | `food_evidence` | 14 | Baixa |
-| `foodReviewCases` | `food_review_cases` | 27 | Baixa |
+| `foodEvidence` | `food_evidence` | 15 | Baixa |
+| `foodReviewCases` | `food_review_cases` | 28 | Baixa |
 | `foodReviewEvents` | `food_review_events` | 20 | Baixa |
 | `foodResolutionEvents` | `food_resolution_events` | 18 | Baixa |
 | `foodLexiconEntries` | `food_lexicon_entries` | 19 | Baixa |
