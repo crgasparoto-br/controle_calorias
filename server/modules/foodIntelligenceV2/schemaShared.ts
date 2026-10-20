@@ -43,13 +43,22 @@ export function isValidIsoDate(value: unknown): value is string {
 }
 
 export function isValidIsoInstant(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.includes("T") &&
-    /(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-    isValidIsoDate(value.slice(0, 10)) &&
-    !Number.isNaN(Date.parse(value))
-  );
+  if (
+    typeof value !== "string" ||
+    !value.includes("T") ||
+    !isValidIsoDate(value.slice(0, 10)) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return false;
+  }
+
+  const offset = value.match(/(?:Z|([+-])(\d{2}):(\d{2}))$/);
+  if (!offset) return false;
+  if (offset[1] === undefined) return true;
+
+  const hours = Number(offset[2]);
+  const minutes = Number(offset[3]);
+  return hours <= 14 && minutes <= 59 && !(hours === 14 && minutes !== 0);
 }
 
 /** Span usa offsets UTF-16 `[start, end)` do texto original referenciado. */

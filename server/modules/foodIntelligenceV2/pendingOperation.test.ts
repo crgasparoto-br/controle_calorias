@@ -234,6 +234,8 @@ describe("retomada da pendência", () => {
       [{ expiresAt: "not-an-instant" }, "invalid-pending-time"],
       [{ expiresAt: "2026-02-31T12:30:00.000Z" }, "invalid-pending-time"],
       [{ expiresAt: "2026-10-05T12:30:00" }, "invalid-pending-time"],
+      [{ expiresAt: "2026-10-05T12:30:00+14:01" }, "invalid-pending-time"],
+      [{ expiresAt: "2026-10-05T12:30:00-23:59" }, "invalid-pending-time"],
       [{ createdAt: "not-an-instant" }, "invalid-pending-time"],
       [
         {
@@ -319,6 +321,68 @@ describe("efeito idempotente e sobrevivência a restart", () => {
       reason: "invalid-pending-time",
     });
     expect(store.get("op-1")?.effect).toBeNull();
+  });
+
+  it("não persiste efeito com appliedAt inválido", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation());
+
+    const result = applyEffect(store, {
+      appliedAt: "2026-02-31T12:06:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+    });
+    expect(store.get("op-1")?.effect).toBeNull();
+  });
+
+  it("valida pendência e efeito persistidos antes de retornar duplicate", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(
+      buildOperation({
+        effect: {
+          effectId: "eff-1",
+          appliedAt: "2026-02-31T12:06:00.000Z",
+          mealItemId: "item-1",
+        },
+      })
+    );
+
+    const result = applyEffect(store);
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+    });
+    expect(store.get("op-1")?.effect?.appliedAt).toBe(
+      "2026-02-31T12:06:00.000Z"
+    );
+  });
+
+  it("não retorna duplicate quando a pendência persistida tem tempo inválido", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(
+      buildOperation({
+        expiresAt: "2026-02-31T12:30:00.000Z",
+        effect: {
+          effectId: "eff-1",
+          appliedAt: "2026-10-05T12:06:00.000Z",
+          mealItemId: "item-1",
+        },
+      })
+    );
+
+    const result = applyEffect(store);
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+    });
   });
 
   it("aplica uma única vez e devolve o mesmo efeito em retry", () => {

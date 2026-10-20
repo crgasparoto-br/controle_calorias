@@ -119,6 +119,18 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+function isValidPendingOperationEffect(
+  value: unknown
+): value is PendingOperationEffect {
+  if (!value || typeof value !== "object") return false;
+  const effect = value as Partial<PendingOperationEffect>;
+  return (
+    isNonEmpty(effect.effectId) &&
+    isValidIsoInstant(effect.appliedAt) &&
+    isNonEmpty(effect.mealItemId)
+  );
+}
+
 /**
  * Classifica o proprietário da pendência pelo contrato **persistido**.
  *
@@ -397,9 +409,6 @@ export function applyPendingOperationEffect(
   if (!pending || pending.ownerUserId !== input.request.ownerUserId) {
     throw new Error("Pendência não encontrada para aplicação de efeito.");
   }
-  if (pending.effect) {
-    return { applied: false, duplicate: true, effect: pending.effect };
-  }
   const resumed = resumePendingOperation(pending, input.request);
   if (!resumed.resumed) {
     return {
@@ -407,6 +416,27 @@ export function applyPendingOperationEffect(
       duplicate: false,
       reason: resumed.reason,
       detail: resumed.detail,
+    };
+  }
+  if (pending.effect) {
+    if (!isValidPendingOperationEffect(pending.effect)) {
+      return {
+        applied: false,
+        duplicate: false,
+        reason: "invalid-pending-time",
+        detail:
+          "Efeito persistido possui appliedAt ou identificadores inválidos; nenhum retry é reconhecido como duplicata.",
+      };
+    }
+    return { applied: false, duplicate: true, effect: pending.effect };
+  }
+  if (!isValidPendingOperationEffect(input.effect)) {
+    return {
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+      detail:
+        "Efeito recebido possui appliedAt ou identificadores inválidos; nenhum efeito é persistido.",
     };
   }
   const applied: PendingOperationEffect = { ...input.effect };
