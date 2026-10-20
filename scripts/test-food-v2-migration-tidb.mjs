@@ -10,6 +10,7 @@ if (process.env.FOOD_V2_TEST_DB_ISOLATED !== "1" || !databaseUrl || !["upgrade",
 const dbName = new URL(databaseUrl).pathname.replace(/^\//, "");
 if (dbName !== `ci_foodv2_${mode}`) throw new Error("Refusing to change a database outside the dedicated CI fixture.");
 const connection = await mysql.createConnection({ uri: databaseUrl, multipleStatements: false });
+const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 4 });
 
 const seed = async () => {
   const [u] = await connection.query(
@@ -68,15 +69,15 @@ const testUpgrade = async f => {
   );
   const variantId = v.insertId;
   const contenders = await Promise.allSettled([
-    connection.query("INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key) VALUES (?, 'generic', 'A', 'a', 'ci-foodv2:race')", [f.foodId]),
-    connection.query("INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key) VALUES (?, 'generic', 'B', 'b', 'ci-foodv2:race')", [f.foodId]),
+    pool.query("INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key) VALUES (?, 'generic', 'A', 'a', 'ci-foodv2:race')", [f.foodId]),
+    pool.query("INSERT INTO food_variants (food_id, variant_type, display_name, normalized_name, identity_key) VALUES (?, 'generic', 'B', 'b', 'ci-foodv2:race')", [f.foodId]),
   ]);
   assert.equal(contenders.filter(c => c.status === "fulfilled").length, 1, "duplicate food identity must be excluded");
   const profiles = [
     [variantId, f.sourceId, "ci-foodv2:profile", 1, "a".repeat(64)],
     [variantId, f.sourceId, "ci-foodv2:profile", 2, "b".repeat(64)],
   ];
-  const addProfile = row => connection.query(
+  const addProfile = row => pool.query(
     "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot) VALUES (?, ?, ?, ?, 100, 'g', 250, 9, 48, 3, ?, 1)",
     row
   );
@@ -124,4 +125,4 @@ try {
     await assertLegacy(fixture, false);
     console.log(JSON.stringify({ event: "food_v2_migration_integration.passed", mode, forwardStatements, reversed }));
   }
-} finally { await connection.end(); }
+} finally { await pool.end(); await connection.end(); }
