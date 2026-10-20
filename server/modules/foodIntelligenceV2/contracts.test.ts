@@ -936,7 +936,7 @@ describe("FoodResolutionDecision v2", () => {
         unit: "ml",
         grams: 240,
         milliliters: null,
-        evidenceIds: ["ev-density"],
+        evidenceIds: ["ev-grams", "ev-density"],
       },
       identity: { evidenceIds: [] },
       nutrition: {
@@ -951,16 +951,38 @@ describe("FoodResolutionDecision v2", () => {
       },
       evidence: [
         {
-          evidenceId: "ev-density",
+          evidenceId: "ev-grams",
           field: "quantity.grams",
           origin: "catalog",
           value: 240,
           unit: "g",
           verified: true,
         },
+        {
+          evidenceId: "ev-density",
+          field: "quantity.density",
+          origin: "catalog",
+          value: 1,
+          unit: "g/ml",
+          verified: true,
+        },
       ],
     });
     expect(parseFoodResolutionDecision(withDensity).ok).toBe(true);
+
+    const gramsWithoutDensity = structuredClone(withDensity);
+    gramsWithoutDensity.evidence = gramsWithoutDensity.evidence.filter(
+      evidence => evidence.field !== "quantity.density"
+    );
+    expectInvalid(parseFoodResolutionDecision(gramsWithoutDensity));
+
+    const unverifiedDensity = structuredClone(withDensity);
+    unverifiedDensity.evidence.find(evidence => evidence.field === "quantity.density")!.verified = false;
+    expectInvalid(parseFoodResolutionDecision(unverifiedDensity));
+
+    const conflictingDensity = structuredClone(withDensity);
+    conflictingDensity.evidence.find(evidence => evidence.field === "quantity.density")!.value = 0.8;
+    expectInvalid(parseFoodResolutionDecision(conflictingDensity));
 
     const incompatibleUnit = buildFoodResolutionDecisionFixture({
       quantity: {
@@ -1030,6 +1052,75 @@ describe("FoodResolutionDecision v2", () => {
       ],
     });
     expectInvalid(parseFoodResolutionDecision(volumeQuantityWithMassBasis));
+  });
+
+  it("A-1298-001: evidencia nutricional verificada exige nutriente numerico, nao apenas referencia", () => {
+    const onlyNull = buildFoodResolutionDecisionFixture({
+      evidence: [{}, {}, { evidenceId: "ev-nutrition", value: null }],
+    });
+    const original = structuredClone(onlyNull);
+    expectInvalid(parseFoodResolutionDecision(onlyNull));
+    expect(onlyNull).toStrictEqual(original);
+  });
+
+  it("A-1298-002: partially_resolved requer identidade sustentada", () => {
+    const missingIdentity = buildFoodResolutionDecisionFixture({
+      status: "partially_resolved",
+      nextAction: "clarify",
+      reasonCodes: ["unknown_surface"],
+      unresolvedFields: ["identity"],
+      identity: {
+        canonicalName: null,
+        candidateKey: null,
+        foodEntityId: null,
+        variantId: null,
+        evidenceIds: [],
+      },
+    });
+    expectInvalid(parseFoodResolutionDecision(missingIdentity));
+  });
+
+  it("A-1298-004: non_food exige evidencia negativa afirmativa verificada", () => {
+    const base = buildFoodResolutionDecisionFixture({
+      status: "unknown",
+      nextAction: "reject",
+      reasonCodes: ["non_food"],
+      unresolvedFields: ["identity"],
+      identity: {
+        canonicalName: null,
+        candidateKey: null,
+        foodEntityId: null,
+        variantId: null,
+        evidenceIds: [],
+      },
+    });
+    expectInvalid(parseFoodResolutionDecision(base));
+
+    const confirmed = structuredClone(base);
+    confirmed.evidence.push({
+      evidenceId: "ev-non-food",
+      field: "classification.isFood",
+      origin: "text",
+      value: false,
+      unit: null,
+      confidence: 1,
+      verified: true,
+      anchor: { sourceRef: "turn:1:text", span: null, region: null },
+      sourceId: null,
+    });
+    expect(parseFoodResolutionDecision(confirmed).ok).toBe(true);
+
+    const notVerified = structuredClone(confirmed);
+    notVerified.evidence[notVerified.evidence.length - 1].verified = false;
+    expectInvalid(parseFoodResolutionDecision(notVerified));
+
+    const merelyMissing = structuredClone(confirmed);
+    merelyMissing.evidence[merelyMissing.evidence.length - 1].value = null;
+    expectInvalid(parseFoodResolutionDecision(merelyMissing));
+
+    const wrongAction = structuredClone(confirmed);
+    wrongAction.nextAction = "clarify";
+    expectInvalid(parseFoodResolutionDecision(wrongAction));
   });
 
   it("exige evidência barcode para barcode exato (precedência não vira fuzzy match)", () => {
