@@ -15,6 +15,7 @@ import {
   FOOD_REASON_CODES,
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
   FOOD_STATUS_ALLOWED_ACTIONS,
+  isGroundedEvidenceOrigin,
 } from "./contracts";
 import {
   confidence,
@@ -258,6 +259,13 @@ export const foodResolutionDecisionSchema = z
         path: ["unresolvedFields"],
       });
     }
+    if (decision.status === "partially_resolved" && !identitySustained) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "status=partially_resolved exige identidade sustentada; sem identidade o estado é unknown.",
+        path: ["status"],
+      });
+    }
     if (decision.status !== "resolved" && decision.reasonCodes.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -387,6 +395,21 @@ export const foodResolutionDecisionSchema = z
       }
     }
     if (nutrition.verified) {
+      const hasGroundedNutrient = nutrition.evidenceIds.some(evidenceId => {
+        const evidence = evidenceById.get(evidenceId);
+        return evidence?.verified === true &&
+          isGroundedEvidenceOrigin(evidence.origin) &&
+          evidence.field.startsWith("nutrition.") &&
+          typeof evidence.value === "number" &&
+          Number.isFinite(evidence.value) && evidence.value >= 0;
+      });
+      if (!hasGroundedNutrient) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Nutrição verificada exige ao menos um nutriente numérico com evidência verificável, vinculada ao próprio campo.",
+          path: ["nutrition", "evidenceIds"],
+        });
+      }
       for (const evidenceId of nutrition.evidenceIds) {
         const evidence = evidenceById.get(evidenceId);
         if (evidence?.verified !== true) {
@@ -397,6 +420,22 @@ export const foodResolutionDecisionSchema = z
             path: ["nutrition", "evidenceIds"],
           });
         }
+      }
+    }
+    if (decision.reasonCodes.includes("non_food")) {
+      const negativeFoodEvidence = decision.evidence.some(evidence =>
+        evidence.field === "classification.isFood" &&
+        evidence.value === false &&
+        evidence.unit === null &&
+        evidence.verified === true &&
+        isGroundedEvidenceOrigin(evidence.origin)
+      );
+      if (decision.status !== "unknown" || decision.nextAction !== "reject" || !negativeFoodEvidence) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "non_food só rejeita uma entrada unknown com evidência negativa afirmativa e verificada de classification.isFood=false; ausência de catálogo não é prova.",
+          path: ["reasonCodes"],
+        });
       }
     }
     if (
