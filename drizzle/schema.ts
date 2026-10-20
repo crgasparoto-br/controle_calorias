@@ -1,4 +1,4 @@
-import { foodVariants, foodNutritionProfiles } from "./food-intelligence-v2-schema";
+import { foodVariants, foodNutritionProfiles, foodEvidence } from "./food-intelligence-v2-schema";
 import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -185,7 +185,7 @@ export const foodPortions = mysqlTable("food_portions", {
   foodVariantId: int("food_variant_id").references(() => foodVariants.id, { onDelete: "restrict" }),
   milliliters: double("milliliters"),
   measureKind: mysqlEnum("measure_kind", ["exact", "usual_average", "contextual_estimate"]).default("usual_average").notNull(),
-  evidenceId: int("evidence_id"),
+  evidenceId: int("evidence_id").references(() => foodEvidence.id, { onDelete: "restrict" }),
   confidence: double("confidence"),
   status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).default("provisional").notNull(),
   validFrom: timestamp("valid_from"),
