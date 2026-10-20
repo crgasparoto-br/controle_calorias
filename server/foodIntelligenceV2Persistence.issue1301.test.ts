@@ -33,6 +33,16 @@ describe("#1301 V2 migration invariants", () => {
       expect(fks.some(fk => fk.tableTo === table && fk.onDelete === "restrict")).toBe(true);
     }
   });
+  it("keeps unreconciled V1 food writes possible and fails closed for absent V2 identity", () => {
+    const foodColumns = snapshot.tables.foods.columns as Record<string, { notNull: boolean; default?: string }>;
+    for (const column of ["scope", "canonical_name", "canonical_key"]) {
+      expect(foodColumns[column].notNull).toBe(false);
+    }
+    expect(foodColumns.scope).not.toHaveProperty("default");
+    expect(migration).not.toMatch(/MODIFY COLUMN \`canonical_(?:name|key)\`[^;]*NOT NULL/i);
+    expect(migration).toContain("UPDATE \`foods\` SET \`canonical_name\`=\`name\`");
+    expect(hasUnique("foods", ["canonical_key"])).toBe(true);
+  });
   it("prevents duplicate canonical variants and current nutrient/profile revisions", () => {
     expect(hasUnique("food_variants", ["identity_key"])).toBe(true);
     expect(hasUnique("food_nutrition_profiles", ["profile_key", "version"])).toBe(true);
