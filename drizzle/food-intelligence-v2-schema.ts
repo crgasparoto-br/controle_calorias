@@ -1,5 +1,6 @@
 // Issue #1301 — Estruturas aditivas V2. O runtime legado continua ativo até o Gate B.
-import { type AnyMySqlColumn, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
+import { type AnyMySqlColumn, check, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
 import { foodBrands, foodSources, foods, users, foodPortions } from "./schema";
 
 export const foodVariants = mysqlTable("food_variants", {
@@ -22,6 +23,8 @@ export const foodVariants = mysqlTable("food_variants", {
 }, table => ({
   u0: uniqueIndex("food_variants_u0").on(table.identityKey),
   i0: index("food_variants_i0").on(table.foodId, table.status),
+  ck0: check("food_variants_ck0", sql`revision > 0`),
+  ck1: check("food_variants_ck1", sql`merged_into_variant_id IS NULL OR merged_into_variant_id <> id`),
 }));
 
 export const foodVariantSources = mysqlTable("food_variant_sources", {
@@ -76,6 +79,14 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   u0: uniqueIndex("food_nutrition_profi_u0").on(table.profileKey, table.version),
   u1: uniqueIndex("food_nutrition_profi_u1").on(table.profileKey, table.currentSlot),
   i0: index("food_nutrition_profi_i0").on(table.foodVariantId, table.status),
+  ck0: check("food_nutrition_profiles_ck0", sql`version > 0`),
+  ck1: check("food_nutrition_profiles_ck1", sql`basis_quantity > 0`),
+  ck2: check("food_nutrition_profiles_ck2", sql`calories_kcal >= 0`),
+  ck3: check("food_nutrition_profiles_ck3", sql`protein_g >= 0`),
+  ck4: check("food_nutrition_profiles_ck4", sql`carb_g >= 0`),
+  ck5: check("food_nutrition_profiles_ck5", sql`fat_g >= 0`),
+  ck6: check("food_nutrition_profiles_ck6", sql`current_slot IS NULL OR current_slot = 1`),
+  ck7: check("food_nutrition_profiles_ck7", sql`current_slot IS NULL OR valid_to IS NULL`),
 }));
 
 export const foodVariantClassifications = mysqlTable("food_variant_classifications", {
@@ -98,6 +109,8 @@ export const foodVariantClassifications = mysqlTable("food_variant_classificatio
   u0: uniqueIndex("food_variant_classif_u0").on(table.foodVariantId, table.version),
   u1: uniqueIndex("food_variant_classif_u1").on(table.foodVariantId, table.currentSlot),
   i0: index("food_variant_classif_i0").on(table.foodVariantId, table.status),
+  ck0: check("food_variant_classifica_ck0", sql`version > 0`),
+  ck1: check("food_variant_classifica_ck1", sql`current_slot IS NULL OR current_slot=1`),
 }));
 
 export const userFoodAliases = mysqlTable("user_food_aliases", {
@@ -117,6 +130,7 @@ export const userFoodAliases = mysqlTable("user_food_aliases", {
 }, table => ({
   u0: uniqueIndex("user_food_aliases_u0").on(table.userId, table.normalizedAlias, table.currentSlot),
   i0: index("user_food_aliases_i0").on(table.userId, table.normalizedAlias, table.status),
+  ck0: check("user_food_aliases_ck0", sql`(status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
 }));
 
 export const foodBarcodes = mysqlTable("food_barcodes", {
@@ -154,6 +168,7 @@ export const foodEvidence = mysqlTable("food_evidence", {
   i0: index("food_evidence_i0").on(table.subjectKey),
   i1: index("food_evidence_i1").on(table.contentHash),
   i2: index("food_evidence_i2").on(table.retentionUntil),
+  ck0: check("food_evidence_ck0", sql`owner_user_id IS NULL OR retention_until IS NOT NULL`),
 }));
 
 export const foodReviewCases = mysqlTable("food_review_cases", {
@@ -187,6 +202,11 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
 }, table => ({
   u0: uniqueIndex("food_review_cases_u0").on(table.caseKey),
   i0: index("food_review_cases_i0").on(table.status, table.priorityScore),
+  ck0: check("food_review_cases_ck0", sql`review_cycle > 0`),
+  ck1: check("food_review_cases_ck1", sql`state_version > 0`),
+  ck2: check("food_review_cases_ck2", sql`(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)`),
+  ck3: check("food_review_cases_ck3", sql`outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL`),
+  ck4: check("food_review_cases_ck4", sql`superseded_by_case_id IS NULL OR superseded_by_case_id <> id`),
 }));
 
 export const foodReviewEvents = mysqlTable("food_review_events", {
@@ -213,6 +233,7 @@ export const foodReviewEvents = mysqlTable("food_review_events", {
 }, table => ({
   u0: uniqueIndex("food_review_events_u0").on(table.caseId, table.reviewCycle, table.requestKey),
   i0: index("food_review_events_i0").on(table.caseId, table.reviewCycle, table.occurredAt),
+  ck0: check("food_review_events_ck0", sql`review_cycle > 0`),
 }));
 
 export const foodResolutionEvents = mysqlTable("food_resolution_events", {
@@ -262,6 +283,7 @@ export const foodLexiconEntries = mysqlTable("food_lexicon_entries", {
 }, table => ({
   u0: uniqueIndex("food_lexicon_entries_u0").on(table.locale, table.normalizedTerm, table.kind, table.currentSlot),
   i0: index("food_lexicon_entries_i0").on(table.locale, table.normalizedTerm, table.kind, table.status),
+  ck0: check("food_lexicon_entries_ck0", sql`current_slot IS NULL OR current_slot = 1`),
 }));
 
 export const userFoodLexiconEntries = mysqlTable("user_food_lexicon_entries", {
@@ -284,6 +306,7 @@ export const userFoodLexiconEntries = mysqlTable("user_food_lexicon_entries", {
 }, table => ({
   u0: uniqueIndex("user_food_lexicon_en_u0").on(table.userId, table.locale, table.normalizedTerm, table.kind, table.currentSlot),
   i0: index("user_food_lexicon_en_i0").on(table.userId, table.locale, table.normalizedTerm, table.kind, table.status),
+  ck0: check("user_food_lexicon_entri_ck0", sql`(status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL)`),
 }));
 
 export const foodAttributes = mysqlTable("food_attributes", {
@@ -316,6 +339,7 @@ export const foodVariantAttributes = mysqlTable("food_variant_attributes", {
 }, table => ({
   u0: uniqueIndex("food_variant_attribu_u0").on(table.foodVariantId, table.attributeId, table.currentSlot),
   i0: index("food_variant_attribu_i0").on(table.foodVariantId, table.attributeId, table.normalizedValue, table.status),
+  ck0: check("food_variant_attributes_ck0", sql`current_slot IS NULL OR current_slot = 1`),
 }));
 
 export const foodAttributeMateriality = mysqlTable("food_attribute_materiality", {
@@ -336,6 +360,7 @@ export const foodAttributeMateriality = mysqlTable("food_attribute_materiality",
 }, table => ({
   u0: uniqueIndex("food_attribute_mater_u0").on(table.foodId, table.attributeId, table.currentSlot),
   i0: index("food_attribute_mater_i0").on(table.foodId, table.status),
+  ck0: check("food_attribute_material_ck0", sql`current_slot IS NULL OR current_slot = 1`),
 }));
 
 export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_materiality_overrides", {
@@ -352,5 +377,6 @@ export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_mate
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 }, table => ({
   u0: uniqueIndex("food_attribute_mater_u0").on(table.foodId, table.attributeId, table.currentSlot),
+  ck0: check("food_attribute_material_ck0", sql`(status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)`),
 }));
 
