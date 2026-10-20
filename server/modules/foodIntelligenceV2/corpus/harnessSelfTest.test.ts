@@ -1052,14 +1052,15 @@ describe("autoverificação do harness", () => {
     expect(valid.gate.status).toBe("passed");
     expect(valid.overall.matchRate).toBe(1);
     const invalid = await calculated(true);
-    // A validação contratual detecta a proporção inválida antes do harness.
-    expect(allCodes(invalid)).toContain("decision_invalid");
-    expect(invalid.gate.status).toBe("failed");
-    expect(invalid.overall.matchRate).toBe(0);
+    // Evidência coerente mantém a decisão válida para o harness medir o cálculo errado.
+    expect(allCodes(invalid)).toContain("nutrition_calculation_mismatch");
+    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    expect(invalid.gate.status).toBe("blocked");
+    expect(invalid.overall.families.nutritionFailures).toBe(1);
     expect(selected.cases[0].metamorphicGroup).toBeNull();
   });
 
-  it("AUD-1316-018: recusa erro nutricional compartilhado antes de agregar o grupo", async () => {
+  it("AUD-1316-018: bloqueia erro nutricional idêntico em todos os membros de um grupo", async () => {
     const groupId = "g-mortadela-fatia-e-meia";
     const members = new Set(corpus.cases
       .filter(entry => entry.metamorphicGroup === groupId)
@@ -1097,10 +1098,11 @@ describe("autoverificação do harness", () => {
       },
     }), pinned);
     expect(members.size).toBeGreaterThanOrEqual(2);
-    // Decisões inválidas não entram no agregado nem simulam equivalência.
-    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBeNull();
-    expect(allCodes(report)).toContain("decision_invalid");
-    expect(report.gate.status).toBe("failed");
+    // O grupo converge, mas a proporção física incorreta é detectada separadamente.
+    expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBe(true);
+    expect(allCodes(report)).toContain("nutrition_calculation_mismatch");
+    expect(report.gate.blockReasons).toContain("nutrition_calculation_mismatch");
+    expect(report.gate.status).toBe("blocked");
   });
 
   it("AUD-1316-018: compara mililitros diretamente, sem inventar densidade para gramas", async () => {
@@ -1138,12 +1140,11 @@ describe("autoverificação do harness", () => {
         },
       }, pinned);
     const invalid = await measured("ml");
-    expect(invalid.gate.status).toBe("failed");
-    expect(allCodes(invalid)).toContain("decision_invalid");
+    expect(invalid.gate.status).toBe("blocked");
+    expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
     const incomparable = await measured("g");
     // Sem densidade comprovada, não se calcula proporção massa/volume:
     // outros critérios podem reprovar o caso, sem criar conversão fictícia.
-    expect(allCodes(incomparable)).toContain("decision_invalid");
     expect(allCodes(incomparable)).not.toContain("nutrition_calculation_mismatch");
   });
 
