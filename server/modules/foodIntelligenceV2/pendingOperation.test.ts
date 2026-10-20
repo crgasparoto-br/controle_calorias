@@ -107,6 +107,56 @@ describe("criação da pendência versionada", () => {
     expect(result.reason).toBe("unsupported-schema-version");
   });
 
+  it("A-1298-005: rejeita perguntas malformadas sem exceção ou mutação", () => {
+    const validQuestion = {
+      code: "quantity_conversion_unproven",
+      ref: "clarify-1",
+    } as const;
+    const variants: Array<[unknown, string]> = [
+      [undefined, "invalid-pending-operation"],
+      [false, "invalid-pending-operation"],
+      [[], "invalid-pending-operation"],
+      [{}, "invalid-reason-code"],
+      [{ ref: "clarify-1" }, "invalid-reason-code"],
+      [{ code: validQuestion.code }, "invalid-pending-operation"],
+      [{ ...validQuestion, ref: "" }, "invalid-pending-operation"],
+      [{ ...validQuestion, ref: " " }, "invalid-pending-operation"],
+      [{ ...validQuestion, ref: " clarify-1 " }, "invalid-pending-operation"],
+      [{ ...validQuestion, ref: "x".repeat(201) }, "invalid-pending-operation"],
+      [{ ...validQuestion, additional: true }, "invalid-pending-operation"],
+    ];
+    for (const [question, expectedReason] of variants) {
+      const input = {
+        operationKey: "op-1",
+        ownerUserId: 7,
+        createdAt: "2026-10-05T12:00:00.000Z",
+        expiresAt: "2026-10-05T12:30:00.000Z",
+        observationIds: ["obs-1"],
+        target: { mealLabel: "almoço", date: "2026-10-05" },
+        question: question as never,
+        versionTag: VERSIONS,
+      };
+      const snapshot = structuredClone(input);
+      const result = createPendingOperationV2(input);
+      expect(result.ok, JSON.stringify(question)).toBe(false);
+      if (!result.ok) expect(result.reason).toBe(expectedReason);
+      expect(input).toStrictEqual(snapshot);
+    }
+
+    const accepted = createPendingOperationV2({
+      operationKey: "op-1",
+      ownerUserId: 7,
+      createdAt: "2026-10-05T12:00:00.000Z",
+      expiresAt: "2026-10-05T12:30:00.000Z",
+      observationIds: ["obs-1"],
+      target: { mealLabel: "almoço", date: "2026-10-05" },
+      question: validQuestion,
+      versionTag: VERSIONS,
+    });
+    expect(accepted.ok).toBe(true);
+    if (accepted.ok) expect(accepted.pending.question).toStrictEqual(validQuestion);
+  });
+
   it("recusa motivo fora do registro tipado e alvo sem data explícita", () => {
     const reason = createPendingOperationV2({
       operationKey: "op-1",
