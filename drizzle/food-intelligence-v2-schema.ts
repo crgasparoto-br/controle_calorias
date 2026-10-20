@@ -24,7 +24,7 @@ export const foodVariants = mysqlTable("food_variants", {
   u0: uniqueIndex("food_variants_u0").on(table.identityKey),
   i0: index("food_variants_i0").on(table.foodId, table.status),
   ck0: check("food_variants_ck0", sql`revision > 0`),
-  ck1: check("food_variants_ck1", sql`merged_into_variant_id IS NULL OR merged_into_variant_id <> id`),
+
 }));
 
 export const foodVariantSources = mysqlTable("food_variant_sources", {
@@ -209,7 +209,7 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
   ck1: check("food_review_cases_ck1", sql`state_version > 0`),
   ck2: check("food_review_cases_ck2", sql`(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)`),
   ck3: check("food_review_cases_ck3", sql`outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL`),
-  ck4: check("food_review_cases_ck4", sql`superseded_by_case_id IS NULL OR superseded_by_case_id <> id`),
+
 }));
 
 export const foodReviewEvents = mysqlTable("food_review_events", {
