@@ -88,7 +88,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   ck6: check("food_nutrition_profiles_ck6", sql`current_slot IS NULL OR current_slot = 1`),
   ck7: check("food_nutrition_profiles_ck7", sql`current_slot IS NULL OR valid_to IS NULL`),
   foodVariantSourceIdFk: foreignKey({ name: "fnp_variant_source_fk", columns: [table.foodVariantSourceId], foreignColumns: [foodVariantSources.id] }).onDelete("restrict"),
-  supersedesProfileIdFk: foreignKey({ name: "fnp_supersedes_fk", columns: [table.supersedesProfileId], foreignColumns: [foodNutritionProfiles.id] }).onDelete("restrict"),
+  supersedesProfileIdFk: foreignKey({ name: "fnp_supersedes_fk", columns: [table.supersedesProfileId], foreignColumns: [table.id] }).onDelete("restrict"),
 }));
 
 export const foodVariantClassifications = mysqlTable("food_variant_classifications", {
@@ -113,7 +113,7 @@ export const foodVariantClassifications = mysqlTable("food_variant_classificatio
   i0: index("food_variant_classif_i0").on(table.foodVariantId, table.status),
   ck0: check("food_variant_classifica_ck0", sql`version > 0`),
   ck1: check("food_variant_classifica_ck1", sql`current_slot IS NULL OR current_slot=1`),
-  supersedesClassificationIdFk: foreignKey({ name: "fvc_supersedes_fk", columns: [table.supersedesClassificationId], foreignColumns: [foodVariantClassifications.id] }).onDelete("restrict"),
+  supersedesClassificationIdFk: foreignKey({ name: "fvc_supersedes_fk", columns: [table.supersedesClassificationId], foreignColumns: [table.id] }).onDelete("restrict"),
 }));
 
 export const userFoodAliases = mysqlTable("user_food_aliases", {
@@ -344,7 +344,7 @@ export const foodVariantAttributes = mysqlTable("food_variant_attributes", {
   u0: uniqueIndex("food_variant_attribu_u0").on(table.foodVariantId, table.attributeId, table.currentSlot),
   i0: index("food_variant_attribu_i0").on(table.foodVariantId, table.attributeId, table.normalizedValue, table.status),
   ck0: check("food_variant_attributes_ck0", sql`current_slot IS NULL OR current_slot = 1`),
-  supersedesIdFk: foreignKey({ name: "fva_supersedes_fk", columns: [table.supersedesId], foreignColumns: [foodVariantAttributes.id] }).onDelete("restrict"),
+  supersedesIdFk: foreignKey({ name: "fva_supersedes_fk", columns: [table.supersedesId], foreignColumns: [table.id] }).onDelete("restrict"),
 }));
 
 export const foodAttributeMateriality = mysqlTable("food_attribute_materiality", {
@@ -366,7 +366,7 @@ export const foodAttributeMateriality = mysqlTable("food_attribute_materiality",
   u0: uniqueIndex("food_attribute_mater_u0").on(table.foodId, table.attributeId, table.currentSlot),
   i0: index("food_attribute_mater_i0").on(table.foodId, table.status),
   ck0: check("food_attribute_material_ck0", sql`current_slot IS NULL OR current_slot = 1`),
-  supersedesIdFk: foreignKey({ name: "fam_supersedes_fk", columns: [table.supersedesId], foreignColumns: [foodAttributeMateriality.id] }).onDelete("restrict"),
+  supersedesIdFk: foreignKey({ name: "fam_supersedes_fk", columns: [table.supersedesId], foreignColumns: [table.id] }).onDelete("restrict"),
 }));
 
 export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_materiality_overrides", {
