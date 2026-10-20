@@ -1539,7 +1539,6 @@ describe("autoverificação do harness", () => {
         resolve: request => ({
           decisions: [],
           metrics: { latencyMs: -1, costUsd: Number.NaN },
-          caseId: fixture.caseId,
         }),
       },
       pinned
