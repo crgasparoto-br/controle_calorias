@@ -42,6 +42,12 @@ jobs:
           docker logs --tail 100 food-v2-persistence-tidb
           exit 1
 
+      - name: Verify TiDB CHECK preflight (read-only)
+        run: |
+          set -euo pipefail
+          node --test scripts/check-food-v2-check-enforcement.test.mjs
+          DATABASE_URL=mysql://root@127.0.0.1:4000/ci_foodv2_upgrade pnpm db:check:food-v2-checks
+
       - name: Materialize exact pre-V2 develop base
         run: |
           set -euo pipefail
