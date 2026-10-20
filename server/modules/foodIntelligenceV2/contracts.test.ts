@@ -1063,6 +1063,18 @@ describe("FoodResolutionDecision v2", () => {
     expect(onlyNull).toStrictEqual(original);
   });
 
+  it("A-1298-001: sourceId verificado nao substitui evidencia numerica de macronutriente", () => {
+    const metadataOnly = buildFoodResolutionDecisionFixture({
+      evidence: [{}, {}, {
+        evidenceId: "ev-nutrition",
+        field: "nutrition.sourceId",
+        value: 3,
+        unit: null,
+      }],
+    });
+    expectInvalid(parseFoodResolutionDecision(metadataOnly));
+  });
+
   it("A-1298-002: partially_resolved requer identidade sustentada", () => {
     const missingIdentity = buildFoodResolutionDecisionFixture({
       status: "partially_resolved",
