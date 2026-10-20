@@ -1,6 +1,8 @@
 -- #1301 additive V2 persistence; do not drop or modify historical meal snapshots.
 -- The legacy catalog remains operational until the separately approved cutover.
-ALTER TABLE `foods` ADD COLUMN `scope` enum('global','user') NULL DEFAULT 'global';
+-- V1 writers omit canonical_name/key/scope; leave newly inserted legacy rows NULL (ineligible to V2)
+-- until an explicit reconciliation step before activating V2 reads. Existing rows get a stable backfill.
+ALTER TABLE `foods` ADD COLUMN `scope` enum('global','user') NULL;
 --> statement-breakpoint
 ALTER TABLE `foods` ADD COLUMN `canonical_name` varchar(255) NULL;
 --> statement-breakpoint
@@ -45,8 +47,6 @@ ALTER TABLE `mealItems` ADD COLUMN `nutritionProfileId` int NULL;
 ALTER TABLE `mealItems` ADD COLUMN `foodPortionId` int NULL;
 --> statement-breakpoint
 UPDATE `foods` SET `canonical_name`=`name`,`canonical_key`=CONCAT('legacy:food:',`id`),`scope`=IF(`owner_user_id` IS NULL,'global','user') WHERE `canonical_key` IS NULL;
---> statement-breakpoint
-ALTER TABLE `foods` MODIFY COLUMN `canonical_name` varchar(255) NOT NULL, MODIFY COLUMN `canonical_key` varchar(191) NOT NULL, MODIFY COLUMN `scope` enum('global','user') NOT NULL DEFAULT 'global';
 --> statement-breakpoint
 CREATE UNIQUE INDEX `v2_foods_u0` ON `foods` (`canonical_key`);
 --> statement-breakpoint
