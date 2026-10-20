@@ -15221,7 +15221,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "priority_snapshot_json": {
           "name": "priority_snapshot_json",
