@@ -32,6 +32,7 @@ import {
   createNutritionOriginDriftResolver,
   createOracleLeakProbeResolver,
   createReferenceResolver,
+  createSyntheticScenarioResolver,
   createShiftedResolver,
   createThrowingResolver,
   createVersionMismatchResolver,
@@ -49,28 +50,6 @@ const PINNED_REVISIONS: CorpusRevisions = {
 
 const pinned = { revisions: PINNED_REVISIONS };
 const corpus = goldenFoodCorpus;
-
-/**
- * Local assertion helper used by adversarial self-tests. It compares only the
- * observable input and is intentionally NOT exported to candidate resolvers.
- * Fixture-backed reference doubles keep their own private WeakMap lookup.
- */
-function boundCaseIdFor(
-  corpusUnderTest: GoldenCorpus,
-  input: CorpusCaseInput
-): string {
-  const observed = JSON.stringify(input);
-  const candidates = corpusUnderTest.cases.filter(
-    entry =>
-      JSON.stringify(toCorpusCaseInput(entry, input.scenario.phase)) === observed
-  );
-  if (candidates.length !== 1) {
-    throw new Error(
-      `fixture input is not uniquely identifiable by public data (${candidates.length})`
-    );
-  }
-  return candidates[0].caseId;
-}
 
 // Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
 // fixa explicitamente a versão do SUT realmente exercitado. O teste adversarial
@@ -162,6 +141,39 @@ describe("autoverificação do harness", () => {
     expect(report.failures.some(failure => failure.codes.includes("resolver_error"))).toBe(true);
   });
 
+
+  it("separa fixtures com a mesma superfície pública sem reindexar pelo JSON", async () => {
+    const original = corpus.cases.find(item => item.caseId === "c-panco-pao-forma")!;
+    const twin = { ...original, caseId: "c-panco-pao-forma-adversarial" };
+    const twoFixtures = { ...corpus, cases: [original, twin] };
+    const inputA = toCorpusCaseInput(original);
+    const inputB = toCorpusCaseInput(twin);
+    // A comparação pública é ambígua por construção: ela não pode ser um oráculo.
+    expect(JSON.stringify(inputA)).toBe(JSON.stringify(inputB));
+    expect(Object.keys(inputA)).not.toContain("caseId");
+    const seen: string[] = [];
+    const resolver = createSyntheticScenarioResolver(twoFixtures, {
+      id: "test:opaque-fixture-identity",
+      revision: "1",
+      resolve(_request, fixture) {
+        seen.push(fixture.caseId);
+        return { decisions: [] };
+      },
+    });
+    const knowledge = createKnowledgeStore({ refusedWrites: [] })
+      .gateFor("test-fixture-identity", "calibration", "read_only");
+    for (const input of [inputA, inputB]) {
+      await resolver.resolve({ case: input, allowLearning: false, knowledge });
+    }
+    expect(seen).toEqual([original.caseId, twin.caseId]);
+    // Um clone que parece igual não recebe o vínculo privado por inferência.
+    const unbound = structuredClone(inputA);
+    expect(() => resolver.resolve({
+      case: unbound,
+      allowLearning: false,
+      knowledge,
+    })).toThrow("superfície sanitizada desconhecida");
+  });
 
   it("mantém a linha de base: a referência independente aprova", async () => {
     const report = await runGoldenFoodCorpus(
@@ -648,12 +660,12 @@ describe("autoverificação do harness", () => {
     const target = "c-pao-marca-numero-fatias";
     const reference = createReferenceResolver(corpus);
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:one-known-regression",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
-          if (boundCaseIdFor(corpus, request.case) !== target) return result;
+          if (fixture.caseId !== target) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -662,7 +674,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     expect(corpus.cases.find(entry => entry.caseId === target)?.knownRegression).toBe(true);
@@ -800,13 +812,13 @@ describe("autoverificação do harness", () => {
       const reference = createLearningResolver(corpus);
       let overrideCalls = 0;
       const report = await runGoldenFoodCorpus(
-        {
+        createSyntheticScenarioResolver(corpus, {
           id: `test:ablated-${failureKind}`,
           revision: reference.revision,
-          async resolve(request) {
+          async resolve(request, fixture) {
             const result = await reference.resolve(request);
             if (
-              boundCaseIdFor(corpus, request.case) !== "c-aprendizado-precedencia-explicita" ||
+              fixture.caseId !== "c-aprendizado-precedencia-explicita" ||
               request.case.scenario.phase !== "explicit_override"
             ) {
               return result;
@@ -826,7 +838,7 @@ describe("autoverificação do harness", () => {
                   knowledgeWrites: ["owner-a:alias:cafe-da-firma"],
                 };
           },
-        },
+        }),
         pinned
       );
       expect(overrideCalls).toBe(2);
@@ -843,13 +855,13 @@ describe("autoverificação do harness", () => {
     const reference = createLearningResolver(corpus);
     let reservedCalls = 0;
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:malformed-ablated-counterfactual",
         revision: reference.revision,
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
           if (
-            boundCaseIdFor(corpus, request.case) !== "c-aprendizado-alias-reuso" ||
+            fixture.caseId !== "c-aprendizado-alias-reuso" ||
             request.case.scenario.phase !== "reserved_measurement"
           ) {
             return result;
@@ -865,7 +877,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     expect(reservedCalls).toBe(2);
@@ -880,12 +892,12 @@ describe("autoverificação do harness", () => {
   it("bloqueia proposta isolada sem macros mesmo quando a taxa global supera 95%", async () => {
     const reference = createReferenceResolver(corpus);
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:isolated-macros-missing",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
-          if (boundCaseIdFor(corpus, request.case) !== "c-panco-pao-forma") return result;
+          if (fixture.caseId !== "c-panco-pao-forma") return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -894,7 +906,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     expect(report.overall.matchRate).toBeGreaterThanOrEqual(
@@ -960,12 +972,12 @@ describe("autoverificação do harness", () => {
       .filter(entry => entry.metamorphicGroup === groupId)
       .map(entry => entry.caseId));
     const reference = createReferenceResolver(corpus);
-    const report = await runGoldenFoodCorpus({
+    const report = await runGoldenFoodCorpus(createSyntheticScenarioResolver(corpus, {
       id: "test:same-wrong-macros",
       revision: "1",
-      async resolve(request) {
+      async resolve(request, fixture) {
         const result = await reference.resolve(request);
-        if (!members.has(boundCaseIdFor(corpus, request.case))) return result;
+        if (!members.has(fixture.caseId)) return result;
         return {
           ...result,
           decisions: result.decisions.map(decision => ({
@@ -988,7 +1000,7 @@ describe("autoverificação do harness", () => {
           })),
         };
       },
-    }, pinned);
+    }), pinned);
     expect(members.size).toBeGreaterThanOrEqual(2);
     expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent).toBe(true);
     expect(report.failures.flatMap(failure => failure.codes))
@@ -1132,12 +1144,12 @@ describe("autoverificação do harness", () => {
     const reference = createReferenceResolver(corpus);
     const report = await runCorpus(
       corpus,
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:missing-macros-on-both-sides",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
-          if (!members.has(boundCaseIdFor(corpus, request.case))) return result;
+          if (!members.has(fixture.caseId)) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -1146,7 +1158,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     expect(report.macroConsistency.find(item => item.groupId === groupId)?.consistent)
@@ -1161,12 +1173,12 @@ describe("autoverificação do harness", () => {
     const reference = createReferenceResolver(goldenFoodCorpus);
     const report = await runCorpus(
       goldenFoodCorpus,
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:macro-divergente",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
-          if (boundCaseIdFor(corpus, request.case) !== target) return result;
+          if (fixture.caseId !== target) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -1180,7 +1192,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     const group = report.macroConsistency.find(
@@ -1199,12 +1211,12 @@ describe("autoverificação do harness", () => {
       const reference = createReferenceResolver(corpus);
       const report = await runCorpus(
         corpus,
-        {
+        createSyntheticScenarioResolver(corpus, {
           id: `test:metamorphic-${mutation}`,
           revision: "1",
-          async resolve(request) {
+          async resolve(request, fixture) {
             const result = structuredClone(await reference.resolve(request));
-            if (boundCaseIdFor(corpus, request.case) === "c-acento-ausente") {
+            if (fixture.caseId === "c-acento-ausente") {
               const decision = result.decisions[0];
               if (mutation === "identity") {
                 decision.identity.canonicalName = "pão integral";
@@ -1217,7 +1229,7 @@ describe("autoverificação do harness", () => {
             }
             return result;
           },
-        },
+        }),
         pinned
       );
       expect(report.overall.matchRate).toBeGreaterThan(
@@ -1242,14 +1254,14 @@ describe("autoverificação do harness", () => {
       const reference = createReferenceResolver(corpus);
       const report = await runCorpus(
         corpus,
-        {
+        createSyntheticScenarioResolver(corpus, {
           id: "test:batch-macros",
           revision: "1",
-          async resolve(request) {
+          async resolve(request, fixture) {
             const result = structuredClone(await reference.resolve(request));
             if (
               ["c-pontuacao-com-virgula", "c-pontuacao-sem-virgula"].includes(
-                boundCaseIdFor(corpus, request.case)
+                fixture.caseId
               )
             ) {
               for (const decision of result.decisions) {
@@ -1258,17 +1270,17 @@ describe("autoverificação do harness", () => {
                   decision.nutrition.consumed
                 ) {
                   decision.nutrition.consumed.calories =
-                    drift && boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula"
+                    drift && fixture.caseId === "c-pontuacao-sem-virgula"
                       ? 201
                       : 200;
                 }
               }
-              if (boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
+              if (fixture.caseId === "c-pontuacao-sem-virgula")
                 result.decisions.reverse();
             }
             return result;
           },
-        },
+        }),
         pinned
       );
       expect(report.failures).toStrictEqual([]);
@@ -1308,20 +1320,20 @@ describe("autoverificação do harness", () => {
     const reference = createReferenceResolver(repeated);
     const report = await runCorpus(
       repeated,
-      {
+      createSyntheticScenarioResolver(repeated, {
         id: "test:repeated-batch-macros",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = structuredClone(await reference.resolve(request));
           result.decisions.forEach((decision, index) => {
             if (decision.nutrition.consumed)
               decision.nutrition.consumed.calories = 100 + index;
           });
-          if (boundCaseIdFor(corpus, request.case) === "c-pontuacao-sem-virgula")
+          if (fixture.caseId === "c-pontuacao-sem-virgula")
             result.decisions.reverse();
           return result;
         },
-      },
+      }),
       pinned
     );
     expect(report.gate.status).toBe("passed");
@@ -1527,7 +1539,7 @@ describe("autoverificação do harness", () => {
         resolve: request => ({
           decisions: [],
           metrics: { latencyMs: -1, costUsd: Number.NaN },
-          caseId: boundCaseIdFor(corpus, request.case),
+          caseId: fixture.caseId,
         }),
       },
       pinned
@@ -1607,12 +1619,12 @@ describe("autoverificação do harness", () => {
     );
     expect(targets.size).toBe(4);
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:abaixo-da-meta",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           const result = await reference.resolve(request);
-          if (!targets.has(boundCaseIdFor(corpus, request.case))) return result;
+          if (!targets.has(fixture.caseId)) return result;
           return {
             ...result,
             decisions: result.decisions.map(decision => ({
@@ -1621,7 +1633,7 @@ describe("autoverificação do harness", () => {
             })),
           };
         },
-      },
+      }),
       pinned
     );
     // A meta é fixa: não existe opção para reduzi-la, e o gate usa §1.1.
@@ -2076,19 +2088,17 @@ describe("autoverificação do harness", () => {
     // `caseId`. A ablação da aquisição não muda nada — logo não há aprendizado
     // e o cenário precisa reprovar.
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:leitura-sem-uso",
         revision: "1",
-        async resolve({ case: entry, allowLearning, knowledge }) {
+        async resolve({ case: entry, allowLearning, knowledge }, fixture) {
           if (allowLearning && knowledge.mode === "acquisition") {
             await knowledge.write("owner-a:alias:cafe-da-firma", "IGNORED");
           } else {
             await knowledge.read("owner-a:alias:cafe-da-firma");
             await knowledge.read("owner-b:alias:cafe-da-firma");
           }
-          const source = corpus.cases.find(
-            item => item.caseId === boundCaseIdFor(corpus, entry)
-          )!;
+          const source = fixture;
           return {
             decisions: source.expected.decisions.map((decision, index) =>
               buildDecisionForExpected(source, decision, index, {})
@@ -2096,7 +2106,7 @@ describe("autoverificação do harness", () => {
             operation: source.expected.operation,
           };
         },
-      },
+      }),
       pinned
     );
     expect(report.gate.status).toBe("blocked");
@@ -2145,16 +2155,14 @@ describe("autoverificação do harness", () => {
     let calls = 0;
     const reference = createReferenceResolver(corpus);
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:ablacao-fabricada",
         revision: "1",
-        async resolve(request) {
+        async resolve(request, fixture) {
           calls += 1;
           const ablated = calls > corpus.cases.length;
           if (!ablated) return reference.resolve(request);
-          const source = corpus.cases.find(
-            item => item.caseId === boundCaseIdFor(corpus, request.case)
-          )!;
+          const source = fixture;
           const counterfactual = corpus.cases.find(
             item => item.caseId === "c-aprendizado-alias-antes"
           )!;
@@ -2167,7 +2175,7 @@ describe("autoverificação do harness", () => {
             metrics: { latencyMs: 1, costUsd: 0 },
           };
         },
-      },
+      }),
       pinned
     );
     expect(report.gate.status).toBe("blocked");
@@ -2177,11 +2185,11 @@ describe("autoverificação do harness", () => {
   it("bloqueia escrita fora da aquisição em qualquer partição", async () => {
     const reference = createReferenceResolver(corpus);
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:escrita-fora-da-aquisicao",
         revision: "1",
-        async resolve(request) {
-          if (boundCaseIdFor(corpus, request.case) === "c-panco-pao-forma") {
+        async resolve(request, fixture) {
+          if (fixture.caseId === "c-panco-pao-forma") {
             try {
               await request.knowledge.write("indevido", "x");
             } catch {
@@ -2190,7 +2198,7 @@ describe("autoverificação do harness", () => {
           }
           return reference.resolve(request);
         },
-      },
+      }),
       pinned
     );
     expect(report.integrity.status).toBe("invalid");
@@ -2228,11 +2236,11 @@ describe("autoverificação do harness", () => {
 
   it("colhe a escrita mesmo quando o resolvedor lança depois de tentar escrever", async () => {
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:escrita-e-erro",
         revision: "1",
-        async resolve(request) {
-          if (boundCaseIdFor(corpus, request.case) === "c-panco-pao-forma") {
+        async resolve(request, fixture) {
+          if (fixture.caseId === "c-panco-pao-forma") {
             try {
               await request.knowledge.write("indevido", "x");
             } catch {
@@ -2242,7 +2250,7 @@ describe("autoverificação do harness", () => {
           }
           return createReferenceResolver(corpus).resolve(request);
         },
-      },
+      }),
       pinned
     );
     expect(report.integrity.knowledgeWritesOutside.length).toBeGreaterThan(0);
@@ -2979,16 +2987,14 @@ describe("autoverificação do harness", () => {
     // nunca lê conhecimento e devolve a expectativa por caseId. As invariantes
     // same/different continuam satisfeitas — e mesmo assim precisa reprovar.
     const report = await runGoldenFoodCorpus(
-      {
+      createSyntheticScenarioResolver(corpus, {
         id: "test:sem-consulta-de-conhecimento",
         revision: "1",
-        async resolve({ case: entry, allowLearning, knowledge }) {
+        async resolve({ case: entry, allowLearning, knowledge }, fixture) {
           if (allowLearning && knowledge.mode === "acquisition") {
             await knowledge.write("chave-inutil", "x");
           }
-          const source = corpus.cases.find(
-            item => item.caseId === boundCaseIdFor(corpus, entry)
-          )!;
+          const source = fixture;
           return {
             decisions: source.expected.decisions.map((decision, index) =>
               buildDecisionForExpected(source, decision, index, {})
@@ -2996,7 +3002,7 @@ describe("autoverificação do harness", () => {
             operation: source.expected.operation,
           };
         },
-      },
+      }),
       pinned
     );
     expect(report.gate.status).toBe("blocked");
