@@ -129,6 +129,22 @@ describe("projeção V2 → DTO V1", () => {
     expect(firstOrder.resolution).toBeNull();
   });
 
+  it("A-1298-001: adapter nao promove evidencia nutricional invalida a verified", () => {
+    const candidate = buildFoodResolutionDecisionFixture({
+      evidence: [{}, {}, {
+        evidenceId: "ev-nutrition",
+        origin: "ai_estimate",
+        verified: false,
+      }],
+    });
+    // Defesa no adapter mesmo se um caller contornar o parse na fronteira.
+    const projection = projectDecisionV2ToV1(candidate);
+    expect(projection.faithful).toBe(false);
+    expect(blockerCodes(projection)).toContain("nutrition-state-not-representable");
+    expect(projection.item).toBeNull();
+    expect(projection.resolution).toBeNull();
+  });
+
   it("não colapsa origem ausente no vocabulário V1 e bloqueia a projeção", () => {
     const projection = project({
       identity: { barcode: "7891000315507", evidenceIds: ["ev-barcode"] },
