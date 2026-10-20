@@ -359,6 +359,41 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     expect(store.get("op-1")?.effect).toBeNull();
   });
 
+  it("R-1298-001: bloqueia IDs de efeito com whitespace em novo efeito e retry", () => {
+    for (const changes of [
+      { effectId: " eff-1" },
+      { effectId: "eff-1 " },
+      { mealItemId: " item-1" },
+      { mealItemId: "item-1 " },
+    ]) {
+      const store = createInMemoryPendingOperationStore();
+      store.save(buildOperation());
+      const result = applyEffect(store, changes);
+      expect(result).toMatchObject({
+        applied: false,
+        duplicate: false,
+        reason: "invalid-pending-time",
+      });
+      expect(store.get("op-1")?.effect).toBeNull();
+
+      const stale = createInMemoryPendingOperationStore();
+      stale.save(buildOperation({
+        effect: {
+          effectId: "eff-1",
+          appliedAt: "2026-10-05T12:06:00.000Z",
+          mealItemId: "item-1",
+          ...changes,
+        },
+      }));
+      const replayed = applyEffect(stale);
+      expect(replayed).toMatchObject({
+        applied: false,
+        duplicate: false,
+        reason: "invalid-pending-time",
+      });
+    }
+  });
+
   it("não aceita pendência com calendário impossível", () => {
     const result = createPendingOperationV2({
       operationKey: "op-invalid-date",
