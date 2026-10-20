@@ -34,6 +34,7 @@ import {
   isVolumeUnit,
   type FoodEvidenceOrigin,
 } from "./contracts";
+import { foodNutritionValuesSchema } from "./schemas";
 import type {
   FoodDecisionClassification,
   FoodNutritionValues,
@@ -360,6 +361,10 @@ export type V1CompatibleDecisionProjection = {
   >;
 };
 
+const NUTRIENT_EVIDENCE_FIELDS = new Set(
+  Object.keys(foodNutritionValuesSchema.shape).map(field => `nutrition.${field}`)
+);
+
 function collectBlockers(
   decision: FoodResolutionDecision
 ): Array<{ code: V1ProjectionBlocker; detail: string }> {
@@ -437,6 +442,7 @@ function collectBlockers(
   }
 
   if (decision.nutrition.verified && !nutritionEvidence.some(evidence =>
+    NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
     evidence.verified === true && typeof evidence.value === "number" && evidence.value >= 0
   )) {
     blockers.push({
