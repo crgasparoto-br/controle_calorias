@@ -16,12 +16,12 @@ test("migration é aditiva e snapshots legados não são reescritos", () => {
  for(const key of ["foodVariantId","nutritionProfileId","foodPortionId","foodSnapshotJson"]){assert.match(legacy,new RegExp(key));}
 });
 test("B1 mantém inserções V1 possíveis sem inventar identidade ou escopo V2", () => {
- assert.match(migration,/ADD COLUMN \`scope\` enum\\('global','user'\\) NULL;/);
- assert.match(migration,/ADD COLUMN \`canonical_name\` varchar\\(255\\) NULL;/);
- assert.match(migration,/ADD COLUMN \`canonical_key\` varchar\\(191\\) NULL;/);
- assert.doesNotMatch(migration,/MODIFY COLUMN \`canonical_(?:name|key)\`[^;]*NOT NULL/i);
- assert.match(legacy,/scope: mysqlEnum\\("scope", \\["global", "user"\\]\\),/);
- assert.match(legacy,/canonicalKey: varchar\\("canonical_key", \\{ length: 191 \\}\\),/);
+ assert.match(migration,/ADD COLUMN `scope` enum\('global','user'\) NULL;/);
+ assert.match(migration,/ADD COLUMN `canonical_name` varchar\(255\) NULL;/);
+ assert.match(migration,/ADD COLUMN `canonical_key` varchar\(191\) NULL;/);
+ assert.doesNotMatch(migration,/MODIFY COLUMN `canonical_(?:name|key)`[^;]*NOT NULL/i);
+ assert.match(legacy,/scope: mysqlEnum\("scope", \["global", "user"\]\),/);
+ assert.match(legacy,/canonicalKey: varchar\("canonical_key", \{ length: 191 \}\),/);
 });
 test("exclusividade por versão e escopo não depende de memória de processo", () => {
  for(const token of ["fnp_one_current_uq","case_id` ,","v2_user_food_favorit_u0"]){ /* explicit indexes validated below */ }
