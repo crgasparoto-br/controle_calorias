@@ -1780,22 +1780,21 @@
           "name": "scope",
           "type": "enum('global','user')",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'global'"
+          "notNull": false,
+          "autoincrement": false
         },
         "canonical_name": {
           "name": "canonical_name",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "canonical_key": {
           "name": "canonical_key",
           "type": "varchar(191)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
