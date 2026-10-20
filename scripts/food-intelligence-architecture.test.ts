@@ -1054,6 +1054,22 @@ describe("food intelligence architecture wave 1", () => {
     expect(findFoodStaticCandidates([packageData, typeEntry])).toEqual([]);
   });
 
+  it("mantém suportes isolados do corpus V2 fora do inventário produtivo", () => {
+    expect(
+      isFoodArchitectureSourcePath(
+        "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.test.support.ts"
+      )
+    ).toBe(false);
+    expect(
+      isFoodArchitectureSourcePath(
+        "server/modules/foodIntelligenceV2/corpus/selfTestResolvers.ts"
+      )
+    ).toBe(true);
+    expect(isFoodArchitectureSourcePath("server/foodItemResolution.ts")).toBe(
+      true
+    );
+  });
+
   it("A1300-28 follows cwd-rooted filesystem catalogs without exempting isolated JSON", () => {
     const catalog = { path: "data/foodPortions.json", content: '{"pao":50,"arroz":90}' };
     const consumers = [
