@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FoodResolutionDecision } from "../schemas";
 import {
   GOLDEN_CORPUS_MIN_MATCH_RATE,
   goldenCorpusSchema,
@@ -50,6 +51,52 @@ const PINNED_REVISIONS: CorpusRevisions = {
 
 const pinned = { revisions: PINNED_REVISIONS };
 const corpus = goldenFoodCorpus;
+
+/**
+ * Controle sintetico AUD-1316-018/019: ao alterar um campo fisico, a evidencia
+ * que o sustenta tambem deve ser trocada. Conservar evidencias antigas faria o
+ * teste falhar por violacao de provenance em vez do ataque que pretende medir.
+ */
+function withVerifiedPhysicalQuantity(
+  decision: FoodResolutionDecision,
+  unit: "g" | "ml",
+  amount: number
+): FoodResolutionDecision {
+  const physicalFields = new Set(["quantity.grams", "quantity.milliliters"]);
+  const retainedEvidence = decision.evidence.filter(
+    evidence => !physicalFields.has(evidence.field)
+  );
+  const retainedIds = new Set(retainedEvidence.map(evidence => evidence.evidenceId));
+  const quantityEvidenceIds = decision.quantity.evidenceIds.filter(id =>
+    retainedIds.has(id)
+  );
+  const anchor = retainedEvidence.find(evidence => evidence.field === "quantity.value")?.anchor;
+  if (!anchor) throw new Error("Fixture sem anchor de quantidade");
+  const evidenceId = `ev-aud-physical-${decision.decisionId}-${unit}`;
+  return {
+    ...decision,
+    quantity: {
+      ...decision.quantity,
+      grams: unit === "g" ? amount : null,
+      milliliters: unit === "ml" ? amount : null,
+      evidenceIds: [...quantityEvidenceIds, evidenceId],
+    },
+    evidence: [
+      ...retainedEvidence,
+      {
+        evidenceId,
+        field: unit === "g" ? "quantity.grams" : "quantity.milliliters",
+        origin: "catalog",
+        value: amount,
+        unit,
+        confidence: 0.9,
+        verified: true,
+        anchor,
+        sourceId: 20,
+      },
+    ],
+  };
+}
 
 // Os testes usam resolvedores sintéticos com revisões diferentes. Cada chamada
 // fixa explicitamente a versão do SUT realmente exercitado. O teste adversarial
@@ -931,11 +978,12 @@ describe("autoverificação do harness", () => {
           const result = await reference.resolve(request);
           return {
             ...result,
-            decisions: result.decisions.map(decision => ({
-              ...decision,
-              quantity: { ...decision.quantity, grams: 50 },
+            decisions: result.decisions.map(decision => {
+              const supported = withVerifiedPhysicalQuantity(decision, "g", 50);
+              return {
+              ...supported,
               nutrition: {
-                ...decision.nutrition,
+                ...supported.nutrition,
                 basis: {
                   quantity: 100,
                   unit: "g" as const,
@@ -950,7 +998,8 @@ describe("autoverificação do harness", () => {
                   fiber: 1, sugar: 2, sodiumMg: 40,
                 },
               },
-            })),
+              };
+            }),
           };
         },
       }, pinned);
@@ -980,11 +1029,12 @@ describe("autoverificação do harness", () => {
         if (!members.has(fixture.caseId)) return result;
         return {
           ...result,
-          decisions: result.decisions.map(decision => ({
-            ...decision,
-            quantity: { ...decision.quantity, grams: 50 },
+          decisions: result.decisions.map(decision => {
+            const supported = withVerifiedPhysicalQuantity(decision, "g", 50);
+            return {
+            ...supported,
             nutrition: {
-              ...decision.nutrition,
+              ...supported.nutrition,
               basis: {
                 quantity: 100, unit: "g" as const,
                 values: {
@@ -997,7 +1047,8 @@ describe("autoverificação do harness", () => {
                 fiber: 1, sugar: 2, sodiumMg: 40,
               },
             },
-          })),
+            };
+          }),
         };
       },
     }), pinned);
@@ -1020,11 +1071,12 @@ describe("autoverificação do harness", () => {
           const result = await reference.resolve(request);
           return {
             ...result,
-            decisions: result.decisions.map(decision => ({
-              ...decision,
-              quantity: { ...decision.quantity, grams: null, milliliters: 200 },
+            decisions: result.decisions.map(decision => {
+              const supported = withVerifiedPhysicalQuantity(decision, "ml", 200);
+              return {
+              ...supported,
               nutrition: {
-                ...decision.nutrition,
+                ...supported.nutrition,
                 basis: {
                   quantity: 100, unit: basisUnit,
                   values: {
@@ -1037,7 +1089,8 @@ describe("autoverificação do harness", () => {
                   fiber: null, sugar: 2, sodiumMg: 20,
                 },
               },
-            })),
+              };
+            }),
           };
         },
       }, pinned);
@@ -1073,7 +1126,14 @@ describe("autoverificação do harness", () => {
             ...entry.expected,
             decisions: entry.expected.decisions.map(decision => ({
               ...decision,
-              quantity: { ...decision.quantity, value, unit },
+              quantity: {
+                ...decision.quantity,
+                value,
+                unit,
+                grams: physicalField === "grams" ? 200 : null,
+                milliliters: physicalField === "milliliters" ? 200 : null,
+                unitMustNotBeConvertedToGrams: physicalField === "milliliters",
+              },
             })),
           },
         })),
@@ -1127,9 +1187,10 @@ describe("autoverificação do harness", () => {
 
       const invalid = await measured(true);
       expect(invalid.overall.matchRate).toBe(0);
-      expect(allCodes(invalid)).toContain("nutrition_calculation_mismatch");
-      expect(invalid.gate.blockReasons).toContain("nutrition_calculation_mismatch");
-      expect(invalid.gate.status).toBe("blocked");
+      // O schema V2 agora rejeita primeiro a contradicao entre value/unit e
+      // massa ou volume fisico: fail-closed e mais forte que diagnostico tardio.
+      expect(allCodes(invalid)).toContain("decision_invalid");
+      expect(invalid.gate.status).not.toBe("passed");
     }
   );
 
