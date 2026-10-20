@@ -8,6 +8,8 @@
  * reprovar (§4.1.8, §16.1, §18).
  */
 import {
+  toCorpusCaseInput,
+  type CorpusCaseInput,
   type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type ExpectedDecision,
@@ -347,6 +349,39 @@ function resultFor(
   return { decisions, operation: operationFor(caseEntry) };
 }
 
+/**
+ * Os doubles precisam localizar a expectativa para montar saídas sintéticas,
+ * mas não podem depender do identificador estável exposto ao resolvedor. O
+ * índice interno usa somente a superfície observada que o harness entrega.
+ */
+function inputKey(input: CorpusCaseInput): string {
+  return JSON.stringify({
+    modality: input.modality,
+    input: input.input,
+    mealOperation: input.mealOperation,
+    scenario: {
+      ownerRef: input.scenario.ownerRef,
+      conversationRef: input.scenario.conversationRef,
+      providerAvailability: input.scenario.providerAvailability,
+    },
+  });
+}
+
+function corpusInputIndex(corpus: GoldenCorpus) {
+  return new Map(
+    corpus.cases.map(entry => [inputKey(toCorpusCaseInput(entry)), entry])
+  );
+}
+
+function sourceForInput(
+  corpus: GoldenCorpus,
+  input: CorpusCaseInput
+): GoldenCorpusCase {
+  const source = corpusInputIndex(corpus).get(inputKey(input));
+  if (!source) throw new Error("superfície sanitizada desconhecida");
+  return source;
+}
+
 function corpusIndex(corpus: GoldenCorpus) {
   return new Map(corpus.cases.map(entry => [entry.caseId, entry]));
 }
@@ -359,12 +394,13 @@ export function createReferenceResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
+  const byInput = corpusInputIndex(corpus);
   return {
     id: "self-test:reference-oracle",
     revision: "self-test-2",
     async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = byInput.get(inputKey(entry));
+      if (!source) throw new Error("superfície sanitizada desconhecida");
       // §16.1 exige efeito observável: a fase de aquisição registra a chave e
       // os passos posteriores a **consultam**. Um resolvedor que devolve o
       // resultado por caseId sem consultar a fachada não prova aprendizado e
@@ -386,7 +422,7 @@ export function createReferenceResolver(
       const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       if (
         entry.scenario.phase !== null &&
-        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         learned === null &&
         before
       ) {
@@ -408,14 +444,15 @@ export function createLearningResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
+  const byInput = corpusInputIndex(corpus);
   const acquiredCaseId = "c-aprendizado-alias-definido";
 
   return {
     id: "self-test:learning-resolver",
     revision: "self-test-2",
     async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = byInput.get(inputKey(entry));
+      if (!source) throw new Error("superfície sanitizada desconhecida");
       const ownerRef = entry.scenario.ownerRef;
       const key = `${ownerRef}:${ALIAS_KEY}`;
 
@@ -438,7 +475,7 @@ export function createLearningResolver(
       if (
         learned === null &&
         entry.scenario.phase !== null &&
-        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         before
       ) {
         return resultFor(source, before);
@@ -458,6 +495,7 @@ export function createCacheIgnoringRevocationResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
   const byCaseId = corpusIndex(corpus);
+  const byInput = corpusInputIndex(corpus);
   const acquiredCaseId = "c-aprendizado-alias-definido";
   const cache = new Map<string, string>();
 
@@ -465,8 +503,8 @@ export function createCacheIgnoringRevocationResolver(
     id: "self-test:cache-ignoring-revocation",
     revision: "self-test-2",
     async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = byInput.get(inputKey(entry));
+      if (!source) throw new Error("superfície sanitizada desconhecida");
       const key = `${entry.scenario.ownerRef}:${ALIAS_KEY}`;
 
       if (allowLearning && knowledge.mode === "acquisition") {
@@ -496,10 +534,11 @@ export function createShiftedResolver(
     id: "self-test:shifted-wrong",
     revision: "self-test-2",
     resolve({ case: entry }) {
+      const source = sourceForInput(corpus, entry);
       const index = corpus.cases.findIndex(
-        item => item.caseId === entry.caseId
+        item => item.caseId === source.caseId
       );
-      if (index === -1) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      if (index === -1) throw new Error("superfície sanitizada desconhecida");
       const next = corpus.cases[(index + 1) % corpus.cases.length];
       return resultFor(corpus.cases[index], next);
     },
@@ -524,10 +563,9 @@ export function createWrongConvergenceResolver(
     id: `self-test:wrong-convergence:${groupId}`,
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = corpus.cases.find(item => item.caseId === entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       const result = resultFor(source);
-      if (!members.has(entry.caseId)) return result;
+      if (!members.has(source.caseId)) return result;
       return {
         ...result,
         decisions: result.decisions.map(decision => ({
@@ -610,13 +648,11 @@ function syntheticAmbiguousExpectation(): ExpectedDecision {
 export function createAlwaysClarifyResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
-  const byCaseId = corpusIndex(corpus);
   return {
     id: "self-test:always-clarify",
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       return {
         decisions: [
           buildDecisionForExpected(source, syntheticAmbiguousExpectation(), 0),
@@ -692,6 +728,11 @@ export function createOracleLeakProbeResolver(
           "entrada do resolvedor expõe o resultado esperado (vazamento do oráculo)"
         );
       }
+      if (probe["caseId"] !== undefined) {
+        throw new Error(
+          "entrada do resolvedor expõe caseId estável (lookup do oráculo)"
+        );
+      }
       if (Object.isFrozen(request.case) === false) {
         throw new Error("entrada do resolvedor não está congelada");
       }
@@ -713,10 +754,11 @@ export function createHoldoutDeclaringWriterResolver(
     revision: "self-test-2",
     async resolve(request) {
       const result = await reference.resolve(request);
-      if (request.case.caseId.startsWith("c-aprendizado")) {
+      const source = sourceForInput(corpus, request.case);
+      if (source.caseId.startsWith("c-aprendizado")) {
         return {
           ...result,
-          knowledgeWrites: [`alias:${request.case.caseId}`],
+          knowledgeWrites: [`alias:${source.caseId}`],
         };
       }
       return result;
@@ -737,8 +779,9 @@ export function createHiddenHoldoutWriterResolver(
     id: "self-test:holdout-hidden-writer",
     revision: "self-test-2",
     async resolve(request) {
+      const source = sourceForInput(corpus, request.case);
       try {
-        await request.knowledge.write(`alias:${request.case.caseId}`, "x");
+        await request.knowledge.write(`alias:${source.caseId}`, "x");
       } catch {
         // A tentativa já está no ledger; o resolvedor segue como se nada
         // tivesse acontecido, exatamente como um efeito colateral oculto.
@@ -835,13 +878,11 @@ export function createInventedAlternativesResolver(
 export function createNutritionOriginDriftResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
-  const byCaseId = corpusIndex(corpus);
   return {
     id: "self-test:nutrition-origin-drift",
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       return {
         decisions: source.expected.decisions.map((expected, index) =>
           buildDecisionForExpected(source, expected, index, {

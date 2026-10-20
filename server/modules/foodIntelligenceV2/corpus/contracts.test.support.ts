@@ -656,8 +656,10 @@ export type GoldenCorpus = z.infer<typeof goldenCorpusSchema>;
 
 /**
  * Entrada sanitizada entregue ao resolvedor sob teste. Ela contém apenas o que
- * um resolvedor produtivo receberia: identidade do caso, modalidade, entrada
- * observada, operação observada e escopo sintético de proprietário/conversa.
+ * um resolvedor produtivo receberia: modalidade, entrada observada, operação
+ * observada e escopo sintético de proprietário/conversa. O identificador do
+ * caso permanece somente no ledger interno do harness e não é exposto ao
+ * resolvedor, evitando lookup do oráculo por chave de fixture.
  * `expected`, partição, classe, grupos, controles e referências de equivalência
  * ficam **fora** da entrada, para que nenhum resolvedor possa copiar o oráculo.
  */
@@ -673,7 +675,6 @@ export type CorpusFrozenInput = Readonly<
 >;
 
 export interface CorpusCaseInput {
-  readonly caseId: string;
   readonly modality: CorpusModality;
   readonly input: CorpusFrozenInput;
   readonly mealOperation: Readonly<CorpusMealOperation>;
@@ -787,7 +788,6 @@ export function toCorpusCaseInput(
     ),
   });
   const input: CorpusCaseInput = {
-    caseId: entry.caseId,
     modality: entry.modality,
     input: frozenInput as CorpusFrozenInput,
     mealOperation: Object.freeze({ ...entry.mealOperation }),

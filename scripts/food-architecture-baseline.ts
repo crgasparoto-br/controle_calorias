@@ -37,12 +37,23 @@ export function compareFoodArchitectureFindings(current: FoodFinding[], baseline
 /**
  * Every source reachable from a productive entrypoint must be in the input
  * tree, even when its directory was introduced after this gate was written.
- * Only inert/tooling directories are excluded; runtime reachability is decided
- * by findFoodStaticCandidates, not by this filesystem predicate.
+ * Only inert/tooling directories and the explicitly isolated V2 corpus support
+ * files are excluded; runtime reachability is otherwise decided by
+ * findFoodStaticCandidates, not by this filesystem predicate.
  */
 export function isFoodArchitectureSourcePath(file: string): boolean {
   const normalized = file.replace(/\\/g, "/").replace(/^\.\//, "");
   if (!/\.(?:[cm]?[jt]sx?|json)$/.test(normalized)) return false;
+  // The V2 corpus is explicitly isolated by `noProductionConsumer.test.ts`:
+  // its support files are doubles/fixtures, not productive sources, although
+  // they share the `server/` tree.
+  if (
+    /^server\/modules\/foodIntelligenceV2\/corpus\/.*\.test\.support\.[cm]?tsx?$/.test(
+      normalized
+    )
+  ) {
+    return false;
+  }
   // A docs/example.ts, a script or even a root-level module is inert until
   // loaded from runtime. Excluding its directory here would create an escape.
   const segments = normalized.split("/");
