@@ -8,7 +8,11 @@ import {
   isVolumeUnit,
   normalizeUnitToken,
 } from "./contracts";
-import type { FoodEvidence } from "./schemaShared";
+import {
+  foodNutrientKeyByEvidenceField,
+  foodNutritionValuesSchema,
+  type FoodEvidence,
+} from "./schemaShared";
 import type { FoodResolutionDecision } from "./decisionSchemas";
 
 /**
@@ -200,19 +204,18 @@ function assertVerifiedNutritionEvidenceConsistency(
   if (!nutrition.verified || nutrition.basis === null) return;
   for (const id of nutrition.evidenceIds) {
     const evidence = evidenceById.get(id);
-    if (!evidence || !evidence.field.startsWith("nutrition.")) continue;
-    const nutrient = evidence.field.slice("nutrition.".length) as keyof typeof nutrition.basis.values;
-    if (!(nutrient in nutrition.basis.values)) continue;
-    const expectedUnit =
-      nutrient === "calories" ? "kcal" : nutrient === "sodiumMg" ? "mg" : "g";
-    const observed = typeof evidence.value === "number" ? evidence.value : null;
+    const nutrient = evidence &&
+      foodNutrientKeyByEvidenceField.get(evidence.field);
+    if (!evidence || !nutrient) continue;
+    const observed = z.number().finite().safeParse(evidence.value);
     const candidates = [
       nutrition.basis.values[nutrient],
       nutrition.consumed?.[nutrient] ?? null,
     ];
-    const matches = observed !== null && candidates.some(value =>
-      value !== null && Math.abs(value - observed) <= FOOD_QUANTITY_EPSILON
+    const matches = observed.success && candidates.some(value =>
+      value !== null && Math.abs(value - observed.data) <= FOOD_QUANTITY_EPSILON
     );
+    const expectedUnit = foodNutritionValuesSchema.shape[nutrient].description;
     if (!matches || evidence.unit !== expectedUnit) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
