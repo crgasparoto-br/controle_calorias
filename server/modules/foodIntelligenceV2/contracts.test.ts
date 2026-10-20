@@ -780,6 +780,52 @@ describe("FoodResolutionDecision v2", () => {
       ],
     });
     expectInvalid(parseFoodResolutionDecision(incompatibleUnit));
+
+    const massQuantityWithVolumeBasis = buildFoodResolutionDecisionFixture({
+      quantity: {
+        value: 240,
+        unit: "g",
+        grams: 240,
+        milliliters: null,
+        evidenceIds: ["ev-density"],
+      },
+      identity: { evidenceIds: [] },
+      nutrition: { basis: { unit: "ml" } },
+      evidence: [
+        {
+          evidenceId: "ev-density",
+          field: "quantity.grams",
+          origin: "catalog",
+          value: 240,
+          unit: "g",
+          verified: true,
+        },
+      ],
+    });
+    expectInvalid(parseFoodResolutionDecision(massQuantityWithVolumeBasis));
+
+    const volumeQuantityWithMassBasis = buildFoodResolutionDecisionFixture({
+      quantity: {
+        value: 240,
+        unit: "ml",
+        grams: null,
+        milliliters: 240,
+        evidenceIds: ["ev-density"],
+      },
+      identity: { evidenceIds: [] },
+      nutrition: { basis: { unit: "g" } },
+      evidence: [
+        {
+          evidenceId: "ev-density",
+          field: "quantity.milliliters",
+          origin: "catalog",
+          value: 240,
+          unit: "ml",
+          verified: true,
+        },
+      ],
+    });
+    expectInvalid(parseFoodResolutionDecision(volumeQuantityWithMassBasis));
   });
 
   it("exige evidência barcode para barcode exato (precedência não vira fuzzy match)", () => {

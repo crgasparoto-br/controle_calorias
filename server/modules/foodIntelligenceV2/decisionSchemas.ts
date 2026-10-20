@@ -456,6 +456,32 @@ function assertPhysicalBasisProvenance(
   const claimMassToVolume =
     quantity.milliliters !== null &&
     (isMassUnit(quantity.unit) || basisUnit === "g");
+  if (
+    basisUnit === "ml" &&
+    quantity.grams !== null &&
+    quantity.milliliters === null &&
+    !isVolumeUnit(quantity.unit)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Base nutricional em ml exige unidade de volume quando somente gramas estão presentes; a relação física ml↔g não pode ser inferida.",
+      path: ["nutrition", "basis", "unit"],
+    });
+  }
+  if (
+    basisUnit === "g" &&
+    quantity.milliliters !== null &&
+    quantity.grams === null &&
+    !isMassUnit(quantity.unit)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Base nutricional em g exige unidade de massa quando somente mililitros estão presentes; a relação física ml↔g não pode ser inferida.",
+      path: ["nutrition", "basis", "unit"],
+    });
+  }
   if (claimVolumeToMass) {
     if (
       !isProvenConversion(
