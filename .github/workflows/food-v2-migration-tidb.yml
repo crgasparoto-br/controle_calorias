@@ -1,0 +1,77 @@
+name: Food V2 migration TiDB gate
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/**"
+      - "scripts/test-food-v2-migration-tidb.mjs"
+      - ".github/workflows/food-v2-migration-tidb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration:
+    name: Food V2 additive migration and rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start isolated TiDB
+        run: |
+          set -euo pipefail
+          docker run -d --name food-v2-persistence-tidb -p 4000:4000 pingcap/tidb:v8.5.1
+          for attempt in $(seq 1 90); do
+            if node --input-type=module -e 'import mysql from "mysql2/promise"; const c=await mysql.createConnection({host:"127.0.0.1",port:4000,user:"root"}); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_upgrade"); await c.query("CREATE DATABASE IF NOT EXISTS ci_foodv2_rollback"); await c.end()'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs --tail 100 food-v2-persistence-tidb
+          exit 1
+
+      - name: Materialize exact pre-V2 develop base
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/food-v2-base" ce5534af4799c22d4df53daa5a80f9c1dec9fe2d
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$RUNNER_TEMP/food-v2-base/node_modules"
+
+      - name: Bootstrap both legacy schemas
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/food-v2-base"
+          for mode in upgrade rollback; do
+            DATABASE_URL="mysql://root@127.0.0.1:4000/ci_foodv2_${mode}" pnpm exec drizzle-kit push --force
+          done
+
+      - name: Upgrade and concurrency validation
+        run: |
+          set -euo pipefail
+          FOOD_V2_TEST_DB_ISOLATED=1 \
+          FOOD_V2_TEST_MODE=upgrade \
+          DATABASE_URL=mysql://root@127.0.0.1:4000/ci_foodv2_upgrade \
+          node scripts/test-food-v2-migration-tidb.mjs
+
+      - name: Pre-cutover rollback preserves legacy
+        run: |
+          set -euo pipefail
+          FOOD_V2_TEST_DB_ISOLATED=1 \
+          FOOD_V2_TEST_MODE=rollback \
+          DATABASE_URL=mysql://root@127.0.0.1:4000/ci_foodv2_rollback \
+          node scripts/test-food-v2-migration-tidb.mjs
+
+      - name: Show TiDB diagnostics on failure
+        if: failure()
+        run: docker logs --tail 100 food-v2-persistence-tidb 2>/dev/null || true
