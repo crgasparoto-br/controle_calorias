@@ -505,8 +505,8 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "v2_food_aliases_food_variant_id_fk": {
-          "name": "v2_food_aliases_food_variant_id_fk",
+        "food_aliases_food_variant_id_food_variants_id_fk": {
+          "name": "food_aliases_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_aliases",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -1272,8 +1272,8 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "v2_food_portion_food_variant_id_fk": {
-          "name": "v2_food_portion_food_variant_id_fk",
+        "food_portions_food_variant_id_food_variants_id_fk": {
+          "name": "food_portions_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_portions",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -1285,8 +1285,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "v2_food_portion_evidence_id_fk": {
-          "name": "v2_food_portion_evidence_id_fk",
+        "food_portions_evidence_id_food_evidence_id_fk": {
+          "name": "food_portions_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_portions",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -2922,8 +2922,8 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "v2_mealItems_foodVariantId_fk": {
-          "name": "v2_mealItems_foodVariantId_fk",
+        "mealItems_foodVariantId_food_variants_id_fk": {
+          "name": "mealItems_foodVariantId_food_variants_id_fk",
           "tableFrom": "mealItems",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -2935,8 +2935,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "v2_mealItems_nutritionProfileId_fk": {
-          "name": "v2_mealItems_nutritionProfileId_fk",
+        "mealItems_nutritionProfileId_food_nutrition_profiles_id_fk": {
+          "name": "mealItems_nutritionProfileId_food_nutrition_profiles_id_fk",
           "tableFrom": "mealItems",
           "tableTo": "food_nutrition_profiles",
           "columnsFrom": [
@@ -2948,8 +2948,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "v2_mealItems_foodPortionId_fk": {
-          "name": "v2_mealItems_foodPortionId_fk",
+        "mealItems_foodPortionId_food_portions_id_fk": {
+          "name": "mealItems_foodPortionId_food_portions_id_fk",
           "tableFrom": "mealItems",
           "tableTo": "food_portions",
           "columnsFrom": [
@@ -6088,8 +6088,8 @@
           ],
           "isUnique": false
         },
-        "v2_user_food_favori_u0": {
-          "name": "v2_user_food_favori_u0",
+        "v2_user_food_favorit_u0": {
+          "name": "v2_user_food_favorit_u0",
           "columns": [
             "user_id",
             "food_variant_id"
@@ -6124,8 +6124,8 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "v2_user_food_fa_food_variant_id_fk": {
-          "name": "v2_user_food_fa_food_variant_id_fk",
+        "user_food_favorites_food_variant_id_food_variants_id_fk": {
+          "name": "user_food_favorites_food_variant_id_food_variants_id_fk",
           "tableFrom": "user_food_favorites",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -6238,8 +6238,8 @@
           ],
           "isUnique": false
         },
-        "v2_user_food_usage__u0": {
-          "name": "v2_user_food_usage__u0",
+        "v2_user_food_usage_s_u0": {
+          "name": "v2_user_food_usage_s_u0",
           "columns": [
             "user_id",
             "food_variant_id"
@@ -6274,8 +6274,8 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "v2_user_food_us_food_variant_id_fk": {
-          "name": "v2_user_food_us_food_variant_id_fk",
+        "user_food_usage_stats_food_variant_id_food_variants_id_fk": {
+          "name": "user_food_usage_stats_food_variant_id_food_variants_id_fk",
           "tableFrom": "user_food_usage_stats",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -13842,7 +13842,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "merged_into_variant_id": {
           "name": "merged_into_variant_id",
@@ -13887,8 +13887,8 @@
         }
       },
       "foreignKeys": {
-        "food_variants_food_id_fk": {
-          "name": "food_variants_food_id_fk",
+        "food_variants_food_id_foods_id_fk": {
+          "name": "food_variants_food_id_foods_id_fk",
           "tableFrom": "food_variants",
           "tableTo": "foods",
           "columnsFrom": [
@@ -13900,8 +13900,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variants_brand_id_fk": {
-          "name": "food_variants_brand_id_fk",
+        "food_variants_brand_id_foodBrands_id_fk": {
+          "name": "food_variants_brand_id_foodBrands_id_fk",
           "tableFrom": "food_variants",
           "tableTo": "foodBrands",
           "columnsFrom": [
@@ -13913,8 +13913,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variants_merged_into_variant_id_fk": {
-          "name": "food_variants_merged_into_variant_id_fk",
+        "food_variants_merged_into_variant_id_food_variants_id_fk": {
+          "name": "food_variants_merged_into_variant_id_food_variants_id_fk",
           "tableFrom": "food_variants",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14059,8 +14059,8 @@
         }
       },
       "foreignKeys": {
-        "food_variant_sourc_food_variant_id_fk": {
-          "name": "food_variant_sourc_food_variant_id_fk",
+        "food_variant_sources_food_variant_id_food_variants_id_fk": {
+          "name": "food_variant_sources_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_variant_sources",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14072,8 +14072,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_sourc_source_id_fk": {
-          "name": "food_variant_sourc_source_id_fk",
+        "food_variant_sources_source_id_food_sources_id_fk": {
+          "name": "food_variant_sources_source_id_food_sources_id_fk",
           "tableFrom": "food_variant_sources",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -14335,8 +14335,8 @@
         }
       },
       "foreignKeys": {
-        "food_nutrition_pro_food_variant_id_fk": {
-          "name": "food_nutrition_pro_food_variant_id_fk",
+        "food_nutrition_profiles_food_variant_id_food_variants_id_fk": {
+          "name": "food_nutrition_profiles_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_nutrition_profiles",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14348,8 +14348,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_nutrition_pro_source_id_fk": {
-          "name": "food_nutrition_pro_source_id_fk",
+        "food_nutrition_profiles_source_id_food_sources_id_fk": {
+          "name": "food_nutrition_profiles_source_id_food_sources_id_fk",
           "tableFrom": "food_nutrition_profiles",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -14361,8 +14361,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_nutrition_pro_food_variant_source_id_fk": {
-          "name": "food_nutrition_pro_food_variant_source_id_fk",
+        "food_nutrition_profiles_food_variant_source_id_food_variant_sources_id_fk": {
+          "name": "food_nutrition_profiles_food_variant_source_id_food_variant_sources_id_fk",
           "tableFrom": "food_nutrition_profiles",
           "tableTo": "food_variant_sources",
           "columnsFrom": [
@@ -14374,8 +14374,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_nutrition_pro_supersedes_profile_id_fk": {
-          "name": "food_nutrition_pro_supersedes_profile_id_fk",
+        "food_nutrition_profiles_supersedes_profile_id_food_nutrition_profiles_id_fk": {
+          "name": "food_nutrition_profiles_supersedes_profile_id_food_nutrition_profiles_id_fk",
           "tableFrom": "food_nutrition_profiles",
           "tableTo": "food_nutrition_profiles",
           "columnsFrom": [
@@ -14469,7 +14469,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "is_vegetable": {
           "name": "is_vegetable",
@@ -14477,7 +14477,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "is_ultra_processed": {
           "name": "is_ultra_processed",
@@ -14485,7 +14485,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "source_id": {
           "name": "source_id",
@@ -14575,8 +14575,8 @@
         }
       },
       "foreignKeys": {
-        "food_variant_class_food_variant_id_fk": {
-          "name": "food_variant_class_food_variant_id_fk",
+        "food_variant_classifications_food_variant_id_food_variants_id_fk": {
+          "name": "food_variant_classifications_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_variant_classifications",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14588,8 +14588,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_class_source_id_fk": {
-          "name": "food_variant_class_source_id_fk",
+        "food_variant_classifications_source_id_food_sources_id_fk": {
+          "name": "food_variant_classifications_source_id_food_sources_id_fk",
           "tableFrom": "food_variant_classifications",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -14601,8 +14601,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_class_supersedes_classificati_fk": {
-          "name": "food_variant_class_supersedes_classificati_fk",
+        "food_variant_classifications_supersedes_classification_id_food_variant_classifications_id_fk": {
+          "name": "food_variant_classifications_supersedes_classification_id_food_variant_classifications_id_fk",
           "tableFrom": "food_variant_classifications",
           "tableTo": "food_variant_classifications",
           "columnsFrom": [
@@ -14701,7 +14701,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "confirmed_at": {
           "name": "confirmed_at",
@@ -14756,8 +14756,8 @@
         }
       },
       "foreignKeys": {
-        "user_food_aliases_user_id_fk": {
-          "name": "user_food_aliases_user_id_fk",
+        "user_food_aliases_user_id_users_id_fk": {
+          "name": "user_food_aliases_user_id_users_id_fk",
           "tableFrom": "user_food_aliases",
           "tableTo": "users",
           "columnsFrom": [
@@ -14769,8 +14769,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "user_food_aliases_food_variant_id_fk": {
-          "name": "user_food_aliases_food_variant_id_fk",
+        "user_food_aliases_food_variant_id_food_variants_id_fk": {
+          "name": "user_food_aliases_food_variant_id_food_variants_id_fk",
           "tableFrom": "user_food_aliases",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14894,8 +14894,8 @@
         }
       },
       "foreignKeys": {
-        "food_barcodes_food_variant_id_fk": {
-          "name": "food_barcodes_food_variant_id_fk",
+        "food_barcodes_food_variant_id_food_variants_id_fk": {
+          "name": "food_barcodes_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_barcodes",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -14907,8 +14907,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_barcodes_source_id_fk": {
-          "name": "food_barcodes_source_id_fk",
+        "food_barcodes_source_id_food_sources_id_fk": {
+          "name": "food_barcodes_source_id_food_sources_id_fk",
           "tableFrom": "food_barcodes",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -14920,8 +14920,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_barcodes_evidence_id_fk": {
-          "name": "food_barcodes_evidence_id_fk",
+        "food_barcodes_evidence_id_food_evidence_id_fk": {
+          "name": "food_barcodes_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_barcodes",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -15075,8 +15075,8 @@
         }
       },
       "foreignKeys": {
-        "food_evidence_food_variant_id_fk": {
-          "name": "food_evidence_food_variant_id_fk",
+        "food_evidence_food_variant_id_food_variants_id_fk": {
+          "name": "food_evidence_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_evidence",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -15088,8 +15088,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_evidence_source_id_fk": {
-          "name": "food_evidence_source_id_fk",
+        "food_evidence_source_id_food_sources_id_fk": {
+          "name": "food_evidence_source_id_food_sources_id_fk",
           "tableFrom": "food_evidence",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -15101,8 +15101,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_evidence_owner_user_id_fk": {
-          "name": "food_evidence_owner_user_id_fk",
+        "food_evidence_owner_user_id_users_id_fk": {
+          "name": "food_evidence_owner_user_id_users_id_fk",
           "tableFrom": "food_evidence",
           "tableTo": "users",
           "columnsFrom": [
@@ -15176,7 +15176,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "state_version": {
           "name": "state_version",
@@ -15184,7 +15184,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "cycle_opened_at": {
           "name": "cycle_opened_at",
@@ -15257,7 +15257,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "distinct_user_count": {
           "name": "distinct_user_count",
@@ -15265,7 +15265,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "first_seen_at": {
           "name": "first_seen_at",
@@ -15354,8 +15354,8 @@
         }
       },
       "foreignKeys": {
-        "food_review_cases_assigned_reviewer_id_fk": {
-          "name": "food_review_cases_assigned_reviewer_id_fk",
+        "food_review_cases_assigned_reviewer_id_users_id_fk": {
+          "name": "food_review_cases_assigned_reviewer_id_users_id_fk",
           "tableFrom": "food_review_cases",
           "tableTo": "users",
           "columnsFrom": [
@@ -15367,8 +15367,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_review_cases_superseded_by_case_id_fk": {
-          "name": "food_review_cases_superseded_by_case_id_fk",
+        "food_review_cases_superseded_by_case_id_food_review_cases_id_fk": {
+          "name": "food_review_cases_superseded_by_case_id_food_review_cases_id_fk",
           "tableFrom": "food_review_cases",
           "tableTo": "food_review_cases",
           "columnsFrom": [
@@ -15582,8 +15582,8 @@
         }
       },
       "foreignKeys": {
-        "food_review_events_case_id_fk": {
-          "name": "food_review_events_case_id_fk",
+        "food_review_events_case_id_food_review_cases_id_fk": {
+          "name": "food_review_events_case_id_food_review_cases_id_fk",
           "tableFrom": "food_review_events",
           "tableTo": "food_review_cases",
           "columnsFrom": [
@@ -15762,8 +15762,8 @@
         }
       },
       "foreignKeys": {
-        "food_resolution_ev_user_id_fk": {
-          "name": "food_resolution_ev_user_id_fk",
+        "food_resolution_events_user_id_users_id_fk": {
+          "name": "food_resolution_events_user_id_users_id_fk",
           "tableFrom": "food_resolution_events",
           "tableTo": "users",
           "columnsFrom": [
@@ -15775,8 +15775,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_resolution_ev_food_variant_id_fk": {
-          "name": "food_resolution_ev_food_variant_id_fk",
+        "food_resolution_events_food_variant_id_food_variants_id_fk": {
+          "name": "food_resolution_events_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_resolution_events",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -15788,8 +15788,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_resolution_ev_nutrition_profile_id_fk": {
-          "name": "food_resolution_ev_nutrition_profile_id_fk",
+        "food_resolution_events_nutrition_profile_id_food_nutrition_profiles_id_fk": {
+          "name": "food_resolution_events_nutrition_profile_id_food_nutrition_profiles_id_fk",
           "tableFrom": "food_resolution_events",
           "tableTo": "food_nutrition_profiles",
           "columnsFrom": [
@@ -15801,8 +15801,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_resolution_ev_food_portion_id_fk": {
-          "name": "food_resolution_ev_food_portion_id_fk",
+        "food_resolution_events_food_portion_id_food_portions_id_fk": {
+          "name": "food_resolution_events_food_portion_id_food_portions_id_fk",
           "tableFrom": "food_resolution_events",
           "tableTo": "food_portions",
           "columnsFrom": [
@@ -15914,7 +15914,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "status": {
           "name": "status",
@@ -15993,8 +15993,8 @@
         }
       },
       "foreignKeys": {
-        "food_lexicon_entri_source_id_fk": {
-          "name": "food_lexicon_entri_source_id_fk",
+        "food_lexicon_entries_source_id_food_sources_id_fk": {
+          "name": "food_lexicon_entries_source_id_food_sources_id_fk",
           "tableFrom": "food_lexicon_entries",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -16006,8 +16006,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_lexicon_entri_evidence_id_fk": {
-          "name": "food_lexicon_entri_evidence_id_fk",
+        "food_lexicon_entries_evidence_id_food_evidence_id_fk": {
+          "name": "food_lexicon_entries_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_lexicon_entries",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -16019,8 +16019,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_lexicon_entri_supersedes_id_fk": {
-          "name": "food_lexicon_entri_supersedes_id_fk",
+        "food_lexicon_entries_supersedes_id_food_lexicon_entries_id_fk": {
+          "name": "food_lexicon_entries_supersedes_id_food_lexicon_entries_id_fk",
           "tableFrom": "food_lexicon_entries",
           "tableTo": "food_lexicon_entries",
           "columnsFrom": [
@@ -16137,7 +16137,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "confirmed_at": {
           "name": "confirmed_at",
@@ -16196,8 +16196,8 @@
         }
       },
       "foreignKeys": {
-        "user_food_lexicon__user_id_fk": {
-          "name": "user_food_lexicon__user_id_fk",
+        "user_food_lexicon_entries_user_id_users_id_fk": {
+          "name": "user_food_lexicon_entries_user_id_users_id_fk",
           "tableFrom": "user_food_lexicon_entries",
           "tableTo": "users",
           "columnsFrom": [
@@ -16263,7 +16263,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
         },
         "status": {
           "name": "status",
@@ -16433,8 +16433,8 @@
         }
       },
       "foreignKeys": {
-        "food_variant_attri_food_variant_id_fk": {
-          "name": "food_variant_attri_food_variant_id_fk",
+        "food_variant_attributes_food_variant_id_food_variants_id_fk": {
+          "name": "food_variant_attributes_food_variant_id_food_variants_id_fk",
           "tableFrom": "food_variant_attributes",
           "tableTo": "food_variants",
           "columnsFrom": [
@@ -16446,8 +16446,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_attri_attribute_id_fk": {
-          "name": "food_variant_attri_attribute_id_fk",
+        "food_variant_attributes_attribute_id_food_attributes_id_fk": {
+          "name": "food_variant_attributes_attribute_id_food_attributes_id_fk",
           "tableFrom": "food_variant_attributes",
           "tableTo": "food_attributes",
           "columnsFrom": [
@@ -16459,8 +16459,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_attri_source_id_fk": {
-          "name": "food_variant_attri_source_id_fk",
+        "food_variant_attributes_source_id_food_sources_id_fk": {
+          "name": "food_variant_attributes_source_id_food_sources_id_fk",
           "tableFrom": "food_variant_attributes",
           "tableTo": "food_sources",
           "columnsFrom": [
@@ -16472,8 +16472,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_attri_evidence_id_fk": {
-          "name": "food_variant_attri_evidence_id_fk",
+        "food_variant_attributes_evidence_id_food_evidence_id_fk": {
+          "name": "food_variant_attributes_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_variant_attributes",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -16485,8 +16485,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_variant_attri_supersedes_id_fk": {
-          "name": "food_variant_attri_supersedes_id_fk",
+        "food_variant_attributes_supersedes_id_food_variant_attributes_id_fk": {
+          "name": "food_variant_attributes_supersedes_id_food_variant_attributes_id_fk",
           "tableFrom": "food_variant_attributes",
           "tableTo": "food_variant_attributes",
           "columnsFrom": [
@@ -16641,8 +16641,8 @@
         }
       },
       "foreignKeys": {
-        "food_attribute_mat_food_id_fk": {
-          "name": "food_attribute_mat_food_id_fk",
+        "food_attribute_materiality_food_id_foods_id_fk": {
+          "name": "food_attribute_materiality_food_id_foods_id_fk",
           "tableFrom": "food_attribute_materiality",
           "tableTo": "foods",
           "columnsFrom": [
@@ -16654,8 +16654,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attribute_mat_attribute_id_fk": {
-          "name": "food_attribute_mat_attribute_id_fk",
+        "food_attribute_materiality_attribute_id_food_attributes_id_fk": {
+          "name": "food_attribute_materiality_attribute_id_food_attributes_id_fk",
           "tableFrom": "food_attribute_materiality",
           "tableTo": "food_attributes",
           "columnsFrom": [
@@ -16667,8 +16667,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attribute_mat_evidence_id_fk": {
-          "name": "food_attribute_mat_evidence_id_fk",
+        "food_attribute_materiality_evidence_id_food_evidence_id_fk": {
+          "name": "food_attribute_materiality_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_attribute_materiality",
           "tableTo": "food_evidence",
           "columnsFrom": [
@@ -16680,8 +16680,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attribute_mat_supersedes_id_fk": {
-          "name": "food_attribute_mat_supersedes_id_fk",
+        "food_attribute_materiality_supersedes_id_food_attribute_materiality_id_fk": {
+          "name": "food_attribute_materiality_supersedes_id_food_attribute_materiality_id_fk",
           "tableFrom": "food_attribute_materiality",
           "tableTo": "food_attribute_materiality",
           "columnsFrom": [
@@ -16776,7 +16776,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'1'"
+          "default": 1
         },
         "created_at": {
           "name": "created_at",
@@ -16808,8 +16808,8 @@
         }
       },
       "foreignKeys": {
-        "food_attr_override_food_fk": {
-          "name": "food_attr_override_food_fk",
+        "food_attribute_materiality_overrides_food_id_foods_id_fk": {
+          "name": "food_attribute_materiality_overrides_food_id_foods_id_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "foods",
           "columnsFrom": [
@@ -16821,8 +16821,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attr_override_attribute_fk": {
-          "name": "food_attr_override_attribute_fk",
+        "food_attribute_materiality_overrides_attribute_id_food_attributes_id_fk": {
+          "name": "food_attribute_materiality_overrides_attribute_id_food_attributes_id_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "food_attributes",
           "columnsFrom": [
@@ -16834,8 +16834,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "food_attr_override_evidence_fk": {
-          "name": "food_attr_override_evidence_fk",
+        "food_attribute_materiality_overrides_evidence_id_food_evidence_id_fk": {
+          "name": "food_attribute_materiality_overrides_evidence_id_food_evidence_id_fk",
           "tableFrom": "food_attribute_materiality_overrides",
           "tableTo": "food_evidence",
           "columnsFrom": [
