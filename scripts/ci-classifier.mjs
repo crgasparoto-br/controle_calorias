@@ -23,7 +23,11 @@ function isDocsPath(path) {
 }
 
 function isCodePath(path) {
-  return /\.(?:[cm]?[jt]sx?|css|scss|sass|less)$/.test(path) ||
+  // Debt and the reviewed baseline influence enforcement even without TS edits.
+  if (["architecture-debt.json", "docs/design-docs/food-architecture-owners-1300.json"].includes(path)) return true;
+  // JSON and newly introduced source roots can be runtime-imported food data.
+  return (/\.(?:[cm]?[jt]sx?|json|css|scss|sass|less)$/.test(path) &&
+      !path.startsWith("docs/")) ||
     /^(?:client|server|shared|scripts|drizzle|patches)\//.test(path) ||
     path.startsWith(".github/workflows/") ||
     ["package.json", "pnpm-lock.yaml"].includes(path);

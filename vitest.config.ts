@@ -22,6 +22,8 @@ export default defineConfig({
       "client/**/*.test.ts",
       "client/**/*.test.tsx",
       "scripts/import-foods/*.test.ts",
+      "scripts/food-intelligence-architecture.test.ts",
+      "scripts/food-architecture-*.test.ts",
       "scripts/issue-927-multi-provider-benchmark.test.ts",
       "scripts/issue-927-rollback-readiness.test.ts",
     ],
