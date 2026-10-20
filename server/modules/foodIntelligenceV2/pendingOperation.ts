@@ -346,23 +346,6 @@ export function resumePendingOperation(
     };
   }
 
-  if (
-    !isOpaqueIdentifier(pending.operationKey) ||
-    !Array.isArray(pending.observationIds) ||
-    pending.observationIds.length === 0 ||
-    pending.observationIds.some(id => !isOpaqueIdentifier(id)) ||
-    !isOpaqueIdentifier(pinned.resolverVersion, 120) ||
-    !isOpaqueIdentifier(pinned.policyVersion, 120) ||
-    !isOpaqueIdentifier(pinned.lexiconRevision, 120) ||
-    !isOpaqueIdentifier(pinned.knowledgeRevision, 120)
-  ) {
-    return {
-      resumed: false,
-      reason: "invalid-pending-operation",
-      detail: "Identificadores ou revisoes da pendencia persistida sao invalidos; retry bloqueado.",
-    };
-  }
-
   const targetDate =
     typeof pending.target === "object" && pending.target !== null
       ? pending.target.date
@@ -386,6 +369,15 @@ export function resumePendingOperation(
       reason: "invalid-pending-time",
       detail:
         "Pendência V2 persistida possui expiresAt não posterior a createdAt; nenhum efeito é aplicado.",
+    };
+  }
+
+  // Na retomada, reaplicar o contrato completo usado na criação.
+  if (!createPendingOperationV2(pending).ok) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 persistida viola o contrato original; retry bloqueado.",
     };
   }
 
@@ -510,8 +502,25 @@ export type PendingOperationStore = {
 export function createInMemoryPendingOperationStore(
   initialState?: PendingOperationStoreState
 ): PendingOperationStore {
+  if (initialState && (initialState.schemaVersion !== 1 || !Array.isArray(initialState.operations))) {
+    throw new Error("Envelope de pendências persistidas possui versão ou coleção inválida.");
+  }
   const operations = new Map<string, PendingOperation>();
   for (const pending of initialState?.operations ?? []) {
+    if (!pending || typeof pending.operationKey !== "string" ||
+        operations.has(pending.operationKey) ||
+        pending.versionTag === undefined ||
+        (pending.versionTag !== null && typeof pending.versionTag !== "object")) {
+      throw new Error("Pendência persistida malformada ou chave duplicada.");
+    }
+    if (classifyPendingOperationOwner(pending) === "v2" &&
+        (!createPendingOperationV2(pending).ok ||
+          (pending.effect !== null &&
+           (!isValidPendingOperationEffect(pending.effect) ||
+            Date.parse(pending.effect.appliedAt) < Date.parse(pending.createdAt) ||
+            Date.parse(pending.effect.appliedAt) >= Date.parse(pending.expiresAt))))) {
+      throw new Error("Pendência V2 persistida inválida; restauração recusada.");
+    }
     operations.set(pending.operationKey, clonePendingOperation(pending));
   }
 

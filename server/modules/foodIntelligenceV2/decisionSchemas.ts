@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   assertDeclaredPhysicalConsistency,
-  assertNutritionScaleConsistency,
+  assertNutritionEvidenceAndScaleConsistency,
   assertPhysicalBasisProvenance,
 } from "./nutritionConsistency";
 import {
@@ -472,7 +472,7 @@ export const foodResolutionDecisionSchema = z
     }
     assertDeclaredPhysicalConsistency(decision, ctx);
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
-    assertNutritionScaleConsistency(decision, ctx);
+    assertNutritionEvidenceAndScaleConsistency(decision, evidenceById, ctx);
     const barcodeEvidence = decision.evidence.some(
       evidence =>
         evidence.field === "identity.barcode" &&

@@ -154,6 +154,14 @@ export function assertNutritionScaleConsistency(
   >) {
     const baseValue = basis.values[nutrient];
     const consumedValue = consumed[nutrient];
+    if ((baseValue === null) !== (consumedValue === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `nutrition.consumed.${nutrient} diverge da presença declarada na base.`,
+        path: ["nutrition", "consumed", nutrient],
+      });
+      continue;
+    }
     if (baseValue === null || consumedValue === null) continue;
 
     const expected = baseValue * factor;
@@ -177,6 +185,53 @@ export function assertNutritionScaleConsistency(
       });
     }
   }
+}
+
+/**
+ * Prova nutricional numérica verificada deve corresponder aos valores
+ * efetivos da base ou do consumo, jamais apenas a um número associado.
+ */
+function assertVerifiedNutritionEvidenceConsistency(
+  decision: FoodResolutionDecision,
+  evidenceById: Map<string, FoodEvidence>,
+  ctx: z.RefinementCtx
+) {
+  const { nutrition } = decision;
+  if (!nutrition.verified || nutrition.basis === null) return;
+  for (const id of nutrition.evidenceIds) {
+    const evidence = evidenceById.get(id);
+    if (!evidence || !evidence.field.startsWith("nutrition.")) continue;
+    const nutrient = evidence.field.slice("nutrition.".length) as keyof typeof nutrition.basis.values;
+    if (!(nutrient in nutrition.basis.values)) continue;
+    const expectedUnit =
+      nutrient === "calories" ? "kcal" : nutrient === "sodiumMg" ? "mg" : "g";
+    const observed = typeof evidence.value === "number" ? evidence.value : null;
+    const candidates = [
+      nutrition.basis.values[nutrient],
+      nutrition.consumed?.[nutrient] ?? null,
+    ];
+    const matches = observed !== null && candidates.some(value =>
+      value !== null && Math.abs(value - observed) <= FOOD_QUANTITY_EPSILON
+    );
+    if (!matches || evidence.unit !== expectedUnit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Evidência nutricional verificada diverge da base/consumo ou da unidade declarada.",
+        path: ["nutrition", "evidenceIds"],
+      });
+    }
+  }
+}
+
+/** Compara escala e procedência para a mesma decisão atômica. */
+export function assertNutritionEvidenceAndScaleConsistency(
+  decision: FoodResolutionDecision,
+  evidenceById: Map<string, FoodEvidence>,
+  ctx: z.RefinementCtx
+) {
+  assertNutritionScaleConsistency(decision, ctx);
+  assertVerifiedNutritionEvidenceConsistency(decision, evidenceById, ctx);
 }
 
 export function assertPhysicalBasisProvenance(
