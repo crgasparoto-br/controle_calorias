@@ -966,6 +966,23 @@ describe("FoodResolutionDecision v2", () => {
       value: observation,
     });
   });
+
+  it("rejeita whitespace externo em candidateKey e snapshotHash opacos", () => {
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          identity: { candidateKey: " cand-mortadela " },
+        })
+      )
+    );
+    expectInvalid(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          nutrition: { snapshotHash: " sha256:deadbeef " },
+        })
+      )
+    );
+  });
 });
 
 describe("envelope interno da operação", () => {
@@ -1068,6 +1085,24 @@ describe("envelope interno da operação", () => {
         buildFoodOperationEnvelopeFixture({ mealOperation: null })
       ).ok
     ).toBe(true);
+  });
+
+  it("rejeita whitespace externo em referências opacas do envelope", () => {
+    const cases = [
+      { conversationRef: " conv-1 " },
+      { turnRef: " turn-1 " },
+      {
+        contextSources: {
+          previousMessage: { sourceRef: " turn:0 " },
+        },
+      },
+    ];
+
+    for (const overrides of cases) {
+      expectInvalid(
+        parseFoodOperationEnvelope(buildFoodOperationEnvelopeFixture(overrides))
+      );
+    }
   });
 });
 

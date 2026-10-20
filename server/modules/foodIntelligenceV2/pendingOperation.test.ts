@@ -228,6 +228,27 @@ describe("retomada da pendência", () => {
     expect(result.reason).toBe("unsupported-schema-version");
     expect(result.detail).toContain("nunca é tratada como V1");
   });
+
+  it("rejeita datas e instantes inválidos persistidos antes de comparar expiração", () => {
+    const cases: Array<[Partial<PendingOperation>, string]> = [
+      [{ expiresAt: "not-an-instant" }, "invalid-pending-time"],
+      [{ expiresAt: "2026-02-31T12:30:00.000Z" }, "invalid-pending-time"],
+      [{ expiresAt: "2026-10-05T12:30:00" }, "invalid-pending-time"],
+      [{ createdAt: "not-an-instant" }, "invalid-pending-time"],
+      [{ target: { mealLabel: "almoço", date: "2026-02-31" } }, "invalid-pending-time"],
+    ];
+
+    for (const [overrides, expected] of cases) {
+      const result = resumePendingOperation(
+        buildOperation(overrides),
+        buildRequest()
+      );
+
+      expect(result.resumed, `esperado falha ${expected}`).toBe(false);
+      if (result.resumed) throw new Error("esperado falha");
+      expect(result.reason).toBe(expected);
+    }
+  });
 });
 
 describe("efeito idempotente e sobrevivência a restart", () => {
@@ -258,6 +279,20 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     });
 
     expect(result.ok).toBe(false);
+  });
+
+  it("não aplica efeito quando a pendência persistida tem tempo inválido", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation({ expiresAt: "2026-02-31T12:30:00.000Z" }));
+
+    const result = applyEffect(store);
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+    });
+    expect(store.get("op-1")?.effect).toBeNull();
   });
 
   it("aplica uma única vez e devolve o mesmo efeito em retry", () => {

@@ -207,7 +207,10 @@ export type V1CompatibleDecisionProjection = {
     isUltraProcessed: boolean | null;
     provisional: boolean;
   } | null;
-  evidenceOrigins: Partial<Record<V1EvidenceField, FoodEvidenceOrigin>>;
+  /** Todas as origens observadas no slot, deduplicadas e ordenadas. */
+  evidenceOrigins: Partial<
+    Record<V1EvidenceField, readonly FoodEvidenceOrigin[]>
+  >;
 };
 
 function collectBlockers(
@@ -349,14 +352,16 @@ export function projectDecisionV2ToV1(
   const identity = decision.identity;
   const quantity = decision.quantity;
 
-  const evidenceOrigins: Partial<Record<V1EvidenceField, FoodEvidenceOrigin>> =
-    {};
+  const evidenceOrigins: Partial<
+    Record<V1EvidenceField, FoodEvidenceOrigin[]>
+  > = {};
   for (const evidence of decision.evidence) {
     const slot = V2_EVIDENCE_FIELD_TO_V1[evidence.field];
     if (!slot) continue;
-    if (!(slot in evidenceOrigins)) {
-      evidenceOrigins[slot] = evidence.origin;
-    }
+    const origins = evidenceOrigins[slot] ?? [];
+    if (!origins.includes(evidence.origin)) origins.push(evidence.origin);
+    origins.sort();
+    evidenceOrigins[slot] = origins;
   }
 
   const referencedNutritionEvidence = decision.evidence.filter(

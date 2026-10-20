@@ -87,6 +87,7 @@ export type PendingOperationResumeResult =
         | "operation-key-mismatch"
         | "owner-mismatch"
         | "invalid-request-time"
+        | "invalid-pending-time"
         | "expired"
         | "authorization-invalid"
         | "resolver-version-changed"
@@ -316,6 +317,23 @@ export function resumePendingOperation(
       reason: "pending-version-missing",
       detail:
         "Pendência sem versão fixada não pode ser retomada pelo resolvedor V2.",
+    };
+  }
+
+  const targetDate =
+    typeof pending.target === "object" && pending.target !== null
+      ? pending.target.date
+      : null;
+  if (
+    !isValidIsoInstant(pending.createdAt) ||
+    !isValidIsoInstant(pending.expiresAt) ||
+    !isValidIsoDate(targetDate)
+  ) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-time",
+      detail:
+        "Pendência V2 persistida possui createdAt, expiresAt ou target.date inválido; nenhum efeito é aplicado.",
     };
   }
 

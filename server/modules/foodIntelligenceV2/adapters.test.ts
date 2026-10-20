@@ -10,6 +10,7 @@ import {
 } from "./adapters";
 import { parseFoodResolutionDecision } from "./schemas";
 import {
+  buildFoodAnchorFixture,
   buildFoodResolutionDecisionFixture,
   buildV1HistoricalSnapshotFixture,
   buildV1MealSemanticContractFixture,
@@ -63,11 +64,69 @@ describe("projeção V2 → DTO V1", () => {
       ],
     });
 
-    expect(fromText.evidenceOrigins.identity).toBe("text");
-    expect(fromTranscription.evidenceOrigins.identity).toBe("transcription");
+    expect(fromText.evidenceOrigins.identity).toStrictEqual(["text"]);
+    expect(fromTranscription.evidenceOrigins.identity).toStrictEqual([
+      "transcription",
+    ]);
     expect(fromText.evidenceOrigins.identity).not.toBe(
       fromTranscription.evidenceOrigins.identity
     );
+  });
+
+  it("preserva todas as origens nutricionais sem depender da ordem", () => {
+    const firstOrder = project({
+      nutrition: { evidenceIds: ["ev-nutrition", "ev-nutrition-alt"] },
+      evidence: [
+        {},
+        {},
+        {},
+        {
+          evidenceId: "ev-nutrition-alt",
+          field: "nutrition.protein",
+          origin: "catalog",
+          value: 12,
+          unit: "g",
+          confidence: 0.9,
+          verified: true,
+          anchor: buildFoodAnchorFixture(),
+          sourceId: 3,
+        },
+      ],
+    });
+    const secondOrder = project({
+      nutrition: { evidenceIds: ["ev-nutrition", "ev-nutrition-alt"] },
+      evidence: [
+        {},
+        {},
+        {
+          origin: "catalog",
+        },
+        {
+          evidenceId: "ev-nutrition-alt",
+          field: "nutrition.protein",
+          origin: "nutrition_label",
+          value: 12,
+          unit: "g",
+          confidence: 0.9,
+          verified: true,
+          anchor: buildFoodAnchorFixture(),
+          sourceId: 3,
+        },
+      ],
+    });
+
+    expect(firstOrder.evidenceOrigins.nutrition).toStrictEqual([
+      "catalog",
+      "nutrition_label",
+    ]);
+    expect(secondOrder.evidenceOrigins.nutrition).toStrictEqual([
+      "catalog",
+      "nutrition_label",
+    ]);
+    expect(blockerCodes(firstOrder)).toContain(
+      "evidence-origin-not-representable"
+    );
+    expect(firstOrder.resolution).toBeNull();
   });
 
   it("não colapsa origem ausente no vocabulário V1 e bloqueia a projeção", () => {
@@ -90,7 +149,7 @@ describe("projeção V2 → DTO V1", () => {
     );
     expect(projection.faithful).toBe(false);
     expect(toV1EvidenceOrigin("barcode")).toBeNull();
-    expect(Object.values(projection.evidenceOrigins)).not.toContain(
+    expect(Object.values(projection.evidenceOrigins).flat()).not.toContain(
       "unavailable"
     );
   });

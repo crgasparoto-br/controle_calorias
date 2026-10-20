@@ -19,6 +19,9 @@ export const opaqueId = (max: number = FOOD_CONTRACT_LIMITS.identifier) =>
       value => value === value.trim(),
       "Identificador opaco não aceita whitespace externo."
     );
+export const nullableOpaqueId = (
+  max: number = FOOD_CONTRACT_LIMITS.identifier
+) => opaqueId(max).nullable();
 export const nullableText = (max: number) =>
   z.string().trim().min(1).max(max).nullable();
 export const finiteNumber = z.number().finite();
@@ -43,6 +46,7 @@ export function isValidIsoInstant(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.includes("T") &&
+    /(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
     isValidIsoDate(value.slice(0, 10)) &&
     !Number.isNaN(Date.parse(value))
   );

@@ -18,6 +18,7 @@ import {
 import {
   isValidIsoDate,
   nonEmptyText,
+  nullableOpaqueId,
   nullableText,
   opaqueId,
   positiveInt,
@@ -42,7 +43,7 @@ const foodContextSourceSchema = (name: string) =>
     .strictObject({
       status: z.enum(FOOD_CONTEXT_STATUSES),
       reason: nullableText(FOOD_CONTRACT_LIMITS.shortText),
-      sourceRef: nullableText(512),
+      sourceRef: nullableOpaqueId(512),
     })
     .refine(
       source => source.status === "available" || source.reason !== null,
@@ -64,8 +65,8 @@ export const foodOperationEnvelopeSchema = z.strictObject({
   traceId: opaqueId(),
   idempotencyKey: opaqueId(),
   ownerUserId: positiveInt,
-  conversationRef: nullableText(200),
-  turnRef: nullableText(200),
+  conversationRef: nullableOpaqueId(200),
+  turnRef: nullableOpaqueId(200),
   effectiveTimeZone: nonEmptyText.max(80),
   mealOperation: foodMealOperationSchema.nullable(),
   contextSources: foodContextSourcesSchema,

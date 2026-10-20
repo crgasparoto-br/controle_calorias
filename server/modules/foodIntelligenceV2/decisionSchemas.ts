@@ -21,6 +21,7 @@ import {
   foodQualifierSchema,
   nonEmptyText,
   nonNegativeNumber,
+  nullableOpaqueId,
   nullableNonNegativeNumber,
   nullablePositiveInt,
   nullableText,
@@ -50,7 +51,7 @@ export const foodDecisionNutritionSchema = z
     provisional: z.boolean(),
     basis: foodNutritionBasisSchema.nullable(),
     consumed: foodNutritionValuesSchema.nullable(),
-    snapshotHash: nullableText(200),
+    snapshotHash: nullableOpaqueId(200),
     evidenceIds: evidenceIdList,
   })
   .refine(
@@ -91,7 +92,7 @@ export const foodDecisionQuantitySchema = z.strictObject({
 });
 export const foodDecisionIdentitySchema = z
   .strictObject({
-    candidateKey: nullableText(200),
+    candidateKey: nullableOpaqueId(200),
     foodEntityId: nullablePositiveInt,
     variantId: nullablePositiveInt,
     canonicalName: nullableText(FOOD_CONTRACT_LIMITS.nameText),
