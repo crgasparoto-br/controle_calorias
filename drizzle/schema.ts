@@ -1,3 +1,4 @@
+import { foodVariants, foodNutritionProfiles } from "./food-intelligence-v2-schema";
 import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -123,6 +124,9 @@ export const foods = mysqlTable("foods", {
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
   sourceFoodCode: varchar("source_food_code", { length: 120 }),
   name: varchar("name", { length: 255 }).notNull(),
+  scope: mysqlEnum("scope", ["global", "user"]).default("global").notNull(),
+  canonicalName: varchar("canonical_name", { length: 255 }).notNull(),
+  canonicalKey: varchar("canonical_key", { length: 191 }).notNull(),
   normalizedName: varchar("normalized_name", { length: 255 }).notNull(),
   brandName: varchar("brand_name", { length: 255 }),
   category: varchar("category", { length: 160 }),
@@ -144,6 +148,7 @@ export const foods = mysqlTable("foods", {
   normalizedNameIdx: index("foods_normalized_name_idx").on(table.normalizedName),
   scopeSearchIdx: index("foods_scope_search_idx").on(table.ownerUserId, table.normalizedName),
   statusIdx: index("foods_status_idx").on(table.status),
+  canonicalKeyUnique: uniqueIndex("v2_foods_u0").on(table.canonicalKey),
   mergedIntoFoodIdIdx: index("foods_merged_into_food_id_idx").on(table.mergedIntoFoodId),
   sourceCodeUnique: uniqueIndex("foods_source_code_unique").on(table.sourceId, table.sourceFoodCode),
 }));
@@ -153,11 +158,19 @@ export const foodAliases = mysqlTable("food_aliases", {
   foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "cascade" }),
   alias: varchar("alias", { length: 255 }).notNull(),
   normalizedAlias: varchar("normalized_alias", { length: 255 }).notNull(),
+  foodVariantId: int("food_variant_id").references(() => foodVariants.id, { onDelete: "restrict" }),
+  locale: varchar("locale", { length: 20 }).default("pt-BR").notNull(),
+  status: mysqlEnum("status", ["active", "deprecated"]).default("active").notNull(),
+  governanceStatus: mysqlEnum("governance_status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).default("provisional").notNull(),
+  revision: int("revision").default(1).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, table => ({
   normalizedAliasIdx: index("food_aliases_normalized_alias_idx").on(table.normalizedAlias),
   sourceIdIdx: index("food_aliases_source_id_idx").on(table.sourceId),
+  variantAliasUnique: uniqueIndex("v2_food_aliases_u0").on(table.foodVariantId, table.normalizedAlias),
+  variantAliasSearch: index("v2_food_aliases_i0").on(table.normalizedAlias, table.status),
   foodAliasUnique: uniqueIndex("food_aliases_food_alias_unique").on(table.foodId, table.normalizedAlias),
 }));
 
@@ -169,6 +182,14 @@ export const foodPortions = mysqlTable("food_portions", {
   unit: varchar("unit", { length: 40 }).default("serving").notNull(),
   quantity: double("quantity").default(1).notNull(),
   grams: double("grams").notNull(),
+  foodVariantId: int("food_variant_id").references(() => foodVariants.id, { onDelete: "restrict" }),
+  milliliters: double("milliliters"),
+  measureKind: mysqlEnum("measure_kind", ["exact", "usual_average", "contextual_estimate"]).default("usual_average").notNull(),
+  evidenceId: int("evidence_id"),
+  confidence: double("confidence"),
+  status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).default("provisional").notNull(),
+  validFrom: timestamp("valid_from"),
+  validTo: timestamp("valid_to"),
   isDefault: int("is_default").default(0).notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
   sourcePortionCode: varchar("source_portion_code", { length: 120 }),
@@ -177,6 +198,8 @@ export const foodPortions = mysqlTable("food_portions", {
 }, table => ({
   foodIdIdx: index("food_portions_food_id_idx").on(table.foodId),
   sourceIdIdx: index("food_portions_source_id_idx").on(table.sourceId),
+  variantPortionUnique: uniqueIndex("v2_food_portions_u0").on(table.foodVariantId, table.normalizedLabel, table.unit),
+  variantPortionStatus: index("v2_food_portions_i0").on(table.foodVariantId, table.status),
   foodLabelUnitUnique: uniqueIndex("food_portions_food_label_unit_unique").on(table.foodId, table.normalizedLabel, table.unit),
 }));
 
@@ -338,6 +361,9 @@ export const mealItems = mysqlTable("mealItems", {
   mealId: int("mealId").notNull().references(() => meals.id, { onDelete: "cascade" }),
   foodId: int("foodId").references(() => foods.id, { onDelete: "set null" }),
   foodCatalogId: int("foodCatalogId").references(() => foodCatalog.id, { onDelete: "set null" }),
+  foodVariantId: int("foodVariantId").references(() => foodVariants.id, { onDelete: "restrict" }),
+  nutritionProfileId: int("nutritionProfileId").references(() => foodNutritionProfiles.id, { onDelete: "restrict" }),
+  foodPortionId: int("foodPortionId").references(() => foodPortions.id, { onDelete: "restrict" }),
   recipeId: int("recipeId").references(() => recipes.id, { onDelete: "set null" }),
   portionId: int("portionId").references(() => portions.id, { onDelete: "set null" }),
   itemType: mysqlEnum("itemType", ["food", "recipe", "free_text"]).default("food").notNull(),
@@ -367,6 +393,9 @@ export const mealItems = mysqlTable("mealItems", {
   mealIdIdx: index("mealItems_mealId_idx").on(table.mealId),
   foodIdIdx: index("mealItems_foodId_idx").on(table.foodId),
   foodCatalogIdIdx: index("mealItems_foodCatalogId_idx").on(table.foodCatalogId),
+  variantV2Idx: index("v2_mealItems_i0").on(table.foodVariantId),
+  profileV2Idx: index("v2_mealItems_i1").on(table.nutritionProfileId),
+  portionV2Idx: index("v2_mealItems_i2").on(table.foodPortionId),
   recipeIdIdx: index("mealItems_recipeId_idx").on(table.recipeId),
   portionIdIdx: index("mealItems_portionId_idx").on(table.portionId),
   sourceMediaStorageKeyIdx: index("mealItems_sourceMediaStorageKey_idx").on(table.sourceMediaStorageKey),
