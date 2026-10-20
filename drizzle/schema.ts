@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import { foodVariants, foodNutritionProfiles, foodEvidence } from "./food-intelligence-v2-schema";
-import { type AnyMySqlColumn, boolean, double, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, boolean, check, double, foreignKey, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -149,6 +150,7 @@ export const foods = mysqlTable("foods", {
   scopeSearchIdx: index("foods_scope_search_idx").on(table.ownerUserId, table.normalizedName),
   statusIdx: index("foods_status_idx").on(table.status),
   canonicalKeyUnique: uniqueIndex("v2_foods_u0").on(table.canonicalKey),
+  scopeOwnerCheck: check("v2_foods_ck0", sql`scope = 'global' OR owner_user_id IS NOT NULL`),
   mergedIntoFoodIdIdx: index("foods_merged_into_food_id_idx").on(table.mergedIntoFoodId),
   sourceCodeUnique: uniqueIndex("foods_source_code_unique").on(table.sourceId, table.sourceFoodCode),
 }));
@@ -170,6 +172,7 @@ export const foodAliases = mysqlTable("food_aliases", {
   normalizedAliasIdx: index("food_aliases_normalized_alias_idx").on(table.normalizedAlias),
   sourceIdIdx: index("food_aliases_source_id_idx").on(table.sourceId),
   variantAliasUnique: uniqueIndex("v2_food_aliases_u0").on(table.foodVariantId, table.normalizedAlias),
+  revisionCheck: check("v2_food_aliases_ck0", sql`revision > 0`),
   variantAliasSearch: index("v2_food_aliases_i0").on(table.normalizedAlias, table.status),
   foodAliasUnique: uniqueIndex("food_aliases_food_alias_unique").on(table.foodId, table.normalizedAlias),
 }));
