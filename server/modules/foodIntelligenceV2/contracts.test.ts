@@ -626,6 +626,118 @@ describe("FoodResolutionDecision v2", () => {
     expectInvalid(parseFoodResolutionDecision(wrongVolume));
   });
 
+  it("A-1298-002: consumed exige quantidade fisicamente comparável e comprovada", () => {
+    const unknownServing = buildFoodResolutionDecisionFixture({
+      quantity: {
+        value: 1,
+        unit: "fatia",
+        grams: null,
+        milliliters: null,
+        evidenceIds: [],
+      },
+    });
+    const previous = structuredClone(unknownServing);
+    const rejected = parseFoodResolutionDecision(unknownServing);
+    expectInvalid(rejected);
+    if (!rejected.ok) {
+      expect(rejected.issues.map(issue => issue.path)).toContain("nutrition.consumed");
+    }
+    expect(unknownServing).toStrictEqual(previous);
+
+    // Mesmo com gramas preenchidos, a conversão de uma fatia precisa de prova.
+    const guessedGrams = buildFoodResolutionDecisionFixture({
+      quantity: { value: 1, unit: "fatia", grams: 30, evidenceIds: [] },
+    });
+    const ungrounded = parseFoodResolutionDecision(guessedGrams);
+    expectInvalid(ungrounded);
+    if (!ungrounded.ok) {
+      expect(ungrounded.issues.map(issue => issue.path)).toContain("quantity.grams");
+    }
+
+    // Em decisão parcial, a ausência permanece null sem virar kcal zero.
+    const partial = buildFoodResolutionDecisionFixture({
+      status: "partially_resolved",
+      nextAction: "clarify",
+      unresolvedFields: ["nutrition"],
+      reasonCodes: ["quantity_conversion_unproven"],
+      quantity: { value: 1, unit: "fatia", grams: null, evidenceIds: [] },
+      nutrition: { consumed: null },
+    });
+    expect(parseFoodResolutionDecision(partial).ok).toBe(true);
+  });
+
+  it("A-1298-004: rejeita valor declarado divergente de massa ou volume", () => {
+    const badMass = buildFoodResolutionDecisionFixture({
+      quantity: { value: 1, unit: "g", grams: 30 },
+    });
+    const wrongMass = parseFoodResolutionDecision(badMass);
+    expectInvalid(wrongMass);
+    if (!wrongMass.ok) {
+      expect(wrongMass.issues.map(issue => issue.path)).toContain("quantity");
+    }
+
+    const badVolume = buildFoodResolutionDecisionFixture({
+      quantity: { value: 1, unit: "ml", grams: null, milliliters: 50 },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: { calories: 135, protein: 6, carbs: 1.5, fat: 11.5, sodiumMg: 450 },
+      },
+    });
+    const wrongVolume = parseFoodResolutionDecision(badVolume);
+    expectInvalid(wrongVolume);
+    if (!wrongVolume.ok) {
+      expect(wrongVolume.issues.map(issue => issue.path)).toContain("quantity");
+    }
+
+    // kg/l representam a mesma grandeza física após conversão exata.
+    const kg = buildFoodResolutionDecisionFixture({
+      quantity: { value: 0.03, unit: "kg", grams: 30 },
+    });
+    expect(parseFoodResolutionDecision(kg).ok).toBe(true);
+
+    const liters = buildFoodResolutionDecisionFixture({
+      quantity: { value: 0.05, unit: "l", grams: null, milliliters: 50 },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: { calories: 135, protein: 6, carbs: 1.5, fat: 11.5, sodiumMg: 450 },
+      },
+      evidence: [
+        {},
+        { evidenceId: "ev-grams", field: "quantity.milliliters", unit: "ml", value: 50 },
+      ],
+    });
+    expect(parseFoodResolutionDecision(liters).ok).toBe(true);
+  });
+
+  it("A-1298-002: serving explícito só escala com base serving", () => {
+    const directServing = buildFoodResolutionDecisionFixture({
+      quantity: { value: 1, unit: "serving", grams: null, milliliters: null },
+      nutrition: {
+        basis: {
+          quantity: 1,
+          unit: "serving",
+          values: {
+            calories: 81, protein: 3.6, carbs: 0.9, fat: 6.9, sodiumMg: 270,
+          },
+        },
+      },
+    });
+    expect(parseFoodResolutionDecision(directServing).ok).toBe(true);
+    const ambiguousServing = buildFoodResolutionDecisionFixture({
+      quantity: { value: 1, unit: "fatia", grams: null, milliliters: null },
+      nutrition: {
+        basis: {
+          quantity: 1,
+          unit: "serving",
+          values: {
+            calories: 81, protein: 3.6, carbs: 0.9, fat: 6.9, sodiumMg: 270,
+          },
+        },
+      },
+    });
+    expectInvalid(parseFoodResolutionDecision(ambiguousServing));
+  });
+
   it("A-1298-002: aceita proporção em gramas, ml explícitos e arredondamento declarado", () => {
     expect(parseFoodResolutionDecision(buildFoodResolutionDecisionFixture()).ok).toBe(
       true
