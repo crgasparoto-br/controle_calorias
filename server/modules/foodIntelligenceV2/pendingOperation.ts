@@ -373,7 +373,7 @@ export function resumePendingOperation(
   }
 
   // Na retomada, reaplicar o contrato completo usado na criação.
-  if (!createPendingOperationV2(pending).ok) {
+  if (!createPendingOperationV2({ ...pending, versionTag: pinned }).ok) {
     return {
       resumed: false,
       reason: "invalid-pending-operation",
@@ -514,7 +514,7 @@ export function createInMemoryPendingOperationStore(
       throw new Error("Pendência persistida malformada ou chave duplicada.");
     }
     if (classifyPendingOperationOwner(pending) === "v2" &&
-        (!createPendingOperationV2(pending).ok ||
+        (!createPendingOperationV2({ ...pending, versionTag: pending.versionTag! }).ok ||
           (pending.effect !== null &&
            (!isValidPendingOperationEffect(pending.effect) ||
             Date.parse(pending.effect.appliedAt) < Date.parse(pending.createdAt) ||
