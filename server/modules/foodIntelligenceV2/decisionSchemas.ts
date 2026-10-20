@@ -41,6 +41,10 @@ export const foodNutritionValuesSchema = z.strictObject({
   sugar: nullableNonNegativeNumber,
   sodiumMg: nullableNonNegativeNumber,
 });
+/** Nutrientes do contrato, derivados do schema canônico (não dos IDs de fonte/perfil). */
+const NUTRIENT_EVIDENCE_FIELDS = new Set(
+  Object.keys(foodNutritionValuesSchema.shape).map(field => `nutrition.${field}`)
+);
 export const foodNutritionBasisSchema = z.strictObject({
   quantity: z.number().finite().positive(),
   unit: z.enum(FOOD_NUTRITION_BASE_UNITS),
@@ -399,7 +403,7 @@ export const foodResolutionDecisionSchema = z
         const evidence = evidenceById.get(evidenceId);
         return evidence?.verified === true &&
           isGroundedEvidenceOrigin(evidence.origin) &&
-          evidence.field.startsWith("nutrition.") &&
+          NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
           typeof evidence.value === "number" &&
           Number.isFinite(evidence.value) && evidence.value >= 0;
       });
