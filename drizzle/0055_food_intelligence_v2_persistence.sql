@@ -580,15 +580,11 @@ ALTER TABLE `food_variant_classifications` ADD CONSTRAINT `food_variant_classifi
 --> statement-breakpoint
 ALTER TABLE `user_food_aliases` ADD CONSTRAINT `user_food_aliases_ck0` CHECK ((status='active' AND current_slot=1 AND revoked_at IS NULL) OR (status='revoked' AND current_slot IS NULL));
 --> statement-breakpoint
-ALTER TABLE `food_evidence` ADD CONSTRAINT `food_evidence_ck0` CHECK (owner_user_id IS NULL OR retention_until IS NOT NULL);
---> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck0` CHECK (review_cycle > 0);
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck1` CHECK (state_version > 0);
 --> statement-breakpoint
 ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck2` CHECK ((status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL));
---> statement-breakpoint
-ALTER TABLE `food_review_cases` ADD CONSTRAINT `food_review_cases_ck3` CHECK (outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL);
 --> statement-breakpoint
 ALTER TABLE `food_review_events` ADD CONSTRAINT `food_review_events_ck0` CHECK (review_cycle > 0);
 --> statement-breakpoint
@@ -601,8 +597,6 @@ ALTER TABLE `food_variant_attributes` ADD CONSTRAINT `food_variant_attributes_ck
 ALTER TABLE `food_attribute_materiality` ADD CONSTRAINT `food_attribute_material_ck0` CHECK (current_slot IS NULL OR current_slot = 1);
 --> statement-breakpoint
 ALTER TABLE `food_attribute_materiality_overrides` ADD CONSTRAINT `food_attr_override_ck0` CHECK ((status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL));
---> statement-breakpoint
-ALTER TABLE `foods` ADD CONSTRAINT `v2_foods_ck0` CHECK (scope='global' OR owner_user_id IS NOT NULL);
 --> statement-breakpoint
 ALTER TABLE `food_aliases` ADD CONSTRAINT `v2_food_aliases_ck0` CHECK (revision > 0);
 --> statement-breakpoint
