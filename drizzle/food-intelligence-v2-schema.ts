@@ -165,7 +165,7 @@ export const foodEvidence = mysqlTable("food_evidence", {
   confidence: double("confidence"),
   capturedAt: timestamp("captured_at").notNull().defaultNow(),
   retentionUntil: timestamp("retention_until"),
-  retentionGuard: int("retention_guard").notNull().generatedAlwaysAs("CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END", { mode: "virtual" }),
+  retentionGuard: int("retention_guard").notNull().generatedAlwaysAs(() => sql`CASE WHEN owner_user_id IS NOT NULL AND retention_until IS NULL THEN NULL ELSE 1 END`, { mode: "virtual" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 }, table => ({
@@ -186,7 +186,7 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
   closedAt: timestamp("closed_at"),
   assignedReviewerId: int("assigned_reviewer_id").references(() => users.id, { onDelete: "restrict" }),
   supersededByCaseId: int("superseded_by_case_id").references((): AnyMySqlColumn => foodReviewCases.id, { onDelete: "restrict" }),
-  supersessionGuard: int("supersession_guard").notNull().generatedAlwaysAs("CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END", { mode: "virtual" }),
+  supersessionGuard: int("supersession_guard").notNull().generatedAlwaysAs(() => sql`CASE WHEN outcome='superseded' AND superseded_by_case_id IS NULL THEN NULL ELSE 1 END`, { mode: "virtual" }),
   priorityScore: double("priority_score").notNull().default(0),
   prioritySnapshotJson: text("priority_snapshot_json"),
   policyVersion: varchar("policy_version", { length: 100 }),
