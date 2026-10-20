@@ -24,6 +24,11 @@ import {
   type FoodReasonCode,
 } from "./contracts";
 import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
+import {
+  isNonEmpty,
+  isPositiveInteger,
+  isValidPendingOperationEffect,
+} from "./pendingOperationValidation";
 
 /** Versão de contrato/resolvedor fixada com a pendência. */
 export type PendingOperationVersionTag = {
@@ -108,28 +113,6 @@ export type PendingOperationEffectResult =
     };
 
 const REASON_CODE_SET = new Set<string>(FOOD_REASON_CODES);
-
-function isNonEmpty(value: unknown, max = 200): value is string {
-  return (
-    typeof value === "string" && value.trim().length > 0 && value.length <= max
-  );
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
-
-function isValidPendingOperationEffect(
-  value: unknown
-): value is PendingOperationEffect {
-  if (!value || typeof value !== "object") return false;
-  const effect = value as Partial<PendingOperationEffect>;
-  return (
-    isNonEmpty(effect.effectId) &&
-    isValidIsoInstant(effect.appliedAt) &&
-    isNonEmpty(effect.mealItemId)
-  );
-}
 
 /**
  * Classifica o proprietário da pendência pelo contrato **persistido**.
