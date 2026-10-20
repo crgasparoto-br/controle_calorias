@@ -1,6 +1,6 @@
 // Issue #1301 — Estruturas aditivas V2. O runtime legado continua ativo até o Gate B.
 import { sql } from "drizzle-orm";
-import { type AnyMySqlColumn, bigint, check, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, bigint, check, foreignKey, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
 import { foodBrands, foodSources, foods, users, foodPortions } from "./schema";
 
 export const foodVariants = mysqlTable("food_variants", {
@@ -49,7 +49,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   id: int("id").autoincrement().primaryKey(),
   foodVariantId: int("food_variant_id").notNull().references(() => foodVariants.id, { onDelete: "restrict" }),
   sourceId: int("source_id").notNull().references(() => foodSources.id, { onDelete: "restrict" }),
-  foodVariantSourceId: int("food_variant_source_id").references(() => foodVariantSources.id, { onDelete: "restrict" }),
+  foodVariantSourceId: int("food_variant_source_id"),
   profileKey: varchar("profile_key", { length: 191 }).notNull(),
   version: int("version").notNull(),
   status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).notNull().default("provisional"),
@@ -67,7 +67,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   sourceServingUnit: varchar("source_serving_unit", { length: 40 }),
   sourceServingGrams: double("source_serving_grams"),
   contentHash: varchar("content_hash", { length: 64 }).notNull(),
-  supersedesProfileId: int("supersedes_profile_id").references((): AnyMySqlColumn => foodNutritionProfiles.id, { onDelete: "restrict" }),
+  supersedesProfileId: int("supersedes_profile_id"),
   currentSlot: int("current_slot"),
   validFrom: timestamp("valid_from"),
   validTo: timestamp("valid_to"),
@@ -87,6 +87,8 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   ck5: check("food_nutrition_profiles_ck5", sql`fat_g >= 0`),
   ck6: check("food_nutrition_profiles_ck6", sql`current_slot IS NULL OR current_slot = 1`),
   ck7: check("food_nutrition_profiles_ck7", sql`current_slot IS NULL OR valid_to IS NULL`),
+  foodVariantSourceIdFk: foreignKey({ name: "fnp_variant_source_fk", columns: [table.foodVariantSourceId], foreignColumns: [foodVariantSources.id] }).onDelete("restrict"),
+  supersedesProfileIdFk: foreignKey({ name: "fnp_supersedes_fk", columns: [table.supersedesProfileId], foreignColumns: [foodNutritionProfiles.id] }).onDelete("restrict"),
 }));
 
 export const foodVariantClassifications = mysqlTable("food_variant_classifications", {
@@ -101,7 +103,7 @@ export const foodVariantClassifications = mysqlTable("food_variant_classificatio
   sourceKind: varchar("source_kind", { length: 60 }).notNull(),
   confidence: double("confidence"),
   status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).notNull().default("provisional"),
-  supersedesClassificationId: int("supersedes_classification_id").references((): AnyMySqlColumn => foodVariantClassifications.id, { onDelete: "restrict" }),
+  supersedesClassificationId: int("supersedes_classification_id"),
   currentSlot: int("current_slot"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
@@ -111,6 +113,7 @@ export const foodVariantClassifications = mysqlTable("food_variant_classificatio
   i0: index("food_variant_classif_i0").on(table.foodVariantId, table.status),
   ck0: check("food_variant_classifica_ck0", sql`version > 0`),
   ck1: check("food_variant_classifica_ck1", sql`current_slot IS NULL OR current_slot=1`),
+  supersedesClassificationIdFk: foreignKey({ name: "fvc_supersedes_fk", columns: [table.supersedesClassificationId], foreignColumns: [foodVariantClassifications.id] }).onDelete("restrict"),
 }));
 
 export const userFoodAliases = mysqlTable("user_food_aliases", {
@@ -244,7 +247,7 @@ export const foodResolutionEvents = mysqlTable("food_resolution_events", {
   entrypoint: varchar("entrypoint", { length: 100 }).notNull(),
   resolutionStatus: varchar("resolution_status", { length: 50 }).notNull(),
   foodVariantId: int("food_variant_id").references(() => foodVariants.id, { onDelete: "restrict" }),
-  nutritionProfileId: int("nutrition_profile_id").references(() => foodNutritionProfiles.id, { onDelete: "restrict" }),
+  nutritionProfileId: int("nutrition_profile_id"),
   foodPortionId: int("food_portion_id").references(() => foodPortions.id, { onDelete: "restrict" }),
   fallbackReason: varchar("fallback_reason", { length: 100 }),
   clarificationReason: varchar("clarification_reason", { length: 100 }),
@@ -258,6 +261,7 @@ export const foodResolutionEvents = mysqlTable("food_resolution_events", {
 }, table => ({
   u0: uniqueIndex("food_resolution_even_u0").on(table.traceId),
   i0: index("food_resolution_even_i0").on(table.expiresAt),
+  nutritionProfileIdFk: foreignKey({ name: "fre_nutrition_profile_fk", columns: [table.nutritionProfileId], foreignColumns: [foodNutritionProfiles.id] }).onDelete("restrict"),
 }));
 
 export const foodLexiconEntries = mysqlTable("food_lexicon_entries", {
@@ -333,13 +337,14 @@ export const foodVariantAttributes = mysqlTable("food_variant_attributes", {
   confidence: double("confidence"),
   status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).notNull().default("provisional"),
   currentSlot: int("current_slot"),
-  supersedesId: int("supersedes_id").references((): AnyMySqlColumn => foodVariantAttributes.id, { onDelete: "restrict" }),
+  supersedesId: int("supersedes_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 }, table => ({
   u0: uniqueIndex("food_variant_attribu_u0").on(table.foodVariantId, table.attributeId, table.currentSlot),
   i0: index("food_variant_attribu_i0").on(table.foodVariantId, table.attributeId, table.normalizedValue, table.status),
   ck0: check("food_variant_attributes_ck0", sql`current_slot IS NULL OR current_slot = 1`),
+  supersedesIdFk: foreignKey({ name: "fva_supersedes_fk", columns: [table.supersedesId], foreignColumns: [foodVariantAttributes.id] }).onDelete("restrict"),
 }));
 
 export const foodAttributeMateriality = mysqlTable("food_attribute_materiality", {
@@ -352,7 +357,7 @@ export const foodAttributeMateriality = mysqlTable("food_attribute_materiality",
   confidence: double("confidence"),
   status: mysqlEnum("status", ["provisional", "pending_review", "verified", "rejected", "revoked"]).notNull().default("provisional"),
   currentSlot: int("current_slot"),
-  supersedesId: int("supersedes_id").references((): AnyMySqlColumn => foodAttributeMateriality.id, { onDelete: "restrict" }),
+  supersedesId: int("supersedes_id"),
   validFrom: timestamp("valid_from"),
   validTo: timestamp("valid_to"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -361,15 +366,16 @@ export const foodAttributeMateriality = mysqlTable("food_attribute_materiality",
   u0: uniqueIndex("food_attribute_mater_u0").on(table.foodId, table.attributeId, table.currentSlot),
   i0: index("food_attribute_mater_i0").on(table.foodId, table.status),
   ck0: check("food_attribute_material_ck0", sql`current_slot IS NULL OR current_slot = 1`),
+  supersedesIdFk: foreignKey({ name: "fam_supersedes_fk", columns: [table.supersedesId], foreignColumns: [foodAttributeMateriality.id] }).onDelete("restrict"),
 }));
 
 export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_materiality_overrides", {
   id: int("id").autoincrement().primaryKey(),
   foodId: int("food_id").notNull().references(() => foods.id, { onDelete: "restrict" }),
-  attributeId: int("attribute_id").notNull().references(() => foodAttributes.id, { onDelete: "restrict" }),
+  attributeId: int("attribute_id").notNull(),
   materiality: mysqlEnum("materiality", ["identity", "nutrition", "both", "informational"]).notNull(),
   justification: text("justification").notNull(),
-  evidenceId: int("evidence_id").references(() => foodEvidence.id, { onDelete: "restrict" }),
+  evidenceId: int("evidence_id"),
   author: varchar("author", { length: 120 }).notNull(),
   status: mysqlEnum("status", ["active", "revoked"]).notNull().default("active"),
   currentSlot: int("current_slot").default(1),
@@ -378,5 +384,7 @@ export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_mate
 }, table => ({
   u0: uniqueIndex("food_attr_override_u0").on(table.foodId, table.attributeId, table.currentSlot),
   ck0: check("food_attr_override_ck0", sql`(status='active' AND current_slot=1) OR (status='revoked' AND current_slot IS NULL)`),
+  attributeIdFk: foreignKey({ name: "famo_attribute_fk", columns: [table.attributeId], foreignColumns: [foodAttributes.id] }).onDelete("restrict"),
+  evidenceIdFk: foreignKey({ name: "famo_evidence_fk", columns: [table.evidenceId], foreignColumns: [foodEvidence.id] }).onDelete("restrict"),
 }));
 
