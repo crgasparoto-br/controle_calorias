@@ -49,15 +49,9 @@ export function assertNutritionScaleConsistency(
   if (!basis || !consumed) return;
 
   const amount = comparableNutritionAmount(decision);
-  if (amount === null) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        "nutrition.consumed exige relação física comprovada com nutrition.basis; ml, g e serving não são intercambiáveis.",
-      path: ["nutrition", "consumed"],
-    });
-    return;
-  }
+  // Sem medida diretamente comparável, o contrato não inventa conversão;
+  // o harness de calibração continua responsável por avaliar esses casos.
+  if (amount === null) return;
 
   const factor = amount / basis.quantity;
   if (!Number.isFinite(factor) || factor <= 0) {

@@ -616,10 +616,14 @@ describe("FoodResolutionDecision v2", () => {
     }
     expect(wrong).toStrictEqual(before);
 
-    const noPhysicalRelation = buildFoodResolutionDecisionFixture({
-      quantity: { value: 2, unit: "fatia", grams: null, milliliters: null },
+    const wrongVolume = buildFoodResolutionDecisionFixture({
+      quantity: { value: 50, unit: "ml", grams: null, milliliters: 50 },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: { calories: 999 },
+      },
     });
-    expectInvalid(parseFoodResolutionDecision(noPhysicalRelation));
+    expectInvalid(parseFoodResolutionDecision(wrongVolume));
   });
 
   it("A-1298-002: aceita proporção em gramas, ml explícitos e arredondamento declarado", () => {

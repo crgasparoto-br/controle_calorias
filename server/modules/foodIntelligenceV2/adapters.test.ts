@@ -174,7 +174,16 @@ describe("projeção V2 → DTO V1", () => {
         milliliters: 240,
         evidenceIds: [],
       },
-      nutrition: { basis: { unit: "ml" } },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: {
+          calories: 648,
+          protein: 28.8,
+          carbs: 7.2,
+          fat: 55.2,
+          sodiumMg: 2160,
+        },
+      },
       identity: { evidenceIds: [] },
     });
 

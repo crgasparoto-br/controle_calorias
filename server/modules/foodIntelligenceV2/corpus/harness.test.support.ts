@@ -2136,7 +2136,21 @@ function evaluateResult(
 
   for (const raw of result.decisions ?? []) {
     const validation = foodResolutionDecisionSchema.safeParse(raw);
-    if (!validation.success) {
+    // O harness precisa medir e relatar a falha nutricional pela sua própria
+    // categoria. Desvios exclusivamente nutricionais permanecem no relatório
+    // como nutrition_missing/mismatch; outros erros estruturais são recusados.
+    const nutritionDiagnosticOnly =
+      !validation.success &&
+      validation.error.issues.length > 0 &&
+      validation.error.issues.every(
+        issue =>
+          (issue.path.join(".") === "nutrition" &&
+            issue.message.startsWith("status=resolved exige nutrição")) ||
+          (issue.path[0] === "nutrition" &&
+            issue.path[1] === "consumed" &&
+            issue.message.includes("diverge da proporção"))
+      );
+    if (!validation.success && !nutritionDiagnosticOnly) {
       failures.push({
         caseId: entry.caseId,
         label: null,
@@ -2148,7 +2162,7 @@ function evaluateResult(
       abstained = true;
       continue;
     }
-    const decision = validation.data;
+    const decision = validation.success ? validation.data : raw;
     rawDecisions.push(cloneDecision(decision));
     projections.push(projectDecision(decision));
     // Base nutricional sem valores consumidos não é uma medição utilizável:
