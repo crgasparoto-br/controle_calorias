@@ -358,6 +358,14 @@ export function resumePendingOperation(
     };
   }
 
+  if (Date.parse(request.now) < Date.parse(pending.createdAt)) {
+    return {
+      resumed: false,
+      reason: "invalid-request-time",
+      detail: "A retomada não pode anteceder a criação da pendência.",
+    };
+  }
+
   if (Date.parse(request.now) >= Date.parse(pending.expiresAt)) {
     return {
       resumed: false,
@@ -419,7 +427,11 @@ export function applyPendingOperationEffect(
     };
   }
   if (pending.effect) {
-    if (!isValidPendingOperationEffect(pending.effect)) {
+    if (
+      !isValidPendingOperationEffect(pending.effect) ||
+      Date.parse(pending.effect.appliedAt) < Date.parse(pending.createdAt) ||
+      Date.parse(pending.effect.appliedAt) >= Date.parse(pending.expiresAt)
+    ) {
       return {
         applied: false,
         duplicate: false,
@@ -430,7 +442,12 @@ export function applyPendingOperationEffect(
     }
     return { applied: false, duplicate: true, effect: pending.effect };
   }
-  if (!isValidPendingOperationEffect(input.effect)) {
+  if (
+    !isValidPendingOperationEffect(input.effect) ||
+    Date.parse(input.effect.appliedAt) < Date.parse(pending.createdAt) ||
+    Date.parse(input.effect.appliedAt) < Date.parse(input.request.now) ||
+    Date.parse(input.effect.appliedAt) >= Date.parse(pending.expiresAt)
+  ) {
     return {
       applied: false,
       duplicate: false,

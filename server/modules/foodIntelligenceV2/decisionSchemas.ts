@@ -13,6 +13,7 @@ import {
   FOOD_STATUS_ALLOWED_ACTIONS,
   isMassUnit,
   isVolumeUnit,
+  normalizeUnitToken,
 } from "./contracts";
 import {
   confidence,
@@ -228,7 +229,7 @@ export const foodResolutionDecisionSchema = z
           path: ["quantity"],
         });
       }
-      if (nutrition.basis === null && nutrition.consumed === null) {
+      if (nutrition.consumed === null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
@@ -426,6 +427,7 @@ export const foodResolutionDecisionSchema = z
       }
     }
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
+    assertNutritionScaleConsistency(decision, ctx);
     const barcodeEvidence = decision.evidence.some(
       evidence =>
         evidence.field === "identity.barcode" &&
@@ -441,6 +443,103 @@ export const foodResolutionDecisionSchema = z
       });
     }
   });
+/**
+ * A relação entre base e consumo só é demonstrável para medidas diretamente
+ * compatíveis. Nunca deduz densidade, tamanho de porção nem converte fatia em g.
+ */
+function comparableNutritionAmount(
+  decision: z.infer<typeof foodResolutionDecisionSchema>
+): number | null {
+  const basis = decision.nutrition.basis;
+  if (!basis) return null;
+  const quantity = decision.quantity;
+  const unit = normalizeUnitToken(quantity.unit);
+  if (basis.unit === "g") {
+    return quantity.grams ?? (unit === "g" ? quantity.value : null);
+  }
+  if (basis.unit === "ml") {
+    return quantity.milliliters ?? (unit === "ml" ? quantity.value : null);
+  }
+  return unit === "serving" ? quantity.value : null;
+}
+
+/** Resolução decimal do número informado (não é threshold nutricional). */
+function declaredDecimalStep(value: number): number {
+  const [mantissa, exponent = "0"] = value.toString().split("e");
+  const digits = mantissa.split(".")[1]?.length ?? 0;
+  return 10 ** (Number(exponent) - digits);
+}
+
+/**
+ * Compara a proporção sem instituir a tolerância de divergência nutricional
+ * ainda OPEN na ADR §25. Usa apenas meia unidade da última casa decimal
+ * informada na base e no consumo, além do erro de ponto flutuante.
+ */
+function assertNutritionScaleConsistency(
+  decision: z.infer<typeof foodResolutionDecisionSchema>,
+  ctx: z.RefinementCtx
+) {
+  const { basis, consumed } = decision.nutrition;
+  if (!basis || !consumed) return;
+
+  const amount = comparableNutritionAmount(decision);
+  if (amount === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "nutrition.consumed exige relação física comprovada com nutrition.basis; ml, g e serving não são intercambiáveis.",
+      path: ["nutrition", "consumed"],
+    });
+    return;
+  }
+
+  const factor = amount / basis.quantity;
+  if (!Number.isFinite(factor) || factor <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Fator físico nutricional inválido; cálculo não é representável.",
+      path: ["nutrition", "basis"],
+    });
+    return;
+  }
+
+  const nutrients = [
+    "calories",
+    "protein",
+    "carbs",
+    "fat",
+    "fiber",
+    "sugar",
+    "sodiumMg",
+  ] as const;
+  for (const nutrient of nutrients) {
+    const baseValue = basis.values[nutrient];
+    const consumedValue = consumed[nutrient];
+    if (baseValue === null || consumedValue === null) continue;
+
+    const expected = baseValue * factor;
+    const roundingBound =
+      (declaredDecimalStep(baseValue) * factor +
+        declaredDecimalStep(consumedValue)) /
+        2 +
+      Number.EPSILON *
+        16 *
+        Math.max(1, Math.abs(expected), Math.abs(consumedValue));
+    if (
+      !Number.isFinite(expected) ||
+      !Number.isFinite(roundingBound) ||
+      Math.abs(consumedValue - expected) > roundingBound
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          `nutrition.consumed.${nutrient} diverge da proporção da base e quantidade comprovada; não é simples arredondamento decimal.`,
+        path: ["nutrition", "consumed", nutrient],
+      });
+    }
+  }
+}
+
 function assertPhysicalBasisProvenance(
   decision: z.infer<typeof foodResolutionDecisionSchema>,
   evidenceById: Map<string, z.infer<typeof foodEvidenceSchema>>,

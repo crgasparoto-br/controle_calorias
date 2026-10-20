@@ -580,6 +580,85 @@ describe("FoodResolutionDecision v2", () => {
     );
   });
 
+  it("A-1298-001: resolved exige macros consumidos; parcial preserva lacuna", () => {
+    const candidate = buildFoodResolutionDecisionFixture({
+      nutrition: { consumed: null },
+    });
+    const before = structuredClone(candidate);
+    const rejected = parseFoodResolutionDecision(candidate);
+    expectInvalid(rejected);
+    expect(candidate).toStrictEqual(before);
+
+    const partial = buildFoodResolutionDecisionFixture({
+      status: "partially_resolved",
+      nextAction: "clarify",
+      unresolvedFields: ["nutrition"],
+      reasonCodes: ["quantity_missing"],
+      nutrition: { consumed: null },
+    });
+    expect(parseFoodResolutionDecision(partial).ok).toBe(true);
+  });
+
+  it("A-1298-002: rejeita macros aritmeticamente incompatíveis e bases sem ligação", () => {
+    const wrong = buildFoodResolutionDecisionFixture({
+      nutrition: { consumed: { calories: 999, protein: 300 } },
+    });
+    const before = structuredClone(wrong);
+    const rejected = parseFoodResolutionDecision(wrong);
+    expectInvalid(rejected);
+    if (!rejected.ok) {
+      expect(rejected.issues.map(issue => issue.path)).toContain(
+        "nutrition.consumed.calories"
+      );
+      expect(rejected.issues.map(issue => issue.path)).toContain(
+        "nutrition.consumed.protein"
+      );
+    }
+    expect(wrong).toStrictEqual(before);
+
+    const noPhysicalRelation = buildFoodResolutionDecisionFixture({
+      quantity: { value: 2, unit: "fatia", grams: null, milliliters: null },
+    });
+    expectInvalid(parseFoodResolutionDecision(noPhysicalRelation));
+  });
+
+  it("A-1298-002: aceita proporção em gramas, ml explícitos e arredondamento declarado", () => {
+    expect(parseFoodResolutionDecision(buildFoodResolutionDecisionFixture()).ok).toBe(
+      true
+    );
+    expect(
+      parseFoodResolutionDecision(
+        buildFoodResolutionDecisionFixture({
+          nutrition: { consumed: { calories: 81.05 } },
+        })
+      ).ok
+    ).toBe(true);
+
+    const volume = buildFoodResolutionDecisionFixture({
+      quantity: { value: 50, unit: "ml", grams: null, milliliters: 50 },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: {
+          calories: 135,
+          protein: 6,
+          carbs: 1.5,
+          fat: 11.5,
+          sodiumMg: 450,
+        },
+      },
+      evidence: [
+        {},
+        {
+          evidenceId: "ev-grams",
+          field: "quantity.milliliters",
+          unit: "ml",
+          value: 50,
+        },
+      ],
+    });
+    expect(parseFoodResolutionDecision(volume).ok).toBe(true);
+  });
+
   it("mantém flags nutricionais exclusivos e nunca usa zeros como ausência", () => {
     expectInvalid(
       parseFoodResolutionDecision(
@@ -744,7 +823,16 @@ describe("FoodResolutionDecision v2", () => {
         evidenceIds: ["ev-density"],
       },
       identity: { evidenceIds: [] },
-      nutrition: { basis: { unit: "ml" } },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: {
+          calories: 648,
+          protein: 28.8,
+          carbs: 7.2,
+          fat: 55.2,
+          sodiumMg: 2160,
+        },
+      },
       evidence: [
         {
           evidenceId: "ev-density",

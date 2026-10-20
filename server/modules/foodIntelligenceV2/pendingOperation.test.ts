@@ -385,6 +385,63 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     });
   });
 
+  it("A-1298-003: recusa retomada anterior à criação da pendência", () => {
+    const result = resumePendingOperation(
+      buildOperation(),
+      buildRequest({ now: "2026-10-05T11:59:59.999Z" })
+    );
+    expect(result).toMatchObject({
+      resumed: false,
+      reason: "invalid-request-time",
+    });
+  });
+
+  it("A-1298-003: recusa efeitos fora da janela de execução sem salvar estado", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation());
+
+    for (const appliedAt of [
+      "2026-10-05T11:59:59.999Z",
+      "2026-10-05T12:04:59.999Z",
+      "2026-10-05T12:30:00.000Z",
+      "2026-10-05T12:40:00.000Z",
+    ]) {
+      const result = applyEffect(store, { appliedAt });
+      expect(result, appliedAt).toMatchObject({
+        applied: false,
+        duplicate: false,
+        reason: "invalid-pending-time",
+      });
+      expect(store.get("op-1")?.effect).toBeNull();
+    }
+    expect(
+      applyEffect(store, { appliedAt: "2026-10-05T12:29:59.999Z" })
+    ).toMatchObject({ applied: true, duplicate: false });
+  });
+
+  it("A-1298-003: não reconhece como duplicata efeito persistido fora da janela", () => {
+    for (const appliedAt of [
+      "2026-10-05T11:59:59.999Z",
+      "2026-10-05T12:30:00.000Z",
+      "2026-10-05T12:40:00.000Z",
+    ]) {
+      const store = createInMemoryPendingOperationStore();
+      store.save(
+        buildOperation({
+          effect: { effectId: "eff-1", appliedAt, mealItemId: "item-1" },
+        })
+      );
+      const restarted = createInMemoryPendingOperationStore(store.exportState());
+      const result = applyEffect(restarted);
+      expect(result, appliedAt).toMatchObject({
+        applied: false,
+        duplicate: false,
+        reason: "invalid-pending-time",
+      });
+      expect(restarted.get("op-1")?.effect?.appliedAt).toBe(appliedAt);
+    }
+  });
+
   it("aplica uma única vez e devolve o mesmo efeito em retry", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation());
