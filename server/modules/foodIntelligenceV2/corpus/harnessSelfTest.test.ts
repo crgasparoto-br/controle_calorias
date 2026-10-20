@@ -158,7 +158,7 @@ describe("autoverificação do harness", () => {
       pinned
     );
     expect(report.resolveCalls).toBe(1);
-    expect(report.gate.status).toBe("blocked");
+    expect(report.gate.status).toBe("failed");
     expect(report.failures.some(failure => failure.codes.includes("resolver_error"))).toBe(true);
   });
 
@@ -371,8 +371,17 @@ describe("autoverificação do harness", () => {
     );
     // Toda tentativa fora da aquisição é rejeitada pela fachada, e o resolvedor
     // não tem outro caminho para escrever conhecimento.
-    expect(rejected).toHaveLength(corpus.cases.length);
+    // O runner mede os 75 casos antes de executar passos adicionais dos
+    // cenários de aprendizado. Não assumir que só há uma chamada por caso.
+    expect(rejected.length).toBeGreaterThanOrEqual(corpus.cases.length);
     expect(rejected.every(input => Object.isFrozen(input))).toBe(true);
+    const measuredCases = rejected
+      .slice(0, corpus.cases.length)
+      .map(input => JSON.stringify(input));
+    const expectedSurfaces = corpus.cases.map(entry =>
+      JSON.stringify(toCorpusCaseInput(entry))
+    );
+    expect(measuredCases).toStrictEqual(expectedSurfaces);
   });
 
   it("trata denominador zero como amostra ausente, nunca como zero", async () => {
