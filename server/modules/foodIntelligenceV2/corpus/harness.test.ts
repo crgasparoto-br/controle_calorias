@@ -109,20 +109,21 @@ describe("harness do Golden Food Corpus", () => {
     const seen: string[] = [];
     const providerSignals = new Map<string, string>();
     const priorMessagesSeen = new Map<string, readonly string[]>();
-    await runCorpus(
+    const textOf = (caseId: string) =>
+      goldenFoodCorpus.cases.find(entry => entry.caseId === caseId)!.input.text;
+    const report = await runCorpus(
       goldenFoodCorpus,
       {
         id: "test:entrada",
-        revision: "1",
+        revision: "self-test-2",
         resolve: request => {
           const keys = Object.keys(request.case as object).sort();
           seen.push(keys.join(","));
-          providerSignals.set(request.case.caseId, request.case.scenario.providerAvailability);
-          priorMessagesSeen.set(request.case.caseId, request.case.input.priorUserMessages.map(item => item.text));
+          providerSignals.set(request.case.input.text, request.case.scenario.providerAvailability);
+          priorMessagesSeen.set(request.case.input.text, request.case.input.priorUserMessages.map(item => item.text));
           expect(Object.isFrozen(request.case.input.priorUserMessages)).toBe(true);
           expect(Object.isFrozen(request.case.scenario)).toBe(true);
           expect(keys).toStrictEqual([
-            "caseId",
             "input",
             "mealOperation",
             "modality",
@@ -134,7 +135,7 @@ describe("harness do Golden Food Corpus", () => {
           expect(
             (request.case as unknown as Record<string, unknown>)["split"]
           ).toBeUndefined();
-          return { decisions: [] };
+          return reference().resolve(request);
         },
       },
       pinned
@@ -143,10 +144,12 @@ describe("harness do Golden Food Corpus", () => {
     // todos recebem a mesma entrada sanitizada.
     expect(new Set(seen).size).toBe(1);
     expect(seen.length).toBeGreaterThanOrEqual(goldenFoodCorpus.cases.length);
-    expect(providerSignals.get("c-provider-indisponivel")).toBe("unavailable");
-    expect(providerSignals.get("c-erro-digitacao-recorrente")).toBe("available");
-    expect(priorMessagesSeen.get("c-cafe-sem-acucar-memoria")).toEqual(["normalmente tomo café sem açúcar"]);
-    expect(priorMessagesSeen.get("c-leite-integral")).toEqual([]);
+    expect(report.gate.status).toBe("passed");
+    expect(report.failures).toHaveLength(0);
+    expect(providerSignals.get(textOf("c-provider-indisponivel"))).toBe("unavailable");
+    expect(providerSignals.get(textOf("c-erro-digitacao-recorrente"))).toBe("available");
+    expect(priorMessagesSeen.get(textOf("c-cafe-sem-acucar-memoria"))).toEqual(["normalmente tomo café sem açúcar"]);
+    expect(priorMessagesSeen.get(textOf("c-leite-integral"))).toEqual([]);
   });
 
   it("bloqueia quando as revisões não estão fixadas", async () => {
@@ -310,6 +313,9 @@ describe("harness do Golden Food Corpus", () => {
     const members = goldenFoodCorpus.cases
       .filter(entry => entry.metamorphicGroup === groupId)
       .map(entry => entry.caseId);
+    const memberTexts = members.map(caseId =>
+      goldenFoodCorpus.cases.find(entry => entry.caseId === caseId)!.input.text
+    );
     expect(members.length).toBeGreaterThanOrEqual(2);
     const delegate = reference();
     const report = await runCorpus(
@@ -318,8 +324,8 @@ describe("harness do Golden Food Corpus", () => {
         id: "test:macro-insufficient",
         revision: "1",
         resolve: request =>
-          members.includes(request.case.caseId) &&
-          request.case.caseId !== members[0]
+          memberTexts.includes(request.case.input.text) &&
+          request.case.input.text !== memberTexts[0]
             ? { decisions: [] }
             : delegate.resolve(request),
       },

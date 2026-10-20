@@ -8,6 +8,7 @@
  * reprovar (§4.1.8, §16.1, §18).
  */
 import {
+  type CorpusCaseInput,
   type CorpusResolverResult,
   type CorpusResolverUnderTest,
   type ExpectedDecision,
@@ -31,6 +32,27 @@ import type {
   FoodResolutionDecision,
   MealOperation,
 } from "../schemas";
+
+/**
+ * Private fixture identity channel for synthetic harness self-tests only.
+ * The normal CorpusResolverRequest never contains caseId, and no generic
+ * identifier reader is exported from this module or its binding facade.
+ *
+ * Synthetic oracle resolvers deliberately know the fixtures; they are not
+ * evidence of production Food Intelligence V2 resolution accuracy.
+ */
+const BOUND_CASES = new WeakMap<CorpusCaseInput, string>();
+
+export function bindCorpusCaseInput(
+  input: CorpusCaseInput,
+  source: GoldenCorpusCase
+): void {
+  BOUND_CASES.set(input, source.caseId);
+}
+
+function lookupBoundCorpusCaseId(input: CorpusCaseInput): string | undefined {
+  return BOUND_CASES.get(input);
+}
 
 const PREFERRED_ORIGINS: readonly FoodEvidenceOrigin[] = [
   "nutrition_label",
@@ -421,6 +443,44 @@ function resultFor(
   return { decisions, operation: operationFor(caseEntry) };
 }
 
+function sourceForInput(
+  corpus: GoldenCorpus,
+  input: Parameters<CorpusResolverUnderTest["resolve"]>[0]["case"]
+): GoldenCorpusCase {
+  const caseId = lookupBoundCorpusCaseId(input);
+  const source = corpus.cases.find(entry => entry.caseId === caseId);
+  if (!source) throw new Error("superfície sanitizada desconhecida");
+  return source;
+}
+
+/**
+ * Explicitly fixture-aware resolver double for harness SELF-TESTS only.
+ *
+ * The fixture is supplied by the synthetic double through the private WeakMap;
+ * the public CorpusResolverRequest never exposes it. This factory must never
+ * be used to claim productive resolver accuracy, or as an adapter for a
+ * productive candidate. No generic caseId/fixture lookup is exported.
+ */
+export function createSyntheticScenarioResolver(
+  corpus: GoldenCorpus,
+  testDouble: {
+    readonly id: string;
+    readonly revision: string;
+    resolve(
+      request: Parameters<CorpusResolverUnderTest["resolve"]>[0],
+      fixture: Readonly<GoldenCorpusCase>
+    ): ReturnType<CorpusResolverUnderTest["resolve"]>;
+  }
+): CorpusResolverUnderTest {
+  return {
+    id: testDouble.id,
+    revision: testDouble.revision,
+    resolve(request) {
+      return testDouble.resolve(request, sourceForInput(corpus, request.case));
+    },
+  };
+}
+
 function corpusIndex(corpus: GoldenCorpus) {
   return new Map(corpus.cases.map(entry => [entry.caseId, entry]));
 }
@@ -436,22 +496,21 @@ export function createReferenceResolver(
   return {
     id: "self-test:reference-oracle",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
       // §16.1 exige efeito observável: a fase de aquisição registra a chave e
       // os passos posteriores a **consultam**. Um resolvedor que devolve o
       // resultado por caseId sem consultar a fachada não prova aprendizado e
       // reprova na cadeia causal do harness.
       if (allowLearning && knowledge.mode === "acquisition") {
         await knowledge.write(
-          `${entry.scenario.ownerRef}:${ALIAS_KEY}`,
+          `${input.scenario.ownerRef}:${ALIAS_KEY}`,
           ALIAS_VALUE
         );
         return resultFor(source);
       }
       const learned = await knowledge.read(
-        `${entry.scenario.ownerRef}:${ALIAS_KEY}`
+        `${input.scenario.ownerRef}:${ALIAS_KEY}`
       );
       // Contra-factual declarado: dentro de um cenário, quando o alias não
       // existe na fachada, o resultado correto é o do estado anterior à
@@ -459,8 +518,8 @@ export function createReferenceResolver(
       // e não um rótulo devolvido por `caseId`.
       const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       if (
-        entry.scenario.phase !== null &&
-        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        input.scenario.phase !== null &&
+        ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         learned === null &&
         before
       ) {
@@ -487,10 +546,9 @@ export function createLearningResolver(
   return {
     id: "self-test:learning-resolver",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
-      const ownerRef = entry.scenario.ownerRef;
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
+      const ownerRef = input.scenario.ownerRef;
       const key = `${ownerRef}:${ALIAS_KEY}`;
 
       if (allowLearning && knowledge.mode === "acquisition") {
@@ -502,7 +560,7 @@ export function createLearningResolver(
       const acquired = byCaseId.get(acquiredCaseId);
       const before = byCaseId.get(BEFORE_ACQUISITION_CASE_ID);
       const appliesToSurface =
-        entry.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+        input.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
         "cafe da firma";
       if (learned !== null && appliesToSurface && acquired) {
         return resultFor(source, acquired);
@@ -511,8 +569,8 @@ export function createLearningResolver(
       // resultado correto é o do estado anterior à aquisição.
       if (
         learned === null &&
-        entry.scenario.phase !== null &&
-        ALIAS_DEPENDENT_CASE_IDS.has(entry.caseId) &&
+        input.scenario.phase !== null &&
+        ALIAS_DEPENDENT_CASE_IDS.has(source.caseId) &&
         before
       ) {
         return resultFor(source, before);
@@ -538,10 +596,9 @@ export function createCacheIgnoringRevocationResolver(
   return {
     id: "self-test:cache-ignoring-revocation",
     revision: "self-test-2",
-    async resolve({ case: entry, allowLearning, knowledge }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
-      const key = `${entry.scenario.ownerRef}:${ALIAS_KEY}`;
+    async resolve({ case: input, allowLearning, knowledge }) {
+      const source = sourceForInput(corpus, input);
+      const key = `${input.scenario.ownerRef}:${ALIAS_KEY}`;
 
       if (allowLearning && knowledge.mode === "acquisition") {
         await knowledge.write(key, ALIAS_VALUE);
@@ -551,7 +608,7 @@ export function createCacheIgnoringRevocationResolver(
 
       const acquired = byCaseId.get(acquiredCaseId);
       const appliesToSurface =
-        entry.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+        input.input.text.normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
         "cafe da firma";
       // Cache obsoleto: nunca consulta a fachada depois da aquisição.
       if (cache.has(key) && appliesToSurface && acquired) {
@@ -570,10 +627,11 @@ export function createShiftedResolver(
     id: "self-test:shifted-wrong",
     revision: "self-test-2",
     resolve({ case: entry }) {
+      const source = sourceForInput(corpus, entry);
       const index = corpus.cases.findIndex(
-        item => item.caseId === entry.caseId
+        item => item.caseId === source.caseId
       );
-      if (index === -1) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      if (index === -1) throw new Error("superfície sanitizada desconhecida");
       const next = corpus.cases[(index + 1) % corpus.cases.length];
       return resultFor(corpus.cases[index], next);
     },
@@ -598,10 +656,9 @@ export function createWrongConvergenceResolver(
     id: `self-test:wrong-convergence:${groupId}`,
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = corpus.cases.find(item => item.caseId === entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       const result = resultFor(source);
-      if (!members.has(entry.caseId)) return result;
+      if (!members.has(source.caseId)) return result;
       return {
         ...result,
         decisions: result.decisions.map(decision => ({
@@ -684,13 +741,11 @@ function syntheticAmbiguousExpectation(): ExpectedDecision {
 export function createAlwaysClarifyResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
-  const byCaseId = corpusIndex(corpus);
   return {
     id: "self-test:always-clarify",
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       return {
         decisions: [
           buildDecisionForExpected(source, syntheticAmbiguousExpectation(), 0),
@@ -766,6 +821,11 @@ export function createOracleLeakProbeResolver(
           "entrada do resolvedor expõe o resultado esperado (vazamento do oráculo)"
         );
       }
+      if (probe["caseId"] !== undefined) {
+        throw new Error(
+          "entrada do resolvedor expõe caseId estável (lookup do oráculo)"
+        );
+      }
       if (Object.isFrozen(request.case) === false) {
         throw new Error("entrada do resolvedor não está congelada");
       }
@@ -787,10 +847,11 @@ export function createHoldoutDeclaringWriterResolver(
     revision: "self-test-2",
     async resolve(request) {
       const result = await reference.resolve(request);
-      if (request.case.caseId.startsWith("c-aprendizado")) {
+      const source = sourceForInput(corpus, request.case);
+      if (source.caseId.startsWith("c-aprendizado")) {
         return {
           ...result,
-          knowledgeWrites: [`alias:${request.case.caseId}`],
+          knowledgeWrites: [`alias:${source.caseId}`],
         };
       }
       return result;
@@ -811,8 +872,9 @@ export function createHiddenHoldoutWriterResolver(
     id: "self-test:holdout-hidden-writer",
     revision: "self-test-2",
     async resolve(request) {
+      const source = sourceForInput(corpus, request.case);
       try {
-        await request.knowledge.write(`alias:${request.case.caseId}`, "x");
+        await request.knowledge.write(`alias:${source.caseId}`, "x");
       } catch {
         // A tentativa já está no ledger; o resolvedor segue como se nada
         // tivesse acontecido, exatamente como um efeito colateral oculto.
@@ -909,13 +971,11 @@ export function createInventedAlternativesResolver(
 export function createNutritionOriginDriftResolver(
   corpus: GoldenCorpus
 ): CorpusResolverUnderTest {
-  const byCaseId = corpusIndex(corpus);
   return {
     id: "self-test:nutrition-origin-drift",
     revision: "self-test-2",
     resolve({ case: entry }) {
-      const source = byCaseId.get(entry.caseId);
-      if (!source) throw new Error(`caso desconhecido: ${entry.caseId}`);
+      const source = sourceForInput(corpus, entry);
       return {
         decisions: source.expected.decisions.map((expected, index) =>
           buildDecisionForExpected(source, expected, index, {
