@@ -112,7 +112,60 @@ const testUpgrade = async f => {
   await mustReject(connection.query(eventSql, eventArgs), "review event retry must be idempotent");
   const [events] = await queryRows("SELECT COUNT(*) AS c FROM food_review_events WHERE case_id=?", [c.insertId]);
   assert.equal(Number(events.c), 1);
-  console.log(JSON.stringify({ event: "food_v2_migration_integration.passed", mode, variantId, currentProfileId: profile.id, reviewEvents: 1 }));
+  // Explicit profile supersession is transactional; historical meal references stay pinned.
+  const [replacement] = await connection.query(
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'ci-foodv2:profile', 2, 100, 'g', 260, 10, 48, 3, ?, ?)",
+    [variantId, f.sourceId, "c".repeat(64), profile.id]
+  );
+  await connection.beginTransaction();
+  try {
+    await connection.query(
+      "UPDATE food_nutrition_profiles SET current_slot=NULL, valid_to=NOW(), status='revoked' WHERE id=?",
+      [profile.id]
+    );
+    await connection.query(
+      "UPDATE food_nutrition_profiles SET current_slot=1, status='verified', verified_at=NOW() WHERE id=?",
+      [replacement.insertId]
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  }
+  await mustReject(pool.query(
+    "UPDATE food_nutrition_profiles SET current_slot=1, valid_to=NULL WHERE id=?",
+    [profile.id]
+  ), "former version cannot become current while its successor is current");
+  const [legacyProfile] = await queryRows(
+    "SELECT status, current_slot FROM food_nutrition_profiles WHERE id=?",
+    [profile.id]
+  );
+  assert.equal(legacyProfile.status, "revoked");
+  assert.equal(legacyProfile.current_slot, null);
+  const [historicalMeal] = await queryRows(
+    "SELECT nutritionProfileId FROM mealItems WHERE id=?",
+    [f.mealItemId]
+  );
+  assert.equal(historicalMeal.nutritionProfileId, profile.id, "historical meal remains bound to its original profile");
+  await assertLegacy(f, true);
+
+  // Revocation must preserve the retired personal alias and allow a new current record.
+  await connection.query(
+    "UPDATE user_food_aliases SET status='revoked', current_slot=NULL, revoked_at=NOW() WHERE user_id=? AND normalized_alias='meu pao'",
+    [f.userId]
+  );
+  await connection.query(
+    "INSERT INTO user_food_aliases (user_id, food_variant_id, alias, normalized_alias, source) VALUES (?, ?, 'meu pão', 'meu pao', 'user_confirmed')",
+    [f.userId, variantId]
+  );
+  const [aliasHistory] = await queryRows(
+    "SELECT COUNT(*) AS total, SUM(status='active') AS active FROM user_food_aliases WHERE user_id=? AND normalized_alias='meu pao'",
+    [f.userId]
+  );
+  assert.equal(Number(aliasHistory.total), 2);
+  assert.equal(Number(aliasHistory.active), 1);
+
+  console.log(JSON.stringify({ event: "food_v2_migration_integration.passed", mode, variantId, currentProfileId: profile.id, reviewEvents: 1, successorProfileId: replacement.insertId, aliasHistoryCount: 2 }));
 };
 
 try {
