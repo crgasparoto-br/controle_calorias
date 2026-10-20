@@ -10,6 +10,11 @@ if (process.env.FOOD_V2_TEST_DB_ISOLATED !== "1" || !databaseUrl || !["upgrade",
 const dbName = new URL(databaseUrl).pathname.replace(/^\//, "");
 if (dbName !== `ci_foodv2_${mode}`) throw new Error("Refusing to change a database outside the dedicated CI fixture.");
 const connection = await mysql.createConnection({ uri: databaseUrl, multipleStatements: false });
+const [[checkSetting]] = await connection.query("SHOW GLOBAL VARIABLES LIKE 'tidb_enable_check_constraint'");
+if (checkSetting && String(checkSetting.Value).toUpperCase() !== "ON") {
+  await connection.end();
+  throw new Error("TiDB CHECK enforcement is OFF; the V2 migration cannot be safely accepted.");
+}
 const pool = mysql.createPool({ uri: databaseUrl, connectionLimit: 4 });
 
 const seed = async () => {
