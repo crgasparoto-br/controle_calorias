@@ -1,6 +1,6 @@
 // Issue #1301 — Estruturas aditivas V2. O runtime legado continua ativo até o Gate B.
 import { sql } from "drizzle-orm";
-import { type AnyMySqlColumn, check, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
+import { type AnyMySqlColumn, bigint, check, index, int, double, text, timestamp, varchar, mysqlEnum, mysqlTable, uniqueIndex } from "drizzle-orm/mysql-core";
 import { foodBrands, foodSources, foods, users, foodPortions } from "./schema";
 
 export const foodVariants = mysqlTable("food_variants", {
@@ -237,7 +237,7 @@ export const foodReviewEvents = mysqlTable("food_review_events", {
 }));
 
 export const foodResolutionEvents = mysqlTable("food_resolution_events", {
-  id: int("id").autoincrement().primaryKey(),
+  id: bigint("id", { mode: "bigint" }).autoincrement().primaryKey(),
   traceId: varchar("trace_id", { length: 120 }).notNull(),
   userId: int("user_id").references(() => users.id, { onDelete: "restrict" }),
   modality: varchar("modality", { length: 40 }).notNull(),
