@@ -27,6 +27,29 @@ export const nullableText = (max: number) =>
 export const finiteNumber = z.number().finite();
 export const nonNegativeNumber = z.number().finite().min(0);
 export const nullableNonNegativeNumber = z.number().finite().min(0).nullable();
+
+/**
+ * Unidade do nutriente é metadado do contrato, não classificação por texto
+ * alimentar. Validadores e adapters usam o mesmo schema para evitar decisões
+ * lexicais/hardcodes em fluxo produtivo.
+ */
+export const foodNutritionValuesSchema = z.strictObject({
+  calories: nonNegativeNumber.describe("kcal"),
+  protein: nonNegativeNumber.describe("g"),
+  carbs: nonNegativeNumber.describe("g"),
+  fat: nonNegativeNumber.describe("g"),
+  fiber: nullableNonNegativeNumber.describe("g"),
+  sugar: nullableNonNegativeNumber.describe("g"),
+  sodiumMg: nullableNonNegativeNumber.describe("mg"),
+});
+
+type FoodNutrientKey = keyof typeof foodNutritionValuesSchema.shape;
+export const foodNutrientKeyByEvidenceField = new Map<string, FoodNutrientKey>(
+  Object.keys(foodNutritionValuesSchema.shape).map(key => [
+    `nutrition.${key}`,
+    key as FoodNutrientKey,
+  ])
+);
 export const evidenceIdList = z.array(opaqueId()).max(FOOD_CONTRACT_LIMITS.collection);
 
 export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
