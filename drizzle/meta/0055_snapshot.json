@@ -13940,10 +13940,6 @@
         "food_variants_ck0": {
           "name": "food_variants_ck0",
           "value": "revision > 0"
-        },
-        "food_variants_ck1": {
-          "name": "food_variants_ck1",
-          "value": "merged_into_variant_id IS NULL OR merged_into_variant_id <> id"
         }
       }
     },
@@ -15406,10 +15402,6 @@
         "food_review_cases_ck3": {
           "name": "food_review_cases_ck3",
           "value": "outcome <> 'superseded' OR superseded_by_case_id IS NOT NULL"
-        },
-        "food_review_cases_ck4": {
-          "name": "food_review_cases_ck4",
-          "value": "superseded_by_case_id IS NULL OR superseded_by_case_id <> id"
         }
       }
     },
