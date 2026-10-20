@@ -337,6 +337,15 @@ export function resumePendingOperation(
     };
   }
 
+  if (Date.parse(pending.expiresAt) <= Date.parse(pending.createdAt)) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-time",
+      detail:
+        "Pendência V2 persistida possui expiresAt não posterior a createdAt; nenhum efeito é aplicado.",
+    };
+  }
+
   if (Date.parse(request.now) >= Date.parse(pending.expiresAt)) {
     return {
       resumed: false,

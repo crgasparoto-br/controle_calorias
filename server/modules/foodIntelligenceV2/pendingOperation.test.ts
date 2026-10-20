@@ -235,6 +235,13 @@ describe("retomada da pendência", () => {
       [{ expiresAt: "2026-02-31T12:30:00.000Z" }, "invalid-pending-time"],
       [{ expiresAt: "2026-10-05T12:30:00" }, "invalid-pending-time"],
       [{ createdAt: "not-an-instant" }, "invalid-pending-time"],
+      [
+        {
+          createdAt: "2026-10-05T12:40:00.000Z",
+          expiresAt: "2026-10-05T12:20:00.000Z",
+        },
+        "invalid-pending-time",
+      ],
       [{ target: { mealLabel: "almoço", date: "2026-02-31" } }, "invalid-pending-time"],
     ];
 
@@ -284,6 +291,25 @@ describe("efeito idempotente e sobrevivência a restart", () => {
   it("não aplica efeito quando a pendência persistida tem tempo inválido", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation({ expiresAt: "2026-02-31T12:30:00.000Z" }));
+
+    const result = applyEffect(store);
+
+    expect(result).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "invalid-pending-time",
+    });
+    expect(store.get("op-1")?.effect).toBeNull();
+  });
+
+  it("não aplica efeito quando expiresAt persistido não sucede createdAt", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(
+      buildOperation({
+        createdAt: "2026-10-05T12:40:00.000Z",
+        expiresAt: "2026-10-05T12:20:00.000Z",
+      })
+    );
 
     const result = applyEffect(store);
 
