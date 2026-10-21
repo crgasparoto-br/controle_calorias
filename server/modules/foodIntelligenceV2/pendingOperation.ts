@@ -25,7 +25,6 @@ import {
 } from "./contracts";
 import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
 import {
-  assertMonotonicPendingSave,
   isNonEmpty,
   isOpaqueIdentifier,
   isPositiveInteger,
@@ -293,6 +292,29 @@ export function resumePendingOperation(
   pending: PendingOperation,
   request: PendingOperationRequest
 ): PendingOperationResumeResult {
+  if (!pending || typeof pending !== "object" || !request || typeof request !== "object") {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência ou requisição malformada; retomada recusada sem efeito.",
+    };
+  }
+  if (pending.versionTag === undefined) {
+    return {
+      resumed: false,
+      reason: "pending-version-missing",
+      detail: "Tag de versão ausente: somente null explícito identifica pendência legada.",
+    };
+  }
+  if (pending.versionTag !== null &&
+      (typeof pending.versionTag !== "object" || Array.isArray(pending.versionTag) ||
+        !Number.isInteger(pending.versionTag.contractVersion))) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Tag de versão persistida inválida; nenhuma versão é inferida.",
+    };
+  }
   if (pending.operationKey !== request.operationKey) {
     return {
       resumed: false,
@@ -374,7 +396,7 @@ export function resumePendingOperation(
   }
 
   // Na retomada, reaplicar o contrato completo usado na criação.
-  if (!createPendingOperationV2({ ...pending, versionTag: pinned }).ok) {
+  if (!isValidPersistedV2Operation(pending)) {
     return {
       resumed: false,
       reason: "invalid-pending-operation",
@@ -424,133 +446,21 @@ export function resumePendingOperation(
   return { resumed: true, pending, versions: pinned };
 }
 
-/**
- * Aplica o efeito da pendência de forma idempotente.
- *
- * Restart/retry com a mesma chave nunca duplica o efeito: a segunda aplicação
- * devolve o efeito já registrado (`duplicate=true`).
- */
-export function applyPendingOperationEffect(
-  store: PendingOperationStore,
-  input: {
-    request: PendingOperationRequest;
-    effect: PendingOperationEffect;
+/** Validação de estado V2 deserializado ou entregue por callers em runtime. */
+export function isValidPersistedV2Operation(pending: PendingOperation): boolean {
+  if (!pending || typeof pending !== "object" ||
+      pending.versionTag === null || typeof pending.versionTag !== "object" ||
+      !createPendingOperationV2({ ...pending, versionTag: pending.versionTag }).ok) {
+    return false;
   }
-): PendingOperationEffectResult {
-  const pending = store.get(input.request.operationKey);
-  if (!pending || pending.ownerUserId !== input.request.ownerUserId) {
-    throw new Error("Pendência não encontrada para aplicação de efeito.");
-  }
-  const resumed = resumePendingOperation(pending, input.request);
-  if (!resumed.resumed) {
-    return {
-      applied: false,
-      duplicate: false,
-      reason: resumed.reason,
-      detail: resumed.detail,
-    };
-  }
-  if (pending.effect) {
-    if (
-      !isValidPendingOperationEffect(pending.effect) ||
-      Date.parse(pending.effect.appliedAt) < Date.parse(pending.createdAt) ||
-      Date.parse(pending.effect.appliedAt) >= Date.parse(pending.expiresAt)
-    ) {
-      return {
-        applied: false,
-        duplicate: false,
-        reason: "invalid-pending-time",
-        detail:
-          "Efeito persistido possui appliedAt ou identificadores inválidos; nenhum retry é reconhecido como duplicata.",
-      };
-    }
-    return { applied: false, duplicate: true, effect: pending.effect };
-  }
-  if (
-    !isValidPendingOperationEffect(input.effect) ||
-    Date.parse(input.effect.appliedAt) < Date.parse(pending.createdAt) ||
-    Date.parse(input.effect.appliedAt) < Date.parse(input.request.now) ||
-    Date.parse(input.effect.appliedAt) >= Date.parse(pending.expiresAt)
-  ) {
-    return {
-      applied: false,
-      duplicate: false,
-      reason: "invalid-pending-time",
-      detail:
-        "Efeito recebido possui appliedAt ou identificadores inválidos; nenhum efeito é persistido.",
-    };
-  }
-  const applied: PendingOperationEffect = { ...input.effect };
-  store.save({ ...pending, effect: applied });
-  return { applied: true, duplicate: false, effect: applied };
+  if (pending.effect === null) return true;
+  return isValidPendingOperationEffect(pending.effect) &&
+    Date.parse(pending.effect.appliedAt) >= Date.parse(pending.createdAt) &&
+    Date.parse(pending.effect.appliedAt) < Date.parse(pending.expiresAt);
 }
 
-export type PendingOperationStoreState = {
-  schemaVersion: 1;
-  operations: PendingOperation[];
-};
-
-export type PendingOperationStore = {
-  get(operationKey: string): PendingOperation | null;
-  save(pending: PendingOperation): void;
-  exportState(): PendingOperationStoreState;
-};
-
-/**
- * Store serializável usado para provar que a pendência versionada sobrevive a
- * restart sem efeito duplicado. A persistência durável é entregue pela #1301.
- */
-export function createInMemoryPendingOperationStore(
-  initialState?: PendingOperationStoreState
-): PendingOperationStore {
-  if (initialState && (initialState.schemaVersion !== 1 || !Array.isArray(initialState.operations))) {
-    throw new Error("Envelope de pendências persistidas possui versão ou coleção inválida.");
-  }
-  const operations = new Map<string, PendingOperation>();
-  for (const pending of initialState?.operations ?? []) {
-    if (!pending || typeof pending.operationKey !== "string" ||
-        operations.has(pending.operationKey) ||
-        pending.versionTag === undefined ||
-        (pending.versionTag !== null && typeof pending.versionTag !== "object")) {
-      throw new Error("Pendência persistida malformada ou chave duplicada.");
-    }
-    if (classifyPendingOperationOwner(pending) === "v2" &&
-        (!createPendingOperationV2({ ...pending, versionTag: pending.versionTag! }).ok ||
-          (pending.effect !== null &&
-           (!isValidPendingOperationEffect(pending.effect) ||
-            Date.parse(pending.effect.appliedAt) < Date.parse(pending.createdAt) ||
-            Date.parse(pending.effect.appliedAt) >= Date.parse(pending.expiresAt))))) {
-      throw new Error("Pendência V2 persistida inválida; restauração recusada.");
-    }
-    operations.set(pending.operationKey, clonePendingOperation(pending));
-  }
-
-  return {
-    get(operationKey) {
-      const pending = operations.get(operationKey);
-      return pending ? clonePendingOperation(pending) : null;
-    },
-    save(pending) {
-      const existing = operations.get(pending.operationKey);
-      if (existing) assertMonotonicPendingSave(existing, pending);
-      operations.set(pending.operationKey, clonePendingOperation(pending));
-    },
-    exportState() {
-      return {
-        schemaVersion: 1,
-        operations: [...operations.values()].map(clonePendingOperation),
-      };
-    },
-  };
-}
-
-function clonePendingOperation(pending: PendingOperation): PendingOperation {
-  return {
-    ...pending,
-    observationIds: [...pending.observationIds],
-    target: { ...pending.target },
-    versionTag: pending.versionTag ? { ...pending.versionTag } : null,
-    question: pending.question ? { ...pending.question } : null,
-    effect: pending.effect ? { ...pending.effect } : null,
-  };
-}
+export {
+  applyPendingOperationEffect,
+  createInMemoryPendingOperationStore,
+} from "./pendingOperationStore";
+export type { PendingOperationStore, PendingOperationStoreState } from "./pendingOperationStore";

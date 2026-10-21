@@ -377,20 +377,15 @@ describe("efeito idempotente e sobrevivência a restart", () => {
       expect(store.get("op-1")?.effect).toBeNull();
 
       const stale = createInMemoryPendingOperationStore();
-      stale.save(buildOperation({
+      expect(() => stale.save(buildOperation({
         effect: {
           effectId: "eff-1",
           appliedAt: "2026-10-05T12:06:00.000Z",
           mealItemId: "item-1",
           ...changes,
         },
-      }));
-      const replayed = applyEffect(stale);
-      expect(replayed).toMatchObject({
-        applied: false,
-        duplicate: false,
-        reason: "invalid-pending-time",
-      });
+      }))).toThrow("Pendência V2 persistida inválida");
+      expect(stale.exportState().operations).toHaveLength(0);
     }
   });
 
@@ -411,13 +406,10 @@ describe("efeito idempotente e sobrevivência a restart", () => {
 
   it("não aplica efeito quando a pendência persistida tem tempo inválido", () => {
     const store = createInMemoryPendingOperationStore();
-    store.save(buildOperation({ expiresAt: "2026-02-31T12:30:00.000Z" }));
-
-    const result = applyEffect(store);
-
-    expect(result).toMatchObject({
-      applied: false,
-      duplicate: false,
+    const invalid = buildOperation({ expiresAt: "2026-02-31T12:30:00.000Z" });
+    expect(() => store.save(invalid)).toThrow("Pendência V2 persistida inválida");
+    expect(resumePendingOperation(invalid, buildRequest())).toMatchObject({
+      resumed: false,
       reason: "invalid-pending-time",
     });
     expect(store.get("op-1")?.effect).toBeNull();
@@ -425,18 +417,13 @@ describe("efeito idempotente e sobrevivência a restart", () => {
 
   it("não aplica efeito quando expiresAt persistido não sucede createdAt", () => {
     const store = createInMemoryPendingOperationStore();
-    store.save(
-      buildOperation({
-        createdAt: "2026-10-05T12:40:00.000Z",
-        expiresAt: "2026-10-05T12:20:00.000Z",
-      })
-    );
-
-    const result = applyEffect(store);
-
-    expect(result).toMatchObject({
-      applied: false,
-      duplicate: false,
+    const invalid = buildOperation({
+      createdAt: "2026-10-05T12:40:00.000Z",
+      expiresAt: "2026-10-05T12:20:00.000Z",
+    });
+    expect(() => store.save(invalid)).toThrow("Pendência V2 persistida inválida");
+    expect(resumePendingOperation(invalid, buildRequest())).toMatchObject({
+      resumed: false,
       reason: "invalid-pending-time",
     });
     expect(store.get("op-1")?.effect).toBeNull();
@@ -460,46 +447,34 @@ describe("efeito idempotente e sobrevivência a restart", () => {
 
   it("valida pendência e efeito persistidos antes de retornar duplicate", () => {
     const store = createInMemoryPendingOperationStore();
-    store.save(
-      buildOperation({
-        effect: {
-          effectId: "eff-1",
-          appliedAt: "2026-02-31T12:06:00.000Z",
-          mealItemId: "item-1",
-        },
-      })
-    );
-
-    const result = applyEffect(store);
-
-    expect(result).toMatchObject({
-      applied: false,
-      duplicate: false,
-      reason: "invalid-pending-time",
+    const invalid = buildOperation({
+      effect: {
+        effectId: "eff-1",
+        appliedAt: "2026-02-31T12:06:00.000Z",
+        mealItemId: "item-1",
+      },
     });
-    expect(store.get("op-1")?.effect?.appliedAt).toBe(
-      "2026-02-31T12:06:00.000Z"
-    );
+    expect(() => store.save(invalid)).toThrow("Pendência V2 persistida inválida");
+    expect(resumePendingOperation(invalid, buildRequest())).toMatchObject({
+      resumed: false,
+      reason: "invalid-pending-operation",
+    });
+    expect(store.get("op-1")).toBeNull();
   });
 
   it("não retorna duplicate quando a pendência persistida tem tempo inválido", () => {
     const store = createInMemoryPendingOperationStore();
-    store.save(
-      buildOperation({
-        expiresAt: "2026-02-31T12:30:00.000Z",
-        effect: {
-          effectId: "eff-1",
-          appliedAt: "2026-10-05T12:06:00.000Z",
-          mealItemId: "item-1",
-        },
-      })
-    );
-
-    const result = applyEffect(store);
-
-    expect(result).toMatchObject({
-      applied: false,
-      duplicate: false,
+    const invalid = buildOperation({
+      expiresAt: "2026-02-31T12:30:00.000Z",
+      effect: {
+        effectId: "eff-1",
+        appliedAt: "2026-10-05T12:06:00.000Z",
+        mealItemId: "item-1",
+      },
+    });
+    expect(() => store.save(invalid)).toThrow("Pendência V2 persistida inválida");
+    expect(resumePendingOperation(invalid, buildRequest())).toMatchObject({
+      resumed: false,
       reason: "invalid-pending-time",
     });
   });
@@ -544,13 +519,12 @@ describe("efeito idempotente e sobrevivência a restart", () => {
       "2026-10-05T12:30:00.000Z",
       "2026-10-05T12:40:00.000Z",
     ]) {
+      const invalid = buildOperation({
+        effect: { effectId: "eff-1", appliedAt, mealItemId: "item-1" },
+      });
       const store = createInMemoryPendingOperationStore();
-      store.save(
-        buildOperation({
-          effect: { effectId: "eff-1", appliedAt, mealItemId: "item-1" },
-        })
-      );
-      const state = store.exportState();
+      expect(() => store.save(invalid)).toThrow("Pendência V2 persistida inválida");
+      const state = { schemaVersion: 1 as const, operations: [invalid] };
       // A restauração agora rejeita o estado inválido antes de qualquer retry.
       expect(() => createInMemoryPendingOperationStore(state)).toThrow(
         "Pendência V2 persistida inválida; restauração recusada."
@@ -664,6 +638,79 @@ describe("efeito idempotente e sobrevivência a restart", () => {
 
     expect(first).toMatchObject({ applied: true, duplicate: false });
     expect(other).toMatchObject({ applied: true, duplicate: false });
+  });
+
+  it("A-1298-011: save recusa dados inválidos antes de alterar o store", () => {
+    const store = createInMemoryPendingOperationStore();
+    const pristine = store.exportState();
+    for (const invalid of [
+      buildOperation({ ownerUserId: 0 }),
+      buildOperation({ observationIds: ["obs-1", "obs-1"] }),
+      buildOperation({ target: { mealLabel: "", date: "2026-10-05" } }),
+      buildOperation({ versionTag: undefined as never }),
+    ]) {
+      expect(() => store.save(invalid)).toThrow();
+      expect(store.exportState()).toStrictEqual(pristine);
+    }
+    const existing = buildOperation();
+    store.save(existing);
+    const before = store.exportState();
+    expect(() => store.save({ ...existing, ownerUserId: 0 })).toThrow();
+    expect(store.exportState()).toStrictEqual(before);
+  });
+
+  it("A-1298-011: save não fabrica efeito confirmado nem duplicata", () => {
+    const store = createInMemoryPendingOperationStore();
+    const pending = buildOperation();
+    const effect = {
+      effectId: "forged-effect",
+      appliedAt: "2026-10-05T12:06:00.000Z",
+      mealItemId: "forged-item",
+    };
+    expect(() => store.save({ ...pending, effect })).toThrow(
+      "Nova pendência não pode declarar efeito"
+    );
+    expect(store.exportState().operations).toHaveLength(0);
+    store.save(pending);
+    const initial = store.exportState();
+    expect(() => store.save({ ...pending, effect })).toThrow(
+      "Efeito só pode ser confirmado"
+    );
+    expect(store.exportState()).toStrictEqual(initial);
+    const first = applyEffect(store);
+    expect(first).toMatchObject({ applied: true, duplicate: false });
+    const committed = store.exportState();
+    store.save(structuredClone(committed.operations[0]));
+    expect(store.exportState()).toStrictEqual(committed);
+    expect(applyEffect(createInMemoryPendingOperationStore(committed))).toMatchObject({
+      applied: false,
+      duplicate: true,
+    });
+  });
+
+  it("A-1298-012: retomar pendência malformada nunca lança exceção nem gera efeito", () => {
+    const base = buildOperation();
+    for (const [invalid, reason] of [
+      [{ ...base, versionTag: undefined }, "pending-version-missing"],
+      [{ ...base, versionTag: false }, "invalid-pending-operation"],
+      [{ ...base, versionTag: {} }, "invalid-pending-operation"],
+      [{ ...base, effect: {
+        effectId: "eff-1", appliedAt: "not-a-date", mealItemId: "item-1",
+      } }, "invalid-pending-operation"],
+      [{ ...base, effect: {
+        effectId: "eff-1", appliedAt: "2026-10-05T12:40:00.000Z", mealItemId: "item-1",
+      } }, "invalid-pending-operation"],
+    ] as const) {
+      const original = structuredClone(invalid);
+      const result = resumePendingOperation(invalid as unknown as PendingOperation, buildRequest());
+      expect(result.resumed, reason).toBe(false);
+      if (!result.resumed) expect(result.reason).toBe(reason);
+      expect(invalid).toStrictEqual(original);
+    }
+    expect(resumePendingOperation(null as never, buildRequest())).toMatchObject({
+      resumed: false,
+      reason: "invalid-pending-operation",
+    });
   });
 
   it("exporta estado sem expor a coleção interna", () => {

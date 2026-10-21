@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { buildFoodResolutionDecisionFixture } from "./fixtures";
 import { parseFoodResolutionDecision } from "./schemas";
 import {
-  applyPendingOperationEffect,
   createInMemoryPendingOperationStore,
   createPendingOperationV2,
   resumePendingOperation,
@@ -94,21 +93,13 @@ describe("A-1298-008: pendência desserializada não contorna o contrato V2", ()
     ];
     for (const candidate of cases) {
       const store = createInMemoryPendingOperationStore();
-      store.save(candidate);
       const input = { ...request, ownerUserId: candidate.ownerUserId };
       const original = structuredClone(store.exportState());
       const resumed = resumePendingOperation(candidate, input);
       expect(resumed.resumed).toBe(false);
       if (resumed.resumed) throw new Error("retomada inválida");
       expect(resumed.reason).toBe("invalid-pending-operation");
-      expect(applyPendingOperationEffect(store, {
-        request: input,
-        effect: {
-          effectId: "effect-1",
-          appliedAt: "2026-10-05T12:06:00.000Z",
-          mealItemId: "item-1",
-        },
-      })).toMatchObject({ applied: false, duplicate: false });
+      expect(() => store.save(candidate)).toThrow("Pendência V2 persistida inválida");
       expect(store.exportState()).toStrictEqual(original);
     }
   });
