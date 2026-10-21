@@ -27,6 +27,9 @@ describe("B2 catalog reconciliation provenance", () => {
   it("quarantines no source, mismatched code, URL, macros, name, brand and scope", () => {
     for (const diff of [
       { researchIdentityKey: "OTHER" }, { sourceUrls: "[]" },
+      { sourceUrls: JSON.stringify(["https://reference.example.attacker.invalid/products/ITEM-1"]) },
+      { sourceUrls: JSON.stringify(["http://reference.example/products/ITEM-1"]) },
+      { sourceUrls: "https://reference.example/products/ITEM-1" },
       { calories: 99 }, { name: "Another food" }, { brandName: "Other" },
       { createdByUserId: 44 }, { isUserCreated: 1 }, { sourceVerifiedAt: null },
     ]) expect(findTraceableCatalogFamily({ ...catalog, ...diff }, [family], sources)).toBeNull();

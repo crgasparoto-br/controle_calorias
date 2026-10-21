@@ -26,6 +26,27 @@ function sameNutrition(value: number, grams: number, per100: number): boolean {
     Math.abs(value * 100 / grams - per100) <= 0.05;
 }
 
+function catalogCitesSource(raw: string, sourceUrl: string): boolean {
+  try {
+    const decoded: unknown = JSON.parse(raw);
+    const references = Array.isArray(decoded) ? decoded :
+      typeof decoded === "string" ? [decoded] : [];
+    const primary = new URL(sourceUrl);
+    if (primary.protocol !== "https:") return false;
+    const prefix = primary.pathname.endsWith("/") ? primary.pathname : primary.pathname + "/";
+    return references.some(reference => {
+      if (typeof reference !== "string") return false;
+      try {
+        const exact = new URL(reference);
+        return exact.protocol === "https:" && exact.origin === primary.origin &&
+          (exact.pathname === primary.pathname || exact.pathname.startsWith(prefix));
+      } catch { return false; }
+    });
+  } catch {
+    return false;
+  }
+}
+
 /** No name-only or generic-source fuzzy link is allowed. A catalog row
  * without an independent legacy source key stays in quarantine. */
 export function findTraceableCatalogFamily<T extends TraceableFamily>(
@@ -46,7 +67,7 @@ export function findTraceableCatalogFamily<T extends TraceableFamily>(
         normalizeFoodName(family.brandName ?? "") !== brand) return false;
     const source = sources.get(family.sourceId)?.source;
     if (!source?.sourceUrl || catalog.dataSource !== source.slug ||
-        !catalog.sourceUrls?.includes(source.sourceUrl)) return false;
+        !catalogCitesSource(catalog.sourceUrls, source.sourceUrl)) return false;
     if (catalog.researchIdentityKey !== family.sourceFoodCode &&
         catalog.researchIdentityKey !== source.slug + ":" + family.sourceFoodCode) return false;
     return sameNutrition(catalog.calories, catalog.gramsPerServing, family.caloriesKcalPer100g) &&
