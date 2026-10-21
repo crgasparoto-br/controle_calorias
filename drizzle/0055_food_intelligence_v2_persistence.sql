@@ -92,6 +92,8 @@ CREATE UNIQUE INDEX `food_variants_u0` ON `food_variants` (`identity_key`);
 --> statement-breakpoint
 CREATE INDEX `food_variants_i0` ON `food_variants` (`food_id`,`status`);
 --> statement-breakpoint
+CREATE INDEX `food_variants_i1` ON `food_variants` (`brand_id`,`normalized_name`,`status`);
+--> statement-breakpoint
 CREATE TABLE `food_variant_sources` (
   `id` int AUTO_INCREMENT NOT NULL,
   `food_variant_id` int NOT NULL,
@@ -151,6 +153,8 @@ CREATE UNIQUE INDEX `food_nutrition_profi_u0` ON `food_nutrition_profiles` (`pro
 CREATE UNIQUE INDEX `food_nutrition_profi_u1` ON `food_nutrition_profiles` (`profile_key`,`current_slot`);
 --> statement-breakpoint
 CREATE INDEX `food_nutrition_profi_i0` ON `food_nutrition_profiles` (`food_variant_id`,`status`);
+--> statement-breakpoint
+CREATE INDEX `food_nutrition_profi_i1` ON `food_nutrition_profiles` (`food_variant_id`,`status`,`valid_from`,`valid_to`);
 --> statement-breakpoint
 CREATE TABLE `food_variant_classifications` (
   `id` int AUTO_INCREMENT NOT NULL,
@@ -277,6 +281,8 @@ CREATE UNIQUE INDEX `food_review_cases_u0` ON `food_review_cases` (`case_key`);
 --> statement-breakpoint
 CREATE INDEX `food_review_cases_i0` ON `food_review_cases` (`status`,`priority_score`);
 --> statement-breakpoint
+CREATE INDEX `food_review_cases_i1` ON `food_review_cases` (`status`,`priority_score`,`cycle_opened_at`,`id`);
+--> statement-breakpoint
 CREATE TABLE `food_review_events` (
   `id` int AUTO_INCREMENT NOT NULL,
   `case_id` int NOT NULL,
@@ -330,6 +336,10 @@ CREATE TABLE `food_resolution_events` (
 CREATE UNIQUE INDEX `food_resolution_even_u0` ON `food_resolution_events` (`trace_id`);
 --> statement-breakpoint
 CREATE INDEX `food_resolution_even_i0` ON `food_resolution_events` (`expires_at`);
+--> statement-breakpoint
+CREATE INDEX `food_resolution_even_i1` ON `food_resolution_events` (`user_id`,`created_at`);
+--> statement-breakpoint
+CREATE INDEX `food_resolution_even_i2` ON `food_resolution_events` (`food_variant_id`,`created_at`);
 --> statement-breakpoint
 CREATE TABLE `food_lexicon_entries` (
   `id` int AUTO_INCREMENT NOT NULL,

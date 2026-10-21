@@ -68,6 +68,20 @@ describe("#1301 V2 migration invariants", () => {
     expect(snapshot.tables.food_evidence.columns.retention_guard).toMatchObject({ notNull: true, generated: { mode: "virtual" } });
     expect(snapshot.tables.food_review_cases.columns.supersession_guard).toMatchObject({ notNull: true, generated: { mode: "virtual" } });
   });
+  it("AUD-1301-006 covers required read paths in migration and generated snapshot", () => {
+    const indexes: Array<[string, string, string[]]> = [
+      ["food_variants", "food_variants_i1", ["brand_id", "normalized_name", "status"]],
+      ["food_nutrition_profiles", "food_nutrition_profi_i1", ["food_variant_id", "status", "valid_from", "valid_to"]],
+      ["food_review_cases", "food_review_cases_i1", ["status", "priority_score", "cycle_opened_at", "id"]],
+      ["food_resolution_events", "food_resolution_even_i1", ["user_id", "created_at"]],
+      ["food_resolution_events", "food_resolution_even_i2", ["food_variant_id", "created_at"]],
+    ];
+    for (const [table, name, columns] of indexes) {
+      expect(snapshot.tables[table].indexes[name]).toMatchObject({ columns, isUnique: false });
+      const ddl = `CREATE INDEX \`${name}\` ON \`${table}\` (${columns.map(column => `\`${column}\``).join(",")});`;
+      expect(migration).toContain(ddl);
+    }
+  });
   it("contains a guarded reverse migration that never deletes legacy food tables", () => {
     for (const table of expected) expect(rollback).toContain("DROP TABLE `" + table + "`");
     expect(rollback).not.toMatch(/DROP TABLE `(?:foods|foodCatalog|mealItems|food_aliases|food_portions)`/);

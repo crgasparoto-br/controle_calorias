@@ -35,3 +35,21 @@ test("script de rollback reverte apenas estruturas novas",()=>{
  assert.doesNotMatch(rollback,/DROP TABLE `(?:foods|foodCatalog|mealItems|food_aliases|food_portions)`/);
  assert.ok(rollback.indexOf("DROP TABLE `food_nutrition_profiles`") < rollback.indexOf("DROP TABLE `food_variant_sources`"));
 });
+
+// AUD-1301-006 — contract and drift control for read indexes required by ADR §8.10.
+const requiredReadIndexes = [
+  ["food_variants", "food_variants_i1", ["brand_id", "normalized_name", "status"], ["brandId", "normalizedName", "status"]],
+  ["food_nutrition_profiles", "food_nutrition_profi_i1", ["food_variant_id", "status", "valid_from", "valid_to"], ["foodVariantId", "status", "validFrom", "validTo"]],
+  ["food_review_cases", "food_review_cases_i1", ["status", "priority_score", "cycle_opened_at", "id"], ["status", "priorityScore", "cycleOpenedAt", "id"]],
+  ["food_resolution_events", "food_resolution_even_i1", ["user_id", "created_at"], ["userId", "createdAt"]],
+  ["food_resolution_events", "food_resolution_even_i2", ["food_variant_id", "created_at"], ["foodVariantId", "createdAt"]],
+];
+const snapshot = JSON.parse(readFileSync(new URL("../drizzle/meta/0055_snapshot.json", import.meta.url), "utf8"));
+test("AUD-1301-006: all ADR read indexes match SQL, Drizzle and generated snapshot", () => {
+  for (const [table, name, columns, drizzleColumns] of requiredReadIndexes) {
+    const expectedSql = `CREATE INDEX \`${name}\` ON \`${table}\` (${columns.map(column => `\`${column}\``).join(",")});`;
+    assert.ok(migration.includes(expectedSql), `SQL: ${name}`);
+    assert.deepEqual(snapshot.tables[table].indexes[name], { name, columns, isUnique: false }, `snapshot: ${name}`);
+    assert.ok(schema.includes(`index("${name}").on(${drizzleColumns.map(column => `table.${column}`).join(", ")})`), `Drizzle: ${name}`);
+  }
+});

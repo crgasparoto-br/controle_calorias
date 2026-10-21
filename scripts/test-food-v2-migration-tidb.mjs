@@ -92,6 +92,25 @@ const assertLegacyWritesAfterMigration = async f => {
 };
 
 
+// AUD-1301-006: inspect indexes built by actual DDL, not just static declarations.
+const assertRequiredReadIndexes = async () => {
+  const required = [
+    ["food_variants", "food_variants_i1", ["brand_id", "normalized_name", "status"]],
+    ["food_nutrition_profiles", "food_nutrition_profi_i1", ["food_variant_id", "status", "valid_from", "valid_to"]],
+    ["food_review_cases", "food_review_cases_i1", ["status", "priority_score", "cycle_opened_at", "id"]],
+    ["food_resolution_events", "food_resolution_even_i1", ["user_id", "created_at"]],
+    ["food_resolution_events", "food_resolution_even_i2", ["food_variant_id", "created_at"]],
+  ];
+  for (const [table, name, expectedColumns] of required) {
+    const indexes = await queryRows(
+      "SELECT COLUMN_NAME AS column_name, NON_UNIQUE AS non_unique FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=? ORDER BY SEQ_IN_INDEX",
+      [table, name]
+    );
+    assert.deepEqual(indexes.map(row => row.column_name), expectedColumns, `DB index columns: ${name}`);
+    assert.ok(indexes.every(row => Number(row.non_unique) === 1), `Read index must not enforce a new uniqueness constraint: ${name}`);
+  }
+};
+
 const assertEvidenceRetention = async f => {
   const sql = "INSERT INTO food_evidence (subject_key, evidence_type, owner_user_id, content_hash, payload_json, retention_until) VALUES (?, 'user_correction', ?, ?, '{}', ?)";
   await mustReject(connection.query(sql, ["ci-foodv2:missing-retention", f.userId, "a".repeat(64), null]), "personal evidence without TTL must be rejected by database");
@@ -230,6 +249,7 @@ try {
   await assertLegacy(fixture, false);
   const forwardStatements = await applyFile("../drizzle/0055_food_intelligence_v2_persistence.sql");
   await assertLegacy(fixture, true);
+  await assertRequiredReadIndexes();
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {

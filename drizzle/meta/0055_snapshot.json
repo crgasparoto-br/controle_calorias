@@ -13878,6 +13878,15 @@
             "status"
           ],
           "isUnique": false
+        },
+        "food_variants_i1": {
+          "name": "food_variants_i1",
+          "columns": [
+            "brand_id",
+            "normalized_name",
+            "status"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -14320,6 +14329,16 @@
           "columns": [
             "food_variant_id",
             "status"
+          ],
+          "isUnique": false
+        },
+        "food_nutrition_profi_i1": {
+          "name": "food_nutrition_profi_i1",
+          "columns": [
+            "food_variant_id",
+            "status",
+            "valid_from",
+            "valid_to"
           ],
           "isUnique": false
         }
@@ -15360,6 +15379,16 @@
             "priority_score"
           ],
           "isUnique": false
+        },
+        "food_review_cases_i1": {
+          "name": "food_review_cases_i1",
+          "columns": [
+            "status",
+            "priority_score",
+            "cycle_opened_at",
+            "id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -15758,6 +15787,22 @@
           "name": "food_resolution_even_i0",
           "columns": [
             "expires_at"
+          ],
+          "isUnique": false
+        },
+        "food_resolution_even_i1": {
+          "name": "food_resolution_even_i1",
+          "columns": [
+            "user_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "food_resolution_even_i2": {
+          "name": "food_resolution_even_i2",
+          "columns": [
+            "food_variant_id",
+            "created_at"
           ],
           "isUnique": false
         }

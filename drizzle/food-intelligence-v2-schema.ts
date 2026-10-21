@@ -23,6 +23,7 @@ export const foodVariants = mysqlTable("food_variants", {
 }, table => ({
   u0: uniqueIndex("food_variants_u0").on(table.identityKey),
   i0: index("food_variants_i0").on(table.foodId, table.status),
+  i1: index("food_variants_i1").on(table.brandId, table.normalizedName, table.status),
   ck0: check("food_variants_ck0", sql`revision > 0`),
 
 }));
@@ -79,6 +80,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   u0: uniqueIndex("food_nutrition_profi_u0").on(table.profileKey, table.version),
   u1: uniqueIndex("food_nutrition_profi_u1").on(table.profileKey, table.currentSlot),
   i0: index("food_nutrition_profi_i0").on(table.foodVariantId, table.status),
+  i1: index("food_nutrition_profi_i1").on(table.foodVariantId, table.status, table.validFrom, table.validTo),
   ck0: check("food_nutrition_profiles_ck0", sql`version > 0`),
   ck1: check("food_nutrition_profiles_ck1", sql`basis_quantity > 0`),
   ck2: check("food_nutrition_profiles_ck2", sql`calories_kcal >= 0`),
@@ -206,6 +208,7 @@ export const foodReviewCases = mysqlTable("food_review_cases", {
 }, table => ({
   u0: uniqueIndex("food_review_cases_u0").on(table.caseKey),
   i0: index("food_review_cases_i0").on(table.status, table.priorityScore),
+  i1: index("food_review_cases_i1").on(table.status, table.priorityScore, table.cycleOpenedAt, table.id),
   ck0: check("food_review_cases_ck0", sql`review_cycle > 0`),
   ck1: check("food_review_cases_ck1", sql`state_version > 0`),
   ck2: check("food_review_cases_ck2", sql`(status='closed' AND outcome IS NOT NULL AND closed_at IS NOT NULL) OR (status IN ('open','in_review') AND outcome IS NULL AND closed_at IS NULL)`),
@@ -262,6 +265,8 @@ export const foodResolutionEvents = mysqlTable("food_resolution_events", {
 }, table => ({
   u0: uniqueIndex("food_resolution_even_u0").on(table.traceId),
   i0: index("food_resolution_even_i0").on(table.expiresAt),
+  i1: index("food_resolution_even_i1").on(table.userId, table.createdAt),
+  i2: index("food_resolution_even_i2").on(table.foodVariantId, table.createdAt),
   nutritionProfileIdFk: foreignKey({ name: "fre_nutrition_profile_fk", columns: [table.nutritionProfileId], foreignColumns: [foodNutritionProfiles.id] }).onDelete("restrict"),
 }));
 
