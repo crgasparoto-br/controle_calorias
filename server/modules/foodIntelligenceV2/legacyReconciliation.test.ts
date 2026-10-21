@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { planLegacyKnowledgeReconciliation, type LegacyFoodCandidate } from "./legacyReconciliation";
+import {
+  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions,
+  type LegacyFoodCandidate,
+} from "./legacyReconciliation";
 import type { FoodSourceGrant } from "./sourceGrants";
 
 const now = new Date("2026-10-21T12:00:00Z");
@@ -85,5 +88,47 @@ describe("B2 reconciliation with governed quarantine", () => {
     const r = planLegacyKnowledgeReconciliation([base], () => null, now);
     expect(r.totals.input).toBe(r.totals.quarantined);
     expect(r.decisions[0]).toMatchObject({ action: "quarantined", reason: "source_unlicensed" });
+  });
+});
+
+
+describe("B2 legacy foodCatalog portions", () => {
+  const catalog: LegacyFoodCandidate = {
+    ...base, table: "foodCatalog", id: 50, foodId: 1,
+  };
+  const portion = { id: 100, foodCatalogId: 50, label: "2 fatias",
+    unit: "serving", quantity: 2, grams: 50 };
+
+  it("keeps traceable portions in the catalog staging inventory", () => {
+    const parent = planLegacyKnowledgeReconciliation([catalog], source, now);
+    const plan = planLegacyCatalogPortions([portion], parent.decisions);
+    expect(plan.totals).toEqual({ input: 1, mapped: 1, merged: 0, quarantined: 0 });
+    expect(plan.decisions[0]).toMatchObject({ action: "mapped" });
+  });
+
+  it("quarantines unlicensed/personal catalog portions and malformed measures", () => {
+    const privateParent = planLegacyKnowledgeReconciliation([
+      { ...catalog, ownerUserId: 41, scope: "user" },
+    ], source, now);
+    const p = planLegacyCatalogPortions([portion], privateParent.decisions);
+    expect(p.decisions[0]).toMatchObject({ action: "quarantined", reason: "catalog_not_eligible" });
+    const approved = planLegacyKnowledgeReconciliation([catalog], source, now);
+    const q = planLegacyCatalogPortions([
+      { ...portion, id: 101, grams: 0 },
+      { ...portion, id: 102, label: "" },
+      { ...portion, id: 103, foodCatalogId: 999 },
+    ], approved.decisions);
+    expect(q.totals.quarantined).toBe(3);
+  });
+
+  it("deduplicates equal physical portions and quarantines conflicting gram weights", () => {
+    const parent = planLegacyKnowledgeReconciliation([catalog], source, now);
+    const plan = planLegacyCatalogPortions([
+      portion, { ...portion, id: 101 },
+      { ...portion, id: 102, grams: 60 },
+    ], parent.decisions);
+    expect(plan.decisions.map(d => d.action)).toEqual(["mapped", "merged", "quarantined"]);
+    expect(plan.decisions[2]).toMatchObject({ reason: "conflicting_measure" });
+    expect(plan.totals.input).toBe(plan.totals.mapped + plan.totals.merged + plan.totals.quarantined);
   });
 });
