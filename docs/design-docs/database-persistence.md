@@ -86,6 +86,12 @@ Regras para novas mudanças:
 - não manter dual-write indefinido entre V1 e V2;
 - migrações do Food Intelligence V2 deverão atualizar também `docs/generated/db-schema.md`.
 
+### B2 — Reconciliação conservadora e revisão (#1302)
+
+A leitura de conhecimento V2 exige escopo explícito `global` ou um proprietário pessoal compatível; `owner_user_id = NULL` isoladamente nunca converte um alimento pessoal em global. Falha do banco governado é indisponibilidade explícita, não ausência de alimento. Nutrição de SKU comercial só é elegível quando perfil e fonte estão vinculados à variante e há evidência global de rótulo/fabricante com identidade exata compatível.
+
+A reconciliação V1 → V2 expõe `preview` e `stage` e exige proveniência de fonte licenciada por versão. Para `foodCatalog`, somente um vínculo rastreável com `foods` por código da mesma fonte, marca, nome, URL e macros equivalentes permite estágio; as demais linhas continuam em quarentena, não são descartadas. Aliases e porções com procedência aprovada são vinculados à variante draft sem alterar o valor nutricional histórico; os demais recebem caso de revisão. Barcodes vinculados são importados revogados, com caso de revisão, até comprovação independente do SKU. Nenhum estágio ativa leitura produtiva, verificação global ou cutover.
+
 ## Tabelas críticas
 
 | Tabela                                | Papel                                                                      |

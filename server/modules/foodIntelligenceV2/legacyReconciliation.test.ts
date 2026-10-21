@@ -13,7 +13,7 @@ const sourceGrant: FoodSourceGrant = {
 const source = (id: number) => id === 7 ? { grant: sourceGrant, version: "1" } : null;
 const base: LegacyFoodCandidate = {
   table: "foods", id: 1, foodId: 1, name: "arroz",
-  ownerUserId: null, sourceId: 7, sourceVersion: "1",
+  ownerUserId: null, scope: "global", sourceId: 7, sourceVersion: "1",
   sourceCode: "T001", canonicalKey: "arroz", validNutrition: true,
 };
 
@@ -32,6 +32,15 @@ describe("B2 reconciliation with governed quarantine", () => {
     expect(result.totals).toEqual({ input: 2, mapped: 0, merged: 0, quarantined: 2 });
     expect(result.decisions.map(d => d.action === "quarantined" && d.reason))
       .toEqual(["family_ambiguous", "personal_scope"]);
+  });
+
+  it("quarantines orphaned user-scoped rows even with null owner id", () => {
+    const r = planLegacyKnowledgeReconciliation([
+      { ...base, id: 2, ownerUserId: null, scope: "user" },
+      { ...base, id: 3, ownerUserId: null, scope: null },
+    ], source, now);
+    expect(r.totals.quarantined).toBe(2);
+    expect(r.decisions.every(d => d.action === "quarantined" && d.reason === "personal_scope")).toBe(true);
   });
 
   it("source revocation, version change and missing macro data all quarantine", () => {

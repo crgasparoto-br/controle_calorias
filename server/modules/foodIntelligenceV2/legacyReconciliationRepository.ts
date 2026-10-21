@@ -4,11 +4,11 @@
  * publishes an unreviewed variant into the active V2 read path.
  */
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { foodBrands, foodCatalog, foodSources, foods } from "../../../drizzle/schema";
+import { and, eq, isNull } from "drizzle-orm";
+import { foodAliases, foodBrands, foodCatalog, foodPortions, foodSources, foods } from "../../../drizzle/schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import {
-  foodNutritionProfiles, foodReviewCases, foodSourceReadGrants,
+  foodBarcodes, foodNutritionProfiles, foodReviewCases, foodSourceReadGrants,
   foodVariantSources, foodVariants,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { canPublishGlobalKnowledge } from "./sourceGrants";
@@ -17,6 +17,7 @@ import {
   type LegacyFoodCandidate,
 } from "./legacyReconciliation";
 import { getDb } from "../../db";
+import { findTraceableCatalogFamily } from "./legacyCatalogLink";
 
 const hash = (data: unknown) => createHash("sha256").update(JSON.stringify(data)).digest("hex");
 const MAX_SCAN = 10000;
@@ -29,23 +30,44 @@ export type FoodV2ReconciliationMode = "preview" | "stage";
  * The administrative review/promotion phase remains separate (#1309).
  */
 export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMode = "preview") {
+  if (mode !== "preview" && mode !== "stage") {
+    throw new Error("B2 reconciliation mode must be preview or stage");
+  }
   const db = await getDb();
   if (!db) throw new Error("B2 reconciliation requires an available database");
-  const [legacyFoods, legacyCatalog, grantedSources, brands] = await Promise.all([
+  const [legacyFoods, legacyCatalog, grantedSources, brands, aliases, portions] = await Promise.all([
     db.select().from(foods).limit(MAX_SCAN + 1),
     db.select().from(foodCatalog).limit(MAX_SCAN + 1),
     db.select({ source: foodSources, grant: foodSourceReadGrants })
       .from(foodSources)
       .innerJoin(foodSourceReadGrants, eq(foodSourceReadGrants.sourceId, foodSources.id)),
     db.select().from(foodBrands),
+    db.select().from(foodAliases).limit(MAX_SCAN + 1),
+    db.select().from(foodPortions).limit(MAX_SCAN + 1),
   ]);
-  if (legacyFoods.length > MAX_SCAN || legacyCatalog.length > MAX_SCAN) {
+  if (legacyFoods.length > MAX_SCAN || legacyCatalog.length > MAX_SCAN ||
+      aliases.length > MAX_SCAN || portions.length > MAX_SCAN) {
     throw new Error("B2 reconciliation would be incomplete: dataset requires pagination");
   }
 
   const sourceMap = new Map(grantedSources.map(row => [row.source.id, row]));
   const byFoodId = new Map(legacyFoods.map(row => [row.id, row]));
   const brandIds = new Map(brands.map(row => [row.normalizedName, row.id]));
+  const linkedCatalog = new Map(legacyCatalog.map(row => [
+    row.id, findTraceableCatalogFamily(row, legacyFoods, sourceMap),
+  ]));
+  const aliasesByFood = new Map<number, typeof aliases>();
+  for (const alias of aliases) {
+    const current = aliasesByFood.get(alias.foodId) ?? [];
+    current.push(alias);
+    aliasesByFood.set(alias.foodId, current);
+  }
+  const portionsByFood = new Map<number, typeof portions>();
+  for (const portion of portions) {
+    const current = portionsByFood.get(portion.foodId) ?? [];
+    current.push(portion);
+    portionsByFood.set(portion.foodId, current);
+  }
   const candidates: LegacyFoodCandidate[] = [
     ...legacyFoods.map(row => ({
       table: "foods" as const,
@@ -53,6 +75,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       foodId: row.id,
       name: row.name,
       status: row.status,
+      scope: row.scope,
       nutritionFingerprint: hash([row.caloriesKcalPer100g, row.proteinGramsPer100g, row.carbsGramsPer100g, row.fatGramsPer100g]),
       brandName: row.brandName,
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
@@ -69,17 +92,26 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
     ...legacyCatalog.map(row => ({
       table: "foodCatalog" as const,
       id: row.id,
-      foodId: null, // no direct V1 foreign key to the canonical family
+      foodId: linkedCatalog.get(row.id)?.id ?? null,
       name: row.name,
       status: row.status,
-      nutritionFingerprint: hash([row.calories, row.protein, row.carbs, row.fat]),
+      scope: linkedCatalog.get(row.id) ? "global" as const : null,
+      nutritionFingerprint: linkedCatalog.get(row.id)
+        ? hash([
+          linkedCatalog.get(row.id)!.caloriesKcalPer100g,
+          linkedCatalog.get(row.id)!.proteinGramsPer100g,
+          linkedCatalog.get(row.id)!.carbsGramsPer100g,
+          linkedCatalog.get(row.id)!.fatGramsPer100g,
+        ])
+        : hash([row.calories, row.protein, row.carbs, row.fat]),
       brandName: row.brandName,
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
       ownerUserId: row.createdByUserId,
-      sourceId: null,
-      sourceVersion: null,
-      sourceCode: null,
-      canonicalKey: null,
+      sourceId: linkedCatalog.get(row.id)?.sourceId ?? null,
+      sourceVersion: linkedCatalog.get(row.id)?.sourceId
+        ? sourceMap.get(linkedCatalog.get(row.id)!.sourceId!)?.source.version ?? null : null,
+      sourceCode: linkedCatalog.get(row.id)?.sourceFoodCode ?? null,
+      canonicalKey: linkedCatalog.get(row.id)?.canonicalKey ?? null,
       validNutrition: [row.calories, row.protein, row.carbs, row.fat]
         .every(n => Number.isFinite(n) && n >= 0),
     })),
@@ -97,6 +129,38 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   // Do not stage an inventory unless the operator has reviewed its full plan.
   // No input can bypass the per-source publication and version checks.
   await db.transaction(async tx => {
+    async function reviewChild(
+      kind: "legacy_alias_quarantine" | "legacy_portion_quarantine" | "legacy_barcode_review",
+      id: string, variantId: number, reason: string,
+    ) {
+      const key = "b2child:" + hash([kind, id]);
+      await tx.insert(foodReviewCases).values({
+        caseKey: key, caseType: kind,
+        targetArtifactType: kind === "legacy_alias_quarantine" ? "food_aliases" :
+          kind === "legacy_portion_quarantine" ? "food_portions" : "food_barcodes",
+        targetArtifactId: id, targetRevision: 1, targetContentHash: hash([kind, id, variantId, reason]),
+        proposedPayloadJson: JSON.stringify({ variantId, reason }),
+        policyVersion: "food-v2-b2",
+      }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
+    }
+
+    async function stageLinkedCatalogBarcode(catalogId: number, variantId: number, sourceId: number) {
+      const catalog = legacyCatalog.find(row => row.id === catalogId);
+      if (!catalog?.barcode?.trim()) return;
+      const barcode = catalog.barcode.trim();
+      // Barcode is indexed for later review, NOT activated as SKU evidence.
+      await tx.insert(foodBarcodes).values({
+        foodVariantId: variantId, barcode, sourceId, status: "revoked",
+      }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+      const [stored] = await tx.select().from(foodBarcodes)
+        .where(eq(foodBarcodes.barcode, barcode)).limit(1);
+      if (!stored || stored.foodVariantId !== variantId ||
+          stored.sourceId !== sourceId || stored.status !== "revoked") {
+        throw new Error("B2 barcode conflict requires manual review");
+      }
+      await reviewChild("legacy_barcode_review", String(catalogId), variantId, "await_exact_sku_evidence");
+    }
+
     for (const decision of plan.decisions) {
       const candidate = decision.source;
       const caseKey = "b2:" + hash([candidate.table, candidate.id]);
@@ -118,8 +182,18 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
         continue;
       }
-      if (decision.action === "merged") continue;
-      const original = byFoodId.get(candidate.id);
+      if (decision.action === "merged") {
+        if (candidate.table === "foodCatalog") {
+          const [variant] = await tx.select().from(foodVariants)
+            .where(eq(foodVariants.identityKey, decision.identityKey)).limit(1);
+          if (!variant || candidate.sourceId === null) {
+            throw new Error("B2 merged catalog has no staged variant");
+          }
+          await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
+        }
+        continue;
+      }
+      const original = byFoodId.get(candidate.foodId ?? -1);
       if (!original || candidate.sourceId === null ||
           candidate.sourceVersion === null || !candidate.sourceCode) {
         throw new Error("B2 reconciliation incomplete original lineage");
@@ -192,6 +266,46 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           profile.foodVariantId !== variant.id || profile.status !== "provisional") {
         throw new Error("B2 nutrition version conflict; must be reviewed, not overwritten");
       }
+      for (const alias of aliasesByFood.get(original.id) ?? []) {
+        if (alias.status !== "active" || alias.governanceStatus !== "verified" ||
+            alias.sourceId !== candidate.sourceId ||
+            (alias.foodVariantId !== null && alias.foodVariantId !== variant.id)) {
+          await reviewChild("legacy_alias_quarantine", String(alias.id), variant.id, "missing_exact_approved_alias_provenance");
+          continue;
+        }
+        await tx.update(foodAliases).set({ foodVariantId: variant.id })
+          .where(and(
+            eq(foodAliases.id, alias.id), eq(foodAliases.foodId, original.id),
+            eq(foodAliases.status, "active"), eq(foodAliases.governanceStatus, "verified"),
+            eq(foodAliases.sourceId, candidate.sourceId),
+            alias.foodVariantId === null ? isNull(foodAliases.foodVariantId) : eq(foodAliases.foodVariantId, variant.id),
+          ));
+        const [linked] = await tx.select().from(foodAliases)
+          .where(eq(foodAliases.id, alias.id)).limit(1);
+        if (linked?.foodVariantId !== variant.id) throw new Error("B2 alias changed during staging");
+      }
+      for (const portion of portionsByFood.get(original.id) ?? []) {
+        if (portion.status !== "verified" && portion.status !== "provisional" ||
+            portion.sourceId !== candidate.sourceId || !Number.isFinite(portion.grams) ||
+            portion.grams <= 0 || portion.validTo && portion.validTo <= new Date() ||
+            (portion.foodVariantId !== null && portion.foodVariantId !== variant.id)) {
+          await reviewChild("legacy_portion_quarantine", String(portion.id), variant.id, "missing_compatible_portion_provenance");
+          continue;
+        }
+        await tx.update(foodPortions).set({ foodVariantId: variant.id })
+          .where(and(
+            eq(foodPortions.id, portion.id), eq(foodPortions.foodId, original.id),
+            eq(foodPortions.sourceId, candidate.sourceId),
+            portion.foodVariantId === null ? isNull(foodPortions.foodVariantId) : eq(foodPortions.foodVariantId, variant.id),
+          ));
+        const [linked] = await tx.select().from(foodPortions)
+          .where(eq(foodPortions.id, portion.id)).limit(1);
+        if (linked?.foodVariantId !== variant.id) throw new Error("B2 portion changed during staging");
+      }
+      if (candidate.table === "foodCatalog") {
+        await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
+      }
+
       await tx.insert(foodReviewCases).values({
         caseKey, caseType: "legacy_reconciliation",
         targetArtifactType: "food_variants",
