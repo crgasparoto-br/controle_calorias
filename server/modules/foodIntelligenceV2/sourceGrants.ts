@@ -58,3 +58,20 @@ export function canPublishGlobalKnowledge(
   return canReadFoodSource(grant, actualSourceVersion, now) &&
     grant.allowGlobalPublication === 1;
 }
+
+/** Revalidate persisted evidence against the current source URL on every hit.
+ * Same-host evidence is not SKU certification; commercial profiles separately
+ * require their exact mapped product resource. */
+export function isAuthorizedSourceReference(
+  reference: string | null | undefined,
+  approvedUrl: string | null | undefined,
+): boolean {
+  try {
+    const actual = new URL(reference ?? "");
+    const source = new URL(approvedUrl ?? "");
+    return actual.protocol === "https:" && source.protocol === "https:" &&
+      actual.origin === source.origin;
+  } catch {
+    return false;
+  }
+}
