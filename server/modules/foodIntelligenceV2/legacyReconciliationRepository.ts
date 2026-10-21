@@ -5,7 +5,7 @@
  */
 import { createHash } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
-import { foodAliases, foodBrands, foodCatalog, foodPortions, foodSources, foods } from "../../../drizzle/schema";
+import { foodAliases, foodBrands, foodCatalog, foodPortions, foodSources, foods, portions as catalogPortions } from "../../../drizzle/schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import {
   foodBarcodes, foodNutritionProfiles, foodReviewCases, foodSourceReadGrants,
@@ -13,7 +13,7 @@ import {
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { canPublishGlobalKnowledge } from "./sourceGrants";
 import {
-  planLegacyKnowledgeReconciliation,
+  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions,
   type LegacyFoodCandidate,
 } from "./legacyReconciliation";
 import { getDb } from "../../db";
@@ -35,7 +35,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   }
   const db = await getDb();
   if (!db) throw new Error("B2 reconciliation requires an available database");
-  const [legacyFoods, legacyCatalog, grantedSources, brands, aliases, portions] = await Promise.all([
+  const [legacyFoods, legacyCatalog, grantedSources, brands, aliases, portions, legacyCatalogPortions] = await Promise.all([
     db.select().from(foods).limit(MAX_SCAN + 1),
     db.select().from(foodCatalog).limit(MAX_SCAN + 1),
     db.select({ source: foodSources, grant: foodSourceReadGrants })
@@ -44,9 +44,11 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
     db.select().from(foodBrands),
     db.select().from(foodAliases).limit(MAX_SCAN + 1),
     db.select().from(foodPortions).limit(MAX_SCAN + 1),
+    db.select().from(catalogPortions).limit(MAX_SCAN + 1),
   ]);
   if (legacyFoods.length > MAX_SCAN || legacyCatalog.length > MAX_SCAN ||
-      aliases.length > MAX_SCAN || portions.length > MAX_SCAN) {
+      aliases.length > MAX_SCAN || portions.length > MAX_SCAN ||
+      legacyCatalogPortions.length > MAX_SCAN) {
     throw new Error("B2 reconciliation would be incomplete: dataset requires pagination");
   }
 
@@ -124,7 +126,15 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
     },
     new Date(),
   );
-  if (mode === "preview") return plan;
+  const portionPlan = planLegacyCatalogPortions(legacyCatalogPortions, plan.decisions);
+  const report = { ...plan, catalogPortions: portionPlan };
+  if (mode === "preview") return report;
+  const portionDecisionsByCatalog = new Map<number, typeof portionPlan.decisions>();
+  for (const decision of portionPlan.decisions) {
+    const items = portionDecisionsByCatalog.get(decision.portion.foodCatalogId) ?? [];
+    items.push(decision);
+    portionDecisionsByCatalog.set(decision.portion.foodCatalogId, items);
+  }
 
   // Do not stage an inventory unless the operator has reviewed its full plan.
   // No input can bypass the per-source publication and version checks.
@@ -142,6 +152,51 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         proposedPayloadJson: JSON.stringify({ variantId, reason }),
         policyVersion: "food-v2-b2",
       }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
+    }
+
+    async function quarantineCatalogPortion(portionId: number, reason: string) {
+      await tx.insert(foodReviewCases).values({
+        caseKey: "b2catalogportion:" + hash(portionId),
+        caseType: "legacy_catalog_portion_quarantine",
+        targetArtifactType: "portions", targetArtifactId: String(portionId),
+        targetRevision: 1, targetContentHash: hash([portionId, reason]),
+        proposedPayloadJson: JSON.stringify({ reason }),
+        policyVersion: "food-v2-b2",
+      }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
+    }
+
+    async function stageLinkedCatalogPortions(catalogId: number, variantId: number, foodId: number, sourceId: number) {
+      for (const decision of portionDecisionsByCatalog.get(catalogId) ?? []) {
+        const portion = decision.portion;
+        if (decision.action === "quarantined") {
+          await quarantineCatalogPortion(portion.id, decision.reason ?? "catalog_not_eligible");
+          continue;
+        }
+        if (decision.action === "merged") continue; // Equal physical measure already mapped.
+        const normalizedLabel = normalizeFoodName(portion.label);
+        // The V2 table also has a family-level unique constraint; do not
+        // silently overwrite a different measure or another source's row.
+        const [existing] = await tx.select().from(foodPortions)
+          .where(and(
+            eq(foodPortions.foodId, foodId),
+            eq(foodPortions.normalizedLabel, normalizedLabel),
+            eq(foodPortions.unit, portion.unit),
+          )).limit(1);
+        const sourcePortionCode = "b2:catalog:" + portion.id;
+        if (existing) {
+          if (existing.foodVariantId === variantId && existing.sourceId === sourceId &&
+              existing.sourcePortionCode === sourcePortionCode &&
+              existing.quantity === portion.quantity && existing.grams === portion.grams) continue;
+          await quarantineCatalogPortion(portion.id, "conflicting_existing_portion");
+          continue;
+        }
+        await tx.insert(foodPortions).values({
+          foodId, foodVariantId: variantId, label: portion.label,
+          normalizedLabel, unit: portion.unit, quantity: portion.quantity,
+          grams: portion.grams, sourceId, sourcePortionCode,
+          status: "provisional", isDefault: portion.isDefault,
+        });
+      }
     }
 
     async function stageLinkedCatalogBarcode(catalogId: number, variantId: number, sourceId: number) {
@@ -171,6 +226,11 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       ]);
       if (candidate.ownerUserId !== null) continue; // personal records never enter global queue
       if (decision.action === "quarantined") {
+        if (candidate.table === "foodCatalog") {
+          for (const child of portionDecisionsByCatalog.get(candidate.id) ?? []) {
+            await quarantineCatalogPortion(child.portion.id, child.reason ?? "catalog_not_eligible");
+          }
+        }
         await tx.insert(foodReviewCases).values({
           caseKey, caseType: "legacy_reconciliation_quarantine",
           targetArtifactType: candidate.table, targetArtifactId: String(candidate.id),
@@ -190,7 +250,17 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           if (!variant || candidate.sourceId === null) {
             throw new Error("B2 merged catalog has no staged variant");
           }
+          const [approval] = await tx.select({
+            source: foodSources, grant: foodSourceReadGrants,
+          }).from(foodSources)
+            .innerJoin(foodSourceReadGrants, eq(foodSourceReadGrants.sourceId, foodSources.id))
+            .where(eq(foodSources.id, candidate.sourceId)).limit(1);
+          if (!approval || approval.source.version !== candidate.sourceVersion ||
+              !canPublishGlobalKnowledge(approval.grant, approval.source.version, new Date())) {
+            throw new Error("B2 source approval changed during merged catalog staging");
+          }
           await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
+          await stageLinkedCatalogPortions(candidate.id, variant.id, candidate.foodId!, candidate.sourceId);
         }
         continue;
       }
@@ -305,6 +375,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       }
       if (candidate.table === "foodCatalog") {
         await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
+        await stageLinkedCatalogPortions(candidate.id, variant.id, original.id, candidate.sourceId);
       }
 
       await tx.insert(foodReviewCases).values({
@@ -320,5 +391,5 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
     }
   });
-  return plan;
+  return report;
 }
