@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../../db";
 import { createFoodV2KnowledgeRepository } from "./repository";
@@ -73,6 +74,7 @@ describe("B2 actual repository governed read", () => {
     expect(result).toMatchObject({
       kind: "match", matchingEvidence: "personal_alias",
       variantId: 22, governanceStatus: "verified",
+      sourceReference: mapping.sourceUrl,
     });
   });
 
@@ -169,7 +171,7 @@ describe("B2 actual repository governed read", () => {
     };
     let updatedRetention: unknown;
     const pages: unknown[][] = [
-      [{ source, grant }],
+      [{ source: { ...source, sourceUrl: candidate.sourceReference }, grant }],
       [{ retentionUntil: expired, sourceReference: candidate.sourceReference,
         payloadJson: "original-captured-evidence" }],
     ];
@@ -237,4 +239,90 @@ describe("B2 actual repository governed read", () => {
       .toEqual({ kind: "unavailable", reason: "governed_store_unavailable" });
     expect(external).not.toHaveBeenCalled();
   });
+  it("does not use the license reference as nutrition provenance when source URL is absent", async () => {
+    installResults(
+      [{ id: 22 }], [], // exact, global aliases
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "generic", displayName: "Pao" },
+        family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
+        brand: { name: "Panco" } }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+        foodVariantSourceId: null, validFrom: null, validTo: null,
+        caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
+      [{ source: { ...source, sourceUrl: null }, grant }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" }))
+      .toEqual({ kind: "miss", reason: "not_found" });
+  });
+
+  it("rejects a same-origin but different SKU on cache read", async () => {
+    const candidate = {
+      sourceId: 7, sourceReference: "https://manufacturer.example/products/sku-b",
+      nutrition: { caloriesKcal: 360, proteinG: 12, carbG: 45,
+        fatG: 13, basisQuantity: 100, basisUnit: "g" as const },
+    };
+    const payload = {
+      status: "provisional", sourceVersion: "v1",
+      sourceReference: candidate.sourceReference,
+      resolverVersion: "v2", policyVersion: "p1",
+      nutrition: candidate.nutrition,
+    };
+    const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    installResults(
+      [{ sourceId: 7, contentHash: digest, sourceReference: candidate.sourceReference,
+        retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(payload) }],
+      [{ source: { ...source, sourceUrl: "https://manufacturer.example/products/sku-a" }, grant }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
+  });
+
+  it("rejects a same-origin different SKU before the cache write", async () => {
+    const candidate = {
+      sourceId: 7, sourceReference: "https://manufacturer.example/products/sku-b",
+      nutrition: { caloriesKcal: 360, proteinG: 12, carbG: 45,
+        fatG: 13, basisQuantity: 100, basisUnit: "g" as const },
+    };
+    const selects = installResults(
+      [{ source: { ...source, sourceUrl: "https://manufacturer.example/products/sku-a" }, grant }],
+    );
+    expect(await createFoodV2KnowledgeRepository().stagePendingEvidence(request, candidate)).toBe(false);
+    expect(selects).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects tampered nutritional macros even when source, version and URL are valid", async () => {
+    const original = {
+      status: "provisional", sourceVersion: "v1",
+      sourceReference: "https://manufacturer.example/products/sku-a",
+      resolverVersion: "v2", policyVersion: "p1",
+      nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
+        basisQuantity: 100, basisUnit: "g" as const },
+    };
+    const digest = createHash("sha256").update(JSON.stringify(original)).digest("hex");
+    const tampered = { ...original, nutrition: { ...original.nutrition, caloriesKcal: 999 } };
+    installResults(
+      [{ sourceId: 7, contentHash: digest, sourceReference: original.sourceReference,
+        retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(tampered) }],
+      [{ source: { ...source, sourceUrl: original.sourceReference }, grant }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
+  });
+
+  it("accepts a matching untampered cache entry with exact approved URL", async () => {
+    const payload = {
+      status: "provisional", sourceVersion: "v1",
+      sourceReference: "https://manufacturer.example/products/sku-a",
+      resolverVersion: "v2", policyVersion: "p1",
+      nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
+        basisQuantity: 100, basisUnit: "g" as const },
+    };
+    const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    installResults(
+      [{ sourceId: 7, contentHash: digest, sourceReference: payload.sourceReference,
+        retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(payload) }],
+      [{ source: { ...source, sourceUrl: payload.sourceReference }, grant }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request))
+      .toMatchObject({ sourceId: 7, sourceReference: payload.sourceReference, nutrition: { caloriesKcal: 200 } });
+  });
+
 });

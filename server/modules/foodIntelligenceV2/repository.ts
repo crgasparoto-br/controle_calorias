@@ -11,9 +11,9 @@ import {
   foodVariants, userFoodAliases,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference } from "./sourceGrants";
+import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
 import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
-import { isNutritionFacts } from "./knowledgeRead";
+import { externalCandidateMatchesRequest, isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
   ExternalProvisionalCandidate, FoodKnowledgeLocalResult, FoodKnowledgeRequest,
@@ -134,10 +134,15 @@ async function readCurrentProfile(
             at(request),
           )) continue;
     }
+    // A license reference proves permission, never nutritional provenance.
+    // Exact commercial mapping already passed the same-SKU proof above.
+    const sourceReference = variantType === "branded"
+      ? mapping?.sourceUrl : permission.source.sourceUrl;
+    if (!isValidHttpsSourceReference(sourceReference)) continue;
     usable.push({
       profile, sourceId: permission.source.id,
       sourceVersion: permission.source.version,
-      sourceReference: permission.source.sourceUrl ?? permission.grant.licenseReference!,
+      sourceReference,
     });
   }
   if (usable.length === 0) return null;
@@ -305,8 +310,11 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
           const payload = JSON.parse(row.payloadJson) as {
             status?: unknown; sourceVersion?: unknown; sourceReference?: unknown;
             nutrition?: NutritionFacts; policyVersion?: unknown; resolverVersion?: unknown;
+            identity?: ExternalProvisionalCandidate["identity"];
           };
-          if (payload.status !== "provisional" ||
+          // A matching cache key is not enough: rehash the fetched evidence.
+          if (row.contentHash !== hash(payload) ||
+              payload.status !== "provisional" ||
               payload.sourceVersion !== source.source.version ||
               payload.policyVersion !== request.policyVersion ||
               payload.resolverVersion !== request.resolverVersion ||
@@ -314,10 +322,12 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
               row.sourceReference !== payload.sourceReference ||
               !isAuthorizedSourceReference(payload.sourceReference, source.source.sourceUrl) ||
               !payload.nutrition || !isNutritionFacts(payload.nutrition)) continue;
-          candidates.push({
+          const candidate: ExternalProvisionalCandidate = {
             sourceId: row.sourceId, sourceReference: payload.sourceReference,
-            nutrition: payload.nutrition,
-          });
+            nutrition: payload.nutrition, ...(payload.identity === undefined ? {} : { identity: payload.identity }),
+          };
+          if (!externalCandidateMatchesRequest(request, candidate)) continue;
+          candidates.push(candidate);
         } catch { /* Invalid legacy JSON is never silently trusted. */ }
       }
       const signatures = new Set(candidates.map(c => hash(c)));
@@ -326,7 +336,8 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
     },
 
     async stagePendingEvidence(request, candidate) {
-      if (request.userId === null || !isNutritionFacts(candidate.nutrition)) return false;
+      if (request.userId === null || !isNutritionFacts(candidate.nutrition) ||
+          !externalCandidateMatchesRequest(request, candidate)) return false;
       const db = await getDb();
       if (!db) return false;
       const now = new Date();
@@ -341,6 +352,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         sourceReference: candidate.sourceReference,
         resolverVersion: request.resolverVersion, policyVersion: request.policyVersion,
         nutrition: candidate.nutrition,
+        ...(candidate.identity === undefined ? {} : { identity: candidate.identity }),
       };
       const subjectKey = evidenceCacheKey(request);
       const contentHash = hash(payload);

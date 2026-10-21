@@ -59,19 +59,30 @@ export function canPublishGlobalKnowledge(
     grant.allowGlobalPublication === 1;
 }
 
-/** Revalidate persisted evidence against the current source URL on every hit.
- * Same-host evidence is not SKU certification; commercial profiles separately
- * require their exact mapped product resource. */
+/** A reference is usable only when its HTTPS URL has no embedded credentials
+ * or fragment. A license document is not nutritional source provenance. */
+export function isValidHttpsSourceReference(reference: string | null | undefined): reference is string {
+  try {
+    const url = new URL(reference ?? "");
+    return url.protocol === "https:" && !url.username && !url.password && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+/** Read/cache permission is bound to the authorized resource, not merely its
+ * host. Domain-wide reuse needs a separately modeled and approved grant; B2
+ * deliberately fails closed until such a scope is governed. */
 export function isAuthorizedSourceReference(
   reference: string | null | undefined,
   approvedUrl: string | null | undefined,
 ): boolean {
-  try {
-    const actual = new URL(reference ?? "");
-    const source = new URL(approvedUrl ?? "");
-    return actual.protocol === "https:" && source.protocol === "https:" &&
-      actual.origin === source.origin;
-  } catch {
+  if (!isValidHttpsSourceReference(reference) || !isValidHttpsSourceReference(approvedUrl)) {
     return false;
   }
+  const actual = new URL(reference);
+  const source = new URL(approvedUrl);
+  return actual.origin === source.origin &&
+    actual.pathname === source.pathname &&
+    actual.search === source.search;
 }

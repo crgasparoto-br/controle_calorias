@@ -1,3 +1,5 @@
+import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
+
 /**
  * Issue #1302: single V2 read contract / cache-through orchestrator.
  * No production entrypoint is switched to V2 before the ADR Gate A.
@@ -45,6 +47,8 @@ export type ExternalProvisionalCandidate = {
   sourceId: number;
   sourceReference: string;
   nutrition: NutritionFacts;
+  /** Unverified identity assertions from the provider, never SKU proof. */
+  identity?: { brand?: string | null; barcode?: string | null };
 };
 
 export type FoodKnowledgeResult =
@@ -59,6 +63,29 @@ export interface FoodKnowledgeStore {
 }
 
 export type FoodExternalLookup = (request: FoodKnowledgeRequest) => Promise<ExternalProvisionalCandidate | null>;
+
+/** Exact user-supplied barcode/brand constraints cannot be erased by
+ * an external candidate or replayed from a cache. These are assertions,
+ * not independent evidence sufficient for verified commercial nutrition. */
+export function externalCandidateMatchesRequest(
+  request: FoodKnowledgeRequest,
+  candidate: ExternalProvisionalCandidate,
+): boolean {
+  const identity = candidate.identity;
+  if (identity !== undefined &&
+      (!identity || typeof identity !== "object" || Array.isArray(identity) ||
+        (identity.brand !== undefined && identity.brand !== null && typeof identity.brand !== "string") ||
+        (identity.barcode !== undefined && identity.barcode !== null && typeof identity.barcode !== "string"))) {
+    return false;
+  }
+  const brand = request.brand?.trim();
+  const barcode = request.barcode?.trim();
+  if (!brand && !barcode) return true;
+  if (!identity) return false;
+  if (barcode && identity.barcode?.trim() !== barcode) return false;
+  if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;
+  return true;
+}
 
 export function isNutritionFacts(value: unknown): value is NutritionFacts {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -104,7 +131,8 @@ export async function readThroughGovernedKnowledge(
     try { cached = await store.readPendingEvidence(request); }
     catch { return { kind: "unavailable", reason: "governed_store_unavailable" }; }
     if (cached && "kind" in cached && cached.kind === "conflict") return { kind: "conflict", reason: "material_nutrition_conflict" };
-    if (cached && "nutrition" in cached && isNutritionFacts(cached.nutrition)) {
+    if (cached && "nutrition" in cached && isNutritionFacts(cached.nutrition) &&
+        externalCandidateMatchesRequest(request, cached)) {
       return {
         kind: "provisional", origin: "external", persisted: true,
         sourceId: cached.sourceId, sourceReference: cached.sourceReference,
@@ -123,7 +151,8 @@ export async function readThroughGovernedKnowledge(
     typeof candidate.sourceReference !== "string" ||
     !/^https:\/\//i.test(candidate.sourceReference) ||
     candidate.sourceReference.length > 500 ||
-    !isNutritionFacts(candidate.nutrition)
+    !isNutritionFacts(candidate.nutrition) ||
+    !externalCandidateMatchesRequest(request, candidate)
   ) {
     return { kind: "unavailable", reason: "external_evidence_invalid" };
   }

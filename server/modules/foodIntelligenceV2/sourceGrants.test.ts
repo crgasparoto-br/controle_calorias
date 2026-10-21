@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canPersistProvisionalEvidence, canPublishGlobalKnowledge, canReadFoodSource, isAuthorizedSourceReference,
+  isValidHttpsSourceReference,
   type FoodSourceGrant,
 } from "./sourceGrants";
 
@@ -39,13 +40,19 @@ describe("B2 source grants: policy is deny-by-default", () => {
     expect(canPersistProvisionalEvidence(grant({ allowPersistEvidence: 0 }), "release-1", now)).toBe(false);
     expect(canPublishGlobalKnowledge(grant(), "release-1", now)).toBe(false);
   });
-  it("rejects cached evidence after an authorized origin change or unsafe reference", () => {
-    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", "https://manufacturer.example")).toBe(true);
-    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", "https://other.example")).toBe(false);
-    expect(isAuthorizedSourceReference("http://manufacturer.example/sku", "https://manufacturer.example")).toBe(false);
-    expect(isAuthorizedSourceReference("https://manufacturer.example.attacker.test/sku", "https://manufacturer.example")).toBe(false);
-    expect(isAuthorizedSourceReference(null, "https://manufacturer.example")).toBe(false);
-    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", null)).toBe(false);
+  it("only accepts the exact HTTPS resource approved for personal cache", () => {
+    const skuA = "https://manufacturer.example/products/sku-a?version=1";
+    expect(isAuthorizedSourceReference(skuA, skuA)).toBe(true);
+    expect(isAuthorizedSourceReference(skuA, "https://manufacturer.example/products/sku-b?version=1")).toBe(false);
+    expect(isAuthorizedSourceReference(skuA, "https://manufacturer.example")).toBe(false);
+    expect(isAuthorizedSourceReference(skuA, "https://manufacturer.example/products/sku-a?version=2")).toBe(false);
+    expect(isAuthorizedSourceReference("http://manufacturer.example/products/sku-a", skuA)).toBe(false);
+    expect(isAuthorizedSourceReference("https://manufacturer.example.attacker.test/sku-a", skuA)).toBe(false);
+    expect(isAuthorizedSourceReference("https://user:secret@manufacturer.example/products/sku-a?version=1", skuA)).toBe(false);
+    expect(isAuthorizedSourceReference(null, skuA)).toBe(false);
+    expect(isAuthorizedSourceReference(skuA, null)).toBe(false);
+    expect(isValidHttpsSourceReference("https://manufacturer.example/catalog")).toBe(true);
+    expect(isValidHttpsSourceReference("https://manufacturer.example/catalog#internal")).toBe(false);
   });
 
   it("evidence retention is bounded and a global grant is separately explicit", () => {

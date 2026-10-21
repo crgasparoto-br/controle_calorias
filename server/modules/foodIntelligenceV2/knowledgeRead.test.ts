@@ -158,4 +158,58 @@ describe("B2 — porta governada e cache-through", () => {
     expect(await readThroughGovernedKnowledge({ ...base, brand: "Marca", barcode: "789" }, f.store, external))
       .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
   });
+  it("rejects a mismatched branded external claim instead of substituting generic macros", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/other",
+      nutrition, identity: { brand: "Wickbold" },
+    });
+    expect(await readThroughGovernedKnowledge({ ...base, brand: "Panco" }, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(f.stage).not.toHaveBeenCalled();
+  });
+
+  it("rejects barcode mismatches and identity-free external guesses", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-b",
+      nutrition, identity: { barcode: "789222" },
+    });
+    const branded = { ...base, barcode: "789111" };
+    expect(await readThroughGovernedKnowledge(branded, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    external.mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a", nutrition,
+    });
+    expect(await readThroughGovernedKnowledge(branded, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(f.stage).not.toHaveBeenCalled();
+  });
+
+  it("keeps an identity-compatible branded barcode lookup explicitly provisional", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a",
+      nutrition, identity: { brand: "Panco", barcode: "789111" },
+    });
+    f.stage.mockResolvedValueOnce(true);
+    const result = await readThroughGovernedKnowledge({
+      ...base, brand: "Panco", barcode: "789111",
+    }, f.store, external);
+    expect(result).toMatchObject({ kind: "provisional", origin: "external", persisted: true });
+    expect(result.kind).not.toBe("match");
+  });
+
+  it("does not replay a cached commercial assertion for a different explicit brand", async () => {
+    const f = fixture();
+    f.pending.mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a",
+      nutrition, identity: { brand: "Outra Marca" },
+    });
+    const external = vi.fn().mockResolvedValue(null);
+    expect(await readThroughGovernedKnowledge({ ...base, brand: "Panco" }, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
+    expect(external).toHaveBeenCalledTimes(1);
+  });
+
 });
