@@ -49,12 +49,13 @@ export function hasVerifiedCommercialProfileProof(
   now: Date,
 ): boolean {
   const mapping = profile.mapping;
-  if (!mapping || !profile.sourceUrl || mapping.status !== "active" ||
+  const approvedSourceUrl = profile.sourceUrl;
+  if (!mapping || !approvedSourceUrl || mapping.status !== "active" ||
       mapping.foodVariantId !== profile.variantId ||
       mapping.sourceId !== profile.sourceId ||
       (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim())) return false;
   return evidence.some(proof =>
-    sameAuthoritativeOrigin(proof.sourceReference, profile.sourceUrl) &&
+    sameAuthoritativeOrigin(proof.sourceReference, approvedSourceUrl) &&
     proof.foodVariantId === profile.variantId &&
     proof.sourceId === profile.sourceId &&
     proof.ownerUserId === null &&
