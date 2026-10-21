@@ -158,7 +158,8 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           stored.sourceId !== sourceId || stored.status !== "revoked") {
         throw new Error("B2 barcode conflict requires manual review");
       }
-      await reviewChild("legacy_barcode_review", String(catalogId), variantId, "await_exact_sku_evidence");
+      // Review targets the persisted barcode ID, not the unrelated legacy catalog ID.
+      await reviewChild("legacy_barcode_review", String(stored.id), variantId, "await_exact_sku_evidence");
     }
 
     for (const decision of plan.decisions) {
