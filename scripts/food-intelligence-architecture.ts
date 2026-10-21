@@ -3265,6 +3265,11 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
     status: ["active", "deprecated", "merged", "draft", "provisional", "pending_review",
       "verified", "rejected", "revoked", "pending", "approved", "open", "in_review", "closed"],
     governanceStatus: ["provisional", "pending_review", "verified", "rejected", "revoked"],
+    // Governed evidence provenance types are schema states, not food descriptors.
+    // A different value (e.g. a real attribute token) is still evaluated by gate 18.
+    evidenceType: ["manufacturer", "nutrition_label"],
+    // Source-table discriminant is structural migration metadata, not food materiality.
+    table: ["foods", "foodCatalog"],
     scope: ["global", "user"],
     mode: ["preview", "stage"],
     action: ["mapped", "merged", "quarantined"],

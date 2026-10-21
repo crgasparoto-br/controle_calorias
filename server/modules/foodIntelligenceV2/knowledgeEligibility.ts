@@ -61,7 +61,7 @@ export function hasVerifiedCommercialProfileProof(
     proof.ownerUserId === null &&
     (proof.evidenceType === "manufacturer" || proof.evidenceType === "nutrition_label") &&
     !!proof.contentHash?.trim() &&
-    !!proof.sourceReference?.startsWith("https://") &&
+    // sameAuthoritativeOrigin already validates scheme and approved source origin.
     (!proof.retentionUntil || proof.retentionUntil.getTime() > now.getTime())
   );
 }

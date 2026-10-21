@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findTraceableCatalogFamily } from "./legacyCatalogLink";
+import { validateLegacyCatalogProvenance } from "./legacyCatalogLink";
 
 const family = {
   id: 42, name: "Alimento X", normalizedName: "alimento x", brandName: null,
@@ -21,8 +21,8 @@ const sources = new Map([[7, { source: {
 } }]]);
 describe("B2 catalog reconciliation provenance", () => {
   it("links only a unique, source-bound and nutrition-equivalent legacy family", () => {
-    expect(findTraceableCatalogFamily(catalog, [family], sources)?.id).toBe(42);
-    expect(findTraceableCatalogFamily(catalog, [family, { ...family, id: 43 }], sources)).toBeNull();
+    expect(validateLegacyCatalogProvenance(catalog, [family], sources)?.id).toBe(42);
+    expect(validateLegacyCatalogProvenance(catalog, [family, { ...family, id: 43 }], sources)).toBeNull();
   });
   it("quarantines no source, mismatched code, URL, macros, name, brand and scope", () => {
     for (const diff of [
@@ -32,9 +32,9 @@ describe("B2 catalog reconciliation provenance", () => {
       { sourceUrls: "https://reference.example/products/ITEM-1" },
       { calories: 99 }, { name: "Another food" }, { brandName: "Other" },
       { createdByUserId: 44 }, { isUserCreated: 1 }, { sourceVerifiedAt: null },
-    ]) expect(findTraceableCatalogFamily({ ...catalog, ...diff }, [family], sources)).toBeNull();
-    expect(findTraceableCatalogFamily(catalog, [{ ...family, scope: "user" as const }], sources)).toBeNull();
-    expect(findTraceableCatalogFamily(catalog, [{ ...family, status: "deprecated" }], sources)).toBeNull();
-    expect(findTraceableCatalogFamily(catalog, [{ ...family, sourceFoodCode: null }], sources)).toBeNull();
+    ]) expect(validateLegacyCatalogProvenance({ ...catalog, ...diff }, [family], sources)).toBeNull();
+    expect(validateLegacyCatalogProvenance(catalog, [{ ...family, scope: "user" as const }], sources)).toBeNull();
+    expect(validateLegacyCatalogProvenance(catalog, [{ ...family, status: "deprecated" }], sources)).toBeNull();
+    expect(validateLegacyCatalogProvenance(catalog, [{ ...family, sourceFoodCode: null }], sources)).toBeNull();
   });
 });

@@ -17,7 +17,7 @@ import {
   type LegacyFoodCandidate,
 } from "./legacyReconciliation";
 import { getDb } from "../../db";
-import { findTraceableCatalogFamily } from "./legacyCatalogLink";
+import { validateLegacyCatalogProvenance } from "./legacyCatalogLink";
 
 const hash = (data: unknown) => createHash("sha256").update(JSON.stringify(data)).digest("hex");
 const MAX_SCAN = 10000;
@@ -54,7 +54,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   const byFoodId = new Map(legacyFoods.map(row => [row.id, row]));
   const brandIds = new Map(brands.map(row => [row.normalizedName, row.id]));
   const linkedCatalog = new Map(legacyCatalog.map(row => [
-    row.id, findTraceableCatalogFamily(row, legacyFoods, sourceMap),
+    row.id, validateLegacyCatalogProvenance(row, legacyFoods, sourceMap),
   ]));
   const aliasesByFood = new Map<number, typeof aliases>();
   for (const alias of aliases) {

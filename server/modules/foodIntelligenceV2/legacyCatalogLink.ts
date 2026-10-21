@@ -49,7 +49,7 @@ function catalogCitesSource(raw: string, sourceUrl: string): boolean {
 
 /** No name-only or generic-source fuzzy link is allowed. A catalog row
  * without an independent legacy source key stays in quarantine. */
-export function findTraceableCatalogFamily<T extends TraceableFamily>(
+export function validateLegacyCatalogProvenance<T extends TraceableFamily>(
   catalog: TraceableCatalog,
   families: readonly T[],
   sources: ReadonlyMap<number, TraceableSource>,
