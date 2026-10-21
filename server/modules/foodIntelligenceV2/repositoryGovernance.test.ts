@@ -139,6 +139,33 @@ describe("B2 actual repository governed read", () => {
       .toEqual({ kind: "miss", reason: "not_found" });
   });
 
+  it("rejects a read-only barcode source even when the nutrition profile is globally licensed", async () => {
+    // Different sources are intentional: profile publication cannot authorize
+    // an unrelated barcode source to become a public identity assertion.
+    const readOnly = { ...grant, allowGlobalPublication: 0 };
+    const published = { ...grant, allowGlobalPublication: 1 };
+    const publishedSource = { ...source, id: 8 };
+    installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant: readOnly }],
+      [{ id: 17, sourceId: 7, foodVariantId: 22, ownerUserId: null,
+        evidenceType: "barcode", retentionUntil: new Date("2026-11-21T12:00:00Z") }],
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "generic", displayName: "Pao" },
+        family: { id: 4, status: "active", scope: "global", ownerUserId: null },
+        brand: null }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 8,
+        foodVariantSourceId: null, validFrom: null, validTo: null,
+        caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
+        basisQuantity: 100, basisUnit: "g" }],
+      [{ source: publishedSource, grant: published }],
+      [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal({
+      ...request, barcode: "7890000000001",
+    })).toEqual({ kind: "miss", reason: "incompatible_evidence" });
+  });
+
   it("does not renew the first-capture retention on duplicate external evidence", async () => {
     const expired = new Date(Date.now() - 60_000);
     const candidate = {
