@@ -12,6 +12,7 @@ import {
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { canReadFoodSource, canPersistProvisionalEvidence } from "./sourceGrants";
+import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof } from "./knowledgeEligibility";
 import { isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
@@ -30,9 +31,6 @@ const currentlyValid = (from: Date | null, to: Date | null, now: Date) =>
   (!from || from.getTime() <= now.getTime()) &&
   (!to || to.getTime() > now.getTime());
 
-function scopedToUser(ownerUserId: number | null, userId: number | null) {
-  return ownerUserId === null || (userId !== null && ownerUserId === userId);
-}
 
 function evidenceCacheKey(request: FoodKnowledgeRequest) {
   // Keyed by the specific user, policy/resolver revision and exact query.
@@ -76,7 +74,7 @@ async function eligibleVariant(
       row.variant.governanceStatus === "rejected" ||
       row.variant.governanceStatus === "revoked" ||
       row.family.status !== "active" ||
-      !scopedToUser(row.family.ownerUserId, request.userId)) return null;
+      !isGovernedFamilyVisible(row.family.scope, row.family.ownerUserId, request.userId)) return null;
 
   if (request.brand?.trim()) {
     if (!row.brand || normalizeFoodName(row.brand.name) !== normalizeFoodName(request.brand)) {
@@ -91,6 +89,7 @@ async function eligibleVariant(
 
 async function readCurrentProfile(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
+  variantType: "generic" | "branded" | "custom",
 ): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string } | "conflict" | null> {
   const rows = await db.select().from(foodNutritionProfiles)
     .where(eq(foodNutritionProfiles.foodVariantId, variantId))
@@ -109,12 +108,26 @@ async function readCurrentProfile(
         !currentlyValid(profile.validFrom, profile.validTo, at(request))) continue;
     const permission = await readApprovedSource(db, profile.sourceId, at(request));
     if (!permission) continue;
-    if (profile.foodVariantSourceId !== null) {
-      // A profile referring to an active source mapping must not outlive it.
-      const [mapping] = await db.select().from(foodVariantSources)
+    const [mapping] = profile.foodVariantSourceId === null
+      ? [null]
+      : await db.select().from(foodVariantSources)
         .where(eq(foodVariantSources.id, profile.foodVariantSourceId)).limit(1);
-      if (!mapping || mapping.status !== "active" ||
-          mapping.foodVariantId !== variantId || mapping.sourceId !== profile.sourceId) continue;
+    // An explicit but retired/broken mapping invalidates the profile.
+    if (profile.foodVariantSourceId !== null &&
+        (!mapping || mapping.status !== "active" ||
+          mapping.foodVariantId !== variantId || mapping.sourceId !== profile.sourceId)) continue;
+    if (variantType === "branded") {
+      const proofs = await db.select().from(foodEvidence)
+        .where(and(
+          eq(foodEvidence.foodVariantId, variantId),
+          eq(foodEvidence.sourceId, profile.sourceId),
+        )).limit(MAX_CANDIDATES + 1);
+      if (proofs.length > MAX_CANDIDATES ||
+          !hasVerifiedCommercialProfileProof(
+            { variantId, sourceId: profile.sourceId, mapping },
+            proofs,
+            at(request),
+          )) continue;
     }
     usable.push({
       profile, sourceId: permission.source.id,
@@ -162,7 +175,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
   return {
     async readLocal(request): Promise<FoodKnowledgeLocalResult> {
       const db = await getDb();
-      if (!db) return { kind: "miss", reason: "no_governed_profile" };
+      if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
       const groups: Array<{ match: MatchType; ids: number[] }> = [];
@@ -228,7 +241,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request);
           if (!row) continue;
-          const profileResult = await readCurrentProfile(db, id, request);
+          const profileResult = await readCurrentProfile(db, id, request, row.variant.variantType);
           if (profileResult === "conflict") {
             return { kind: "conflict", reason: "material_nutrition_conflict" };
           }
@@ -262,7 +275,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
     async readPendingEvidence(request) {
       if (request.userId === null) return null;
       const db = await getDb();
-      if (!db) return null;
+      if (!db) throw new Error("Governed Food V2 evidence store unavailable");
       const rows = await db.select().from(foodEvidence).where(and(
         eq(foodEvidence.ownerUserId, request.userId),
         eq(foodEvidence.subjectKey, evidenceCacheKey(request)),
