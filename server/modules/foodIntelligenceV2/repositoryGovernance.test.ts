@@ -8,7 +8,7 @@ vi.mock("../../db", () => ({ getDb: vi.fn() }));
 const now = new Date("2026-10-21T12:00:00Z");
 const grant = {
   sourceVersion: "v1", status: "approved", allowRead: 1, allowPersistEvidence: 1,
-  allowGlobalPublication: 0, licenseReference: "https://manufacturer.example/license",
+  allowGlobalPublication: 1, licenseReference: "https://manufacturer.example/license",
   approvalReference: "approved:1", approvedAt: new Date("2026-10-20T12:00:00Z"),
   validUntil: null, revokedAt: null, retentionDays: 30,
 };
@@ -54,10 +54,10 @@ describe("B2 actual repository governed read", () => {
       retentionUntil: new Date("2026-11-21T12:00:00Z"),
     };
     installResults(
-      [],                           // raw exact name does not match
-      [{ id: 22 }],                 // user-confirmed alias
+      [{ id: 22 }],                 // confirmed alias points to SKU 22
+      [{ id: 99 }],                 // homonymous exact name points elsewhere
       [],                           // unrelated global alias
-      [],                           // unrelated generic family
+      [{ id: 99 }],                 // generic would also match if alias lost
       [{ variant: { id: 22, status: "active", governanceStatus: "verified",
           variantType: "branded", displayName: "Panco integral" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null },
@@ -74,6 +74,104 @@ describe("B2 actual repository governed read", () => {
       kind: "match", matchingEvidence: "personal_alias",
       variantId: 22, governanceStatus: "verified",
     });
+  });
+
+
+  it("denies globally visible profiles from read-only sources", async () => {
+    const mapping = {
+      id: 9, status: "active", foodVariantId: 22, sourceId: 7,
+      sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
+    };
+    const evidence = {
+      foodVariantId: 22, sourceId: 7, ownerUserId: null,
+      evidenceType: "nutrition_label", sourceReference: mapping.sourceUrl,
+      contentHash: "proof", retentionUntil: new Date("2026-11-21T12:00:00Z"),
+    };
+    installResults(
+      [{ id: 22 }], [],
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "branded", displayName: "Panco" },
+        family: { id: 4, status: "active", scope: "global", ownerUserId: null },
+        brand: { name: "Panco" } }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+        foodVariantSourceId: mapping.id, validFrom: null, validTo: null,
+        caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
+      [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
+      [mapping], [evidence], [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" }))
+      .toEqual({ kind: "miss", reason: "not_found" });
+  });
+
+  it("allows a personally scoped food with read-only source authorization", async () => {
+    const mapping = {
+      id: 9, status: "active", foodVariantId: 22, sourceId: 7,
+      sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
+    };
+    installResults(
+      [{ id: 22 }], [],
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "branded", displayName: "Panco pessoal" },
+        family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
+        brand: { name: "Panco" } }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+        foodVariantSourceId: mapping.id, validFrom: null, validTo: null,
+        caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
+      [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
+      [mapping],
+      [{ foodVariantId: 22, sourceId: 7, ownerUserId: null,
+        evidenceType: "nutrition_label", sourceReference: mapping.sourceUrl,
+        contentHash: "proof", retentionUntil: new Date("2026-11-21T12:00:00Z") }],
+      [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" }))
+      .toMatchObject({ kind: "match", variantId: 22, nutrition: { caloriesKcal: 210 } });
+  });
+
+  it("does not publish a global alias licensed only for source reading", async () => {
+    installResults(
+      [], // no exact variant
+      [{ foodVariantId: 22, governanceStatus: "verified", sourceId: 7 }],
+      [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
+      [], // no generic family
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, userId: null }))
+      .toEqual({ kind: "miss", reason: "not_found" });
+  });
+
+  it("does not renew the first-capture retention on duplicate external evidence", async () => {
+    const expired = new Date(Date.now() - 60_000);
+    const candidate = {
+      sourceId: 7, sourceReference: "https://manufacturer.example/products/sku-1",
+      nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
+        basisQuantity: 100, basisUnit: "g" as const },
+    };
+    let updatedRetention: unknown;
+    const pages: unknown[][] = [
+      [{ source, grant }],
+      [{ retentionUntil: expired, sourceReference: candidate.sourceReference,
+        payloadJson: "original-captured-evidence" }],
+    ];
+    vi.mocked(getDb).mockResolvedValue({
+      select: vi.fn(() => ({
+        from() { return this; }, innerJoin() { return this; }, where() { return this; },
+        limit: vi.fn(async () => pages.shift() ?? []),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onDuplicateKeyUpdate: vi.fn(async ({ set }: { set: { retentionUntil: unknown } }) => {
+            updatedRetention = set.retentionUntil;
+          }),
+        })),
+      })),
+    } as never);
+    expect(await createFoodV2KnowledgeRepository().stagePendingEvidence(request, candidate))
+      .toBe(false);
+    // The UPSERT must compare against the old persisted deadline, not
+    // overwrite it with Date.now() + retentionDays.
+    const queryChunks = (updatedRetention as { queryChunks?: Array<{ value?: string[] }> })?.queryChunks;
+    expect(queryChunks?.some(chunk => chunk.value?.some(part => part.includes("LEAST("))))
+      .toBe(true);
   });
 
   it("rejects cached payload references from a different source origin", async () => {

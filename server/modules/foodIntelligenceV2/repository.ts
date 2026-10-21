@@ -4,14 +4,14 @@
  * the V1 entrypoints until the ADR's shadow/cutover gates.
  */
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { foodAliases, foodBrands, foodPortions, foodSources, foods } from "../../../drizzle/schema";
 import {
   foodBarcodes, foodEvidence, foodNutritionProfiles, foodSourceReadGrants, foodVariantSources,
   foodVariants, userFoodAliases,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { canReadFoodSource, canPersistProvisionalEvidence, isAuthorizedSourceReference } from "./sourceGrants";
+import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference } from "./sourceGrants";
 import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
@@ -45,7 +45,9 @@ function evidenceCacheKey(request: FoodKnowledgeRequest) {
   });
 }
 
-async function readApprovedSource(db: V2Database, sourceId: number, now: Date) {
+async function readApprovedSource(
+  db: V2Database, sourceId: number, now: Date, requireGlobalPublication = false,
+) {
   const [row] = await db.select({
     source: foodSources,
     grant: foodSourceReadGrants,
@@ -55,7 +57,8 @@ async function readApprovedSource(db: V2Database, sourceId: number, now: Date) {
     .limit(1);
   if (
     !row ||
-    !canReadFoodSource(row.grant, row.source.version, now)
+    !canReadFoodSource(row.grant, row.source.version, now) ||
+    (requireGlobalPublication && !canPublishGlobalKnowledge(row.grant, row.source.version, now))
   ) return null;
   return row;
 }
@@ -91,6 +94,7 @@ async function eligibleVariant(
 async function readCurrentProfile(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
   variantType: "generic" | "branded" | "custom",
+  familyScope: "global" | "user" | null,
 ): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string } | "conflict" | null> {
   const rows = await db.select().from(foodNutritionProfiles)
     .where(eq(foodNutritionProfiles.foodVariantId, variantId))
@@ -107,7 +111,7 @@ async function readCurrentProfile(
     if (profile.currentSlot !== 1 ||
         (profile.status !== "verified" && profile.status !== "provisional") ||
         !currentlyValid(profile.validFrom, profile.validTo, at(request))) continue;
-    const permission = await readApprovedSource(db, profile.sourceId, at(request));
+    const permission = await readApprovedSource(db, profile.sourceId, at(request), familyScope === "global");
     if (!permission) continue;
     const [mapping] = profile.foodVariantSourceId === null
       ? [null]
@@ -154,6 +158,7 @@ async function readCurrentProfile(
 
 async function portionsFor(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
+  familyScope: "global" | "user" | null,
 ): Promise<GovernedFoodMatch["portions"]> {
   const rows = await db.select().from(foodPortions)
     .where(eq(foodPortions.foodVariantId, variantId))
@@ -163,7 +168,7 @@ async function portionsFor(
     if ((portion.status !== "verified" && portion.status !== "provisional") ||
         !currentlyValid(portion.validFrom, portion.validTo, at(request)) ||
         !portion.sourceId || !Number.isFinite(portion.grams) || portion.grams <= 0 ||
-        !await readApprovedSource(db, portion.sourceId, at(request))) continue;
+        !await readApprovedSource(db, portion.sourceId, at(request), familyScope === "global")) continue;
     result.push({
       label: portion.label, unit: portion.unit, quantity: portion.quantity,
       grams: portion.grams, status: portion.status,
@@ -179,7 +184,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
-      const groups: Array<{ match: MatchType; ids: number[] }> = [];
+      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number }> = [];
       if (request.barcode?.trim()) {
         const barcodeRows = await db.select().from(foodBarcodes)
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
@@ -198,11 +203,10 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             !["barcode", "nutrition_label", "manufacturer"].includes(proof.evidenceType)) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
-        groups.push({ match: "barcode", ids: [barcode.foodVariantId] });
+        groups.push({ match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId });
       } else if (name) {
-        const exact = await db.select({ id: foodVariants.id }).from(foodVariants)
-          .where(eq(foodVariants.normalizedName, name)).limit(MAX_CANDIDATES + 1);
-        groups.push({ match: "exact_variant", ids: exact.map(row => row.id) });
+        // Personal confirmation takes precedence over a homonymous generic
+        // exact name, but must never override an explicitly supplied brand.
         if (request.userId !== null && !request.brand?.trim()) {
           const personal = await db.select({ id: userFoodAliases.foodVariantId })
             .from(userFoodAliases)
@@ -214,13 +218,16 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             )).limit(MAX_CANDIDATES + 1);
           groups.push({ match: "personal_alias", ids: personal.map(row => row.id) });
         }
+        const exact = await db.select({ id: foodVariants.id }).from(foodVariants)
+          .where(eq(foodVariants.normalizedName, name)).limit(MAX_CANDIDATES + 1);
+        groups.push({ match: "exact_variant", ids: exact.map(row => row.id) });
         const global = await db.select().from(foodAliases)
           .where(and(eq(foodAliases.normalizedAlias, name), eq(foodAliases.status, "active")))
           .limit(MAX_CANDIDATES + 1);
         const licensedGlobalIds: number[] = [];
         for (const alias of global) {
           if (alias.foodVariantId && alias.governanceStatus === "verified" && alias.sourceId &&
-              await readApprovedSource(db, alias.sourceId, at(request))) {
+              await readApprovedSource(db, alias.sourceId, at(request), true)) {
             licensedGlobalIds.push(alias.foodVariantId);
           }
         }
@@ -242,7 +249,13 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request, group.match);
           if (!row) continue;
-          const profileResult = await readCurrentProfile(db, id, request, row.variant.variantType);
+          // A globally visible barcode identity also needs permission to
+          // publish the barcode's source, independently of the macro profile.
+          if (group.identitySourceId && row.family.scope === "global" &&
+              !await readApprovedSource(db, group.identitySourceId, at(request), true)) continue;
+          const profileResult = await readCurrentProfile(
+            db, id, request, row.variant.variantType, row.family.scope,
+          );
           if (profileResult === "conflict") {
             return { kind: "conflict", reason: "material_nutrition_conflict" };
           }
@@ -261,7 +274,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             nutrition: profileValues,
             governanceStatus: p.status === "verified" &&
               row.variant.governanceStatus === "verified" ? "verified" : "provisional",
-            portions: await portionsFor(db, id, request),
+            portions: await portionsFor(db, id, request, row.family.scope),
           });
         }
         if (matches.length > 1) return { kind: "conflict", reason: "multiple_identities" };
@@ -329,18 +342,39 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         resolverVersion: request.resolverVersion, policyVersion: request.policyVersion,
         nutrition: candidate.nutrition,
       };
+      const subjectKey = evidenceCacheKey(request);
+      const contentHash = hash(payload);
+      const payloadJson = JSON.stringify(payload);
+      const retentionUntil = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
       await db.insert(foodEvidence).values({
-        subjectKey: evidenceCacheKey(request),
+        subjectKey,
         evidenceType: "external_source",
         sourceId: candidate.sourceId,
         ownerUserId: request.userId,
-        contentHash: hash(payload),
+        contentHash,
         sourceReference: candidate.sourceReference,
-        payloadJson: JSON.stringify(payload),
-        retentionUntil: new Date(now.getTime() + days * 24 * 60 * 60 * 1000),
-      }).onDuplicateKeyUpdate({ set: { updatedAt: now, retentionUntil: new Date(now.getTime() + days * 24 * 60 * 60 * 1000) } });
+        payloadJson,
+        retentionUntil,
+      }).onDuplicateKeyUpdate({ set: {
+        // Replays cannot restart a retention clock measured from first capture.
+        // A shortened grant can only reduce the original deadline.
+        retentionUntil: sql`LEAST(${foodEvidence.retentionUntil}, ${retentionUntil})`,
+      } });
+      const [stored] = await db.select({
+        retentionUntil: foodEvidence.retentionUntil,
+        sourceReference: foodEvidence.sourceReference,
+        payloadJson: foodEvidence.payloadJson,
+      }).from(foodEvidence)
+        .where(and(
+          eq(foodEvidence.ownerUserId, request.userId),
+          eq(foodEvidence.subjectKey, subjectKey),
+          eq(foodEvidence.contentHash, contentHash),
+        )).limit(1);
+      // An expired duplicate must not be presented as newly persisted.
       // No variants, profiles, global aliases or publication are created here.
-      return true;
+      return !!stored?.retentionUntil && stored.retentionUntil > now &&
+        stored.sourceReference === candidate.sourceReference &&
+        stored.payloadJson === payloadJson;
     },
   };
 }
