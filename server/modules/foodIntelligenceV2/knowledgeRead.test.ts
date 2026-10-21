@@ -112,6 +112,40 @@ describe("B2 — porta governada e cache-through", () => {
     expect((await resolveWithGovernedKnowledge({ ...base, policyVersion: "governance-v2" }, f.store)).kind).toBe("miss");
   });
 
+  it("detecta conflito entre evidencias pessoais em cache e nao faz override pela rede", async () => {
+    const f = fixture();
+    f.pending.mockResolvedValueOnce({ kind: "conflict" });
+    const external = vi.fn();
+    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "conflict", reason: "material_nutrition_conflict" });
+    expect(external).not.toHaveBeenCalled();
+  });
+
+  it("trata indisponibilidade do armazenamento como falha visivel, sem fallback oculto", async () => {
+    const f = fixture();
+    f.local.mockRejectedValueOnce(new Error("db offline"));
+    const external = vi.fn();
+    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "governed_store_unavailable" });
+    expect(external).not.toHaveBeenCalled();
+  });
+
+  it("provider indisponivel nao inventa valor nutricional", async () => {
+    const f = fixture();
+    const external = vi.fn().mockRejectedValue(new Error("network down"));
+    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
+  });
+
+  it("falha na escrita preserva provisional nao persistido", async () => {
+    const f = fixture();
+    f.stage.mockRejectedValueOnce(new Error("read only"));
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+    });
+    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+      .toMatchObject({ kind: "provisional", persisted: false });
+  });
   it("nao repete request externo quando nao existe rede configurada", async () => {
     const f = fixture();
     expect(await resolveWithGovernedKnowledge(base, f.store))

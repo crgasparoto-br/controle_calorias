@@ -292,6 +292,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         } catch { /* Invalid legacy JSON is never silently trusted. */ }
       }
       const signatures = new Set(candidates.map(c => hash(c)));
+      if (signatures.size > 1) return { kind: "conflict" as const };
       return signatures.size === 1 ? candidates[0] : null;
     },
 

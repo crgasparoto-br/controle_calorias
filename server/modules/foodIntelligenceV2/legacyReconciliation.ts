@@ -20,11 +20,14 @@ export type LegacyFoodCandidate = {
   sourceCode: string | null;
   canonicalKey: string | null;
   validNutrition: boolean;
+  nutritionFingerprint?: string;
+  status?: "active" | "deprecated" | "merged";
 };
 
 export type ReconciliationReason =
   | "personal_scope" | "source_unlicensed" | "source_untraceable"
-  | "family_ambiguous" | "brand_unlinked" | "nutrition_insufficient" | "duplicate_identity";
+  | "family_ambiguous" | "brand_unlinked" | "nutrition_insufficient"
+  | "nutrition_conflict" | "deprecated_source" | "duplicate_identity";
 export type LegacyFoodDecision =
   | { action: "mapped"; source: LegacyFoodCandidate; identityKey: string; profileKey: string }
   | { action: "merged"; source: LegacyFoodCandidate; identityKey: string }
@@ -42,7 +45,7 @@ export function planLegacyKnowledgeReconciliation(
   decisions: LegacyFoodDecision[];
   totals: { input: number; mapped: number; merged: number; quarantined: number };
 } {
-  const seen = new Set<string>();
+  const seen = new Map<string, string | undefined>();
   const decisions: LegacyFoodDecision[] = [];
   const ordered = [...candidates].sort(
     (a, b) => a.table.localeCompare(b.table) || a.id - b.id,
@@ -50,6 +53,7 @@ export function planLegacyKnowledgeReconciliation(
   for (const source of ordered) {
     let reason: ReconciliationReason | null = null;
     if (source.ownerUserId !== null) reason = "personal_scope";
+    else if (source.status && source.status !== "active") reason = "deprecated_source";
     else if (!source.foodId || !source.canonicalKey?.trim() ||
              !normalizeFoodName(source.name)) reason = "family_ambiguous";
     else if (source.brandName?.trim() && !source.brandId) reason = "brand_unlinked";
@@ -75,9 +79,13 @@ export function planLegacyKnowledgeReconciliation(
     const profileKey = "legacy:" + createHash("sha256")
       .update(sourceKey + ":nutrition").digest("hex");
     if (seen.has(identityKey)) {
-      decisions.push({ action: "merged", source, identityKey });
+      if (seen.get(identityKey) !== source.nutritionFingerprint) {
+        decisions.push({ action: "quarantined", source, reason: "nutrition_conflict" });
+      } else {
+        decisions.push({ action: "merged", source, identityKey });
+      }
     } else {
-      seen.add(identityKey);
+      seen.set(identityKey, source.nutritionFingerprint);
       decisions.push({ action: "mapped", source, identityKey, profileKey });
     }
   }

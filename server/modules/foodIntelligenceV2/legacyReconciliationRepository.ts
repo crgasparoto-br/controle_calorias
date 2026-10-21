@@ -52,6 +52,8 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       id: row.id,
       foodId: row.id,
       name: row.name,
+      status: row.status,
+      nutritionFingerprint: hash([row.caloriesKcalPer100g, row.proteinGramsPer100g, row.carbsGramsPer100g, row.fatGramsPer100g]),
       brandName: row.brandName,
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
       ownerUserId: row.ownerUserId,
@@ -69,6 +71,8 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       id: row.id,
       foodId: null, // no direct V1 foreign key to the canonical family
       name: row.name,
+      status: row.status,
+      nutritionFingerprint: hash([row.calories, row.protein, row.carbs, row.fat]),
       brandName: row.brandName,
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
       ownerUserId: row.createdByUserId,

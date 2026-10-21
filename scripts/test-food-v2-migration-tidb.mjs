@@ -242,6 +242,48 @@ const testUpgrade = async f => {
   console.log(JSON.stringify({ event: "food_v2_migration_integration.passed", mode, variantId, currentProfileId: profile.id, reviewEvents: 1, successorProfileId: replacement.insertId, aliasHistoryCount: 2 }));
 };
 
+// #1302 — actual TiDB checks for the denied-by-default source grants and
+// personal evidence cache index; this is not an in-memory policy-only test.
+const assertB2SourceGovernance = async f => {
+  const [before] = await queryRows("SELECT COUNT(*) AS c FROM food_source_read_grants");
+  assert.equal(Number(before.c), 0, "new source grants must never be auto-approved");
+  await connection.query(
+    "INSERT INTO food_source_read_grants (source_id, source_version) VALUES (?, 'v1')",
+    [f.sourceId]
+  );
+  const [initial] = await queryRows(
+    "SELECT status, allow_read, allow_persist_evidence, allow_global_publication FROM food_source_read_grants WHERE source_id=?",
+    [f.sourceId]
+  );
+  assert.deepEqual([initial.status, Number(initial.allow_read), Number(initial.allow_persist_evidence), Number(initial.allow_global_publication)], ["pending", 0, 0, 0]);
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET allow_read=1 WHERE source_id=?", [f.sourceId]
+  ), "read permission without approval and license must fail");
+  await connection.query(
+    "UPDATE food_source_read_grants SET status='approved', license_reference='https://example.org/license', approval_reference='approval-b2', approved_at=NOW(), allow_read=1 WHERE source_id=?",
+    [f.sourceId]
+  );
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET allow_persist_evidence=1 WHERE source_id=?", [f.sourceId]
+  ), "persistent evidence without retention policy must fail");
+  await connection.query(
+    "UPDATE food_source_read_grants SET retention_days=30, allow_persist_evidence=1 WHERE source_id=?",
+    [f.sourceId]
+  );
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET status='revoked' WHERE source_id=?", [f.sourceId]
+  ), "revoked source cannot remain authorized");
+  await connection.query(
+    "UPDATE food_source_read_grants SET status='revoked', revoked_at=NOW(), allow_read=0, allow_persist_evidence=0 WHERE source_id=?",
+    [f.sourceId]
+  );
+  const insertEvidence = "INSERT INTO food_evidence (owner_user_id, subject_key, evidence_type, content_hash, payload_json, retention_until) VALUES (?, ?, 'external_source', ?, '{}', ?)";
+  const cacheArgs = [f.userId, "b2:personal-cache", "d".repeat(64), new Date(Date.now() + 86400000)];
+  await connection.query(insertEvidence, cacheArgs);
+  await mustReject(connection.query(insertEvidence, cacheArgs), "personal cache must be idempotent in DB");
+  const [historical] = await queryRows("SELECT foodName, foodSnapshotJson FROM mealItems WHERE id=?", [f.mealItemId]);
+  assert.equal(historical.foodSnapshotJson, f.snapshot);
+};
 try {
   const [before] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
   assert.equal(Number(before.c), 0, "test requires pre-V2 baseline schema");
@@ -250,9 +292,14 @@ try {
   const forwardStatements = await applyFile("../drizzle/0055_food_intelligence_v2_persistence.sql");
   await assertLegacy(fixture, true);
   await assertRequiredReadIndexes();
+  const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
+  assert.equal(b2ForwardStatements, 2);
+  await assertB2SourceGovernance(fixture);
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
+    const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
+    assert.equal(b2Reversed, 2);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
     const [stillThere] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
     assert.equal(Number(stillThere.c), 0);

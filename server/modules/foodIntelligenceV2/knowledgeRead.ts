@@ -50,22 +50,25 @@ export type ExternalProvisionalCandidate = {
 export type FoodKnowledgeResult =
   | FoodKnowledgeLocalResult
   | { kind: "provisional"; origin: "external"; persisted: boolean; sourceId: number; sourceReference: string; nutrition: NutritionFacts }
-  | { kind: "unavailable"; reason: "provider_unavailable" | "external_evidence_invalid" };
+  | { kind: "unavailable"; reason: "provider_unavailable" | "external_evidence_invalid" | "governed_store_unavailable" };
 
 export interface FoodKnowledgeStore {
   readLocal(request: FoodKnowledgeRequest): Promise<FoodKnowledgeLocalResult>;
-  readPendingEvidence(request: FoodKnowledgeRequest): Promise<ExternalProvisionalCandidate | null>;
+  readPendingEvidence(request: FoodKnowledgeRequest): Promise<ExternalProvisionalCandidate | { kind: "conflict" } | null>;
   stagePendingEvidence(request: FoodKnowledgeRequest, candidate: ExternalProvisionalCandidate): Promise<boolean>;
 }
 
 export type FoodExternalLookup = (request: FoodKnowledgeRequest) => Promise<ExternalProvisionalCandidate | null>;
 
-export function isNutritionFacts(value: NutritionFacts): boolean {
+export function isNutritionFacts(value: unknown): value is NutritionFacts {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const nutrition = value as Partial<NutritionFacts>;
   return (
-    Number.isFinite(value.basisQuantity) && value.basisQuantity > 0 &&
-    (value.basisUnit === "g" || value.basisUnit === "ml" || value.basisUnit === "serving") &&
-    [value.caloriesKcal, value.proteinG, value.carbG, value.fatG]
-      .every(n => Number.isFinite(n) && n >= 0)
+    typeof nutrition.basisQuantity === "number" &&
+    Number.isFinite(nutrition.basisQuantity) && nutrition.basisQuantity > 0 &&
+    (nutrition.basisUnit === "g" || nutrition.basisUnit === "ml" || nutrition.basisUnit === "serving") &&
+    [nutrition.caloriesKcal, nutrition.proteinG, nutrition.carbG, nutrition.fatG]
+      .every(n => typeof n === "number" && Number.isFinite(n) && n >= 0)
   );
 }
 
@@ -89,14 +92,19 @@ export async function resolveWithGovernedKnowledge(
     return { kind: "miss", reason: "invalid_request" };
   }
 
-  const local = await store.readLocal(request);
+  let local: FoodKnowledgeLocalResult;
+  try { local = await store.readLocal(request); }
+  catch { return { kind: "unavailable", reason: "governed_store_unavailable" }; }
   if (local.kind !== "miss") return local;
 
   // Barcode assertions and explicitly branded inputs cannot be silently
   // substituted with a generic food by the external provider or local cache.
   if (request.userId !== null) {
-    const cached = await store.readPendingEvidence(request);
-    if (cached && isNutritionFacts(cached.nutrition)) {
+    let cached: Awaited<ReturnType<FoodKnowledgeStore["readPendingEvidence"]>>;
+    try { cached = await store.readPendingEvidence(request); }
+    catch { return { kind: "unavailable", reason: "governed_store_unavailable" }; }
+    if (cached && "kind" in cached && cached.kind === "conflict") return { kind: "conflict", reason: "material_nutrition_conflict" };
+    if (cached && "nutrition" in cached && isNutritionFacts(cached.nutrition)) {
       return {
         kind: "provisional", origin: "external", persisted: true,
         sourceId: cached.sourceId, sourceReference: cached.sourceReference,
@@ -106,10 +114,13 @@ export async function resolveWithGovernedKnowledge(
   }
   if (!externalLookup) return local;
 
-  const candidate = await externalLookup(request);
+  let candidate: ExternalProvisionalCandidate | null;
+  try { candidate = await externalLookup(request); }
+  catch { return { kind: "unavailable", reason: "provider_unavailable" }; }
   if (!candidate) return { kind: "unavailable", reason: "provider_unavailable" };
   if (
     !Number.isSafeInteger(candidate.sourceId) || candidate.sourceId <= 0 ||
+    typeof candidate.sourceReference !== "string" ||
     !/^https:\/\//i.test(candidate.sourceReference) ||
     candidate.sourceReference.length > 500 ||
     !isNutritionFacts(candidate.nutrition)
@@ -117,9 +128,11 @@ export async function resolveWithGovernedKnowledge(
     return { kind: "unavailable", reason: "external_evidence_invalid" };
   }
 
-  const persisted = request.userId !== null
-    ? await store.stagePendingEvidence(request, candidate)
-    : false;
+  let persisted = false;
+  if (request.userId !== null) {
+    try { persisted = await store.stagePendingEvidence(request, candidate); }
+    catch { persisted = false; } // Retrieval still yields explicitly nonpersistent provisional facts.
+  }
   return {
     kind: "provisional",
     origin: "external",

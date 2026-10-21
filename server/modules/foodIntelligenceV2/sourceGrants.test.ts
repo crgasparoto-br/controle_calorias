@@ -26,6 +26,8 @@ describe("B2 source grants: policy is deny-by-default", () => {
     expect(canReadFoodSource(grant(), "release-1", now)).toBe(true);
     expect(canReadFoodSource(grant(), "release-2", now)).toBe(false);
     expect(canReadFoodSource(grant({ approvedAt: new Date("2026-10-22T00:00:00Z") }), "release-1", now)).toBe(false);
+    expect(canReadFoodSource(grant({ approvedAt: new Date("invalid") }), "release-1", now)).toBe(false);
+    expect(canReadFoodSource(grant({ validUntil: new Date("invalid") }), "release-1", now)).toBe(false);
   });
   it("revocation and expiry invalidate future reads and cache eligibility", () => {
     expect(canReadFoodSource(grant({ status: "revoked" }), "release-1", now)).toBe(false);

@@ -52,6 +52,26 @@ describe("B2 reconciliation with governed quarantine", () => {
     expect(result.totals).toEqual({ input: 2, mapped: 1, merged: 1, quarantined: 0 });
   });
 
+  it("conflitos de macros nao sao mesclados pela mesma identidade de origem", () => {
+    const r = planLegacyKnowledgeReconciliation([
+      { ...base, nutritionFingerprint: "macro-original" },
+      { ...base, id: 2, nutritionFingerprint: "macro-divergente" },
+    ], source, now);
+    expect(r.totals).toEqual({ input: 2, mapped: 1, merged: 0, quarantined: 1 });
+    expect(r.decisions[1]).toMatchObject({ action: "quarantined", reason: "nutrition_conflict" });
+  });
+
+  it("nao reativa linhas legadas aposentadas", () => {
+    const r = planLegacyKnowledgeReconciliation([{ ...base, status: "deprecated" }], source, now);
+    expect(r.decisions[0]).toMatchObject({ action: "quarantined", reason: "deprecated_source" });
+  });
+
+  it("marca comercial sem vinculo exato continua em quarentena", () => {
+    const r = planLegacyKnowledgeReconciliation([
+      { ...base, brandName: "Marca A", brandId: null },
+    ], source, now);
+    expect(r.decisions[0]).toMatchObject({ action: "quarantined", reason: "brand_unlinked" });
+  });
   it("no source permission means every row is traceably quarantined", () => {
     const r = planLegacyKnowledgeReconciliation([base], () => null, now);
     expect(r.totals.input).toBe(r.totals.quarantined);

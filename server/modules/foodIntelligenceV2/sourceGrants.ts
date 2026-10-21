@@ -29,9 +29,10 @@ export function canReadFoodSource(
     !!grant.licenseReference?.trim() &&
     !!grant.approvalReference?.trim() &&
     !!grant.approvedAt &&
+    Number.isFinite(grant.approvedAt.getTime()) &&
     grant.approvedAt.getTime() <= now.getTime() &&
     !grant.revokedAt &&
-    (!grant.validUntil || grant.validUntil.getTime() > now.getTime());
+    (!grant.validUntil || (Number.isFinite(grant.validUntil.getTime()) && grant.validUntil.getTime() > now.getTime()));
 }
 
 export function canPersistProvisionalEvidence(
