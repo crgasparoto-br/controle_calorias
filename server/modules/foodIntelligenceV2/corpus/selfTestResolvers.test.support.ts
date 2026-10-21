@@ -18,6 +18,9 @@ import {
 import {
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
   isGroundedEvidenceOrigin,
+  isMassUnit,
+  isVolumeUnit,
+  normalizeUnitToken,
 } from "../contracts";
 import type {
   FoodEvidenceOrigin,
@@ -107,6 +110,52 @@ export function pickNutritionOrigin(
   return fallback ?? "provisional_estimate";
 }
 
+/**
+ * O oraculo de teste e inteiramente sintetico. Seus valores fisicos precisam
+ * ser coerentes com a base nutricional, ou o proprio teste de referencia fica
+ * invalido apos as validacoes de §5. Isto NAO estima gramas de um alimento real.
+ */
+function referenceMeasurement(
+  expected: ExpectedDecision,
+  value: number | null,
+  unit: string | null
+): { amount: number; unit: "g" | "ml" | "serving"; synthetic: boolean } | null {
+  const declared = normalizeUnitToken(unit);
+  const volume = expected.quantity.milliliters;
+  if (volume !== null && volume > 0) {
+    return { amount: volume, unit: "ml", synthetic: false };
+  }
+  const grams = expected.quantity.grams;
+  if (grams !== null && grams > 0 && !expected.quantity.unitMustNotBeConvertedToGrams) {
+    return { amount: grams, unit: "g", synthetic: false };
+  }
+  if (value === null || value <= 0) return null;
+  if (isVolumeUnit(unit)) {
+    return {
+      amount: value * (["l", "litro", "litros", "liter", "liters"].includes(declared) ? 1000 : 1),
+      unit: "ml",
+      synthetic: false,
+    };
+  }
+  if (isMassUnit(unit)) {
+    return {
+      amount: value * (["kg", "quilo", "quilos", "kilogram", "kilograms"].includes(declared) ? 1000 : 1),
+      unit: "g",
+      synthetic: false,
+    };
+  }
+  if (["porção", "porcao", "serving", "servings"].includes(declared)) {
+    return { amount: value, unit: "serving", synthetic: false };
+  }
+  // Medida caseira sem massa aferida no corpus: o duplo fornece uma medicao
+  // sintetica e evidencia explicita, nunca altera a expectativa do caso.
+  return {
+    amount: 100,
+    unit: expected.quantity.unitMustNotBeConvertedToGrams ? "ml" : "g",
+    synthetic: true,
+  };
+}
+
 /** Constrói a decisão que corresponde à expectativa declarada (§5). */
 export function buildDecisionForExpected(
   entry: GoldenCorpusCase,
@@ -175,6 +224,29 @@ export function buildDecisionForExpected(
   const nutritionNeeded =
     expected.nutrition.requirement === "provenance_declared" ||
     expected.nutrition.requirement === "provisional_declared";
+  const measurement = nutritionNeeded
+    ? referenceMeasurement(expected, effectiveQuantityValue, effectiveQuantityUnit)
+    : null;
+  const physicalEvidenceId = `ev-physical-${suffix}`;
+  const needsPhysicalEvidence =
+    measurement !== null &&
+    measurement.unit !== "serving" &&
+    (measurement.synthetic ||
+      (measurement.unit === "g" && !isMassUnit(effectiveQuantityUnit)) ||
+      (measurement.unit === "ml" && !isVolumeUnit(effectiveQuantityUnit)));
+  if (needsPhysicalEvidence && measurement) {
+    evidence.push({
+      evidenceId: physicalEvidenceId,
+      field: measurement.unit === "g" ? "quantity.grams" : "quantity.milliliters",
+      origin: "catalog",
+      value: measurement.amount,
+      unit: measurement.unit,
+      confidence: 0.9,
+      verified: true,
+      anchor: anchor(`turn:${suffix}`),
+      sourceId: 20,
+    });
+  }
   const nutritionEvidenceId = `ev-nut-${suffix}`;
   if (nutritionNeeded) {
     evidence.push({
@@ -213,6 +285,28 @@ export function buildDecisionForExpected(
       value: classificationValue,
       unit: null,
       confidence: 0.9,
+      verified: true,
+      anchor: anchor(`turn:${suffix}`),
+      sourceId: null,
+    });
+  }
+
+  // Apenas o oraculo sintetico conhece a expectativa rotulada do corpus.
+  // "non_food" exige prova negativa explicita; a ausencia no catalogo nao
+  // autoriza uma rejeicao nem equivale a evidência verificada em producao.
+  if (expected.reasonCodes.includes("non_food")) {
+    evidence.push({
+      evidenceId: `ev-non-food-${suffix}`,
+      field: "classification.isFood",
+      origin:
+        entry.modality === "audio_transcript"
+          ? "transcription"
+          : entry.modality === "image"
+            ? "vision"
+            : "text",
+      value: false,
+      unit: null,
+      confidence: 1,
       verified: true,
       anchor: anchor(`turn:${suffix}`),
       sourceId: null,
@@ -283,13 +377,13 @@ export function buildDecisionForExpected(
     quantity: {
       value: effectiveQuantityValue,
       unit: effectiveQuantityUnit,
-      grams: quantityExpected ? expected.quantity.grams : null,
-      milliliters: quantityExpected ? expected.quantity.milliliters : null,
+      grams: measurement?.unit === "g" ? measurement.amount : (quantityExpected ? expected.quantity.grams : null),
+      milliliters: measurement?.unit === "ml" ? measurement.amount : (quantityExpected ? expected.quantity.milliliters : null),
       portionId: null,
       source: null,
       measureKind: quantityExpected ? expected.quantity.measureKind : null,
       confidence: effectiveQuantityValue === null ? null : 0.9,
-      evidenceIds: effectiveQuantityValue === null ? [] : [quantityEvidenceId],
+      evidenceIds: effectiveQuantityValue === null ? [] : needsPhysicalEvidence ? [quantityEvidenceId, physicalEvidenceId] : [quantityEvidenceId],
     },
     nutrition: nutritionNeeded
       ? {
@@ -297,8 +391,10 @@ export function buildDecisionForExpected(
           sourceId: 20,
           verified: !provisional,
           provisional,
-          basis: { quantity: 100, unit: "g", values: BASE_VALUES },
-          consumed: BASE_VALUES,
+          basis: measurement
+            ? { quantity: measurement.amount, unit: measurement.unit, values: BASE_VALUES }
+            : null,
+          consumed: measurement ? BASE_VALUES : null,
           snapshotHash: `sha256:${suffix}`,
           evidenceIds: [nutritionEvidenceId],
         }

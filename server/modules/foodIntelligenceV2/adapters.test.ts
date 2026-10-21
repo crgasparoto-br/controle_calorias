@@ -10,6 +10,7 @@ import {
 } from "./adapters";
 import { parseFoodResolutionDecision } from "./schemas";
 import {
+  buildFoodAnchorFixture,
   buildFoodResolutionDecisionFixture,
   buildV1HistoricalSnapshotFixture,
   buildV1MealSemanticContractFixture,
@@ -32,31 +33,13 @@ function blockerCodes(projection: ReturnType<typeof projectDecisionV2ToV1>) {
 }
 
 describe("projeção V2 → DTO V1", () => {
-  it("projeta decisão resolvida preservando estado, quantidade e fonte", () => {
+  it("bloqueia decisão resolvida quando o DTO V1 não fornece campos obrigatórios", () => {
     const projection = project();
 
-    expect(projection.faithful).toBe(true);
-    expect(projection.blockers).toStrictEqual([]);
-    expect(projection.item).toMatchObject({
-      foodName: "Mortadela",
-      canonicalName: "Mortadela",
-      brand: null,
-      productVariant: null,
-      foodId: 42,
-      quantity: 1.5,
-      unit: "fatia",
-      estimatedGrams: 30,
-      calories: 81,
-      protein: 3.6,
-      carbs: 0.9,
-      fat: 6.9,
-    });
-    expect(projection.resolution).toMatchObject({
-      nutritionOrigin: "nutrition_label",
-      nutritionVerified: true,
-      barcode: null,
-      ambiguity: null,
-    });
+    expect(projection.faithful).toBe(false);
+    expect(blockerCodes(projection)).toContain("v1-required-fields-not-supplied");
+    expect(projection.item).toBeNull();
+    expect(projection.resolution).toBeNull();
     expect(projection.missingV1Fields).toStrictEqual([
       ...V1_FIELDS_NOT_SUPPLIED,
     ]);
@@ -65,10 +48,8 @@ describe("projeção V2 → DTO V1", () => {
   it("nunca confunde foodEntityId com foodCatalogId", () => {
     const projection = project();
 
-    expect(projection.item).not.toBeNull();
-    expect(Object.keys(projection.item as object)).not.toContain(
-      "foodCatalogId"
-    );
+    expect(projection.item).toBeNull();
+    expect(Object.keys(projection).join(" ")).not.toContain("foodCatalogId");
   });
 
   it("preserva origem distinta para texto e transcrição equivalentes", () => {
@@ -83,11 +64,85 @@ describe("projeção V2 → DTO V1", () => {
       ],
     });
 
-    expect(fromText.evidenceOrigins.identity).toBe("text");
-    expect(fromTranscription.evidenceOrigins.identity).toBe("transcription");
+    expect(fromText.evidenceOrigins.identity).toStrictEqual(["text"]);
+    expect(fromTranscription.evidenceOrigins.identity).toStrictEqual([
+      "transcription",
+    ]);
     expect(fromText.evidenceOrigins.identity).not.toBe(
       fromTranscription.evidenceOrigins.identity
     );
+  });
+
+  it("preserva todas as origens nutricionais sem depender da ordem", () => {
+    const firstOrder = project({
+      nutrition: { evidenceIds: ["ev-nutrition", "ev-nutrition-alt"] },
+      evidence: [
+        {},
+        {},
+        {},
+        {
+          evidenceId: "ev-nutrition-alt",
+          field: "nutrition.protein",
+          origin: "catalog",
+          value: 12,
+          unit: "g",
+          confidence: 0.9,
+          verified: true,
+          anchor: buildFoodAnchorFixture(),
+          sourceId: 3,
+        },
+      ],
+    });
+    const secondOrder = project({
+      nutrition: { evidenceIds: ["ev-nutrition", "ev-nutrition-alt"] },
+      evidence: [
+        {},
+        {},
+        {
+          origin: "catalog",
+        },
+        {
+          evidenceId: "ev-nutrition-alt",
+          field: "nutrition.protein",
+          origin: "nutrition_label",
+          value: 12,
+          unit: "g",
+          confidence: 0.9,
+          verified: true,
+          anchor: buildFoodAnchorFixture(),
+          sourceId: 3,
+        },
+      ],
+    });
+
+    expect(firstOrder.evidenceOrigins.nutrition).toStrictEqual([
+      "catalog",
+      "nutrition_label",
+    ]);
+    expect(secondOrder.evidenceOrigins.nutrition).toStrictEqual([
+      "catalog",
+      "nutrition_label",
+    ]);
+    expect(blockerCodes(firstOrder)).toContain(
+      "evidence-origin-not-representable"
+    );
+    expect(firstOrder.resolution).toBeNull();
+  });
+
+  it("A-1298-001: adapter nao promove evidencia nutricional invalida a verified", () => {
+    const candidate = buildFoodResolutionDecisionFixture({
+      evidence: [{}, {}, {
+        evidenceId: "ev-nutrition",
+        origin: "ai_estimate",
+        verified: false,
+      }],
+    });
+    // Defesa no adapter mesmo se um caller contornar o parse na fronteira.
+    const projection = projectDecisionV2ToV1(candidate);
+    expect(projection.faithful).toBe(false);
+    expect(blockerCodes(projection)).toContain("nutrition-state-not-representable");
+    expect(projection.item).toBeNull();
+    expect(projection.resolution).toBeNull();
   });
 
   it("não colapsa origem ausente no vocabulário V1 e bloqueia a projeção", () => {
@@ -110,7 +165,7 @@ describe("projeção V2 → DTO V1", () => {
     );
     expect(projection.faithful).toBe(false);
     expect(toV1EvidenceOrigin("barcode")).toBeNull();
-    expect(Object.values(projection.evidenceOrigins)).not.toContain(
+    expect(Object.values(projection.evidenceOrigins).flat()).not.toContain(
       "unavailable"
     );
   });
@@ -120,9 +175,10 @@ describe("projeção V2 → DTO V1", () => {
       nutrition: { verified: false, provisional: true },
     });
 
-    expect(projection.resolution).not.toBeNull();
-    expect(projection.resolution?.nutritionVerified).toBe(false);
-    expect(projection.item).not.toBeNull();
+    expect(projection.resolution).toBeNull();
+    expect(projection.item).toBeNull();
+    expect(projection.faithful).toBe(false);
+    expect(blockerCodes(projection)).toContain("v1-required-fields-not-supplied");
   });
 
   it("não projeta base ml em gramas e explica o bloqueio", () => {
@@ -132,10 +188,22 @@ describe("projeção V2 → DTO V1", () => {
         unit: "ml",
         grams: null,
         milliliters: 240,
-        evidenceIds: [],
+        evidenceIds: ["ev-grams"],
       },
-      nutrition: { basis: { unit: "ml" } },
-      identity: { evidenceIds: [] },
+      nutrition: {
+        basis: { unit: "ml" },
+        consumed: {
+          calories: 648,
+          protein: 28.8,
+          carbs: 7.2,
+          fat: 55.2,
+          sodiumMg: 2160,
+        },
+      },
+      evidence: [
+        {},
+        { field: "quantity.milliliters", value: 240, unit: "ml" },
+      ],
     });
 
     expect(blockerCodes(projection)).toContain(
@@ -153,6 +221,7 @@ describe("projeção V2 → DTO V1", () => {
       status: "partially_resolved",
       nextAction: "clarify",
       reasonCodes: ["provider_unavailable"],
+      unresolvedFields: ["nutrition"],
       nutrition: {
         verified: false,
         provisional: false,
@@ -172,6 +241,7 @@ describe("projeção V2 → DTO V1", () => {
       status: "partially_resolved",
       nextAction: "clarify",
       reasonCodes: ["quantity_conversion_unproven"],
+      unresolvedFields: ["quantity"],
     });
 
     expect(blockerCodes(projection)).toContain("decision-not-resolved");
@@ -275,6 +345,44 @@ describe("snapshot histórico V1", () => {
       const result = readHistoricalV1MealSnapshot(invalid);
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("esperado recusa");
+      expect(result.reason).toBe("invalid-snapshot");
+    }
+  });
+
+  it("recusa snapshot V1 com item ou totais malformados", () => {
+    const result = readHistoricalV1MealSnapshot({
+      ...buildV1HistoricalSnapshotFixture(),
+      items: [null],
+      totals: "bad",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("esperada recusa");
+    expect(result.reason).toBe("invalid-snapshot");
+  });
+
+  it("recusa subestruturas V1 conhecidas malformadas sem passthrough permissivo", () => {
+    const invalidSnapshots = [
+      buildV1HistoricalSnapshotFixture({ imageUrl: { url: "bad" } }),
+      buildV1HistoricalSnapshotFixture({ audioUrl: ["bad"] }),
+      buildV1HistoricalSnapshotFixture({ transcript: 42 }),
+      buildV1HistoricalSnapshotFixture({ items: [{ brand: { name: "bad" } }] }),
+      buildV1HistoricalSnapshotFixture({
+        items: [{ resolution: { nutritionVerified: "yes" } }],
+      }),
+      buildV1HistoricalSnapshotFixture({ semanticContract: { items: [null] } }),
+      buildV1HistoricalSnapshotFixture({
+        semanticContract: { clarifications: [null] },
+      }),
+      buildV1HistoricalSnapshotFixture({
+        totals: { fat: { value: 6.9 } },
+      }),
+    ];
+
+    for (const snapshot of invalidSnapshots) {
+      const result = readHistoricalV1MealSnapshot(snapshot);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("esperada recusa de snapshot malformado");
       expect(result.reason).toBe("invalid-snapshot");
     }
   });

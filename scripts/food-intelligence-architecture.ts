@@ -278,6 +278,26 @@ function isPureContractSizeBounds(value: ts.Expression): boolean {
     staticNutritionNumber(property.initializer) !== null);
 }
 
+/**
+ * A literal vocabulary of contract field paths is schema metadata, not
+ * food-specific nutritional knowledge. Require both a structural naming
+ * convention and dotted field keys; a mixed list or a food catalog still
+ * reaches gate 17, including when disguised as a field list.
+ */
+function isStructuralEvidenceFieldVocabulary(node: ts.VariableDeclaration): boolean {
+  if (!node.initializer || !ts.isIdentifier(node.name) ||
+      !/(?:^|_)(?:EVIDENCE|SCHEMA|CONTRACT)_(?:FIELDS?|PATHS?)$/i.test(node.name.text)) {
+    return false;
+  }
+  const initializer = unwrap(node.initializer);
+  return ts.isArrayLiteralExpression(initializer) && initializer.elements.length > 0 &&
+    initializer.elements.every(element => {
+      const field = unwrap(element);
+      return isStaticText(field) &&
+        /^(?:identity|variant|quantity|nutrition|classification)\.[A-Za-z][A-Za-z0-9_]*$/.test(field.text);
+    });
+}
+
 /** Numeric policy metadata is not food knowledge: only known structural
  * constraints qualify. An unknown key or food identity lookup stays gated. */
 function isPureFoodAdministrativePolicy(node: ts.VariableDeclaration): boolean {
@@ -1743,6 +1763,7 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
           /(?:^|_)(?:CONTRACT_)?LIMITS?$/i.test(node.name.text) &&
           isPureContractSizeBounds(node.initializer) &&
           !isFoodNumericMapUse(node, source)) ||
+          isStructuralEvidenceFieldVocabulary(node) ||
           isPresentationOnlyCollection(node, source) ||
           isPresentationOnlyFilter(node, source, unwrap))) return null;
     // Inline food rows are visited separately by isInlineFoodKnowledge.

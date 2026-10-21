@@ -23,6 +23,13 @@ import {
   FOOD_REASON_CODES,
   type FoodReasonCode,
 } from "./contracts";
+import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
+import {
+  isNonEmpty,
+  isOpaqueIdentifier,
+  isPositiveInteger,
+  isValidPendingOperationEffect,
+} from "./pendingOperationValidation";
 
 /** Versão de contrato/resolvedor fixada com a pendência. */
 export type PendingOperationVersionTag = {
@@ -85,6 +92,9 @@ export type PendingOperationResumeResult =
       reason:
         | "operation-key-mismatch"
         | "owner-mismatch"
+        | "invalid-request-time"
+        | "invalid-pending-time"
+        | "invalid-pending-operation"
         | "expired"
         | "authorization-invalid"
         | "resolver-version-changed"
@@ -96,27 +106,15 @@ export type PendingOperationResumeResult =
 
 export type PendingOperationEffectResult =
   | { applied: true; duplicate: false; effect: PendingOperationEffect }
-  | { applied: false; duplicate: true; effect: PendingOperationEffect };
+  | { applied: false; duplicate: true; effect: PendingOperationEffect }
+  | {
+      applied: false;
+      duplicate: false;
+      reason: Extract<PendingOperationResumeResult, { resumed: false }>["reason"];
+      detail: string;
+    };
 
 const REASON_CODE_SET = new Set<string>(FOOD_REASON_CODES);
-
-function isNonEmpty(value: unknown, max = 200): value is string {
-  return (
-    typeof value === "string" && value.trim().length > 0 && value.length <= max
-  );
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
-
-function isIsoInstant(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    !Number.isNaN(Date.parse(value)) &&
-    value.includes("T")
-  );
-}
 
 /**
  * Classifica o proprietário da pendência pelo contrato **persistido**.
@@ -164,7 +162,30 @@ export function createPendingOperationV2(input: {
   question: { code: FoodReasonCode; ref: string } | null;
   versionTag: PendingOperationVersionTag;
 }): PendingOperationCreationResult {
+  if (!input || typeof input !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 deve ser um objeto estruturado.",
+    };
+  }
   const { versionTag } = input;
+
+  if (!versionTag || typeof versionTag !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 exige versionTag estruturado; nenhuma versão é inferida.",
+    };
+  }
+
+  if (!input.target || typeof input.target !== "object") {
+    return {
+      ok: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 exige target estruturado com refeição e data explícitas.",
+    };
+  }
 
   if (versionTag.contractVersion !== FOOD_OBSERVATION_SCHEMA_VERSION) {
     return {
@@ -177,20 +198,20 @@ export function createPendingOperationV2(input: {
   }
 
   if (
-    !isNonEmpty(input.operationKey) ||
+    !isOpaqueIdentifier(input.operationKey) ||
     !isPositiveInteger(input.ownerUserId) ||
-    !isIsoInstant(input.createdAt) ||
-    !isIsoInstant(input.expiresAt) ||
+    !isValidIsoInstant(input.createdAt) ||
+    !isValidIsoInstant(input.expiresAt) ||
     !Array.isArray(input.observationIds) ||
     input.observationIds.length === 0 ||
-    input.observationIds.some(id => !isNonEmpty(id)) ||
+    input.observationIds.some(id => !isOpaqueIdentifier(id)) ||
     new Set(input.observationIds).size !== input.observationIds.length ||
     !isNonEmpty(input.target.mealLabel, 80) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(input.target.date) ||
-    !isNonEmpty(versionTag.resolverVersion, 120) ||
-    !isNonEmpty(versionTag.policyVersion, 120) ||
-    !isNonEmpty(versionTag.lexiconRevision, 120) ||
-    !isNonEmpty(versionTag.knowledgeRevision, 120)
+    !isValidIsoDate(input.target.date) ||
+    !isOpaqueIdentifier(versionTag.resolverVersion, 120) ||
+    !isOpaqueIdentifier(versionTag.policyVersion, 120) ||
+    !isOpaqueIdentifier(versionTag.lexiconRevision, 120) ||
+    !isOpaqueIdentifier(versionTag.knowledgeRevision, 120)
   ) {
     return {
       ok: false,
@@ -200,12 +221,41 @@ export function createPendingOperationV2(input: {
     };
   }
 
-  if (input.question !== null && !REASON_CODE_SET.has(input.question.code)) {
+  // O tipo TS não garante que o payload JSON de runtime contenha code/ref.
+  // Apenas null representa a ausência da pergunta; undefined não é aceito.
+  const question: unknown = input.question;
+  if (
+    question !== null &&
+    (!question || typeof question !== "object" || Array.isArray(question))
+  ) {
     return {
       ok: false,
-      reason: "invalid-reason-code",
-      detail: `Motivo ${String(input.question.code)} não pertence ao registro tipado do domínio.`,
+      reason: "invalid-pending-operation",
+      detail: "question deve ser null ou objeto estruturado com code e ref.",
     };
+  }
+  if (question !== null) {
+    const candidate = question as Partial<{ code: FoodReasonCode; ref: string }>;
+    if (
+      typeof candidate.code !== "string" ||
+      !REASON_CODE_SET.has(candidate.code)
+    ) {
+      return {
+        ok: false,
+        reason: "invalid-reason-code",
+        detail: `Motivo ${String(candidate.code)} não pertence ao registro tipado do domínio.`,
+      };
+    }
+    if (
+      !isOpaqueIdentifier(candidate.ref) ||
+      Object.keys(question).some(key => key !== "code" && key !== "ref")
+    ) {
+      return {
+        ok: false,
+        reason: "invalid-pending-operation",
+        detail: "question exige ref opaca válida, sem whitespace externo ou campos extras.",
+      };
+    }
   }
 
   if (Date.parse(input.expiresAt) <= Date.parse(input.createdAt)) {
@@ -242,6 +292,29 @@ export function resumePendingOperation(
   pending: PendingOperation,
   request: PendingOperationRequest
 ): PendingOperationResumeResult {
+  if (!pending || typeof pending !== "object" || !request || typeof request !== "object") {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência ou requisição malformada; retomada recusada sem efeito.",
+    };
+  }
+  if (pending.versionTag === undefined) {
+    return {
+      resumed: false,
+      reason: "pending-version-missing",
+      detail: "Tag de versão ausente: somente null explícito identifica pendência legada.",
+    };
+  }
+  if (pending.versionTag !== null &&
+      (typeof pending.versionTag !== "object" || Array.isArray(pending.versionTag) ||
+        !Number.isInteger(pending.versionTag.contractVersion))) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Tag de versão persistida inválida; nenhuma versão é inferida.",
+    };
+  }
   if (pending.operationKey !== request.operationKey) {
     return {
       resumed: false,
@@ -256,6 +329,14 @@ export function resumePendingOperation(
       resumed: false,
       reason: "owner-mismatch",
       detail: "Pendência pertence a outro proprietário autenticado.",
+    };
+  }
+
+  if (!isValidIsoInstant(request.now)) {
+    return {
+      resumed: false,
+      reason: "invalid-request-time",
+      detail: "Instante de retomada inválido; a expiração não pode ser ignorada por data ilegível.",
     };
   }
 
@@ -285,6 +366,49 @@ export function resumePendingOperation(
       reason: "pending-version-missing",
       detail:
         "Pendência sem versão fixada não pode ser retomada pelo resolvedor V2.",
+    };
+  }
+
+  const targetDate =
+    typeof pending.target === "object" && pending.target !== null
+      ? pending.target.date
+      : null;
+  if (
+    !isValidIsoInstant(pending.createdAt) ||
+    !isValidIsoInstant(pending.expiresAt) ||
+    !isValidIsoDate(targetDate)
+  ) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-time",
+      detail:
+        "Pendência V2 persistida possui createdAt, expiresAt ou target.date inválido; nenhum efeito é aplicado.",
+    };
+  }
+
+  if (Date.parse(pending.expiresAt) <= Date.parse(pending.createdAt)) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-time",
+      detail:
+        "Pendência V2 persistida possui expiresAt não posterior a createdAt; nenhum efeito é aplicado.",
+    };
+  }
+
+  // Na retomada, reaplicar o contrato completo usado na criação.
+  if (!isValidPersistedV2Operation(pending)) {
+    return {
+      resumed: false,
+      reason: "invalid-pending-operation",
+      detail: "Pendência V2 persistida viola o contrato original; retry bloqueado.",
+    };
+  }
+
+  if (Date.parse(request.now) < Date.parse(pending.createdAt)) {
+    return {
+      resumed: false,
+      reason: "invalid-request-time",
+      detail: "A retomada não pode anteceder a criação da pendência.",
     };
   }
 
@@ -322,79 +446,21 @@ export function resumePendingOperation(
   return { resumed: true, pending, versions: pinned };
 }
 
-/**
- * Aplica o efeito da pendência de forma idempotente.
- *
- * Restart/retry com a mesma chave nunca duplica o efeito: a segunda aplicação
- * devolve o efeito já registrado (`duplicate=true`).
- */
-export function applyPendingOperationEffect(
-  store: PendingOperationStore,
-  input: {
-    operationKey: string;
-    ownerUserId: number;
-    effect: PendingOperationEffect;
+/** Validação de estado V2 deserializado ou entregue por callers em runtime. */
+export function isValidPersistedV2Operation(pending: PendingOperation): boolean {
+  if (!pending || typeof pending !== "object" ||
+      pending.versionTag === null || typeof pending.versionTag !== "object" ||
+      !createPendingOperationV2({ ...pending, versionTag: pending.versionTag }).ok) {
+    return false;
   }
-): PendingOperationEffectResult {
-  const pending = store.get(input.operationKey);
-  if (!pending || pending.ownerUserId !== input.ownerUserId) {
-    throw new Error("Pendência não encontrada para aplicação de efeito.");
-  }
-  if (pending.effect) {
-    return { applied: false, duplicate: true, effect: pending.effect };
-  }
-  const applied: PendingOperationEffect = { ...input.effect };
-  store.save({ ...pending, effect: applied });
-  return { applied: true, duplicate: false, effect: applied };
+  if (pending.effect === null) return true;
+  return isValidPendingOperationEffect(pending.effect) &&
+    Date.parse(pending.effect.appliedAt) >= Date.parse(pending.createdAt) &&
+    Date.parse(pending.effect.appliedAt) < Date.parse(pending.expiresAt);
 }
 
-export type PendingOperationStoreState = {
-  schemaVersion: 1;
-  operations: PendingOperation[];
-};
-
-export type PendingOperationStore = {
-  get(operationKey: string): PendingOperation | null;
-  save(pending: PendingOperation): void;
-  exportState(): PendingOperationStoreState;
-};
-
-/**
- * Store serializável usado para provar que a pendência versionada sobrevive a
- * restart sem efeito duplicado. A persistência durável é entregue pela #1301.
- */
-export function createInMemoryPendingOperationStore(
-  initialState?: PendingOperationStoreState
-): PendingOperationStore {
-  const operations = new Map<string, PendingOperation>();
-  for (const pending of initialState?.operations ?? []) {
-    operations.set(pending.operationKey, clonePendingOperation(pending));
-  }
-
-  return {
-    get(operationKey) {
-      const pending = operations.get(operationKey);
-      return pending ? clonePendingOperation(pending) : null;
-    },
-    save(pending) {
-      operations.set(pending.operationKey, clonePendingOperation(pending));
-    },
-    exportState() {
-      return {
-        schemaVersion: 1,
-        operations: [...operations.values()].map(clonePendingOperation),
-      };
-    },
-  };
-}
-
-function clonePendingOperation(pending: PendingOperation): PendingOperation {
-  return {
-    ...pending,
-    observationIds: [...pending.observationIds],
-    target: { ...pending.target },
-    versionTag: pending.versionTag ? { ...pending.versionTag } : null,
-    question: pending.question ? { ...pending.question } : null,
-    effect: pending.effect ? { ...pending.effect } : null,
-  };
-}
+export {
+  applyPendingOperationEffect,
+  createInMemoryPendingOperationStore,
+} from "./pendingOperationStore";
+export type { PendingOperationStore, PendingOperationStoreState } from "./pendingOperationStore";

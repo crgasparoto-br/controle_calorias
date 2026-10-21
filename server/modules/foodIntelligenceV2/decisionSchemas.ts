@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  assertDeclaredPhysicalConsistency,
+  assertNutritionEvidenceAndScaleConsistency,
+  assertPhysicalBasisProvenance,
+} from "./nutritionConsistency";
+import {
   FOOD_CONTRACT_LIMITS,
   FOOD_DECISION_NEXT_ACTIONS,
   FOOD_DECISION_STATUSES,
@@ -7,36 +12,30 @@ import {
   FOOD_MEASURE_KINDS,
   FOOD_NUTRITION_BASE_UNITS,
   FOOD_PROCESSING_LEVELS,
-  FOOD_QUANTITY_EPSILON,
   FOOD_REASON_CODES,
   FOOD_RESOLUTION_DECISION_SCHEMA_VERSION,
   FOOD_STATUS_ALLOWED_ACTIONS,
-  isMassUnit,
-  isVolumeUnit,
+  isGroundedEvidenceOrigin,
 } from "./contracts";
 import {
   confidence,
   evidenceIdList,
   foodEvidenceSchema,
+  foodNutrientKeyByEvidenceField,
+  foodNutritionValuesSchema,
   foodQualifierSchema,
   nonEmptyText,
-  nonNegativeNumber,
-  nullableNonNegativeNumber,
+  nullableOpaqueId,
   nullablePositiveInt,
   nullableText,
   opaqueId,
   positiveInt,
   rejectDuplicates,
 } from "./schemaShared";
-export const foodNutritionValuesSchema = z.strictObject({
-  calories: nonNegativeNumber,
-  protein: nonNegativeNumber,
-  carbs: nonNegativeNumber,
-  fat: nonNegativeNumber,
-  fiber: nullableNonNegativeNumber,
-  sugar: nullableNonNegativeNumber,
-  sodiumMg: nullableNonNegativeNumber,
-});
+// Preserva a superfície pública enquanto os metadados vivem no schema compartilhado.
+export { foodNutritionValuesSchema } from "./schemaShared";
+/** Nutrientes derivam do schema canônico, nunca de nomes de alimento. */
+const NUTRIENT_EVIDENCE_FIELDS = new Set(foodNutrientKeyByEvidenceField.keys());
 export const foodNutritionBasisSchema = z.strictObject({
   quantity: z.number().finite().positive(),
   unit: z.enum(FOOD_NUTRITION_BASE_UNITS),
@@ -50,7 +49,7 @@ export const foodDecisionNutritionSchema = z
     provisional: z.boolean(),
     basis: foodNutritionBasisSchema.nullable(),
     consumed: foodNutritionValuesSchema.nullable(),
-    snapshotHash: nullableText(200),
+    snapshotHash: nullableOpaqueId(200),
     evidenceIds: evidenceIdList,
   })
   .refine(
@@ -91,7 +90,7 @@ export const foodDecisionQuantitySchema = z.strictObject({
 });
 export const foodDecisionIdentitySchema = z
   .strictObject({
-    candidateKey: nullableText(200),
+    candidateKey: nullableOpaqueId(200),
     foodEntityId: nullablePositiveInt,
     variantId: nullablePositiveInt,
     canonicalName: nullableText(FOOD_CONTRACT_LIMITS.nameText),
@@ -193,6 +192,11 @@ export const foodResolutionDecisionSchema = z
     const identitySustained =
       identity.canonicalName !== null &&
       (identity.foodEntityId !== null || identity.candidateKey !== null);
+    const identityReferencePresent =
+      identity.canonicalName !== null ||
+      identity.candidateKey !== null ||
+      identity.foodEntityId !== null ||
+      identity.variantId !== null;
     if (decision.status === "resolved") {
       if (decision.unresolvedFields.length > 0) {
         ctx.addIssue({
@@ -222,7 +226,7 @@ export const foodResolutionDecisionSchema = z
           path: ["quantity"],
         });
       }
-      if (nutrition.basis === null && nutrition.consumed === null) {
+      if (nutrition.consumed === null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
@@ -231,11 +235,29 @@ export const foodResolutionDecisionSchema = z
         });
       }
     }
-    if (decision.status === "unknown" && identitySustained) {
+    if (decision.status === "unknown" && identityReferencePresent) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
           "status=unknown significa que nenhuma identidade foi sustentada; use partially_resolved/ambiguous quando houver identidade.",
+        path: ["status"],
+      });
+    }
+    if (
+      decision.status === "partially_resolved" &&
+      decision.unresolvedFields.length === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "status=partially_resolved exige ao menos um campo material em unresolvedFields.",
+        path: ["unresolvedFields"],
+      });
+    }
+    if (decision.status === "partially_resolved" && !identitySustained) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "status=partially_resolved exige identidade sustentada; sem identidade o estado é unknown.",
         path: ["status"],
       });
     }
@@ -252,6 +274,23 @@ export const foodResolutionDecisionSchema = z
         message:
           "status=ambiguous exige alternativas materialmente concorrentes rastreáveis.",
         path: ["alternatives"],
+      });
+    }
+    if (decision.status === "ambiguous") {
+      rejectDuplicates(
+        decision.alternatives.map(alternative => alternative.candidateKey),
+        ctx,
+        ["alternatives"]
+      );
+      decision.alternatives.forEach((alternative, index) => {
+        if (alternative.evidenceIds.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Cada alternativa ambígua exige ao menos uma evidência rastreável.",
+            path: ["alternatives", index, "evidenceIds"],
+          });
+        }
       });
     }
     if (
@@ -350,6 +389,76 @@ export const foodResolutionDecisionSchema = z
         }
       }
     }
+    // "resolved" exige prova rastreável para cada domínio material; metadata
+    // nutricional isolada não comprova os valores utilizados na decisão.
+    if (decision.status === "resolved") {
+      for (const { ids, path, allowedPrefixes, ownerLabel } of referenceGroups) {
+        if (!["identity", "quantity", "nutrition"].includes(ownerLabel)) continue;
+        const supported = ids.some(id => {
+          const evidence = evidenceById.get(id);
+          if (!evidence || evidence.value === null ||
+              !allowedPrefixes.some(prefix => evidence.field.startsWith(prefix))) {
+            return false;
+          }
+          return ownerLabel !== "nutrition" ||
+            (NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
+              typeof evidence.value === "number" &&
+              Number.isFinite(evidence.value) &&
+              evidence.value >= 0);
+        });
+        if (!supported) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Decisão resolved exige evidência substantiva de ${ownerLabel}; ausência não é procedência.`,
+            path,
+          });
+        }
+      }
+    }
+    if (nutrition.verified) {
+      const hasGroundedNutrient = nutrition.evidenceIds.some(evidenceId => {
+        const evidence = evidenceById.get(evidenceId);
+        return evidence?.verified === true &&
+          isGroundedEvidenceOrigin(evidence.origin) &&
+          NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
+          typeof evidence.value === "number" &&
+          Number.isFinite(evidence.value) && evidence.value >= 0;
+      });
+      if (!hasGroundedNutrient) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Nutrição verificada exige ao menos um nutriente numérico com evidência verificável, vinculada ao próprio campo.",
+          path: ["nutrition", "evidenceIds"],
+        });
+      }
+      for (const evidenceId of nutrition.evidenceIds) {
+        const evidence = evidenceById.get(evidenceId);
+        if (evidence?.verified !== true) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Nutrição verificada exige que toda evidência nutricional referenciada seja verificada e grounded; confiança de IA não substitui verificação.",
+            path: ["nutrition", "evidenceIds"],
+          });
+        }
+      }
+    }
+    if (decision.reasonCodes.includes("non_food")) {
+      const negativeFoodEvidence = decision.evidence.some(evidence =>
+        evidence.field === "classification.isFood" &&
+        evidence.value === false &&
+        evidence.unit === null &&
+        evidence.verified === true &&
+        isGroundedEvidenceOrigin(evidence.origin)
+      );
+      if (decision.status !== "unknown" || decision.nextAction !== "reject" || !negativeFoodEvidence) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "non_food só rejeita uma entrada unknown com evidência negativa afirmativa e verificada de classification.isFood=false; ausência de catálogo não é prova.",
+          path: ["reasonCodes"],
+        });
+      }
+    }
     if (
       decision.classification !== null &&
       !decision.classification.provisional
@@ -378,7 +487,9 @@ export const foodResolutionDecisionSchema = z
         }
       }
     }
+    assertDeclaredPhysicalConsistency(decision, ctx);
     assertPhysicalBasisProvenance(decision, evidenceById, ctx);
+    assertNutritionEvidenceAndScaleConsistency(decision, evidenceById, ctx);
     const barcodeEvidence = decision.evidence.some(
       evidence =>
         evidence.field === "identity.barcode" &&
@@ -394,75 +505,6 @@ export const foodResolutionDecisionSchema = z
       });
     }
   });
-function assertPhysicalBasisProvenance(
-  decision: z.infer<typeof foodResolutionDecisionSchema>,
-  evidenceById: Map<string, z.infer<typeof foodEvidenceSchema>>,
-  ctx: z.RefinementCtx
-) {
-  const quantity = decision.quantity;
-  const basisUnit = decision.nutrition.basis?.unit ?? null;
-  const claimVolumeToMass =
-    quantity.grams !== null &&
-    (isVolumeUnit(quantity.unit) ||
-      quantity.milliliters !== null ||
-      basisUnit === "ml");
-  const claimMassToVolume =
-    quantity.milliliters !== null &&
-    (isMassUnit(quantity.unit) || basisUnit === "g");
-  if (claimVolumeToMass) {
-    if (
-      !isProvenConversion(
-        quantity.evidenceIds,
-        "quantity.grams",
-        quantity.grams,
-        evidenceById
-      )
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "Conversão de volume (ml) para massa (g) exige relação comprovada por evidência verificada; sem densidade comprovada ml não vira gramas.",
-        path: ["quantity", "grams"],
-      });
-    }
-  }
-  if (claimMassToVolume) {
-    if (
-      !isProvenConversion(
-        quantity.evidenceIds,
-        "quantity.milliliters",
-        quantity.milliliters,
-        evidenceById
-      )
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "Conversão de massa (g) para volume (ml) exige relação comprovada por evidência verificada.",
-        path: ["quantity", "milliliters"],
-      });
-    }
-  }
-}
-function isProvenConversion(
-  evidenceIds: readonly string[],
-  field: "quantity.grams" | "quantity.milliliters",
-  expected: number | null,
-  evidenceById: Map<string, z.infer<typeof foodEvidenceSchema>>
-): boolean {
-  if (expected === null) return true;
-  return evidenceIds.some(evidenceId => {
-    const evidence = evidenceById.get(evidenceId);
-    if (!evidence) return false;
-    if (evidence.field !== field) return false;
-    if (evidence.verified !== true) return false;
-    return (
-      typeof evidence.value === "number" &&
-      Math.abs(evidence.value - expected) <= FOOD_QUANTITY_EPSILON
-    );
-  });
-}
-
 export type FoodNutritionValues = z.infer<typeof foodNutritionValuesSchema>;
 export type FoodNutritionBasis = z.infer<typeof foodNutritionBasisSchema>;
 export type FoodDecisionNutrition = z.infer<typeof foodDecisionNutritionSchema>;
