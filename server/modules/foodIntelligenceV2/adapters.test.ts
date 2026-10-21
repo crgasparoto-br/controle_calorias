@@ -188,7 +188,7 @@ describe("projeção V2 → DTO V1", () => {
         unit: "ml",
         grams: null,
         milliliters: 240,
-        evidenceIds: [],
+        evidenceIds: ["ev-grams"],
       },
       nutrition: {
         basis: { unit: "ml" },
@@ -200,7 +200,10 @@ describe("projeção V2 → DTO V1", () => {
           sodiumMg: 2160,
         },
       },
-      identity: { evidenceIds: [] },
+      evidence: [
+        {},
+        { field: "quantity.milliliters", value: 240, unit: "ml" },
+      ],
     });
 
     expect(blockerCodes(projection)).toContain(

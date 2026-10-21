@@ -984,7 +984,6 @@ describe("FoodResolutionDecision v2", () => {
         milliliters: null,
         evidenceIds: ["ev-grams", "ev-density"],
       },
-      identity: { evidenceIds: [] },
       nutrition: {
         basis: { unit: "ml" },
         consumed: {
@@ -995,24 +994,16 @@ describe("FoodResolutionDecision v2", () => {
           sodiumMg: 2160,
         },
       },
-      evidence: [
-        {
-          evidenceId: "ev-grams",
-          field: "quantity.grams",
-          origin: "catalog",
-          value: 240,
-          unit: "g",
-          verified: true,
-        },
-        {
-          evidenceId: "ev-density",
-          field: "quantity.density",
-          origin: "catalog",
-          value: 1,
-          unit: "g/ml",
-          verified: true,
-        },
-      ],
+    });
+    // Preserva a identidade e a fonte nutricional do caso positivo; adiciona
+    // a prova física de densidade sem substituir as evidências originais.
+    withDensity.evidence[1].value = 240;
+    withDensity.evidence.push({
+      ...withDensity.evidence[1],
+      evidenceId: "ev-density",
+      field: "quantity.density",
+      value: 1,
+      unit: "g/ml",
     });
     expect(parseFoodResolutionDecision(withDensity).ok).toBe(true);
 
