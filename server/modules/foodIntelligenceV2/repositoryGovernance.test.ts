@@ -139,31 +139,25 @@ describe("B2 actual repository governed read", () => {
       .toEqual({ kind: "miss", reason: "not_found" });
   });
 
-  it("rejects a read-only barcode source even when the nutrition profile is globally licensed", async () => {
-    // Different sources are intentional: profile publication cannot authorize
-    // an unrelated barcode source to become a public identity assertion.
+  it("rejects a public barcode identity when its own source has read-only permission", async () => {
+    // Reading the barcode source is allowed, but its global publication is
+    // not: the reader must revalidate that grant before loading nutrition.
     const readOnly = { ...grant, allowGlobalPublication: 0 };
-    const published = { ...grant, allowGlobalPublication: 1 };
-    const publishedSource = { ...source, id: 8 };
-    installResults(
+    const selects = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant: readOnly }],
+      [{ source, grant: readOnly }], // initial read permission
       [{ id: 17, sourceId: 7, foodVariantId: 22, ownerUserId: null,
         evidenceType: "barcode", retentionUntil: new Date("2026-11-21T12:00:00Z") }],
       [{ variant: { id: 22, status: "active", governanceStatus: "verified",
           variantType: "generic", displayName: "Pao" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null },
         brand: null }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 8,
-        foodVariantSourceId: null, validFrom: null, validTo: null,
-        caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
-        basisQuantity: 100, basisUnit: "g" }],
-      [{ source: publishedSource, grant: published }],
-      [],
+      [{ source, grant: readOnly }], // public identity permission: denied
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({
       ...request, barcode: "7890000000001",
     })).toEqual({ kind: "miss", reason: "incompatible_evidence" });
+    expect(selects).toHaveBeenCalledTimes(5);
   });
 
   it("does not renew the first-capture retention on duplicate external evidence", async () => {
