@@ -11,8 +11,8 @@ import {
   foodVariants, userFoodAliases,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { canReadFoodSource, canPersistProvisionalEvidence } from "./sourceGrants";
-import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof } from "./knowledgeEligibility";
+import { canReadFoodSource, canPersistProvisionalEvidence, isAuthorizedSourceReference } from "./sourceGrants";
+import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
@@ -61,7 +61,7 @@ async function readApprovedSource(db: V2Database, sourceId: number, now: Date) {
 }
 
 async function eligibleVariant(
-  db: V2Database, variantId: number, request: FoodKnowledgeRequest,
+  db: V2Database, variantId: number, request: FoodKnowledgeRequest, match: MatchType,
 ) {
   const [row] = await db.select({
     variant: foodVariants, family: foods, brand: foodBrands,
@@ -80,7 +80,8 @@ async function eligibleVariant(
     if (!row.brand || normalizeFoodName(row.brand.name) !== normalizeFoodName(request.brand)) {
       return null;
     }
-  } else if (!request.barcode?.trim() && row.variant.variantType === "branded") {
+  } else if (row.variant.variantType === "branded" &&
+             !isTrustedBrandlessSelection(match, request.barcode)) {
     // Brandless input does not silently resolve to one commercial SKU.
     return null;
   }
@@ -239,7 +240,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         }
         const matches: GovernedFoodMatch[] = [];
         for (const id of new Set(group.ids)) {
-          const row = await eligibleVariant(db, id, request);
+          const row = await eligibleVariant(db, id, request, group.match);
           if (!row) continue;
           const profileResult = await readCurrentProfile(db, id, request, row.variant.variantType);
           if (profileResult === "conflict") {
@@ -296,8 +297,10 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
               payload.sourceVersion !== source.source.version ||
               payload.policyVersion !== request.policyVersion ||
               payload.resolverVersion !== request.resolverVersion ||
-              typeof payload.sourceReference !== "string" || !payload.nutrition ||
-              !isNutritionFacts(payload.nutrition)) continue;
+              typeof payload.sourceReference !== "string" ||
+              row.sourceReference !== payload.sourceReference ||
+              !isAuthorizedSourceReference(payload.sourceReference, source.source.sourceUrl) ||
+              !payload.nutrition || !isNutritionFacts(payload.nutrition)) continue;
           candidates.push({
             sourceId: row.sourceId, sourceReference: payload.sourceReference,
             nutrition: payload.nutrition,
@@ -318,10 +321,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       const days = source?.grant.retentionDays;
       if (!source || !canPersistProvisionalEvidence(source.grant, source.source.version, now) || !days) return false;
       // Exact provenance, not just a same-brand/website heuristic.
-      if (!source.source.sourceUrl) return false;
-      try {
-        if (new URL(candidate.sourceReference).origin !== new URL(source.source.sourceUrl).origin) return false;
-      } catch { return false; }
+      if (!isAuthorizedSourceReference(candidate.sourceReference, source.source.sourceUrl)) return false;
 
       const payload = {
         status: "provisional" as const, sourceVersion: source.source.version,
