@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canPersistProvisionalEvidence, canPublishGlobalKnowledge, canReadFoodSource,
+  canPersistProvisionalEvidence, canPublishGlobalKnowledge, canReadFoodSource, isAuthorizedSourceReference,
   type FoodSourceGrant,
 } from "./sourceGrants";
 
@@ -39,6 +39,15 @@ describe("B2 source grants: policy is deny-by-default", () => {
     expect(canPersistProvisionalEvidence(grant({ allowPersistEvidence: 0 }), "release-1", now)).toBe(false);
     expect(canPublishGlobalKnowledge(grant(), "release-1", now)).toBe(false);
   });
+  it("rejects cached evidence after an authorized origin change or unsafe reference", () => {
+    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", "https://manufacturer.example")).toBe(true);
+    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", "https://other.example")).toBe(false);
+    expect(isAuthorizedSourceReference("http://manufacturer.example/sku", "https://manufacturer.example")).toBe(false);
+    expect(isAuthorizedSourceReference("https://manufacturer.example.attacker.test/sku", "https://manufacturer.example")).toBe(false);
+    expect(isAuthorizedSourceReference(null, "https://manufacturer.example")).toBe(false);
+    expect(isAuthorizedSourceReference("https://manufacturer.example/sku", null)).toBe(false);
+  });
+
   it("evidence retention is bounded and a global grant is separately explicit", () => {
     expect(canPersistProvisionalEvidence(grant(), "release-1", now)).toBe(true);
     expect(canPersistProvisionalEvidence(grant({ retentionDays: null }), "release-1", now)).toBe(false);
