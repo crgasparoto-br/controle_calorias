@@ -21,7 +21,8 @@ describe("B2 governed family and exact SKU proof", () => {
       evidenceType: "nutrition_label", sourceReference: "https://manufacturer.example/sku-a",
       contentHash: "hash-a", retentionUntil: new Date("2026-11-01T00:00:00Z") };
     const now = new Date("2026-10-21T12:00:00Z");
-    const profile = { variantId: 11, sourceId: 7, mapping };
+    const profile = { variantId: 11, sourceId: 7, mapping,
+      sourceUrl: "https://manufacturer.example" };
     expect(hasVerifiedCommercialProfileProof(profile, [valid], now)).toBe(true);
     expect(hasVerifiedCommercialProfileProof({ ...profile, mapping: null }, [valid], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceId: 8 }], now)).toBe(false);
@@ -30,6 +31,8 @@ describe("B2 governed family and exact SKU proof", () => {
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, ownerUserId: 41 }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, retentionUntil: now }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: null }], now)).toBe(false);
+    expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: "https://other.example/sku-a" }], now)).toBe(false);
+    expect(hasVerifiedCommercialProfileProof({ ...profile, sourceUrl: null }, [valid], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, contentHash: "" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof({ ...profile,
       mapping: { ...mapping, sourceItemCode: null, sourceUrl: null } }, [valid], now)).toBe(false);

@@ -2,6 +2,7 @@ import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_
 
 export type TraceableFamily = {
   id: number; name: string; normalizedName: string; brandName: string | null;
+  status: string;
   scope: "global" | "user" | null; ownerUserId: number | null;
   sourceId: number | null; sourceFoodCode: string | null; canonicalKey: string | null;
   caloriesKcalPer100g: number; proteinGramsPer100g: number;
@@ -10,6 +11,7 @@ export type TraceableFamily = {
 
 export type TraceableCatalog = {
   name: string; brandName: string | null; createdByUserId: number | null;
+  isUserCreated: number;
   status: string; dataSource: string; researchIdentityKey: string | null;
   sourceUrls: string | null; sourceVerifiedAt: Date | null; gramsPerServing: number;
   calories: number; protein: number; carbs: number; fat: number;
@@ -31,13 +33,14 @@ export function findTraceableCatalogFamily<T extends TraceableFamily>(
   families: readonly T[],
   sources: ReadonlyMap<number, TraceableSource>,
 ): T | null {
-  if (catalog.status !== "active" || catalog.createdByUserId !== null ||
+  if (catalog.status !== "active" || catalog.isUserCreated !== 0 ||
+      catalog.createdByUserId !== null ||
       !catalog.researchIdentityKey?.trim() || !catalog.sourceUrls ||
       !catalog.sourceVerifiedAt || !Number.isFinite(catalog.sourceVerifiedAt.getTime())) return null;
   const name = normalizeFoodName(catalog.name);
   const brand = normalizeFoodName(catalog.brandName ?? "");
   const matches = families.filter(family => {
-    if (family.scope !== "global" || family.ownerUserId !== null ||
+    if (family.status !== "active" || family.scope !== "global" || family.ownerUserId !== null ||
         !family.canonicalKey || !family.sourceId || !family.sourceFoodCode?.trim() ||
         normalizeFoodName(family.name) !== name ||
         normalizeFoodName(family.brandName ?? "") !== brand) return false;

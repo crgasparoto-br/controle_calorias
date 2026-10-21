@@ -3,13 +3,14 @@ import { findTraceableCatalogFamily } from "./legacyCatalogLink";
 
 const family = {
   id: 42, name: "Alimento X", normalizedName: "alimento x", brandName: null,
+  status: "active",
   scope: "global" as const, ownerUserId: null, sourceId: 7,
   sourceFoodCode: "ITEM-1", canonicalKey: "family-x",
   caloriesKcalPer100g: 200, proteinGramsPer100g: 10,
   carbsGramsPer100g: 30, fatGramsPer100g: 4,
 };
 const catalog = {
-  name: "Alimento X", brandName: null, createdByUserId: null,
+  name: "Alimento X", brandName: null, createdByUserId: null, isUserCreated: 0,
   status: "active", dataSource: "reference", researchIdentityKey: "ITEM-1",
   sourceUrls: JSON.stringify(["https://reference.example/products/ITEM-1"]),
   sourceVerifiedAt: new Date("2026-10-20T12:00:00Z"),
@@ -27,9 +28,10 @@ describe("B2 catalog reconciliation provenance", () => {
     for (const diff of [
       { researchIdentityKey: "OTHER" }, { sourceUrls: "[]" },
       { calories: 99 }, { name: "Another food" }, { brandName: "Other" },
-      { createdByUserId: 44 }, { sourceVerifiedAt: null },
+      { createdByUserId: 44 }, { isUserCreated: 1 }, { sourceVerifiedAt: null },
     ]) expect(findTraceableCatalogFamily({ ...catalog, ...diff }, [family], sources)).toBeNull();
     expect(findTraceableCatalogFamily(catalog, [{ ...family, scope: "user" as const }], sources)).toBeNull();
+    expect(findTraceableCatalogFamily(catalog, [{ ...family, status: "deprecated" }], sources)).toBeNull();
     expect(findTraceableCatalogFamily(catalog, [{ ...family, sourceFoodCode: null }], sources)).toBeNull();
   });
 });

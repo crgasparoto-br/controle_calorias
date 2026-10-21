@@ -124,7 +124,7 @@ async function readCurrentProfile(
         )).limit(MAX_CANDIDATES + 1);
       if (proofs.length > MAX_CANDIDATES ||
           !hasVerifiedCommercialProfileProof(
-            { variantId, sourceId: profile.sourceId, mapping },
+            { variantId, sourceId: profile.sourceId, mapping, sourceUrl: permission.source.sourceUrl },
             proofs,
             at(request),
           )) continue;

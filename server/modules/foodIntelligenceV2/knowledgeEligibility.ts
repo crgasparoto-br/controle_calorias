@@ -32,17 +32,29 @@ type CommercialEvidence = {
 /** A generic source, shared approval or external candidate does not prove a
  * commercial product's exact nutritional profile. Proof must bind this SKU,
  * source and the manufacturer/label artifact to the same variant. */
+function sameAuthoritativeOrigin(reference: string | null, sourceUrl: string): boolean {
+  try {
+    const referenceUrl = new URL(reference ?? "");
+    const approvedUrl = new URL(sourceUrl);
+    return referenceUrl.protocol === "https:" && approvedUrl.protocol === "https:" &&
+      referenceUrl.origin === approvedUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 export function hasVerifiedCommercialProfileProof(
-  profile: { variantId: number; sourceId: number; mapping: CommercialMapping },
+  profile: { variantId: number; sourceId: number; mapping: CommercialMapping; sourceUrl: string | null },
   evidence: readonly CommercialEvidence[],
   now: Date,
 ): boolean {
   const mapping = profile.mapping;
-  if (!mapping || mapping.status !== "active" ||
+  if (!mapping || !profile.sourceUrl || mapping.status !== "active" ||
       mapping.foodVariantId !== profile.variantId ||
       mapping.sourceId !== profile.sourceId ||
       (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim())) return false;
   return evidence.some(proof =>
+    sameAuthoritativeOrigin(proof.sourceReference, profile.sourceUrl) &&
     proof.foodVariantId === profile.variantId &&
     proof.sourceId === profile.sourceId &&
     proof.ownerUserId === null &&
