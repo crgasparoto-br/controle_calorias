@@ -559,6 +559,57 @@ describe("efeito idempotente e sobrevivência a restart", () => {
     }
   });
 
+  it("A-1298-010: impede estado obsoleto de apagar um efeito inclusive após restart", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation());
+    const stale = store.get("op-1");
+    expect(stale).not.toBeNull();
+    if (!stale) throw new Error("pendência não encontrada");
+
+    const first = applyEffect(store);
+    expect(first).toMatchObject({ applied: true, duplicate: false });
+    const committed = store.exportState();
+
+    expect(() => store.save(stale)).toThrow("Efeito já aplicado é imutável");
+    expect(store.exportState()).toStrictEqual(committed);
+
+    const replaced = structuredClone(committed.operations[0]);
+    if (!replaced.effect) throw new Error("efeito ausente");
+    replaced.effect.mealItemId = "item-conflitante";
+    expect(() => store.save(replaced)).toThrow("Efeito já aplicado é imutável");
+    expect(store.exportState()).toStrictEqual(committed);
+
+    const restarted = createInMemoryPendingOperationStore(store.exportState());
+    expect(() => restarted.save(stale)).toThrow("Efeito já aplicado é imutável");
+    const retry = applyEffect(restarted);
+    expect(retry).toMatchObject({ applied: false, duplicate: true });
+    if (first.applied && retry.duplicate) {
+      expect(retry.effect).toStrictEqual(first.effect);
+    }
+    expect(restarted.exportState()).toStrictEqual(committed);
+  });
+
+  it("A-1298-010: rejeita troca de versão, proprietário ou alvo ao regravar a mesma chave", () => {
+    const store = createInMemoryPendingOperationStore();
+    store.save(buildOperation());
+    const original = store.exportState();
+    const base = original.operations[0];
+
+    for (const mutated of [
+      { ...base, versionTag: { ...VERSIONS, resolverVersion: "resolver-v3" } },
+      { ...base, ownerUserId: 8 },
+      { ...base, observationIds: ["obs-2"] },
+      { ...base, target: { ...base.target, mealLabel: "jantar" } },
+      { ...base, question: null },
+    ]) {
+      expect(() => store.save(mutated)).toThrow("Pendência existente não permite");
+      expect(store.exportState()).toStrictEqual(original);
+    }
+
+    store.save(structuredClone(base)); // regravação idêntica é permitida
+    expect(store.exportState()).toStrictEqual(original);
+  });
+
   it("aplica uma única vez e devolve o mesmo efeito em retry", () => {
     const store = createInMemoryPendingOperationStore();
     store.save(buildOperation());

@@ -25,6 +25,7 @@ import {
 } from "./contracts";
 import { isValidIsoDate, isValidIsoInstant } from "./schemaShared";
 import {
+  assertMonotonicPendingSave,
   isNonEmpty,
   isOpaqueIdentifier,
   isPositiveInteger,
@@ -530,6 +531,8 @@ export function createInMemoryPendingOperationStore(
       return pending ? clonePendingOperation(pending) : null;
     },
     save(pending) {
+      const existing = operations.get(pending.operationKey);
+      if (existing) assertMonotonicPendingSave(existing, pending);
       operations.set(pending.operationKey, clonePendingOperation(pending));
     },
     exportState() {

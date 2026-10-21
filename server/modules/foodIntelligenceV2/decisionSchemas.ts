@@ -389,6 +389,32 @@ export const foodResolutionDecisionSchema = z
         }
       }
     }
+    // "resolved" exige prova rastreável para cada domínio material; metadata
+    // nutricional isolada não comprova os valores utilizados na decisão.
+    if (decision.status === "resolved") {
+      for (const { ids, path, allowedPrefixes, ownerLabel } of referenceGroups) {
+        if (!["identity", "quantity", "nutrition"].includes(ownerLabel)) continue;
+        const supported = ids.some(id => {
+          const evidence = evidenceById.get(id);
+          if (!evidence || evidence.value === null ||
+              !allowedPrefixes.some(prefix => evidence.field.startsWith(prefix))) {
+            return false;
+          }
+          return ownerLabel !== "nutrition" ||
+            (NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
+              typeof evidence.value === "number" &&
+              Number.isFinite(evidence.value) &&
+              evidence.value >= 0);
+        });
+        if (!supported) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Decisão resolved exige evidência substantiva de ${ownerLabel}; ausência não é procedência.`,
+            path,
+          });
+        }
+      }
+    }
     if (nutrition.verified) {
       const hasGroundedNutrient = nutrition.evidenceIds.some(evidenceId => {
         const evidence = evidenceById.get(evidenceId);

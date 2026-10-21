@@ -192,8 +192,8 @@ export function assertNutritionScaleConsistency(
 }
 
 /**
- * Prova nutricional numérica verificada deve corresponder aos valores
- * efetivos da base ou do consumo, jamais apenas a um número associado.
+ * Evidência numérica de nutrição verificada OU provisória precisa concordar com
+ * os valores e unidades da base/consumo, não apenas existir no envelope.
  */
 function assertVerifiedNutritionEvidenceConsistency(
   decision: FoodResolutionDecision,
@@ -201,7 +201,7 @@ function assertVerifiedNutritionEvidenceConsistency(
   ctx: z.RefinementCtx
 ) {
   const { nutrition } = decision;
-  if (!nutrition.verified || nutrition.basis === null) return;
+  if ((!nutrition.verified && !nutrition.provisional) || nutrition.basis === null) return;
   for (const id of nutrition.evidenceIds) {
     const evidence = evidenceById.get(id);
     const nutrient = evidence &&

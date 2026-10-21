@@ -779,6 +779,48 @@ describe("FoodResolutionDecision v2", () => {
     expect(parseFoodResolutionDecision(volume).ok).toBe(true);
   });
 
+  it("A-1298-009: resolved exige evidência material para identidade, quantidade e nutrição", () => {
+    expect(parseFoodResolutionDecision(buildFoodResolutionDecisionFixture()).ok).toBe(true);
+    for (const domain of ["identity", "quantity", "nutrition"] as const) {
+      const decision = buildFoodResolutionDecisionFixture();
+      decision[domain].evidenceIds = [];
+      const before = structuredClone(decision);
+      const rejected = parseFoodResolutionDecision(decision);
+      expectInvalid(rejected);
+      if (!rejected.ok) {
+        expect(rejected.issues.map(issue => issue.path)).toContain(`${domain}.evidenceIds`);
+      }
+      expect(decision).toStrictEqual(before);
+    }
+  });
+
+  it("A-1298-009: provisório exige nutriente rastreável, coerente e não verificado por conveniência", () => {
+    const provisional = buildFoodResolutionDecisionFixture();
+    provisional.nutrition.verified = false;
+    provisional.nutrition.provisional = true;
+    provisional.evidence[2].origin = "provisional_estimate";
+    provisional.evidence[2].verified = false;
+    expect(parseFoodResolutionDecision(provisional).ok).toBe(true);
+
+    const unlinked = structuredClone(provisional);
+    unlinked.nutrition.evidenceIds = [];
+    expectInvalid(parseFoodResolutionDecision(unlinked));
+
+    const metadataOnly = structuredClone(provisional);
+    metadataOnly.evidence[2].field = "nutrition.sourceId";
+    metadataOnly.evidence[2].value = 3;
+    metadataOnly.evidence[2].unit = null;
+    expectInvalid(parseFoodResolutionDecision(metadataOnly));
+
+    const contradictory = structuredClone(provisional);
+    contradictory.evidence[2].value = 999;
+    expectInvalid(parseFoodResolutionDecision(contradictory));
+
+    const missing = structuredClone(provisional);
+    missing.evidence[2].value = null;
+    expectInvalid(parseFoodResolutionDecision(missing));
+  });
+
   it("mantém flags nutricionais exclusivos e nunca usa zeros como ausência", () => {
     expectInvalid(
       parseFoodResolutionDecision(
