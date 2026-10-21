@@ -101,3 +101,68 @@ export function planLegacyKnowledgeReconciliation(
   }
   return { decisions, totals };
 }
+
+
+/** Reconcile V1 foodCatalog portions independently of the existing foods
+ * portions. A portion is never silently published if the catalog identity,
+ * source entitlement or physical measure is missing. */
+export type LegacyCatalogPortion = {
+  id: number;
+  foodCatalogId: number;
+  label: string;
+  unit: string;
+  quantity: number;
+  grams: number;
+};
+
+export type LegacyCatalogPortionDecision = {
+  portion: LegacyCatalogPortion;
+  action: "mapped" | "merged" | "quarantined";
+  reason?: "catalog_not_eligible" | "invalid_measure" | "conflicting_measure";
+};
+
+export function planLegacyCatalogPortions(
+  portions: readonly LegacyCatalogPortion[],
+  decisions: readonly LegacyFoodDecision[],
+) {
+  const byCatalogId = new Map(decisions
+    .filter(d => d.source.table === "foodCatalog")
+    .map(d => [d.source.id, d]));
+  const seen = new Map<string, string>();
+  const output: LegacyCatalogPortionDecision[] = [];
+  for (const portion of [...portions].sort((a, b) => a.id - b.id)) {
+    const parent = byCatalogId.get(portion.foodCatalogId);
+    if (!parent || parent.action === "quarantined" ||
+        parent.source.scope !== "global" || parent.source.ownerUserId !== null ||
+        !parent.source.foodId) {
+      output.push({ portion, action: "quarantined", reason: "catalog_not_eligible" });
+      continue;
+    }
+    const label = normalizeFoodName(portion.label);
+    if (!label || !portion.unit.trim() ||
+        !Number.isFinite(portion.quantity) || portion.quantity <= 0 ||
+        !Number.isFinite(portion.grams) || portion.grams <= 0) {
+      output.push({ portion, action: "quarantined", reason: "invalid_measure" });
+      continue;
+    }
+    const key = JSON.stringify([parent.source.foodId, label, portion.unit]);
+    const fingerprint = JSON.stringify([portion.quantity, portion.grams]);
+    if (seen.has(key)) {
+      output.push(seen.get(key) === fingerprint
+        ? { portion, action: "merged" }
+        : { portion, action: "quarantined", reason: "conflicting_measure" });
+    } else {
+      seen.set(key, fingerprint);
+      output.push({ portion, action: "mapped" });
+    }
+  }
+  return {
+    decisions: output,
+    totals: {
+      input: output.length,
+      mapped: output.filter(d => d.action === "mapped").length,
+      merged: output.filter(d => d.action === "merged").length,
+      quarantined: output.filter(d => d.action === "quarantined").length,
+    },
+  };
+}
