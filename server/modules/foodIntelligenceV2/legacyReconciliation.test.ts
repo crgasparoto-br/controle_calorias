@@ -131,4 +131,15 @@ describe("B2 legacy foodCatalog portions", () => {
     expect(plan.decisions[2]).toMatchObject({ reason: "conflicting_measure" });
     expect(plan.totals.input).toBe(plan.totals.mapped + plan.totals.merged + plan.totals.quarantined);
   });
+
+  it("does not merge equal measures from different source-identified variants", () => {
+    const parents = planLegacyKnowledgeReconciliation([
+      catalog, { ...catalog, id: 51, sourceCode: "ITEM-OTHER" },
+    ], source, now);
+    const plan = planLegacyCatalogPortions([
+      portion, { ...portion, id: 101, foodCatalogId: 51 },
+    ], parents.decisions);
+    expect(plan.decisions.map(d => d.action)).toEqual(["mapped", "quarantined"]);
+    expect(plan.decisions[1]).toMatchObject({ reason: "conflicting_measure" });
+  });
 });
