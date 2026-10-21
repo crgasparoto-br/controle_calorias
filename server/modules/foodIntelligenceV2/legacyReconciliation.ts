@@ -147,7 +147,7 @@ export function planLegacyCatalogPortions(
       continue;
     }
     const key = JSON.stringify([parent.source.foodId, label, portion.unit]);
-    const fingerprint = JSON.stringify([portion.quantity, portion.grams]);
+    const fingerprint = JSON.stringify([parent.identityKey, portion.quantity, portion.grams]);
     if (seen.has(key)) {
       output.push(seen.get(key) === fingerprint
         ? { portion, action: "merged" }
