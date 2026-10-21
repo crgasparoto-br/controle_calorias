@@ -21,6 +21,7 @@
  * Nada neste módulo é consumido por entrypoint produtivo (Fase A1, item 1 de
  * §21.1). As dependências de V1 são apenas de tipo.
  */
+import { z } from "zod";
 import type {
   FoodClassificationEstimate,
   MealProcessingResult,
@@ -30,15 +31,213 @@ import type {
 } from "../../nutritionEngineTypes";
 import {
   MEAL_SEMANTIC_CONTRACT_VERSION,
-  isGroundedEvidenceOrigin,
   isVolumeUnit,
   type FoodEvidenceOrigin,
 } from "./contracts";
+import { foodNutritionValuesSchema } from "./schemas";
 import type {
   FoodDecisionClassification,
   FoodNutritionValues,
   FoodResolutionDecision,
 } from "./schemas";
+
+const historicalProcessingLevelSchema = z.enum([
+  "natural_or_minimally_processed",
+  "processed_culinary_ingredient",
+  "processed",
+  "ultra_processed",
+]);
+
+const historicalEvidenceOriginSchema = z.enum([
+  "text",
+  "transcription",
+  "ocr",
+  "vision",
+  "memory",
+  "catalog",
+  "web_research",
+  "nutrition_label",
+  "provisional_estimate",
+  "ai_estimate",
+  "heuristic",
+  "unavailable",
+]);
+
+const historicalClarificationCodeSchema = z.enum([
+  "brand_variant_unresolved",
+  "commercial_identity_unverified",
+  "commercial_nutrition_unverified",
+  "image_identity_unresolved",
+]);
+
+const historicalSemanticAlternativeSchema = z.strictObject({
+  name: z.string(),
+  brand: z.string().nullable(),
+  productVariant: z.string().nullable(),
+  servingLabel: z.string(),
+  gramsPerServing: z.number().finite(),
+});
+
+const historicalSemanticEvidenceMetaSchema = z.strictObject({
+  origin: historicalEvidenceOriginSchema,
+  confidence: z.number().finite().min(0).max(1),
+  verified: z.boolean(),
+});
+
+const historicalSemanticStringEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.string() });
+const historicalSemanticNullableStringEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.string().nullable() });
+const historicalSemanticNumberEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({ value: z.number().finite() });
+const historicalSemanticNutritionEvidenceSchema = historicalSemanticEvidenceMetaSchema
+  .extend({
+    value: z.strictObject({
+      calories: z.number().finite(),
+      protein: z.number().finite(),
+      carbs: z.number().finite(),
+      fat: z.number().finite(),
+      sourceUrls: z.array(z.string()),
+      sourceEvidence: z.string().nullable(),
+      sourceVerifiedAt: z.string().nullable(),
+    }),
+  });
+
+const historicalSemanticItemSchema = z.strictObject({
+  itemIndex: z.number().int().nonnegative(),
+  originalText: z.string(),
+  normalizedText: z.string(),
+  commercialName: z.string(),
+  category: historicalProcessingLevelSchema.nullable(),
+  brand: z.string().nullable(),
+  productVariant: z.string().nullable(),
+  barcode: z.string().nullable(),
+  quantity: z.number().finite(),
+  unit: z.string(),
+  portionText: z.string(),
+  estimatedGrams: z.number().finite(),
+  confidence: z.strictObject({
+    identity: z.number().finite().min(0).max(1),
+    quantity: z.number().finite().min(0).max(1),
+    source: z.number().finite().min(0).max(1),
+  }),
+  evidence: z.strictObject({
+    identity: historicalSemanticStringEvidenceSchema,
+    brand: historicalSemanticNullableStringEvidenceSchema,
+    variant: historicalSemanticNullableStringEvidenceSchema,
+    quantity: historicalSemanticNumberEvidenceSchema,
+    estimatedGrams: historicalSemanticNumberEvidenceSchema,
+    nutrition: historicalSemanticNutritionEvidenceSchema,
+  }),
+  alternatives: z.array(historicalSemanticAlternativeSchema),
+  needsClarification: z.boolean(),
+  clarificationReason: z
+    .strictObject({
+      code: historicalClarificationCodeSchema,
+      message: z.string(),
+    })
+    .nullable(),
+});
+
+const historicalSemanticClarificationSchema = z.strictObject({
+  itemIndex: z.number().int().nonnegative(),
+  code: historicalClarificationCodeSchema,
+  message: z.string(),
+  alternatives: z.array(historicalSemanticAlternativeSchema),
+});
+
+const historicalSemanticContractSchema = z.strictObject({
+  version: z.literal(MEAL_SEMANTIC_CONTRACT_VERSION),
+  originalText: z.string(),
+  normalizedText: z.string(),
+  inputType: z.enum(["text", "audio_transcript", "image", "multimodal"]),
+  intent: z.string(),
+  items: z.array(historicalSemanticItemSchema),
+  needsClarification: z.boolean(),
+  clarifications: z.array(historicalSemanticClarificationSchema),
+});
+
+const historicalClassificationSchema = z.strictObject({
+  processingLevel: historicalProcessingLevelSchema,
+  isFruit: z.boolean(),
+  isVegetable: z.boolean(),
+  fiberGrams: z.number().finite(),
+  isPlainWater: z.boolean().nullable().optional(),
+});
+
+const historicalMeasureResolutionSchema = z.strictObject({
+  kind: z.string(),
+  grams: z.number().finite(),
+  requestedQuantity: z.number().finite(),
+  requestedUnit: z.string(),
+  sourceUrls: z.array(z.string()),
+  sourceEvidence: z.string().nullable(),
+  referenceCount: z.number().int().nonnegative(),
+  verified: z.boolean(),
+});
+
+const historicalResolutionSchema = z.strictObject({
+  productVariant: z.string().nullable().optional(),
+  barcode: z.string().nullable().optional(),
+  nutritionOrigin: historicalEvidenceOriginSchema,
+  nutritionVerified: z.boolean(),
+  sourceUrls: z.array(z.string()).optional(),
+  sourceEvidence: z.string().nullable().optional(),
+  sourceVerifiedAt: z.union([z.string(), z.date()]).nullable().optional(),
+  sourceConfidence: z.number().finite().min(0).max(1).nullable().optional(),
+  measureResolution: historicalMeasureResolutionSchema.nullable().optional(),
+  ambiguity: z
+    .strictObject({
+      reason: historicalClarificationCodeSchema,
+      alternatives: z.array(historicalSemanticAlternativeSchema),
+    })
+    .nullable()
+    .optional(),
+});
+
+const historicalMealItemSchema = z.strictObject({
+  foodId: z.number().int().positive().optional(),
+  foodCatalogId: z.number().int().positive().nullable().optional(),
+  portionId: z.number().int().positive().optional(),
+  portionQuantity: z.number().finite().positive().optional(),
+  foodName: z.string(),
+  canonicalName: z.string(),
+  brand: z.string().nullable().optional(),
+  productVariant: z.string().nullable().optional(),
+  quantity: z.number().finite(),
+  unit: z.string(),
+  portionText: z.string(),
+  servings: z.number().finite(),
+  estimatedGrams: z.number().finite(),
+  calories: z.number().finite(),
+  protein: z.number().finite(),
+  carbs: z.number().finite(),
+  fat: z.number().finite(),
+  confidence: z.number().finite().min(0).max(1),
+  source: z.enum(["catalog", "hybrid", "heuristic"]),
+  sourceMediaStorageKey: z.string().optional(),
+  classification: historicalClassificationSchema.nullable().optional(),
+  resolution: historicalResolutionSchema.optional(),
+});
+
+const historicalMealSnapshotSchema = z.strictObject({
+  detectedMealLabel: z.string(),
+  sourceText: z.string(),
+  imageUrl: z.string().optional(),
+  audioUrl: z.string().optional(),
+  transcript: z.string().optional(),
+  confidence: z.number().finite().min(0).max(1),
+  needsConfirmation: z.boolean(),
+  reasoning: z.string(),
+  items: z.array(historicalMealItemSchema),
+  totals: z.strictObject({
+    calories: z.number().finite(),
+    protein: z.number().finite(),
+    carbs: z.number().finite(),
+    fat: z.number().finite(),
+  }),
+  semanticContract: historicalSemanticContractSchema.nullable().optional(),
+});
 
 /** Origens de evidência do vocabulário V1 (tudo exceto `barcode`). */
 export const V1_EVIDENCE_ORIGINS = [
@@ -109,6 +308,7 @@ export const V1_PROJECTION_BLOCKERS = [
   "nutrition-state-not-representable",
   "evidence-origin-not-representable",
   "classification-not-representable",
+  "v1-required-fields-not-supplied",
 ] as const;
 export type V1ProjectionBlocker = (typeof V1_PROJECTION_BLOCKERS)[number];
 
@@ -155,8 +355,15 @@ export type V1CompatibleDecisionProjection = {
     isUltraProcessed: boolean | null;
     provisional: boolean;
   } | null;
-  evidenceOrigins: Partial<Record<V1EvidenceField, FoodEvidenceOrigin>>;
+  /** Todas as origens observadas no slot, deduplicadas e ordenadas. */
+  evidenceOrigins: Partial<
+    Record<V1EvidenceField, readonly FoodEvidenceOrigin[]>
+  >;
 };
+
+const NUTRIENT_EVIDENCE_FIELDS = new Set(
+  Object.keys(foodNutritionValuesSchema.shape).map(field => `nutrition.${field}`)
+);
 
 function collectBlockers(
   decision: FoodResolutionDecision
@@ -164,6 +371,14 @@ function collectBlockers(
   const blockers: Array<{ code: V1ProjectionBlocker; detail: string }> = [];
   const identity = decision.identity;
   const quantity = decision.quantity;
+
+  if (V1_FIELDS_NOT_SUPPLIED.length > 0) {
+    blockers.push({
+      code: "v1-required-fields-not-supplied",
+      detail:
+        `A decisão V2 não fornece sem invenção os campos obrigatórios do DTO V1: ${V1_FIELDS_NOT_SUPPLIED.join(", ")}. A projeção não pode materializar um item nem declarar faithful=true.`,
+    });
+  }
 
   if (decision.status !== "resolved") {
     blockers.push({
@@ -214,6 +429,7 @@ function collectBlockers(
 
   const nutritionEvidence = decision.evidence.filter(
     evidence =>
+      decision.nutrition.evidenceIds.includes(evidence.evidenceId) &&
       evidence.field.startsWith("nutrition.") &&
       V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition"
   );
@@ -225,13 +441,47 @@ function collectBlockers(
     });
   }
 
-  const nutritionOrigin = nutritionEvidence
-    .map(evidence => evidence.origin)
-    .find(origin => isGroundedEvidenceOrigin(origin));
-  if (nutritionOrigin && toV1EvidenceOrigin(nutritionOrigin) === null) {
+  if (decision.nutrition.verified && !nutritionEvidence.some(evidence =>
+    NUTRIENT_EVIDENCE_FIELDS.has(evidence.field) &&
+    evidence.verified === true && typeof evidence.value === "number" && evidence.value >= 0
+  )) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail: "Nutrição verificada sem prova numérica e verificada nos IDs declarados não pode ser projetada fielmente para V1.",
+    });
+  }
+  if (decision.nutrition.verified && nutritionEvidence.some(evidence => !evidence.verified)) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail: "Fonte nutricional não verificada não pode herdar verified=true do envelope V2.",
+    });
+  }
+  const originKinds = [
+    ...new Set(nutritionEvidence.map(evidence => evidence.origin)),
+  ];
+  if (originKinds.length > 1) {
     blockers.push({
       code: "evidence-origin-not-representable",
-      detail: `Origem de evidência ${nutritionOrigin} não existe no vocabulário V1; ela não é colapsada em outra origem.`,
+      detail:
+        "O DTO V1 possui um único slot de origem nutricional e não representa origens distintas por campo; nenhuma origem é escolhida pela ordem do array.",
+    });
+  }
+  for (const originKind of originKinds) {
+    if (toV1EvidenceOrigin(originKind) === null) {
+      blockers.push({
+        code: "evidence-origin-not-representable",
+        detail: `Origem de evidência ${originKind} não existe no vocabulário V1; ela não é colapsada em outra origem.`,
+      });
+    }
+  }
+  if (
+    decision.nutrition.provisional &&
+    decision.nutrition.consumed !== null
+  ) {
+    blockers.push({
+      code: "nutrition-state-not-representable",
+      detail:
+        "O DTO V1 não possui campo de provisoriedade nutricional; estimativa provisória não pode ser materializada como item fiel.",
     });
   }
 
@@ -269,26 +519,33 @@ export function projectDecisionV2ToV1(
   const identity = decision.identity;
   const quantity = decision.quantity;
 
-  const evidenceOrigins: Partial<Record<V1EvidenceField, FoodEvidenceOrigin>> =
-    {};
+  const evidenceOrigins: Partial<
+    Record<V1EvidenceField, FoodEvidenceOrigin[]>
+  > = {};
   for (const evidence of decision.evidence) {
     const slot = V2_EVIDENCE_FIELD_TO_V1[evidence.field];
     if (!slot) continue;
-    if (!(slot in evidenceOrigins)) {
-      evidenceOrigins[slot] = evidence.origin;
-    }
+    const origins = evidenceOrigins[slot] ?? [];
+    if (!origins.includes(evidence.origin)) origins.push(evidence.origin);
+    origins.sort();
+    evidenceOrigins[slot] = origins;
   }
 
-  const nutritionEvidence = decision.evidence.find(
+  const referencedNutritionEvidence = decision.evidence.filter(
     evidence =>
-      V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition" &&
-      isGroundedEvidenceOrigin(evidence.origin)
+      decision.nutrition.evidenceIds.includes(evidence.evidenceId) &&
+      V2_EVIDENCE_FIELD_TO_V1[evidence.field] === "nutrition"
   );
-  const projectedNutritionOrigin = nutritionEvidence
-    ? toV1EvidenceOrigin(nutritionEvidence.origin)
-    : null;
+  const originKinds = [
+    ...new Set(referencedNutritionEvidence.map(evidence => evidence.origin)),
+  ];
+  const projectedNutritionOrigin =
+    originKinds.length === 1
+      ? toV1EvidenceOrigin(originKinds[0])
+      : null;
 
   const itemRepresentable =
+    blockers.length === 0 &&
     decision.status === "resolved" &&
     identity.canonicalName !== null &&
     quantity.value !== null &&
@@ -452,7 +709,17 @@ export function readHistoricalV1MealSnapshot(
       reason: "unsupported-schema-version",
       detail:
         `Snapshot declara MealSemanticContract versão ${String(declaredVersion)}, ` +
-        "desconhecida por este leitor. Nenhuma leitura destrutiva ou migração implícita é aplicada.",
+      "desconhecida por este leitor. Nenhuma leitura destrutiva ou migração implícita é aplicada.",
+    };
+  }
+
+  const validated = historicalMealSnapshotSchema.safeParse(snapshot);
+  if (!validated.success) {
+    return {
+      ok: false,
+      reason: "invalid-snapshot",
+      detail:
+        "Snapshot histórico não corresponde à estrutura V1 conhecida; nenhuma inferência, recálculo ou normalização foi aplicada.",
     };
   }
 

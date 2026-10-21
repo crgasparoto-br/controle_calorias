@@ -11,13 +11,78 @@ export const nullablePositiveInt = positiveInt.nullable();
 export const confidence = z.number().finite().min(0).max(1).nullable();
 export const nonEmptyText = z.string().trim().min(1);
 export const opaqueId = (max: number = FOOD_CONTRACT_LIMITS.identifier) =>
-  nonEmptyText.max(max);
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine(
+      value => value === value.trim(),
+      "Identificador opaco não aceita whitespace externo."
+    );
+export const nullableOpaqueId = (
+  max: number = FOOD_CONTRACT_LIMITS.identifier
+) => opaqueId(max).nullable();
 export const nullableText = (max: number) =>
   z.string().trim().min(1).max(max).nullable();
 export const finiteNumber = z.number().finite();
 export const nonNegativeNumber = z.number().finite().min(0);
 export const nullableNonNegativeNumber = z.number().finite().min(0).nullable();
+
+/**
+ * Unidade do nutriente é metadado do contrato, não classificação por texto
+ * alimentar. Validadores e adapters usam o mesmo schema para evitar decisões
+ * lexicais/hardcodes em fluxo produtivo.
+ */
+export const foodNutritionValuesSchema = z.strictObject({
+  calories: nonNegativeNumber.describe("kcal"),
+  protein: nonNegativeNumber.describe("g"),
+  carbs: nonNegativeNumber.describe("g"),
+  fat: nonNegativeNumber.describe("g"),
+  fiber: nullableNonNegativeNumber.describe("g"),
+  sugar: nullableNonNegativeNumber.describe("g"),
+  sodiumMg: nullableNonNegativeNumber.describe("mg"),
+});
+
+type FoodNutrientKey = keyof typeof foodNutritionValuesSchema.shape;
+export const foodNutrientKeyByEvidenceField = new Map<string, FoodNutrientKey>(
+  Object.keys(foodNutritionValuesSchema.shape).map(key => [
+    `nutrition.${key}`,
+    key as FoodNutrientKey,
+  ])
+);
 export const evidenceIdList = z.array(opaqueId()).max(FOOD_CONTRACT_LIMITS.collection);
+
+export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !ISO_DATE_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export function isValidIsoInstant(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !value.includes("T") ||
+    !isValidIsoDate(value.slice(0, 10)) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return false;
+  }
+
+  const offset = value.match(/(?:Z|([+-])(\d{2}):(\d{2}))$/);
+  if (!offset) return false;
+  if (offset[1] === undefined) return true;
+
+  const hours = Number(offset[2]);
+  const minutes = Number(offset[3]);
+  return hours <= 14 && minutes <= 59 && !(hours === 14 && minutes !== 0);
+}
 
 /** Span usa offsets UTF-16 `[start, end)` do texto original referenciado. */
 const foodSpanSchema = z
