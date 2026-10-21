@@ -8,6 +8,7 @@ const sourcePaths = [
   path.join(root, "drizzle/billing-schema.ts"),
   path.join(root, "drizzle/billing-subscription-lifecycle-schema.ts"),
   path.join(root, "drizzle/usage-governance-schema.ts"),
+  path.join(root, "drizzle/food-intelligence-v2-schema.ts"),
 ];
 const outputPath = path.join(root, "docs/generated/db-schema.md");
 const checkOnly = process.argv.includes("--check");
@@ -48,7 +49,7 @@ function findMatchingBrace(source: string, start: number) {
 }
 
 function parseColumns(source: string): ColumnInfo[] {
-  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
+  return Array.from(source.matchAll(/^\s*(\w+):\s*(?:bigint|boolean|double|int|json|mysqlEnum|text|timestamp|varchar)\("([^"]+)"/gm))
     .map(match => ({ propertyName: match[1], columnName: match[2] }));
 }
 
@@ -86,7 +87,7 @@ function generateMarkdown(tables: TableInfo[]) {
     "",
     "> Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.",
     "",
-    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts` e `drizzle/usage-governance-schema.ts`.",
+    "Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts`, `drizzle/usage-governance-schema.ts` e `drizzle/food-intelligence-v2-schema.ts`.",
     "",
     "## Tabelas",
     "",

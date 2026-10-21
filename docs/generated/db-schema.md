@@ -2,7 +2,7 @@
 
 > Arquivo gerado automaticamente por `pnpm docs:generate:db`. Não edite manualmente.
 
-Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts` e `drizzle/usage-governance-schema.ts`.
+Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-schema.ts`, `drizzle/billing-subscription-lifecycle-schema.ts`, `drizzle/usage-governance-schema.ts` e `drizzle/food-intelligence-v2-schema.ts`.
 
 ## Tabelas
 
@@ -14,9 +14,9 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodBrands` | `foodBrands` | 7 | Baixa |
 | `foodSources` | `food_sources` | 11 | Baixa |
 | `foodSourceImports` | `food_source_imports` | 18 | Baixa |
-| `foods` | `foods` | 21 | Baixa |
-| `foodAliases` | `food_aliases` | 6 | Baixa |
-| `foodPortions` | `food_portions` | 12 | Baixa |
+| `foods` | `foods` | 24 | Baixa |
+| `foodAliases` | `food_aliases` | 12 | Baixa |
+| `foodPortions` | `food_portions` | 20 | Baixa |
 | `foodCatalog` | `foodCatalog` | 34 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
@@ -25,7 +25,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `recipes` | `recipes` | 13 | Requer atenção |
 | `recipeItems` | `recipeItems` | 13 | Requer atenção |
 | `meals` | `meals` | 12 | Requer atenção |
-| `mealItems` | `mealItems` | 29 | Requer atenção |
+| `mealItems` | `mealItems` | 32 | Requer atenção |
 | `mealMedia` | `mealMedia` | 8 | Requer atenção |
 | `mealFavorites` | `mealFavorites` | 7 | Requer atenção |
 | `mealInferences` | `mealInferences` | 14 | Requer atenção |
@@ -92,6 +92,22 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingUsageLegalHolds` | `billingUsageLegalHolds` | 3 | Requer atenção |
 | `billingUsageRetentionAudit` | `billingUsageRetentionAudit` | 2 | Requer atenção |
 | `billingUsageCostReconciliations` | `billingUsageCostReconciliations` | 4 | Requer atenção |
+| `foodVariants` | `food_variants` | 16 | Baixa |
+| `foodVariantSources` | `food_variant_sources` | 11 | Baixa |
+| `foodNutritionProfiles` | `food_nutrition_profiles` | 29 | Requer atenção |
+| `foodVariantClassifications` | `food_variant_classifications` | 15 | Baixa |
+| `userFoodAliases` | `user_food_aliases` | 13 | Requer atenção |
+| `foodBarcodes` | `food_barcodes` | 10 | Baixa |
+| `foodEvidence` | `food_evidence` | 15 | Baixa |
+| `foodReviewCases` | `food_review_cases` | 28 | Baixa |
+| `foodReviewEvents` | `food_review_events` | 20 | Baixa |
+| `foodResolutionEvents` | `food_resolution_events` | 18 | Baixa |
+| `foodLexiconEntries` | `food_lexicon_entries` | 19 | Baixa |
+| `userFoodLexiconEntries` | `user_food_lexicon_entries` | 16 | Requer atenção |
+| `foodAttributes` | `food_attributes` | 8 | Baixa |
+| `foodVariantAttributes` | `food_variant_attributes` | 13 | Baixa |
+| `foodAttributeMateriality` | `food_attribute_materiality` | 14 | Baixa |
+| `foodAttributeMaterialityOverrides` | `food_attribute_materiality_overrides` | 11 | Requer atenção |
 
 ## Tabelas sensíveis conhecidas
 
@@ -168,6 +184,10 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 - `billingUsageLegalHolds` via export `billingUsageLegalHolds`.
 - `billingUsageRetentionAudit` via export `billingUsageRetentionAudit`.
 - `billingUsageCostReconciliations` via export `billingUsageCostReconciliations`.
+- `food_nutrition_profiles` via export `foodNutritionProfiles`.
+- `user_food_aliases` via export `userFoodAliases`.
+- `user_food_lexicon_entries` via export `userFoodLexiconEntries`.
+- `food_attribute_materiality_overrides` via export `foodAttributeMaterialityOverrides`.
 
 ## Campos sensíveis conhecidos
 
@@ -178,7 +198,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodBrands` | `name`, `normalizedName` |
 | `food_sources` | `name`, `source_url`, `notes` |
 | `food_source_imports` | `result_json` |
-| `foods` | `name`, `normalized_name`, `brand_name`, `nutrients_json` |
+| `foods` | `name`, `canonical_name`, `normalized_name`, `brand_name`, `nutrients_json` |
 | `food_portions` | `label`, `normalized_label` |
 | `foodCatalog` | `name`, `brandName`, `servingLabel`, `sourceUrls` |
 | `userBadges` | `metadataJson` |
@@ -238,6 +258,15 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingConsumptionChargeAuthorizations` | `reason` |
 | `billingUsageLegalHolds` | `reason` |
 | `billingUsageCostReconciliations` | `usageIdempotencyKey`, `reason` |
+| `food_variants` | `display_name`, `normalized_name`, `variant_name`, `qualifiers_json` |
+| `food_variant_sources` | `source_url` |
+| `food_nutrition_profiles` | `nutrients_json` |
+| `food_barcodes` | `package_quantity`, `package_unit` |
+| `food_evidence` | `payload_json` |
+| `food_review_cases` | `priority_snapshot_json`, `proposed_payload_json` |
+| `food_review_events` | `actor_id`, `evidence_ids_json`, `reason`, `occurred_at` |
+| `food_resolution_events` | `fallback_reason`, `clarification_reason`, `decision_json` |
+| `food_attributes` | `label` |
 
 ## Relações críticas
 

@@ -52,7 +52,8 @@
     "db:seed:billing-catalog": "tsx scripts/seed-billing-catalog.ts",
     "benchmark:question-latency": "node scripts/issue-989-question-latency-benchmark.mjs",
     "benchmark:question-latency:self-test": "node scripts/issue-989-question-latency-benchmark.mjs --self-test",
-    "billing-admin:visual": "bash scripts/render-billing-admin-visual.sh"
+    "billing-admin:visual": "bash scripts/render-billing-admin-visual.sh",
+    "db:check:food-v2-checks": "node scripts/check-food-v2-check-enforcement.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
