@@ -77,7 +77,7 @@ export function isNutritionFacts(value: unknown): value is NutritionFacts {
  * at most one external request. The provider never decides governance status.
  * Persistence remains denied until explicit per-source license/privacy grants.
  */
-export async function resolveWithGovernedKnowledge(
+export async function readThroughGovernedKnowledge(
   request: FoodKnowledgeRequest,
   store: FoodKnowledgeStore,
   externalLookup?: FoodExternalLookup,

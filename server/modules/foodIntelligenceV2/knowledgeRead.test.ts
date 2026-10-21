@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  resolveWithGovernedKnowledge, type FoodKnowledgeRequest,
+  readThroughGovernedKnowledge, type FoodKnowledgeRequest,
   type FoodKnowledgeStore, type GovernedFoodMatch,
 } from "./knowledgeRead";
 
@@ -34,7 +34,7 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     f.local.mockResolvedValueOnce(match as never);
     const external = vi.fn();
-    expect(await resolveWithGovernedKnowledge(base, f.store, external)).toEqual(match);
+    expect(await readThroughGovernedKnowledge(base, f.store, external)).toEqual(match);
     expect(f.pending).not.toHaveBeenCalled();
     expect(external).not.toHaveBeenCalled();
   });
@@ -45,7 +45,7 @@ describe("B2 — porta governada e cache-through", () => {
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
     });
     const external = vi.fn();
-    const result = await resolveWithGovernedKnowledge(base, f.store, external);
+    const result = await readThroughGovernedKnowledge(base, f.store, external);
     expect(result).toMatchObject({ kind: "provisional", persisted: true, origin: "external" });
     expect(external).not.toHaveBeenCalled();
     expect(f.stage).not.toHaveBeenCalled();
@@ -56,12 +56,12 @@ describe("B2 — porta governada e cache-through", () => {
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
     });
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });
     expect(f.stage).toHaveBeenCalledTimes(1);
     expect(external).toHaveBeenCalledTimes(1);
     f.stage.mockResolvedValueOnce(true);
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: true });
   });
 
@@ -70,7 +70,7 @@ describe("B2 — porta governada e cache-through", () => {
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
     });
-    expect(await resolveWithGovernedKnowledge({ ...base, userId: null }, f.store, external))
+    expect(await readThroughGovernedKnowledge({ ...base, userId: null }, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });
     expect(f.pending).not.toHaveBeenCalled();
     expect(f.stage).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe("B2 — porta governada e cache-through", () => {
       kind: "conflict", reason: "material_nutrition_conflict",
     } as never);
     const external = vi.fn();
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toEqual({ kind: "conflict", reason: "material_nutrition_conflict" });
     expect(f.pending).not.toHaveBeenCalled();
     expect(external).not.toHaveBeenCalled();
@@ -94,10 +94,10 @@ describe("B2 — porta governada e cache-through", () => {
       sourceId: 7, sourceReference: "fonte qualquer",
       nutrition: { ...nutrition, caloriesKcal: -1 },
     });
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
     expect(f.stage).not.toHaveBeenCalled();
-    expect(await resolveWithGovernedKnowledge({ ...base, resolverVersion: "" }, f.store, external))
+    expect(await readThroughGovernedKnowledge({ ...base, resolverVersion: "" }, f.store, external))
       .toEqual({ kind: "miss", reason: "invalid_request" });
   });
 
@@ -107,16 +107,16 @@ describe("B2 — porta governada e cache-through", () => {
       request.policyVersion === "governance-v1"
       ? { sourceId: 7, sourceReference: "https://example.org/food", nutrition }
       : null);
-    expect((await resolveWithGovernedKnowledge(base, f.store)).kind).toBe("provisional");
-    expect((await resolveWithGovernedKnowledge({ ...base, userId: 42 }, f.store)).kind).toBe("miss");
-    expect((await resolveWithGovernedKnowledge({ ...base, policyVersion: "governance-v2" }, f.store)).kind).toBe("miss");
+    expect((await readThroughGovernedKnowledge(base, f.store)).kind).toBe("provisional");
+    expect((await readThroughGovernedKnowledge({ ...base, userId: 42 }, f.store)).kind).toBe("miss");
+    expect((await readThroughGovernedKnowledge({ ...base, policyVersion: "governance-v2" }, f.store)).kind).toBe("miss");
   });
 
   it("detecta conflito entre evidencias pessoais em cache e nao faz override pela rede", async () => {
     const f = fixture();
     f.pending.mockResolvedValueOnce({ kind: "conflict" });
     const external = vi.fn();
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toEqual({ kind: "conflict", reason: "material_nutrition_conflict" });
     expect(external).not.toHaveBeenCalled();
   });
@@ -125,7 +125,7 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     f.local.mockRejectedValueOnce(new Error("db offline"));
     const external = vi.fn();
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toEqual({ kind: "unavailable", reason: "governed_store_unavailable" });
     expect(external).not.toHaveBeenCalled();
   });
@@ -133,7 +133,7 @@ describe("B2 — porta governada e cache-through", () => {
   it("provider indisponivel nao inventa valor nutricional", async () => {
     const f = fixture();
     const external = vi.fn().mockRejectedValue(new Error("network down"));
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
   });
 
@@ -143,19 +143,19 @@ describe("B2 — porta governada e cache-through", () => {
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
     });
-    expect(await resolveWithGovernedKnowledge(base, f.store, external))
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });
   });
   it("nao repete request externo quando nao existe rede configurada", async () => {
     const f = fixture();
-    expect(await resolveWithGovernedKnowledge(base, f.store))
+    expect(await readThroughGovernedKnowledge(base, f.store))
       .toEqual({ kind: "miss", reason: "not_found" });
   });
 
   it("nao converte indisponibilidade em alimento generico", async () => {
     const f = fixture();
     const external = vi.fn().mockResolvedValue(null);
-    expect(await resolveWithGovernedKnowledge({ ...base, brand: "Marca", barcode: "789" }, f.store, external))
+    expect(await readThroughGovernedKnowledge({ ...base, brand: "Marca", barcode: "789" }, f.store, external))
       .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
   });
 });

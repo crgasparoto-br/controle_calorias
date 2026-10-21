@@ -3564,4 +3564,58 @@ describe("food intelligence architecture wave 1", () => {
     }
   });
 
+  it("B2: typed governance states and TypeScript guards are not food lexical materiality", () => {
+    const samples = [
+      {
+        path: "server/modules/foodIntelligenceV2/knowledgeRead.ts",
+        content: `function isNutritionFacts(value: unknown) {
+          if (typeof value !== "object") return false;
+          const nutrition = value as {basisUnit:string, basisQuantity:number};
+          return typeof nutrition.basisQuantity === "number" &&
+            (nutrition.basisUnit === "g" || nutrition.basisUnit === "ml" || nutrition.basisUnit === "serving");
+        }`,
+      },
+      {
+        path: "server/modules/foodIntelligenceV2/sourceGrants.ts",
+        content: `function canReadFoodSource(grant: {status:string}) {
+          return grant.status === "approved";
+        }`,
+      },
+      {
+        path: "server/modules/foodIntelligenceV2/repository.ts",
+        content: `function portionsFor(portion: {status:string}) {
+          return portion.status !== "verified" && portion.status !== "provisional";
+        }
+        function readLocal(alias: {governanceStatus:string}) {
+          return alias.governanceStatus === "verified";
+        }`,
+      },
+      {
+        path: "server/modules/foodIntelligenceV2/legacyReconciliationRepository.ts",
+        content: `function reconcileLegacyFoodKnowledge(
+          row: {scope:string}, decision: {action:string}, mode: string
+        ) {
+          return row.scope === "global" && mode === "preview" &&
+            decision.action !== "merged";
+        }`,
+      },
+    ];
+    for (const sample of samples) {
+      const violations = findFoodStaticCandidates([sample]).filter(f => f.ruleId === "17" || f.ruleId === "18");
+      expect(violations, sample.path).toEqual([]);
+    }
+  });
+
+  it("B2: materiality and lexicon comparisons still fail despite state-shaped identifiers", () => {
+    const sample = {
+      path: "server/modules/foodIntelligenceV2/foodMateriality.ts",
+      content: `function decideFoodMateriality(food: {status:string, name:string, qualifier:string}) {
+        return food.status === "integral" || food.name === "pao" || food.qualifier === "light";
+      }`,
+    };
+    const findings = findFoodStaticCandidates([sample]);
+    expect(findings.filter(f => f.ruleId === "17" || f.ruleId === "18").length).toBeGreaterThan(0);
+    expect(findings.some(f => f.symbol.includes("status") || f.symbol.includes("qualifier"))).toBe(true);
+  });
+
 });

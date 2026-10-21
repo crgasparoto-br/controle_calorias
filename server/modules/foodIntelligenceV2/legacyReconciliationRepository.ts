@@ -165,11 +165,11 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           mapping.sourceId !== candidate.sourceId ||
           mapping.status !== "active") throw new Error("B2 source identity conflict");
 
-      const nutrition = [
+      const nutritionHash = hash([
         original.caloriesKcalPer100g, original.proteinGramsPer100g,
         original.carbsGramsPer100g, original.fatGramsPer100g,
-      ];
-      const nutritionHash = hash([nutrition, candidate.sourceId, candidate.sourceVersion]);
+        candidate.sourceId, candidate.sourceVersion,
+      ]);
       await tx.insert(foodNutritionProfiles).values({
         foodVariantId: variant.id,
         foodVariantSourceId: mapping.id,
@@ -180,8 +180,10 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         status: "provisional",
         basisQuantity: 100,
         basisUnit: "g",
-        caloriesKcal: nutrition[0], proteinG: nutrition[1],
-        carbG: nutrition[2], fatG: nutrition[3],
+        caloriesKcal: original.caloriesKcalPer100g,
+        proteinG: original.proteinGramsPer100g,
+        carbG: original.carbsGramsPer100g,
+        fatG: original.fatGramsPer100g,
         contentHash: nutritionHash,
       }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
       const [profile] = await tx.select().from(foodNutritionProfiles)

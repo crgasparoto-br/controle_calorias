@@ -89,7 +89,7 @@ async function eligibleVariant(
   return row;
 }
 
-async function chooseProfile(
+async function readCurrentProfile(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
 ): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string } | "conflict" | null> {
   const rows = await db.select().from(foodNutritionProfiles)
@@ -228,13 +228,13 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request);
           if (!row) continue;
-          const profileResult = await chooseProfile(db, id, request);
+          const profileResult = await readCurrentProfile(db, id, request);
           if (profileResult === "conflict") {
             return { kind: "conflict", reason: "material_nutrition_conflict" };
           }
           if (!profileResult) continue;
           const p = profileResult.profile;
-          const nutrition: NutritionFacts = {
+          const profileValues: NutritionFacts = {
             caloriesKcal: p.caloriesKcal, proteinG: p.proteinG, carbG: p.carbG,
             fatG: p.fatG, basisQuantity: p.basisQuantity, basisUnit: p.basisUnit,
           };
@@ -244,7 +244,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             variantName: row.variant.displayName,
             sourceId: profileResult.sourceId, sourceVersion: profileResult.sourceVersion,
             sourceReference: profileResult.sourceReference,
-            nutrition,
+            nutrition: profileValues,
             governanceStatus: p.status === "verified" &&
               row.variant.governanceStatus === "verified" ? "verified" : "provisional",
             portions: await portionsFor(db, id, request),
