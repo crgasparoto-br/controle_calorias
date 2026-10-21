@@ -14,6 +14,7 @@ test("B2 grants are migrated only with deny-by-default permissions", () => {
   assert.match(migration, /allow_read INT NOT NULL DEFAULT 0/);
   assert.match(migration, /allow_persist_evidence INT NOT NULL DEFAULT 0/);
   assert.match(migration, /allow_global_publication INT NOT NULL DEFAULT 0/);
+  assert.match(migration, /retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365/);
   assert.match(schema, /export const foodSourceReadGrants = mysqlTable\("food_source_read_grants"/);
   assert.match(schema, /status: mysqlEnum\("status", \["pending", "approved", "revoked"\]\)/);
   assert.equal(snapshot.tables.food_source_read_grants.columns.source_version.type, "varchar(80)");

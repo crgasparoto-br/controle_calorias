@@ -17075,7 +17075,7 @@
         },
         "food_source_read_grants_ck1": {
           "name": "food_source_read_grants_ck1",
-          "value": "(allow_persist_evidence=0 OR (allow_read=1 AND retention_days BETWEEN 1 AND 365))"
+          "value": "(allow_persist_evidence=0 OR (allow_read=1 AND retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365))"
         },
         "food_source_read_grants_ck2": {
           "name": "food_source_read_grants_ck2",

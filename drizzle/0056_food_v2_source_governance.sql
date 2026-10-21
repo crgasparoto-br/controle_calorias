@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS food_source_read_grants (
   UNIQUE KEY food_source_read_grants_u0 (source_id),
   CONSTRAINT food_source_read_grants_source_id_food_sources_id_fk FOREIGN KEY (source_id) REFERENCES food_sources(id) ON DELETE RESTRICT,
   CONSTRAINT food_source_read_grants_ck0 CHECK (allow_read=0 OR (status='approved' AND license_reference IS NOT NULL AND approval_reference IS NOT NULL AND approved_at IS NOT NULL)),
-  CONSTRAINT food_source_read_grants_ck1 CHECK (allow_persist_evidence=0 OR (allow_read=1 AND retention_days BETWEEN 1 AND 365)),
+  CONSTRAINT food_source_read_grants_ck1 CHECK (allow_persist_evidence=0 OR (allow_read=1 AND retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365)),
   CONSTRAINT food_source_read_grants_ck2 CHECK (allow_global_publication=0 OR allow_read=1)
 );
 --> statement-breakpoint

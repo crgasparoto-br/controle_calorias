@@ -420,6 +420,6 @@ export const foodSourceReadGrants = mysqlTable("food_source_read_grants", {
 }, table => ({
   sourceUnique: uniqueIndex("food_source_read_grants_u0").on(table.sourceId),
   ck0: check("food_source_read_grants_ck0", sql`(allow_read=0 OR (status='approved' AND license_reference IS NOT NULL AND approval_reference IS NOT NULL AND approved_at IS NOT NULL))`),
-  ck1: check("food_source_read_grants_ck1", sql`(allow_persist_evidence=0 OR (allow_read=1 AND retention_days BETWEEN 1 AND 365))`),
+  ck1: check("food_source_read_grants_ck1", sql`(allow_persist_evidence=0 OR (allow_read=1 AND retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365))`),
   ck2: check("food_source_read_grants_ck2", sql`(allow_global_publication=0 OR allow_read=1)`),
 }));
