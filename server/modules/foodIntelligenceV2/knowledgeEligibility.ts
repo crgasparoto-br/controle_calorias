@@ -70,12 +70,13 @@ export function hasVerifiedCommercialProfileProof(
 ): boolean {
   const mapping = profile.mapping;
   const approvedSourceUrl = profile.sourceUrl;
-  if (!mapping || !approvedSourceUrl || !mapping.sourceUrl || mapping.status !== "active" ||
+  const productUrl = mapping?.sourceUrl;
+  if (!mapping || !approvedSourceUrl || !productUrl || mapping.status !== "active" ||
       mapping.foodVariantId !== profile.variantId ||
       mapping.sourceId !== profile.sourceId ||
       (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim())) return false;
   return evidence.some(proof =>
-    sameExactProductResource(proof.sourceReference, mapping.sourceUrl, approvedSourceUrl) &&
+    sameExactProductResource(proof.sourceReference, productUrl, approvedSourceUrl) &&
     proof.foodVariantId === profile.variantId &&
     proof.sourceId === profile.sourceId &&
     proof.ownerUserId === null &&
