@@ -412,7 +412,7 @@ describe("efeito idempotente e sobrevivência a restart", () => {
       resumed: false,
       reason: "invalid-pending-time",
     });
-    expect(store.get("op-1")?.effect).toBeNull();
+    expect(store.get("op-1")).toBeNull();
   });
 
   it("não aplica efeito quando expiresAt persistido não sucede createdAt", () => {
@@ -426,7 +426,7 @@ describe("efeito idempotente e sobrevivência a restart", () => {
       resumed: false,
       reason: "invalid-pending-time",
     });
-    expect(store.get("op-1")?.effect).toBeNull();
+    expect(store.get("op-1")).toBeNull();
   });
 
   it("não persiste efeito com appliedAt inválido", () => {
