@@ -58,6 +58,7 @@ export function findTraceableCatalogFamily<T extends TraceableFamily>(
       catalog.createdByUserId !== null ||
       !catalog.researchIdentityKey?.trim() || !catalog.sourceUrls ||
       !catalog.sourceVerifiedAt || !Number.isFinite(catalog.sourceVerifiedAt.getTime())) return null;
+  const sourceUrls = catalog.sourceUrls;
   const name = normalizeFoodName(catalog.name);
   const brand = normalizeFoodName(catalog.brandName ?? "");
   const matches = families.filter(family => {
@@ -67,7 +68,7 @@ export function findTraceableCatalogFamily<T extends TraceableFamily>(
         normalizeFoodName(family.brandName ?? "") !== brand) return false;
     const source = sources.get(family.sourceId)?.source;
     if (!source?.sourceUrl || catalog.dataSource !== source.slug ||
-        !catalogCitesSource(catalog.sourceUrls, source.sourceUrl)) return false;
+        !catalogCitesSource(sourceUrls, source.sourceUrl)) return false;
     if (catalog.researchIdentityKey !== family.sourceFoodCode &&
         catalog.researchIdentityKey !== source.slug + ":" + family.sourceFoodCode) return false;
     return sameNutrition(catalog.calories, catalog.gramsPerServing, family.caloriesKcalPer100g) &&
