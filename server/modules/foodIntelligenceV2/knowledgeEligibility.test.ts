@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  hasVerifiedCommercialProfileProof, isGovernedFamilyVisible,
+  hasVerifiedCommercialProfileProof, isGovernedFamilyVisible, isTrustedBrandlessSelection,
 } from "./knowledgeEligibility";
 
 describe("B2 governed family and exact SKU proof", () => {
@@ -14,9 +14,18 @@ describe("B2 governed family and exact SKU proof", () => {
     expect(isGovernedFamilyVisible(null, null, 9)).toBe(false);
   });
 
+  it("accepts a confirmed personal alias for its exact commercial variant only", () => {
+    expect(isTrustedBrandlessSelection("personal_alias", null)).toBe(true);
+    expect(isTrustedBrandlessSelection("barcode", "789000")).toBe(true);
+    expect(isTrustedBrandlessSelection("barcode", null)).toBe(false);
+    expect(isTrustedBrandlessSelection("exact_variant", null)).toBe(false);
+    expect(isTrustedBrandlessSelection("global_alias", null)).toBe(false);
+    expect(isTrustedBrandlessSelection("generic_family", null)).toBe(false);
+  });
+
   it("requires source-linked manufacturer/label evidence for a commercial profile", () => {
     const mapping = { foodVariantId: 11, sourceId: 7, status: "active",
-      sourceItemCode: "SKU-A", sourceUrl: null };
+      sourceItemCode: "SKU-A", sourceUrl: "https://manufacturer.example/sku-a" };
     const valid = { foodVariantId: 11, sourceId: 7, ownerUserId: null,
       evidenceType: "nutrition_label", sourceReference: "https://manufacturer.example/sku-a",
       contentHash: "hash-a", retentionUntil: new Date("2026-11-01T00:00:00Z") };
@@ -33,6 +42,19 @@ describe("B2 governed family and exact SKU proof", () => {
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: null }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: "https://other.example/sku-a" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof({ ...profile, sourceUrl: null }, [valid], now)).toBe(false);
+    // Same manufacturer's website is not evidence for another product.
+    expect(hasVerifiedCommercialProfileProof(profile, [{
+      ...valid, sourceReference: "https://manufacturer.example/sku-b",
+    }], now)).toBe(false);
+    expect(hasVerifiedCommercialProfileProof(profile, [{
+      ...valid, sourceReference: "https://manufacturer.example/sku-a?variant=b",
+    }], now)).toBe(false);
+    expect(hasVerifiedCommercialProfileProof({
+      ...profile, mapping: { ...mapping, sourceUrl: null },
+    }, [valid], now)).toBe(false);
+    expect(hasVerifiedCommercialProfileProof({
+      ...profile, mapping: { ...mapping, sourceUrl: "https://manufacturer.example" },
+    }, [{ ...valid, sourceReference: "https://manufacturer.example" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, contentHash: "" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof({ ...profile,
       mapping: { ...mapping, sourceItemCode: null, sourceUrl: null } }, [valid], now)).toBe(false);
