@@ -194,7 +194,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           foodId, foodVariantId: variantId, label: portion.label,
           normalizedLabel, unit: portion.unit, quantity: portion.quantity,
           grams: portion.grams, sourceId, sourcePortionCode,
-          status: "provisional", isDefault: portion.isDefault,
+          status: "provisional", isDefault: portion.isDefault ?? 0,
         });
       }
     }
