@@ -3256,6 +3256,10 @@ function isStructuralContractComparison(identity: ts.Expression, literal: string
   if (ts.isTypeOfExpression(operand)) {
     return ["undefined", "object", "boolean", "number", "string", "function", "symbol", "bigint"].includes(literal);
   }
+  // Bare `mode` is the reconciliation CLI control, never a food attribute.
+  if (ts.isIdentifier(operand) && operand.text === "mode") {
+    return literal === "preview" || literal === "stage";
+  }
   if (!ts.isPropertyAccessExpression(operand)) return false;
   const enumStates: Record<string, readonly string[]> = {
     status: ["active", "deprecated", "merged", "draft", "provisional", "pending_review",
