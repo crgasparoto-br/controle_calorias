@@ -113,6 +113,7 @@ export type LegacyCatalogPortion = {
   unit: string;
   quantity: number;
   grams: number;
+  isDefault?: number;
 };
 
 export type LegacyCatalogPortionDecision = {
