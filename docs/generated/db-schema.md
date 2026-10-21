@@ -108,6 +108,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodVariantAttributes` | `food_variant_attributes` | 13 | Baixa |
 | `foodAttributeMateriality` | `food_attribute_materiality` | 14 | Baixa |
 | `foodAttributeMaterialityOverrides` | `food_attribute_materiality_overrides` | 11 | Requer atenção |
+| `foodSourceReadGrants` | `food_source_read_grants` | 15 | Baixa |
 
 ## Tabelas sensíveis conhecidas
 
