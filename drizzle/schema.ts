@@ -195,6 +195,7 @@ export const foodPortions = mysqlTable("food_portions", {
   validTo: timestamp("valid_to"),
   isDefault: int("is_default").default(0).notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  sourceVersion: varchar("source_version", { length: 80 }),
   sourcePortionCode: varchar("source_portion_code", { length: 120 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

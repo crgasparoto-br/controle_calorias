@@ -44,3 +44,10 @@ CREATE TABLE IF NOT EXISTS food_personal_reconciliation_quarantine (
   scope_guard INT GENERATED ALWAYS AS (CASE WHEN (scope='user' AND owner_user_id IS NOT NULL) OR (scope='orphan' AND owner_user_id IS NULL) THEN 1 ELSE NULL END) VIRTUAL NOT NULL,
   CONSTRAINT food_personal_recon_owner_fk FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+--> statement-breakpoint
+-- AUD-1302-026: source revision is evidence-bound, not inferred from the latest
+-- source version. Existing rows remain NULL until explicitly revalidated.
+ALTER TABLE food_nutrition_profiles ADD COLUMN source_version VARCHAR(80) NULL;
+--> statement-breakpoint
+ALTER TABLE food_portions ADD COLUMN source_version VARCHAR(80) NULL;

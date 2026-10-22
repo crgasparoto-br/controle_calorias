@@ -1201,6 +1201,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "source_version": {
+          "name": "source_version",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -14305,6 +14312,13 @@
           "autoincrement": false,
           "default": "(now())",
           "onUpdate": true
+        },
+        "source_version": {
+          "name": "source_version",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {

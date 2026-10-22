@@ -1,3 +1,8 @@
+-- AUD-1302-026: rollback metadata without rewriting V1 or historical meals.
+ALTER TABLE food_portions DROP COLUMN source_version;
+--> statement-breakpoint
+ALTER TABLE food_nutrition_profiles DROP COLUMN source_version;
+--> statement-breakpoint
 -- Personal quarantine is V2-only and never modifies V1/historical meals.
 DROP TABLE `food_personal_reconciliation_quarantine`;
 --> statement-breakpoint

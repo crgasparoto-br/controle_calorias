@@ -50,6 +50,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   id: int("id").autoincrement().primaryKey(),
   foodVariantId: int("food_variant_id").notNull().references(() => foodVariants.id, { onDelete: "restrict" }),
   sourceId: int("source_id").notNull().references(() => foodSources.id, { onDelete: "restrict" }),
+  sourceVersion: varchar("source_version", { length: 80 }),
   foodVariantSourceId: int("food_variant_source_id"),
   profileKey: varchar("profile_key", { length: 191 }).notNull(),
   version: int("version").notNull(),

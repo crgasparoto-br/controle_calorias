@@ -152,7 +152,10 @@ async function readCurrentProfile(
         (profile.status !== "verified" && profile.status !== "provisional") ||
         !currentlyValid(profile.validFrom, profile.validTo, at(request))) continue;
     const permission = await readApprovedSource(db, profile.sourceId, at(request), familyScope === "global");
-    if (!permission) continue;
+    // A freshly approved grant does not certify older source-version macros.
+    // Unversioned B1/legacy rows are ineligible until explicitly reviewed.
+    if (!permission || !profile.sourceVersion ||
+        profile.sourceVersion !== permission.source.version) continue;
     const [mapping] = profile.foodVariantSourceId === null
       ? [null]
       : await db.select().from(foodVariantSources)
@@ -222,8 +225,13 @@ async function portionsFor(
   for (const portion of rows) {
     if ((portion.status !== "verified" && portion.status !== "provisional") ||
         !currentlyValid(portion.validFrom, portion.validTo, at(request)) ||
-        !portion.sourceId || !Number.isFinite(portion.grams) || portion.grams <= 0 ||
-        !await readApprovedSource(db, portion.sourceId, at(request), familyScope === "global")) continue;
+        !portion.sourceId || !portion.sourceVersion ||
+        !Number.isFinite(portion.grams) || portion.grams <= 0) continue;
+    const approvedPortionSource = await readApprovedSource(
+      db, portion.sourceId, at(request), familyScope === "global",
+    );
+    if (!approvedPortionSource ||
+        portion.sourceVersion !== approvedPortionSource.source.version) continue;
     result.push({
       label: portion.label, unit: portion.unit, quantity: portion.quantity,
       grams: portion.grams, status: portion.status,

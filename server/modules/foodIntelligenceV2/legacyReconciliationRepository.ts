@@ -197,7 +197,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       }).onDuplicateKeyUpdate({ set: { lastSeenAt: new Date() } });
     }
 
-    async function stageLinkedCatalogPortions(catalogId: number, variantId: number, foodId: number, sourceId: number) {
+    async function stageLinkedCatalogPortions(catalogId: number, variantId: number, foodId: number, sourceId: number, sourceVersion: string) {
       for (const decision of portionDecisionsByCatalog.get(catalogId) ?? []) {
         const portion = decision.portion;
         if (decision.action === "quarantined") {
@@ -217,6 +217,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         const sourcePortionCode = "b2:catalog:" + portion.id;
         if (existing) {
           if (existing.foodVariantId === variantId && existing.sourceId === sourceId &&
+              existing.sourceVersion === sourceVersion &&
               existing.sourcePortionCode === sourcePortionCode &&
               existing.quantity === portion.quantity && existing.grams === portion.grams) continue;
           await quarantineCatalogPortion(portion.id, "conflicting_existing_portion");
@@ -225,7 +226,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         await tx.insert(foodPortions).values({
           foodId, foodVariantId: variantId, label: portion.label,
           normalizedLabel, unit: portion.unit, quantity: portion.quantity,
-          grams: portion.grams, sourceId, sourcePortionCode,
+          grams: portion.grams, sourceId, sourceVersion, sourcePortionCode,
           status: "provisional", isDefault: portion.isDefault ?? 0,
         });
       }
@@ -307,7 +308,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
             throw new Error("B2 source approval changed during merged catalog staging");
           }
           await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
-          await stageLinkedCatalogPortions(candidate.id, variant.id, candidate.foodId!, candidate.sourceId);
+          await stageLinkedCatalogPortions(candidate.id, variant.id, candidate.foodId!, candidate.sourceId, approval.source.version);
         }
         continue;
       }
@@ -366,6 +367,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         foodVariantId: variant.id,
         foodVariantSourceId: mapping.id,
         sourceId: candidate.sourceId,
+        sourceVersion: currentGrant.source.version,
         profileKey: decision.profileKey,
         version: 1,
         currentSlot: 1,
@@ -381,6 +383,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       const [profile] = await tx.select().from(foodNutritionProfiles)
         .where(eq(foodNutritionProfiles.profileKey, decision.profileKey)).limit(1);
       if (!profile || profile.contentHash !== nutritionHash ||
+          profile.sourceVersion !== currentGrant.source.version ||
           profile.foodVariantId !== variant.id || profile.status !== "provisional") {
         throw new Error("B2 nutrition version conflict; must be reviewed, not overwritten");
       }
@@ -422,7 +425,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       }
       if (candidate.table === "foodCatalog") {
         await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
-        await stageLinkedCatalogPortions(candidate.id, variant.id, original.id, candidate.sourceId);
+        await stageLinkedCatalogPortions(candidate.id, variant.id, original.id, candidate.sourceId, currentGrant.source.version);
       }
 
       await tx.insert(foodReviewCases).values({
