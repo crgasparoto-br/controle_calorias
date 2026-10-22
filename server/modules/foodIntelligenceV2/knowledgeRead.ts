@@ -127,7 +127,9 @@ export async function readThroughGovernedKnowledge(
   let local: FoodKnowledgeLocalResult;
   try { local = await store.readLocal(request); }
   catch { return { kind: "unavailable", reason: "governed_store_unavailable" }; }
-  if (local.kind !== "miss") return local;
+  // A confirmed personal identity without eligible nutrition remains unresolved.
+  // Do not fetch a homonymous generic candidate or replay unrelated evidence.
+  if (local.kind !== "miss" || local.reason === "no_governed_profile") return local;
 
   // Barcode assertions and explicitly branded inputs cannot be silently
   // substituted with a generic food by the external provider or local cache.

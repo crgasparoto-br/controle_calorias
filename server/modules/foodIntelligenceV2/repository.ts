@@ -252,9 +252,17 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         if (!source) return { kind: "miss", reason: "incompatible_evidence" };
         const [proof] = await db.select().from(foodEvidence)
           .where(eq(foodEvidence.id, barcode.evidenceId)).limit(1);
-        if (!hasCurrentBarcodeProof(
+        // A barcode assertion must independently bind the same commercial
+        // product resource and source item, not merely the source homepage.
+        const mappings = await db.select().from(foodVariantSources)
+          .where(and(
+            eq(foodVariantSources.foodVariantId, barcode.foodVariantId),
+            eq(foodVariantSources.sourceId, barcode.sourceId),
+            eq(foodVariantSources.status, "active"),
+          )).limit(2);
+        if (mappings.length !== 1 || !hasCurrentBarcodeProof(
           proof, request.barcode.trim(), barcode.foodVariantId, barcode.sourceId,
-          source.source.sourceUrl, request.userId, at(request),
+          source.source.sourceUrl, mappings[0], request.userId, at(request),
         )) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
@@ -297,7 +305,8 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       }
 
       for (const group of groups) {
-        if (group.ids.length > MAX_CANDIDATES) {
+        if (group.ids.length > MAX_CANDIDATES ||
+            (group.match === "personal_alias" && new Set(group.ids).size > 1)) {
           return { kind: "conflict", reason: "multiple_identities" };
         }
         const matches: GovernedFoodMatch[] = [];
@@ -338,6 +347,12 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         }
         if (matches.length > 1) return { kind: "conflict", reason: "multiple_identities" };
         if (matches.length === 1) return matches[0];
+        // An existing confirmed personal alias already fixes identity. If its
+        // variant/profile is revoked, expired or unavailable, never borrow
+        // macros from a same-name variant or an external cache/provider.
+        if (group.match === "personal_alias" && group.ids.length > 0) {
+          return { kind: "miss", reason: "no_governed_profile" };
+        }
         if (request.barcode?.trim()) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }

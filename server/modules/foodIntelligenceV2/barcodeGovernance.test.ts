@@ -10,6 +10,10 @@ vi.mock("../../db", () => ({ getDb: vi.fn() }));
 const now = new Date("2026-10-21T12:00:00Z");
 const reference = "https://manufacturer.example/products/sku-a";
 const source = { id: 7, version: "v1", sourceUrl: reference };
+const barcodeMapping = {
+  id: 88, foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
+  status: "active", sourceUrl: reference,
+};
 const grant = {
   sourceVersion: "v1", status: "approved", allowRead: 1, allowPersistEvidence: 1,
   allowGlobalPublication: 1, licenseReference: "https://manufacturer.example/license",
@@ -20,7 +24,11 @@ const request = {
   normalizedName: "pao integral", barcode: "07890000000001", userId: 41,
   brand: null, policyVersion: "p1", resolverVersion: "v2", now,
 };
-const payload = { barcode: request.barcode, identity: { barcode: request.barcode }, label: "Pao integral" };
+const payload = {
+  barcode: request.barcode, identity: { barcode: request.barcode },
+  foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
+  sourceReference: reference, label: "Pao integral",
+};
 const proof = {
   foodVariantId: 22, sourceId: 7, ownerUserId: null, evidenceType: "barcode",
   sourceReference: reference, payloadJson: JSON.stringify(payload),
@@ -58,7 +66,7 @@ beforeEach(() => vi.resetAllMocks());
 
 describe("AUD-1302-016: barcode evidence integrity", () => {
   const valid = (candidate: typeof proof, barcode = request.barcode) =>
-    hasCurrentBarcodeProof(candidate, barcode, 22, 7, reference, 41, now);
+    hasCurrentBarcodeProof(candidate, barcode, 22, 7, reference, barcodeMapping, 41, now);
 
   it("accepts exact linked barcode evidence with a valid hash and resource", () => {
     expect(valid(proof)).toBe(true);
@@ -85,6 +93,25 @@ describe("AUD-1302-016: barcode evidence integrity", () => {
     expect(valid({ ...proof, sourceId: 8 })).toBe(false);
     expect(valid({ ...proof, foodVariantId: 23 })).toBe(false);
     expect(valid({ ...proof, retentionUntil: now })).toBe(false);
+  });
+
+  it("AUD-1302-023: refuses a generic source URL or mismatched SKU link", () => {
+    const generic = "https://manufacturer.example/";
+    const genericPayload = { ...payload, sourceReference: generic };
+    const digest = createHash("sha256").update(JSON.stringify(genericPayload)).digest("hex");
+    const genericProof = { ...proof, sourceReference: generic,
+      payloadJson: JSON.stringify(genericPayload), contentHash: digest };
+    expect(hasCurrentBarcodeProof(genericProof, request.barcode, 22, 7,
+      generic, { ...barcodeMapping, sourceUrl: generic }, 41, now)).toBe(false);
+    expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
+      reference, { ...barcodeMapping, sourceItemCode: "SKU-B" }, 41, now)).toBe(false);
+    expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
+      reference, { ...barcodeMapping, sourceUrl: "https://manufacturer.example/products/sku-b" }, 41, now)).toBe(false);
+    expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
+      reference, { ...barcodeMapping, status: "revoked" }, 41, now)).toBe(false);
+    // Approved source may be an origin, but the *linked product URL* must be exact.
+    expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
+      "https://manufacturer.example/", barcodeMapping, 41, now)).toBe(true);
   });
 });
 
@@ -116,14 +143,14 @@ describe("AUD-1302-018: commercial proof through governed repository", () => {
     const commercialProfile = { ...profile, foodVariantSourceId: 88 };
     const installCommercial = (nutritionProof: typeof labelProof) => installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [commercialVariant],
+      [{ source, grant }], [proof], [barcodeMapping], [commercialVariant],
       [commercialProfile], [{ source, grant }], [commercialMapping], [nutritionProof], [],
     );
     const branded = { ...request, brand: "Panco" };
     let select = installCommercial(labelProof);
     expect(await createFoodV2KnowledgeRepository().readLocal(branded))
       .toMatchObject({ kind: "match", variantId: 22, nutrition });
-    expect(select).toHaveBeenCalledTimes(9);
+    expect(select).toHaveBeenCalledTimes(10);
 
     const changed = { ...labelPayload, nutrition: { ...nutrition, caloriesKcal: 400 } };
     select = installCommercial({
@@ -131,7 +158,7 @@ describe("AUD-1302-018: commercial proof through governed repository", () => {
     });
     expect(await createFoodV2KnowledgeRepository().readLocal(branded))
       .toEqual({ kind: "miss", reason: "incompatible_evidence" });
-    expect(select).toHaveBeenCalledTimes(8);
+    expect(select).toHaveBeenCalledTimes(9);
   });
 });
 
@@ -139,49 +166,49 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
   it("resolves a valid barcode with a matching governed variant", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [variantRow], [profile], [{ source, grant }], [],
+      [{ source, grant }], [proof], [barcodeMapping], [variantRow], [profile], [{ source, grant }], [],
     );
     const result = await createFoodV2KnowledgeRepository().readLocal(request);
     expect(result).toMatchObject({ kind: "match", variantId: 22,
       matchingEvidence: "barcode", nutrition: { caloriesKcal: 250 } });
-    expect(select).toHaveBeenCalledTimes(7);
+    expect(select).toHaveBeenCalledTimes(8);
   });
 
   it("reports conflicting explicit food name before reading any nutrition", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [variantRow],
+      [{ source, grant }], [proof], [barcodeMapping], [variantRow],
       [], // no personal alias for the contradictory name
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({
       ...request, normalizedName: "leite integral",
     })).toEqual({ kind: "conflict", reason: "multiple_identities" });
-    expect(select).toHaveBeenCalledTimes(5);
+    expect(select).toHaveBeenCalledTimes(6);
   });
 
   it("does not consult cache or network after a known barcode/name conflict", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [variantRow], [],
+      [{ source, grant }], [proof], [barcodeMapping], [variantRow], [],
     );
     const external = vi.fn();
     expect(await readThroughGovernedKnowledge({ ...request, normalizedName: "leite integral" },
       createFoodV2KnowledgeRepository(), external))
       .toEqual({ kind: "conflict", reason: "multiple_identities" });
     expect(external).not.toHaveBeenCalled();
-    expect(select).toHaveBeenCalledTimes(5);
+    expect(select).toHaveBeenCalledTimes(6);
   });
 
   it("accepts a separately confirmed personal alias for the same barcode variant", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant }], [proof], [variantRow], [{ id: 22 }],
+      [{ source, grant }], [proof], [barcodeMapping], [variantRow], [{ id: 22 }],
       [profile], [{ source, grant }], [],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({
       ...request, normalizedName: "meu pao",
     })).toMatchObject({ kind: "match", variantId: 22 });
-    expect(select).toHaveBeenCalledTimes(8);
+    expect(select).toHaveBeenCalledTimes(9);
   });
 
   it("does not read a local variant when barcode evidence points to another code", async () => {
@@ -191,9 +218,10 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
       [{ source, grant }],
       [{ ...proof, payloadJson: JSON.stringify(badPayload),
         contentHash: createHash("sha256").update(JSON.stringify(badPayload)).digest("hex") }],
+      [barcodeMapping],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal(request))
       .toEqual({ kind: "miss", reason: "incompatible_evidence" });
-    expect(select).toHaveBeenCalledTimes(3);
+    expect(select).toHaveBeenCalledTimes(4);
   });
 });

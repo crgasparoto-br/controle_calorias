@@ -94,6 +94,41 @@ describe("B2 actual repository governed read", () => {
   });
 
 
+  it("AUD-1302-022: a revoked personal alias never falls through to homonymous macros", async () => {
+    const nutrition = {
+      caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3,
+      basisQuantity: 100, basisUnit: "g",
+    };
+    const select = installResults(
+      [{ id: 22 }], // User confirmed SKU variant 22
+      [{ id: 99 }], // Same name, unrelated generic variant 99
+      [], [{ id: 99 }],
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+          variantType: "branded", displayName: "Panco integral" },
+        family: { id: 4, status: "active", scope: "global", ownerUserId: null },
+        brand: { name: "Panco" } }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+        foodVariantSourceId: null, validFrom: null, validTo: null, ...nutrition }],
+      [{ source, grant: { ...grant, status: "revoked", revokedAt: now } }],
+    );
+    const external = vi.fn();
+    expect(await readThroughGovernedKnowledge(request,
+      createFoodV2KnowledgeRepository(), external))
+      .toEqual({ kind: "miss", reason: "no_governed_profile" });
+    expect(select).toHaveBeenCalledTimes(7);
+    expect(external).not.toHaveBeenCalled();
+  });
+
+  it("AUD-1302-022: two confirmed identities stay ambiguous even if one is unusable", async () => {
+    const select = installResults(
+      [{ id: 22 }, { id: 99 }], // conflicting confirmations
+      [{ id: 99 }], [], [{ id: 99 }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toEqual({ kind: "conflict", reason: "multiple_identities" });
+    expect(select).toHaveBeenCalledTimes(4);
+  });
+
   it("denies globally visible profiles from read-only sources", async () => {
     const mapping = {
       id: 9, status: "active", foodVariantId: 22, sourceId: 7,
