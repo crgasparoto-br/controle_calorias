@@ -543,10 +543,10 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
 
   it("rejects v1 macros after source/grant upgrade to v2", async () => {
     const select = stage("v1", "v2");
-    // With no provider configured, a stale profile stays a miss; it can never
-    // be returned as local V2 nutrition under the newer source version.
-    expect(await readThroughGovernedKnowledge(query,
-      createFoodV2KnowledgeRepository())).toEqual({
+    // This scenario asserts the governed repository boundary: a stale V1
+    // profile cannot be reported as current V2 nutrition. The orchestrator
+    // may separately consult pending evidence after this legitimate miss.
+    expect(await createFoodV2KnowledgeRepository().readLocal(query)).toEqual({
       kind: "miss", reason: "not_found",
     });
     expect(select).toHaveBeenCalledTimes(5);
