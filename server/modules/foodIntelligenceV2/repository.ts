@@ -176,6 +176,7 @@ async function readCurrentProfile(
         {
           variantId, sourceId: profile.sourceId, mapping,
           sourceUrl: permission.source.sourceUrl,
+          sourceVersion: permission.source.version,
           nutrition: {
             basisQuantity: profile.basisQuantity, basisUnit: profile.basisUnit,
             caloriesKcal: profile.caloriesKcal, proteinG: profile.proteinG,
@@ -271,6 +272,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         if (mappings.length !== 1 || !hasCurrentBarcodeProof(
           proof, request.barcode.trim(), barcode.foodVariantId, barcode.sourceId,
           source.source.sourceUrl, mappings[0], request.userId, at(request),
+          source.source.version,
         )) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }

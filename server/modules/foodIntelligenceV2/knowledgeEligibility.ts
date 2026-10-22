@@ -57,8 +57,9 @@ export function hasCurrentBarcodeProof(
   mapping: BarcodeSourceLink | null | undefined,
   userId: number | null,
   now: Date,
+  approvedSourceVersion: string,
 ): boolean {
-  if (!proof || !["barcode", "nutrition_label", "manufacturer"].includes(proof.evidenceType) ||
+  if (!approvedSourceVersion.trim() || !proof || !["barcode", "nutrition_label", "manufacturer"].includes(proof.evidenceType) ||
       proof.foodVariantId !== variantId || proof.sourceId !== sourceId ||
       !mapping || mapping.foodVariantId !== variantId || mapping.sourceId !== sourceId ||
       mapping.status !== "active" || !mapping.sourceItemCode?.trim() ||
@@ -73,7 +74,8 @@ export function hasCurrentBarcodeProof(
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
     const record = payload as Record<string, unknown>;
     // Preserve leading zeroes and never infer the code from a URL or SKU ID.
-    if (typeof record.barcode !== "string" || record.barcode !== barcode ||
+    if (record.sourceVersion !== approvedSourceVersion ||
+        typeof record.barcode !== "string" || record.barcode !== barcode ||
         record.foodVariantId !== variantId || record.sourceId !== sourceId ||
         record.sourceItemCode !== mapping.sourceItemCode.trim() ||
         record.sourceReference !== proof.sourceReference) return false;
@@ -109,6 +111,7 @@ type CommercialEvidence = {
 type CommercialProfile = {
   variantId: number;
   sourceId: number;
+  sourceVersion: string;
   mapping: CommercialMapping;
   sourceUrl: string | null;
   nutrition: NutritionFacts;
@@ -130,6 +133,7 @@ function hasMatchingCommercialNutritionProof(
     if (!isNutritionFacts(payload.nutrition) ||
         payload.foodVariantId !== profile.variantId ||
         payload.sourceId !== profile.sourceId ||
+        payload.sourceVersion !== profile.sourceVersion ||
         payload.sourceItemCode !== (mapping.sourceItemCode?.trim() || null) ||
         payload.sourceReference !== proof.sourceReference) return false;
     const actual = payload.nutrition;
@@ -186,7 +190,7 @@ export function eligibleCommercialProfileProofScope(
   const mapping = profile.mapping;
   const approvedSourceUrl = profile.sourceUrl;
   const productUrl = mapping?.sourceUrl;
-  if (!mapping || !approvedSourceUrl || !productUrl || mapping.status !== "active" ||
+  if (!profile.sourceVersion?.trim() || !mapping || !approvedSourceUrl || !productUrl || mapping.status !== "active" ||
       mapping.foodVariantId !== profile.variantId ||
       mapping.sourceId !== profile.sourceId ||
       (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim()) ||

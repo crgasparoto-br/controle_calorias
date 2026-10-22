@@ -27,7 +27,7 @@ const request = {
 const payload = {
   barcode: request.barcode, identity: { barcode: request.barcode },
   foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
-  sourceReference: reference, label: "Pao integral",
+  sourceReference: reference, sourceVersion: "v1", label: "Pao integral",
 };
 const proof = {
   foodVariantId: 22, sourceId: 7, ownerUserId: null, evidenceType: "barcode",
@@ -66,10 +66,16 @@ beforeEach(() => vi.resetAllMocks());
 
 describe("AUD-1302-016: barcode evidence integrity", () => {
   const valid = (candidate: typeof proof, barcode = request.barcode) =>
-    hasCurrentBarcodeProof(candidate, barcode, 22, 7, reference, barcodeMapping, 41, now);
+    hasCurrentBarcodeProof(candidate, barcode, 22, 7, reference, barcodeMapping, 41, now, "v1");
 
   it("accepts exact linked barcode evidence with a valid hash and resource", () => {
     expect(valid(proof)).toBe(true);
+    expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
+      reference, barcodeMapping, 41, now, "v2")).toBe(false);
+    const upgraded = { ...payload, sourceVersion: "v2" };
+    expect(hasCurrentBarcodeProof({ ...proof, payloadJson: JSON.stringify(upgraded),
+      contentHash: createHash("sha256").update(JSON.stringify(upgraded)).digest("hex") },
+      request.barcode, 22, 7, reference, barcodeMapping, 41, now, "v2")).toBe(true);
   });
 
   it("rejects a sibling barcode and nested-identity contradiction", () => {
@@ -102,16 +108,16 @@ describe("AUD-1302-016: barcode evidence integrity", () => {
     const genericProof = { ...proof, sourceReference: generic,
       payloadJson: JSON.stringify(genericPayload), contentHash: digest };
     expect(hasCurrentBarcodeProof(genericProof, request.barcode, 22, 7,
-      generic, { ...barcodeMapping, sourceUrl: generic }, 41, now)).toBe(false);
+      generic, { ...barcodeMapping, sourceUrl: generic }, 41, now, "v1")).toBe(false);
     expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
-      reference, { ...barcodeMapping, sourceItemCode: "SKU-B" }, 41, now)).toBe(false);
+      reference, { ...barcodeMapping, sourceItemCode: "SKU-B" }, 41, now, "v1")).toBe(false);
     expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
-      reference, { ...barcodeMapping, sourceUrl: "https://manufacturer.example/products/sku-b" }, 41, now)).toBe(false);
+      reference, { ...barcodeMapping, sourceUrl: "https://manufacturer.example/products/sku-b" }, 41, now, "v1")).toBe(false);
     expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
-      reference, { ...barcodeMapping, status: "revoked" }, 41, now)).toBe(false);
+      reference, { ...barcodeMapping, status: "revoked" }, 41, now, "v1")).toBe(false);
     // Approved source may be an origin, but the *linked product URL* must be exact.
     expect(hasCurrentBarcodeProof(proof, request.barcode, 22, 7,
-      "https://manufacturer.example/", barcodeMapping, 41, now)).toBe(true);
+      "https://manufacturer.example/", barcodeMapping, 41, now, "v1")).toBe(true);
   });
 });
 
@@ -132,7 +138,7 @@ describe("AUD-1302-018: commercial proof through governed repository", () => {
     };
     const labelPayload = {
       foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
-      sourceReference: reference, nutrition,
+      sourceReference: reference, sourceVersion: "v1", nutrition,
     };
     const digest = (value: unknown) =>
       createHash("sha256").update(JSON.stringify(value)).digest("hex");

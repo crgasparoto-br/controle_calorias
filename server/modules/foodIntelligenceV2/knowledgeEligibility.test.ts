@@ -33,7 +33,7 @@ describe("B2 governed family and exact SKU proof", () => {
     };
     const payload = {
       foodVariantId: 11, sourceId: 7, sourceItemCode: "SKU-A",
-      sourceReference: "https://manufacturer.example/sku-a", nutrition,
+      sourceReference: "https://manufacturer.example/sku-a", sourceVersion: "v1", nutrition,
     };
     const digest = (value: unknown) =>
       createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -43,8 +43,13 @@ describe("B2 governed family and exact SKU proof", () => {
       retentionUntil: new Date("2026-11-01T00:00:00Z") };
     const now = new Date("2026-10-21T12:00:00Z");
     const profile = { variantId: 11, sourceId: 7, mapping,
-      sourceUrl: "https://manufacturer.example", nutrition };
+      sourceUrl: "https://manufacturer.example", sourceVersion: "v1", nutrition };
     expect(hasVerifiedCommercialProfileProof(profile, [valid], now)).toBe(true);
+    expect(hasVerifiedCommercialProfileProof({ ...profile, sourceVersion: "v2" }, [valid], now)).toBe(false);
+    const upgraded = { ...payload, sourceVersion: "v2" };
+    const upgradedProof = { ...valid, payloadJson: JSON.stringify(upgraded), contentHash: digest(upgraded) };
+    expect(hasVerifiedCommercialProfileProof({ ...profile, sourceVersion: "v2" }, [upgradedProof], now)).toBe(true);
+    expect(hasVerifiedCommercialProfileProof({ ...profile, sourceVersion: "" }, [valid], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof({ ...profile, mapping: null }, [valid], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceId: 8 }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, foodVariantId: 12 }], now)).toBe(false);
