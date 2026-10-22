@@ -174,6 +174,35 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
     expect(select).toHaveBeenCalledTimes(8);
   });
 
+  it("AUD-1302-023: generic manufacturer page is not a barcode identity", async () => {
+    const generic = "https://manufacturer.example/";
+    const genericPayload = { ...payload, sourceReference: generic };
+    const genericProof = {
+      ...proof, sourceReference: generic, payloadJson: JSON.stringify(genericPayload),
+      contentHash: createHash("sha256").update(JSON.stringify(genericPayload)).digest("hex"),
+    };
+    const select = installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source: { ...source, sourceUrl: generic }, grant }],
+      [genericProof],
+      [{ ...barcodeMapping, sourceUrl: generic }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toEqual({ kind: "miss", reason: "incompatible_evidence" });
+    expect(select).toHaveBeenCalledTimes(4); // no variant/profile reads
+  });
+
+  it("AUD-1302-023: sibling SKU link fails before reading nutrients", async () => {
+    const select = installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant }], [proof],
+      [{ ...barcodeMapping, sourceUrl: "https://manufacturer.example/products/sku-b" }],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toEqual({ kind: "miss", reason: "incompatible_evidence" });
+    expect(select).toHaveBeenCalledTimes(4);
+  });
+
   it("reports conflicting explicit food name before reading any nutrition", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],

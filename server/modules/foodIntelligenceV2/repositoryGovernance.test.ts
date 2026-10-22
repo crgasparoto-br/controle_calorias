@@ -119,6 +119,22 @@ describe("B2 actual repository governed read", () => {
     expect(external).not.toHaveBeenCalled();
   });
 
+  it("AUD-1302-022: retired personal variant cannot fall back to unrelated nutrition", async () => {
+    const select = installResults(
+      [{ id: 22 }], [{ id: 99 }], [], [{ id: 99 }],
+      [{ variant: { id: 22, status: "active", governanceStatus: "revoked",
+          variantType: "branded", displayName: "Panco integral" },
+        family: { id: 4, status: "active", scope: "global", ownerUserId: null },
+        brand: { name: "Panco" } }],
+    );
+    const external = vi.fn();
+    expect(await readThroughGovernedKnowledge(request,
+      createFoodV2KnowledgeRepository(), external))
+      .toEqual({ kind: "miss", reason: "no_governed_profile" });
+    expect(external).not.toHaveBeenCalled();
+    expect(select).toHaveBeenCalledTimes(5); // no homonym or profile read
+  });
+
   it("AUD-1302-022: two confirmed identities stay ambiguous even if one is unusable", async () => {
     const select = installResults(
       [{ id: 22 }, { id: 99 }], // conflicting confirmations
