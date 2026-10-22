@@ -15,6 +15,7 @@ export type LegacyFoodCandidate = {
   brandName?: string | null;
   brandId?: number | null;
   ownerUserId: number | null;
+  privateOrigin?: boolean;
   scope?: "global" | "user" | null;
   sourceId: number | null;
   sourceVersion: string | null;
@@ -53,7 +54,8 @@ export function planLegacyKnowledgeReconciliation(
   );
   for (const source of ordered) {
     let reason: ReconciliationReason | null = null;
-    if (source.ownerUserId !== null || source.scope !== "global") reason = "personal_scope";
+    if (source.ownerUserId !== null || source.scope === "user" || source.privateOrigin) reason = "personal_scope";
+    else if (source.scope !== "global") reason = "family_ambiguous";
     else if (source.status && source.status !== "active") reason = "deprecated_source";
     else if (!source.foodId || !source.canonicalKey?.trim() ||
              !normalizeFoodName(source.name)) reason = "family_ambiguous";

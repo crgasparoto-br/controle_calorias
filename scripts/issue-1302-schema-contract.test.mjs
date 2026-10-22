@@ -21,6 +21,17 @@ test("B2 grants are migrated only with deny-by-default permissions", () => {
   assert.ok(snapshot.tables.food_source_read_grants.checkConstraint.food_source_read_grants_ck0);
 });
 
+test("AUD-1302-020 private quarantine has scoped owner, finite retention and no global review case", () => {
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS food_personal_reconciliation_quarantine/);
+  assert.match(migration, /FOREIGN KEY \(owner_user_id\) REFERENCES users\(id\) ON DELETE CASCADE/);
+  assert.match(migration, /retention_until TIMESTAMP NOT NULL/);
+  assert.match(schema, /export const foodPersonalReconciliationQuarantine = mysqlTable/);
+  assert.ok(snapshot.tables.food_personal_reconciliation_quarantine);
+  assert.equal(snapshot.tables.food_personal_reconciliation_quarantine.columns.scope_guard.notNull, true);
+  assert.match(migration, /scope_guard INT GENERATED ALWAYS AS/);
+  assert.match(rollback, /DROP TABLE `food_personal_reconciliation_quarantine`/);
+});
+
 test("B2 evidence idempotency has matching index in migration and snapshot", () => {
   assert.match(migration, /ADD UNIQUE KEY food_evidence_cache_u0 \(owner_user_id, subject_key, content_hash\)/);
   assert.match(schema, /uniqueIndex\("food_evidence_cache_u0"\)\.on\(table.ownerUserId, table.subjectKey, table.contentHash\)/);

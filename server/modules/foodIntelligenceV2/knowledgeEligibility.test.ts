@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  hasVerifiedCommercialProfileProof, isGovernedFamilyVisible, isTrustedBrandlessSelection,
+  hasVerifiedCommercialProfileProof, eligibleCommercialProfileProofScope, isGovernedFamilyVisible, isTrustedBrandlessSelection,
 } from "./knowledgeEligibility";
 
 describe("B2 governed family and exact SKU proof", () => {
@@ -50,6 +50,16 @@ describe("B2 governed family and exact SKU proof", () => {
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, foodVariantId: 12 }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, evidenceType: "external_source" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, ownerUserId: 41 }], now)).toBe(false);
+    // A private label is usable only for its owner, within current retention;
+    // it never becomes global approval or verified nutritional knowledge.
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41 }], now, "user", 41)).toBe("personal");
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41 }], now, "user", 42)).toBeNull();
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41 }], now, "global", 41)).toBeNull();
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41, retentionUntil: null }], now, "user", 41)).toBeNull();
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41, retentionUntil: now }], now, "user", 41)).toBeNull();
+    expect(eligibleCommercialProfileProofScope(profile, [{ ...valid, ownerUserId: 41,
+      contentHash: "tampered" }], now, "user", 41)).toBeNull();
+    expect(eligibleCommercialProfileProofScope(profile, [valid], now, "user", 41)).toBe("global");
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, retentionUntil: now }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: null }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: "https://other.example/sku-a" }], now)).toBe(false);

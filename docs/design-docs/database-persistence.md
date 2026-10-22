@@ -298,3 +298,26 @@ Em cache miss, `readThroughGovernedKnowledge` pode chamar provider externo uma v
 A reconciliação `reconcileLegacyFoodKnowledge("preview" | "stage")` e seu planejador `planLegacyKnowledgeReconciliation` classificam cada linha: `mapped + merged + quarantined = input`. Sem identidade de família/marca, fonte/versão/licença ou nutrição, a linha é quarentenada. O estágio grava apenas variantes `draft`, perfis `provisional`, mapas de fonte e casos de revisão: não faz dual-write, não altera refeições históricas e não publica registros pessoais. `foodCatalog` sem vínculo comprovado permanece em quarentena. As porções legadas de `portions` passam por inventário separado no retorno `catalogPortions` (`mapped + merged + quarantined = input`); medidas válidas e vinculadas à fonte são copiadas como `food_portions` provisórias, preservando o código de origem, e medidas inválidas ou conflitantes criam casos de quarentena sem promoção global. Registros pessoais não entram na fila global.
 
 **Operação:** executar a prévia antes do estágio, comprovar direitos e privacidade (#1303), conferir migração TiDB, retenção e casos de quarentena. Não ativar a leitura produtiva até os gates da ADR. Dataset acima do limite de leitura é rejeitado para não esconder inventário incompleto; backfill operacional exige paginação e curadoria.
+
+
+### B2 — remediação AUD-1302-019/020/021 (pré-cutover)
+
+- A porta `readThroughGovernedKnowledge` rejeita candidatos externos/cache de alimento
+  genérico sem afirmação de nome normalizado compatível. URL e concessão de fonte
+  não substituem identidade alimentar. Quando válida, a resposta permanece
+  `provisional`, sem publicação/`verified` automática.
+- A reconciliação `preview|stage` mantém exclusões **pessoais e órfãs** numa tabela
+  interna isolada `food_personal_reconciliation_quarantine` (migration 0056),
+  nunca em `food_review_cases` global. Salva somente origem/tipo, ID legado,
+  titular quando conhecido, motivo e expiração de 180 dias; não copia nome,
+  conteúdo nutricional, mídia nem URL. Vinculações conhecidas são removidas
+  em cascata quando o usuário é excluído. Retentativa não prolonga o prazo.
+  Registros órfãos sem titular permanecem restritos ao staging interno e exigem
+  purga por vencimento, ainda bloqueada operacionalmente pelos gates da #1303.
+- Uma prova comercial pessoal pode sustentar **somente leitura provisória** de
+  variante pertencente ao mesmo titular, enquanto fonte, hash, SKU, URL e prazo
+  ainda forem válidos. Nunca valida um SKU global nem altera perfil histórico.
+- **Bloqueio de ativação:** a tabela nova e o `stage` são somente preparação
+  técnica. Não executar staging com dados reais, importar evidências pessoais
+  nem liberar publicação sem autorizações de fonte, retenção/expurgo e LGPD da
+  issue #1303; sem cutover da V1 ou alteração de `mealItems` históricos.

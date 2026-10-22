@@ -423,3 +423,25 @@ export const foodSourceReadGrants = mysqlTable("food_source_read_grants", {
   ck1: check("food_source_read_grants_ck1", sql`(allow_persist_evidence=0 OR (allow_read=1 AND retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365))`),
   ck2: check("food_source_read_grants_ck2", sql`(allow_global_publication=0 OR allow_read=1)`),
 }));
+
+/** Internal-only quarantine for personal/orphaned V1 rows. Not part of the
+ * global food_review_cases queue. No names, raw content or source URLs.
+ * The V2 staging entrypoint remains non-production until #1303 approval. */
+export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_reconciliation_quarantine", {
+  id: int("id").autoincrement().primaryKey(),
+  legacyTable: mysqlEnum("legacy_table", ["foods", "foodCatalog", "portions"]).notNull(),
+  legacyRowId: int("legacy_row_id").notNull(),
+  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "cascade" }),
+  scope: mysqlEnum("scope", ["user", "orphan"]).notNull(),
+  reason: varchar("reason", { length: 80 }).notNull(),
+  retentionUntil: timestamp("retention_until").notNull(),
+  // TiDB does not support CHECK on FK columns subject to cascading actions.
+  scopeGuard: int("scope_guard").notNull().generatedAlwaysAs(() =>
+    sql`CASE WHEN (scope='user' AND owner_user_id IS NOT NULL) OR (scope='orphan' AND owner_user_id IS NULL) THEN 1 ELSE NULL END`,
+    { mode: "virtual" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, table => ({
+  sourceUnique: uniqueIndex("food_personal_recon_u0").on(table.legacyTable, table.legacyRowId),
+  ownerIdx: index("food_personal_recon_i0").on(table.ownerUserId, table.retentionUntil),
+  retentionIdx: index("food_personal_recon_i1").on(table.retentionUntil),
+}));

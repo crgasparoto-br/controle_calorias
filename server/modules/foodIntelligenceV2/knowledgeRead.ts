@@ -82,15 +82,12 @@ export function externalCandidateMatchesRequest(
   const brand = request.brand?.trim();
   const barcode = request.barcode?.trim();
   const name = normalizeFoodName(request.normalizedName);
-  // An explicitly different food is never compatible, even in a generic
-  // candidate or a cached assertion with no barcode.
-  if (name && identity?.name != null && normalizeFoodName(identity.name) !== name) return false;
-  if (!brand && !barcode) return true;
-  if (!identity) return false;
+  // An external source's macros are usable only when it asserts an identity
+  // compatible with the requested food, including generic/brandless lookups.
+  // A URL or grant authorizes the source, but does not identify its contents.
+  if (!identity || (name && normalizeFoodName(identity.name ?? "") !== name)) return false;
   if (barcode && identity.barcode?.trim() !== barcode) return false;
   if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;
-  // Commercial evidence must identify the exact food, not just the brand.
-  if (name && normalizeFoodName(identity.name ?? "") !== name) return false;
   return true;
 }
 

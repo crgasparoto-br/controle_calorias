@@ -158,26 +158,46 @@ function sameExactProductResource(
   }
 }
 
-export function hasVerifiedCommercialProfileProof(
+/** A proof attached to a user's private variant is valid only for that
+ * authenticated owner, with finite and current retention. It never licenses
+ * publication or verification of the global variant. A nonpersonal proof can
+ * support a private variant, but personal proof is always only provisional. */
+export function eligibleCommercialProfileProofScope(
   profile: CommercialProfile,
   evidence: readonly CommercialEvidence[],
   now: Date,
-): boolean {
+  familyScope: "global" | "user",
+  userId: number | null,
+): "global" | "personal" | null {
   const mapping = profile.mapping;
   const approvedSourceUrl = profile.sourceUrl;
   const productUrl = mapping?.sourceUrl;
   if (!mapping || !approvedSourceUrl || !productUrl || mapping.status !== "active" ||
       mapping.foodVariantId !== profile.variantId ||
       mapping.sourceId !== profile.sourceId ||
-      (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim())) return false;
-  return evidence.some(proof =>
-    sameExactProductResource(proof.sourceReference, productUrl, approvedSourceUrl) &&
-    proof.foodVariantId === profile.variantId &&
-    proof.sourceId === profile.sourceId &&
-    proof.ownerUserId === null &&
-    (proof.evidenceType === "manufacturer" || proof.evidenceType === "nutrition_label") &&
-    // The exact product resource and source origin have already been checked.
-    (!proof.retentionUntil || proof.retentionUntil.getTime() > now.getTime()) &&
-    hasMatchingCommercialNutritionProof(profile, mapping, proof)
-  );
+      (!mapping.sourceItemCode?.trim() && !mapping.sourceUrl?.trim()) ||
+      !Number.isFinite(now.getTime())) return null;
+  let personalProof = false;
+  for (const proof of evidence) {
+    if (!sameExactProductResource(proof.sourceReference, productUrl, approvedSourceUrl) ||
+        proof.foodVariantId !== profile.variantId ||
+        proof.sourceId !== profile.sourceId ||
+        (proof.evidenceType !== "manufacturer" && proof.evidenceType !== "nutrition_label") ||
+        (proof.retentionUntil && (!Number.isFinite(proof.retentionUntil.getTime()) || proof.retentionUntil <= now)) ||
+        !hasMatchingCommercialNutritionProof(profile, mapping, proof)) continue;
+    if (proof.ownerUserId === null) return "global";
+    if (familyScope === "user" && userId !== null && proof.ownerUserId === userId &&
+        proof.retentionUntil !== null && Number.isFinite(proof.retentionUntil.getTime()) &&
+        proof.retentionUntil > now) personalProof = true;
+  }
+  return personalProof ? "personal" : null;
+}
+
+/** Global independent proof: personal labels never certify a shared SKU. */
+export function hasVerifiedCommercialProfileProof(
+  profile: CommercialProfile,
+  evidence: readonly CommercialEvidence[],
+  now: Date,
+): boolean {
+  return eligibleCommercialProfileProofScope(profile, evidence, now, "global", null) === "global";
 }

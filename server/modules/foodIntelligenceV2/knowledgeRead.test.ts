@@ -43,6 +43,7 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     f.pending.mockResolvedValueOnce({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+      identity: { name: "pao integral" },
     });
     const external = vi.fn();
     const result = await readThroughGovernedKnowledge(base, f.store, external);
@@ -55,6 +56,7 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+      identity: { name: "pao integral" },
     });
     expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });
@@ -65,10 +67,42 @@ describe("B2 — porta governada e cache-through", () => {
       .toMatchObject({ kind: "provisional", persisted: true });
   });
 
+  it("AUD-1302-019: refuses generic external macros without an asserted matching food name", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/other-food", nutrition: {
+        ...nutrition, caloriesKcal: 800, fatG: 88,
+      },
+    });
+    expect(await readThroughGovernedKnowledge(base, f.store, external)).toEqual({
+      kind: "unavailable", reason: "external_evidence_invalid",
+    });
+    expect(f.stage).not.toHaveBeenCalled();
+    // A previously persisted unbound cache entry is rejected at read-through.
+    f.pending.mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/other-food", nutrition,
+    });
+    expect(await readThroughGovernedKnowledge(base, f.store, external)).toEqual({
+      kind: "unavailable", reason: "external_evidence_invalid",
+    });
+    expect(f.stage).not.toHaveBeenCalled();
+  });
+
+  it("AUD-1302-019: branded and generic name-compatible evidence stays provisional", async () => {
+    const f = fixture();
+    f.stage.mockResolvedValue(true);
+    const result = await readThroughGovernedKnowledge(base, f.store, vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/pao-integral", nutrition,
+      identity: { name: "Pão integral" },
+    }));
+    expect(result).toMatchObject({ kind: "provisional", persisted: true });
+  });
+
   it("nao grava evidencias externas sem titular, mesmo com resultado de rede", async () => {
     const f = fixture();
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+      identity: { name: "pao integral" },
     });
     expect(await readThroughGovernedKnowledge({ ...base, userId: null }, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });
@@ -142,6 +176,7 @@ describe("B2 — porta governada e cache-through", () => {
     f.stage.mockRejectedValueOnce(new Error("read only"));
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+      identity: { name: "pao integral" },
     });
     expect(await readThroughGovernedKnowledge(base, f.store, external))
       .toMatchObject({ kind: "provisional", persisted: false });

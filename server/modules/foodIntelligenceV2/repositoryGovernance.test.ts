@@ -147,6 +147,39 @@ describe("B2 actual repository governed read", () => {
       .toMatchObject({ kind: "match", variantId: 22, nutrition: { caloriesKcal: 210 } });
   });
 
+  it("AUD-1302-021: owner's exact private SKU label is readable but stays provisional", async () => {
+    const nutrition = {
+      caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2,
+      basisQuantity: 100, basisUnit: "g" as const,
+    };
+    const mapping = {
+      id: 9, status: "active", foodVariantId: 22, sourceId: 7,
+      sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
+    };
+    const evidence = { ...commercialLabelEvidence(mapping, nutrition), ownerUserId: 41 };
+    const rows = () => [
+      [{ id: 22 }], [], // exact variant and global alias
+      [{ variant: { id: 22, status: "active", governanceStatus: "verified",
+        variantType: "branded", displayName: "Meu Panco" },
+        family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
+        brand: { name: "Panco" } }],
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+        foodVariantSourceId: mapping.id, validFrom: null, validTo: null, ...nutrition }],
+      [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
+      [mapping], [evidence], [],
+    ];
+    installResults(...rows());
+    const personal = await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" });
+    expect(personal).toMatchObject({ kind: "match", variantId: 22,
+      governanceStatus: "provisional", nutrition: { caloriesKcal: 210 } });
+    installResults(...rows());
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, userId: 42, brand: "Panco" }))
+      .toEqual({ kind: "miss", reason: "not_found" });
+    installResults(...rows());
+    expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, userId: null, brand: "Panco" }))
+      .toEqual({ kind: "miss", reason: "not_found" });
+  });
+
   it("does not publish a global alias licensed only for source reading", async () => {
     installResults(
       [], // no exact variant

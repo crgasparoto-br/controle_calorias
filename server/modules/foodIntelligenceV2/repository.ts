@@ -12,7 +12,7 @@ import {
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
-import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
+import { isGovernedFamilyVisible, eligibleCommercialProfileProofScope, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { externalCandidateMatchesRequest, isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
@@ -134,7 +134,7 @@ async function readCurrentProfile(
   db: V2Database, variantId: number, request: FoodKnowledgeRequest,
   variantType: "generic" | "branded" | "custom",
   familyScope: "global" | "user" | null,
-): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string } | "conflict" | null> {
+): Promise<{ profile: typeof foodNutritionProfiles.$inferSelect; sourceId: number; sourceVersion: string; sourceReference: string; personalEvidence: boolean } | "conflict" | null> {
   const rows = await db.select().from(foodNutritionProfiles)
     .where(eq(foodNutritionProfiles.foodVariantId, variantId))
     .limit(MAX_CANDIDATES + 1);
@@ -145,6 +145,7 @@ async function readCurrentProfile(
     sourceId: number;
     sourceVersion: string;
     sourceReference: string;
+    personalEvidence: boolean;
   }> = [];
   for (const profile of rows) {
     if (profile.currentSlot !== 1 ||
@@ -160,26 +161,28 @@ async function readCurrentProfile(
     if (profile.foodVariantSourceId !== null &&
         (!mapping || mapping.status !== "active" ||
           mapping.foodVariantId !== variantId || mapping.sourceId !== profile.sourceId)) continue;
+    let personalEvidence = false;
     if (variantType === "branded") {
       const proofs = await db.select().from(foodEvidence)
         .where(and(
           eq(foodEvidence.foodVariantId, variantId),
           eq(foodEvidence.sourceId, profile.sourceId),
         )).limit(MAX_CANDIDATES + 1);
-      if (proofs.length > MAX_CANDIDATES ||
-          !hasVerifiedCommercialProfileProof(
-            {
-               variantId, sourceId: profile.sourceId, mapping,
-               sourceUrl: permission.source.sourceUrl,
-               nutrition: {
-                 basisQuantity: profile.basisQuantity, basisUnit: profile.basisUnit,
-                 caloriesKcal: profile.caloriesKcal, proteinG: profile.proteinG,
-                 carbG: profile.carbG, fatG: profile.fatG,
-               },
-             },
-            proofs,
-            at(request),
-          )) continue;
+      if (proofs.length > MAX_CANDIDATES) continue;
+      const proofScope = eligibleCommercialProfileProofScope(
+        {
+          variantId, sourceId: profile.sourceId, mapping,
+          sourceUrl: permission.source.sourceUrl,
+          nutrition: {
+            basisQuantity: profile.basisQuantity, basisUnit: profile.basisUnit,
+            caloriesKcal: profile.caloriesKcal, proteinG: profile.proteinG,
+            carbG: profile.carbG, fatG: profile.fatG,
+          },
+        },
+        proofs, at(request), familyScope === "user" ? "user" : "global", request.userId,
+      );
+      if (!proofScope) continue;
+      personalEvidence = proofScope === "personal";
     }
     // A license reference proves permission, never nutritional provenance.
     // Exact commercial mapping already passed the same-SKU proof above.
@@ -189,7 +192,7 @@ async function readCurrentProfile(
     usable.push({
       profile, sourceId: permission.source.id,
       sourceVersion: permission.source.version,
-      sourceReference,
+      sourceReference, personalEvidence,
     });
   }
   if (usable.length === 0) return null;
@@ -328,7 +331,8 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             sourceReference: profileResult.sourceReference,
             nutrition: profileValues,
             governanceStatus: p.status === "verified" &&
-              row.variant.governanceStatus === "verified" ? "verified" : "provisional",
+              row.variant.governanceStatus === "verified" &&
+              !profileResult.personalEvidence ? "verified" : "provisional",
             portions: await portionsFor(db, id, request, row.family.scope),
           });
         }
@@ -440,4 +444,3 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
     },
   };
 }
-

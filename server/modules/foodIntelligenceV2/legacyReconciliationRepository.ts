@@ -4,12 +4,12 @@
  * publishes an unreviewed variant into the active V2 read path.
  */
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { foodAliases, foodBrands, foodCatalog, foodPortions, foodSources, foods, portions as catalogPortions } from "../../../drizzle/schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import {
-  foodBarcodes, foodNutritionProfiles, foodReviewCases, foodSourceReadGrants,
-  foodVariantSources, foodVariants,
+  foodBarcodes, foodNutritionProfiles, foodPersonalReconciliationQuarantine,
+  foodReviewCases, foodSourceReadGrants, foodVariantSources, foodVariants,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { canPublishGlobalKnowledge } from "./sourceGrants";
 import {
@@ -21,6 +21,9 @@ import { validateLegacyCatalogProvenance } from "./legacyCatalogLink";
 
 const hash = (data: unknown) => createHash("sha256").update(JSON.stringify(data)).digest("hex");
 const MAX_SCAN = 10000;
+// #1303 must authorize storage before any real-data staging is activated.
+// Until then the migration/table and stage entrypoint are not enabled in V1.
+const QUARANTINE_RETENTION_DAYS = 180;
 
 export type FoodV2ReconciliationMode = "preview" | "stage";
 
@@ -109,6 +112,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       brandName: row.brandName,
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
       ownerUserId: row.createdByUserId,
+      privateOrigin: row.isUserCreated === 1,
       sourceId: linkedCatalog.get(row.id)?.sourceId ?? null,
       sourceVersion: linkedCatalog.get(row.id)?.sourceId
         ? sourceMap.get(linkedCatalog.get(row.id)!.sourceId!)?.source.version ?? null : null,
@@ -139,6 +143,34 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   // Do not stage an inventory unless the operator has reviewed its full plan.
   // No input can bypass the per-source publication and version checks.
   await db.transaction(async tx => {
+    /** Only internal reconciliation code reads this separate private ledger;
+     * neither public review cases nor global knowledge receive the owner ID. */
+    async function quarantinePrivate(
+      table: "foods" | "foodCatalog" | "portions", id: number,
+      ownerUserId: number | null, reason: string,
+    ) {
+      const now = new Date();
+      const expiry = new Date(now.getTime() + QUARANTINE_RETENTION_DAYS * 86400000);
+      await tx.insert(foodPersonalReconciliationQuarantine).values({
+        legacyTable: table, legacyRowId: id, ownerUserId,
+        scope: ownerUserId === null ? "orphan" : "user", reason,
+        retentionUntil: expiry,
+      }).onDuplicateKeyUpdate({ set: {
+        // Replays must not extend the original retention clock.
+        retentionUntil: sql`LEAST(${foodPersonalReconciliationQuarantine.retentionUntil}, ${expiry})`,
+      } });
+      const [stored] = await tx.select().from(foodPersonalReconciliationQuarantine)
+        .where(and(
+          eq(foodPersonalReconciliationQuarantine.legacyTable, table),
+          eq(foodPersonalReconciliationQuarantine.legacyRowId, id),
+        )).limit(1);
+      if (!stored || stored.ownerUserId !== ownerUserId ||
+          stored.scope !== (ownerUserId === null ? "orphan" : "user") ||
+          stored.reason !== reason || !stored.retentionUntil || stored.retentionUntil <= now) {
+        throw new Error("B2 private quarantine is not durably reconciled");
+      }
+    }
+
     async function reviewChild(
       kind: "legacy_alias_quarantine" | "legacy_portion_quarantine" | "legacy_barcode_review",
       id: string, variantId: number, reason: string,
@@ -224,7 +256,21 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         candidate.table, candidate.id, candidate.sourceId, candidate.sourceCode,
         candidate.canonicalKey, candidate.validNutrition,
       ]);
-      if (candidate.ownerUserId !== null) continue; // personal records never enter global queue
+      const privateRow = candidate.ownerUserId !== null ||
+        candidate.scope === "user" || candidate.privateOrigin === true;
+      if (privateRow) {
+        // Preserve preview -> stage -> re-read equivalence without leaking
+        // owner IDs or personal catalog references to the global review queue.
+        await quarantinePrivate(candidate.table, candidate.id,
+          candidate.ownerUserId, decision.action === "quarantined" ? decision.reason : "personal_scope");
+        if (candidate.table === "foodCatalog") {
+          for (const child of portionDecisionsByCatalog.get(candidate.id) ?? []) {
+            await quarantinePrivate("portions", child.portion.id, candidate.ownerUserId,
+              child.reason ?? "catalog_not_eligible");
+          }
+        }
+        continue;
+      }
       if (decision.action === "quarantined") {
         if (candidate.table === "foodCatalog") {
           for (const child of portionDecisionsByCatalog.get(candidate.id) ?? []) {

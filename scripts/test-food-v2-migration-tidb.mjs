@@ -293,13 +293,49 @@ try {
   await assertLegacy(fixture, true);
   await assertRequiredReadIndexes();
   const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
-  assert.equal(b2ForwardStatements, 2);
+  assert.equal(b2ForwardStatements, 3);
+  // AUD-1302-020: test physical private ledger lifecycle on disposable TiDB.
+  const [scopeCheck] = await queryRows("SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine");
+  assert.equal(Number(scopeCheck.c), 0);
+  const expiry = new Date(Date.now() + 86400000);
+  await connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', ?, ?, 'user', 'personal_scope', ?)",
+    [fixture.foodId, fixture.userId, expiry]
+  );
+  await mustReject(connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', 987, ?, 'orphan', 'personal_scope', ?)",
+    [fixture.userId, expiry]
+  ), "owner and orphan scopes may not be mixed");
+  const [privateRow] = await queryRows(
+    "SELECT owner_user_id, scope, reason, retention_until FROM food_personal_reconciliation_quarantine WHERE legacy_table='foods' AND legacy_row_id=?",
+    [fixture.foodId]
+  );
+  assert.equal(Number(privateRow.owner_user_id), fixture.userId);
+  assert.equal(privateRow.scope, 'user');
+  assert.equal(privateRow.reason, 'personal_scope');
+  assert.ok(privateRow.retention_until);
+  // No private exclusions are published into the shared review queue.
+  const [shared] = await queryRows("SELECT COUNT(*) AS c FROM food_review_cases WHERE case_type='legacy_reconciliation_quarantine'");
+  assert.equal(Number(shared.c), 0);
+  // A user removed after quarantine must no longer be linkable via the ledger.
+  const [throwawayUser] = await connection.query(
+    "INSERT INTO users (openId, name, email) VALUES ('ci-foodv2-deleted', 'Temporary', 'deleted@example.invalid')"
+  );
+  await connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', 999991, ?, 'user', 'personal_scope', ?)",
+    [throwawayUser.insertId, expiry]
+  );
+  await connection.query("DELETE FROM users WHERE id=?", [throwawayUser.insertId]);
+  const [deleted] = await queryRows(
+    "SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine WHERE legacy_table='foods' AND legacy_row_id=999991"
+  );
+  assert.equal(Number(deleted.c), 0, "private quarantine must cascade on user deletion");
   await assertB2SourceGovernance(fixture);
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
-    assert.equal(b2Reversed, 2);
+    assert.equal(b2Reversed, 3);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
     const [stillThere] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
     assert.equal(Number(stillThere.c), 0);

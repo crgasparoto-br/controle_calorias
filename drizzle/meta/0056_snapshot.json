@@ -17082,6 +17082,130 @@
           "value": "(allow_global_publication=0 OR allow_read=1)"
         }
       }
+    },
+    "food_personal_reconciliation_quarantine": {
+      "name": "food_personal_reconciliation_quarantine",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "legacy_table": {
+          "name": "legacy_table",
+          "type": "enum('foods','foodCatalog','portions')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "legacy_row_id": {
+          "name": "legacy_row_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "enum('user','orphan')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "retention_until": {
+          "name": "retention_until",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "scope_guard": {
+          "name": "scope_guard",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "generated": {
+            "as": "CASE WHEN (scope='user' AND owner_user_id IS NOT NULL) OR (scope='orphan' AND owner_user_id IS NULL) THEN 1 ELSE NULL END",
+            "type": "always",
+            "mode": "virtual"
+          }
+        }
+      },
+      "indexes": {
+        "food_personal_recon_u0": {
+          "name": "food_personal_recon_u0",
+          "columns": [
+            "legacy_table",
+            "legacy_row_id"
+          ],
+          "isUnique": true
+        },
+        "food_personal_recon_i0": {
+          "name": "food_personal_recon_i0",
+          "columns": [
+            "owner_user_id",
+            "retention_until"
+          ],
+          "isUnique": false
+        },
+        "food_personal_recon_i1": {
+          "name": "food_personal_recon_i1",
+          "columns": [
+            "retention_until"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "food_personal_recon_owner_fk": {
+          "name": "food_personal_recon_owner_fk",
+          "tableFrom": "food_personal_reconciliation_quarantine",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "food_personal_reconciliation_quarantine_id": {
+          "name": "food_personal_reconciliation_quarantine_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
     }
   },
   "views": {},

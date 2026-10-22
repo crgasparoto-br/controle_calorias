@@ -25,3 +25,22 @@ CREATE TABLE IF NOT EXISTS food_source_read_grants (
 
 -- Idempotent provisional evidence cache entry; personal scope is mandatory.
 ALTER TABLE food_evidence ADD UNIQUE KEY food_evidence_cache_u0 (owner_user_id, subject_key, content_hash);
+
+--> statement-breakpoint
+-- Scoped reconciliation: personal exclusions must not be placed in the global review queue.
+-- No plaintext food text or media; use is blocked pending the #1303 privacy release gate.
+CREATE TABLE IF NOT EXISTS food_personal_reconciliation_quarantine (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  legacy_table ENUM('foods','foodCatalog','portions') NOT NULL,
+  legacy_row_id INT NOT NULL,
+  owner_user_id INT NULL,
+  scope ENUM('user','orphan') NOT NULL,
+  reason VARCHAR(80) NOT NULL,
+  retention_until TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY food_personal_recon_u0 (legacy_table, legacy_row_id),
+  KEY food_personal_recon_i0 (owner_user_id, retention_until),
+  KEY food_personal_recon_i1 (retention_until),
+  scope_guard INT GENERATED ALWAYS AS (CASE WHEN (scope='user' AND owner_user_id IS NOT NULL) OR (scope='orphan' AND owner_user_id IS NULL) THEN 1 ELSE NULL END) VIRTUAL NOT NULL,
+  CONSTRAINT food_personal_recon_owner_fk FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
