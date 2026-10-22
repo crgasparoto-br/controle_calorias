@@ -30,6 +30,7 @@ function dbFixture() {
       { id: 31, foodCatalogId: 21, label: "1 fatia", unit: "serving", quantity: 1, grams: 25 },
       { id: 32, foodCatalogId: 22, label: "1 fatia", unit: "serving", quantity: 1, grams: 25 },
     ],
+    [], // no revision attestations for personal/orphan historical rows
   ];
   const rows: Array<Record<string, unknown>> = [];
   let lastAttempt: Record<string, unknown> | null = null;
@@ -77,6 +78,7 @@ function dbFixture() {
         const page = pages.shift() ?? [];
         return {
           from() { return this; }, innerJoin() { return this; },
+          where() { return this; },
           async limit() { return page; },
           then(resolve: (value: unknown[]) => unknown, reject: (reason: unknown) => unknown) {
             return Promise.resolve(page).then(resolve, reject);

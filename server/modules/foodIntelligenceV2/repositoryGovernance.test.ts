@@ -45,7 +45,8 @@ function commercialLabelEvidence(
 ) {
   const payload = {
     foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId,
-    sourceItemCode: mapping.sourceItemCode, sourceReference: mapping.sourceUrl, nutrition,
+    sourceItemCode: mapping.sourceItemCode, sourceReference: mapping.sourceUrl,
+    sourceVersion: "v1", nutrition,
   };
   return {
     foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId, ownerUserId: null,
@@ -250,6 +251,7 @@ describe("B2 actual repository governed read", () => {
     const proofPayload = {
       barcode: "7890000000001", foodVariantId: 22, sourceId: 7,
       sourceItemCode: "SKU-1", sourceReference: reference,
+      sourceVersion: "v1",
     };
     const contentHash = createHash("sha256").update(JSON.stringify(proofPayload)).digest("hex");
     const selects = installResults(
