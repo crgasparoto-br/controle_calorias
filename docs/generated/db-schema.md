@@ -16,7 +16,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodSourceImports` | `food_source_imports` | 18 | Baixa |
 | `foods` | `foods` | 24 | Baixa |
 | `foodAliases` | `food_aliases` | 12 | Baixa |
-| `foodPortions` | `food_portions` | 20 | Baixa |
+| `foodPortions` | `food_portions` | 21 | Baixa |
 | `foodCatalog` | `foodCatalog` | 34 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |
 | `userGamificationSettings` | `userGamificationSettings` | 5 | Requer atenção |
@@ -94,7 +94,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `billingUsageCostReconciliations` | `billingUsageCostReconciliations` | 4 | Requer atenção |
 | `foodVariants` | `food_variants` | 16 | Baixa |
 | `foodVariantSources` | `food_variant_sources` | 11 | Baixa |
-| `foodNutritionProfiles` | `food_nutrition_profiles` | 29 | Requer atenção |
+| `foodNutritionProfiles` | `food_nutrition_profiles` | 30 | Requer atenção |
 | `foodVariantClassifications` | `food_variant_classifications` | 15 | Baixa |
 | `userFoodAliases` | `user_food_aliases` | 13 | Requer atenção |
 | `foodBarcodes` | `food_barcodes` | 10 | Baixa |
