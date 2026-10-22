@@ -109,6 +109,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodAttributeMateriality` | `food_attribute_materiality` | 14 | Baixa |
 | `foodAttributeMaterialityOverrides` | `food_attribute_materiality_overrides` | 11 | Requer atenção |
 | `foodSourceReadGrants` | `food_source_read_grants` | 15 | Baixa |
+| `foodPersonalReconciliationQuarantine` | `food_personal_reconciliation_quarantine` | 9 | Baixa |
 
 ## Tabelas sensíveis conhecidas
 
@@ -268,6 +269,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `food_review_events` | `actor_id`, `evidence_ids_json`, `reason`, `occurred_at` |
 | `food_resolution_events` | `fallback_reason`, `clarification_reason`, `decision_json` |
 | `food_attributes` | `label` |
+| `food_personal_reconciliation_quarantine` | `reason` |
 
 ## Relações críticas
 
