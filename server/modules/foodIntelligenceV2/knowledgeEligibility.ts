@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { isAuthorizedSourceReference } from "./sourceGrants";
+
 /**
  * B2 read eligibility. A missing owner is never evidence of global consent:
  * V1 deletion can SET NULL on owner_user_id while leaving scope='user'.
@@ -20,6 +23,54 @@ export function isTrustedBrandlessSelection(
 ): boolean {
   return matchingEvidence === "personal_alias" ||
     (matchingEvidence === "barcode" && !!barcode?.trim());
+}
+
+
+type BarcodeProof = {
+  foodVariantId: number | null;
+  sourceId: number | null;
+  ownerUserId: number | null;
+  evidenceType: string;
+  sourceReference: string | null;
+  payloadJson: string;
+  contentHash: string;
+  retentionUntil: Date | null;
+};
+
+/** Barcode identity is only exact when its linked evidence states the same
+ * code. A generic manufacturer URL, nonempty hash or linked evidence ID alone
+ * does not prove the barcode or the current payload's integrity. */
+export function hasCurrentBarcodeProof(
+  proof: BarcodeProof | null | undefined,
+  barcode: string,
+  variantId: number,
+  sourceId: number,
+  approvedSourceUrl: string | null,
+  userId: number | null,
+  now: Date,
+): boolean {
+  if (!proof || !["barcode", "nutrition_label", "manufacturer"].includes(proof.evidenceType) ||
+      proof.foodVariantId !== variantId || proof.sourceId !== sourceId ||
+      (proof.ownerUserId !== null && proof.ownerUserId !== userId) ||
+      (proof.ownerUserId !== null && !proof.retentionUntil) ||
+      (proof.retentionUntil !== null && proof.retentionUntil.getTime() <= now.getTime()) ||
+      !isAuthorizedSourceReference(proof.sourceReference, approvedSourceUrl) ||
+      typeof proof.payloadJson !== "string") return false;
+  try {
+    const payload: unknown = JSON.parse(proof.payloadJson);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+    const record = payload as Record<string, unknown>;
+    // Preserve leading zeroes and never infer the code from a URL or SKU ID.
+    if (typeof record.barcode !== "string" || record.barcode !== barcode) return false;
+    // A nested identity must not contradict the primary barcode assertion.
+    if (record.identity !== undefined) {
+      const identity = record.identity;
+      if (!identity || typeof identity !== "object" || Array.isArray(identity) ||
+          (identity as Record<string, unknown>).barcode !== barcode) return false;
+    }
+    const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    return proof.contentHash === digest;
+  } catch { return false; }
 }
 
 type CommercialMapping = {

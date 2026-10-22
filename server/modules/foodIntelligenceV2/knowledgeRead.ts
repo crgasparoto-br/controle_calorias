@@ -48,7 +48,7 @@ export type ExternalProvisionalCandidate = {
   sourceReference: string;
   nutrition: NutritionFacts;
   /** Unverified identity assertions from the provider, never SKU proof. */
-  identity?: { brand?: string | null; barcode?: string | null };
+  identity?: { name?: string | null; brand?: string | null; barcode?: string | null };
 };
 
 export type FoodKnowledgeResult =
@@ -74,6 +74,7 @@ export function externalCandidateMatchesRequest(
   const identity = candidate.identity;
   if (identity !== undefined &&
       (!identity || typeof identity !== "object" || Array.isArray(identity) ||
+        (identity.name !== undefined && identity.name !== null && typeof identity.name !== "string") ||
         (identity.brand !== undefined && identity.brand !== null && typeof identity.brand !== "string") ||
         (identity.barcode !== undefined && identity.barcode !== null && typeof identity.barcode !== "string"))) {
     return false;
@@ -84,6 +85,10 @@ export function externalCandidateMatchesRequest(
   if (!identity) return false;
   if (barcode && identity.barcode?.trim() !== barcode) return false;
   if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;
+  // With both barcode and name asserted, a provider/cache must corroborate
+  // both. An identical EAN with a different food name is not a safe fallback.
+  if (barcode && request.normalizedName.trim() &&
+      normalizeFoodName(identity.name ?? "") !== normalizeFoodName(request.normalizedName)) return false;
   return true;
 }
 

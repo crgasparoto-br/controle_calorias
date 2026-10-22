@@ -12,7 +12,7 @@ import {
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
-import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
+import { isGovernedFamilyVisible, hasVerifiedCommercialProfileProof, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
 import { externalCandidateMatchesRequest, isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
@@ -89,6 +89,45 @@ async function eligibleVariant(
     return null;
   }
   return row;
+}
+
+/** An explicit food name accompanying a barcode is another identity claim,
+ * not decorative text. Permit only the same governed variant/family or a
+ * still-authorized alias; never silently ignore a contradictory name. */
+async function barcodeNameIsCompatible(
+  db: V2Database,
+  request: FoodKnowledgeRequest,
+  row: NonNullable<Awaited<ReturnType<typeof eligibleVariant>>>,
+): Promise<boolean> {
+  const name = normalizeFoodName(request.normalizedName);
+  if (!name) return true;
+  if ([row.variant.normalizedName, row.family.normalizedName].some(
+    known => typeof known === "string" && normalizeFoodName(known) === name,
+  )) return true;
+
+  if (request.userId !== null) {
+    const personal = await db.select({ id: userFoodAliases.foodVariantId })
+      .from(userFoodAliases).where(and(
+        eq(userFoodAliases.userId, request.userId),
+        eq(userFoodAliases.foodVariantId, row.variant.id),
+        eq(userFoodAliases.normalizedAlias, name),
+        eq(userFoodAliases.source, "user_confirmed"),
+        eq(userFoodAliases.status, "active"),
+      )).limit(1);
+    if (personal.length === 1) return true;
+  }
+  if (row.family.scope !== "global") return false;
+  const aliases = await db.select().from(foodAliases).where(and(
+    eq(foodAliases.foodVariantId, row.variant.id),
+    eq(foodAliases.normalizedAlias, name),
+    eq(foodAliases.status, "active"),
+    eq(foodAliases.governanceStatus, "verified"),
+  )).limit(MAX_CANDIDATES + 1);
+  if (aliases.length > MAX_CANDIDATES) return false;
+  for (const alias of aliases) {
+    if (alias.sourceId && await readApprovedSource(db, alias.sourceId, at(request), true)) return true;
+  }
+  return false;
 }
 
 async function readCurrentProfile(
@@ -195,17 +234,17 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
         if (barcodeRows.length !== 1) return { kind: "miss", reason: "incompatible_evidence" };
         const barcode = barcodeRows[0];
-        if (barcode.status !== "active" || !barcode.sourceId || !barcode.evidenceId ||
-            !await readApprovedSource(db, barcode.sourceId, at(request))) {
+        if (barcode.status !== "active" || !barcode.sourceId || !barcode.evidenceId) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
+        const source = await readApprovedSource(db, barcode.sourceId, at(request));
+        if (!source) return { kind: "miss", reason: "incompatible_evidence" };
         const [proof] = await db.select().from(foodEvidence)
           .where(eq(foodEvidence.id, barcode.evidenceId)).limit(1);
-        if (!proof || (proof.ownerUserId !== null && proof.ownerUserId !== request.userId) ||
-            (proof.retentionUntil && proof.retentionUntil <= at(request)) ||
-            proof.sourceId !== barcode.sourceId ||
-            proof.foodVariantId !== barcode.foodVariantId ||
-            !["barcode", "nutrition_label", "manufacturer"].includes(proof.evidenceType)) {
+        if (!hasCurrentBarcodeProof(
+          proof, request.barcode.trim(), barcode.foodVariantId, barcode.sourceId,
+          source.source.sourceUrl, request.userId, at(request),
+        )) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
         groups.push({ match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId });
@@ -254,6 +293,9 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request, group.match);
           if (!row) continue;
+          if (group.match === "barcode" && !await barcodeNameIsCompatible(db, request, row)) {
+            return { kind: "conflict", reason: "multiple_identities" };
+          }
           // A globally visible barcode identity also needs permission to
           // publish the barcode's source, independently of the macro profile.
           if (group.identitySourceId && row.family.scope === "global" &&

@@ -190,7 +190,7 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     const external = vi.fn().mockResolvedValue({
       sourceId: 7, sourceReference: "https://example.org/products/sku-a",
-      nutrition, identity: { brand: "Panco", barcode: "789111" },
+      nutrition, identity: { name: "pao integral", brand: "Panco", barcode: "789111" },
     });
     f.stage.mockResolvedValueOnce(true);
     const result = await readThroughGovernedKnowledge({
@@ -210,6 +210,34 @@ describe("B2 — porta governada e cache-through", () => {
     expect(await readThroughGovernedKnowledge({ ...base, brand: "Panco" }, f.store, external))
       .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
     expect(external).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("rejects an external barcode claim for a different explicit food name", async () => {
+    const f = fixture();
+    const candidate = {
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a", nutrition,
+      identity: { name: "leite integral", brand: "Panco", barcode: "789111" },
+    };
+    const external = vi.fn().mockResolvedValue(candidate);
+    const input = { ...base, brand: "Panco", barcode: "789111" };
+    expect(await readThroughGovernedKnowledge(input, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(f.stage).not.toHaveBeenCalled();
+    // Cache hits are subject to the same exact input assertion.
+    f.pending.mockResolvedValueOnce(candidate);
+    expect(await readThroughGovernedKnowledge(input, f.store, vi.fn().mockResolvedValue(null)))
+      .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
+  });
+
+  it("requires an external name assertion when name and barcode were both supplied", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a", nutrition,
+      identity: { barcode: "789111" },
+    });
+    expect(await readThroughGovernedKnowledge({ ...base, barcode: "789111" }, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
   });
 
 });

@@ -145,14 +145,19 @@ describe("B2 actual repository governed read", () => {
     // Reading the barcode source is allowed, but its global publication is
     // not: the reader must revalidate that grant before loading nutrition.
     const readOnly = { ...grant, allowGlobalPublication: 0 };
+    const reference = "https://manufacturer.example/products/sku-1";
+    const proofPayload = { barcode: "7890000000001" };
+    const contentHash = createHash("sha256").update(JSON.stringify(proofPayload)).digest("hex");
     const selects = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
-      [{ source, grant: readOnly }], // initial read permission
+      [{ source: { ...source, sourceUrl: reference }, grant: readOnly }], // initial read permission
       [{ id: 17, sourceId: 7, foodVariantId: 22, ownerUserId: null,
-        evidenceType: "barcode", retentionUntil: new Date("2026-11-21T12:00:00Z") }],
+        evidenceType: "barcode", retentionUntil: new Date("2026-11-21T12:00:00Z"),
+        sourceReference: reference, payloadJson: JSON.stringify(proofPayload), contentHash }],
       [{ variant: { id: 22, status: "active", governanceStatus: "verified",
-          variantType: "generic", displayName: "Pao" },
-        family: { id: 4, status: "active", scope: "global", ownerUserId: null },
+          variantType: "generic", displayName: "Pao", normalizedName: "pao" },
+        family: { id: 4, status: "active", scope: "global", ownerUserId: null,
+          normalizedName: "meu pao" },
         brand: null }],
       [{ source, grant: readOnly }], // public identity permission: denied
     );
