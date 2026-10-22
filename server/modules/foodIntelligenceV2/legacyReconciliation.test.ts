@@ -156,7 +156,7 @@ describe("B2 legacy foodCatalog portions", () => {
     expect(plan.decisions[1]).toMatchObject({ reason: "conflicting_measure" });
   });
 });
- 
+
 describe("AUD-1302-028: revision provenance belongs to the legacy row", () => {
   const legacy: LegacyFoodCandidate = { ...base, sourceVersion: null,
     nutritionFingerprint: "macro-v1" };
