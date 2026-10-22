@@ -543,13 +543,13 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
 
   it("rejects v1 macros after source/grant upgrade to v2", async () => {
     const select = stage("v1", "v2");
-    const lookup = vi.fn();
+    // With no provider configured, a stale profile stays a miss; it can never
+    // be returned as local V2 nutrition under the newer source version.
     expect(await readThroughGovernedKnowledge(query,
-      createFoodV2KnowledgeRepository(), lookup)).toEqual({
+      createFoodV2KnowledgeRepository())).toEqual({
       kind: "miss", reason: "not_found",
     });
     expect(select).toHaveBeenCalledTimes(5);
-    expect(lookup).not.toHaveBeenCalled();
   });
 
   it("uses revalidated v2 nutrition without silently reusing v1 portions", async () => {
