@@ -88,6 +88,53 @@ describe("AUD-1302-016: barcode evidence integrity", () => {
   });
 });
 
+describe("AUD-1302-018: commercial proof through governed repository", () => {
+  it("accepts exact nutritional evidence and rejects incorrect macros even with a valid hash", async () => {
+    const commercialVariant = {
+      ...variantRow,
+      variant: { ...variantRow.variant, variantType: "branded" },
+      brand: { name: "Panco" },
+    };
+    const commercialMapping = {
+      id: 88, foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
+      status: "active", sourceUrl: reference,
+    };
+    const nutrition = {
+      caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3,
+      basisQuantity: 100, basisUnit: "g" as const,
+    };
+    const labelPayload = {
+      foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-A",
+      sourceReference: reference, nutrition,
+    };
+    const digest = (value: unknown) =>
+      createHash("sha256").update(JSON.stringify(value)).digest("hex");
+    const labelProof = {
+      ...proof, evidenceType: "nutrition_label",
+      payloadJson: JSON.stringify(labelPayload), contentHash: digest(labelPayload),
+    };
+    const commercialProfile = { ...profile, foodVariantSourceId: 88 };
+    const installCommercial = (nutritionProof: typeof labelProof) => installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant }], [proof], [commercialVariant],
+      [commercialProfile], [{ source, grant }], [commercialMapping], [nutritionProof], [],
+    );
+    const branded = { ...request, brand: "Panco" };
+    let select = installCommercial(labelProof);
+    expect(await createFoodV2KnowledgeRepository().readLocal(branded))
+      .toMatchObject({ kind: "match", variantId: 22, nutrition });
+    expect(select).toHaveBeenCalledTimes(9);
+
+    const changed = { ...labelPayload, nutrition: { ...nutrition, caloriesKcal: 400 } };
+    select = installCommercial({
+      ...labelProof, payloadJson: JSON.stringify(changed), contentHash: digest(changed),
+    });
+    expect(await createFoodV2KnowledgeRepository().readLocal(branded))
+      .toEqual({ kind: "miss", reason: "incompatible_evidence" });
+    expect(select).toHaveBeenCalledTimes(8);
+  });
+});
+
 describe("AUD-1302-015: barcode and explicit name must agree", () => {
   it("resolves a valid barcode with a matching governed variant", async () => {
     const select = installResults(

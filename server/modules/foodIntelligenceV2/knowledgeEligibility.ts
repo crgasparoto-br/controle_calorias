@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isAuthorizedSourceReference } from "./sourceGrants";
+import { isNutritionFacts, type NutritionFacts } from "./knowledgeRead";
 
 /**
  * B2 read eligibility. A missing owner is never evidence of global consent:
@@ -86,9 +87,52 @@ type CommercialEvidence = {
   ownerUserId: number | null;
   evidenceType: string;
   sourceReference: string | null;
+  payloadJson: string;
   contentHash: string;
   retentionUntil: Date | null;
 };
+
+type CommercialProfile = {
+  variantId: number;
+  sourceId: number;
+  mapping: CommercialMapping;
+  sourceUrl: string | null;
+  nutrition: NutritionFacts;
+};
+
+/** A nonempty digest or an exact product URL alone cannot prove nutrition.
+ * The normalized payload and SHA-256 must bind the same SKU, source, URL and
+ * all nutritional values as the selected governed profile. */
+function hasMatchingCommercialNutritionProof(
+  profile: CommercialProfile,
+  mapping: NonNullable<CommercialMapping>,
+  proof: CommercialEvidence,
+): boolean {
+  if (typeof proof.payloadJson !== "string") return false;
+  try {
+    const parsed: unknown = JSON.parse(proof.payloadJson);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    const payload = parsed as Record<string, unknown>;
+    if (!isNutritionFacts(payload.nutrition) ||
+        payload.foodVariantId !== profile.variantId ||
+        payload.sourceId !== profile.sourceId ||
+        payload.sourceItemCode !== (mapping.sourceItemCode?.trim() || null) ||
+        payload.sourceReference !== proof.sourceReference) return false;
+    const actual = payload.nutrition;
+    const expected = profile.nutrition;
+    return (
+      actual.basisQuantity === expected.basisQuantity &&
+      actual.basisUnit === expected.basisUnit &&
+      actual.caloriesKcal === expected.caloriesKcal &&
+      actual.proteinG === expected.proteinG &&
+      actual.carbG === expected.carbG &&
+      actual.fatG === expected.fatG &&
+      proof.contentHash === createHash("sha256").update(JSON.stringify(parsed)).digest("hex")
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** A generic source, shared approval or external candidate does not prove a
  * commercial product's exact nutritional profile. Proof must bind this SKU,
@@ -115,7 +159,7 @@ function sameExactProductResource(
 }
 
 export function hasVerifiedCommercialProfileProof(
-  profile: { variantId: number; sourceId: number; mapping: CommercialMapping; sourceUrl: string | null },
+  profile: CommercialProfile,
   evidence: readonly CommercialEvidence[],
   now: Date,
 ): boolean {
@@ -132,8 +176,8 @@ export function hasVerifiedCommercialProfileProof(
     proof.sourceId === profile.sourceId &&
     proof.ownerUserId === null &&
     (proof.evidenceType === "manufacturer" || proof.evidenceType === "nutrition_label") &&
-    !!proof.contentHash?.trim() &&
     // The exact product resource and source origin have already been checked.
-    (!proof.retentionUntil || proof.retentionUntil.getTime() > now.getTime())
+    (!proof.retentionUntil || proof.retentionUntil.getTime() > now.getTime()) &&
+    hasMatchingCommercialNutritionProof(profile, mapping, proof)
   );
 }

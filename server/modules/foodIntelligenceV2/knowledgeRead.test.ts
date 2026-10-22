@@ -213,6 +213,48 @@ describe("B2 — porta governada e cache-through", () => {
   });
 
 
+  it("rejects same-brand different-food external claims without barcode, including cache", async () => {
+    const f = fixture();
+    const input = { ...base, brand: "Panco" };
+    const candidate = {
+      sourceId: 7, sourceReference: "https://example.org/products/biscuit",
+      nutrition, identity: { name: "biscoito recheado", brand: "Panco" },
+    };
+    const external = vi.fn().mockResolvedValue(candidate);
+    expect(await readThroughGovernedKnowledge(input, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(f.stage).not.toHaveBeenCalled();
+    f.pending.mockResolvedValueOnce(candidate);
+    expect(await readThroughGovernedKnowledge(input, f.store, vi.fn().mockResolvedValue(null)))
+      .toEqual({ kind: "unavailable", reason: "provider_unavailable" });
+  });
+
+  it("requires a matching product name with explicit brand even when barcode is absent", async () => {
+    const f = fixture();
+    const input = { ...base, brand: "Panco" };
+    const external = vi.fn().mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a",
+      nutrition, identity: { brand: "Panco" },
+    }).mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/sku-a",
+      nutrition, identity: { name: "pao integral", brand: "Panco" },
+    });
+    expect(await readThroughGovernedKnowledge(input, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(await readThroughGovernedKnowledge(input, f.store, external))
+      .toMatchObject({ kind: "provisional", origin: "external" });
+  });
+
+  it("rejects an explicitly contradictory name even for a generic candidate", async () => {
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/other",
+      nutrition, identity: { name: "biscoito recheado" },
+    });
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+  });
+
   it("rejects an external barcode claim for a different explicit food name", async () => {
     const f = fixture();
     const candidate = {

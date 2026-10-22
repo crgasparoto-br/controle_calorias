@@ -81,14 +81,16 @@ export function externalCandidateMatchesRequest(
   }
   const brand = request.brand?.trim();
   const barcode = request.barcode?.trim();
+  const name = normalizeFoodName(request.normalizedName);
+  // An explicitly different food is never compatible, even in a generic
+  // candidate or a cached assertion with no barcode.
+  if (name && identity?.name != null && normalizeFoodName(identity.name) !== name) return false;
   if (!brand && !barcode) return true;
   if (!identity) return false;
   if (barcode && identity.barcode?.trim() !== barcode) return false;
   if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;
-  // With both barcode and name asserted, a provider/cache must corroborate
-  // both. An identical EAN with a different food name is not a safe fallback.
-  if (barcode && request.normalizedName.trim() &&
-      normalizeFoodName(identity.name ?? "") !== normalizeFoodName(request.normalizedName)) return false;
+  // Commercial evidence must identify the exact food, not just the brand.
+  if (name && normalizeFoodName(identity.name ?? "") !== name) return false;
   return true;
 }
 
