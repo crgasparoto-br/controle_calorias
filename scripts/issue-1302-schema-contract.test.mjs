@@ -6,6 +6,7 @@ const source = p => readFileSync(new URL(p, import.meta.url), "utf8");
 const migration = source("../drizzle/0056_food_v2_source_governance.sql");
 const rollback = source("../drizzle/rollback/0056_food_v2_source_governance.sql");
 const schema = source("../drizzle/food-intelligence-v2-schema.ts");
+const legacySchema = source("../drizzle/schema.ts");
 const snapshot = JSON.parse(source("../drizzle/meta/0056_snapshot.json"));
 const journal = JSON.parse(source("../drizzle/meta/_journal.json"));
 
@@ -47,4 +48,20 @@ test("B2 rollback is additive-safe and recorded in drizzle journal", () => {
   assert.doesNotMatch(rollback, /DROP TABLE `(?:foods|foodCatalog|mealItems|food_evidence)`/);
   assert.equal(journal.entries.at(-1).tag, "0056_food_v2_source_governance");
   assert.equal(snapshot.prevId, "12510000-0000-4000-8000-000000000055");
+});
+
+
+test("AUD-1302-026: profile/portion revision is persisted but never invented", () => {
+  assert.match(migration, /ALTER TABLE food_nutrition_profiles ADD COLUMN source_version VARCHAR\(80\) NULL/);
+  assert.match(migration, /ALTER TABLE food_portions ADD COLUMN source_version VARCHAR\(80\) NULL/);
+  assert.match(schema, /sourceVersion: varchar\("source_version", \{ length: 80 \}\)/);
+  assert.match(legacySchema, /sourceVersion: varchar\("source_version", \{ length: 80 \}\)/);
+  for (const table of ["food_nutrition_profiles", "food_portions"]) {
+    assert.deepEqual(snapshot.tables[table].columns.source_version, {
+      name: "source_version", type: "varchar(80)", primaryKey: false,
+      notNull: false, autoincrement: false,
+    });
+    assert.match(rollback, new RegExp("ALTER TABLE " + table + " DROP COLUMN source_version"));
+  }
+  assert.doesNotMatch(migration, /UPDATE\s+(?:food_nutrition_profiles|food_portions)\s+SET\s+source_version/i);
 });

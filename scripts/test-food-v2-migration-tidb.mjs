@@ -154,7 +154,7 @@ const testUpgrade = async f => {
     [variantId, f.sourceId, "ci-foodv2:profile", 2, "b".repeat(64)],
   ];
   const addProfile = row => pool.query(
-    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot) VALUES (?, ?, ?, ?, 100, 'g', 250, 9, 48, 3, ?, 1)",
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, source_version, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot) VALUES (?, ?, 'v1', ?, ?, 100, 'g', 250, 9, 48, 3, ?, 1)",
     row
   );
   const outcomes = await Promise.allSettled(profiles.map(addProfile));
@@ -188,7 +188,7 @@ const testUpgrade = async f => {
   assert.ok(successorVersion > Number(profile.version));
   // Explicit profile supersession is transactional; historical meal references stay pinned.
   const [replacement] = await connection.query(
-    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'ci-foodv2:profile', ?, 100, 'g', 260, 10, 48, 3, ?, ?)",
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, source_version, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'v1', 'ci-foodv2:profile', ?, 100, 'g', 260, 10, 48, 3, ?, ?)",
     [variantId, f.sourceId, successorVersion, "c".repeat(64), profile.id]
   );
   await connection.beginTransaction();
@@ -210,6 +210,18 @@ const testUpgrade = async f => {
     "UPDATE food_nutrition_profiles SET current_slot=1, valid_to=NULL WHERE id=?",
     [profile.id]
   ), "former version cannot become current while its successor is current");
+  // A v2 source revision cannot rewrite existing v1 nutritional provenance.
+  await connection.query("UPDATE food_sources SET version='v2' WHERE id=?", [f.sourceId]);
+  const [older] = await queryRows(
+    "SELECT source_version, calories_kcal FROM food_nutrition_profiles WHERE id=?", [profile.id]
+  );
+  assert.equal(older.source_version, "v1");
+  assert.equal(Number(older.calories_kcal), 250);
+  const [newer] = await queryRows(
+    "SELECT source_version, calories_kcal FROM food_nutrition_profiles WHERE id=?", [replacement.insertId]
+  );
+  assert.equal(newer.source_version, "v1");
+  assert.equal(Number(newer.calories_kcal), 260);
   const [legacyProfile] = await queryRows(
     "SELECT status, current_slot FROM food_nutrition_profiles WHERE id=?",
     [profile.id]
@@ -293,7 +305,16 @@ try {
   await assertLegacy(fixture, true);
   await assertRequiredReadIndexes();
   const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
-  assert.equal(b2ForwardStatements, 3);
+  assert.equal(b2ForwardStatements, 5);
+  // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
+  for (const table of ["food_nutrition_profiles", "food_portions"]) {
+    const [column] = await queryRows(
+      "SELECT COLUMN_NAME AS column_name, IS_NULLABLE AS nullable, DATA_TYPE AS data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='source_version'",
+      [table]
+    );
+    assert.equal(column?.nullable, "YES", table + " must allow unproven legacy revision");
+    assert.equal(column?.data_type, "varchar");
+  }
   // AUD-1302-020: test physical private ledger lifecycle on disposable TiDB.
   const [scopeCheck] = await queryRows("SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine");
   assert.equal(Number(scopeCheck.c), 0);
@@ -335,7 +356,7 @@ try {
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
-    assert.equal(b2Reversed, 3);
+    assert.equal(b2Reversed, 5);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
     const [stillThere] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
     assert.equal(Number(stillThere.c), 0);

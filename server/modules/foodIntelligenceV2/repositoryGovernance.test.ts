@@ -78,7 +78,7 @@ describe("B2 actual repository governed read", () => {
           variantType: "branded", displayName: "Panco integral" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: mapping.id, validFrom: null, validTo: null, ...nutrition }],
       [{ source, grant }],
       [mapping],
@@ -107,7 +107,7 @@ describe("B2 actual repository governed read", () => {
           variantType: "branded", displayName: "Panco integral" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: null, validFrom: null, validTo: null, ...nutrition }],
       [{ source, grant: { ...grant, status: "revoked", revokedAt: now } }],
     );
@@ -161,7 +161,7 @@ describe("B2 actual repository governed read", () => {
           variantType: "branded", displayName: "Panco" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: mapping.id, validFrom: null, validTo: null,
         caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
       [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
@@ -186,7 +186,7 @@ describe("B2 actual repository governed read", () => {
           variantType: "branded", displayName: "Panco pessoal" },
         family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: mapping.id, validFrom: null, validTo: null,
         ...nutrition }],
       [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
@@ -214,7 +214,7 @@ describe("B2 actual repository governed read", () => {
         variantType: "branded", displayName: "Meu Panco" },
         family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: mapping.id, validFrom: null, validTo: null, ...nutrition }],
       [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
       [mapping], [evidence], [],
@@ -367,7 +367,7 @@ describe("B2 actual repository governed read", () => {
           variantType: "generic", displayName: "Pao" },
         family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
         brand: { name: "Panco" } }],
-      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+      [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
         foodVariantSourceId: null, validFrom: null, validTo: null,
         caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
       [{ source: { ...source, sourceUrl: null }, grant }],
@@ -490,4 +490,96 @@ describe("B2 actual repository governed read", () => {
       .toMatchObject({ sourceId: 7, sourceReference: payload.sourceReference, nutrition: { caloriesKcal: 200 } });
   });
 
+});
+
+
+describe("AUD-1302-026: governed profile and portion revisions", () => {
+  const query = { ...request, normalizedName: "pao integral", brand: "Panco" };
+  const nutrition = (caloriesKcal: number) => ({
+    caloriesKcal, proteinG: 8, carbG: 35, fatG: 3,
+    basisQuantity: 100, basisUnit: "g",
+  });
+  const variant = {
+    variant: { id: 22, status: "active", governanceStatus: "verified",
+      variantType: "generic", displayName: "Pao integral" },
+    family: { id: 4, status: "active", scope: "user", ownerUserId: 41 },
+    brand: { name: "Panco" },
+  };
+  const profile = (version: string | null, kcal: number) => ({
+    id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+    sourceVersion: version, foodVariantSourceId: null,
+    validFrom: null, validTo: null, ...nutrition(kcal),
+  });
+  const portion = (version: string | null) => ({
+    status: "verified", sourceId: 7, sourceVersion: version,
+    validFrom: null, validTo: null, grams: 30, label: "fatia",
+    unit: "serving", quantity: 1,
+  });
+  const licensed = (version: string) => ({
+    source: { ...source, version },
+    grant: { ...grant, sourceVersion: version },
+  });
+  const stage = (profileVersion: string | null, sourceVersion: string,
+    portionVersion?: string | null, kcal = 100) => {
+    const pages: unknown[][] = [
+      [{ id: 22 }], [], [variant], [profile(profileVersion, kcal)],
+      [licensed(sourceVersion)],
+    ];
+    if (profileVersion === sourceVersion) {
+      pages.push(portionVersion === undefined ? [] : [portion(portionVersion)]);
+      if (portionVersion != null) pages.push([licensed(sourceVersion)]);
+    }
+    return installResults(...pages);
+  };
+
+  it("accepts a matching v1 profile and portion", async () => {
+    const select = stage("v1", "v1", "v1");
+    expect(await createFoodV2KnowledgeRepository().readLocal(query)).toMatchObject({
+      kind: "match", sourceVersion: "v1",
+      nutrition: { caloriesKcal: 100 }, portions: [{ label: "fatia", grams: 30 }],
+    });
+    expect(select).toHaveBeenCalledTimes(7);
+  });
+
+  it("rejects v1 macros after source/grant upgrade to v2", async () => {
+    const select = stage("v1", "v2");
+    const lookup = vi.fn();
+    expect(await readThroughGovernedKnowledge(query,
+      createFoodV2KnowledgeRepository(), lookup)).toEqual({
+      kind: "miss", reason: "not_found",
+    });
+    expect(select).toHaveBeenCalledTimes(5);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("uses revalidated v2 nutrition without silently reusing v1 portions", async () => {
+    const select = stage("v2", "v2", "v1", 160);
+    expect(await createFoodV2KnowledgeRepository().readLocal(query)).toMatchObject({
+      kind: "match", sourceVersion: "v2",
+      nutrition: { caloriesKcal: 160 }, portions: [],
+    });
+    expect(select).toHaveBeenCalledTimes(7);
+    stage("v2", "v2", "v2", 160);
+    expect(await createFoodV2KnowledgeRepository().readLocal(query)).toMatchObject({
+      kind: "match", sourceVersion: "v2",
+      nutrition: { caloriesKcal: 160 }, portions: [{ grams: 30 }],
+    });
+  });
+
+  it("fails closed for unknown legacy source revisions", async () => {
+    stage(null, "v2");
+    expect(await createFoodV2KnowledgeRepository().readLocal(query))
+      .toEqual({ kind: "miss", reason: "not_found" });
+    stage("v2", "v2", null, 160);
+    expect(await createFoodV2KnowledgeRepository().readLocal(query))
+      .toMatchObject({ kind: "match", portions: [] });
+  });
+
+  it("does not allow a revoked grant even with matching source versions", async () => {
+    installResults([{ id: 22 }], [], [variant], [profile("v2", 160)],
+      [{ source: { ...source, version: "v2" },
+        grant: { ...grant, sourceVersion: "v2", status: "revoked", revokedAt: now } }]);
+    expect(await createFoodV2KnowledgeRepository().readLocal(query))
+      .toEqual({ kind: "miss", reason: "not_found" });
+  });
 });

@@ -43,7 +43,7 @@ const variantRow = {
   brand: null,
 };
 const profile = {
-  id: 10, currentSlot: 1, status: "verified", sourceId: 7,
+  id: 10, currentSlot: 1, status: "verified", sourceId: 7, sourceVersion: "v1",
   foodVariantSourceId: null, validFrom: null, validTo: null,
   caloriesKcal: 250, proteinG: 9, carbG: 48, fatG: 3,
   basisQuantity: 100, basisUnit: "g",
