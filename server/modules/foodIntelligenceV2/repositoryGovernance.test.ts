@@ -303,9 +303,12 @@ describe("B2 actual repository governed read", () => {
     expect(await createFoodV2KnowledgeRepository().stagePendingEvidence(request, candidate))
       .toBe(false);
     // The UPSERT must compare against the old persisted deadline, not
-    // overwrite it with Date.now() + retentionDays.
+    // overwrite it with Date.now() + retentionDays, and must additionally
+    // cap duplicates against the original capture under the current grant.
     const queryChunks = (updatedRetention as { queryChunks?: Array<{ value?: string[] }> })?.queryChunks;
     expect(queryChunks?.some(chunk => chunk.value?.some(part => part.includes("LEAST("))))
+      .toBe(true);
+    expect(queryChunks?.some(chunk => chunk.value?.some(part => part.includes("DATE_ADD("))))
       .toBe(true);
   });
 
@@ -321,6 +324,7 @@ describe("B2 actual repository governed read", () => {
     installResults(
       [{ sourceId: 7, ownerUserId: 41, contentHash: digest,
         sourceReference: cachePayload.sourceReference, evidenceType: "external_source",
+        capturedAt: new Date("2026-10-21T00:00:00Z"),
         retentionUntil: new Date("2026-10-22T12:00:00Z"),
         payloadJson: JSON.stringify(cachePayload) }],
       [{ source, grant }],
@@ -340,6 +344,7 @@ describe("B2 actual repository governed read", () => {
     installResults(
       [{ sourceId: 7, ownerUserId: 41, contentHash: digest,
         sourceReference: "https://manufacturer.example/other-sku",
+        capturedAt: new Date("2026-10-21T00:00:00Z"),
         retentionUntil: new Date("2026-10-22T12:00:00Z"),
         payloadJson: JSON.stringify(payload) }],
       [{ source: { ...source, sourceUrl: payload.sourceReference }, grant }],
@@ -387,6 +392,7 @@ describe("B2 actual repository governed read", () => {
     const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
     installResults(
       [{ sourceId: 7, contentHash: digest, sourceReference: candidate.sourceReference,
+        capturedAt: new Date("2026-10-21T00:00:00Z"),
         retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(payload) }],
       [{ source: { ...source, sourceUrl: "https://manufacturer.example/products/sku-a" }, grant }],
     );
@@ -420,9 +426,47 @@ describe("B2 actual repository governed read", () => {
     const tampered = { ...original, nutrition: { ...original.nutrition, caloriesKcal: 999 } };
     installResults(
       [{ sourceId: 7, contentHash: digest, sourceReference: original.sourceReference,
+        capturedAt: new Date("2026-10-21T00:00:00Z"),
         retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(tampered) }],
       [{ source: { ...source, sourceUrl: original.sourceReference }, grant }],
     );
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
+  });
+
+
+  it("AUD-1302-025: shortening retention invalidates a previously valid cache without replay", async () => {
+    const sourceReference = "https://manufacturer.example/products/sku-a";
+    const payload = {
+      status: "provisional", sourceVersion: "v1",
+      sourceReference, resolverVersion: "v2", policyVersion: "p1",
+      identity: { name: request.normalizedName },
+      nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
+        basisQuantity: 100, basisUnit: "g" as const },
+    };
+    const capturedAt = new Date("2026-10-18T12:00:00Z");
+    const evidence = {
+      sourceId: 7, ownerUserId: 41, capturedAt,
+      contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+      sourceReference, retentionUntil: new Date("2026-11-17T12:00:00Z"),
+      payloadJson: JSON.stringify(payload),
+    };
+    const authorizedSource = { ...source, sourceUrl: sourceReference };
+    const approvedAt = new Date("2026-10-17T12:00:00Z");
+    // Control: the original 30-day grant accepts this exact cached evidence.
+    installResults([evidence], [{
+      source: authorizedSource, grant: { ...grant, approvedAt, retentionDays: 30 },
+    }]);
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request))
+      .toMatchObject({ sourceId: 7, nutrition: { caloriesKcal: 200 } });
+    // Same row and source version, but the updated 1-day grant must deny it.
+    installResults([evidence], [{
+      source: authorizedSource, grant: { ...grant, approvedAt, retentionDays: 1 },
+    }]);
+    expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
+    // Missing capture lineage is also denied; a later TTL alone proves nothing.
+    installResults([{ ...evidence, capturedAt: null }], [{
+      source: authorizedSource, grant: { ...grant, approvedAt, retentionDays: 30 },
+    }]);
     expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
   });
 
@@ -438,6 +482,7 @@ describe("B2 actual repository governed read", () => {
     const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
     installResults(
       [{ sourceId: 7, contentHash: digest, sourceReference: payload.sourceReference,
+        capturedAt: new Date("2026-10-21T00:00:00Z"),
         retentionUntil: new Date("2026-10-22T12:00:00Z"), payloadJson: JSON.stringify(payload) }],
       [{ source: { ...source, sourceUrl: payload.sourceReference }, grant }],
     );

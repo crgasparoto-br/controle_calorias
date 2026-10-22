@@ -163,6 +163,45 @@ describe("AUD-1302-018: commercial proof through governed repository", () => {
 });
 
 describe("AUD-1302-015: barcode and explicit name must agree", () => {
+
+  it("AUD-1302-024: a personal proof never certifies a globally shared barcode", async () => {
+    const globalVariant = {
+      ...variantRow, family: { ...variantRow.family, scope: "global", ownerUserId: null },
+    };
+    const select = installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant }], [{ ...proof, ownerUserId: 41 }],
+      [barcodeMapping], [globalVariant],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toEqual({ kind: "miss", reason: "incompatible_evidence" });
+    expect(select).toHaveBeenCalledTimes(5); // no profile or nutrients accessed
+  });
+
+  it("AUD-1302-024: globally sourced barcode proof remains readable with a publication grant", async () => {
+    const globalVariant = {
+      ...variantRow, family: { ...variantRow.family, scope: "global", ownerUserId: null },
+    };
+    const select = installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant }], [proof], [barcodeMapping], [globalVariant],
+      [{ source, grant }], [profile], [{ source, grant }], [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toMatchObject({ kind: "match", matchingEvidence: "barcode", variantId: 22 });
+    expect(select).toHaveBeenCalledTimes(9);
+  });
+
+  it("AUD-1302-024: the owner can still use personal proof for a private barcode", async () => {
+    const select = installResults(
+      [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+      [{ source, grant }], [{ ...proof, ownerUserId: 41 }],
+      [barcodeMapping], [variantRow], [profile], [{ source, grant }], [],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(request))
+      .toMatchObject({ kind: "match", matchingEvidence: "barcode", variantId: 22 });
+    expect(select).toHaveBeenCalledTimes(8);
+  });
   it("resolves a valid barcode with a matching governed variant", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],

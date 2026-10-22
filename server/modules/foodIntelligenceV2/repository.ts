@@ -239,7 +239,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
-      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number }> = [];
+      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null }> = [];
       if (request.barcode?.trim()) {
         const barcodeRows = await db.select().from(foodBarcodes)
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
@@ -266,7 +266,10 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         )) {
           return { kind: "miss", reason: "incompatible_evidence" };
         }
-        groups.push({ match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId });
+        groups.push({
+          match: "barcode", ids: [barcode.foodVariantId], identitySourceId: barcode.sourceId,
+          barcodeEvidenceOwnerUserId: proof?.ownerUserId,
+        });
       } else if (name) {
         // Personal confirmation takes precedence over a homonymous generic
         // exact name, but must never override an explicitly supplied brand.
@@ -313,6 +316,13 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request, group.match);
           if (!row) continue;
+          // A globally shared barcode cannot derive its identity from private
+          // user evidence, even when its source is licensed for publication.
+          // Private variants may continue to use their own owner-bound proof.
+          if (group.match === "barcode" && row.family.scope === "global" &&
+              group.barcodeEvidenceOwnerUserId !== null) {
+            return { kind: "miss", reason: "incompatible_evidence" };
+          }
           if (group.match === "barcode" && !await barcodeNameIsCompatible(db, request, row)) {
             return { kind: "conflict", reason: "multiple_identities" };
           }
@@ -372,9 +382,20 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       if (rows.length > MAX_CANDIDATES) return null;
       const candidates: ExternalProvisionalCandidate[] = [];
       for (const row of rows) {
-        if (!row.sourceId || !row.retentionUntil || row.retentionUntil <= at(request)) continue;
-        const source = await readApprovedSource(db, row.sourceId, at(request));
-        if (!source || !canPersistProvisionalEvidence(source.grant, source.source.version, at(request))) continue;
+        if (!row.sourceId || !row.retentionUntil || !(row.capturedAt instanceof Date)) continue;
+        const now = at(request);
+        const source = await readApprovedSource(db, row.sourceId, now);
+        const retentionDays = source?.grant.retentionDays;
+        if (!source || !canPersistProvisionalEvidence(source.grant, source.source.version, now) ||
+            retentionDays == null) continue;
+        // The CURRENT source policy applies to the ORIGINAL capture, not the
+        // last cache hit or replay. A shortened policy invalidates old entries
+        // immediately even when their persisted TTL is still in the future.
+        const capturedAt = row.capturedAt.getTime();
+        const persistedUntil = row.retentionUntil.getTime();
+        if (!Number.isFinite(capturedAt) || !Number.isFinite(persistedUntil) ||
+            capturedAt > now.getTime() ||
+            now.getTime() >= Math.min(persistedUntil, capturedAt + retentionDays * 86400000)) continue;
         try {
           const payload = JSON.parse(row.payloadJson) as {
             status?: unknown; sourceVersion?: unknown; sourceReference?: unknown;
@@ -439,7 +460,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       }).onDuplicateKeyUpdate({ set: {
         // Replays cannot restart a retention clock measured from first capture.
         // A shortened grant can only reduce the original deadline.
-        retentionUntil: sql`LEAST(${foodEvidence.retentionUntil}, ${retentionUntil})`,
+        retentionUntil: sql`LEAST(${foodEvidence.retentionUntil}, DATE_ADD(${foodEvidence.capturedAt}, INTERVAL ${days} DAY))`,
       } });
       const [stored] = await db.select({
         retentionUntil: foodEvidence.retentionUntil,
