@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { isAuthorizedSourceReference } from "./sourceGrants";
 import { isNutritionFacts, type NutritionFacts } from "./knowledgeRead";
 
 /**

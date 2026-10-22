@@ -247,7 +247,10 @@ describe("B2 actual repository governed read", () => {
     // not: the reader must revalidate that grant before loading nutrition.
     const readOnly = { ...grant, allowGlobalPublication: 0 };
     const reference = "https://manufacturer.example/products/sku-1";
-    const proofPayload = { barcode: "7890000000001" };
+    const proofPayload = {
+      barcode: "7890000000001", foodVariantId: 22, sourceId: 7,
+      sourceItemCode: "SKU-1", sourceReference: reference,
+    };
     const contentHash = createHash("sha256").update(JSON.stringify(proofPayload)).digest("hex");
     const selects = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
@@ -255,6 +258,8 @@ describe("B2 actual repository governed read", () => {
       [{ id: 17, sourceId: 7, foodVariantId: 22, ownerUserId: null,
         evidenceType: "barcode", retentionUntil: new Date("2026-11-21T12:00:00Z"),
         sourceReference: reference, payloadJson: JSON.stringify(proofPayload), contentHash }],
+      [{ foodVariantId: 22, sourceId: 7, sourceItemCode: "SKU-1",
+        sourceUrl: reference, status: "active" }], // exact authorized SKU proof
       [{ variant: { id: 22, status: "active", governanceStatus: "verified",
           variantType: "generic", displayName: "Pao", normalizedName: "pao" },
         family: { id: 4, status: "active", scope: "global", ownerUserId: null,
@@ -265,7 +270,7 @@ describe("B2 actual repository governed read", () => {
     expect(await createFoodV2KnowledgeRepository().readLocal({
       ...request, barcode: "7890000000001",
     })).toEqual({ kind: "miss", reason: "incompatible_evidence" });
-    expect(selects).toHaveBeenCalledTimes(5);
+    expect(selects).toHaveBeenCalledTimes(6); // reaches the global source grant denial
   });
 
   it("does not renew the first-capture retention on duplicate external evidence", async () => {
