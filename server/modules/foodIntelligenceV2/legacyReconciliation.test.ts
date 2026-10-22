@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions,
+  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions, provenLegacySourceRevision,
   type LegacyFoodCandidate,
 } from "./legacyReconciliation";
 import type { FoodSourceGrant } from "./sourceGrants";
@@ -153,5 +154,49 @@ describe("B2 legacy foodCatalog portions", () => {
     ], parents.decisions);
     expect(plan.decisions.map(d => d.action)).toEqual(["mapped", "quarantined"]);
     expect(plan.decisions[1]).toMatchObject({ reason: "conflicting_measure" });
+  });
+});
+ 
+describe("AUD-1302-028: revision provenance belongs to the legacy row", () => {
+  const legacy: LegacyFoodCandidate = { ...base, sourceVersion: null,
+    nutritionFingerprint: "macro-v1" };
+  const url = "https://source.example/catalog/v1";
+  const payload = { table: "foods", legacyRowId: 1, sourceId: 7,
+    sourceVersion: "1", sourceCode: "T001", nutritionFingerprint: "macro-v1" };
+  const proof = { subjectKey: "b2:legacy:foods:1", evidenceType: "official_source",
+    sourceId: 7, ownerUserId: null, sourceReference: url,
+    payloadJson: JSON.stringify(payload),
+    contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+    capturedAt: new Date("2026-10-20T12:00:00Z"),
+    retentionUntil: new Date("2026-11-20T12:00:00Z") };
+  it("keeps old food unversioned and quarantined without per-row proof", () => {
+    expect(provenLegacySourceRevision(legacy, [], url, now)).toBeNull();
+    expect(planLegacyKnowledgeReconciliation([legacy], source, now).decisions[0])
+      .toMatchObject({ action: "quarantined", reason: "source_untraceable" });
+  });
+  it("requires exact URL, row, owner, expiry, digest and valid source revision", () => {
+    expect(provenLegacySourceRevision(legacy, [proof], url, now)).toBe("1");
+    expect(planLegacyKnowledgeReconciliation(
+      [{ ...legacy, sourceVersion: provenLegacySourceRevision(legacy, [proof], url, now) }],
+      source, now).decisions[0]).toMatchObject({ action: "mapped" });
+    expect(provenLegacySourceRevision(legacy, [proof], "https://source.example/catalog/v2", now))
+      .toBeNull();
+    expect(provenLegacySourceRevision(legacy, [{ ...proof, ownerUserId: 5 }], url, now))
+      .toBeNull();
+    expect(provenLegacySourceRevision(legacy, [{ ...proof, contentHash: "0".repeat(64) }], url, now))
+      .toBeNull();
+    expect(provenLegacySourceRevision(legacy, [{ ...proof, retentionUntil: now }], url, now))
+      .toBeNull();
+    expect(provenLegacySourceRevision({ ...legacy, id: 2 }, [proof], url, now))
+      .toBeNull();
+  });
+  it("does not relabel an old version after a grant/source upgrade", () => {
+    const older = { ...payload, sourceVersion: "0" };
+    const oldProof = { ...proof, payloadJson: JSON.stringify(older),
+      contentHash: createHash("sha256").update(JSON.stringify(older)).digest("hex") };
+    expect(provenLegacySourceRevision(legacy, [oldProof], url, now)).toBe("0");
+    expect(planLegacyKnowledgeReconciliation([{ ...legacy, sourceVersion: "0" }],
+      source, now).decisions[0]).toMatchObject({ action: "quarantined", reason: "source_unlicensed" });
+    expect(provenLegacySourceRevision(legacy, [proof, oldProof], url, now)).toBeNull();
   });
 });

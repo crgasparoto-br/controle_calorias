@@ -5,7 +5,7 @@
  */
 import { createHash } from "node:crypto";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
-import { canPublishGlobalKnowledge, type FoodSourceGrant } from "./sourceGrants";
+import { canPublishGlobalKnowledge, isAuthorizedSourceReference, type FoodSourceGrant } from "./sourceGrants";
 
 export type LegacyFoodCandidate = {
   table: "foods" | "foodCatalog";
@@ -34,6 +34,49 @@ export type LegacyFoodDecision =
   | { action: "mapped"; source: LegacyFoodCandidate; identityKey: string; profileKey: string }
   | { action: "merged"; source: LegacyFoodCandidate; identityKey: string }
   | { action: "quarantined"; source: LegacyFoodCandidate; reason: ReconciliationReason };
+
+/** AUD-1302-028: an old row has no implicit revision merely because its
+ * source registry now has one. Only specific, hashed evidence can establish
+ * the revision of the nutrition originally carried by that legacy row. */
+export type LegacySourceRevisionEvidence = {
+  subjectKey: string; evidenceType: string; sourceId: number | null;
+  ownerUserId: number | null; sourceReference: string | null;
+  payloadJson: string; contentHash: string; capturedAt: Date;
+  retentionUntil: Date | null;
+};
+
+export function provenLegacySourceRevision(
+  candidate: LegacyFoodCandidate,
+  proofs: readonly LegacySourceRevisionEvidence[],
+  approvedUrl: string | null,
+  now: Date,
+): string | null {
+  if (!candidate.sourceId || !candidate.sourceCode?.trim() ||
+      !candidate.nutritionFingerprint || !Number.isFinite(now.getTime())) return null;
+  const subjectKey = `b2:legacy:${candidate.table}:${candidate.id}`;
+  const revisions = new Set<string>();
+  for (const proof of proofs) {
+    if (proof.subjectKey !== subjectKey || proof.evidenceType !== "official_source" ||
+        proof.sourceId !== candidate.sourceId || proof.ownerUserId !== null ||
+        !isAuthorizedSourceReference(proof.sourceReference, approvedUrl) ||
+        !(proof.capturedAt instanceof Date) || !Number.isFinite(proof.capturedAt.getTime()) ||
+        proof.capturedAt > now || !(proof.retentionUntil instanceof Date) ||
+        !Number.isFinite(proof.retentionUntil.getTime()) || proof.retentionUntil <= now) continue;
+    try {
+      const decoded: unknown = JSON.parse(proof.payloadJson);
+      if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) continue;
+      const data = decoded as Record<string, unknown>;
+      if (data.table !== candidate.table || data.legacyRowId !== candidate.id ||
+          data.sourceId !== candidate.sourceId ||
+          typeof data.sourceVersion !== "string" || !data.sourceVersion.trim() ||
+          data.sourceCode !== candidate.sourceCode ||
+          data.nutritionFingerprint !== candidate.nutritionFingerprint ||
+          proof.contentHash !== createHash("sha256").update(JSON.stringify(decoded)).digest("hex")) continue;
+      revisions.add(data.sourceVersion);
+    } catch { /* Invalid legacy provenance is never trusted. */ }
+  }
+  return revisions.size === 1 ? [...revisions][0] : null;
+}
 
 export type SourceGrantLookup = (
   sourceId: number,

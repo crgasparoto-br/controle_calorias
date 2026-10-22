@@ -88,6 +88,10 @@ Regras para novas mudanças:
 
 ### B2 — Reconciliação conservadora e revisão (#1302)
 
+**AUD-1302-027 — evidências comerciais por revisão:** provas `barcode`, `nutrition_label` e `manufacturer` devem carregar `sourceVersion` no payload hasheado. Prova de versão antiga não certifica uma fonte revisada; leituras rejeitam a diferença até revalidação na revisão autorizada.
+
+**AUD-1302-028 — revisão histórica do legado:** o B2 não atribui automaticamente a revisão atual de `food_sources` a linhas V1 de `foods` ou `foodCatalog`. Apenas atestação independente `food_evidence.evidence_type=official_source`, com `subject_key=b2:legacy:<foods|foodCatalog>:<id>`, origem HTTPS exata, hash íntegro, titular nulo, prazo finito e payload identificando `table`, `legacyRowId`, `sourceId`, `sourceVersion`, `sourceCode` e `nutritionFingerprint` pode comprovar a revisão de cada linha. O `stage` revalida a atestação dentro da transação. Sem prova ou havendo versão divergente, a linha fica em quarentena, sem promoção nem inferência por backfill. Curadoria e ativação de novas fontes reais continuam dependentes da #1303.
+
 **AUD-1302-026 — vínculo de revisão da fonte:** `food_nutrition_profiles.source_version` e `food_portions.source_version` armazenam a revisão da fonte vinculada aos nutrientes e gramaturas, e a leitura compara esse valor à `food_sources.version` com concessão vigente. Uma nova autorização do mesmo `source_id` não revalida silenciosamente valores antigos. Campos `NULL` representam proveniência não demonstrada e ficam inelegíveis até revisão específica; não há backfill automático nem alteração de snapshots históricos. O estágio B2 grava a versão autorizada no artefato novo, mantendo-o provisório e sujeito à revisão. Para uma revisão nova, criar ou revisar o perfil/porção apropriados em vez de carimbar a versão atual sobre registros legados.
 
 

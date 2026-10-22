@@ -4,16 +4,16 @@
  * publishes an unreviewed variant into the active V2 read path.
  */
 import { createHash } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, like, sql } from "drizzle-orm";
 import { foodAliases, foodBrands, foodCatalog, foodPortions, foodSources, foods, portions as catalogPortions } from "../../../drizzle/schema";
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import {
-  foodBarcodes, foodNutritionProfiles, foodPersonalReconciliationQuarantine,
+  foodBarcodes, foodEvidence, foodNutritionProfiles, foodPersonalReconciliationQuarantine,
   foodReviewCases, foodSourceReadGrants, foodVariantSources, foodVariants,
 } from "../../../drizzle/food-intelligence-v2-schema";
 import { canPublishGlobalKnowledge } from "./sourceGrants";
 import {
-  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions,
+  planLegacyKnowledgeReconciliation, planLegacyCatalogPortions, provenLegacySourceRevision,
   type LegacyFoodCandidate,
 } from "./legacyReconciliation";
 import { getDb } from "../../db";
@@ -38,7 +38,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   }
   const db = await getDb();
   if (!db) throw new Error("B2 reconciliation requires an available database");
-  const [legacyFoods, legacyCatalog, grantedSources, brands, aliases, portions, legacyCatalogPortions] = await Promise.all([
+  const [legacyFoods, legacyCatalog, grantedSources, brands, aliases, portions, legacyCatalogPortions, revisionProofs] = await Promise.all([
     db.select().from(foods).limit(MAX_SCAN + 1),
     db.select().from(foodCatalog).limit(MAX_SCAN + 1),
     db.select({ source: foodSources, grant: foodSourceReadGrants })
@@ -48,10 +48,14 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
     db.select().from(foodAliases).limit(MAX_SCAN + 1),
     db.select().from(foodPortions).limit(MAX_SCAN + 1),
     db.select().from(catalogPortions).limit(MAX_SCAN + 1),
+    db.select().from(foodEvidence).where(and(
+      eq(foodEvidence.evidenceType, "official_source"),
+      like(foodEvidence.subjectKey, "b2:legacy:%"),
+    )).limit(MAX_SCAN + 1),
   ]);
   if (legacyFoods.length > MAX_SCAN || legacyCatalog.length > MAX_SCAN ||
       aliases.length > MAX_SCAN || portions.length > MAX_SCAN ||
-      legacyCatalogPortions.length > MAX_SCAN) {
+      legacyCatalogPortions.length > MAX_SCAN || revisionProofs.length > MAX_SCAN) {
     throw new Error("B2 reconciliation would be incomplete: dataset requires pagination");
   }
 
@@ -73,7 +77,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
     current.push(portion);
     portionsByFood.set(portion.foodId, current);
   }
-  const candidates: LegacyFoodCandidate[] = [
+  const inventory: LegacyFoodCandidate[] = [
     ...legacyFoods.map(row => ({
       table: "foods" as const,
       id: row.id,
@@ -86,7 +90,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       brandId: row.brandName ? brandIds.get(normalizeFoodName(row.brandName)) ?? null : null,
       ownerUserId: row.ownerUserId,
       sourceId: row.sourceId,
-      sourceVersion: row.sourceId ? (sourceMap.get(row.sourceId)?.source.version ?? null) : null,
+      sourceVersion: null, // V1 rows have no recorded original source revision
       sourceCode: row.sourceFoodCode,
       canonicalKey: row.scope === "global" ? row.canonicalKey : null,
       validNutrition: [
@@ -114,21 +118,33 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       ownerUserId: row.createdByUserId,
       privateOrigin: row.isUserCreated === 1,
       sourceId: linkedCatalog.get(row.id)?.sourceId ?? null,
-      sourceVersion: linkedCatalog.get(row.id)?.sourceId
-        ? sourceMap.get(linkedCatalog.get(row.id)!.sourceId!)?.source.version ?? null : null,
+      sourceVersion: null, // V1 catalog rows have no recorded source revision
       sourceCode: linkedCatalog.get(row.id)?.sourceFoodCode ?? null,
       canonicalKey: linkedCatalog.get(row.id)?.canonicalKey ?? null,
       validNutrition: [row.calories, row.protein, row.carbs, row.fat]
         .every(n => Number.isFinite(n) && n >= 0),
     })),
   ];
+  const now = new Date();
+  const evidenceByKey = new Map<string, typeof revisionProofs>();
+  for (const proof of revisionProofs) {
+    const rows = evidenceByKey.get(proof.subjectKey) ?? [];
+    rows.push(proof);
+    evidenceByKey.set(proof.subjectKey, rows);
+  }
+  const candidates = inventory.map(candidate => ({
+    ...candidate,
+    sourceVersion: provenLegacySourceRevision(candidate,
+      evidenceByKey.get(`b2:legacy:${candidate.table}:${candidate.id}`) ?? [],
+      sourceMap.get(candidate.sourceId ?? -1)?.source.sourceUrl ?? null, now),
+  }));
   const plan = planLegacyKnowledgeReconciliation(
     candidates,
     id => {
       const entry = sourceMap.get(id);
       return entry ? { grant: entry.grant, version: entry.source.version } : null;
     },
-    new Date(),
+    now,
   );
   const portionPlan = planLegacyCatalogPortions(legacyCatalogPortions, plan.decisions);
   const report = { ...plan, catalogPortions: portionPlan };
@@ -143,6 +159,19 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
   // Do not stage an inventory unless the operator has reviewed its full plan.
   // No input can bypass the per-source publication and version checks.
   await db.transaction(async tx => {
+    async function requireCurrentRevisionProof(candidate: LegacyFoodCandidate) {
+      const proofs = await tx.select().from(foodEvidence).where(and(
+        eq(foodEvidence.subjectKey, `b2:legacy:${candidate.table}:${candidate.id}`),
+        eq(foodEvidence.evidenceType, "official_source"),
+      )).limit(MAX_SCAN + 1);
+      if (!candidate.sourceVersion || proofs.length > MAX_SCAN ||
+          provenLegacySourceRevision(candidate, proofs,
+            sourceMap.get(candidate.sourceId ?? -1)?.source.sourceUrl ?? null,
+            new Date()) !== candidate.sourceVersion) {
+        throw new Error("B2 legacy revision proof changed before staging");
+      }
+    }
+
     /** Only internal reconciliation code reads this separate private ledger;
      * neither public review cases nor global knowledge receive the owner ID. */
     async function quarantinePrivate(
@@ -292,6 +321,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         continue;
       }
       if (decision.action === "merged") {
+        await requireCurrentRevisionProof(candidate);
         if (candidate.table === "foodCatalog") {
           const [variant] = await tx.select().from(foodVariants)
             .where(eq(foodVariants.identityKey, decision.identityKey)).limit(1);
@@ -312,6 +342,7 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         }
         continue;
       }
+      await requireCurrentRevisionProof(candidate);
       const original = byFoodId.get(candidate.foodId ?? -1);
       if (!original || candidate.sourceId === null ||
           candidate.sourceVersion === null || !candidate.sourceCode) {
