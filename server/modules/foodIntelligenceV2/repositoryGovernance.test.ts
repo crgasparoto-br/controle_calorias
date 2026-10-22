@@ -221,6 +221,7 @@ describe("B2 actual repository governed read", () => {
     const expired = new Date(Date.now() - 60_000);
     const candidate = {
       sourceId: 7, sourceReference: "https://manufacturer.example/products/sku-1",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
         basisQuantity: 100, basisUnit: "g" as const },
     };
@@ -256,11 +257,13 @@ describe("B2 actual repository governed read", () => {
     const cachePayload = {
       status: "provisional", sourceVersion: "v1", policyVersion: "p1",
       resolverVersion: "v2", sourceReference: "https://other.example/sku-1",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 200, proteinG: 5, carbG: 15,
         fatG: 4, basisQuantity: 100, basisUnit: "g" },
     };
+    const digest = createHash("sha256").update(JSON.stringify(cachePayload)).digest("hex");
     installResults(
-      [{ sourceId: 7, ownerUserId: 41,
+      [{ sourceId: 7, ownerUserId: 41, contentHash: digest,
         sourceReference: cachePayload.sourceReference, evidenceType: "external_source",
         retentionUntil: new Date("2026-10-22T12:00:00Z"),
         payloadJson: JSON.stringify(cachePayload) }],
@@ -273,15 +276,17 @@ describe("B2 actual repository governed read", () => {
     const payload = {
       status: "provisional", sourceVersion: "v1", policyVersion: "p1",
       resolverVersion: "v2", sourceReference: "https://manufacturer.example/sku-1",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 200, proteinG: 5, carbG: 15,
         fatG: 4, basisQuantity: 100, basisUnit: "g" },
     };
+    const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
     installResults(
-      [{ sourceId: 7, ownerUserId: 41,
+      [{ sourceId: 7, ownerUserId: 41, contentHash: digest,
         sourceReference: "https://manufacturer.example/other-sku",
         retentionUntil: new Date("2026-10-22T12:00:00Z"),
         payloadJson: JSON.stringify(payload) }],
-      [{ source, grant }],
+      [{ source: { ...source, sourceUrl: payload.sourceReference }, grant }],
     );
     expect(await createFoodV2KnowledgeRepository().readPendingEvidence(request)).toBeNull();
   });
@@ -320,6 +325,7 @@ describe("B2 actual repository governed read", () => {
       status: "provisional", sourceVersion: "v1",
       sourceReference: candidate.sourceReference,
       resolverVersion: "v2", policyVersion: "p1",
+      identity: { name: request.normalizedName },
       nutrition: candidate.nutrition,
     };
     const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
@@ -334,6 +340,7 @@ describe("B2 actual repository governed read", () => {
   it("rejects a same-origin different SKU before the cache write", async () => {
     const candidate = {
       sourceId: 7, sourceReference: "https://manufacturer.example/products/sku-b",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 360, proteinG: 12, carbG: 45,
         fatG: 13, basisQuantity: 100, basisUnit: "g" as const },
     };
@@ -349,6 +356,7 @@ describe("B2 actual repository governed read", () => {
       status: "provisional", sourceVersion: "v1",
       sourceReference: "https://manufacturer.example/products/sku-a",
       resolverVersion: "v2", policyVersion: "p1",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
         basisQuantity: 100, basisUnit: "g" as const },
     };
@@ -367,6 +375,7 @@ describe("B2 actual repository governed read", () => {
       status: "provisional", sourceVersion: "v1",
       sourceReference: "https://manufacturer.example/products/sku-a",
       resolverVersion: "v2", policyVersion: "p1",
+      identity: { name: request.normalizedName },
       nutrition: { caloriesKcal: 200, proteinG: 8, carbG: 37, fatG: 2,
         basisQuantity: 100, basisUnit: "g" as const },
     };

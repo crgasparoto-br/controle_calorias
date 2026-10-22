@@ -13,13 +13,15 @@ function dbFixture() {
     caloriesKcalPer100g: 245, proteinGramsPer100g: 8,
     carbsGramsPer100g: 48, fatGramsPer100g: 2,
   };
+  const orphanFood = { ...personalFood, id: 12, name: "origem desconhecida",
+    normalizedName: "origem desconhecida", scope: null, ownerUserId: null };
   const catalog = (id: number, owner: number | null) => ({
     id, name: "produto pessoal", status: "active", isUserCreated: 1,
     createdByUserId: owner, brandName: null, sourceId: null,
     calories: 220, protein: 5, carbs: 25, fat: 3,
   });
   const originalPages = () => [
-    [personalFood], [catalog(21, 41), catalog(22, null)],
+    [personalFood, orphanFood], [catalog(21, 41), catalog(22, null)],
     [], // no source grants (private quarantine needs no publication grant)
     [], // brands
     [], // V1 global aliases
@@ -29,11 +31,13 @@ function dbFixture() {
       { id: 32, foodCatalogId: 22, label: "1 fatia", unit: "serving", quantity: 1, grams: 25 },
     ],
   ];
-  let rows: Array<Record<string, unknown>> = [];
+  const rows: Array<Record<string, unknown>> = [];
+  let lastAttempt: Record<string, unknown> | null = null;
   const insert = vi.fn(table => {
     expect(table).toBe(foodPersonalReconciliationQuarantine);
     return {
       values(values: Record<string, unknown>) {
+        lastAttempt = values;
         return {
           async onDuplicateKeyUpdate() {
             // Simulate a DB unique key: exact replay must not increase TTL.
@@ -54,7 +58,11 @@ function dbFixture() {
           return this;
         },
         where() { return this; },
-        async limit() { return [rows.at(-1)]; },
+        async limit() {
+          return rows.filter(row => lastAttempt !== null &&
+            row.legacyTable === lastAttempt.legacyTable &&
+            row.legacyRowId === lastAttempt.legacyRowId).slice(0, 1);
+        },
       };
     },
   };
@@ -63,9 +71,16 @@ function dbFixture() {
     let pages = originalPages();
     return {
       select() {
+        // Bind the result at query creation. Drizzle's innerJoin query is
+        // thenable even without limit(); resolving pages only in limit()
+        // misaligns the concurrent Promise.all inventory queries.
+        const page = pages.shift() ?? [];
         return {
           from() { return this; }, innerJoin() { return this; },
-          async limit() { return pages.shift() ?? []; },
+          async limit() { return page; },
+          then(resolve: (value: unknown[]) => unknown, reject: (reason: unknown) => unknown) {
+            return Promise.resolve(page).then(resolve, reject);
+          },
         };
       },
       transaction,
@@ -79,20 +94,20 @@ describe("AUD-1302-020 private staging", () => {
   it("preview reconciles each personal/orphan source without leaking to the public queue", async () => {
     const f = dbFixture();
     const preview = await reconcileLegacyFoodKnowledge("preview");
-    expect(preview.totals).toEqual({ input: 3, mapped: 0, merged: 0, quarantined: 3 });
+    expect(preview.totals).toEqual({ input: 4, mapped: 0, merged: 0, quarantined: 4 });
     expect(preview.catalogPortions.totals.quarantined).toBe(2);
     expect(f.transaction).not.toHaveBeenCalled();
     expect(f.rows).toHaveLength(0);
 
     const staged = await reconcileLegacyFoodKnowledge("stage");
     expect(staged.totals).toEqual(preview.totals);
-    expect(f.rows).toHaveLength(5); // 3 source rows + their 2 catalog portions
+    expect(f.rows).toHaveLength(6); // 4 source rows + their 2 catalog portions
     expect(f.rows.map(row => [row.legacyTable, row.legacyRowId])).toEqual([
       ["foodCatalog", 21], ["portions", 31], ["foodCatalog", 22],
-      ["portions", 32], ["foods", 11],
+      ["portions", 32], ["foods", 11], ["foods", 12],
     ]);
     expect(f.rows.filter(row => row.scope === "user" && row.ownerUserId === 41)).toHaveLength(3);
-    expect(f.rows.filter(row => row.scope === "orphan" && row.ownerUserId === null)).toHaveLength(2);
+    expect(f.rows.filter(row => row.scope === "orphan" && row.ownerUserId === null)).toHaveLength(3);
     for (const row of f.rows) {
       expect(row.reason).toBeTruthy();
       expect(row.retentionUntil).toBeInstanceOf(Date);
@@ -100,8 +115,11 @@ describe("AUD-1302-020 private staging", () => {
         "legacyRowId", "legacyTable", "ownerUserId", "reason", "retentionUntil", "scope",
       ].sort()); // no personal text / macros / URLs
     }
+    const firstDeadlines = f.rows.map(row => (row.retentionUntil as Date).getTime());
     await reconcileLegacyFoodKnowledge("stage");
-    expect(f.rows).toHaveLength(5); // idempotent stage
-    expect(f.insert).toHaveBeenCalledTimes(10);
+    expect(f.rows).toHaveLength(6); // idempotent stage
+    expect(f.rows.map(row => (row.retentionUntil as Date).getTime()))
+      .toEqual(firstDeadlines); // replay cannot extend private retention
+    expect(f.insert).toHaveBeenCalledTimes(12);
   });
 });

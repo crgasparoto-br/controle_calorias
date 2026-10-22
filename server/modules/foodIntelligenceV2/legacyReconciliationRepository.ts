@@ -256,8 +256,9 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
         candidate.table, candidate.id, candidate.sourceId, candidate.sourceCode,
         candidate.canonicalKey, candidate.validNutrition,
       ]);
+      // Scope that is absent or unproven is never authority for global review.
       const privateRow = candidate.ownerUserId !== null ||
-        candidate.scope === "user" || candidate.privateOrigin === true;
+        candidate.scope !== "global" || candidate.privateOrigin === true;
       if (privateRow) {
         // Preserve preview -> stage -> re-read equivalence without leaking
         // owner IDs or personal catalog references to the global review queue.

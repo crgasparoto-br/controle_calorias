@@ -46,6 +46,18 @@ describe("B2 reconciliation with governed quarantine", () => {
     expect(r.decisions.every(d => d.action === "quarantined" && d.reason === "personal_scope")).toBe(true);
   });
 
+  it("only an explicitly global ownerless row can leave private quarantine", () => {
+    const r = planLegacyKnowledgeReconciliation([
+      { ...base, id: 10, scope: "global", ownerUserId: null },
+      { ...base, id: 11, scope: null, ownerUserId: null },
+      { ...base, id: 12, scope: "user", ownerUserId: null },
+      { ...base, id: 13, scope: "global", ownerUserId: 41 },
+    ], source, now);
+    expect(r.totals).toEqual({ input: 4, mapped: 1, merged: 0, quarantined: 3 });
+    expect(r.decisions.map(d => d.action === "quarantined" ? d.reason : d.action))
+      .toEqual(["mapped", "personal_scope", "personal_scope", "personal_scope"]);
+  });
+
   it("source revocation, version change and missing macro data all quarantine", () => {
     const r = planLegacyKnowledgeReconciliation([
       { ...base, id: 1, sourceId: 999 },

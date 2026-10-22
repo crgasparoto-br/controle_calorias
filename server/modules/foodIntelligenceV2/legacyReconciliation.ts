@@ -54,8 +54,10 @@ export function planLegacyKnowledgeReconciliation(
   );
   for (const source of ordered) {
     let reason: ReconciliationReason | null = null;
-    if (source.ownerUserId !== null || source.scope === "user" || source.privateOrigin) reason = "personal_scope";
-    else if (source.scope !== "global") reason = "family_ambiguous";
+    // Only an explicitly global, ownerless row may enter global reconciliation.
+    // Unknown scopes are orphaned/private until provenance is proven.
+    if (source.ownerUserId !== null || source.scope !== "global" || source.privateOrigin)
+      reason = "personal_scope";
     else if (source.status && source.status !== "active") reason = "deprecated_source";
     else if (!source.foodId || !source.canonicalKey?.trim() ||
              !normalizeFoodName(source.name)) reason = "family_ambiguous";
