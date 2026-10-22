@@ -36,6 +36,26 @@ function installResults(...pages: unknown[][]) {
   return selects;
 }
 
+/** Commercial evidence fixtures must prove their nutrient assertions, not just
+ * carry a nonempty digest that the real repository now correctly rejects. */
+function commercialLabelEvidence(
+  mapping: { foodVariantId: number; sourceId: number; sourceItemCode: string; sourceUrl: string },
+  nutrition: { caloriesKcal: number; proteinG: number; carbG: number; fatG: number;
+    basisQuantity: number; basisUnit: string },
+) {
+  const payload = {
+    foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId,
+    sourceItemCode: mapping.sourceItemCode, sourceReference: mapping.sourceUrl, nutrition,
+  };
+  return {
+    foodVariantId: mapping.foodVariantId, sourceId: mapping.sourceId, ownerUserId: null,
+    evidenceType: "nutrition_label", sourceReference: mapping.sourceUrl,
+    payloadJson: JSON.stringify(payload),
+    contentHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+    retentionUntil: new Date("2026-11-21T12:00:00Z"),
+  };
+}
+
 beforeEach(() => { vi.resetAllMocks(); });
 
 describe("B2 actual repository governed read", () => {
@@ -48,12 +68,7 @@ describe("B2 actual repository governed read", () => {
       id: 9, status: "active", foodVariantId: 22, sourceId: 7,
       sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
     };
-    const evidence = {
-      foodVariantId: 22, sourceId: 7, ownerUserId: null,
-      evidenceType: "nutrition_label",
-      sourceReference: mapping.sourceUrl, contentHash: "evidence-hash",
-      retentionUntil: new Date("2026-11-21T12:00:00Z"),
-    };
+    const evidence = commercialLabelEvidence(mapping, nutrition);
     installResults(
       [{ id: 22 }],                 // confirmed alias points to SKU 22
       [{ id: 99 }],                 // homonymous exact name points elsewhere
@@ -106,6 +121,10 @@ describe("B2 actual repository governed read", () => {
   });
 
   it("allows a personally scoped food with read-only source authorization", async () => {
+    const nutrition = {
+      caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2,
+      basisQuantity: 100, basisUnit: "g",
+    };
     const mapping = {
       id: 9, status: "active", foodVariantId: 22, sourceId: 7,
       sourceItemCode: "SKU-1", sourceUrl: "https://manufacturer.example/products/sku-1",
@@ -118,12 +137,10 @@ describe("B2 actual repository governed read", () => {
         brand: { name: "Panco" } }],
       [{ id: 10, currentSlot: 1, status: "verified", sourceId: 7,
         foodVariantSourceId: mapping.id, validFrom: null, validTo: null,
-        caloriesKcal: 210, proteinG: 8, carbG: 37, fatG: 2, basisQuantity: 100, basisUnit: "g" }],
+        ...nutrition }],
       [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
       [mapping],
-      [{ foodVariantId: 22, sourceId: 7, ownerUserId: null,
-        evidenceType: "nutrition_label", sourceReference: mapping.sourceUrl,
-        contentHash: "proof", retentionUntil: new Date("2026-11-21T12:00:00Z") }],
+      [commercialLabelEvidence(mapping, nutrition)],
       [],
     );
     expect(await createFoodV2KnowledgeRepository().readLocal({ ...request, brand: "Panco" }))
