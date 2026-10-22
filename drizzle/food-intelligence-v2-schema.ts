@@ -431,7 +431,7 @@ export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_re
   id: int("id").autoincrement().primaryKey(),
   legacyTable: mysqlEnum("legacy_table", ["foods", "foodCatalog", "portions"]).notNull(),
   legacyRowId: int("legacy_row_id").notNull(),
-  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "cascade" }),
+  ownerUserId: int("owner_user_id"),
   scope: mysqlEnum("scope", ["user", "orphan"]).notNull(),
   reason: varchar("reason", { length: 80 }).notNull(),
   retentionUntil: timestamp("retention_until").notNull(),
@@ -441,6 +441,7 @@ export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_re
     { mode: "virtual" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, table => ({
+  ownerFk: foreignKey({ name: "food_personal_recon_owner_fk", columns: [table.ownerUserId], foreignColumns: [users.id] }).onDelete("cascade"),
   sourceUnique: uniqueIndex("food_personal_recon_u0").on(table.legacyTable, table.legacyRowId),
   ownerIdx: index("food_personal_recon_i0").on(table.ownerUserId, table.retentionUntil),
   retentionIdx: index("food_personal_recon_i1").on(table.retentionUntil),
