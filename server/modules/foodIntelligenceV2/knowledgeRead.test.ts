@@ -139,7 +139,8 @@ describe("B2 — porta governada e cache-through", () => {
     const f = fixture();
     f.pending.mockImplementation(async request => request.userId === 41 &&
       request.policyVersion === "governance-v1"
-      ? { sourceId: 7, sourceReference: "https://example.org/food", nutrition }
+      ? { sourceId: 7, sourceReference: "https://example.org/food", nutrition,
+          identity: { name: "pao integral" } }
       : null);
     expect((await readThroughGovernedKnowledge(base, f.store)).kind).toBe("provisional");
     expect((await readThroughGovernedKnowledge({ ...base, userId: 42 }, f.store)).kind).toBe("miss");
