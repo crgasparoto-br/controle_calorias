@@ -64,10 +64,11 @@ export interface FoodKnowledgeStore {
 
 export type FoodExternalLookup = (request: FoodKnowledgeRequest) => Promise<ExternalProvisionalCandidate | null>;
 
-/** Exact user-supplied barcode/brand constraints cannot be erased by
+/** This is a consistency predicate, not an independent food resolver.
+ * Exact user-supplied barcode/brand constraints cannot be erased by
  * an external candidate or replayed from a cache. These are assertions,
  * not independent evidence sufficient for verified commercial nutrition. */
-export function externalCandidateMatchesRequest(
+export function isExternalFoodAssertionConsistent(
   request: FoodKnowledgeRequest,
   candidate: ExternalProvisionalCandidate,
 ): boolean {
@@ -136,7 +137,7 @@ export async function readThroughGovernedKnowledge(
     catch { return { kind: "unavailable", reason: "governed_store_unavailable" }; }
     if (cached && "kind" in cached && cached.kind === "conflict") return { kind: "conflict", reason: "material_nutrition_conflict" };
     if (cached && "nutrition" in cached && isNutritionFacts(cached.nutrition) &&
-        externalCandidateMatchesRequest(request, cached)) {
+        isExternalFoodAssertionConsistent(request, cached)) {
       return {
         kind: "provisional", origin: "external", persisted: true,
         sourceId: cached.sourceId, sourceReference: cached.sourceReference,
@@ -156,7 +157,7 @@ export async function readThroughGovernedKnowledge(
     !/^https:\/\//i.test(candidate.sourceReference) ||
     candidate.sourceReference.length > 500 ||
     !isNutritionFacts(candidate.nutrition) ||
-    !externalCandidateMatchesRequest(request, candidate)
+    !isExternalFoodAssertionConsistent(request, candidate)
   ) {
     return { kind: "unavailable", reason: "external_evidence_invalid" };
   }

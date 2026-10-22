@@ -186,7 +186,9 @@ export function eligibleCommercialProfileProofScope(
         (proof.retentionUntil && (!Number.isFinite(proof.retentionUntil.getTime()) || proof.retentionUntil <= now)) ||
         !hasMatchingCommercialNutritionProof(profile, mapping, proof)) continue;
     if (proof.ownerUserId === null) return "global";
-    if (familyScope === "user" && userId !== null && proof.ownerUserId === userId &&
+    // Reuse the canonical scope/owner guard; a personal proof never grants
+    // publication to a globally visible variant.
+    if (isGovernedFamilyVisible(familyScope, proof.ownerUserId, userId) &&
         proof.retentionUntil !== null && Number.isFinite(proof.retentionUntil.getTime()) &&
         proof.retentionUntil > now) personalProof = true;
   }
@@ -199,5 +201,6 @@ export function hasVerifiedCommercialProfileProof(
   evidence: readonly CommercialEvidence[],
   now: Date,
 ): boolean {
-  return eligibleCommercialProfileProofScope(profile, evidence, now, "global", null) === "global";
+  // A global request cannot accept personal proof, so non-null means global evidence.
+  return eligibleCommercialProfileProofScope(profile, evidence, now, "global", null) !== null;
 }

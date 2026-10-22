@@ -13,7 +13,7 @@ import {
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
 import { canReadFoodSource, canPersistProvisionalEvidence, canPublishGlobalKnowledge, isAuthorizedSourceReference, isValidHttpsSourceReference } from "./sourceGrants";
 import { isGovernedFamilyVisible, eligibleCommercialProfileProofScope, hasCurrentBarcodeProof, isTrustedBrandlessSelection } from "./knowledgeEligibility";
-import { externalCandidateMatchesRequest, isNutritionFacts } from "./knowledgeRead";
+import { isExternalFoodAssertionConsistent, isNutritionFacts } from "./knowledgeRead";
 import { getDb } from "../../db";
 import type {
   ExternalProvisionalCandidate, FoodKnowledgeLocalResult, FoodKnowledgeRequest,
@@ -380,7 +380,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             sourceId: row.sourceId, sourceReference: payload.sourceReference,
             nutrition: payload.nutrition, ...(payload.identity === undefined ? {} : { identity: payload.identity }),
           };
-          if (!externalCandidateMatchesRequest(request, candidate)) continue;
+          if (!isExternalFoodAssertionConsistent(request, candidate)) continue;
           candidates.push(candidate);
         } catch { /* Invalid legacy JSON is never silently trusted. */ }
       }
@@ -391,7 +391,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
 
     async stagePendingEvidence(request, candidate) {
       if (request.userId === null || !isNutritionFacts(candidate.nutrition) ||
-          !externalCandidateMatchesRequest(request, candidate)) return false;
+          !isExternalFoodAssertionConsistent(request, candidate)) return false;
       const db = await getDb();
       if (!db) return false;
       const now = new Date();
