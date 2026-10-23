@@ -42,6 +42,44 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect([a, b, c].every(item => item.identityHints.foodName === "mortadela")).toBe(true);
   });
 
+  it("preserva o mesmo alimento quando a operação canônica muda de posição", async () => {
+    const phrases = [
+      "Adicionar ao café da manhã 1,5 fatias de mortadela",
+      "Adicionar 1,5 fatias de mortadela ao café da manhã",
+      "No café da manhã comi uma fatia e meia de mortadela",
+    ];
+    const observations = await Promise.all(phrases.map(text => analyze(text)));
+    expect(observations.map(([obs]) => ({
+      food: obs.identityHints.foodName,
+      value: obs.quantityHints.value,
+      unit: obs.quantityHints.unit,
+    }))).toEqual(Array(3).fill({ food: "mortadela", value: 1.5, unit: "fatia" }));
+    for (let i = 0; i < phrases.length; i++) {
+      const [obs] = observations[i];
+      const span = obs.surfaceSpan.span!;
+      expect(phrases[i].slice(span.start, span.end)).not.toMatch(/^(Adicionar|No café)/i);
+      expect("mealOperation" in obs).toBe(false);
+    }
+  });
+
+  it("mantém unidade após 'um e meio' e não converte volume em massa", async () => {
+    const [observed] = await analyze("um e meio copo de leite");
+    expect(observed.quantityHints).toMatchObject({ value: 1.5, unit: "copo" });
+    expect(observed.identityHints.foodName).toBe("leite");
+  });
+
+  it("resolve flexão plural somente por evidência de léxico governado", async () => {
+    const entries = [
+      entry({ id: 81, normalizedTerm: "ovos cozidos", targetRef: "ovo cozido" }),
+      entry({ id: 82, normalizedTerm: "ovo cozido", targetRef: "ovo cozido" }),
+    ];
+    const [a] = await analyze("2 ovos cozidos", entries);
+    const [b] = await analyze("dois ovo cozido", entries);
+    expect(a.identityHints.foodName).toBe("ovo cozido");
+    expect(b.identityHints.foodName).toBe("ovo cozido");
+    expect(a.quantityHints.value).toBe(b.quantityHints.value);
+  });
+
   it("não transforma ml em g nem adivinha porção vaga ou número ambíguo", async () => {
     const [ml] = await analyze("250 ml de leite");
     const [vague] = await analyze("um punhado de amendoim");
