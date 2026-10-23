@@ -106,6 +106,9 @@ function recognizedUnit(value: string): string | null {
 
 function readQuantity(text: string): { value: number | null; unit: string | null; name: string; servingText: string | null; uncertain: boolean } {
   const source = text.trim();
+  if (/\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
+    return { value: null, unit: null, name: source, servingText: source, uncertain: true };
+  }
   // Independent from any name correction: "um ovo cozido" -> 1 un.
   const half = halfAfterUnit.exec(source);
   if (half) {
@@ -133,9 +136,6 @@ function readQuantity(text: string): { value: number | null; unit: string | null
     const value = parseNumber(simple[1]);
     if (value !== null) return { value, unit: "un", name: source.slice(simple[0].length).trim(), servingText: simple[0].trim(), uncertain: false };
     return { value: null, unit: null, name: source, servingText: simple[0].trim(), uncertain: true };
-  }
-  if (/\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
-    return { value: null, unit: null, name: source, servingText: null, uncertain: true };
   }
   return { value: null, unit: null, name: source, servingText: null, uncertain: false };
 }
