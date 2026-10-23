@@ -180,6 +180,25 @@ export function splitFoodSurface(text: string): Segment[] {
   return joined;
 }
 
+/**
+ * Remove only unambiguous command/destination framing; the canonical operation
+ * parser remains the sole owner of the action, date and target meal.
+ * The returned offsets continue to address the untouched original turn.
+ */
+function foodOnlySpan(full: string, segment: Segment): Segment {
+  let start = segment.start;
+  let end = segment.end;
+  let value = segment.text;
+  const prefix = /^(?:adicionar\s+(?:(?:ao|no|na)\s+(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s+)?|(?:no|na)\s+(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s+(?:comi|consumi)\s+)/iu.exec(value);
+  if (prefix) {
+    start += prefix[0].length;
+    value = full.slice(start, end);
+    const suffix = /\s+(?:(?:ao|no|na)\s+|para\s+(?:o|a)\s+)(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s*$/iu.exec(value);
+    if (suffix) end -= suffix[0].length;
+  }
+  return trimSpan(full, start, end) ?? segment;
+}
+
 function anchor(sourceRef: string, span: Span | null) {
   return { sourceRef, span, region: null };
 }
@@ -231,8 +250,9 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
       ? { requested: request.locale, effective: DEFAULT_FOOD_LOCALE, status: "explicit" as const }
       : { requested: request.locale, effective: null, status: "unsupported" as const };
   const supported = locale.status !== "unsupported";
-  const quantity = supported ? readQuantity(segment.text) : null;
-  const name = supported ? (quantity?.name ?? segment.text).trim() : "";
+  const foodSegment = foodOnlySpan(request.rawText, segment);
+  const quantity = supported ? readQuantity(foodSegment.text) : null;
+  const name = supported ? (quantity?.name ?? foodSegment.text).trim() : "";
   const observed = emptyIdentity();
   observed.foodName = name ? foldFoodSurface(name) : null;
   observed.qualifiers = detectQualifiers(name);
@@ -247,7 +267,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   if (name) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
     origin, value: name, unit: null, confidence: null, verified: false,
-    anchor: anchor(request.sourceRef, { start: segment.start, end: segment.end }), sourceId: null,
+    anchor: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
   if (q.value !== null) evidence.push({
     evidenceId: "ev-quantity-" + index, field: "quantity.value",
@@ -258,9 +278,9 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
     normalizedInput: supported ? foldFoodSurface(name) || null : null, locale,
-    surfaceSpan: anchor(request.sourceRef, { start: segment.start, end: segment.end }),
+    surfaceSpan: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
-    normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: anchor(request.sourceRef, { start: segment.start, end: segment.end }), confidence: null }] : [],
+    normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }), confidence: null }] : [],
     alternatives: [],
     unresolvedReason: !supported ? "unsupported_locale" : !name || quantity?.uncertain ? "unknown_surface" : null,
     lexiconRevision: request.lexiconRevision, interpreterVersion: null,
