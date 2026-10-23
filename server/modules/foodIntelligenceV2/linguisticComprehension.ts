@@ -39,6 +39,9 @@ export type LinguisticRequest = {
   rawText: string;
   sourceRef: string;
   modality: LinguisticModality;
+  /** OCR role comes from a validated boundary, never inferred from untrusted label text. */
+  imageRegionRole?: "front_identity" | "caption" | "nutrition_label" | "ingredients";
+  imageRegion?: FoodObservation["surfaceSpan"]["region"];
   locale?: string | null;
   ownerUserId: number | null;
   lexiconRevision: string;
@@ -380,11 +383,46 @@ export async function comprehendFoodLanguage(
     throw new Error("invalid-linguistic-input");
   }
   const now = request.now ?? new Date();
-  if (Number.isNaN(now.getTime())) throw new Error("invalid-linguistic-time");
-  const parts = splitFoodSurface(request.rawText);
+  if (Number.isNaN(now.getTime()) ||
+      request.modality !== "image" && (request.imageRegion !== undefined || request.imageRegionRole !== undefined) ||
+      request.modality === "image" && request.imageRegion !== undefined &&
+        (request.imageRegion === null ||
+          ![request.imageRegion.x, request.imageRegion.y, request.imageRegion.width,
+            request.imageRegion.height].every(value => Number.isFinite(value)) ||
+          request.imageRegion.x < 0 || request.imageRegion.y < 0 ||
+          request.imageRegion.width <= 0 || request.imageRegion.height <= 0 ||
+          request.imageRegion.x + request.imageRegion.width > 1 ||
+          request.imageRegion.y + request.imageRegion.height > 1)) {
+    throw new Error("invalid-linguistic-region-or-time");
+  }
+  // OCR label sections are not meal items. Keep exactly one evidence-only
+  // observation so ingredient lines never become separate foods.
+  const evidenceOnlyImage = request.modality === "image" &&
+    request.imageRegionRole !== "front_identity" && request.imageRegionRole !== "caption";
+  const parts = evidenceOnlyImage
+    ? [{ text: request.rawText, start: 0, end: request.rawText.length }]
+    : splitFoodSurface(request.rawText);
   if (parts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   if (request.locale !== null && request.locale !== undefined && request.locale !== DEFAULT_FOOD_LOCALE) {
     return parts.map((part, index) => validate(buildObservation(request, part, index)));
+  }
+  if (evidenceOnlyImage) {
+    const item = buildObservation(request, parts[0], 0);
+    const region = request.imageRegion ?? null;
+    const spanAnchor = { ...item.surfaceSpan, region };
+    item.surfaceSpan = spanAnchor;
+    item.normalizedInput = null;
+    item.identityHints = emptyIdentity();
+    item.quantityHints = emptyQuantity();
+    item.normalizationPath = [];
+    item.evidence = [{
+      evidenceId: "ev-ocr-0", field: request.imageRegionRole === "nutrition_label"
+        ? "nutrition.basis" : "identity.qualifiers",
+      origin: "ocr", value: request.rawText, unit: null, confidence: null,
+      verified: false, anchor: spanAnchor, sourceId: null,
+    }];
+    item.unresolvedReason = "unknown_surface";
+    return [validate(item)];
   }
   const entries = await lexicon.load({ locale: DEFAULT_FOOD_LOCALE, ownerUserId: request.ownerUserId, revision: request.lexiconRevision, now });
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
