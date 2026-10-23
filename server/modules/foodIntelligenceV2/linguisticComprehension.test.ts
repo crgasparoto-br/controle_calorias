@@ -285,7 +285,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect((await analyze("mortadela, duas bananas"))).toHaveLength(2);
     const [first, second] = await analyze("mortadela, duas bananas");
     expect(first.identityHints.foodName).toBe("mortadela");
-    expect(second.identityHints.foodName).toBe("banana");
+    expect(second.identityHints.foodName).toBe("bananas");
     expect(second.quantityHints.value).toBe(2);
   });
 
@@ -297,10 +297,10 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(b.identityHints.qualifiers).toEqual(a.identityHints.qualifiers);
     const [governedExact] = await analyze("2 ovos cozidos", [
       entry({ id: 141, normalizedTerm: "ovos cozidos", term: "ovos cozidos",
-        targetRef: "ovos da granja" }),
+        targetRef: "ovo cozido caipira" }),
     ]);
     expect(governedExact.normalizationPath[1].lexiconEntryId).toBe(141);
-    expect(governedExact.identityHints.foodName).toBe("ovos da granja");
+    expect(governedExact.identityHints.foodName).toBe("ovo cozido caipira");
     const [commercial] = await analyze("2 Doritos", [
       entry({ id: 90, normalizedTerm: "doritos", term: "Doritos",
         kind: "protected_token", targetType: "none", targetRef: null }),

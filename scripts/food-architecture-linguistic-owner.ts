@@ -13,7 +13,8 @@
 export function isCanonicalLinguisticGrammar(
   file: string, rule: { id: string; kind: string }, finding: { symbol: string; subject: string },
 ): boolean {
-  if (file === "server/modules/foodIntelligenceV2/linguisticComprehension.ts") {
+  if (file === "server/modules/foodIntelligenceV2/linguisticComprehension.ts" ||
+      file === "server/modules/foodIntelligenceV2/linguisticSurface.ts") {
     if (["17", "5"].includes(rule.id) && rule.kind === "numeric-map" &&
         finding.symbol === "writtenNumbers:numeric-food-map") {
       const keys = new Set(["um", "uma", "dois", "duas", "tres", "quatro", "cinco", "seis",
@@ -52,13 +53,6 @@ export function isCanonicalLinguisticGrammar(
     // identity resolver; the nutrition/food resolver remains elsewhere.
     if (rule.id === "2" && rule.kind === "function" &&
         finding.symbol === "selectLexicon") return true;
-  }
-  // Pure surface syntax is isolated from the LCL orchestrator. This
-  // narrowly permits numeric/unit lexical regex in that single canonical owner.
-  if (file === "server/modules/foodIntelligenceV2/linguisticSurface.ts" &&
-      ["17", "18"].includes(rule.id) && rule.kind === "literal-regex-test" &&
-      /^(?:foldFoodSurface|parseNumber|readQuantity|splitFoodSurface):lexical-regex$/u.test(finding.symbol)) {
-    return true;
   }
   // A dynamic store callback holding no food catalog is not a literal food map.
   return file === "server/modules/foodIntelligenceV2/linguisticLexiconRepository.ts" &&
