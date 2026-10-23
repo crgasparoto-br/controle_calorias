@@ -424,6 +424,46 @@ describe("Camada de Compreensão Linguística #1304", () => {
   });
 
 
+  it("AUD1304 A-008 isola refeição inicial sem verbo apenas com quantidade de alimento", async () => {
+    for (const [rawText, expectedSurface] of [
+      ["No almoço 2 ovos", "2 ovos"],
+      ["no jantar dois ovos", "dois ovos"],
+      ["No café da manhã 2 ovos", "2 ovos"],
+      ["No almoço 2 ovos ao jantar", "2 ovos"],
+    ]) {
+      const [obs] = await analyze(rawText);
+      expect(obs.identityHints.foodName).toBe("ovo");
+      expect(obs.quantityHints).toMatchObject({ value: 2, unit: "un" });
+      const span = obs.surfaceSpan.span!;
+      expect(rawText.slice(span.start, span.end)).toBe(expectedSurface);
+      expect(obs.rawInput).toBe(rawText);
+      expect("mealOperation" in obs).toBe(false);
+    }
+    const [mass] = await analyze("No café da manhã 100g de queijo");
+    expect(mass.quantityHints).toMatchObject({ value: 100, unit: "g" });
+    expect(mass.identityHints.foodName).toBe("queijo");
+    const [ambiguous] = await analyze("No almoço especial 2 ovos");
+    expect(ambiguous.quantityHints.value).toBeNull();
+    expect(ambiguous.identityHints.foodName).toBe("no almoco especial 2 ovos");
+  });
+
+  it("AUD1304 A-009 preserva marcas plurais sem diferença de caixa e sem alias", async () => {
+    for (const rawText of ["2 Doritos", "2 doritos", "2 DORITOS", "dois doritos"]) {
+      const [obs] = await analyze(rawText);
+      expect(obs.identityHints.foodName).toBe("doritos");
+      expect(obs.normalizedInput).toBe("doritos");
+      expect(obs.quantityHints).toMatchObject({ value: 2, unit: "un" });
+      expect(obs.unresolvedReason).toBe("unknown_surface");
+      expect(obs.rawInput).toBe(rawText);
+    }
+    const [unconfirmedDiminutive] = await analyze("2 palitos");
+    expect(unconfirmedDiminutive.identityHints.foodName).toBe("palitos");
+    const [commonPlural] = await analyze("2 bananas");
+    expect(commonPlural.identityHints.foodName).toBe("banana");
+    const [agreedPlural] = await analyze("2 ovos cozidos");
+    expect(agreedPlural.identityHints.foodName).toBe("ovo cozido");
+  });
+
   it("AUD1304-NEW-001 reconhece unidades contíguas apenas com limite lexical seguro", async () => {
     for (const [spaced, compact, quantity, unit, food] of [
       ["100 g de queijo", "100g de queijo", 100, "g", "queijo"],
