@@ -79,8 +79,8 @@ const writtenNumbers: Readonly<Record<string, number>> = {
   cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
   meio: 0.5, meia: 0.5,
 };
-const unitPattern = "(g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o)";
-const quantityPattern = "(\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|meio|meia)";
+const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
+const quantityPattern = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|meio|meia";
 const quantified = new RegExp("^(" + quantityPattern + ")\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
 const halfAfterUnit = new RegExp("^(" + quantityPattern + ")\\s+(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
 const counted = new RegExp("^(" + quantityPattern + ")\\s+(?:de\\s+)?", "iu");
@@ -232,9 +232,9 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
       : { requested: request.locale, effective: null, status: "unsupported" as const };
   const supported = locale.status !== "unsupported";
   const quantity = supported ? readQuantity(segment.text) : null;
-  const name = supported ? (quantity?.name || segment.text).trim() : "";
+  const name = supported ? (quantity?.name ?? segment.text).trim() : "";
   const observed = emptyIdentity();
-  observed.foodName = name || null;
+  observed.foodName = name ? foldFoodSurface(name) : null;
   observed.qualifiers = detectQualifiers(name);
   const q = emptyQuantity();
   if (quantity) {
@@ -257,7 +257,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   return {
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
-    normalizedInput: supported ? name : null, locale,
+    normalizedInput: supported ? foldFoodSurface(name) || null : null, locale,
     surfaceSpan: anchor(request.sourceRef, { start: segment.start, end: segment.end }),
     identityHints: observed, quantityHints: q, evidence,
     normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: anchor(request.sourceRef, { start: segment.start, end: segment.end }), confidence: null }] : [],
@@ -270,10 +270,10 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
 function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry): FoodObservation {
   const snapshot = { ...observation, identityHints: { ...observation.identityHints }, evidence: [...observation.evidence], normalizationPath: [...observation.normalizationPath], alternatives: [...observation.alternatives] };
   const before = snapshot.identityHints.foodName ?? "";
-  const target = entry.targetType === "canonical_term" ? entry.targetRef?.trim() ?? "" : "";
+  const target = entry.targetType === "canonical_term" ? foldFoodSurface(entry.targetRef?.trim() ?? "") : "";
   const currentQualifiers = detectQualifiers(before).map(item => foldFoodSurface(item.value));
   const targetQualifiers = detectQualifiers(target).map(item => foldFoodSurface(item.value));
-  const changesQualifiers = currentQualifiers.some(item => !targetQualifiers.includes(item));
+  const changesQualifiers = currentQualifiers.some(item => !targetQualifiers.includes(item)) || targetQualifiers.some(item => !currentQualifiers.includes(item));
   const requiresHypothesis = entry.kind === "typo" || entry.targetType === "food_variant" || entry.requiresClarification || changesQualifiers;
   if (requiresHypothesis && entry.targetRef) {
     snapshot.alternatives.push({
