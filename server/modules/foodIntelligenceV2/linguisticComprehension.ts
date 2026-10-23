@@ -296,14 +296,21 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   };
 }
 
-function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry): FoodObservation {
+function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry, entries: readonly GovernedLexiconEntry[], owner: number | null, now: Date): FoodObservation {
   const snapshot = { ...observation, identityHints: { ...observation.identityHints }, evidence: [...observation.evidence], normalizationPath: [...observation.normalizationPath], alternatives: [...observation.alternatives] };
   const before = snapshot.identityHints.foodName ?? "";
   const target = entry.targetType === "canonical_term" ? foldFoodSurface(entry.targetRef?.trim() ?? "") : "";
   const currentQualifiers = detectQualifiers(before).map(item => foldFoodSurface(item.value));
   const targetQualifiers = detectQualifiers(target).map(item => foldFoodSurface(item.value));
   const changesQualifiers = currentQualifiers.some(item => !targetQualifiers.includes(item)) || targetQualifiers.some(item => !currentQualifiers.includes(item));
-  const requiresHypothesis = entry.kind === "typo" || entry.targetType === "food_variant" || entry.requiresClarification || changesQualifiers;
+  const protectedTerms = entries.filter(item => item.kind === "protected_token" && applicable(item, owner, now))
+    .map(item => foldFoodSurface(item.normalizedTerm));
+  const wordBoundaryContains = (full: string, term: string) =>
+    full.split(/\s+/u).some((_, index, words) => words.slice(index, index + term.split(" ").length).join(" ") === term);
+  const dropsProtectedToken = protectedTerms.some(term =>
+    wordBoundaryContains(foldFoodSurface(before), term) && !wordBoundaryContains(foldFoodSurface(target), term));
+  const requiresHypothesis = entry.kind === "typo" || entry.targetType === "food_variant" ||
+    entry.requiresClarification || changesQualifiers || dropsProtectedToken;
   if (requiresHypothesis && entry.targetRef) {
     snapshot.alternatives.push({
       hypothesisId: "lex-" + entry.id,
@@ -384,7 +391,7 @@ export async function comprehendFoodLanguage(
   for (let i = 0; i < parts.length; i++) {
     let observation = buildObservation(request, parts[i], i);
     const entry = selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
-    if (entry) observation = withLexicon(observation, entry);
+    if (entry) observation = withLexicon(observation, entry, entries, request.ownerUserId, now);
     observation = validate(observation);
     if (observation.unresolvedReason !== null && request.shouldInterpretResidual?.(observation) && interpreter) {
       if (!request.interpreterVersion?.trim()) throw new Error("linguistic-interpreter-version-required");
