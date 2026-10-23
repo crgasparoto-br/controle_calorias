@@ -400,10 +400,18 @@ export async function comprehendFoodLanguage(
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
   const results: FoodObservation[] = [];
   for (let i = 0; i < parts.length; i++) {
-    let observation = withSafeRegularAgreement(
-      buildObservation(request, parts[i], i), entries, request.ownerUserId, now,
+    let observation = buildObservation(request, parts[i], i);
+    // Governed exact aliases (including personal confirmed aliases) take
+    // precedence over a lossy morphological interpretation of their surface.
+    const exactChoice = selectLexicon(
+      entries, observation.identityHints.foodName ?? "", request.ownerUserId, now,
     );
-    const lexiconChoice = selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
+    if (!exactChoice.selected && exactChoice.competing.length === 0) {
+      observation = withSafeRegularAgreement(observation, entries, request.ownerUserId, now);
+    }
+    const lexiconChoice = exactChoice.selected || exactChoice.competing.length
+      ? exactChoice
+      : selectLexicon(entries, observation.identityHints.foodName ?? "", request.ownerUserId, now);
     if (lexiconChoice.selected) {
       observation = withLexicon(observation, lexiconChoice.selected, entries, request.ownerUserId, now);
     } else if (lexiconChoice.competing.length > 0) {

@@ -295,6 +295,12 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(a.identityHints.foodName).toBe("ovo cozido");
     expect(b.identityHints.foodName).toBe(a.identityHints.foodName);
     expect(b.identityHints.qualifiers).toEqual(a.identityHints.qualifiers);
+    const [governedExact] = await analyze("2 ovos cozidos", [
+      entry({ id: 141, normalizedTerm: "ovos cozidos", term: "ovos cozidos",
+        targetRef: "ovos da granja" }),
+    ]);
+    expect(governedExact.normalizationPath[1].lexiconEntryId).toBe(141);
+    expect(governedExact.identityHints.foodName).toBe("ovos da granja");
     const [commercial] = await analyze("2 Doritos", [
       entry({ id: 90, normalizedTerm: "doritos", term: "Doritos",
         kind: "protected_token", targetType: "none", targetRef: null }),
