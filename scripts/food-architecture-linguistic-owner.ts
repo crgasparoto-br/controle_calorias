@@ -45,8 +45,11 @@ export function isCanonicalLinguisticGrammar(
         "request.imageRegionRole": ["front_identity", "caption", "nutrition_label", "ingredients"],
         "item.targetType": ["canonical_term"],
       };
+      const owner = predicate?.[1] === "item.targetType" &&
+        finding.symbol === "governedUnitAliases:item.targetType:lexical-branch"
+        ? "governedUnitAliases" : "comprehendFoodLanguage";
       if (predicate &&
-          finding.symbol === `comprehendFoodLanguage:${predicate[1]}:lexical-branch` &&
+          finding.symbol === `${owner}:${predicate[1]}:lexical-branch` &&
           contractValues[predicate[1]]?.includes(predicate[3])) return true;
     }
     // Selecting already validated, versioned lexicon rows is not a second

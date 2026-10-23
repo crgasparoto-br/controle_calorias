@@ -95,15 +95,19 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
 
   it("does not whitelist food-name comparisons hidden behind structural contract fields", () => {
     const source = readFileSync(file, "utf8");
-    for (const [original, injected, operand] of [
-      ['request.modality !== "image"', 'request.modality !== "panco"', "request.modality"],
-      ['request.imageRegionRole !== "front_identity"', 'request.imageRegionRole !== "panco"', "request.imageRegionRole"],
-      ['item.targetType === "canonical_term"', 'item.targetType === "panco"', "item.targetType"],
+    // The new S2 unit-alias helper also inspects targetType. Attack both
+    // occurrences independently; replacing the first occurrence and assuming
+    // comprehendFoodLanguage made this control fail without exercising its owner.
+    for (const [original, injected, operand, owner] of [
+      ['request.modality !== "image"', 'request.modality !== "panco"', "request.modality", "comprehendFoodLanguage"],
+      ['request.imageRegionRole !== "front_identity"', 'request.imageRegionRole !== "panco"', "request.imageRegionRole", "comprehendFoodLanguage"],
+      ['const unit = item.targetType === "canonical_term"', 'const unit = item.targetType === "panco"', "item.targetType", "governedUnitAliases"],
+      ['foodName: item.targetType === "canonical_term"', 'foodName: item.targetType === "panco"', "item.targetType", "comprehendFoodLanguage"],
     ] as const) {
       expect(source).toContain(original);
       const findings = findFoodStaticCandidates([{ path: file, content: source.replace(original, injected) }]);
       expect(findings.some(f => f.ruleId === "18" &&
-        f.symbol === `comprehendFoodLanguage:${operand}:lexical-branch`)).toBe(true);
+        f.symbol === `${owner}:${operand}:lexical-branch`)).toBe(true);
     }
   });
 

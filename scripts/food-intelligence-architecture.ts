@@ -2134,11 +2134,18 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
     const literal = leftLiteral ?? rightLiteral;
     if (literal && isStructuralContractComparison(identity, literal)) return null;
     const operand = identity.getText(source);
+    // The canonical S2 unit-alias helper is a food lexical decision too. Do not
+    // let its neutral function name hide an unexpected targetType literal.
+    // Keep the detection on the audited owner and exact discriminant only.
+    const canonicalLexiconTarget = rule.id === "18" &&
+      /(?:^|\/)foodIntelligenceV2\/linguisticComprehension\.ts$/u.test(source.fileName.replace(/\\/gu, "/")) &&
+      (functionName === "governedUnitAliases" || functionName === "comprehendFoodLanguage") &&
+      ts.isPropertyAccessExpression(identity) && identity.name.text === "targetType";
     const relevant = rule.ownerFunction !== "attribute-materiality"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
         identity, node, source) ||
         hasGenericFoodIdentityDecisionContext(identity, node, source)
-      : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand);
+      : matches(rule.symbolPattern, functionName) || matches(rule.symbolPattern, operand) || canonicalLexiconTarget;
     if (relevant) {
       return { symbol: (functionName || "expression") + ":" + operand + ":lexical-branch",
         subject: node.getText(source) };
