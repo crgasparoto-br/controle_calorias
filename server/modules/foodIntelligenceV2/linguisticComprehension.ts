@@ -211,8 +211,8 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   return trimSpan(full, start, end) ?? segment;
 }
 
-function anchor(sourceRef: string, span: Span | null) {
-  return { sourceRef, span, region: null };
+function anchor(sourceRef: string, span: Span | null, region: FoodObservation["surfaceSpan"]["region"] = null) {
+  return { sourceRef, span, region };
 }
 function emptyIdentity() {
   return { foodName: null as string | null, brand: null as string | null, variant: null as string | null, preparation: [] as string[], qualifiers: [] as FoodObservation["identityHints"]["qualifiers"], barcode: null as string | null };
@@ -268,6 +268,8 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   const observed = emptyIdentity();
   observed.foodName = name ? foldFoodSurface(name) : null;
   observed.qualifiers = detectQualifiers(name);
+  const originalAnchor = (span: Span | null) => anchor(request.sourceRef, span,
+    request.modality === "image" ? request.imageRegion ?? null : null);
   const q = emptyQuantity();
   if (quantity) {
     q.value = quantity.value;
@@ -279,20 +281,20 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
   if (name) evidence.push({
     evidenceId: "ev-name-" + index, field: "identity.foodName",
     origin, value: name, unit: null, confidence: null, verified: false,
-    anchor: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }), sourceId: null,
+    anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
   if (q.value !== null) evidence.push({
     evidenceId: "ev-quantity-" + index, field: "quantity.value",
     origin, value: q.value, unit: q.unit, confidence: null, verified: false,
-    anchor: anchor(request.sourceRef, { start: segment.start, end: segment.end }), sourceId: null,
+    anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
   return {
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
     normalizedInput: supported ? foldFoodSurface(name) || null : null, locale,
-    surfaceSpan: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }),
+    surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
-    normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: anchor(request.sourceRef, { start: foodSegment.start, end: foodSegment.end }), confidence: null }] : [],
+    normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), confidence: null }] : [],
     alternatives: [],
     unresolvedReason: !supported ? "unsupported_locale" : "unknown_surface",
     lexiconRevision: request.lexiconRevision, interpreterVersion: null,
