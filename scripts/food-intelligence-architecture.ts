@@ -57,6 +57,22 @@ function isCanonicalLinguisticGrammar(
       if (finding.symbol === "splitFoodSurface:char:lexical-branch" &&
           rule.kind === "literal-branch") return true;
     }
+    // Exact discriminants of the modality/OCR/lexicon contracts are not
+    // nutrition or food-attribute decisions. Keep this narrow: new literals,
+    // owners and comparison operands remain subject to architecture rules.
+    if (rule.id === "18" && rule.kind === "literal-branch") {
+      const predicate = finding.subject.match(
+        /^(request\.modality|request\.imageRegionRole|item\.targetType)\s*(===|!==)\s*"([a-z_]+)"$/u,
+      );
+      const contractValues: Record<string, readonly string[]> = {
+        "request.modality": ["image"],
+        "request.imageRegionRole": ["front_identity", "caption", "nutrition_label", "ingredients"],
+        "item.targetType": ["canonical_term"],
+      };
+      if (predicate &&
+          finding.symbol === `comprehendFoodLanguage:${predicate[1]}:lexical-branch` &&
+          contractValues[predicate[1]]?.includes(predicate[3])) return true;
+    }
     // Selecting already validated, versioned lexicon rows is not a second
     // identity resolver; the nutrition/food resolver remains elsewhere.
     if (rule.id === "2" && rule.kind === "function" &&

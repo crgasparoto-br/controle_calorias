@@ -92,6 +92,20 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
     }
   });
 
+  it("does not whitelist food-name comparisons hidden behind structural contract fields", () => {
+    const source = readFileSync(file, "utf8");
+    for (const [original, injected, operand] of [
+      ['request.modality !== "image"', 'request.modality !== "panco"', "request.modality"],
+      ['request.imageRegionRole !== "front_identity"', 'request.imageRegionRole !== "panco"', "request.imageRegionRole"],
+      ['item.targetType === "canonical_term"', 'item.targetType === "panco"', "item.targetType"],
+    ] as const) {
+      expect(source).toContain(original);
+      const findings = findFoodStaticCandidates([{ path: file, content: source.replace(original, injected) }]);
+      expect(findings.some(f => f.ruleId === "18" &&
+        f.symbol === `comprehendFoodLanguage:${operand}:lexical-branch`)).toBe(true);
+    }
+  });
+
   it("still rejects a literal nutrition lookup added inside the canonical owner", () => {
     const extra = "export const FOOD_NUTRITION_BY_NAME = {pao: 150, arroz: 120};\n"
       + "export function resolveFoodCalories(foodName: string) {\n"
