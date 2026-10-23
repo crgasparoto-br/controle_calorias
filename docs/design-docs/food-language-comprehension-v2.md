@@ -61,6 +61,12 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
 - Enquadramento de refeição, inclusive destino ao fim sem verbo inicial, não
   integra o nome alimentar. O parser canônico continua único dono de MealOperation.
 
+## Remediação AUD1304-NEW-001–003
+
+- Numerais físicos com unidade contígua (`100g`, `250ml`) convergem com a grafia espaçada, sem consumir prefixos de marcas nem números com separadores ambíguos; a superfície e os spans originais permanecem intactos.
+- A conjunção `e` separa itens alimentares completos mesmo quando o segundo não tem numeral. Construtos de quantidade como `uma fatia e meia` e `um e meio` não são divididos.
+- Léxico governado `unit_term` / `portion_term` atua no slot da unidade e não no nome do alimento: só termo ativo, escopo autorizado e unidade canônica conhecida podem converter; há registro S2 por ID e evidência por campo. Conflito de significados produz alternativas sem conversão silenciosa. Grants, revogação e revisão são validados pela leitura governada existente.
+
 ## Gates
 
 ~~~bash

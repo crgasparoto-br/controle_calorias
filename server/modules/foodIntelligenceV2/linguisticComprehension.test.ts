@@ -423,4 +423,104 @@ describe("Camada de Compreensão Linguística #1304", () => {
     }
   });
 
+
+  it("AUD1304-NEW-001 reconhece unidades contíguas apenas com limite lexical seguro", async () => {
+    for (const [spaced, compact, quantity, unit, food] of [
+      ["100 g de queijo", "100g de queijo", 100, "g", "queijo"],
+      ["250 ml de leite", "250ml de leite", 250, "ml", "leite"],
+      ["1,5 kg de arroz", "1,5kg de arroz", 1.5, "kg", "arroz"],
+    ] as const) {
+      const [left] = await analyze(spaced);
+      const [right] = await analyze(compact);
+      expect(right.quantityHints).toMatchObject({ value: quantity, unit });
+      expect(right.identityHints.foodName).toBe(food);
+      expect({ value: left.quantityHints.value, unit: left.quantityHints.unit,
+        food: left.identityHints.foodName }).toEqual({ value: right.quantityHints.value,
+        unit: right.quantityHints.unit, food: right.identityHints.foodName });
+      expect(right.rawInput).toBe(compact);
+      expect(compact.slice(right.surfaceSpan.span!.start, right.surfaceSpan.span!.end)).toBe(compact);
+    }
+    for (const rawText of ["100guaraná", "2Panco", "1.000g de queijo", "1,500ml de leite"]) {
+      const [observed] = await analyze(rawText);
+      expect(observed.quantityHints.value).toBeNull();
+      expect(observed.identityHints.foodName).toBe(rawText.normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "").toLowerCase());
+    }
+  });
+
+  it("AUD1304-NEW-002 segmenta 'e' entre alimentos sem apagar cardinalidade ou spans", async () => {
+    for (const [joined, separated] of [
+      ["2 ovos e banana", "2 ovos, banana"],
+      ["arroz e feijão", "arroz, feijão"],
+      ["2 ovos e 1 banana", "2 ovos, 1 banana"],
+    ]) {
+      const parts = await analyze(joined);
+      const baseline = await analyze(separated);
+      const projection = (observations: typeof parts) => observations.map(obs => ({
+        food: obs.identityHints.foodName, value: obs.quantityHints.value, unit: obs.quantityHints.unit,
+      }));
+      expect(parts).toHaveLength(2);
+      expect(projection(parts)).toEqual(projection(baseline));
+      for (const part of parts) {
+        const span = part.surfaceSpan.span!;
+        expect(joined.slice(span.start, span.end)).toBeTruthy();
+        expect(part.rawInput).toBe(joined);
+      }
+    }
+    for (const rawText of ["uma fatia e meia de mortadela", "um e meio copo de leite"]) {
+      expect(await analyze(rawText)).toHaveLength(1);
+    }
+  });
+
+  it("AUD1304-NEW-003 aplica unit_term e portion_term no slot de unidade com prova S2", async () => {
+    const global = entry({ id: 401, kind: "unit_term", term: "fts", normalizedTerm: "fts",
+      targetRef: "fatia", confidence: 0.95 });
+    const portion = entry({ id: 402, kind: "portion_term", term: "pçs", normalizedTerm: "pcs",
+      targetRef: "porção" });
+    const [alias] = await analyze("2 fts de pão", [global, portion]);
+    const [canonical] = await analyze("2 fatias de pão");
+    expect(alias.quantityHints).toMatchObject({ value: 2, unit: "fatia" });
+    expect(alias.identityHints.foodName).toBe("pao");
+    expect({ value: alias.quantityHints.value, unit: alias.quantityHints.unit,
+      food: alias.identityHints.foodName }).toEqual({ value: canonical.quantityHints.value,
+      unit: canonical.quantityHints.unit, food: canonical.identityHints.foodName });
+    expect(alias.normalizationPath.map(step => [step.stage, step.lexiconEntryId]))
+      .toContainEqual(["S2", 401]);
+    expect(alias.evidence).toContainEqual(expect.objectContaining({
+      field: "quantity.unit", origin: "catalog", value: "fts", unit: "fatia", verified: false,
+    }));
+    const [multiword] = await analyze("2 pçs de morango", [portion]);
+    expect(multiword.quantityHints).toMatchObject({ value: 2, unit: "porção" });
+    expect(multiword.identityHints.foodName).toBe("morango");
+  });
+
+  it("AUD1304-NEW-003 respeita escopo pessoal, revogação e colisões de unidade", async () => {
+    const global = entry({ id: 501, kind: "unit_term", normalizedTerm: "fts", targetRef: "fatia" });
+    const personal = entry({ id: 502, kind: "unit_term", normalizedTerm: "fts",
+      scope: "user", userId: 5, status: "active", source: "user_confirmed", targetRef: "copo" });
+    const [owner] = await analyze("2 fts de pão", [global, personal]);
+    const [other] = await analyze("2 fts de pão", [global, personal], { ownerUserId: 7 });
+    expect(owner.quantityHints.unit).toBe("copo");
+    expect(owner.normalizationPath[1].lexiconEntryId).toBe(502);
+    expect(other.quantityHints.unit).toBe("fatia");
+    expect(other.normalizationPath[1].lexiconEntryId).toBe(501);
+    const revoked = entry({ ...personal, id: 503, status: "revoked" });
+    const [afterRevocation] = await analyze("2 fts de pão", [revoked]);
+    expect(afterRevocation.quantityHints.unit).not.toBe("copo");
+    expect(afterRevocation.normalizationPath.some(step => step.stage === "S2")).toBe(false);
+    const [collision] = await analyze("2 fts de pão", [global, entry({
+      id: 504, kind: "unit_term", normalizedTerm: "fts", targetRef: "copo",
+    })]);
+    expect(collision.quantityHints.value).toBeNull();
+    expect(collision.quantityHints.unit).toBeNull();
+    expect(collision.unresolvedReason).toBe("unknown_surface");
+    expect(collision.alternatives.map(item => item.quantityHints.unit).sort())
+      .toEqual(["copo", "fatia"]);
+    const [unapproved] = await analyze("2 fts de pão", [entry({
+      id: 505, kind: "unit_term", normalizedTerm: "fts", targetRef: "fatia",
+      status: "pending_review",
+    })]);
+    expect(unapproved.quantityHints.unit).not.toBe("fatia");
+  });
+
 });

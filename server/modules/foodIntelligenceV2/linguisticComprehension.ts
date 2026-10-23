@@ -6,8 +6,8 @@
 import { z } from "zod";
 import { DEFAULT_FOOD_LOCALE, FOOD_CONTRACT_LIMITS } from "./contracts";
 import { foodQualifierSchema } from "./schemaShared";
-import { foldFoodSurface, readQuantity, splitFoodSurface, trimSpan } from "./linguisticSurface";
-import type { Segment, Span } from "./linguisticSurface";
+import { foldFoodSurface, readQuantity, recognizedUnit, splitFoodSurface, trimSpan } from "./linguisticSurface";
+import type { GovernedUnitAlias, Segment, Span } from "./linguisticSurface";
 export { foldFoodSurface, splitFoodSurface } from "./linguisticSurface";
 import { parseFoodObservation, type FoodObservation } from "./schemas";
 
@@ -174,6 +174,37 @@ function selectLexicon(entries: readonly GovernedLexiconEntry[], surface: string
     competing: eligible.length > 1 ? eligible : [],
   };
 }
+/** S2 may govern the *unit slot* as well as the food-name slot.
+ * The lexical snapshot is already owner-scoped, grant-filtered and revision-pinned
+ * by the repository; colliding meanings remain alternatives, not defaults.
+ */
+function governedUnitAliases(
+  entries: readonly GovernedLexiconEntry[], owner: number | null, now: Date,
+): GovernedUnitAlias[] {
+  const groups = new Map<string, GovernedLexiconEntry[]>();
+  for (const entry of entries) {
+    if ((entry.kind !== "unit_term" && entry.kind !== "portion_term") ||
+        !applicable(entry, owner, now)) continue;
+    const term = foldFoodSurface(entry.normalizedTerm);
+    if (!term || term.length > 160) continue;
+    const group = groups.get(term) ?? [];
+    group.push(entry);
+    groups.set(term, group);
+  }
+  return [...groups].map(([term, matches]) => {
+    const personal = matches.filter(item => item.scope === "user");
+    const scoped = personal.length ? personal : matches.filter(item => item.scope === "global");
+    const candidates = scoped.flatMap(item => {
+      const unit = item.targetType === "canonical_term" ? recognizedUnit(item.targetRef ?? "") : null;
+      return unit === null ? [] : [{ entryId: item.id, unit, confidence: item.confidence }];
+    });
+    const selected = scoped.length === 1 && !scoped[0].requiresClarification && candidates.length === 1
+      ? candidates[0] : null;
+    return { term, unit: selected?.unit ?? null, entryId: selected?.entryId ?? null,
+      confidence: selected?.confidence ?? null, candidates };
+  });
+}
+
 function detectQualifiers(name: string): FoodObservation["identityHints"]["qualifiers"] {
   const words = [
     { expression: /\bsem a[cç][uú]car\b/iu, role: "sweetening" },
@@ -197,7 +228,7 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
   });
 }
 
-function buildObservation(request: LinguisticRequest, segment: Segment, index: number): FoodObservation {
+function buildObservation(request: LinguisticRequest, segment: Segment, index: number, governedUnits: readonly GovernedUnitAlias[] = []): FoodObservation {
   const locale = request.locale === undefined || request.locale === null
     ? { requested: null, effective: DEFAULT_FOOD_LOCALE, status: "defaulted" as const }
     : request.locale === DEFAULT_FOOD_LOCALE
@@ -205,7 +236,7 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
       : { requested: request.locale, effective: null, status: "unsupported" as const };
   const supported = locale.status !== "unsupported";
   const foodSegment = foodOnlySpan(request.rawText, segment);
-  const quantity = supported ? readQuantity(foodSegment.text) : null;
+  const quantity = supported ? readQuantity(foodSegment.text, governedUnits) : null;
   const name = supported ? (quantity?.name ?? foodSegment.text).trim() : "";
   const observed = emptyIdentity();
   observed.foodName = name ? foldFoodSurface(name) : null;
@@ -230,14 +261,48 @@ function buildObservation(request: LinguisticRequest, segment: Segment, index: n
     origin, value: q.value, unit: q.unit, confidence: null, verified: false,
     anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
   });
+  // A lexical unit mapping must be distinguishable from the S1 grammar.
+  const unitAlias = quantity?.governedAlias;
+  if (unitAlias?.entryId !== null && unitAlias?.entryId !== undefined) {
+    evidence.push({
+      evidenceId: "ev-unit-" + unitAlias.entryId + "-" + index,
+      field: "quantity.unit", origin: "catalog", value: unitAlias.term,
+      unit: unitAlias.unit, confidence: unitAlias.confidence, verified: false,
+      anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), sourceId: null,
+    });
+  }
+  const alternatives: FoodObservation["alternatives"] = [];
+  if (unitAlias?.unit === null) {
+    for (const candidate of unitAlias.candidates) {
+      const interpreted = readQuantity(foodSegment.text, [{ ...unitAlias,
+        unit: candidate.unit, entryId: candidate.entryId, confidence: candidate.confidence,
+        candidates: [candidate] }]);
+      alternatives.push({
+        hypothesisId: "unit-" + candidate.entryId,
+        identityHints: { ...observed, foodName: foldFoodSurface(interpreted.name) },
+        quantityHints: { ...q, value: interpreted.value, unit: interpreted.unit,
+          servingText: interpreted.servingText },
+        evidenceIds: [], confidence: candidate.confidence,
+      });
+    }
+  }
+  if (alternatives.length > FOOD_CONTRACT_LIMITS.alternatives) throw new Error("linguistic-ambiguity-limit");
+  const normalizationPath: FoodObservation["normalizationPath"] = supported ? [{
+    stage: "S1", origin: "deterministic", lexiconEntryId: null,
+    anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), confidence: null,
+  }] : [];
+  if (unitAlias?.entryId !== null && unitAlias?.entryId !== undefined) {
+    normalizationPath.push({ stage: "S2", origin: "lexicon", lexiconEntryId: unitAlias.entryId,
+      anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
+      confidence: unitAlias.confidence });
+  }
   return {
     schemaVersion: 2, observationId: request.sourceRef.slice(0, 145) + ":obs:" + index,
     modality: request.modality, rawInput: request.rawText,
     normalizedInput: supported ? foldFoodSurface(name) || null : null, locale,
     surfaceSpan: originalAnchor({ start: foodSegment.start, end: foodSegment.end }),
     identityHints: observed, quantityHints: q, evidence,
-    normalizationPath: supported ? [{ stage: "S1", origin: "deterministic", lexiconEntryId: null, anchor: originalAnchor({ start: foodSegment.start, end: foodSegment.end }), confidence: null }] : [],
-    alternatives: [],
+    normalizationPath, alternatives,
     unresolvedReason: !supported ? "unsupported_locale" : "unknown_surface",
     lexiconRevision: request.lexiconRevision, interpreterVersion: null,
   };
@@ -425,9 +490,12 @@ export async function comprehendFoodLanguage(
   }
   const entries = await lexicon.load({ locale: DEFAULT_FOOD_LOCALE, ownerUserId: request.ownerUserId, revision: request.lexiconRevision, now });
   if (entries.length > 5000) throw new Error("linguistic-lexicon-limit");
+  const units = governedUnitAliases(entries, request.ownerUserId, now);
+  const parsedParts = units.length ? splitFoodSurface(request.rawText, units) : parts;
+  if (parsedParts.length > FOOD_CONTRACT_LIMITS.observations) throw new Error("linguistic-observation-limit");
   const results: FoodObservation[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    let observation = buildObservation(request, parts[i], i);
+  for (let i = 0; i < parsedParts.length; i++) {
+    let observation = buildObservation(request, parsedParts[i], i, units);
     // Governed exact aliases (including personal confirmed aliases) take
     // precedence over a lossy morphological interpretation of their surface.
     const exactChoice = selectLexicon(

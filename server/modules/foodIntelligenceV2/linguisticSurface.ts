@@ -4,6 +4,14 @@
  */
 export type Span = { start: number; end: number };
 export type Segment = Span & { text: string };
+/** Pre-authorized S2 aliases only; a null unit denotes conflicting meanings. */
+export type GovernedUnitAlias = {
+  term: string;
+  unit: string | null;
+  entryId: number | null;
+  confidence: number | null;
+  candidates: readonly { entryId: number; unit: string; confidence: number | null }[];
+};
 
 const unitMap: Readonly<Record<string, string>> = {
   g: "g", gr: "g", grama: "g", gramas: "g",
@@ -24,8 +32,8 @@ const writtenNumbers: Readonly<Record<string, number>> = {
 };
 const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
 const quantityPattern = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|meio|meia";
-const quantified = new RegExp("^(" + quantityPattern + ")\\s+(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
-const halfAfterUnit = new RegExp("^(" + quantityPattern + ")\\s+(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
+const quantified = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
+const halfAfterUnit = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
 const counted = new RegExp("^(" + quantityPattern + ")\\s+(?:de\\s+)?", "iu");
 
 export function foldFoodSurface(value: string): string {
@@ -43,11 +51,14 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-function recognizedUnit(value: string): string | null {
+export function recognizedUnit(value: string): string | null {
   return unitMap[foldFoodSurface(value)] ?? null;
 }
 
-export function readQuantity(text: string): { value: number | null; unit: string | null; name: string; servingText: string | null; uncertain: boolean } {
+export function readQuantity(text: string, governedUnits: readonly GovernedUnitAlias[] = []): {
+  value: number | null; unit: string | null; name: string;
+  servingText: string | null; uncertain: boolean; governedAlias?: GovernedUnitAlias;
+} {
   const source = text.trim();
   if (/\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
     return { value: null, unit: null, name: source, servingText: source, uncertain: true };
@@ -87,9 +98,36 @@ export function readQuantity(text: string): { value: number | null; unit: string
   // "mortadela, uma fatia e meia". Do not manufacture another food item.
   const trailing = /^(.+?),\s*(.+)$/u.exec(source);
   if (trailing) {
-    const suffix = readQuantity(trailing[2]);
+    const suffix = readQuantity(trailing[2], governedUnits);
     if (suffix.value !== null && suffix.unit !== null && !suffix.name) {
       return { ...suffix, name: trailing[1].trim() };
+    }
+  }
+  // The governed term occupies the unit slot, not the food-identity slot.
+  // Match whole words and longest aliases before the default counted "un" path.
+  // A collision cannot silently choose a unit or change the food name.
+  const countedPrefix = counted.exec(source);
+  if (countedPrefix && governedUnits.length > 0) {
+    const number = parseNumber(countedPrefix[1]);
+    const remaining = source.slice(countedPrefix[0].length);
+    const words = [...remaining.matchAll(/\S+/gu)];
+    const matching = governedUnits.filter(alias => {
+      const count = alias.term.split(/\s+/u).length;
+      return words.length >= count &&
+        foldFoodSurface(words.slice(0, count).map(match => match[0]).join(" ")) === alias.term;
+    }).sort((a, b) => b.term.length - a.term.length);
+    const alias = matching[0];
+    if (alias) {
+      if (number === null || alias.unit === null) {
+        return { value: null, unit: null, name: source, servingText: countedPrefix[0].trim(),
+          uncertain: true, governedAlias: alias };
+      }
+      const lastWord = words[alias.term.split(/\s+/u).length - 1];
+      const rest = remaining.slice((lastWord.index ?? 0) + lastWord[0].length)
+        .trim().replace(/^de\s+/iu, "");
+      return { value: number, unit: alias.unit, name: rest,
+        servingText: source.slice(0, countedPrefix[0].length + (lastWord.index ?? 0) + lastWord[0].length).trim(),
+        uncertain: false, governedAlias: alias };
     }
   }
   const simple = counted.exec(source);
@@ -108,7 +146,7 @@ export function trimSpan(text: string, start: number, end: number): Segment | nu
 }
 
 /** Segmentação por offsets UTF-16 do ORIGINAL, sem split sobre vírgula decimal. */
-export function splitFoodSurface(text: string): Segment[] {
+export function splitFoodSurface(text: string, governedUnits: readonly GovernedUnitAlias[] = []): Segment[] {
   const segments: Segment[] = [];
   let start = 0;
   const cut = (end: number, next: number) => {
@@ -126,9 +164,9 @@ export function splitFoodSurface(text: string): Segment[] {
   const coalesced: Segment[] = [];
   for (const segment of segments) {
     const previous = coalesced.at(-1);
-    const amount = readQuantity(segment.text);
+    const amount = readQuantity(segment.text, governedUnits);
     if (previous && amount.value !== null && amount.unit !== null && !amount.name &&
-        readQuantity(previous.text).value === null &&
+        readQuantity(previous.text, governedUnits).value === null &&
         /^\s*,\s*$/u.test(text.slice(previous.end, segment.start))) {
       const merged = trimSpan(text, previous.start, segment.end);
       if (merged) coalesced[coalesced.length - 1] = merged;
@@ -139,11 +177,16 @@ export function splitFoodSurface(text: string): Segment[] {
   const joined: Segment[] = [];
   for (const segment of coalesced) {
     // Do not split "fatia e meia", "um e meio" or phrases without a clear list boundary.
-    const separator = /\s+e\s+(?=(?:\d|um\b|uma\b|dois\b|duas\b|tr[eê]s\b))/giu;
+    const separator = /\s+e\s+(?=\S)/giu;
     let offset = 0;
     let match: RegExpExecArray | null;
     while ((match = separator.exec(segment.text)) !== null) {
-      if (/\b(?:fatia|fatias|unidade|unidades|um|uma)\s*$/iu.test(segment.text.slice(offset, match.index))) continue;
+      const left = segment.text.slice(offset, match.index);
+      const right = segment.text.slice(separator.lastIndex);
+      // "uma fatia e meia" and "um e meio" are grammatical quantity phrases.
+      if (/^mei[ao]\b/iu.test(right) ||
+          (/\b(?:fatia|fatias|unidade|unidades)\s*$/iu.test(left) &&
+            /^(?:meia|meio)\b/iu.test(right))) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
       if (part) joined.push(part);
       offset = separator.lastIndex;
