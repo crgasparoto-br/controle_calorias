@@ -512,8 +512,8 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
     sourceVersion: version, foodVariantSourceId: null,
     validFrom: null, validTo: null, ...nutrition(kcal),
   });
-  const portion = (version: string | null) => ({
-    status: "verified", sourceId: 7, sourceVersion: version,
+  const portion = (version: string | null, foodId = 4) => ({
+    foodId, status: "verified", sourceId: 7, sourceVersion: version,
     validFrom: null, validTo: null, grams: 30, label: "fatia",
     unit: "serving", quantity: 1,
   });
@@ -541,6 +541,32 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
       nutrition: { caloriesKcal: 100 }, portions: [{ label: "fatia", grams: 30 }],
     });
     expect(select).toHaveBeenCalledTimes(7);
+  });
+
+  it("AUD-1302-031: never returns a portion belonging to a different food family", async () => {
+    // Deliberately different family identifiers; both portions have valid
+    // source/grant revisions and plausible, different physical weights.
+    installResults(
+      [{ id: 22 }], [], [variant], [profile("v1", 100)], [licensed("v1")],
+      [portion("v1"), { ...portion("v1", 99), label: "pacote", grams: 250 }],
+      [licensed("v1")],
+    );
+    const result = await createFoodV2KnowledgeRepository().readLocal(query);
+    expect(result).toMatchObject({
+      kind: "match", foodId: 4, variantId: 22,
+      portions: [{ label: "fatia", grams: 30 }],
+    });
+    if (result.kind !== "match") throw new Error("expected governed match");
+    expect(result.portions).not.toContainEqual(expect.objectContaining({ grams: 250 }));
+  });
+
+  it("AUD-1302-031: a foreign-only serving cannot borrow an authorized variant", async () => {
+    installResults(
+      [{ id: 22 }], [], [variant], [profile("v1", 100)], [licensed("v1")],
+      [portion("v1", 99)],
+    );
+    expect(await createFoodV2KnowledgeRepository().readLocal(query))
+      .toMatchObject({ kind: "match", portions: [] });
   });
 
   it("rejects v1 macros after source/grant upgrade to v2", async () => {

@@ -334,3 +334,5 @@ A reconciliação `reconcileLegacyFoodKnowledge("preview" | "stage")` e seu plan
   técnica. Não executar staging com dados reais, importar evidências pessoais
   nem liberar publicação sem autorizações de fonte, retenção/expurgo e LGPD da
   issue #1303; sem cutover da V1 ou alteração de `mealItems` históricos.
+
+**AUD-1302-031/032/033 — integridade do vínculo B2:** a leitura V2 de porções exige que `food_portions.food_id` coincida com a família da variante selecionada, além do vínculo `food_variant_id`, estado, permissão e revisão da fonte. Na reconciliação de `foodCatalog`, a referência de evidência HTTPS precisa coincidir com o recurso exato autorizado em `food_sources.source_url`, inclusive caminho e parâmetros; credenciais, fragmentos e caminhos filhos não autorizados não conferem proveniência. No estágio de porções legadas `food_portions`, somente registros com `source_version` explícita e correspondente à revisão atestada da linha de origem podem ser vinculados; registros sem versão ou com versão divergente ficam inalterados, com caso de quarentena para revisão, sem backfill presumido ou mudança no histórico.

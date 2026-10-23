@@ -218,7 +218,7 @@ async function readCurrentProfile(
 }
 
 async function portionsFor(
-  db: V2Database, variantId: number, request: FoodKnowledgeRequest,
+  db: V2Database, variantId: number, familyId: number, request: FoodKnowledgeRequest,
   familyScope: "global" | "user" | null,
 ): Promise<GovernedFoodMatch["portions"]> {
   const rows = await db.select().from(foodPortions)
@@ -226,7 +226,11 @@ async function portionsFor(
     .limit(50);
   const result: Array<{ label: string; unit: string; quantity: number; grams: number; status: string }> = [];
   for (const portion of rows) {
-    if ((portion.status !== "verified" && portion.status !== "provisional") ||
+    // The two independent foreign keys do not guarantee that a portion's
+    // family is the family owning the selected variant. Never return a
+    // serving measure from another food, even if its variant ID matches.
+    if (portion.foodId !== familyId ||
+        (portion.status !== "verified" && portion.status !== "provisional") ||
         !currentlyValid(portion.validFrom, portion.validTo, at(request)) ||
         !portion.sourceId || !portion.sourceVersion ||
         !Number.isFinite(portion.grams) || portion.grams <= 0) continue;
@@ -372,7 +376,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
             governanceStatus: p.status === "verified" &&
               row.variant.governanceStatus === "verified" &&
               !profileResult.personalEvidence ? "verified" : "provisional",
-            portions: await portionsFor(db, id, request, row.family.scope),
+            portions: await portionsFor(db, id, row.family.id, request, row.family.scope),
           });
         }
         if (matches.length > 1) return { kind: "conflict", reason: "multiple_identities" };

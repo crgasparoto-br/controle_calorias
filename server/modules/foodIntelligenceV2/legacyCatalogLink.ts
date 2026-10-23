@@ -1,4 +1,5 @@
 import { normalizeFoodName } from "../../../scripts/import-foods/normalize_food_name";
+import { isAuthorizedSourceReference } from "./sourceGrants";
 
 export type TraceableFamily = {
   id: number; name: string; normalizedName: string; brandName: string | null;
@@ -31,17 +32,11 @@ function catalogCitesSource(raw: string, sourceUrl: string): boolean {
     const decoded: unknown = JSON.parse(raw);
     const references = Array.isArray(decoded) ? decoded :
       typeof decoded === "string" ? [decoded] : [];
-    const primary = new URL(sourceUrl);
-    if (primary.protocol !== "https:") return false;
-    const prefix = primary.pathname.endsWith("/") ? primary.pathname : primary.pathname + "/";
-    return references.some(reference => {
-      if (typeof reference !== "string") return false;
-      try {
-        const exact = new URL(reference);
-        return exact.protocol === "https:" && exact.origin === primary.origin &&
-          (exact.pathname === primary.pathname || exact.pathname.startsWith(prefix));
-      } catch { return false; }
-    });
+    // B2 grants authorize an exact resource, never an entire site or
+    // a path prefix. The canonical policy also rejects credentials and
+    // fragments, and compares the query string (source edition/SKU).
+    return references.some(reference =>
+      typeof reference === "string" && isAuthorizedSourceReference(reference, sourceUrl));
   } catch {
     return false;
   }

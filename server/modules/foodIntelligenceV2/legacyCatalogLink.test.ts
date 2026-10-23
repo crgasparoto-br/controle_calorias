@@ -17,7 +17,7 @@ const catalog = {
   gramsPerServing: 50, calories: 100, protein: 5, carbs: 15, fat: 2,
 };
 const sources = new Map([[7, { source: {
-  id: 7, slug: "reference", version: "1", sourceUrl: "https://reference.example",
+  id: 7, slug: "reference", version: "1", sourceUrl: "https://reference.example/products/ITEM-1",
 } }]]);
 describe("B2 catalog reconciliation provenance", () => {
   it("links only a unique, source-bound and nutrition-equivalent legacy family", () => {
@@ -27,6 +27,12 @@ describe("B2 catalog reconciliation provenance", () => {
   it("quarantines no source, mismatched code, URL, macros, name, brand and scope", () => {
     for (const diff of [
       { researchIdentityKey: "OTHER" }, { sourceUrls: "[]" },
+      // Exact authorization cannot drift to another edition, product or
+      // path. Embedded credentials/fragments must fail the HTTPS policy.
+      { sourceUrls: JSON.stringify(["https://reference.example/products/ITEM-1?edition=v2"]) },
+      { sourceUrls: JSON.stringify(["https://reference.example/products/ITEM-1#other-evidence"]) },
+      { sourceUrls: JSON.stringify(["https://viewer:secret@reference.example/products/ITEM-1"]) },
+      { sourceUrls: JSON.stringify(["https://reference.example/products/ITEM-1/label"]) },
       { sourceUrls: JSON.stringify(["https://reference.example.attacker.invalid/products/ITEM-1"]) },
       { sourceUrls: JSON.stringify(["http://reference.example/products/ITEM-1"]) },
       { sourceUrls: "https://reference.example/products/ITEM-1" },
@@ -36,5 +42,15 @@ describe("B2 catalog reconciliation provenance", () => {
     expect(validateLegacyCatalogProvenance(catalog, [{ ...family, scope: "user" as const }], sources)).toBeNull();
     expect(validateLegacyCatalogProvenance(catalog, [{ ...family, status: "deprecated" }], sources)).toBeNull();
     expect(validateLegacyCatalogProvenance(catalog, [{ ...family, sourceFoodCode: null }], sources)).toBeNull();
+    const editionSources = new Map([[7, { source: {
+      id: 7, slug: "reference", version: "1", sourceUrl: "https://reference.example/products/ITEM-1?edition=v1",
+    } }]]);
+    const matchingEdition = { ...catalog, sourceUrls: JSON.stringify([
+      "https://reference.example/products/ITEM-1?edition=v1",
+    ]) };
+    expect(validateLegacyCatalogProvenance(matchingEdition, [family], editionSources)?.id).toBe(42);
+    expect(validateLegacyCatalogProvenance({ ...matchingEdition,
+      sourceUrls: JSON.stringify(["https://reference.example/products/ITEM-1?edition=v2"]),
+    }, [family], editionSources)).toBeNull();
   });
 });

@@ -445,7 +445,10 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       }
       for (const portion of portionsByFood.get(original.id) ?? []) {
         if (portion.status !== "verified" && portion.status !== "provisional" ||
-            portion.sourceId !== candidate.sourceId || !Number.isFinite(portion.grams) ||
+            portion.foodId !== original.id ||
+            portion.sourceId !== candidate.sourceId ||
+            !portion.sourceVersion || portion.sourceVersion !== candidate.sourceVersion ||
+            !Number.isFinite(portion.grams) ||
             portion.grams <= 0 || portion.validTo && portion.validTo <= new Date() ||
             (portion.foodVariantId !== null && portion.foodVariantId !== variant.id)) {
           await reviewChild("legacy_portion_quarantine", String(portion.id), variant.id, "missing_compatible_portion_provenance");
@@ -455,11 +458,18 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
           .where(and(
             eq(foodPortions.id, portion.id), eq(foodPortions.foodId, original.id),
             eq(foodPortions.sourceId, candidate.sourceId),
+            eq(foodPortions.sourceVersion, candidate.sourceVersion),
+            eq(foodPortions.status, portion.status),
             portion.foodVariantId === null ? isNull(foodPortions.foodVariantId) : eq(foodPortions.foodVariantId, variant.id),
           ));
         const [linked] = await tx.select().from(foodPortions)
           .where(eq(foodPortions.id, portion.id)).limit(1);
-        if (linked?.foodVariantId !== variant.id) throw new Error("B2 portion changed during staging");
+        if (linked?.foodVariantId !== variant.id || linked.foodId !== original.id ||
+            linked.sourceId !== candidate.sourceId ||
+            linked.sourceVersion !== candidate.sourceVersion ||
+            linked.status !== portion.status) {
+          throw new Error("B2 portion provenance or family changed during staging");
+        }
       }
       if (candidate.table === "foodCatalog") {
         await stageLinkedCatalogBarcode(candidate.id, variant.id, candidate.sourceId);
