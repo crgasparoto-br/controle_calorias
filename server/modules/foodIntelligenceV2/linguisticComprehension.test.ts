@@ -574,6 +574,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
       ["2 Bananas", "banana"], ["2 BANANAS", "banana"],
       ["2 Doritos", "doritos"], ["2 DORITOS", "doritos"],
       ["2 Doritos pequenos", "doritos pequenos"],
+      ["2 DORITOS PEQUENOS", "doritos pequenos"],
+      ["2 doritos pequenos", "doritos pequenos"],
     ] as const) {
       const [obs] = await analyze(rawText);
       expect(obs.identityHints.foodName).toBe(food);

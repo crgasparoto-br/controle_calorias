@@ -149,7 +149,9 @@ function withSafeRegularAgreement(
   // A standalone -itos/-itas plural can be an unchanged commercial name,
   // even if typed in lowercase. Without a governed alias or independent
   // agreement, keep that surface instead of inventing a singular identity.
-  if (tokens.length === 1 && /^[\p{L}]{3,}it[oa]s$/u.test(tokens[0])) return observation;
+  // Guard ambiguous commercial heads regardless of the words following them.
+  // A later plural modifier must not turn "Doritos pequenos" into "dorito pequeno".
+  if (/^[\p{L}]{3,}it[oa]s$/u.test(tokens[0])) return observation;
   const inflected = tokens.map(token => {
     if (protectedWords.has(token)) return token;
     const match = /^(.{2,}[ao])s$/u.exec(token);
@@ -159,8 +161,11 @@ function withSafeRegularAgreement(
   // A single changed modifier may belong to a brand ("Doritos pequenos").
   // A changed head followed by a grammatical complement ("ovos de codorna")
   // is ordinary noun inflection even without an additional plural adjective.
+  // Prepositions are syntactic connective tokens, not an allowlist of food
+  // names or material attributes. No food-specific regex decision belongs here.
+  const linkers = new Set(["de", "do", "da", "dos", "das"]);
   const headWithComplement = inflected[0] !== tokens[0] &&
-    tokens.slice(1).some(token => /^(?:de|do|da|dos|das|com|sem)$/u.test(token));
+    tokens.slice(1).some(token => linkers.has(token));
   if (changed === 0 || (changed === 1 && tokens.length > 1 && !headWithComplement)) return observation;
   const regular = inflected.join(" ");
   return {
