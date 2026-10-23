@@ -4,8 +4,10 @@
  */
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
+import { foodSources } from "../../../drizzle/schema";
 import { getDb } from "../../db";
-import { foodLexiconEntries, userFoodLexiconEntries } from "../../../drizzle/food-intelligence-v2-schema";
+import { foodLexiconEntries, foodSourceReadGrants, userFoodLexiconEntries } from "../../../drizzle/food-intelligence-v2-schema";
+import { canPublishGlobalKnowledge } from "./sourceGrants";
 import type { GovernedLexiconEntry, LinguisticLexiconStore } from "./linguisticComprehension";
 
 type SnapshotInput = { locale: "pt-BR"; ownerUserId: number | null; now: Date };
@@ -35,7 +37,21 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
   if (global.length + personal.length > 5000) throw new Error("governed-lexicon-size-limit");
 
   const rows: GovernedLexiconEntry[] = [];
+  const sourceRevisions: Record<number, string> = {};
   for (const item of global) {
+    // Global "verified" does not override an expired/revoked source grant.
+    // Manually curated lexicon rows may have no external source.
+    if (item.sourceId !== null) {
+      const [authorization] = await db.select({
+        source: foodSources, grant: foodSourceReadGrants,
+      }).from(foodSources).innerJoin(
+        foodSourceReadGrants, eq(foodSourceReadGrants.sourceId, foodSources.id),
+      ).where(eq(foodSources.id, item.sourceId)).limit(1);
+      if (!authorization || !canPublishGlobalKnowledge(
+        authorization.grant, authorization.source.version, input.now,
+      )) continue;
+      sourceRevisions[item.id] = authorization.source.version;
+    }
     if (item.validFrom && item.validFrom > input.now ||
         item.validTo && item.validTo <= input.now) continue;
     rows.push({
@@ -66,6 +82,7 @@ export async function readGovernedLinguisticLexicon(input: SnapshotInput): Promi
   // Owner is included to prevent cross-user replay even with identical vocabulary.
   const revision = createHash("sha256").update(JSON.stringify({
     locale: input.locale, ownerUserId: input.ownerUserId,
+    sourceRevisions,
     rows: rows.map(({ id, term, normalizedTerm, kind, targetType, targetRef,
       scope, userId, source, status, confidence, requiresClarification,
       current, validFrom, validTo }) => ({
