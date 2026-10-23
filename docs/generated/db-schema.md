@@ -15,7 +15,7 @@ Fontes: `drizzle/schema.ts`, `drizzle/professional-schema.ts`, `drizzle/billing-
 | `foodSources` | `food_sources` | 11 | Baixa |
 | `foodSourceImports` | `food_source_imports` | 18 | Baixa |
 | `foods` | `foods` | 24 | Baixa |
-| `foodAliases` | `food_aliases` | 12 | Baixa |
+| `foodAliases` | `food_aliases` | 13 | Baixa |
 | `foodPortions` | `food_portions` | 21 | Baixa |
 | `foodCatalog` | `foodCatalog` | 34 | Requer atenção |
 | `foodFavorites` | `foodFavorites` | 4 | Requer atenção |

@@ -421,6 +421,9 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
       for (const alias of aliasesByFood.get(original.id) ?? []) {
         if (alias.status !== "active" || alias.governanceStatus !== "verified" ||
             alias.sourceId !== candidate.sourceId ||
+            // V1 aliases have no independently proven source revision; do not
+            // invent one from the currently approved grant while migrating.
+            alias.sourceVersion !== candidate.sourceVersion ||
             (alias.foodVariantId !== null && alias.foodVariantId !== variant.id)) {
           await reviewChild("legacy_alias_quarantine", String(alias.id), variant.id, "missing_exact_approved_alias_provenance");
           continue;
@@ -430,11 +433,15 @@ export async function reconcileLegacyFoodKnowledge(mode: FoodV2ReconciliationMod
             eq(foodAliases.id, alias.id), eq(foodAliases.foodId, original.id),
             eq(foodAliases.status, "active"), eq(foodAliases.governanceStatus, "verified"),
             eq(foodAliases.sourceId, candidate.sourceId),
+            eq(foodAliases.sourceVersion, candidate.sourceVersion),
             alias.foodVariantId === null ? isNull(foodAliases.foodVariantId) : eq(foodAliases.foodVariantId, variant.id),
           ));
         const [linked] = await tx.select().from(foodAliases)
           .where(eq(foodAliases.id, alias.id)).limit(1);
-        if (linked?.foodVariantId !== variant.id) throw new Error("B2 alias changed during staging");
+        if (linked?.foodVariantId !== variant.id || linked.foodId !== original.id ||
+            linked.sourceId !== candidate.sourceId || linked.sourceVersion !== candidate.sourceVersion) {
+          throw new Error("B2 alias provenance or family changed during staging");
+        }
       }
       for (const portion of portionsByFood.get(original.id) ?? []) {
         if (portion.status !== "verified" && portion.status !== "provisional" ||

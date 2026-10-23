@@ -51,3 +51,7 @@ CREATE TABLE IF NOT EXISTS food_personal_reconciliation_quarantine (
 ALTER TABLE food_nutrition_profiles ADD COLUMN source_version VARCHAR(80) NULL;
 --> statement-breakpoint
 ALTER TABLE food_portions ADD COLUMN source_version VARCHAR(80) NULL;
+--> statement-breakpoint
+-- AUD-1302-027/028: legacy aliases cannot be used globally without explicit
+-- revision provenance and matching family/variant identity.
+ALTER TABLE food_aliases ADD COLUMN source_version VARCHAR(80) NULL;

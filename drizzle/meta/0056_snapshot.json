@@ -381,6 +381,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "source_version": {
+          "name": "source_version",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",

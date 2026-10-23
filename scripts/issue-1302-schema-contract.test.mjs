@@ -56,12 +56,12 @@ test("AUD-1302-026: profile/portion revision is persisted but never invented", (
   assert.match(migration, /ALTER TABLE food_portions ADD COLUMN source_version VARCHAR\(80\) NULL/);
   assert.match(schema, /sourceVersion: varchar\("source_version", \{ length: 80 \}\)/);
   assert.match(legacySchema, /sourceVersion: varchar\("source_version", \{ length: 80 \}\)/);
-  for (const table of ["food_nutrition_profiles", "food_portions"]) {
+  for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
     assert.deepEqual(snapshot.tables[table].columns.source_version, {
       name: "source_version", type: "varchar(80)", primaryKey: false,
       notNull: false, autoincrement: false,
     });
     assert.match(rollback, new RegExp("ALTER TABLE " + table + " DROP COLUMN source_version"));
   }
-  assert.doesNotMatch(migration, /UPDATE\s+(?:food_nutrition_profiles|food_portions)\s+SET\s+source_version/i);
+  assert.doesNotMatch(migration, /UPDATE\s+(?:food_nutrition_profiles|food_portions|food_aliases)\s+SET\s+source_version/i);
 });

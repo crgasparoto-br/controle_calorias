@@ -125,7 +125,9 @@ async function barcodeNameIsCompatible(
   )).limit(MAX_CANDIDATES + 1);
   if (aliases.length > MAX_CANDIDATES) return false;
   for (const alias of aliases) {
-    if (alias.sourceId && await readApprovedSource(db, alias.sourceId, at(request), true)) return true;
+    if (alias.foodId !== row.family.id || !alias.sourceVersion || !alias.sourceId) continue;
+    const approval = await readApprovedSource(db, alias.sourceId, at(request), true);
+    if (approval?.source.version === alias.sourceVersion) return true;
   }
   return false;
 }
@@ -248,7 +250,7 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
       if (!db) throw new Error("Governed Food V2 database unavailable");
 
       const name = request.normalizedName.trim();
-      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null }> = [];
+      const groups: Array<{ match: MatchType; ids: number[]; identitySourceId?: number; barcodeEvidenceOwnerUserId?: number | null; aliasFamilyIds?: Map<number, number> }> = [];
       if (request.barcode?.trim()) {
         const barcodeRows = await db.select().from(foodBarcodes)
           .where(eq(foodBarcodes.barcode, request.barcode.trim())).limit(MAX_CANDIDATES + 1);
@@ -301,13 +303,18 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
           .where(and(eq(foodAliases.normalizedAlias, name), eq(foodAliases.status, "active")))
           .limit(MAX_CANDIDATES + 1);
         const licensedGlobalIds: number[] = [];
+        const aliasFamilyIds = new Map<number, number>();
         for (const alias of global) {
-          if (alias.foodVariantId && alias.governanceStatus === "verified" && alias.sourceId &&
-              await readApprovedSource(db, alias.sourceId, at(request), true)) {
-            licensedGlobalIds.push(alias.foodVariantId);
-          }
+          if (!alias.foodVariantId || alias.governanceStatus !== "verified" ||
+              !alias.sourceId || !alias.sourceVersion) continue;
+          // A current grant cannot silently re-approve an alias asserted by an
+          // older source revision. Unversioned V1 aliases remain ineligible.
+          const approval = await readApprovedSource(db, alias.sourceId, at(request), true);
+          if (approval?.source.version !== alias.sourceVersion) continue;
+          licensedGlobalIds.push(alias.foodVariantId);
+          aliasFamilyIds.set(alias.foodVariantId, alias.foodId);
         }
-        groups.push({ match: "global_alias", ids: licensedGlobalIds });
+        groups.push({ match: "global_alias", ids: licensedGlobalIds, aliasFamilyIds });
         if (!request.brand?.trim()) {
           const familyRows = await db.select({ id: foodVariants.id }).from(foodVariants)
             .innerJoin(foods, eq(foods.id, foodVariants.foodId))
@@ -326,6 +333,9 @@ export function createFoodV2KnowledgeRepository(): FoodKnowledgeStore {
         for (const id of new Set(group.ids)) {
           const row = await eligibleVariant(db, id, request, group.match);
           if (!row) continue;
+          // food_aliases retains a V1 food_id as well as the V2 variant FK.
+          // Reject a mismatched family instead of borrowing another food's macros.
+          if (group.match === "global_alias" && group.aliasFamilyIds?.get(id) !== row.family.id) continue;
           // A globally shared barcode cannot derive its identity from private
           // user evidence, even when its source is licensed for publication.
           // Private variants may continue to use their own owner-bound proof.

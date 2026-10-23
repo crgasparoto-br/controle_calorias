@@ -292,6 +292,35 @@ describe("AUD-1302-015: barcode and explicit name must agree", () => {
     expect(select).toHaveBeenCalledTimes(6);
   });
 
+  it("AUD-1302-027/028: a global alias cannot certify a conflicting barcode name", async () => {
+    const globallyVisible = {
+      ...variantRow, family: { ...variantRow.family, scope: "global", ownerUserId: null },
+    };
+    const barcodeRequest = { ...request, normalizedName: "feijao preto" };
+    const read = (linkedFamily: number, aliasVersion: string, currentVersion: string) => {
+      const pages: unknown[][] = [
+        [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],
+        [{ source, grant }], [proof], [barcodeMapping], [globallyVisible],
+        [], // No user-confirmed alias for the contradictory text.
+        [{ foodId: linkedFamily, foodVariantId: 22, sourceId: 7,
+          sourceVersion: aliasVersion, status: "active", governanceStatus: "verified" }],
+      ];
+      // Wrong family short-circuits without even trusting a grant.
+      if (linkedFamily === globallyVisible.family.id) pages.push([{
+        source: { ...source, version: currentVersion },
+        grant: { ...grant, sourceVersion: currentVersion },
+      }]);
+      return installResults(...pages);
+    };
+    read(99, "v1", "v1");
+    expect(await createFoodV2KnowledgeRepository().readLocal(barcodeRequest))
+      .toEqual({ kind: "conflict", reason: "multiple_identities" });
+    const stale = read(variantRow.family.id, "v1", "v2");
+    expect(await createFoodV2KnowledgeRepository().readLocal(barcodeRequest))
+      .toEqual({ kind: "conflict", reason: "multiple_identities" });
+    expect(stale).toHaveBeenCalledTimes(8); // No nutrition after alias revision denial.
+  });
+
   it("accepts a separately confirmed personal alias for the same barcode variant", async () => {
     const select = installResults(
       [{ foodVariantId: 22, status: "active", sourceId: 7, evidenceId: 17 }],

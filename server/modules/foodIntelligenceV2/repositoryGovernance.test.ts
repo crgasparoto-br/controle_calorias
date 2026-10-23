@@ -235,7 +235,7 @@ describe("B2 actual repository governed read", () => {
   it("does not publish a global alias licensed only for source reading", async () => {
     installResults(
       [], // no exact variant
-      [{ foodVariantId: 22, governanceStatus: "verified", sourceId: 7 }],
+      [{ foodId: 4, foodVariantId: 22, governanceStatus: "verified", sourceId: 7, sourceVersion: "v1" }],
       [{ source, grant: { ...grant, allowGlobalPublication: 0 } }],
       [], // no generic family
     );
@@ -583,5 +583,57 @@ describe("AUD-1302-026: governed profile and portion revisions", () => {
         grant: { ...grant, sourceVersion: "v2", status: "revoked", revokedAt: now } }]);
     expect(await createFoodV2KnowledgeRepository().readLocal(query))
       .toEqual({ kind: "miss", reason: "not_found" });
+  });
+});
+
+
+describe("AUD-1302-027/028: global alias family and exact source revision", () => {
+  const publicRequest = { ...request, userId: null, normalizedName: "feijao preto" };
+  const profile = {
+    id: 71, currentSlot: 1, status: "verified", sourceId: 7,
+    sourceVersion: "v1", foodVariantSourceId: null, validFrom: null, validTo: null,
+    caloriesKcal: 132, proteinG: 9, carbG: 23, fatG: 0.5,
+    basisQuantity: 100, basisUnit: "g",
+  };
+  const alias = { id: 81, foodId: 4, foodVariantId: 22,
+    governanceStatus: "verified", sourceId: 7, sourceVersion: "v1" };
+  const approved = (version = "v1") => ({
+    source: { ...source, version }, grant: { ...grant, sourceVersion: version },
+  });
+  const variant = (familyId: number) => ({
+    variant: { id: 22, foodId: familyId, variantType: "generic", status: "active",
+      governanceStatus: "verified", displayName: "Feijao preto", normalizedName: "feijao preto" },
+    family: { id: familyId, scope: "global", ownerUserId: null, status: "active" },
+    brand: null,
+  });
+
+  it("rejects alias family mismatch before reading nutrients from a different food", async () => {
+    // Alias points at food 4, but variant 22 really belongs to food 99.
+    const query = installResults([], [alias], [approved()], [], [variant(99)]);
+    expect(await createFoodV2KnowledgeRepository().readLocal(publicRequest))
+      .toEqual({ kind: "miss", reason: "not_found" });
+    expect(query).toHaveBeenCalledTimes(5); // No profile lookup for food 99.
+  });
+
+  it("accepts an explicitly versioned alias whose family and nutritional source agree", async () => {
+    installResults([], [alias], [approved()], [], [variant(4)], [profile], [approved()], []);
+    expect(await createFoodV2KnowledgeRepository().readLocal(publicRequest)).toMatchObject({
+      kind: "match", matchingEvidence: "global_alias", foodId: 4,
+      variantId: 22, nutrition: { caloriesKcal: 132 }, sourceVersion: "v1",
+    });
+  });
+
+  it("denies an alias approved in v1 after its source changes to v2", async () => {
+    const query = installResults([], [alias], [approved("v2")], []);
+    expect(await createFoodV2KnowledgeRepository().readLocal(publicRequest))
+      .toEqual({ kind: "miss", reason: "not_found" });
+    expect(query).toHaveBeenCalledTimes(4); // No stale v1 variant/profile selection.
+  });
+
+  it("fails closed for an unversioned legacy alias instead of guessing latest approval", async () => {
+    const query = installResults([], [{ ...alias, sourceVersion: null }], []);
+    expect(await createFoodV2KnowledgeRepository().readLocal(publicRequest))
+      .toEqual({ kind: "miss", reason: "not_found" });
+    expect(query).toHaveBeenCalledTimes(3); // No source, variant or profile was read.
   });
 });

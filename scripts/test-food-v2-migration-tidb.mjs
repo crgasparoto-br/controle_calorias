@@ -305,9 +305,9 @@ try {
   await assertLegacy(fixture, true);
   await assertRequiredReadIndexes();
   const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
-  assert.equal(b2ForwardStatements, 5);
+  assert.equal(b2ForwardStatements, 6);
   // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
-  for (const table of ["food_nutrition_profiles", "food_portions"]) {
+  for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
     const [column] = await queryRows(
       "SELECT COLUMN_NAME AS column_name, IS_NULLABLE AS nullable, DATA_TYPE AS data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='source_version'",
       [table]
@@ -315,6 +315,15 @@ try {
     assert.equal(column?.nullable, "YES", table + " must allow unproven legacy revision");
     assert.equal(column?.data_type, "varchar");
   }
+  const [aliasFamily] = await connection.query(
+    "INSERT INTO food_aliases (food_id, alias, normalized_alias, source_id) VALUES (?, 'Pão legado', 'pao legado', ?)",
+    [fixture.foodId, fixture.sourceId],
+  );
+  const [unprovenAlias] = await queryRows(
+    "SELECT source_version, food_id FROM food_aliases WHERE id=?", [aliasFamily.insertId],
+  );
+  assert.equal(unprovenAlias.source_version, null, "V1 alias revision must not be guessed");
+  assert.equal(Number(unprovenAlias.food_id), fixture.foodId);
   // AUD-1302-020: test physical private ledger lifecycle on disposable TiDB.
   const [scopeCheck] = await queryRows("SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine");
   assert.equal(Number(scopeCheck.c), 0);
@@ -356,7 +365,7 @@ try {
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
     const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
-    assert.equal(b2Reversed, 5);
+    assert.equal(b2Reversed, 6);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
     const [stillThere] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
     assert.equal(Number(stillThere.c), 0);

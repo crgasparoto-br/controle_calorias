@@ -1,3 +1,6 @@
+-- B2 rollback never rewrites alias content or historical meal snapshots.
+ALTER TABLE food_aliases DROP COLUMN source_version;
+--> statement-breakpoint
 -- AUD-1302-026: rollback metadata without rewriting V1 or historical meals.
 ALTER TABLE food_portions DROP COLUMN source_version;
 --> statement-breakpoint
