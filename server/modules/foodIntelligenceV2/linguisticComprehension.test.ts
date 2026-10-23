@@ -242,6 +242,19 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(obs.interpreterVersion).toBe("s3-v1");
   });
 
+  it("transcrição incerta preserva o texto e oferece correções apenas como hipóteses", async () => {
+    const text = "banco";
+    const [observed] = await analyze(text, [entry({
+      id: 92, term: "banco", normalizedTerm: "banco",
+      kind: "typo", targetRef: "Panco",
+    })], { modality: "audio_transcript" });
+    expect(observed.modality).toBe("audio_transcript");
+    expect(observed.rawInput).toBe(text);
+    expect(observed.evidence[0].origin).toBe("transcription");
+    expect(observed.identityHints.foodName).toBe("banco");
+    expect(observed.alternatives[0].identityHints.foodName).toBe("panco");
+  });
+
   it("payload de S3 inválido nunca autoriza outra identidade ou macros", async () => {
     const [obs] = await comprehendFoodLanguage({
       ...base, rawText: "banco", shouldInterpretResidual: () => true, interpreterVersion: "s3-v1",
@@ -250,6 +263,8 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(obs.normalizationPath.map(s => s.stage)).toEqual(["S1", "S2"]);
     expect(obs.interpreterVersion).toBeNull();
     expect(obs.identityHints.foodName).toBe("banco");
+    expect(obs.unresolvedReason).toBe("provider_unavailable");
+    expect(obs.evidence.some(e => e.origin === "unavailable" && e.value === null)).toBe(true);
   });
 
   it("falha de leitura governada falha explicitamente, sem silenciosamente ignorar memória", async () => {
