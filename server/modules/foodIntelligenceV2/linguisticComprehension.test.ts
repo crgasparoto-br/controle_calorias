@@ -110,6 +110,33 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(a.evidence.every(value => !value.verified)).toBe(true);
   });
 
+  it("não transforma ingredientes e linhas de rótulo OCR em alimentos separados", async () => {
+    const load = vi.fn(async () => []);
+    const interpreter = vi.fn(async () => ({ alternatives: [] }));
+    const input = "Ingredientes: arroz; milho, açúcar\nAlergênicos: leite";
+    const [obs] = await comprehendFoodLanguage({
+      ...base, rawText: input, modality: "image",
+      imageRegionRole: "ingredients", imageRegion: { x: 0.1, y: 0.2, width: 0.5, height: 0.3 },
+      shouldInterpretResidual: () => true, interpreterVersion: "s3-v1",
+    }, { load }, interpreter);
+    expect(obs.identityHints.foodName).toBeNull();
+    expect(obs.quantityHints.value).toBeNull();
+    expect(obs.evidence).toHaveLength(1);
+    expect(obs.evidence[0].value).toBe(input);
+    expect(obs.surfaceSpan.region).toEqual({ x: 0.1, y: 0.2, width: 0.5, height: 0.3 });
+    expect(obs.unresolvedReason).toBe("unknown_surface");
+    expect(load).not.toHaveBeenCalled();
+    expect(interpreter).not.toHaveBeenCalled();
+  });
+
+  it("OCR sem região classificada não vira identidade por fallback", async () => {
+    const [obs] = await comprehendFoodLanguage({
+      ...base, rawText: "1 porção de pão", modality: "image",
+    }, store());
+    expect(obs.identityHints.foodName).toBeNull();
+    expect(obs.evidence[0].origin).toBe("ocr");
+  });
+
   it("marca locale diferente de pt-BR sem consultar léxico nem IA", async () => {
     const load = vi.fn(async () => []);
     const interpreter = vi.fn(async () => ({ alternatives: [] }));
