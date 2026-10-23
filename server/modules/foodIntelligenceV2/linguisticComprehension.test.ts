@@ -285,7 +285,7 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect((await analyze("mortadela, duas bananas"))).toHaveLength(2);
     const [first, second] = await analyze("mortadela, duas bananas");
     expect(first.identityHints.foodName).toBe("mortadela");
-    expect(second.identityHints.foodName).toBe("bananas");
+    expect(second.identityHints.foodName).toBe("banana");
     expect(second.quantityHints.value).toBe(2);
   });
 
@@ -366,4 +366,61 @@ describe("Camada de Compreensão Linguística #1304", () => {
     await expect(comprehendFoodLanguage({ ...base, rawText: "x".repeat(20001) }, { load })).rejects.toThrow("invalid-linguistic-input");
     expect(load).not.toHaveBeenCalled();
   });
+  it("AUD1304 A-004 conserva lactose explícita diante de alias conflitante", async () => {
+    const [without] = await analyze("leite sem lactose", [entry({
+      id: 600, normalizedTerm: "leite sem lactose", targetRef: "leite com lactose",
+    })]);
+    expect(without.identityHints.foodName).toBe("leite sem lactose");
+    expect(without.identityHints.qualifiers).toContainEqual(expect.objectContaining({
+      value: "sem lactose", role: "lactose",
+    }));
+    expect(without.alternatives).toHaveLength(1);
+    const [withLactose] = await analyze("leite com lactose", [entry({
+      id: 601, normalizedTerm: "leite com lactose", targetRef: "leite sem lactose",
+    })]);
+    expect(withLactose.identityHints.foodName).toBe("leite com lactose");
+    expect(withLactose.alternatives).toHaveLength(1);
+  });
+
+  it("AUD1304 A-005 bloqueia contradição no foodName sem qualifiers estruturados", async () => {
+    const payload = (foodName: string) => ({ alternatives: [{ foodName, confidence: 0.8 }] });
+    const req = { ...base, rawText: "café sem açúcar", shouldInterpretResidual: () => true, interpreterVersion: "s3-v2" };
+    const [bad] = await comprehendFoodLanguage(req, store(), async () => payload("café com açúcar"));
+    expect(bad.identityHints.foodName).toBe("cafe sem acucar");
+    expect(bad.alternatives).toHaveLength(0);
+    expect(bad.unresolvedReason).toBe("provider_unavailable");
+    const [good] = await comprehendFoodLanguage(req, store(), async () => payload("café sem açúcar"));
+    expect(good.alternatives).toHaveLength(1);
+  });
+
+  it("AUD1304 A-006 plural simples converge sem reinterpretar marca capitalizada", async () => {
+    const [plural] = await analyze("2 bananas");
+    const [singular] = await analyze("duas banana");
+    expect(plural.identityHints.foodName).toBe("banana");
+    expect(singular.identityHints.foodName).toBe("banana");
+    const [brand] = await analyze("2 Doritos pequenos");
+    expect(brand.identityHints.foodName).toBe("doritos pequenos");
+    const [unknownBrand] = await analyze("2 Doritos");
+    expect(unknownBrand.identityHints.foodName).toBe("doritos");
+    const [eggs] = await analyze("2 ovos cozidos");
+    expect(eggs.identityHints.foodName).toBe("ovo cozido");
+  });
+
+  it("AUD1304 A-007 extrai destino operacional sem contaminar identidade", async () => {
+    for (const rawText of [
+      "Adicionar 2 ovos ao almoço",
+      "2 ovos ao almoço",
+      "No almoço comi 2 ovos",
+      "Comi 2 ovos no almoço",
+      "Registrar 2 ovos para o almoço",
+    ]) {
+      const [obs] = await analyze(rawText);
+      expect(obs.identityHints.foodName).toBe("ovo");
+      expect(obs.quantityHints).toMatchObject({ value: 2, unit: "un" });
+      const span = obs.surfaceSpan.span!;
+      expect(rawText.slice(span.start, span.end)).toBe("2 ovos");
+      expect("mealOperation" in obs).toBe(false);
+    }
+  });
+
 });

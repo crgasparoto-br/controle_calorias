@@ -49,6 +49,18 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
   identidade selecionada nem invertem qualificador explícito. S3 permanece
   inativo por padrão até a política calibrada de #1306.
 
+## Remediação AUD1304 A-004–A-007
+
+- S2 preserva as polaridades explícitas de lactose, glúten, sal, gordura e cafeína,
+  além do açúcar: alias que altera atributo material gera hipótese.
+- S3 confronta o nome sugerido e os qualificadores estruturados com a superfície
+  observada; uma contradição degrada explicitamente a interpretação residual.
+- S1 harmoniza plurais regulares isolados em minúsculas, sem reescrever
+  nomes capitalizados que podem indicar marcas. Identidade comercial incerta
+  continua no léxico governado e no resolvedor posterior.
+- Enquadramento de refeição, inclusive destino ao fim sem verbo inicial, não
+  integra o nome alimentar. O parser canônico continua único dono de MealOperation.
+
 ## Gates
 
 ~~~bash

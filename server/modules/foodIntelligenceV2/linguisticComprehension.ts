@@ -79,13 +79,21 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   let start = segment.start;
   let end = segment.end;
   let value = segment.text;
-  const prefix = /^(?:adicionar\s+(?:(?:ao|no|na)\s+(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s+)?|(?:no|na)\s+(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s+(?:comi|consumi)\s+)/iu.exec(value);
+  const meal = "(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)";
+  const prefix = new RegExp(
+    "^(?:(?:adicionar|registrar|anotar|comi|consumi)\\s+(?:(?:ao|no|na)\\s+" +
+      meal + "\\s+)?|(?:no|na)\\s+" + meal + "\\s+(?:comi|consumi)\\s+)", "iu",
+  ).exec(value);
   if (prefix) {
     start += prefix[0].length;
     value = full.slice(start, end);
-    const suffix = /\s+(?:(?:ao|no|na)\s+|para\s+(?:o|a)\s+)(?:café da manhã|cafe da manha|almoço|almoco|jantar|lanche)\s*$/iu.exec(value);
-    if (suffix) end -= suffix[0].length;
   }
+  // Meal framing may be trailing without an initial command.
+  // Its semantic operation belongs exclusively to the canonical parser.
+  const suffix = new RegExp(
+    "\\s+(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "\\s*$", "iu",
+  ).exec(value);
+  if (suffix && suffix.index > 0) end -= suffix[0].length;
   return trimSpan(full, start, end) ?? segment;
 }
 
@@ -119,6 +127,12 @@ function withSafeRegularAgreement(
   const original = observation.identityHints.foodName;
   if (!original || observation.quantityHints.value === null ||
       observation.quantityHints.value <= 1) return observation;
+  // Preserve unknown proper-looking commercial names before plural inflection.
+  const span = observation.surfaceSpan.span;
+  const rawSurface = span && observation.rawInput
+    ? observation.rawInput.slice(span.start, span.end) : "";
+  const rawName = readQuantity(rawSurface).name;
+  if (/(?:^|\s)\p{Lu}/u.test(rawName)) return observation;
   const protectedTerms = entries.filter(entry =>
     entry.kind === "protected_token" && applicable(entry, owner, now))
     .map(entry => foldFoodSurface(entry.normalizedTerm));
@@ -132,7 +146,8 @@ function withSafeRegularAgreement(
   const changed = inflected.filter((token, index) => token !== tokens[index]).length;
   // A single unknown -os/-as token can be a brand (e.g. Doritos), not a
   // common noun. Do not rewrite its identity without agreement evidence.
-  if (changed < 2) return observation;
+  // A single lowercase regular plural has no second agreement token.
+  if (changed === 0 || (changed === 1 && tokens.length > 1)) return observation;
   const regular = inflected.join(" ");
   return {
     ...observation, normalizedInput: regular,
@@ -163,6 +178,11 @@ function detectQualifiers(name: string): FoodObservation["identityHints"]["quali
   const words = [
     { expression: /\bsem a[cç][uú]car\b/iu, role: "sweetening" },
     { expression: /\bcom a[cç][uú]car\b/iu, role: "sweetening" },
+    { expression: /\b(?:sem|com)\s+lactose\b/iu, role: "lactose" },
+    { expression: /\b(?:sem|com)\s+gl[uú]ten\b/iu, role: "gluten" },
+    { expression: /\b(?:sem|com)\s+sal\b/iu, role: "sodium" },
+    { expression: /\b(?:sem|com)\s+gordura\b/iu, role: "fat_level" },
+    { expression: /\b(?:sem|com)\s+cafe[ií]na\b/iu, role: "caffeine" },
     { expression: /\bzero\b/iu, role: "sweetening" },
     { expression: /\blight\b/iu, role: "processing" },
     { expression: /\bdiet\b/iu, role: "processing" },
@@ -274,12 +294,19 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
   for (let i = 0; i < hypotheses.length; i++) {
     const proposed = hypotheses[i];
     const existing = observation.identityHints;
-    // Explicit material qualifiers are evidence, not proposals the provider may invert.
-    for (const qualifier of proposed.qualifiers ?? []) {
+    // A proposal may hide contradictory assertions in foodName while omitting
+    // qualifiers. Check both sources and reject internal polarity conflicts.
+    const proposedQualifiers = [...detectQualifiers(proposed.foodName), ...(proposed.qualifiers ?? [])];
+    for (const qualifier of proposedQualifiers) {
       if (qualifier.role !== null && existing.qualifiers.some(explicit =>
         explicit.role === qualifier.role &&
         foldFoodSurface(explicit.value) !== foldFoodSurface(qualifier.value))) {
         throw new Error("contradictory-linguistic-interpreter-qualifier");
+      }
+      if (qualifier.role !== null && proposedQualifiers.some(other =>
+        other !== qualifier && other.role === qualifier.role &&
+        foldFoodSurface(other.value) !== foldFoodSurface(qualifier.value))) {
+        throw new Error("internally-contradictory-linguistic-interpreter-qualifier");
       }
     }
     if (proposed.preparation?.length && existing.qualifiers.some(q =>
