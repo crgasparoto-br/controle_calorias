@@ -156,10 +156,12 @@ function withSafeRegularAgreement(
     return match ? match[1] : token;
   });
   const changed = inflected.filter((token, index) => token !== tokens[index]).length;
-  // A single unknown -os/-as token can be a brand (e.g. Doritos), not a
-  // common noun. Do not rewrite its identity without agreement evidence.
-  // A single lowercase regular plural has no second agreement token.
-  if (changed === 0 || (changed === 1 && tokens.length > 1)) return observation;
+  // A single changed modifier may belong to a brand ("Doritos pequenos").
+  // A changed head followed by a grammatical complement ("ovos de codorna")
+  // is ordinary noun inflection even without an additional plural adjective.
+  const headWithComplement = inflected[0] !== tokens[0] &&
+    tokens.slice(1).some(token => /^(?:de|do|da|dos|das|com|sem)$/u.test(token));
+  if (changed === 0 || (changed === 1 && tokens.length > 1 && !headWithComplement)) return observation;
   const regular = inflected.join(" ");
   return {
     ...observation, normalizedInput: regular,

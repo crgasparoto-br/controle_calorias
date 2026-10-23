@@ -566,7 +566,11 @@ describe("Camada de Compreensão Linguística #1304", () => {
   it("AUD1304 A-010 converges regular plurals across case and preserves guarded brands", async () => {
     for (const [rawText, food] of [
       ["2 ovos cozidos", "ovo cozido"], ["2 OVOS COZIDOS", "ovo cozido"],
-      ["2 Ovos Cozidos", "ovo cozido"], ["2 bananas", "banana"],
+      ["2 Ovos Cozidos", "ovo cozido"],
+      ["2 ovos de codorna", "ovo de codorna"],
+      ["2 OVOS DE CODORNA", "ovo de codorna"],
+      ["2 ovo de codorna", "ovo de codorna"],
+      ["2 bananas", "banana"],
       ["2 Bananas", "banana"], ["2 BANANAS", "banana"],
       ["2 Doritos", "doritos"], ["2 DORITOS", "doritos"],
       ["2 Doritos pequenos", "doritos pequenos"],
