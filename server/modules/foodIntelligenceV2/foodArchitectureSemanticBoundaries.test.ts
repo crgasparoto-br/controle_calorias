@@ -111,6 +111,22 @@ describe("AUD1304 canonical linguistic grammar architecture boundary", () => {
     }
   });
 
+  it("allows only the exact canonical numeric grammar, never nutrition disguised as numerals", () => {
+    const source = readFileSync(surfaceFile, "utf8");
+    for (const [needle, replacement, symbol] of [
+      ["onze: 11", "onze: 120", "writtenNumbers:numeric-food-map"],
+      ['"½": 0.5', '"½": 90', "vulgar:numeric-food-map"],
+      ['"¾": 0.75', '"pao": 140', "vulgar:numeric-food-map"],
+    ] as const) {
+      expect(source).toContain(needle);
+      const findings = findFoodStaticCandidates([{
+        path: surfaceFile, content: source.replace(needle, replacement),
+      }]);
+      expect(findings.some(f => (f.ruleId === "5" || f.ruleId === "17") &&
+        f.symbol === symbol)).toBe(true);
+    }
+  });
+
   it("does not allow the extracted surface owner to hide food-specific nutrition maps", () => {
     const source = readFileSync(surfaceFile, "utf8");
     const infected = source + '\nexport const FOOD_NUTRITION_BY_NAME = { arroz: 120, feijao: 80 };\n'
