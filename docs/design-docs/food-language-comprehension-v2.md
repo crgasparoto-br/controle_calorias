@@ -86,6 +86,15 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
 A entrega mantém S3 desabilitado por padrão, sem cutover, seleção nutricional
 ou novo parser de operação.
 
+## Remediação AUD1304 A-013–A-016
+
+- **A-013 — conjunção de qualificadores:** `e sem/com/zero <atributo>` e atributos de preparo já reconhecidos não geram observação alimentar adicional. Uma conjunção com segundo alimento independente continua separando itens; offsets UTF-16 e a evidência original são preservados.
+- **A-014 — destino separado por vírgula:** `No almoço, 2 ovos` ou `2 ovos, no almoço` preserva apenas o span alimentar quando existe quantidade e nome interpretáveis. Sem alimento inequívoco, nenhuma superfície é descartada e `MealOperation` continua exclusiva do parser canônico.
+- **A-015 — plural com modificador invariável:** uma cabeça regular plural com modificador invariável pode convergir (`bananas prata` → `banana prata`), sem reescrever tokens protegidos ou candidatos comerciais ambíguos.
+- **A-016 — fração após o alimento:** `dois ovos e meio` e `duas fatias de pão e meia` representam 2,5 unidades da mesma medida. `2 ovos e meio copo de leite` permanece uma lista de dois alimentos, sem inferir densidade ou macros.
+
+Os quatro controles foram acrescentados à suíte linguística existente com casos positivos, negativos, rastreabilidade e proteção comercial; não há cutover de produção nem alteração de política S3 ou thresholds.
+
 ## Gates
 
 ~~~bash

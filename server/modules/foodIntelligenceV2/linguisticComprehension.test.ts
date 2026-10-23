@@ -651,4 +651,97 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(bad.alternatives).toHaveLength(0);
   });
 
+
+
+  it("AUD1304 A-013 conserva qualificadores ligados por 'e' sem criar alimento fantasma", async () => {
+    for (const [text, roles] of [
+      ["2 pães sem açúcar e sem glúten", ["sweetening", "gluten"]],
+      ["iogurte zero lactose e sem açúcar", ["sweetening", "lactose"]],
+      ["2 bolos fritos e cozidos", ["preparation", "preparation"]],
+    ] as const) {
+      const items = await analyze(text);
+      expect(items).toHaveLength(1);
+      const [obs] = items;
+      expect(obs.identityHints.qualifiers.map(q => q.role).sort()).toEqual([...roles].sort());
+      expect(obs.rawInput).toBe(text);
+      const span = obs.surfaceSpan.span!;
+      expect(text.slice(span.start, span.end)).toBe(text);
+      expect(obs.evidence[0].anchor.span).toEqual(span);
+    }
+    // The same conjunction must still separate two identifiable foods.
+    for (const text of ["2 pães sem açúcar e 1 banana", "2 ovos e banana", "arroz e feijão"]) {
+      expect(await analyze(text)).toHaveLength(2);
+    }
+  });
+
+  it("AUD1304 A-014 remove enquadramento separado por vírgula apenas com alimento inequívoco", async () => {
+    for (const [text, expectedText, expectedAmount] of [
+      ["No almoço, 2 ovos", "2 ovos", 2],
+      ["No café da manhã, uma banana", "uma banana", 1],
+      ["2 ovos, no almoço", "2 ovos", 2],
+      ["2 ovos, para o jantar", "2 ovos", 2],
+    ] as const) {
+      const observations = await analyze(text);
+      expect(observations).toHaveLength(1);
+      const [obs] = observations;
+      expect(obs.quantityHints.value).toBe(expectedAmount);
+      expect(text.slice(obs.surfaceSpan.span!.start, obs.surfaceSpan.span!.end)).toBe(expectedText);
+      expect(obs.rawInput).toBe(text);
+      expect("mealOperation" in obs).toBe(false);
+    }
+    // Without a quantity-led food, uncertain surface must not vanish silently.
+    const unclassified = await analyze("No almoço, queijo");
+    expect(unclassified.map(item => item.identityHints.foodName)).toContain("no almoco");
+    const twoFoods = await analyze("No almoço, 2 ovos e banana");
+    expect(twoFoods.map(item => item.identityHints.foodName)).toEqual(["ovo", "banana"]);
+  });
+
+  it("AUD1304 A-015 converge plurais regulares com modificador invariável, protegendo marca", async () => {
+    for (const [plural, singular, expected] of [
+      ["2 bananas prata", "2 banana prata", "banana prata"],
+      ["2 maçãs fuji", "2 maçã fuji", "maca fuji"],
+    ] as const) {
+      const [a] = await analyze(plural);
+      const [b] = await analyze(singular);
+      expect(a.identityHints.foodName).toBe(expected);
+      expect(a.identityHints.foodName).toBe(b.identityHints.foodName);
+      expect(a.quantityHints).toMatchObject({ value: 2, unit: "un" });
+      expect(plural.slice(a.surfaceSpan.span!.start, a.surfaceSpan.span!.end)).toBe(plural);
+    }
+    for (const [input, expected] of [
+      ["2 Doritos pequenos", "doritos pequenos"],
+      ["2 Pringles pequenas", "pringles pequenas"],
+    ] as const) {
+      const [obs] = await analyze(input);
+      expect(obs.identityHints.foodName).toBe(expected);
+    }
+    const [governed] = await analyze("2 Havaianas prata", [entry({
+      id: 915, normalizedTerm: "havaianas", kind: "protected_token",
+      targetType: "none", targetRef: null,
+    })]);
+    expect(governed.identityHints.foodName).toBe("havaianas prata");
+  });
+
+  it("AUD1304 A-016 contabiliza meio alimento após o nome sem confundir outro item", async () => {
+    for (const [text, amount, unit, food] of [
+      ["dois ovos e meio", 2.5, "un", "ovo"],
+      ["duas bananas e meia", 2.5, "un", "banana"],
+      ["duas fatias de pão e meia", 2.5, "fatia", "pao"],
+      ["uma fatia e meia de mortadela", 1.5, "fatia", "mortadela"],
+    ] as const) {
+      const observations = await analyze(text);
+      expect(observations).toHaveLength(1);
+      const [obs] = observations;
+      expect(obs.quantityHints).toMatchObject({ value: amount, unit });
+      expect(obs.identityHints.foodName).toBe(food);
+      expect(text.slice(obs.surfaceSpan.span!.start, obs.surfaceSpan.span!.end)).toBe(text);
+    }
+    const [eggs, milk] = await analyze("2 ovos e meio copo de leite");
+    expect(eggs.quantityHints).toMatchObject({ value: 2, unit: "un" });
+    expect(eggs.identityHints.foodName).toBe("ovo");
+    expect(milk.quantityHints).toMatchObject({ value: 0.5, unit: "copo" });
+    expect(milk.identityHints.foodName).toBe("leite");
+    expect(await analyze("2 ovos e 1 banana")).toHaveLength(2);
+  });
+
 });

@@ -63,6 +63,20 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
   if (/\b(tiquinho|punhado|prat[aã]o|prato grande|bastante)\b/iu.test(source)) {
     return { value: null, unit: null, name: source, servingText: source, uncertain: true };
   }
+  // A terminal half refers to the already counted food, not to a new item:
+  // "duas fatias de pão e meia" and "dois ovos e meio".
+  // Require a terminal half so "2 ovos e meio copo de leite" is not coerced.
+  const halfAfterFoodWithUnit = new RegExp(
+    "^(" + quantityPattern + ")\\s+(" + unitPattern + ")\\s+(?:de\\s+)?(.+?)\\s+e\\s+mei[ao]\\s*$", "iu",
+  ).exec(source);
+  if (halfAfterFoodWithUnit) {
+    const value = parseNumber(halfAfterFoodWithUnit[1]);
+    const unit = recognizedUnit(halfAfterFoodWithUnit[2]);
+    if (value !== null && unit !== null) return {
+      value: value + 0.5, unit, name: halfAfterFoodWithUnit[3].trim(),
+      servingText: source, uncertain: false,
+    };
+  }
   // Independent from any name correction: "um ovo cozido" -> 1 un.
   const half = halfAfterUnit.exec(source);
   if (half) {
@@ -130,6 +144,16 @@ export function readQuantity(text: string, governedUnits: readonly GovernedUnitA
         uncertain: false, governedAlias: alias };
     }
   }
+  const halfAfterFood = new RegExp(
+    "^(" + quantityPattern + ")\\s+(.+?)\\s+e\\s+mei[ao]\\s*$", "iu",
+  ).exec(source);
+  if (halfAfterFood) {
+    const value = parseNumber(halfAfterFood[1]);
+    if (value !== null) return {
+      value: value + 0.5, unit: "un", name: halfAfterFood[2].trim(),
+      servingText: source, uncertain: false,
+    };
+  }
   const simple = counted.exec(source);
   if (simple) {
     const value = parseNumber(simple[1]);
@@ -165,9 +189,21 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
   for (const segment of segments) {
     const previous = coalesced.at(-1);
     const amount = readQuantity(segment.text, governedUnits);
-    if (previous && amount.value !== null && amount.unit !== null && !amount.name &&
-        readQuantity(previous.text, governedUnits).value === null &&
-        /^\s*,\s*$/u.test(text.slice(previous.end, segment.start))) {
+    const comma = /^\s*,\s*$/u.test(text.slice(previous?.end ?? 0, segment.start));
+    // A comma can delimit a meal destination, not necessarily a new food.
+    // Preserve it in the original span; foodOnlySpan owns removing framing.
+    const meal = "(?:caf[eé] da manh[aã]|almo[cç]o|jantar|lanche)";
+    const mealFraming = new RegExp("^(?:no|na)\\s+" + meal + "$", "iu");
+    const trailingMeal = new RegExp("^(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "$", "iu");
+    const followingFood = amount.value !== null && amount.name.trim().length > 0;
+    const precedingFood = previous ? readQuantity(previous.text, governedUnits) : null;
+    if (previous && comma && (
+      (amount.value !== null && amount.unit !== null && !amount.name &&
+        precedingFood?.value === null) ||
+      (mealFraming.test(previous.text) && followingFood) ||
+      (trailingMeal.test(segment.text) && precedingFood?.value !== null &&
+        precedingFood?.value !== undefined && Boolean(precedingFood.name.trim()))
+    )) {
       const merged = trimSpan(text, previous.start, segment.end);
       if (merged) coalesced[coalesced.length - 1] = merged;
     } else {
@@ -183,10 +219,14 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
     while ((match = separator.exec(segment.text)) !== null) {
       const left = segment.text.slice(offset, match.index);
       const right = segment.text.slice(separator.lastIndex);
-      // "uma fatia e meia" and "um e meio" are grammatical quantity phrases.
-      if (/^mei[ao]\b/iu.test(right) ||
-          (/\b(?:fatia|fatias|unidade|unidades)\s*$/iu.test(left) &&
-            /^(?:meia|meio)\b/iu.test(right))) continue;
+      // Do not turn a second material qualifier into a new food.
+      // The conjoined expression still belongs to the same observation.
+      if (/^(?:sem|com|zero)\s+[\p{L}]/iu.test(right) ||
+          /^(?:frit[ao]s?|cozid[ao]s?)\s*$/iu.test(right)) continue;
+      // "uma fatia e meia", "dois ovos e meio" and "um e meio copo"
+      // are quantities; "2 ovos e meio copo de leite" has two food items.
+      if (/^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||
+          (/^(?:um|uma|\d+)\s*$/iu.test(left) && /^mei[ao]\b/iu.test(right))) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
       if (part) joined.push(part);
       offset = separator.lastIndex;

@@ -90,7 +90,7 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   } else {
     // A bare meal destination is framing only when a complete quantity-led
     // food phrase follows. Otherwise retain it as original surface evidence.
-    const bareMeal = new RegExp("^(?:no|na)\\s+" + meal + "\\s+", "iu").exec(value);
+    const bareMeal = new RegExp("^(?:no|na)\\s+" + meal + "(?:\\s*,)?\\s+", "iu").exec(value);
     if (bareMeal) {
       const following = readQuantity(value.slice(bareMeal[0].length));
       if (following.value !== null && following.name.trim()) {
@@ -102,7 +102,7 @@ function foodOnlySpan(full: string, segment: Segment): Segment {
   // Meal framing may be trailing without an initial command.
   // Its semantic operation belongs exclusively to the canonical parser.
   const suffix = new RegExp(
-    "\\s+(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "\\s*$", "iu",
+    "\\s*,?\\s*(?:(?:ao|no|na)\\s+|para\\s+(?:o|a)\\s+)" + meal + "\\s*$", "iu",
   ).exec(value);
   if (suffix && suffix.index > 0) end -= suffix[0].length;
   return trimSpan(full, start, end) ?? segment;
@@ -164,9 +164,17 @@ function withSafeRegularAgreement(
   // Prepositions are syntactic connective tokens, not an allowlist of food
   // names or material attributes. No food-specific regex decision belongs here.
   const linkers = new Set(["de", "do", "da", "dos", "das"]);
-  const headWithComplement = inflected[0] !== tokens[0] &&
+  const headInflected = inflected[0] !== tokens[0];
+  const headWithComplement = headInflected &&
     tokens.slice(1).some(token => linkers.has(token));
-  if (changed === 0 || (changed === 1 && tokens.length > 1 && !headWithComplement)) return observation;
+  // Invariable singular modifiers ("bananas prata") do not need flexion.
+  // They are syntactically distinct from a lone plural modifier attached to
+  // an unchanged potential brand ("Pringles pequenas").
+  const headWithInvariableModifier = headInflected && tokens.slice(1).length > 0 &&
+    tokens.slice(1).every((token, index) =>
+      token === inflected[index + 1] && !linkers.has(token) && !token.endsWith("s"));
+  if (changed === 0 || (changed === 1 && tokens.length > 1 &&
+      !headWithComplement && !headWithInvariableModifier)) return observation;
   const regular = inflected.join(" ");
   return {
     ...observation, normalizedInput: regular,
