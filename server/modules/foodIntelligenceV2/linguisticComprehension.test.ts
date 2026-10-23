@@ -563,4 +563,86 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(unapproved.quantityHints.unit).not.toBe("fatia");
   });
 
+  it("AUD1304 A-010 converges regular plurals across case and preserves guarded brands", async () => {
+    for (const [rawText, food] of [
+      ["2 ovos cozidos", "ovo cozido"], ["2 OVOS COZIDOS", "ovo cozido"],
+      ["2 Ovos Cozidos", "ovo cozido"], ["2 bananas", "banana"],
+      ["2 Bananas", "banana"], ["2 BANANAS", "banana"],
+      ["2 Doritos", "doritos"], ["2 DORITOS", "doritos"],
+      ["2 Doritos pequenos", "doritos pequenos"],
+    ] as const) {
+      const [obs] = await analyze(rawText);
+      expect(obs.identityHints.foodName).toBe(food);
+      expect(obs.quantityHints.value).toBe(2);
+      expect(obs.rawInput).toBe(rawText);
+      const span = obs.surfaceSpan.span!;
+      expect(rawText.slice(span.start, span.end)).toBe(rawText);
+    }
+    const [protectedName] = await analyze("2 Havaianas", [
+      entry({ id: 910, normalizedTerm: "havaianas", term: "Havaianas",
+        kind: "protected_token", targetType: "none", targetRef: null }),
+    ]);
+    expect(protectedName.identityHints.foodName).toBe("havaianas");
+  });
+
+  it("AUD1304 A-011 prioritizes complete material qualifiers before standalone zero", async () => {
+    for (const [text, qualifier, role] of [
+      ["leite zero lactose", "zero lactose", "lactose"],
+      ["leite sem lactose", "sem lactose", "lactose"],
+      ["leite com lactose", "com lactose", "lactose"],
+      ["produto zero glúten", "zero glúten", "gluten"],
+      ["produto zero sal", "zero sal", "sodium"],
+      ["produto zero gordura", "zero gordura", "fat_level"],
+      ["café zero cafeína", "zero cafeína", "caffeine"],
+      ["café zero açúcar", "zero açúcar", "sweetening"],
+      ["leite UHT", "UHT", "processing"],
+    ] as const) {
+      const [obs] = await analyze(text);
+      expect(obs.identityHints.qualifiers).toContainEqual(expect.objectContaining({ value: qualifier, role }));
+      if (qualifier.startsWith("zero ")) {
+        expect(obs.identityHints.qualifiers.some(q => q.value === "zero")).toBe(false);
+      }
+    }
+    const [isolated] = await analyze("refrigerante Zero");
+    expect(isolated.identityHints.qualifiers).toContainEqual(expect.objectContaining({
+      value: "Zero", role: "sweetening",
+    }));
+    const [contradiction] = await analyze("leite zero lactose", [entry({
+      id: 911, normalizedTerm: "leite zero lactose", targetRef: "leite com lactose",
+    })]);
+    expect(contradiction.identityHints.foodName).toBe("leite zero lactose");
+    expect(contradiction.alternatives).toHaveLength(1);
+  });
+
+  it("AUD1304 A-012 adds evidence for S3 name-only qualifiers without duplicates", async () => {
+    const request = { ...base, rawText: "pão", shouldInterpretResidual: () => true,
+      interpreterVersion: "s3-v2" };
+    const [implicit] = await comprehendFoodLanguage(request, store(), async () => ({
+      alternatives: [{ foodName: "pão integral", confidence: 0.8 }],
+    }));
+    expect(implicit.identityHints.foodName).toBe("pao");
+    expect(implicit.alternatives[0].identityHints.qualifiers).toContainEqual(
+      expect.objectContaining({ value: "integral", role: "processing" }));
+    const linked = implicit.alternatives[0].evidenceIds.map(id =>
+      implicit.evidence.find(item => item.evidenceId === id));
+    expect(linked.filter(item => item?.field === "identity.qualifiers")).toEqual([
+      expect.objectContaining({
+        value: "integral", origin: "ai_estimate", verified: false, confidence: 0.8,
+      }),
+    ]);
+    const [deduplicated] = await comprehendFoodLanguage(request, store(), async () => ({
+      alternatives: [{ foodName: "pão integral", confidence: 0.8, qualifiers: [{
+        value: "integral", attributeCode: null, role: "processing", confidence: 0.7,
+      }] }],
+    }));
+    expect(deduplicated.alternatives[0].identityHints.qualifiers).toHaveLength(1);
+    expect(deduplicated.alternatives[0].evidenceIds.map(id =>
+      deduplicated.evidence.find(item => item.evidenceId === id))
+      .filter(item => item?.field === "identity.qualifiers")).toHaveLength(1);
+    const [bad] = await comprehendFoodLanguage({ ...request, rawText: "leite zero lactose" },
+      store(), async () => ({ alternatives: [{ foodName: "leite com lactose", confidence: 0.9 }] }));
+    expect(bad.unresolvedReason).toBe("provider_unavailable");
+    expect(bad.alternatives).toHaveLength(0);
+  });
+
 });

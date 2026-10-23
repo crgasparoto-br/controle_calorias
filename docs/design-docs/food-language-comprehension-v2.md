@@ -55,9 +55,9 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
   além do açúcar: alias que altera atributo material gera hipótese.
 - S3 confronta o nome sugerido e os qualificadores estruturados com a superfície
   observada; uma contradição degrada explicitamente a interpretação residual.
-- S1 harmoniza plurais regulares isolados em minúsculas, sem reescrever
-  nomes capitalizados que podem indicar marcas. Identidade comercial incerta
-  continua no léxico governado e no resolvedor posterior.
+- S1 harmoniza plurais regulares independentemente da caixa de digitação;
+  tokens comerciais governados e a proteção conservadora `-itos/-itas` não
+  são reinterpretados. Marcas sem evidência seguem para S2/resolvedor.
 - Enquadramento de refeição, inclusive destino ao fim sem verbo inicial, não
   integra o nome alimentar. O parser canônico continua único dono de MealOperation.
 
@@ -71,6 +71,20 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
 - Numerais físicos com unidade contígua (`100g`, `250ml`) convergem com a grafia espaçada, sem consumir prefixos de marcas nem números com separadores ambíguos; a superfície e os spans originais permanecem intactos.
 - A conjunção `e` separa itens alimentares completos mesmo quando o segundo não tem numeral. Construtos de quantidade como `uma fatia e meia` e `um e meio` não são divididos.
 - Léxico governado `unit_term` / `portion_term` atua no slot da unidade e não no nome do alimento: só termo ativo, escopo autorizado e unidade canônica conhecida podem converter; há registro S2 por ID e evidência por campo. Conflito de significados produz alternativas sem conversão silenciosa. Grants, revogação e revisão são validados pela leitura governada existente.
+
+## Remediação AUD1304 A-010–A-012
+
+- **A-010:** flexão regular converge entre caixa alta, baixa e título, preservando
+  aliases governados e plurais comerciais incertos em `-itos/-itas`.
+- **A-011:** `zero/sem/com` com lactose, açúcar, glúten, sal, gordura e
+  cafeína recebe papel do atributo composto; `zero` isolado permanece
+  qualificador de adoçamento e `UHT` é classificado como processamento.
+- **A-012:** qualificadores extraídos do nome de hipótese S3 também são
+  atributos e evidências `ai_estimate` da alternativa; valores repetidos
+  em `qualifiers[]` são deduplicados, preservando bloqueio de contradições.
+
+A entrega mantém S3 desabilitado por padrão, sem cutover, seleção nutricional
+ou novo parser de operação.
 
 ## Gates
 

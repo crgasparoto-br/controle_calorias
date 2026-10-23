@@ -138,12 +138,9 @@ function withSafeRegularAgreement(
   const original = observation.identityHints.foodName;
   if (!original || observation.quantityHints.value === null ||
       observation.quantityHints.value <= 1) return observation;
-  // Preserve unknown proper-looking commercial names before plural inflection.
-  const span = observation.surfaceSpan.span;
-  const rawSurface = span && observation.rawInput
-    ? observation.rawInput.slice(span.start, span.end) : "";
-  const rawName = readQuantity(rawSurface).name;
-  if (/(?:^|\s)\p{Lu}/u.test(rawName)) return observation;
+  // Letter case is not reliable commercial-identity evidence: regular nouns
+  // must converge across uppercase/titlecase. Governed/protected tokens and
+  // the conservative -itos/-itas exception remain protected below.
   const protectedTerms = entries.filter(entry =>
     entry.kind === "protected_token" && applicable(entry, owner, now))
     .map(entry => foldFoodSurface(entry.normalizedTerm));
@@ -221,18 +218,20 @@ function governedUnitAliases(
 }
 
 function detectQualifiers(name: string): FoodObservation["identityHints"]["qualifiers"] {
+  // Complete material phrases must win over standalone "zero": "zero lactose"
+  // is not a claim about sweetening.
   const words = [
-    { expression: /\bsem a[cç][uú]car\b/iu, role: "sweetening" },
-    { expression: /\bcom a[cç][uú]car\b/iu, role: "sweetening" },
-    { expression: /\b(?:sem|com)\s+lactose\b/iu, role: "lactose" },
-    { expression: /\b(?:sem|com)\s+gl[uú]ten\b/iu, role: "gluten" },
-    { expression: /\b(?:sem|com)\s+sal\b/iu, role: "sodium" },
-    { expression: /\b(?:sem|com)\s+gordura\b/iu, role: "fat_level" },
-    { expression: /\b(?:sem|com)\s+cafe[ií]na\b/iu, role: "caffeine" },
-    { expression: /\bzero\b/iu, role: "sweetening" },
+    { expression: /\b(?:sem|com|zero)\s+a[cç][uú]car\b/iu, role: "sweetening" },
+    { expression: /\b(?:sem|com|zero)\s+lactose\b/iu, role: "lactose" },
+    { expression: /\b(?:sem|com|zero)\s+gl[uú]ten\b/iu, role: "gluten" },
+    { expression: /\b(?:sem|com|zero)\s+sal\b/iu, role: "sodium" },
+    { expression: /\b(?:sem|com|zero)\s+gordura\b/iu, role: "fat_level" },
+    { expression: /\b(?:sem|com|zero)\s+cafe[ií]na\b/iu, role: "caffeine" },
+    { expression: /\bzero\b(?!\s+(?:a[cç][uú]car|lactose|gl[uú]ten|sal|gordura|cafe[ií]na)\b)/iu, role: "sweetening" },
     { expression: /\blight\b/iu, role: "processing" },
     { expression: /\bdiet\b/iu, role: "processing" },
     { expression: /\bintegral\b/iu, role: "processing" },
+    { expression: /\bUHT\b/iu, role: "processing" },
     { expression: /\bdesnatad[ao]s?\b/iu, role: "fat_level" },
     { expression: /\bfrit[ao]s?\b/iu, role: "preparation" },
     { expression: /\bcozid[ao]s?\b/iu, role: "preparation" },
@@ -376,7 +375,27 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
     const existing = observation.identityHints;
     // A proposal may hide contradictory assertions in foodName while omitting
     // qualifiers. Check both sources and reject internal polarity conflicts.
-    const proposedQualifiers = [...detectQualifiers(proposed.foodName), ...(proposed.qualifiers ?? [])];
+    const proposedQualifiers = detectQualifiers(proposed.foodName);
+    // Keep qualified assertions embedded in the suggested name even when the
+    // interpreter omits qualifiers[]. Structured duplicates enrich, not repeat,
+    // the inferred qualifier and must not change its semantic role.
+    for (const structured of proposed.qualifiers ?? []) {
+      const index = proposedQualifiers.findIndex(inferred =>
+        foldFoodSurface(inferred.value) === foldFoodSurface(structured.value));
+      if (index < 0) {
+        proposedQualifiers.push(structured);
+      } else {
+        const inferred = proposedQualifiers[index];
+        if (inferred.role && structured.role && inferred.role !== structured.role) {
+          throw new Error("contradictory-linguistic-interpreter-role");
+        }
+        proposedQualifiers[index] = {
+          ...inferred, ...structured,
+          role: inferred.role ?? structured.role,
+          confidence: structured.confidence ?? inferred.confidence,
+        };
+      }
+    }
     for (const qualifier of proposedQualifiers) {
       if (qualifier.role !== null && existing.qualifiers.some(explicit =>
         explicit.role === qualifier.role &&
@@ -409,11 +428,11 @@ function addResidual(observation: FoodObservation, payload: unknown, interpreter
     for (const preparation of proposed.preparation ?? []) {
       addEvidence("identity.preparation", preparation, proposed.confidence);
     }
-    for (const qualifier of proposed.qualifiers ?? []) {
+    for (const qualifier of proposedQualifiers) {
       addEvidence("identity.qualifiers", qualifier.value, qualifier.confidence ?? proposed.confidence);
     }
     const qualifiers = [...existing.qualifiers];
-    for (const qualifier of proposed.qualifiers ?? []) {
+    for (const qualifier of proposedQualifiers) {
       if (!qualifiers.some(value => foldFoodSurface(value.value) === foldFoodSurface(qualifier.value))) {
         qualifiers.push(qualifier);
       }
