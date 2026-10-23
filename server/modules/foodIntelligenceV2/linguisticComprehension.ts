@@ -300,8 +300,9 @@ function withLexicon(observation: FoodObservation, entry: GovernedLexiconEntry, 
   const snapshot = { ...observation, identityHints: { ...observation.identityHints }, evidence: [...observation.evidence], normalizationPath: [...observation.normalizationPath], alternatives: [...observation.alternatives] };
   const before = snapshot.identityHints.foodName ?? "";
   const target = entry.targetType === "canonical_term" ? foldFoodSurface(entry.targetRef?.trim() ?? "") : "";
-  const currentQualifiers = detectQualifiers(before).map(item => foldFoodSurface(item.value));
-  const targetQualifiers = detectQualifiers(target).map(item => foldFoodSurface(item.value));
+  const qualifierKey = (value: string) => foldFoodSurface(value).replace(/s$/u, "");
+  const currentQualifiers = detectQualifiers(before).map(item => qualifierKey(item.value));
+  const targetQualifiers = detectQualifiers(target).map(item => qualifierKey(item.value));
   const changesQualifiers = currentQualifiers.some(item => !targetQualifiers.includes(item)) || targetQualifiers.some(item => !currentQualifiers.includes(item));
   const protectedTerms = entries.filter(item => item.kind === "protected_token" && applicable(item, owner, now))
     .map(item => foldFoodSurface(item.normalizedTerm));
