@@ -48,7 +48,7 @@ function isCanonicalLinguisticGrammar(
         keys.has(match[1]) && Number(match[2]) >= 0.5 && Number(match[2]) <= 10);
     }
     if (["17", "18"].includes(rule.id)) {
-      const regexGrammar = /^(?:foldFoodSurface|parseNumber|readQuantity|splitFoodSurface|foodOnlySpan):lexical-regex$/u;
+      const regexGrammar = /^(?:foldFoodSurface|parseNumber|readQuantity|splitFoodSurface|foodOnlySpan|qualifierKey):lexical-regex$/u;
       if (regexGrammar.test(finding.symbol) &&
           rule.kind === "literal-regex-test") return true;
       if (finding.symbol === "recognizedUnit:lexical-dictionary" &&
