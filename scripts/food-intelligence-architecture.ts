@@ -2129,6 +2129,9 @@ function ruleEvidence(node: ts.Node, source: ts.SourceFile, rule: FoodWaveOneRul
       }
     }
     const identity = leftLiteral !== null ? node.right : node.left;
+    // A typed state guard is not lexical food knowledge or attribute materiality.
+    const literal = leftLiteral ?? rightLiteral;
+    if (literal && isStructuralContractComparison(identity, literal)) return null;
     const operand = identity.getText(source);
     const relevant = rule.ownerFunction !== "attribute-materiality"
       ? matches(rule.symbolPattern, operand) || hasFoodNameDecisionContext(
@@ -3239,6 +3242,40 @@ function findCrossModuleNumericFoodMaps(
     visit(source);
   }
   return { findings: results, foodIndexedJson };
+}
+
+
+/**
+ * Only structural TypeScript checks and known domain *state* enums are exempt
+ * from the food-lexicon/materiality gate. The exception is value-and-field
+ * specific: status === "integral", portion.label === "fatia", and all other
+ * food/attribute terms remain detectable. Do not expand to arbitrary strings.
+ */
+function isStructuralContractComparison(identity: ts.Expression, literal: string): boolean {
+  const operand = unwrap(identity);
+  if (ts.isTypeOfExpression(operand)) {
+    return ["undefined", "object", "boolean", "number", "string", "function", "symbol", "bigint"].includes(literal);
+  }
+  // Bare `mode` is the reconciliation CLI control, never a food attribute.
+  if (ts.isIdentifier(operand) && operand.text === "mode") {
+    return literal === "preview" || literal === "stage";
+  }
+  if (!ts.isPropertyAccessExpression(operand)) return false;
+  const enumStates: Record<string, readonly string[]> = {
+    status: ["active", "deprecated", "merged", "draft", "provisional", "pending_review",
+      "verified", "rejected", "revoked", "pending", "approved", "open", "in_review", "closed"],
+    governanceStatus: ["provisional", "pending_review", "verified", "rejected", "revoked"],
+    // Governed evidence provenance types are schema states, not food descriptors.
+    // A different value (e.g. a real attribute token) is still evaluated by gate 18.
+    evidenceType: ["manufacturer", "nutrition_label"],
+    // Source-table discriminant is structural migration metadata, not food materiality.
+    table: ["foods", "foodCatalog"],
+    scope: ["global", "user"],
+    mode: ["preview", "stage"],
+    action: ["mapped", "merged", "quarantined"],
+    basisUnit: ["g", "ml", "serving"],
+  };
+  return enumStates[operand.name.text]?.includes(literal) ?? false;
 }
 
 export function findFoodStaticCandidates(files: FoodArchitectureFile[]): FoodFinding[] {

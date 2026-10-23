@@ -379,6 +379,13 @@
       "when": 1792454400000,
       "tag": "0055_food_intelligence_v2_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "5",
+      "when": 1792601700000,
+      "tag": "0056_food_v2_source_governance",
+      "breakpoints": true
     }
   ]
 }

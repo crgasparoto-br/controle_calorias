@@ -154,7 +154,7 @@ const testUpgrade = async f => {
     [variantId, f.sourceId, "ci-foodv2:profile", 2, "b".repeat(64)],
   ];
   const addProfile = row => pool.query(
-    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot) VALUES (?, ?, ?, ?, 100, 'g', 250, 9, 48, 3, ?, 1)",
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, source_version, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, current_slot) VALUES (?, ?, 'v1', ?, ?, 100, 'g', 250, 9, 48, 3, ?, 1)",
     row
   );
   const outcomes = await Promise.allSettled(profiles.map(addProfile));
@@ -188,7 +188,7 @@ const testUpgrade = async f => {
   assert.ok(successorVersion > Number(profile.version));
   // Explicit profile supersession is transactional; historical meal references stay pinned.
   const [replacement] = await connection.query(
-    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'ci-foodv2:profile', ?, 100, 'g', 260, 10, 48, 3, ?, ?)",
+    "INSERT INTO food_nutrition_profiles (food_variant_id, source_id, source_version, profile_key, version, basis_quantity, basis_unit, calories_kcal, protein_g, carb_g, fat_g, content_hash, supersedes_profile_id) VALUES (?, ?, 'v1', 'ci-foodv2:profile', ?, 100, 'g', 260, 10, 48, 3, ?, ?)",
     [variantId, f.sourceId, successorVersion, "c".repeat(64), profile.id]
   );
   await connection.beginTransaction();
@@ -210,6 +210,18 @@ const testUpgrade = async f => {
     "UPDATE food_nutrition_profiles SET current_slot=1, valid_to=NULL WHERE id=?",
     [profile.id]
   ), "former version cannot become current while its successor is current");
+  // A v2 source revision cannot rewrite existing v1 nutritional provenance.
+  await connection.query("UPDATE food_sources SET version='v2' WHERE id=?", [f.sourceId]);
+  const [older] = await queryRows(
+    "SELECT source_version, calories_kcal FROM food_nutrition_profiles WHERE id=?", [profile.id]
+  );
+  assert.equal(older.source_version, "v1");
+  assert.equal(Number(older.calories_kcal), 250);
+  const [newer] = await queryRows(
+    "SELECT source_version, calories_kcal FROM food_nutrition_profiles WHERE id=?", [replacement.insertId]
+  );
+  assert.equal(newer.source_version, "v1");
+  assert.equal(Number(newer.calories_kcal), 260);
   const [legacyProfile] = await queryRows(
     "SELECT status, current_slot FROM food_nutrition_profiles WHERE id=?",
     [profile.id]
@@ -242,6 +254,48 @@ const testUpgrade = async f => {
   console.log(JSON.stringify({ event: "food_v2_migration_integration.passed", mode, variantId, currentProfileId: profile.id, reviewEvents: 1, successorProfileId: replacement.insertId, aliasHistoryCount: 2 }));
 };
 
+// #1302 — actual TiDB checks for the denied-by-default source grants and
+// personal evidence cache index; this is not an in-memory policy-only test.
+const assertB2SourceGovernance = async f => {
+  const [before] = await queryRows("SELECT COUNT(*) AS c FROM food_source_read_grants");
+  assert.equal(Number(before.c), 0, "new source grants must never be auto-approved");
+  await connection.query(
+    "INSERT INTO food_source_read_grants (source_id, source_version) VALUES (?, 'v1')",
+    [f.sourceId]
+  );
+  const [initial] = await queryRows(
+    "SELECT status, allow_read, allow_persist_evidence, allow_global_publication FROM food_source_read_grants WHERE source_id=?",
+    [f.sourceId]
+  );
+  assert.deepEqual([initial.status, Number(initial.allow_read), Number(initial.allow_persist_evidence), Number(initial.allow_global_publication)], ["pending", 0, 0, 0]);
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET allow_read=1 WHERE source_id=?", [f.sourceId]
+  ), "read permission without approval and license must fail");
+  await connection.query(
+    "UPDATE food_source_read_grants SET status='approved', license_reference='https://example.org/license', approval_reference='approval-b2', approved_at=NOW(), allow_read=1 WHERE source_id=?",
+    [f.sourceId]
+  );
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET allow_persist_evidence=1 WHERE source_id=?", [f.sourceId]
+  ), "persistent evidence without retention policy must fail");
+  await connection.query(
+    "UPDATE food_source_read_grants SET retention_days=30, allow_persist_evidence=1 WHERE source_id=?",
+    [f.sourceId]
+  );
+  await mustReject(connection.query(
+    "UPDATE food_source_read_grants SET status='revoked' WHERE source_id=?", [f.sourceId]
+  ), "revoked source cannot remain authorized");
+  await connection.query(
+    "UPDATE food_source_read_grants SET status='revoked', revoked_at=NOW(), allow_read=0, allow_persist_evidence=0 WHERE source_id=?",
+    [f.sourceId]
+  );
+  const insertEvidence = "INSERT INTO food_evidence (owner_user_id, subject_key, evidence_type, content_hash, payload_json, retention_until) VALUES (?, ?, 'external_source', ?, '{}', ?)";
+  const cacheArgs = [f.userId, "b2:personal-cache", "d".repeat(64), new Date(Date.now() + 86400000)];
+  await connection.query(insertEvidence, cacheArgs);
+  await mustReject(connection.query(insertEvidence, cacheArgs), "personal cache must be idempotent in DB");
+  const [historical] = await queryRows("SELECT foodName, foodSnapshotJson FROM mealItems WHERE id=?", [f.mealItemId]);
+  assert.equal(historical.foodSnapshotJson, f.snapshot);
+};
 try {
   const [before] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
   assert.equal(Number(before.c), 0, "test requires pre-V2 baseline schema");
@@ -250,9 +304,68 @@ try {
   const forwardStatements = await applyFile("../drizzle/0055_food_intelligence_v2_persistence.sql");
   await assertLegacy(fixture, true);
   await assertRequiredReadIndexes();
+  const b2ForwardStatements = await applyFile("../drizzle/0056_food_v2_source_governance.sql");
+  assert.equal(b2ForwardStatements, 6);
+  // AUD-1302-026: database leaves unknown B1/legacy provenance unassigned.
+  for (const table of ["food_nutrition_profiles", "food_portions", "food_aliases"]) {
+    const [column] = await queryRows(
+      "SELECT COLUMN_NAME AS column_name, IS_NULLABLE AS nullable, DATA_TYPE AS data_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name='source_version'",
+      [table]
+    );
+    assert.equal(column?.nullable, "YES", table + " must allow unproven legacy revision");
+    assert.equal(column?.data_type, "varchar");
+  }
+  const [aliasFamily] = await connection.query(
+    "INSERT INTO food_aliases (food_id, alias, normalized_alias, source_id) VALUES (?, 'Pão legado', 'pao legado', ?)",
+    [fixture.foodId, fixture.sourceId],
+  );
+  const [unprovenAlias] = await queryRows(
+    "SELECT source_version, food_id FROM food_aliases WHERE id=?", [aliasFamily.insertId],
+  );
+  assert.equal(unprovenAlias.source_version, null, "V1 alias revision must not be guessed");
+  assert.equal(Number(unprovenAlias.food_id), fixture.foodId);
+  // AUD-1302-020: test physical private ledger lifecycle on disposable TiDB.
+  const [scopeCheck] = await queryRows("SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine");
+  assert.equal(Number(scopeCheck.c), 0);
+  const expiry = new Date(Date.now() + 86400000);
+  await connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', ?, ?, 'user', 'personal_scope', ?)",
+    [fixture.foodId, fixture.userId, expiry]
+  );
+  await mustReject(connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', 987, ?, 'orphan', 'personal_scope', ?)",
+    [fixture.userId, expiry]
+  ), "owner and orphan scopes may not be mixed");
+  const [privateRow] = await queryRows(
+    "SELECT owner_user_id, scope, reason, retention_until FROM food_personal_reconciliation_quarantine WHERE legacy_table='foods' AND legacy_row_id=?",
+    [fixture.foodId]
+  );
+  assert.equal(Number(privateRow.owner_user_id), fixture.userId);
+  assert.equal(privateRow.scope, 'user');
+  assert.equal(privateRow.reason, 'personal_scope');
+  assert.ok(privateRow.retention_until);
+  // No private exclusions are published into the shared review queue.
+  const [shared] = await queryRows("SELECT COUNT(*) AS c FROM food_review_cases WHERE case_type='legacy_reconciliation_quarantine'");
+  assert.equal(Number(shared.c), 0);
+  // A user removed after quarantine must no longer be linkable via the ledger.
+  const [throwawayUser] = await connection.query(
+    "INSERT INTO users (openId, name, email) VALUES ('ci-foodv2-deleted', 'Temporary', 'deleted@example.invalid')"
+  );
+  await connection.query(
+    "INSERT INTO food_personal_reconciliation_quarantine (legacy_table, legacy_row_id, owner_user_id, scope, reason, retention_until) VALUES ('foods', 999991, ?, 'user', 'personal_scope', ?)",
+    [throwawayUser.insertId, expiry]
+  );
+  await connection.query("DELETE FROM users WHERE id=?", [throwawayUser.insertId]);
+  const [deleted] = await queryRows(
+    "SELECT COUNT(*) AS c FROM food_personal_reconciliation_quarantine WHERE legacy_table='foods' AND legacy_row_id=999991"
+  );
+  assert.equal(Number(deleted.c), 0, "private quarantine must cascade on user deletion");
+  await assertB2SourceGovernance(fixture);
   await assertLegacyWritesAfterMigration(fixture);
   if (mode === "upgrade") await testUpgrade(fixture);
   else {
+    const b2Reversed = await applyFile("../drizzle/rollback/0056_food_v2_source_governance.sql");
+    assert.equal(b2Reversed, 6);
     const reversed = await applyFile("../drizzle/rollback/0055_food_intelligence_v2_persistence.sql");
     const [stillThere] = await queryRows("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='food_variants'");
     assert.equal(Number(stillThere.c), 0);

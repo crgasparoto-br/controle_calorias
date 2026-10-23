@@ -50,6 +50,7 @@ export const foodNutritionProfiles = mysqlTable("food_nutrition_profiles", {
   id: int("id").autoincrement().primaryKey(),
   foodVariantId: int("food_variant_id").notNull().references(() => foodVariants.id, { onDelete: "restrict" }),
   sourceId: int("source_id").notNull().references(() => foodSources.id, { onDelete: "restrict" }),
+  sourceVersion: varchar("source_version", { length: 80 }),
   foodVariantSourceId: int("food_variant_source_id"),
   profileKey: varchar("profile_key", { length: 191 }).notNull(),
   version: int("version").notNull(),
@@ -174,6 +175,7 @@ export const foodEvidence = mysqlTable("food_evidence", {
   i0: index("food_evidence_i0").on(table.subjectKey),
   i1: index("food_evidence_i1").on(table.contentHash),
   i2: index("food_evidence_i2").on(table.retentionUntil),
+  cacheUnique: uniqueIndex("food_evidence_cache_u0").on(table.ownerUserId, table.subjectKey, table.contentHash),
 }));
 
 export const foodReviewCases = mysqlTable("food_review_cases", {
@@ -394,3 +396,54 @@ export const foodAttributeMaterialityOverrides = mysqlTable("food_attribute_mate
   evidenceIdFk: foreignKey({ name: "famo_evidence_fk", columns: [table.evidenceId], foreignColumns: [foodEvidence.id] }).onDelete("restrict"),
 }));
 
+
+
+/**
+ * B2: fail-closed licensing and privacy gate per immutable food_sources version.
+ * Absence of a grant is NOT approval. No new source is enabled by the migration.
+ */
+export const foodSourceReadGrants = mysqlTable("food_source_read_grants", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceId: int("source_id").notNull().references(() => foodSources.id, { onDelete: "restrict" }),
+  sourceVersion: varchar("source_version", { length: 80 }).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "revoked"]).notNull().default("pending"),
+  allowRead: int("allow_read").notNull().default(0),
+  allowPersistEvidence: int("allow_persist_evidence").notNull().default(0),
+  allowGlobalPublication: int("allow_global_publication").notNull().default(0),
+  licenseReference: varchar("license_reference", { length: 500 }),
+  approvalReference: varchar("approval_reference", { length: 500 }),
+  retentionDays: int("retention_days"),
+  approvedAt: timestamp("approved_at"),
+  validUntil: timestamp("valid_until"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+}, table => ({
+  sourceUnique: uniqueIndex("food_source_read_grants_u0").on(table.sourceId),
+  ck0: check("food_source_read_grants_ck0", sql`(allow_read=0 OR (status='approved' AND license_reference IS NOT NULL AND approval_reference IS NOT NULL AND approved_at IS NOT NULL))`),
+  ck1: check("food_source_read_grants_ck1", sql`(allow_persist_evidence=0 OR (allow_read=1 AND retention_days IS NOT NULL AND retention_days BETWEEN 1 AND 365))`),
+  ck2: check("food_source_read_grants_ck2", sql`(allow_global_publication=0 OR allow_read=1)`),
+}));
+
+/** Internal-only quarantine for personal/orphaned V1 rows. Not part of the
+ * global food_review_cases queue. No names, raw content or source URLs.
+ * The V2 staging entrypoint remains non-production until #1303 approval. */
+export const foodPersonalReconciliationQuarantine = mysqlTable("food_personal_reconciliation_quarantine", {
+  id: int("id").autoincrement().primaryKey(),
+  legacyTable: mysqlEnum("legacy_table", ["foods", "foodCatalog", "portions"]).notNull(),
+  legacyRowId: int("legacy_row_id").notNull(),
+  ownerUserId: int("owner_user_id"),
+  scope: mysqlEnum("scope", ["user", "orphan"]).notNull(),
+  reason: varchar("reason", { length: 80 }).notNull(),
+  retentionUntil: timestamp("retention_until").notNull(),
+  // TiDB does not support CHECK on FK columns subject to cascading actions.
+  scopeGuard: int("scope_guard").notNull().generatedAlwaysAs(() =>
+    sql`CASE WHEN (scope='user' AND owner_user_id IS NOT NULL) OR (scope='orphan' AND owner_user_id IS NULL) THEN 1 ELSE NULL END`,
+    { mode: "virtual" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, table => ({
+  ownerFk: foreignKey({ name: "food_personal_recon_owner_fk", columns: [table.ownerUserId], foreignColumns: [users.id] }).onDelete("cascade"),
+  sourceUnique: uniqueIndex("food_personal_recon_u0").on(table.legacyTable, table.legacyRowId),
+  ownerIdx: index("food_personal_recon_i0").on(table.ownerUserId, table.retentionUntil),
+  retentionIdx: index("food_personal_recon_i1").on(table.retentionUntil),
+}));

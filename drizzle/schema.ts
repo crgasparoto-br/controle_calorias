@@ -167,6 +167,9 @@ export const foodAliases = mysqlTable("food_aliases", {
   revision: int("revision").default(1).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  // Global alias assertions are bound to an exact approved source revision.
+  // Legacy aliases stay NULL until independently reviewed; never infer a version.
+  sourceVersion: varchar("source_version", { length: 80 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, table => ({
   normalizedAliasIdx: index("food_aliases_normalized_alias_idx").on(table.normalizedAlias),
@@ -195,6 +198,7 @@ export const foodPortions = mysqlTable("food_portions", {
   validTo: timestamp("valid_to"),
   isDefault: int("is_default").default(0).notNull(),
   sourceId: int("source_id").references(() => foodSources.id, { onDelete: "set null" }),
+  sourceVersion: varchar("source_version", { length: 80 }),
   sourcePortionCode: varchar("source_portion_code", { length: 120 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
