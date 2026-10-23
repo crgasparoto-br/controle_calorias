@@ -66,6 +66,21 @@ describe("B2 governed family and exact SKU proof", () => {
       contentHash: "tampered" }], now, "user", 41)).toBeNull();
     expect(eligibleCommercialProfileProofScope(profile, [valid], now, "user", 41)).toBe("global");
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, retentionUntil: now }], now)).toBe(false);
+    // AUD-1302-030: a hash and exact URL path cannot bypass the canonical
+    // HTTPS policy; userinfo or fragments are never approved evidence.
+    for (const bad of [
+      "https://fake:password@manufacturer.example/sku-a",
+      "https://manufacturer.example/sku-a#label",
+    ]) {
+      const modified = { ...payload, sourceReference: bad };
+      const badProof = { ...valid, sourceReference: bad,
+        payloadJson: JSON.stringify(modified), contentHash: digest(modified) };
+      expect(hasVerifiedCommercialProfileProof(profile, [badProof], now)).toBe(false);
+      expect(hasVerifiedCommercialProfileProof({ ...profile,
+        mapping: { ...mapping, sourceUrl: bad } }, [valid], now)).toBe(false);
+    }
+    expect(hasVerifiedCommercialProfileProof({ ...profile,
+      sourceUrl: "https://manufacturer.example/#license" }, [valid], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: null }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof(profile, [{ ...valid, sourceReference: "https://other.example/sku-a" }], now)).toBe(false);
     expect(hasVerifiedCommercialProfileProof({ ...profile, sourceUrl: null }, [valid], now)).toBe(false);

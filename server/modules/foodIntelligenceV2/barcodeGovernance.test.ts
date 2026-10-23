@@ -101,6 +101,25 @@ describe("AUD-1302-016: barcode evidence integrity", () => {
     expect(valid({ ...proof, retentionUntil: now })).toBe(false);
   });
 
+  it("AUD-1302-030: exact barcode proof rejects userinfo and fragment on all URLs", () => {
+    const digest = (data: unknown) => createHash("sha256")
+      .update(JSON.stringify(data)).digest("hex");
+    const withReference = (sourceReference: string) => {
+      const modified = { ...payload, sourceReference };
+      return { ...proof, sourceReference, payloadJson: JSON.stringify(modified),
+        contentHash: digest(modified) };
+    };
+    const credential = "https://fake:password@manufacturer.example/products/sku-a";
+    const fragment = `${reference}#hidden`;
+    expect(valid(withReference(credential))).toBe(false);
+    expect(valid(withReference(fragment))).toBe(false);
+    expect(hasCurrentBarcodeProof(withReference(reference), request.barcode, 22, 7,
+      reference, { ...barcodeMapping, sourceUrl: credential }, 41, now, "v1")).toBe(false);
+    expect(hasCurrentBarcodeProof(withReference(reference), request.barcode, 22, 7,
+      `${reference}#source`, barcodeMapping, 41, now, "v1")).toBe(false);
+    expect(valid(proof)).toBe(true);
+  });
+
   it("AUD-1302-023: refuses a generic source URL or mismatched SKU link", () => {
     const generic = "https://manufacturer.example/";
     const genericPayload = { ...payload, sourceReference: generic };

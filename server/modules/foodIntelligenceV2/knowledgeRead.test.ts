@@ -98,6 +98,48 @@ describe("B2 — porta governada e cache-through", () => {
     expect(result).toMatchObject({ kind: "provisional", persisted: true });
   });
 
+  it("AUD-1302-029: name-only food never borrows macros from a specific brand or barcode", async () => {
+    const branded = {
+      sourceId: 7, sourceReference: "https://example.org/products/panco-pao",
+      nutrition, identity: { name: "pao integral", brand: "Panco" },
+    };
+    const f = fixture();
+    const external = vi.fn().mockResolvedValue(branded);
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(f.stage).not.toHaveBeenCalled();
+    // Cache candidates use the identical eligibility predicate; an invalid
+    // cache hit cannot prevent a new lookup or return commercial macros.
+    f.pending.mockResolvedValueOnce(branded);
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+    expect(external).toHaveBeenCalledTimes(2);
+    expect(f.stage).not.toHaveBeenCalled();
+    external.mockResolvedValueOnce({
+      ...branded, identity: { name: "pao integral", barcode: "07890000000001" },
+    });
+    expect(await readThroughGovernedKnowledge(base, f.store, external))
+      .toEqual({ kind: "unavailable", reason: "external_evidence_invalid" });
+  });
+
+  it("AUD-1302-029: explicit brand and matching barcode keep compatible sources provisional", async () => {
+    const f = fixture();
+    f.stage.mockResolvedValue(true);
+    const external = vi.fn().mockResolvedValue({
+      sourceId: 7, sourceReference: "https://example.org/products/panco-pao",
+      nutrition, identity: { name: "pao integral", brand: "Panco" },
+    });
+    expect(await readThroughGovernedKnowledge({ ...base, brand: "Panco" }, f.store, external))
+      .toMatchObject({ kind: "provisional", persisted: true });
+    external.mockResolvedValueOnce({
+      sourceId: 7, sourceReference: "https://example.org/products/panco-pao",
+      nutrition, identity: { name: "pao integral", brand: "Panco", barcode: "07890000000001" },
+    });
+    expect(await readThroughGovernedKnowledge({ ...base, barcode: "07890000000001" }, f.store, external))
+      .toMatchObject({ kind: "provisional", persisted: true });
+    expect(f.stage).toHaveBeenCalledTimes(2);
+  });
+
   it("nao grava evidencias externas sem titular, mesmo com resultado de rede", async () => {
     const f = fixture();
     const external = vi.fn().mockResolvedValue({

@@ -88,6 +88,12 @@ export function isExternalFoodAssertionConsistent(
   // A URL or grant authorizes the source, but does not identify its contents.
   if (!identity || (name && normalizeFoodName(identity.name ?? "") !== name)) return false;
   if (barcode && identity.barcode?.trim() !== barcode) return false;
+  // A name-only request cannot select nutrition for one particular SKU.
+  // A matching explicit barcode is sufficient to scope a branded candidate,
+  // even when the user did not separately state its brand.
+  if (!barcode && (identity.barcode?.trim() || (!brand && normalizeFoodName(identity.brand ?? "")))) {
+    return false;
+  }
   if (brand && normalizeFoodName(identity.brand ?? "") !== normalizeFoodName(brand)) return false;
   return true;
 }

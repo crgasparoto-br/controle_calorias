@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isNutritionFacts, type NutritionFacts } from "./knowledgeRead";
+import { isValidHttpsSourceReference } from "./sourceGrants";
 
 /**
  * B2 read eligibility. A missing owner is never evidence of global consent:
@@ -160,8 +161,13 @@ function sameExactProductResource(
   productUrl: string,
   approvedSourceUrl: string,
 ): boolean {
+  // Apply the canonical source URL policy to every artifact in the proof
+  // chain. URL.origin ignores userinfo and URL.pathname ignores fragments.
+  if (!isValidHttpsSourceReference(reference) ||
+      !isValidHttpsSourceReference(productUrl) ||
+      !isValidHttpsSourceReference(approvedSourceUrl)) return false;
   try {
-    const proof = new URL(reference ?? "");
+    const proof = new URL(reference);
     const product = new URL(productUrl);
     const approved = new URL(approvedSourceUrl);
     // Domain identity is insufficient: two SKUs often share one manufacturer.
