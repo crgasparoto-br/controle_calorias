@@ -61,6 +61,11 @@ MealOperation permanece propriedade do parser operacional. A LCL não escolhe SK
 - Enquadramento de refeição, inclusive destino ao fim sem verbo inicial, não
   integra o nome alimentar. O parser canônico continua único dono de MealOperation.
 
+## Remediação AUD1304 A-008–A-009
+
+- Enquadramento inicial `No almoço 2 ovos`, mesmo sem verbo, deixa somente `2 ovos` na superfície alimentar quando há quantidade e alimento verificáveis. O contexto original e offsets UTF-16 permanecem intactos; sem frase alimentar reconhecível, não se descarta texto.
+- Um plural isolado não governado com término morfológico `-itos/-itas` pode ser também nome comercial imutável; S1 conserva a grafia normalizada independentemente de caixa, sem inventar singular. A resolução desse caso ambíguo pertence ao léxico governado/S2 e ao resolvedor posterior; plurais inequívocos e concordâncias múltiplas permanecem cobertos pelos testes.
+
 ## Remediação AUD1304-NEW-001–003
 
 - Numerais físicos com unidade contígua (`100g`, `250ml`) convergem com a grafia espaçada, sem consumir prefixos de marcas nem números com separadores ambíguos; a superfície e os spans originais permanecem intactos.
