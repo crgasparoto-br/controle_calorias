@@ -179,6 +179,19 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(obs.unresolvedReason).toBe("unknown_surface");
   });
 
+  it("protege tokens comerciais governados contra substituição silenciosa", async () => {
+    const items = [
+      entry({ id: 60, normalizedTerm: "pao doritos", targetRef: "pão genérico" }),
+      entry({ id: 61, kind: "protected_token", normalizedTerm: "doritos",
+        term: "Doritos", targetType: "none", targetRef: null }),
+    ];
+    const [obs] = await analyze("pão Doritos", items);
+    expect(obs.identityHints.foodName).toBe("pao doritos");
+    expect(obs.alternatives).toHaveLength(1);
+    expect(obs.normalizationPath[1].lexiconEntryId).toBe(60);
+    expect(obs.unresolvedReason).toBe("unknown_surface");
+  });
+
   it("S1 e S2 não acionam intérprete residual quando não houver política #1306", async () => {
     const interpreter = vi.fn(async () => ({ alternatives: [] }));
     await comprehendFoodLanguage({ ...base, rawText: "2 ovos" }, store(), interpreter);
