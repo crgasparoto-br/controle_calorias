@@ -28,10 +28,22 @@ const unitMap: Readonly<Record<string, string>> = {
 const writtenNumbers: Readonly<Record<string, number>> = {
   um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4,
   cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  onze: 11, doze: 12, treze: 13, catorze: 14, quatorze: 14,
+  quinze: 15, dezesseis: 16, dezasseis: 16, dezessete: 17,
+  dezoito: 18, dezenove: 19,
+  vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50,
+  sessenta: 60, setenta: 70, oitenta: 80, noventa: 90,
   meio: 0.5, meia: 0.5,
 };
+const onesPattern = "um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove";
+const tensPattern = "vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa";
+const writtenPattern = "(?:" + tensPattern + ")(?:\\s+e\\s+(?:" + onesPattern + "))?|" +
+  "onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezasseis|dezessete|dezoito|dezenove|dez|" +
+  onesPattern + "|meio|meia";
 const unitPattern = "g|gr|gramas?|kg|quilos?|ml|mililitros?|l|litros?|un|unidades?|fatias?|colheres?|x[ií]caras?|copos?|por[cç][oõ](?:es|s)?|por[cç][aã]o";
-const quantityPattern = "\\d+(?:[,.]\\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|meio|meia";
+// Slash fractions and vulgar fractions are quantitative only in the leading
+// quantity slot; the original surface/UTF-16 anchors are never rewritten.
+const quantityPattern = "\\d+/\\d+|\\d+(?:[,.]\\d+)?|[¼½¾]|" + writtenPattern;
 const quantified = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\b\\s*(?:de\\s+)?", "iu");
 const halfAfterUnit = new RegExp("^(" + quantityPattern + ")(?:\\s+|(?<=\\d))(" + unitPattern + ")\\s+e\\s+mei[ao]\\b\\s*(?:de\\s+)?", "iu");
 const counted = new RegExp("^(" + quantityPattern + ")\\s+(?:de\\s+)?", "iu");
@@ -44,6 +56,22 @@ export function foldFoodSurface(value: string): string {
 function parseNumber(value: string): number | null {
   const folded = foldFoodSurface(value);
   if (Object.prototype.hasOwnProperty.call(writtenNumbers, folded)) return writtenNumbers[folded];
+  const words = folded.split(" e ");
+  if (words.length === 2 && writtenNumbers[words[0]] >= 20 &&
+      writtenNumbers[words[0]] % 10 === 0 &&
+      writtenNumbers[words[1]] >= 1 && writtenNumbers[words[1]] <= 9) {
+    return writtenNumbers[words[0]] + writtenNumbers[words[1]];
+  }
+  const vulgar: Readonly<Record<string, number>> = { "¼": 0.25, "½": 0.5, "¾": 0.75 };
+  if (Object.prototype.hasOwnProperty.call(vulgar, folded)) return vulgar[folded];
+  const fraction = /^(\d{1,2})\/(\d{1,2})$/u.exec(folded);
+  if (fraction) {
+    const numerator = Number(fraction[1]);
+    const denominator = Number(fraction[2]);
+    // Only unambiguous common serving fractions; not dates/IDs or zero division.
+    return numerator > 0 && denominator > 1 && denominator <= 8 &&
+      numerator <= denominator * 2 ? numerator / denominator : null;
+  }
   // '1.000' is ambiguous between decimal and thousands: do not guess.
   if (/^\d{1,3}[,.]\d{3}$/.test(folded)) return null;
   if (!/^\d+(?:[,.]\d+)?$/.test(folded)) return null;
@@ -225,7 +253,18 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
           /^(?:frit[ao]s?|cozid[ao]s?)\s*$/iu.test(right)) continue;
       // "uma fatia e meia", "dois ovos e meio" and "um e meio copo"
       // are quantities; "2 ovos e meio copo de leite" has two food items.
-      if (/^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||
+      // In a chained list the first conjunction may be a terminal fraction:
+      // "dois ovos e meio e banana" => ["dois ovos e meio", "banana"].
+      // But "dois ovos e meio copo de leite" still contains two foods.
+      const chainedHalf = /^(mei[ao])(?=\s+e\s+)/iu.exec(right);
+      const isAttachedHalf = chainedHalf !== null &&
+        readQuantity(left + " e " + chainedHalf[1], governedUnits).value !== null;
+      // A composed written amount has an internal 'e' ("vinte e duas").
+      const writtenTens = new RegExp("^(?:" + tensPattern + ")$", "iu");
+      const writtenOnes = new RegExp("^(?:" + onesPattern + ")\\b", "iu");
+      const composedAmount = writtenTens.test(left.trim()) && writtenOnes.test(right);
+      if (composedAmount || isAttachedHalf ||
+          /^mei[ao](?:\s+de\b|\s*$)/iu.test(right) ||
           (/^(?:um|uma|\d+)\s*$/iu.test(left) && /^mei[ao]\b/iu.test(right))) continue;
       const part = trimSpan(text, segment.start + offset, segment.start + match.index);
       if (part) joined.push(part);
@@ -236,4 +275,3 @@ export function splitFoodSurface(text: string, governedUnits: readonly GovernedU
   }
   return joined;
 }
-

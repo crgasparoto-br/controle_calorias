@@ -744,4 +744,56 @@ describe("Camada de Compreensão Linguística #1304", () => {
     expect(await analyze("2 ovos e 1 banana")).toHaveLength(2);
   });
 
+  it("AUD1304 A-017 conserva meia unidade em listas com outro alimento", async () => {
+    for (const [rawText, expectedUnit, expectedFood] of [
+      ["duas fatias de pão e meia e uma banana", "fatia", "pao"],
+      ["dois ovos e meio e uma banana", "un", "ovo"],
+    ] as const) {
+      const items = await analyze(rawText);
+      expect(items).toHaveLength(2);
+      expect(items[0].quantityHints).toMatchObject({ value: 2.5, unit: expectedUnit });
+      expect(items[0].identityHints.foodName).toBe(expectedFood);
+      expect(items[1].quantityHints).toMatchObject({ value: 1, unit: "un" });
+      expect(items[1].identityHints.foodName).toBe("banana");
+      for (const item of items) {
+        const span = item.surfaceSpan.span!;
+        expect(item.surfaceSpan.span).toEqual(item.evidence[0].anchor.span);
+        expect(rawText.slice(span.start, span.end).trim().length).toBeGreaterThan(0);
+        expect(item.rawInput).toBe(rawText);
+      }
+    }
+    const [eggs, milk, banana] = await analyze("2 ovos e meio copo de leite e banana");
+    expect([eggs.quantityHints.value, milk.quantityHints.value, banana.identityHints.foodName])
+      .toEqual([2, 0.5, "banana"]);
+    expect(await analyze("arroz e meia e banana")).toHaveLength(3);
+  });
+
+  it("AUD1304 A-018 converte dezenas escritas, frações e equivalentes sem inventar porções", async () => {
+    for (const [written, numeric, amount, unit, food] of [
+      ["vinte unidades de pão", "20 unidades de pão", 20, "un", "pao"],
+      ["vinte e duas fatias de pão", "22 fatias de pão", 22, "fatia", "pao"],
+      ["trinta e uma bananas", "31 bananas", 31, "un", "banana"],
+      ["dezessete ovos", "17 ovos", 17, "un", "ovo"],
+      ["1/2 copo de leite", "0,5 copo de leite", 0.5, "copo", "leite"],
+      ["½ copo de leite", "0,5 copo de leite", 0.5, "copo", "leite"],
+    ] as const) {
+      const [left] = await analyze(written);
+      const [right] = await analyze(numeric);
+      expect(left.quantityHints).toMatchObject({ value: amount, unit });
+      expect(left.identityHints.foodName).toBe(food);
+      expect({ value: left.quantityHints.value, unit: left.quantityHints.unit,
+        name: left.identityHints.foodName }).toEqual({ value: right.quantityHints.value,
+        unit: right.quantityHints.unit, name: right.identityHints.foodName });
+      expect(written.slice(left.surfaceSpan.span!.start, left.surfaceSpan.span!.end)).toBe(written);
+    }
+    for (const rawText of ["1/0 copo de leite", "12/10 copo de leite", "1.000 fatias de pão"]) {
+      const [obs] = await analyze(rawText);
+      expect(obs.quantityHints.value).toBeNull();
+      expect(obs.rawInput).toBe(rawText);
+    }
+    const [first, second] = await analyze("vinte e duas fatias de pão e uma banana");
+    expect(first.quantityHints).toMatchObject({ value: 22, unit: "fatia" });
+    expect(second.identityHints.foodName).toBe("banana");
+  });
+
 });

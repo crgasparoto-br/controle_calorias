@@ -95,6 +95,19 @@ ou novo parser de operação.
 
 Os quatro controles foram acrescentados à suíte linguística existente com casos positivos, negativos, rastreabilidade e proteção comercial; não há cutover de produção nem alteração de política S3 ou thresholds.
 
+## Remediação AUD1304 A-017–A-018
+
+- **A-017 — fração e lista:** `duas fatias de pão e meia e uma banana` separa
+  duas observações (2,5 fatias de pão e 1 banana); a conjunção interna da
+  fração permanece no primeiro span UTF-16. `2 ovos e meio copo de leite`
+  permanece dois alimentos porque `meio` qualifica a quantidade de copo.
+- **A-018 — numerais e frações:** dezenas de 20 a 99, com unidade ou contagem
+  implícita, combinam-se com unidades (`vinte unidades`, `vinte e duas fatias`)
+  sem dividir o numeral em observações. Frações `1/2`, `¼`, `½` e `¾`
+  preservam a forma original e convergem à quantidade numérica equivalente.
+  Denominadores zero, frações incompatíveis com uma porção inequívoca e
+  separadores de milhar ambíguos não criam quantidades silenciosamente.
+
 ## Gates
 
 ~~~bash

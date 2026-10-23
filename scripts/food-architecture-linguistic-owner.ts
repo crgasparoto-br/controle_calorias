@@ -63,4 +63,3 @@ export function isCanonicalLinguisticGrammar(
     finding.symbol === "governedLinguisticLexiconStore" &&
     /\bload\b/u.test(finding.subject) && !/\b(?:calories|protein|carbs|fat)\s*:/iu.test(finding.subject);
 }
-
